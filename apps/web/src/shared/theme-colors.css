@@ -1,0 +1,81 @@
+/*
+ * Nombres en español heredados, derivados de `tokens.css`.
+ *
+ * Antes declaraban sus propios valores y competían con los de `tokens.css`: dos sistemas de
+ * color vivos a la vez, y el que ganaba dependía del orden de carga. Ahora solo dan otro
+ * nombre a lo mismo, así que cambiar la marca es tocar un archivo y no dos.
+ */
+:root {
+  /* Primarios */
+  --cian: var(--primary);
+  --cian-dark: var(--primary-hover);
+
+  /* Secundarios */
+  --rosa: var(--accent);
+  --rosa-dark: var(--accent-hover);
+
+  /* Base */
+  --negro: var(--brand-ink);
+  --blanco: var(--bg-white);
+
+  /* Texto */
+  --txt: var(--text-dark);
+  --txt-secondary: var(--text);
+  --txt-muted: var(--text-light);
+
+  /* Componentes */
+  --line: var(--border);
+  --gray: var(--bg);
+  --dark-card: #131316;
+
+  /* Estados */
+  --error: var(--danger);
+
+  /* Overlays */
+  --overlay-dark: rgba(11, 11, 12, 0.5);
+  --overlay-light: rgba(255, 255, 255, 0.7);
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --txt: #FFFFFF;
+    --txt-secondary: #8A8D95;
+    --txt-muted: #55575E;
+    --gray: #1a1a1d;
+    --line: #2a2a2f;
+  }
+}
+
+/* Alias para compatibilidad con código existente */
+:root {
+  --primary-dark: var(--cian-dark);
+  --accent-dark: var(--rosa-dark);
+  --surface: var(--gray);
+  --text-primary: var(--txt);
+  --text-secondary: var(--txt-secondary);
+  --border: var(--line);
+
+  /* Rediseño de layout (sidebar/topbar): superficie de item activo en verde
+     petróleo muy claro, texto teal, sombras y radios de tarjeta consistentes. */
+  --nav-active-bg: rgba(14, 198, 184, 0.12);
+  --nav-active-text: var(--cian-dark);
+  --nav-hover-bg: rgba(14, 198, 184, 0.06);
+  --card-radius: 12px;
+  --card-radius-sm: 8px;
+  --card-shadow: 0 1px 2px rgba(11, 11, 12, 0.04), 0 4px 12px rgba(11, 11, 12, 0.05);
+  --focus-ring: 0 0 0 2px var(--blanco, #fff), 0 0 0 4px var(--cian);
+}
+
+/* Foco visible por teclado consistente para navegación e interacciones del
+   layout (sidebar, topbar). No aplica a fondos oscuros a propósito: el
+   outline teal mantiene contraste suficiente sobre blanco/gris claro. */
+.sidebar a:focus-visible,
+.sidebar button:focus-visible,
+.workspace-header a:focus-visible,
+.workspace-header button:focus-visible,
+.nav-item:focus-visible {
+  outline: 2px solid var(--cian);
+  outline-offset: 2px;
+  border-radius: var(--card-radius-sm);
+}

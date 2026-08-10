@@ -1,0 +1,93 @@
+name: Rama de despliegue
+
+# Publica en la rama `deploy` el codigo mas los artefactos ya compilados, que es lo que
+# cPanel necesita para desplegar.
+#
+# El problema que resuelve: `.cpanel.yml` se detiene si no encuentra `apps/api/dist/main.js` y
+# `apps/web/dist/index.html`, pero `dist/` esta en `.gitignore` y por lo tanto nunca llega a
+# GitHub. Con `main` solo, el despliegue falla en el primer paso.
+#
+# Compilar en el servidor no es opcion: la cuenta tiene 768 MB para todos los procesos y `tsc`
+# necesita unos 600 MB. Passenger mantiene los procesos viejos atendiendo mientras corre el
+# despliegue, asi que compilar alla puede matar a los que estan atendiendo reservas.
+#
+# Versionar `dist/` en `main` tampoco: son 1675 archivos que cambian en cada build, y cada
+# rebase se convertiria en un conflicto binario.
+#
+# Asi que se compila aca, en una maquina que si tiene memoria, y el resultado va a una rama
+# aparte. `main` queda limpio y cPanel recibe algo que puede desplegar.
+#
+# En cPanel, `Git Version Control` debe apuntar a la rama `deploy`, no a `main`.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Solo lo que hace falta para empujar la rama. `GITHUB_TOKEN` lo emite Actions en cada
+# ejecucion, asi que no hay ningun secreto que guardar ni que rotar.
+permissions:
+  contents: write
+
+# Dos despliegues seguidos no deben cruzarse empujando la misma rama.
+concurrency:
+  group: deploy-branch
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Las pruebas corren antes de compilar: una rama de despliegue con codigo que no pasa
+      # las pruebas es peor que no tener rama, porque parece lista para subir.
+      - name: Pruebas
+        run: |
+          npm run test:api
+          npm run test:web
+
+      - name: Compilar
+        run: npm run build:cpanel
+
+      # La misma comprobacion que hace `.cpanel.yml`, pero aca, donde fallar es gratis.
+      - name: Verificar artefactos
+        run: |
+          test -f apps/api/dist/main.js
+          test -f apps/web/dist/index.html
+          test -f apps/web/dist/.htaccess
+
+      - name: Publicar rama deploy
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Rama huerfana en cada ejecucion: la rama guarda un estado, no una historia. Sin
+          # esto acumularia un commit con 1675 archivos por cada push a main y el repositorio
+          # creceria sin que nadie lo mire.
+          git checkout --orphan deploy
+          git add -Af
+          git commit -q -m "Despliegue de ${GITHUB_SHA::7}
+
+          Compilado por Actions desde main. La historia esta en main; esta rama solo carga
+          el estado que cPanel necesita desplegar."
+          git push -f origin deploy
+
+      - name: Resumen
+        run: |
+          {
+            echo "### Rama \`deploy\` actualizada"
+            echo ""
+            echo "Origen: \`${GITHUB_SHA::7}\` de main."
+            echo ""
+            echo "En cPanel: **Update from Remote** y luego **Deploy HEAD Commit**."
+          } >> "$GITHUB_STEP_SUMMARY"

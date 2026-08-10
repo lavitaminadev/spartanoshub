@@ -1,0 +1,306 @@
+/*
+ * Solicitudes de trabajo.
+ *
+ * Todo el color sale de los tokens: el cian de marca, el rosa de acento y los semánticos que
+ * el mockup ya usaba. No hay un solo valor hexadecimal escrito acá, para que cambiar la marca
+ * siga siendo cambiar `tokens.css` y nada más.
+ */
+
+/*
+ * El tablero de piezas fija ocho columnas, una por estado del ciclo de producción. El de
+ * solicitudes tiene cuatro, así que hereda todo lo demás pero redeclara la grilla: con ocho
+ * pistas y cuatro secciones sobraría media pantalla de desplazamiento vacío.
+ */
+.intake-board {
+  grid-template-columns: repeat(4, minmax(260px, 1fr));
+}
+
+.intake-board .kanban-column {
+  min-width: 260px;
+}
+
+/* La prioridad se lee en el borde: en un tablero, el color al costado se ve antes que el texto. */
+.intake-card {
+  border-left: 3px solid var(--border);
+  display: grid;
+  gap: 8px;
+}
+
+.intake-card.priority-high { border-left-color: var(--warning); }
+.intake-card.priority-urgent { border-left-color: var(--accent); }
+.intake-card.priority-low { border-left-color: var(--border-light); }
+
+.intake-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.intake-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-light);
+}
+
+.intake-area {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary-deep);
+  white-space: nowrap;
+}
+
+.intake-area.area-audiovisual {
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  color: var(--info);
+}
+
+.intake-area.area-community {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent-hover);
+}
+
+/* El título es un botón porque abre el detalle; se le quita el aspecto de botón, no el rol. */
+.intake-card-title {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text-dark);
+  cursor: pointer;
+}
+
+.intake-card-title:hover { color: var(--primary-deep); }
+
+.intake-assign {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.intake-rejection,
+.intake-converted {
+  margin: 0;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+.intake-rejection {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+}
+
+.intake-converted {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+}
+
+.intake-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* ── Formulario ────────────────────────────────────────────────────────────── */
+
+.intake-form { display: grid; gap: 16px; }
+
+.intake-form-intro {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.intake-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.intake-field { display: grid; gap: 6px; }
+
+.intake-field > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.intake-field > span i {
+  color: var(--accent);
+  font-style: normal;
+}
+
+.intake-field small {
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+/*
+ * Elegir el área es la primera decisión del formulario y cambia lo que se pide después, así que
+ * ocupa tres tarjetas y no un desplegable: un desplegable esconde que las opciones son distintas
+ * entre sí.
+ */
+.intake-area-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.intake-area-option {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-white);
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.intake-area-option:hover { border-color: var(--primary-light); }
+
+.intake-area-option.is-selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.intake-area-option strong { font-size: 14px; color: var(--text-dark); }
+.intake-area-option small { font-size: 11px; color: var(--text-light); }
+
+.intake-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px 16px;
+  margin: 0;
+}
+
+.intake-section legend {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--primary-deep);
+  padding: 0 6px;
+}
+
+/*
+ * Equipo de una sesión de rodaje.
+ *
+ * Van casillas y no un desplegable múltiple porque una sesión lleva varias personas a la vez y
+ * un desplegable múltiple esconde a quién ya elegiste.
+ */
+.intake-team {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.intake-piece-row {
+  display: grid;
+  grid-template-columns: 1fr 190px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Detalle ───────────────────────────────────────────────────────────────── */
+
+.intake-detail dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.intake-detail dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-light);
+}
+
+.intake-detail dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.intake-detail h3 { margin-top: 12px; }
+.intake-detail p { margin: 0 0 12px; white-space: pre-wrap; }
+
+@media (max-width: 640px) {
+  .intake-piece-row { grid-template-columns: 1fr; }
+}
+
+/* ── Mis sesiones ──────────────────────────────────────────────────────────── */
+
+.session-list {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.session-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+}
+
+/* La sesión propia se marca en el borde: es la que no se puede cerrar desde acá. */
+.session-card.is-current {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 5%, var(--bg-white));
+}
+
+.session-card strong { color: var(--text-dark); }
+
+.session-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary-deep);
+}
+
+.session-card dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 8px 0 0;
+}
+
+.session-card dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-light);
+}
+
+.session-card dd { margin: 0; font-size: 13px; }
+
+.session-note {
+  font-size: 12px;
+  color: var(--text-light);
+  max-width: 60ch;
+}
+
+@media (max-width: 560px) {
+  .session-card { flex-direction: column; }
+}

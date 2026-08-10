@@ -1,0 +1,324 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
+import { WorkRequest, WorkRequestArea, WorkRequestStatus } from './work-request.entity';
+import { Client } from '../clients/client.entity';
+import { Organization } from '../organizations/organization.entity';
+import { User } from '../users/user.entity';
+import { Piece } from '../production/piece.entity';
+import { Session } from '../audiovisual/session.entity';
+import { PieceStatus } from '../production/piece-status.enum';
+import { calculatePieceUd } from '../design-budget/ud-calculator';
+import { CreateWorkRequestDto, ResolveWorkRequestDto, UpdateWorkRequestDto } from './dto/work-request.dto';
+import { UserRole } from '../organizations/user-role.enum';
+import { retryOnDeadlock } from '../../shared/retry-on-deadlock';
+
+/** Marca un alcance que no puede coincidir con ningún registro. */
+const EMPTY_SCOPE = Symbol('empty-client-scope');
+
+/**
+ * Transiciones permitidas.
+ *
+ * `converted` y `rejected` son terminales: una solicitud no se reabre, se crea otra. Reabrir
+ * borra el tiempo que ya midió y esos tiempos son el insumo de los SLA.
+ */
+/**
+ * Quién ejecuta el trabajo de cada área.
+ *
+ * Incluye a la dirección del área porque también produce, no solo coordina. No incluye a
+ * Operaciones: asigna el trabajo, no lo hace.
+ */
+const ROLES_BY_AREA: Record<WorkRequestArea, UserRole[]> = {
+  [WorkRequestArea.DESIGN]: [UserRole.DESIGNER, UserRole.ART_DIRECTOR],
+  [WorkRequestArea.AUDIOVISUAL]: [UserRole.AUDIOVISUAL, UserRole.AV_DIRECTOR],
+  [WorkRequestArea.COMMUNITY]: [UserRole.COMMUNITY_MANAGER],
+};
+
+/** Nombre del área en los mensajes de error, para que digan algo accionable. */
+const AREA_LABELS: Record<WorkRequestArea, string> = {
+  [WorkRequestArea.DESIGN]: 'diseño',
+  [WorkRequestArea.AUDIOVISUAL]: 'audiovisual',
+  [WorkRequestArea.COMMUNITY]: 'community',
+};
+
+const TRANSITIONS: Record<WorkRequestStatus, WorkRequestStatus[]> = {
+  [WorkRequestStatus.NEW]: [WorkRequestStatus.IN_REVIEW, WorkRequestStatus.REJECTED],
+  [WorkRequestStatus.IN_REVIEW]: [WorkRequestStatus.ACCEPTED, WorkRequestStatus.REJECTED],
+  [WorkRequestStatus.ACCEPTED]: [WorkRequestStatus.CONVERTED, WorkRequestStatus.REJECTED],
+  [WorkRequestStatus.CONVERTED]: [],
+  [WorkRequestStatus.REJECTED]: [],
+};
+
+@Injectable()
+export class IntakeService {
+  constructor(
+    @InjectRepository(WorkRequest) private readonly requests: Repository<WorkRequest>,
+    @InjectRepository(Client) private readonly clients: Repository<Client>,
+    @InjectRepository(User) private readonly users: Repository<User>,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  /**
+   * Crea una solicitud con correlativo por organización.
+   *
+   * El correlativo se calcula dentro de una transacción que primero bloquea la fila de la
+   * organización. Se bloquea esa y no la última solicitud porque la fila de la organización
+   * siempre existe: con la tabla vacía no hay última solicitud que bloquear y dos personas
+   * creando a la vez obtendrían ambas el número 1, con el índice único rechazando a una con un
+   * error que no explica nada.
+   */
+  async create(organizationId: string, requestedBy: string, dto: CreateWorkRequestDto, allowedClientIds?: string[]): Promise<WorkRequest> {
+    await this.assertClient(organizationId, dto.clientId, allowedClientIds);
+
+    return retryOnDeadlock('crear solicitud', () => this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(Organization)
+        .createQueryBuilder('o')
+        .setLock('pessimistic_write')
+        .where('o.id = :organizationId', { organizationId })
+        .getOne();
+
+      // El correlativo va con ceros a la izquierda, así que el orden alfabético del código
+      // coincide con el numérico y no depende de la marca de tiempo, que empata entre
+      // solicitudes creadas dentro del mismo segundo.
+      const [last] = await manager.getRepository(WorkRequest).find({
+        where: { organizationId },
+        order: { code: 'DESC' },
+        select: { id: true, code: true },
+        take: 1,
+      });
+
+      const nextNumber = last?.code ? Number(last.code.replace(/\D/g, '')) + 1 : 1;
+      const request = manager.create(WorkRequest, {
+        ...dto,
+        organizationId,
+        requestedBy,
+        code: `SOL-${String(nextNumber).padStart(5, '0')}`,
+        status: WorkRequestStatus.NEW,
+        neededBy: dto.neededBy ? new Date(dto.neededBy) : null,
+      });
+      return manager.save(WorkRequest, request);
+    }));
+  }
+
+  /**
+   * Bandeja de solicitudes.
+   *
+   * @param allowedClientIds - Cuentas que alcanza quien consulta; `undefined` es sin límite.
+   * @param mine - Identificador de quien consulta, cuando solo quiere ver lo asignado a sí mismo.
+   */
+  async list(
+    organizationId: string,
+    filters: { status?: WorkRequestStatus; area?: string; clientId?: string; mine?: string },
+    allowedClientIds?: string[],
+  ): Promise<{ data: WorkRequest[]; total: number }> {
+    const scope = this.clientScope(filters.clientId, allowedClientIds);
+    if (scope === EMPTY_SCOPE) return { data: [], total: 0 };
+
+    const where: FindOptionsWhere<WorkRequest> = { organizationId };
+    if (scope !== undefined) where.clientId = scope;
+    if (filters.status) where.status = filters.status;
+    if (filters.area) where.area = filters.area as WorkRequest['area'];
+    if (filters.mine) where.assignedTo = filters.mine;
+
+    const [data, total] = await this.requests.findAndCount({
+      where,
+      relations: ['client', 'requester', 'assignee'],
+      order: { createdAt: 'DESC' },
+      take: 200,
+    });
+    return { data, total };
+  }
+
+  async findOne(organizationId: string, id: string, allowedClientIds?: string[]): Promise<WorkRequest> {
+    const request = await this.requests.findOne({ where: { id, organizationId }, relations: ['client', 'requester', 'assignee'] });
+    if (!request) throw new NotFoundException('Solicitud no encontrada');
+    if (allowedClientIds !== undefined && !allowedClientIds.includes(request.clientId)) {
+      throw new NotFoundException('Solicitud no encontrada');
+    }
+    return request;
+  }
+
+  /** Asigna responsable y mueve el estado, validando la transición. */
+  async update(organizationId: string, id: string, dto: UpdateWorkRequestDto, allowedClientIds?: string[]): Promise<WorkRequest> {
+    const request = await this.findOne(organizationId, id, allowedClientIds);
+
+    if (dto.status && dto.status !== request.status) {
+      const allowed = TRANSITIONS[request.status] ?? [];
+      if (!allowed.includes(dto.status)) {
+        throw new ConflictException(`No se puede pasar de ${request.status} a ${dto.status}`);
+      }
+      if (dto.status === WorkRequestStatus.REJECTED && !dto.rejectionReason?.trim()) {
+        // Sin motivo, una solicitud rechazada se vuelve a pedir igual la semana siguiente.
+        throw new BadRequestException('Indica por qué se rechaza');
+      }
+      request.status = dto.status;
+      if (dto.status === WorkRequestStatus.IN_REVIEW) request.reviewedAt = new Date();
+      if (dto.status === WorkRequestStatus.REJECTED) request.resolvedAt = new Date();
+    }
+
+    if (dto.assignedTo !== undefined) {
+      if (dto.assignedTo) {
+        const assignee = await this.users.findOne({ where: { id: dto.assignedTo, organizationId, isActive: true }, select: { id: true, role: true } });
+        if (!assignee) throw new BadRequestException('El responsable no es un usuario activo de la organización');
+        // El área no es una etiqueta: cada una tiene su propia gente y su propio flujo. Un
+        // diseñador no cubre un rodaje. Se comprueba acá y no solo en el formulario porque un
+        // desplegable filtrado no impide mandar el identificador a mano.
+        if (!ROLES_BY_AREA[request.area].includes(assignee.role as UserRole)) {
+          throw new BadRequestException(`El responsable no pertenece al área de ${AREA_LABELS[request.area]}`);
+        }
+      }
+      request.assignedTo = dto.assignedTo || null;
+    }
+
+    if (dto.priority) request.priority = dto.priority;
+    if (dto.rejectionReason !== undefined) request.rejectionReason = dto.rejectionReason?.trim() || null;
+    if (dto.operationalFields !== undefined) request.operationalFields = dto.operationalFields;
+
+    return this.requests.save(request);
+  }
+
+  /**
+   * Convierte una solicitud aceptada en el trabajo que corresponde a su área.
+   *
+   * **Cada área desemboca en un flujo distinto y no son intercambiables:**
+   *
+   * | Área | Destino | Por qué |
+   * |---|---|---|
+   * | Diseño | `pieces` | Tiene tipo gráfico, dificultad y consume unidades de dedicación |
+   * | Audiovisual | `av_sessions` | Tiene fecha, locación y equipo; no consume UD ni tiene tipo gráfico |
+   * | Community | — | Todavía no tiene destino propio, y no se fuerza a ninguno |
+   *
+   * Antes esto creaba una pieza gráfica cualquiera fuera el área, de modo que una sesión de
+   * fotos terminaba en el tablero de diseño como «post simple», ocupando presupuesto de diseño
+   * y apareciendo en la carga del diseñador equivocado.
+   */
+  async convert(organizationId: string, id: string, dto: ResolveWorkRequestDto, allowedClientIds?: string[]): Promise<WorkRequest> {
+    const request = await this.findOne(organizationId, id, allowedClientIds);
+    if (request.status !== WorkRequestStatus.ACCEPTED) {
+      throw new ConflictException('Solo una solicitud aceptada se puede convertir');
+    }
+
+    if (request.area === WorkRequestArea.DESIGN) return this.convertToPieces(organizationId, request, dto);
+    if (request.area === WorkRequestArea.AUDIOVISUAL) return this.convertToSession(organizationId, request, dto);
+
+    // Community produce publicaciones, que viven en la parrilla de contenido y necesitan una
+    // semana a la que pertenecer. Mientras esa decisión no esté tomada, la solicitud se acepta
+    // y se trabaja fuera del sistema; convertirla en una pieza gráfica sería mentir sobre qué es.
+    throw new ConflictException(
+      'Una solicitud de community todavía no se convierte: falta definir su destino en la parrilla de contenido',
+    );
+  }
+
+  /** Diseño: una solicitud puede dar varias piezas —un carrusel y sus historias—. */
+  private async convertToPieces(organizationId: string, request: WorkRequest, dto: ResolveWorkRequestDto): Promise<WorkRequest> {
+    if (dto.session) throw new BadRequestException('Una solicitud de diseño no agenda una sesión');
+    if (!dto.pieces?.length) throw new BadRequestException('Indica al menos una pieza');
+    const pieces = dto.pieces;
+
+    return retryOnDeadlock('convertir solicitud en piezas', () => this.dataSource.transaction(async (manager) => {
+      const created = await manager.save(Piece, pieces.map((piece) => manager.create(Piece, {
+        organizationId,
+        clientId: request.clientId,
+        title: piece.title.trim(),
+        type: piece.type,
+        status: PieceStatus.BACKLOG,
+        difficultyLevel: piece.difficultyLevel ?? 1,
+        udAmount: calculatePieceUd(piece.type, piece.carouselSlides),
+        description: request.description ?? undefined,
+        assignedTo: request.assignedTo ?? undefined,
+        deadlineAt: request.neededBy ?? undefined,
+      })));
+
+      request.status = WorkRequestStatus.CONVERTED;
+      request.resolvedAt = new Date();
+      request.pieceIds = created.map((piece) => piece.id);
+      return manager.save(WorkRequest, request);
+    }));
+  }
+
+  /**
+   * Audiovisual: una solicitud agenda **una** sesión de rodaje.
+   *
+   * Es una y no varias porque una sesión es un día de trabajo con un equipo en una locación. Si
+   * hacen falta dos rodajes, son dos solicitudes: así cada uno tiene su fecha y su equipo.
+   */
+  private async convertToSession(organizationId: string, request: WorkRequest, dto: ResolveWorkRequestDto): Promise<WorkRequest> {
+    if (dto.pieces?.length) throw new BadRequestException('Una solicitud audiovisual no crea piezas gráficas');
+    if (!dto.session) throw new BadRequestException('Indica el tipo, la fecha y la locación de la sesión');
+    const { session } = dto;
+
+    // El responsable de la solicitud queda dentro del equipo aunque no lo repitan al agendar:
+    // se le asignó justamente para que estuviera en el rodaje.
+    const team = [...new Set([...(session.assignedTeam ?? []), ...(request.assignedTo ? [request.assignedTo] : [])])];
+    await this.assertActiveUsers(organizationId, team);
+
+    return retryOnDeadlock('convertir solicitud en sesión', () => this.dataSource.transaction(async (manager) => {
+      const created = await manager.save(Session, manager.create(Session, {
+        organizationId,
+        clientId: request.clientId,
+        type: session.type,
+        date: new Date(session.date),
+        location: session.location?.trim() || undefined,
+        assignedTeam: team.length ? team : undefined,
+        moodboardId: session.moodboardId,
+        status: 'scheduled',
+      }));
+
+      request.status = WorkRequestStatus.CONVERTED;
+      request.resolvedAt = new Date();
+      request.sessionId = created.id;
+      return manager.save(WorkRequest, request);
+    }));
+  }
+
+  /** Rechaza el lote completo si alguno no es usuario activo de la organización. */
+  private async assertActiveUsers(organizationId: string, userIds: string[]): Promise<void> {
+    if (!userIds.length) return;
+    const found = await this.users.count({ where: { id: In(userIds), organizationId, isActive: true } });
+    if (found !== userIds.length) throw new BadRequestException('El equipo asignado contiene usuarios inválidos');
+  }
+
+  /**
+   * Quién puede hacerse cargo del trabajo de un área.
+   *
+   * Cada área tiene su propia gente y no se mezclan: un diseñador no cubre un rodaje y un
+   * editor de video no arma un carrusel. Ofrecer una sola lista para las tres áreas hacía que
+   * asignar una sesión de fotos a un diseñador fuera un clic tan fácil como el correcto.
+   */
+  async assigneeOptions(organizationId: string, area: WorkRequestArea): Promise<User[]> {
+    return this.users.find({
+      select: { id: true, name: true, role: true, weeklyCapacityUd: true },
+      where: { organizationId, isActive: true, role: In(ROLES_BY_AREA[area]) },
+      order: { name: 'ASC' },
+    });
+  }
+
+  /** Conteo por estado, para las columnas de la bandeja. */
+  async counts(organizationId: string, allowedClientIds?: string[]): Promise<Record<string, number>> {
+    if (allowedClientIds?.length === 0) return {};
+    const where: FindOptionsWhere<WorkRequest> = { organizationId };
+    if (allowedClientIds) where.clientId = In(allowedClientIds);
+
+    const rows = await this.requests.createQueryBuilder('r')
+      .select('r.status', 'status').addSelect('COUNT(*)', 'total')
+      .where(where)
+      .groupBy('r.status')
+      .getRawMany<{ status: string; total: string }>();
+    return Object.fromEntries(rows.map((row) => [row.status, Number(row.total)]));
+  }
+
+  private async assertClient(organizationId: string, clientId: string, allowedClientIds?: string[]): Promise<void> {
+    const client = await this.clients.findOne({ where: { id: clientId, organizationId }, select: { id: true } });
+    if (!client) throw new BadRequestException('La cuenta no pertenece a esta organización');
+    if (allowedClientIds !== undefined && !allowedClientIds.includes(clientId)) {
+      throw new NotFoundException('Cuenta no encontrada');
+    }
+  }
+
+  private clientScope(clientId?: string, allowedClientIds?: string[]): FindOptionsWhere<WorkRequest>['clientId'] | typeof EMPTY_SCOPE {
+    if (allowedClientIds === undefined) return clientId;
+    if (allowedClientIds.length === 0) return EMPTY_SCOPE;
+    if (clientId) return allowedClientIds.includes(clientId) ? clientId : EMPTY_SCOPE;
+    return In(allowedClientIds);
+  }
+}

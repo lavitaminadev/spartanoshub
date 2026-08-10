@@ -1,0 +1,301 @@
+/* ─── PUBLIC RESERVATION PAGE — PREMIUM UI ─── */
+
+:root {
+  --brand-primary: #2563eb;
+  --brand-success: #16a34a;
+  --brand-warning: #f59e0b;
+  --brand-error: #dc2626;
+  --surface-light: #f9fafb;
+  --surface-lighter: #f3f4f6;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --border-color: #e5e7eb;
+}
+
+/* Encuesta / experiencia post-visita */
+.public-booking-card.is-survey {
+  max-width: 680px;
+  margin-inline: auto;
+  background: rgba(255, 248, 229, 0.88);
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 26px 70px rgba(47, 59, 43, 0.18);
+}
+
+.public-radio-group {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 0;
+  border: 0;
+}
+
+.public-radio-group legend {
+  margin-bottom: 4px;
+  color: var(--booking-text);
+  font-weight: 800;
+}
+
+.public-radio-group label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--booking-text);
+  font-weight: 600;
+}
+
+.public-radio-group input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--booking-primary);
+}
+
+.public-rating {
+  padding-top: 8px;
+}
+
+/*
+ * De esta hoja solo siguen en uso las pantallas de exito y de error; el formulario usa el
+ * layout de marca de `pulse-reservations-intro.css`.
+ *
+ * El contenedor no debe centrar por flex: convertia `.public-booking` en una fila y dejaba
+ * la cabecera y el layout de reserva uno al lado del otro, desbordando en horizontal en
+ * movil. Las tarjetas de exito y error ya se centran con su propio `margin: auto`.
+ *
+ * Tampoco fija fondo, tipografia ni padding: los define el cliente en su configuracion de
+ * marca y llegan como estilo inline y variables `--booking-*`.
+ */
+.public-booking {
+  min-height: 100vh;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── PROGRESS INDICATOR ─── */
+
+/* ─── FORM SECTION ─── */
+
+/* ─── FORM FIELDS ─── */
+.public-field {
+  margin-bottom: 16px;
+}
+
+.public-field label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.required-star {
+  color: var(--brand-error);
+  margin-left: 2px;
+}
+
+.public-field input,
+.public-field select,
+.public-field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.public-field input:focus,
+.public-field select:focus,
+.public-field textarea:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.public-field.has-error input,
+.public-field.has-error select,
+.public-field.has-error textarea {
+  border-color: var(--brand-error);
+}
+
+.field-error {
+  display: block;
+  font-size: 12px;
+  color: var(--brand-error);
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.public-consent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.public-consent label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.public-consent input[type='checkbox'] {
+  width: auto;
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+/* ─── SUBMIT BUTTON ─── */
+
+/* ─── SUCCESS STATE ─── */
+.booking-success {
+  padding: 60px 24px;
+  text-align: center;
+}
+
+.success-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(22, 163, 74, 0.1);
+  font-size: 40px;
+  margin-bottom: 24px;
+  animation: scaleIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.booking-success h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.booking-success p {
+  color: var(--text-secondary);
+  font-size: 15px;
+  margin: 8px 0;
+}
+
+.success-datetime {
+  font-weight: 600;
+  color: var(--brand-primary);
+}
+
+.success-code {
+  background: var(--surface-lighter);
+  padding: 16px;
+  border-radius: 8px;
+  margin: 24px 0;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+}
+
+.success-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.success-actions a,
+.success-actions button {
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.success-actions .btn-outline {
+  border: 2px solid var(--border-color);
+  background: white;
+  color: var(--text-primary);
+}
+
+.success-actions .btn-outline:hover {
+  border-color: var(--brand-primary);
+  background: rgba(37, 99, 235, 0.05);
+}
+
+/* ─── ERROR STATE ─── */
+.public-booking-error {
+  text-align: center;
+  padding: 60px 24px;
+  background: white;
+  border-radius: 16px;
+  max-width: 600px;
+  margin: 24px auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+}
+
+.public-booking-error h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--brand-error);
+  margin: 0;
+}
+
+.public-booking-error p {
+  color: var(--text-secondary);
+  margin: 12px 0 0 0;
+}
+
+/* ─── MOBILE RESPONSIVE ─── */
+@media (max-width: 640px) {
+  .success-actions {
+    flex-direction: column;
+  }
+
+  .success-actions a,
+  .success-actions button {
+    width: 100%;
+  }
+}
+
+/* ─── DARK MODE SUPPORT ─── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-light: #0f172a;
+    --surface-lighter: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --border-color: #334155;
+  }
+
+  .public-field input,
+  .public-field select,
+  .public-field textarea {
+    background: #0f172a;
+    color: var(--text-primary);
+  }
+}
