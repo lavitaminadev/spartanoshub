@@ -228,3 +228,21 @@ permanecer desactivados durante esta primera prueba.
 Todos los criterios estan completados. Las contrasenas temporales permanecen fuera de Git y
 deben cambiarse en el primer ingreso. Los accesos de infraestructura compartidos durante la
 puesta en marcha deben rotarse despues de asegurar las cuentas personales.
+
+## Auditoria y reduccion de inodos
+
+El 11 de agosto de 2026 se audito la cuenta completa en modo de solo lectura. El consumo era
+`60.606/75.000` inodos (80,81%), aunque el disco utilizaba solamente unos 803 MB. La papelera
+contenia una copia antigua completa de Spartanoshub con otro `node_modules`, y representaba
+`28.666` inodos. El proyecto activo se mantuvo intacto.
+
+Con autorizacion explicita se vacio solamente la papelera y se retiraron las caches
+regenerables `.npm/_cacache` y `tmp/node-compile-cache`. El conteo posterior fue `29.634`:
+`30.972` inodos recuperados, sin reinicio ni intervencion sobre correo, MariaDB, Cuartel o
+Refugio.
+
+Se agrego una politica permanente en `docs/deployment/POLITICA-INODOS.md`. Cada despliegue
+ahora mide la cuenta antes y despues de instalar, rechaza duplicados de `node_modules`, usa una
+cache npm temporal y se detiene antes de reiniciar si supera los limites. GitHub Actions
+rechaza ademas una rama `deploy` con mas de 4.000 archivos o cualquier `node_modules`. Un
+control semanal de solo lectura avisa por cPanel si el consumo vuelve a superar la politica.

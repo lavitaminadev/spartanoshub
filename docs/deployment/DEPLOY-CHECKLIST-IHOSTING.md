@@ -1,7 +1,7 @@
 # Checklist de despliegue en iHosting
 
 ESTADO: VIGENTE
-FECHA VERIFICACION: `2026-07-27`
+FECHA VERIFICACION: `2026-08-11`
 FUENTE DE VERDAD: `docs/deployment/ihosting.md`, `.cpanel.yml`, `app.js`
 
 ## Antes de subir
@@ -9,6 +9,8 @@ FUENTE DE VERDAD: `docs/deployment/ihosting.md`, `.cpanel.yml`, `app.js`
 - working tree revisado y sin cambios accidentales en `.env`, `public_html` ni artefactos locales;
 - `npm test -- --runInBand` en verde;
 - confirmar que `apps/api/dist/`, `apps/web/dist/`, `tmp/` y `logs/` no se versionen;
+- confirmar que no existan clones, respaldos locales ni otros `node_modules` en el hosting;
+- conservar al menos 20.000 inodos libres segun `docs/deployment/POLITICA-INODOS.md`;
 - validar que el `.env` productivo del servidor siga alineado con `npm run check:production-env`;
 - si hay migraciones nuevas, dejar claro si se ejecutan en esta ventana.
 
@@ -17,14 +19,14 @@ FUENTE DE VERDAD: `docs/deployment/ihosting.md`, `.cpanel.yml`, `app.js`
 1. Hacer `Update from Remote` en `Git Version Control`.
 2. Ejecutar `Deploy HEAD Commit`.
 3. Confirmar que `.cpanel.yml` termine sin errores.
-4. Reiniciar Passenger si cPanel no lo hizo automaticamente.
-5. Ejecutar `npm run migration:run` solo si el cambio incluye migraciones pendientes.
+4. Confirmar las dos salidas `INODE GUARD: consumo dentro de la politica`.
+5. Reiniciar Passenger si cPanel no lo hizo automaticamente.
 
 ## Smoke test minimo
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" https://api.tudominio.cl/api/health
-curl -s -o /dev/null -w "%{http_code}\n" https://app.tudominio.cl
+curl -s -o /dev/null -w "%{http_code}\n" https://refugio.espartanos.cl/api/health
+curl -s -o /dev/null -w "%{http_code}\n" https://cuartel.espartanos.cl
 ```
 
 Esperado:
