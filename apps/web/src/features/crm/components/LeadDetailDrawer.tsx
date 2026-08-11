@@ -5,7 +5,7 @@ import { StatusBadge } from '../../../shared/StatusBadge';
 import { Modal } from '../../../shared/Modal';
 import { statusLabel } from '../../../shared/status-labels';
 import { useFocusTrap } from '../../../shared/useFocusTrap';
-import { triggerToast } from '../../../shared/Toast';
+import { triggerToast } from '../../../shared/toast-events';
 
 interface LeadDetail {
   id: string;

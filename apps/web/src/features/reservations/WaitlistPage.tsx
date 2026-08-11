@@ -8,6 +8,7 @@ import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import type { Reservation } from './types';
+import { browserDateBoundaryUtc } from './local-time';
 
 interface Client { id: string; name: string }
 interface ReservationPage { items: Reservation[]; total: number; page: number; pageSize: number; pages: number }
@@ -46,7 +47,7 @@ export function WaitlistPage() {
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
 
-  const dateRange = dateFilter ? { from: dateFilter, to: `${dateFilter}T23:59:59` } : {};
+  const dateRange = dateFilter ? { from: browserDateBoundaryUtc(dateFilter), to: browserDateBoundaryUtc(dateFilter, true) } : {};
   const query = new URLSearchParams({
     status: 'waitlist',
     page: '1',

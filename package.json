@@ -5,7 +5,7 @@
   "private": true,
   "packageManager": "npm@11.16.0",
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": "^22.12.0 || ^24.0.0"
   },
   "scripts": {
     "build:shared": "cd packages/shared && npm run build",
@@ -21,15 +21,16 @@
     "local:stop": "node scripts/local/stop.cjs",
     "local:status": "node scripts/local/status.cjs",
     "local:seed": "node scripts/local/seed.cjs",
-    "lint:api": "cd apps/api && npm run lint",
+    "lint:api": "npm run build:shared && cd apps/api && npm run lint",
     "lint:web": "cd apps/web && npm run lint",
     "lint:shared": "cd packages/shared && npm run lint",
     "test:api": "cd apps/api && npm run test",
     "test:web": "cd apps/web && npm run test",
     "test": "npm run test:api && npm run test:web",
-    "validate:env": "node scripts/validate-env.js",
+    "validate:env": "npm run build:api && npm run check:production-env",
     "deploy:web:cpanel": "powershell -NoProfile -Command \"$dest = Join-Path $HOME 'public_html/cuartel.espartanos.cl'; New-Item -ItemType Directory -Force -Path $dest | Out-Null; if (Test-Path (Join-Path $dest 'assets')) { Remove-Item -Recurse -Force (Join-Path $dest 'assets') }; Copy-Item -Recurse -Force apps/web/dist/* $dest\"",
     "migration:run": "cd apps/api && npx typeorm-ts-node-commonjs migration:run -d src/infrastructure/database-data-source.ts",
+    "migration:run:prod": "cd apps/api && node ../../node_modules/typeorm/cli.js migration:run -d dist/infrastructure/database-data-source.js",
     "migration:revert": "cd apps/api && npx typeorm-ts-node-commonjs migration:revert -d src/infrastructure/database-data-source.ts"
   },
   "workspaces": [
@@ -38,6 +39,7 @@
     "packages/*"
   ],
   "dependencies": {
+    "js-yaml": "5.2.3",
     "lodash": "^4.17.21",
     "react-is": "^19.2.8",
     "recharts": "^3.10.0",
@@ -46,6 +48,10 @@
   "overrides": {
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
-    "@nestjs/platform-express": "11.1.28"
+    "@nestjs/platform-express": "11.1.28",
+    "js-yaml": "5.2.3"
+  },
+  "allowScripts": {
+    "@scarf/scarf": false
   }
 }

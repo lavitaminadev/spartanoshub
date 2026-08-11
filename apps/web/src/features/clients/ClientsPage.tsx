@@ -8,7 +8,7 @@ import { Modal } from '../../shared/Modal';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { matchesSearch } from '../../shared/search';
 import { LogoUpload } from './LogoUpload';
-import { triggerToast } from '../../shared/Toast';
+import { triggerToast } from '../../shared/toast-events';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { CLIENT_INDUSTRIES, industryLabel } from '@vitahub/shared';

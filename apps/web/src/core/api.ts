@@ -10,7 +10,8 @@
 import axios, { type AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
 
 /** URL base de la API de Espartanos, definida por variable de entorno. */
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE = import.meta.env.VITE_API_URL
+  || (import.meta.env.PROD ? 'https://refugio.espartanos.cl/api' : '/api');
 
 /** Timeout por defecto de cada request, en milisegundos. */
 const DEFAULT_TIMEOUT_MS = 10_000;

@@ -1,9 +1,9 @@
-import { IsArray, IsBoolean, IsDateString, IsEmail, IsIn, IsInt, IsObject, IsOptional, IsString, IsUrl, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEmail, IsIn, IsInt, IsObject, IsOptional, IsString, IsUrl, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateReservationFormDto {
   @IsUUID() clientId: string;
-  @IsString() @MaxLength(180) name: string;
+  @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) name: string;
   @IsOptional() @IsString() @MaxLength(190) publicSlug?: string;
   @IsOptional() @IsIn(['appointment', 'group', 'request', 'survey']) mode?: string;
 }
@@ -34,14 +34,14 @@ export class CreateBlockDto { @IsDateString() startsAt: string; @IsDateString() 
 export class CouponValidateDto { @IsString() @MaxLength(80) code: string; @IsOptional() @IsDateString() startsAt?: string; }
 export class PublicReservationDto {
   @IsDateString() startsAt: string;
-  @IsString() @MaxLength(180) guestName: string;
+  @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) guestName: string;
   @IsOptional() @IsEmail() guestEmail?: string;
   @IsOptional() @IsString() @MaxLength(50) guestPhone?: string;
   @IsOptional() @IsInt() @Min(1) @Max(500) partySize?: number;
   @IsOptional() @IsString() @MaxLength(80) serviceId?: string;
   @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
   @IsObject() answers: Record<string, unknown>;
-  @IsString() @MaxLength(80) idempotencyKey: string;
+  @IsString() @MinLength(8) @MaxLength(80) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(80) consentVersion?: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
@@ -63,11 +63,11 @@ export class PublicReservationDto {
 export class UpdateReservationDto { @IsOptional() @IsIn(['pending','confirmed','rescheduled','cancelled_client','cancelled_business','attended','no_show','waitlist']) status?: string; @IsOptional() @IsString() @MaxLength(10000) internalNotes?: string; @IsOptional() @IsDateString() startsAt?: string; }
 export class PublicFormEventDto { @IsIn(['view','start']) type: string; @IsOptional() @IsString() @MaxLength(80) sessionId?: string; @IsOptional() @IsString() @MaxLength(120) utmSource?: string; @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string; }
 export class PublicSurveyResponseDto {
-  @IsString() @MaxLength(180) guestName: string;
+  @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) guestName: string;
   @IsOptional() @IsEmail() guestEmail?: string;
   @IsOptional() @IsString() @MaxLength(50) guestPhone?: string;
   @IsObject() answers: Record<string, unknown>;
-  @IsString() @MaxLength(80) idempotencyKey: string;
+  @IsString() @MinLength(8) @MaxLength(80) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
   /** @deprecated Lo siguen enviando los formularios en caché. Se interpreta como `gclid`. */
@@ -82,14 +82,14 @@ export class PublicSurveyResponseDto {
   @IsOptional() @IsString() @MaxLength(200) website?: string;
 }
 export class CreateCouponDto {
-  @IsString() @MaxLength(80) code: string;
+  @IsString() @Matches(/\S/, { message: 'El código es obligatorio' }) @MaxLength(80) code: string;
   @IsOptional() @IsIn(['percentage','fixed']) discountType?: string;
   @IsOptional() @IsInt() @Min(0) @Max(100) value?: number;
   @IsOptional() @IsInt() @Min(0) maxUses?: number;
   @IsOptional() @IsDateString() validFrom?: string;
   @IsOptional() @IsDateString() validUntil?: string;
-  @IsOptional() @IsArray() @IsString({ each: true }) formIds?: string[];
-  @IsOptional() @IsArray() validDaysOfWeek?: number[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsUUID('4', { each: true }) formIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @Min(0, { each: true }) @Max(6, { each: true }) validDaysOfWeek?: number[];
   /** Franja horaria de la reserva, `HH:MM` en la zona del formulario. */
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) validFromTime?: string;
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) validUntilTime?: string;
@@ -97,7 +97,7 @@ export class CreateCouponDto {
 export class CreateManualReservationDto {
   @IsUUID() formId: string;
   @IsDateString() startsAt: string;
-  @IsString() @MaxLength(180) guestName: string;
+  @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) guestName: string;
   @IsOptional() @IsEmail() guestEmail?: string;
   @IsOptional() @IsString() @MaxLength(50) guestPhone?: string;
   @IsOptional() @IsInt() @Min(1) @Max(500) partySize?: number;
@@ -135,8 +135,8 @@ export class UpdateCouponDto {
   @IsOptional() @IsInt() @Min(0) maxUses?: number;
   @IsOptional() @IsDateString() validFrom?: string;
   @IsOptional() @IsDateString() validUntil?: string;
-  @IsOptional() @IsArray() @IsString({ each: true }) formIds?: string[];
-  @IsOptional() @IsArray() validDaysOfWeek?: number[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsUUID('4', { each: true }) formIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @Min(0, { each: true }) @Max(6, { each: true }) validDaysOfWeek?: number[];
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) validFromTime?: string;
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) validUntilTime?: string;
 }

@@ -41,19 +41,6 @@ export function Ga4Tag({ measurementId }: Ga4TagProps) {
   return null;
 }
 
-/**
- * Emite un evento GA4. No hace nada si GA4 no está configurado, de modo que
- * las páginas pueden llamarla sin comprobar antes si hay measurementId.
- */
-export function trackGa4Event(
-  measurementId: string | null | undefined,
-  eventName: string,
-  params: Record<string, unknown> = {},
-) {
-  if (!measurementId || !window.gtag) return;
-  window.gtag('event', eventName, { send_to: measurementId, ...params });
-}
-
 declare global {
   interface Window {
     dataLayer?: unknown[];

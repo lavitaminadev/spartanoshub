@@ -12,10 +12,10 @@ import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
-import { triggerToast } from '../../shared/Toast';
+import { triggerToast } from '../../shared/toast-events';
 import { attendanceRateOf } from '../../shared/attendance';
 import type { MetaConversionStatus, Reservation, ReservationForm } from './types';
-import { localInputToUtc } from './local-time';
+import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc } from './local-time';
 import { publicReservationUrl } from '../../core/public-url';
 import { useAuth } from '../../core/auth';
 import { ExportModal } from './ExportModal';
@@ -184,11 +184,16 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       calendarSaveEnabled: ['appointment', 'group'].includes(mode) ? current.calendarSaveEnabled : false,
     }));
   };
-  // `to` se envía al final del día para que el rango incluya la fecha elegida: el backend
-  // compara contra `starts_at`, y una fecha suelta se interpreta como su medianoche.
-  const dateRange = { ...(filters.from ? { from: filters.from } : {}), ...(filters.to ? { to: `${filters.to}T23:59:59` } : {}) };
+  const selectedFilterForm = forms.find((form) => form.id === filters.formId);
+  const selectedDayBounds = (date: string) => selectedFilterForm
+    ? localDateBoundsUtc(date, selectedFilterForm.timezone)
+    : { from: browserDateBoundaryUtc(date), to: browserDateBoundaryUtc(date, true) };
+  const dateRange = {
+    ...(filters.from ? { from: selectedDayBounds(filters.from).from } : {}),
+    ...(filters.to ? { to: selectedDayBounds(filters.to).to } : {}),
+  };
   const query = new URLSearchParams({ page: String(page), pageSize: '20', ...(clientFilter ? { clientId: clientFilter } : {}), ...(search ? { search } : {}), ...(filters.status ? { status: filters.status } : {}), ...(filters.formId ? { formId: filters.formId } : {}), ...dateRange });
-  const { data: bookingPage, isFetching: loadingBookings, error: bookingsError, refetch: refetchBookings } = useQuery<ReservationPage>({ queryKey: ['reservations', page, clientFilter, search, filters.status, filters.formId, filters.from, filters.to], queryFn: () => api.get(`/reservations?${query}`), enabled: tab === 'bookings', placeholderData: (previous) => previous });
+  const { data: bookingPage, isFetching: loadingBookings, error: bookingsError, refetch: refetchBookings } = useQuery<ReservationPage>({ queryKey: ['reservations', page, clientFilter, search, filters.status, filters.formId, selectedFilterForm?.timezone, filters.from, filters.to], queryFn: () => api.get(`/reservations?${query}`), enabled: tab === 'bookings', placeholderData: (previous) => previous });
   const bookingsData = bookingPage?.items || [];
   const bookings = Array.isArray(bookingsData) ? bookingsData : [];
   // Los contadores ignoran el filtro de estado a proposito: son el resumen del dia sobre
@@ -282,8 +287,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const couponCreate = useMutation({
     mutationFn: () => {
       const body: Record<string, unknown> = { code: couponForm.code.trim(), discountType: couponForm.discountType, value: couponForm.value, maxUses: couponForm.maxUses };
-      if (couponForm.validFrom) body.validFrom = new Date(couponForm.validFrom).toISOString();
-      if (couponForm.validUntil) body.validUntil = new Date(couponForm.validUntil).toISOString();
+      if (couponForm.validFrom) body.validFrom = browserDateBoundaryUtc(couponForm.validFrom);
+      if (couponForm.validUntil) body.validUntil = browserDateBoundaryUtc(couponForm.validUntil, true);
       if (couponForm.formIds.trim()) body.formIds = couponForm.formIds.split(',').map((s) => s.trim()).filter(Boolean);
       if (couponForm.validDaysOfWeek.length > 0) body.validDaysOfWeek = couponForm.validDaysOfWeek;
       if (couponForm.validFromTime) body.validFromTime = couponForm.validFromTime;

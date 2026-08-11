@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, act, fireEvent } from '@testing-library/react';
-import { ToastContainer, triggerToast } from './Toast';
+import { ToastContainer } from './Toast';
+import { triggerToast } from './toast-events';
 import { API_ERROR_EVENT, type ApiErrorEventDetail } from '../core/api';
 
 describe('ToastContainer', () => {

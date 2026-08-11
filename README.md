@@ -13,7 +13,7 @@ Monorepo limpio para desplegar Refugio Espartanos en cPanel.
 
 ## Versiones objetivo
 
-- Node.js: `20.20.2`
+- Node.js: `22.22.3` LTS
 - Backend: NestJS `11`
 - Frontend: React `19` + Vite `8`
 - Base de datos: MySQL `8+` o MariaDB `10.6+`
@@ -23,7 +23,7 @@ Monorepo limpio para desplegar Refugio Espartanos en cPanel.
 1. Trabajar sobre `main`.
 2. GitHub Actions compila y publica la rama `deploy`.
 3. cPanel `Git Version Control` apunta a `deploy`.
-4. Passenger sirve `apps/api/dist/main.js` usando `app.js`.
+4. Setup Node.js App sirve `apps/api/dist/main.js` usando `app.js`.
 5. `.cpanel.yml` copia `apps/web/dist` a `/home/espartanoscl/public_html/cuartel.espartanos.cl`.
 
 ## Variables productivas clave
@@ -39,6 +39,6 @@ UPLOAD_DIR=/home/espartanoscl/vitahub_uploads
 
 ## Documentacion util
 
-- [Despliegue iHosting](C:\Users\leno\Desktop\final\refugio-espartanos-clean\docs\deployment\ihosting.md)
-- [Primer despliegue](C:\Users\leno\Desktop\final\refugio-espartanos-clean\docs\deployment\PLAN-PRIMER-DESPLIEGUE.md)
-- [Checklist](C:\Users\leno\Desktop\final\refugio-espartanos-clean\docs\deployment\DEPLOY-CHECKLIST-IHOSTING.md)
+- [Despliegue iHosting](docs/deployment/ihosting.md)
+- [Primer despliegue](docs/deployment/PLAN-PRIMER-DESPLIEGUE.md)
+- [Checklist](docs/deployment/DEPLOY-CHECKLIST-IHOSTING.md)

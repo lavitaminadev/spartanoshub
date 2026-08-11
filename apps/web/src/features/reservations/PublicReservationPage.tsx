@@ -9,7 +9,8 @@ import { plainDateInZone } from './local-time';
 import { accessibleForeground, contrastText, normalizeHexColor } from '../../shared/color-contrast';
 import { BrandMark } from '../../shared/Brand';
 import { MetaPixel } from '../../shared/MetaPixel';
-import { Ga4Tag, trackGa4Event } from '../../shared/Ga4Tag';
+import { Ga4Tag } from '../../shared/Ga4Tag';
+import { trackGa4Event } from '../../shared/ga4-events';
 import { readMetaMatchData } from '../../shared/meta-match';
 import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible, slotDateKey } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
@@ -156,7 +157,7 @@ export function PublicReservationPage() {
   });
 
   const validateCoupon = useMutation({
-    mutationFn: () => api.post(`/public/reservations/${slug}/coupon-validate`, { code: couponCode.trim() }),
+    mutationFn: () => api.post(`/public/reservations/${slug}/coupon-validate`, { code: couponCode.trim(), startsAt: selected || undefined }),
     onSuccess: () => { setCouponValid(true); setCouponMsg('Cupón válido'); },
     onError: (err: Error) => { setCouponValid(false); setCouponMsg(err.message); },
   });

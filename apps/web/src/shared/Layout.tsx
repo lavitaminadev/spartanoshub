@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../core/auth';
-import { parsePreviewRole, useRolePreview } from '../core/role-preview';
+import { parsePreviewRole, useRolePreview } from '../core/role-preview-context';
 import { ROLE_LABELS, roleLabel } from '../core/role-labels';
 import { getNavigation, getNavigationSections } from '../core/navigation.registry';
 import { NavGlyph } from './NavGlyph';

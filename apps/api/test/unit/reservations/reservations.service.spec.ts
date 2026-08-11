@@ -13,7 +13,7 @@ const reservations = { find: vi.fn(), createQueryBuilder: vi.fn() };
 const blocks = { findOne: vi.fn(), find: vi.fn(), remove: vi.fn(), save: vi.fn(), create: vi.fn((v: unknown) => v), createQueryBuilder: vi.fn() };
 const events = { create: vi.fn((value) => value), save: vi.fn((value) => value), find: vi.fn() };
 const formEvents = { create: vi.fn((value) => value), save: vi.fn((value) => value), findOne: vi.fn() };
-const coupons = { findOne: vi.fn(), create: vi.fn((value) => value), save: vi.fn((value) => value) };
+const coupons = { findOne: vi.fn(), create: vi.fn((value) => value), save: vi.fn((value) => value), createQueryBuilder: vi.fn() };
 const dataSource = { transaction: vi.fn(), query: vi.fn() };
 const leadIntake = { captureLead: vi.fn() };
 const calendar = { createEvent: vi.fn() };
@@ -261,11 +261,53 @@ describe('ReservationsService', () => {
       expect(blocked.slots).toEqual([]);
       expect(blocked.fullDays).toEqual([]);
     });
+
+    it('aplica un bloqueo de varios días también a los días intermedios', async () => {
+      const day = nextMonday();
+      const middle = new Date(`${day}T12:00:00.000Z`);
+      const start = new Date(middle); start.setUTCDate(start.getUTCDate() - 1);
+      const end = new Date(middle); end.setUTCDate(end.getUTCDate() + 1);
+      slotsScenario(publishedForm(), [], [{ startsAt: start, endsAt: end }]);
+
+      const result = await service.slots('evaluacion', day, 1);
+
+      expect(result.slots).toEqual([]);
+    });
+  });
+
+  it('rechaza rangos de slots no numéricos en vez de responder 500', async () => {
+    formQuery.getOne.mockResolvedValue(publishedForm());
+    await expect(service.slots('evaluacion', '2026-08-10', Number.NaN)).rejects.toThrow('entre 1 y 31 días');
+  });
+
+  it('exige también los campos obligatorios en encuestas públicas', async () => {
+    formQuery.getOne.mockResolvedValue({ ...publishedForm(), mode: 'survey' });
+    await expect(service.createPublicSurveyResponse('evaluacion', {
+      guestName: 'Ana',
+      answers: {},
+      idempotencyKey: 'survey-key-1',
+    })).rejects.toThrow('Falta completar Acepto');
+    expect(formEvents.save).not.toHaveBeenCalled();
   });
 
   it('createCoupon validates code uniqueness', async () => {
     coupons.findOne.mockResolvedValue({ id: 'existing', code: 'DUPE' });
     await expect(service.createCoupon('org-1', 'user-1', { code: 'DUPE', discountType: 'percentage', value: 10 })).rejects.toThrow('Ya existe un cupón');
+  });
+
+  it('limits coupon visibility to global coupons when the user has no assigned clients', async () => {
+    const qb = {
+      where: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      getMany: vi.fn().mockResolvedValue([]),
+    };
+    coupons.createQueryBuilder.mockReturnValue(qb);
+
+    await service.listCoupons('org-1', undefined, []);
+
+    expect(qb.andWhere).toHaveBeenCalledWith('coupon.client_id IS NULL');
+    expect(qb.andWhere).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ clientIds: [] }));
   });
 
   it('rejects clearing availability on a form that is already published', async () => {
@@ -324,8 +366,9 @@ describe('ReservationsService', () => {
    */
   describe('vigencia de cupones', () => {
     function couponScenario(coupon: Record<string, unknown>) {
-      const manager = { getRepository: () => ({ findOne: async () => ({ code: 'PROMO', active: true, maxUses: 0, usageCount: 0, ...coupon }) }) };
-      return manager as never;
+      const findOne = vi.fn(async () => ({ code: 'PROMO', active: true, maxUses: 0, usageCount: 0, ...coupon }));
+      const manager = { getRepository: () => ({ findOne }) };
+      return { manager: manager as never, findOne };
     }
     // Martes 20:00 en America/Santiago (UTC-3 en enero).
     const martes20 = new Date('2026-01-20T23:00:00.000Z');
@@ -333,28 +376,40 @@ describe('ReservationsService', () => {
 
     it('acepta el cupon segun el dia de la reserva, no el dia en que se reserva', async () => {
       // 2 = martes. La reserva cae en martes aunque hoy sea cualquier otro dia.
-      const coupon = await service['validateCoupon']('PROMO', form, couponScenario({ validDaysOfWeek: [2] }), martes20);
+      const coupon = await service['validateCoupon']('PROMO', form, couponScenario({ validDaysOfWeek: [2] }).manager, martes20);
       expect(coupon?.code).toBe('PROMO');
     });
 
     it('rechaza el cupon cuando la reserva cae en un dia no permitido', async () => {
-      await expect(service['validateCoupon']('PROMO', form, couponScenario({ validDaysOfWeek: [1] }), martes20))
+      await expect(service['validateCoupon']('PROMO', form, couponScenario({ validDaysOfWeek: [1] }).manager, martes20))
         .rejects.toThrow('El cupón no es válido para el día de la reserva');
     });
 
     it('acepta la reserva dentro de la franja horaria del cupon', async () => {
-      const coupon = await service['validateCoupon']('PROMO', form, couponScenario({ validFromTime: '19:00', validUntilTime: '23:00' }), martes20);
+      const coupon = await service['validateCoupon']('PROMO', form, couponScenario({ validFromTime: '19:00', validUntilTime: '23:00' }).manager, martes20);
       expect(coupon?.code).toBe('PROMO');
     });
 
     it('rechaza la reserva fuera de la franja horaria del cupon', async () => {
-      await expect(service['validateCoupon']('PROMO', form, couponScenario({ validFromTime: '12:00', validUntilTime: '16:00' }), martes20))
+      await expect(service['validateCoupon']('PROMO', form, couponScenario({ validFromTime: '12:00', validUntilTime: '16:00' }).manager, martes20))
         .rejects.toThrow('El cupón solo aplica entre 12:00 y 16:00');
     });
 
     it('sin franja declarada el cupon vale a cualquier hora', async () => {
-      const coupon = await service['validateCoupon']('PROMO', form, couponScenario({}), martes20);
+      const coupon = await service['validateCoupon']('PROMO', form, couponScenario({}).manager, martes20);
       expect(coupon?.code).toBe('PROMO');
+    });
+
+    it('bloquea la fila del cupón para respetar maxUses entre formularios concurrentes', async () => {
+      const scenario = couponScenario({});
+      await service['validateCoupon']('PROMO', form, scenario.manager, martes20);
+      expect(scenario.findOne).toHaveBeenCalledWith(expect.objectContaining({ lock: { mode: 'pessimistic_write' } }));
+    });
+
+    it('impide usar un cupón privado de otro cliente', async () => {
+      const scopedForm = { ...form, clientId: 'client-1' } as never;
+      await expect(service['validateCoupon']('PROMO', scopedForm, couponScenario({ clientId: 'client-2' }).manager, martes20))
+        .rejects.toThrow('Cupón no válido');
     });
   });
 });

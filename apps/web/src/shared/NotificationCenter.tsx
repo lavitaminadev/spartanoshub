@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './NotificationCenter.css';
+import { NOTIFICATION_EVENT, type NotificationDetail } from './notification-events';
 
 export interface Notification {
   id: string;
@@ -11,44 +12,6 @@ export interface Notification {
     label: string;
     onClick: () => void;
   };
-}
-
-const NOTIFICATION_EVENT = 'vitahub-notification';
-
-export interface NotificationDetail {
-  type: 'success' | 'error' | 'warning' | 'info';
-  message: string;
-  duration?: number;
-  title?: string;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
-}
-
-/**
- * Dispara una notificación desde cualquier parte de la app.
- * Alternativa más simple al Toast para casos que necesitan duración automática configurable.
- */
-export function notify(
-  message: string,
-  type: 'success' | 'error' | 'warning' | 'info' = 'info',
-  duration = 4000,
-) {
-  window.dispatchEvent(
-    new CustomEvent<NotificationDetail>(NOTIFICATION_EVENT, {
-      detail: { message, type, duration },
-    }),
-  );
-}
-
-/**
- * Dispara una notificación con más opciones (título, acción, etc).
- */
-export function notifyAdvanced(detail: NotificationDetail) {
-  window.dispatchEvent(
-    new CustomEvent<NotificationDetail>(NOTIFICATION_EVENT, { detail }),
-  );
 }
 
 function durationFor(type: NotificationDetail['type']): number {

@@ -60,7 +60,7 @@ ENABLE_SWAGGER=false
 - Application root: carpeta privada del repo
 - Application URL: `refugio.espartanos.cl`
 - Startup file: `app.js`
-- Node version: `20.20.2`
+- Node version: `22` LTS (el repositorio esta probado con `22.22.3`)
 
 ### Git Version Control
 

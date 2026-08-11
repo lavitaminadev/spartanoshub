@@ -14,30 +14,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { API_ERROR_EVENT, type ApiErrorEventDetail } from '../core/api';
-
-export const TOAST_EVENT = 'vitahub-toast';
-
-export interface ToastAction {
-  label: string;
-  onClick: () => void;
-}
-
-export interface ToastDetail {
-  message: string;
-  kind?: 'success' | 'error' | 'info' | 'connection' | 'permission';
-  /** Encabezado opcional mostrado sobre el mensaje (usado por los toasts de error de API). */
-  title?: string;
-  /** Botón de acción opcional, ej. "Comprobar de nuevo" en errores de conexión. */
-  action?: ToastAction;
-}
+import { TOAST_EVENT, type ToastDetail } from './toast-events';
 
 interface ToastItem extends ToastDetail {
   id: number;
-}
-
-/** Dispara un toast simple de éxito/error/info desde cualquier parte de la app. */
-export function triggerToast(message: string, kind: ToastDetail['kind'] = 'success') {
-  window.dispatchEvent(new CustomEvent<ToastDetail>(TOAST_EVENT, { detail: { message, kind } }));
 }
 
 // Los problemas de conexión quedan visibles más tiempo porque normalmente

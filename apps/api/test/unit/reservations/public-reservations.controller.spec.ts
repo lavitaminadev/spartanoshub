@@ -52,6 +52,12 @@ describe('PublicReservationsController — eventSourceUrl', () => {
     expect(sentUrl()).toBe(propia);
   });
 
+  it('descarta HTTP aunque el host coincida con el frontend HTTPS', async () => {
+    await create('http://reservas.lavitamina.cl/book/mi-local?utm_source=meta');
+
+    expect(sentUrl()).toBe('https://reservas.lavitamina.cl/book/mi-local');
+  });
+
   it('arma la URL del servidor cuando el cliente no envía ninguna', async () => {
     await create(undefined);
 

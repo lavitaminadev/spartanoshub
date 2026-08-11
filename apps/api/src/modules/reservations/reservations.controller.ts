@@ -209,7 +209,7 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async listCoupons(@Req() req: AuthenticatedRequest) {
     const scope = await this.scope(req);
-    return this.service.listCoupons(req.organizationId, scope.clientId);
+    return this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds);
   }
 
   @Post('coupons')

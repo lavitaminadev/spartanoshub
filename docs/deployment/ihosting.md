@@ -12,7 +12,7 @@ Fecha de referencia: `2026-08-10`
 
 ## Requisitos
 
-- Node.js `20.20.2` en cPanel
+- Node.js `22` LTS en cPanel (el repositorio esta probado con `22.22.3`)
 - `app.js` en la raiz del repo
 - `.cpanel.yml` en la raiz del repo
 - `.env` productivo en la raiz privada del repo
@@ -52,7 +52,10 @@ En `Setup Node.js App`:
 - Application root: raiz del repositorio clonado
 - Application URL: `refugio.espartanos.cl`
 - Startup file: `app.js`
-- Node version: `20.20.2`
+- Node version: `22` LTS (el repositorio esta probado con `22.22.3`)
+
+El `Application root` debe quedar fuera de `public_html`. La ruta recomendada es
+`/home/espartanoscl/repositories/spartanoshub`.
 
 ## GitHub y cPanel
 
@@ -66,7 +69,7 @@ En `Setup Node.js App`:
 Por SSH o terminal del hosting:
 
 ```bash
-npm run migration:run
+npm run migration:run:prod
 ```
 
 Luego inicializar la primera cuenta:

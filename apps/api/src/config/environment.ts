@@ -9,11 +9,15 @@ const environmentSchema = z.object({
   DB_USERNAME: z.string().min(1).default('vitahub'),
   DB_PASSWORD: z.string().min(1),
   DB_DATABASE: z.string().min(1).default('vitahub'),
+  DB_SSL: z.enum(['true', 'false']).default('false'),
+  DB_CONNECTION_LIMIT: z.coerce.number().int().min(1).max(50).default(10),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().regex(/^\d+[smhd]$/).default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().regex(/^\d+[smhd]$/).default('7d'),
   INTEGRATION_ENCRYPTION_KEY: z.string().min(32),
   OAUTH_STATE_SECRET: z.string().min(32),
+  CRON_SECRET: z.string().min(32).max(128).regex(/^[A-Za-z0-9_-]+$/),
+  BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
   APP_PUBLIC_URL: z.string().url(),
   API_PUBLIC_URL: z.string().url(),
   VITE_API_URL: z.string().url(),
@@ -43,8 +47,8 @@ export function validateEnvironment(environment: NodeJS.ProcessEnv = process.env
     const fields = result.error.issues.map((issue) => issue.path.join('.')).join(', ');
     throw new Error(`Invalid production environment: ${fields}`);
   }
-  const forbidden = ['vitahub_secret', 'vitahub_jwt_secret_change_in_prod', 'change_me'];
-  for (const key of ['DB_PASSWORD', 'JWT_SECRET', 'INTEGRATION_ENCRYPTION_KEY', 'OAUTH_STATE_SECRET'] as const) {
+  const forbidden = ['vitahub_secret', 'change_me', 'change_this', 'generate_', 'replace_with', 'your_'];
+  for (const key of ['DB_PASSWORD', 'JWT_SECRET', 'INTEGRATION_ENCRYPTION_KEY', 'OAUTH_STATE_SECRET', 'CRON_SECRET'] as const) {
     if (forbidden.some((value) => environment[key]?.includes(value))) throw new Error(`Unsafe production secret: ${key}`);
   }
   const encryptionKey = environment.INTEGRATION_ENCRYPTION_KEY!.trim();
@@ -62,6 +66,8 @@ export function validateEnvironment(environment: NodeJS.ProcessEnv = process.env
   const appUrl = new URL(environment.APP_PUBLIC_URL!);
   const apiUrl = new URL(environment.API_PUBLIC_URL!);
   const viteApiUrl = new URL(environment.VITE_API_URL!);
+  if (appUrl.origin !== 'https://cuartel.espartanos.cl') throw new Error('APP_PUBLIC_URL must use https://cuartel.espartanos.cl');
+  if (apiUrl.origin !== 'https://refugio.espartanos.cl') throw new Error('API_PUBLIC_URL must use https://refugio.espartanos.cl/api');
   if (appUrl.pathname !== '/' || appUrl.search || appUrl.hash) throw new Error('APP_PUBLIC_URL must be an origin without a path');
   if (apiUrl.pathname.replace(/\/$/, '') !== '/api' || apiUrl.search || apiUrl.hash) throw new Error('API_PUBLIC_URL must end in /api');
   if (viteApiUrl.href.replace(/\/$/, '') !== apiUrl.href.replace(/\/$/, '')) throw new Error('VITE_API_URL must match API_PUBLIC_URL');
@@ -71,7 +77,7 @@ export function validateEnvironment(environment: NodeJS.ProcessEnv = process.env
     const url = new URL(origin);
     if (url.protocol !== 'https:' || url.origin !== origin) throw new Error('Unsafe production CORS_ORIGIN');
   }
-  if (!origins.includes(appUrl.origin)) throw new Error('CORS_ORIGIN must include APP_PUBLIC_URL');
+  if (origins.length !== 1 || origins[0] !== appUrl.origin) throw new Error('CORS_ORIGIN must contain only APP_PUBLIC_URL');
   const uploadDir = environment.UPLOAD_DIR!.replace(/\\/g, '/');
   if (!/^(?:\/|[A-Za-z]:\/)/.test(uploadDir) || /(^|\/)public_html(\/|$)/i.test(uploadDir)) {
     throw new Error('UPLOAD_DIR must be absolute and outside public_html');

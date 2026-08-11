@@ -28,7 +28,7 @@ export class PublicReservationsController {
     if (!candidate || !publicOrigin) return fallback;
 
     try {
-      return new URL(candidate).host === new URL(publicOrigin).host ? candidate : fallback;
+      return new URL(candidate).origin === new URL(publicOrigin).origin ? candidate : fallback;
     } catch {
       return fallback;
     }
