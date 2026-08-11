@@ -91,6 +91,13 @@ de `src`; un artefacto antiguo en Windows habia ocultado el cambio de ruta. La v
 se lee en tiempo de ejecucion, `rootDir` queda fijado en `src` y el build limpia `dist` antes
 de compilar. Asi `apps/api/dist/main.js` se genera igual en una maquina nueva y en desarrollo.
 
+La auditoria posterior de `deploy` encontro 38.339 archivos, de los cuales 35.741 pertenecian
+a `node_modules`. La causa era `git add -Af`, que forzaba todos los archivos ignorados. Ademas,
+recrear una rama huerfana en cada salida impedia que cPanel avanzara por fast-forward. El flujo
+ahora fuerza solo los tres directorios `dist`, rechaza cualquier `node_modules` y crea cada
+estado como hijo del despliegue anterior. La rama se reinicializa una sola vez despues de esta
+correccion y el repositorio de cPanel se vuelve a clonar porque aun no contiene datos propios.
+
 ### Correccion de la migracion de contactos
 
 El primer despliegue administrado instalo dependencias y valido el entorno, pero MySQL detuvo
@@ -118,7 +125,7 @@ nulabilidad y la relacion anterior para no dejar la tabla a medias.
 | Auditoria funcional y de seguridad | Completado | Pruebas, lint, build y audit correctos |
 | Version 1.0.0 y health coherente | Completado | 476 pruebas API y 30 pruebas web correctas |
 | Publicacion de cambios en `main` | Completado | PR `#3`, CI correcta |
-| Actualizacion automatica de `deploy` | Completado | Rama compilada desde `main` por GitHub Actions |
+| Actualizacion automatica de `deploy` | En correccion | Se eliminan dependencias y force-push recurrente |
 | Git Version Control en cPanel | Completado | Repo privado del servidor sobre rama `deploy` |
 | Aplicacion Node 22 para Refugio | Completado | Node 22.23.0, Production, inicio `app.js` |
 | Variables y base de datos | Completado | `.env` modo `600`, credencial MySQL renovada |

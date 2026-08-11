@@ -75,16 +75,31 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Rama huerfana en cada ejecucion: la rama guarda un estado, no una historia. Sin
-          # esto acumularia un commit con 1675 archivos por cada push a main y el repositorio
-          # creceria sin que nadie lo mire.
-          git checkout --orphan deploy
-          git add -Af
-          git commit -q -m "Despliegue de ${GITHUB_SHA::7}
+          # `git add -f` sin rutas tambien agregaria node_modules. Primero se prepara el codigo
+          # normal y luego se fuerzan exclusivamente los artefactos ignorados que cPanel usa.
+          git add -A
+          git add -f apps/api/dist apps/web/dist packages/shared/dist
+          if git ls-files --cached | grep -Eq '(^|/)node_modules/'; then
+            echo "node_modules no puede formar parte de deploy"
+            exit 1
+          fi
 
-          Compilado por Actions desde main. La historia esta en main; esta rama solo carga
-          el estado que cPanel necesita desplegar."
-          git push -f origin deploy
+          tree="$(git write-tree)"
+          message="Despliegue de ${GITHUB_SHA::7}
+
+          Compilado por Actions desde main. La historia funcional esta en main; esta rama
+          conserva una linea minima para que cPanel pueda actualizarla sin force-push."
+
+          # cPanel solo puede avanzar por fast-forward. Cada despliegue debe ser hijo del
+          # anterior; una rama huerfana y forzada funciona una vez, pero rompe la siguiente.
+          if git ls-remote --exit-code --heads origin deploy >/dev/null; then
+            git fetch --no-tags --depth=1 origin deploy
+            parent="$(git rev-parse FETCH_HEAD)"
+            commit="$(printf '%s\n' "$message" | git commit-tree "$tree" -p "$parent")"
+          else
+            commit="$(printf '%s\n' "$message" | git commit-tree "$tree")"
+          fi
+          git push origin "$commit:refs/heads/deploy"
 
       - name: Resumen
         run: |
