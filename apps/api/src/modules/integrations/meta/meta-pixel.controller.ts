@@ -204,8 +204,8 @@ export class MetaPixelController {
       eventName: 'Lead',
       eventTime: Math.floor(Date.now() / 1000),
       actionSource: 'system_generated',
-      userData: { externalId: [`vitahub-test-${id}`] },
-      eventId: `vitahub-test-${Date.now()}`,
+      userData: { externalId: [`espartanos-test-${id}`] },
+      eventId: `espartanos-test-${Date.now()}`,
     });
   }
 }

@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import type { UserRole } from '@vitahub/shared';
+import type { UserRole } from '@espartanos/shared';
 
 /**
  * Usuario autenticado adjuntado al request por la estrategia JWT.

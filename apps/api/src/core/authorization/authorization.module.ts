@@ -10,6 +10,7 @@ import { PermissionResolverService } from './permission-resolver.service';
 import { PermissionGuard } from './permission.guard';
 import { PermissionsController } from './permissions.controller';
 import { AuditModule } from '../audit/audit.module';
+import { ParametersModule } from '../parameters/parameters.module';
 
 /**
  * Autorización por módulo: resolución de niveles, guard que la aplica y administración de
@@ -22,6 +23,7 @@ import { AuditModule } from '../audit/audit.module';
   imports: [
     TypeOrmModule.forFeature([Organization, User, Client, UserPermissionOverride, UserClientAccess]),
     AuditModule,
+    ParametersModule,
   ],
   controllers: [PermissionsController],
   providers: [

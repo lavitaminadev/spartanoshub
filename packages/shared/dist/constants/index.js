@@ -1,6 +1,6 @@
 "use strict";
 /**
- * @fileoverview Domain constants shared across the VITAHUB monorepo.
+ * @fileoverview Domain constants shared across the Espartanos monorepo.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -47,4 +47,6 @@ exports.FILE_MAX_SIZE_BYTES = 50 * 1024 * 1024;
 /** MIME types accepted for file uploads. */
 exports.ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'video/mp4'];
 __exportStar(require("./industries"), exports);
+__exportStar(require("./lead-sources"), exports);
+__exportStar(require("./modules"), exports);
 //# sourceMappingURL=index.js.map

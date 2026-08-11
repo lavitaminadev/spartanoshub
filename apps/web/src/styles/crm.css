@@ -29,7 +29,7 @@
 .crm-timeline-content p { margin: 7px 0 5px; color: #5f716a; font-size: 10px; line-height: 1.55; }
 .crm-timeline-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; }
 
-/* CRM pipeline workspace, adapted from 21st patterns to VITAHUB's real data flows. */
+/* CRM pipeline workspace, adapted from 21st patterns to Espartanos's real data flows. */
 .crm-operations-panel { overflow: hidden; margin: 12px 0 18px; border: 1px solid #dce5de; border-radius: 16px; background: rgba(255,255,255,.72); }
 .crm-operations-panel > summary { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 18px; color: #274c41; cursor: pointer; list-style: none; }
 .crm-operations-panel > summary::-webkit-details-marker { display: none; }

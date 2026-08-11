@@ -7,7 +7,7 @@ import type { JSX } from 'react';
 import { useAuth } from './auth';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { getAllowedRolesForPath, isPathEnabled } from './navigation.registry';
-import type { UserRole } from '@vitahub/shared';
+import type { UserRole } from '@espartanos/shared';
 
 /**
  * Props del route guard protegido.
@@ -42,7 +42,7 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   // Las rutas de módulos sin acceso se bloquean también por URL directa, no solo se ocultan
   // del menú.
   const isPersonalRoute = path === '/first-access' || path === '/change-password' || path === '/sesiones';
-  if (path && !isPersonalRoute && !isPathEnabled(path, user.features, user.permissions)) {
+  if (path && !isPersonalRoute && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle)) {
     return <Navigate to="/404" replace />;
   }
   const roles = allowedRoles ?? (path ? getAllowedRolesForPath(path) : undefined);

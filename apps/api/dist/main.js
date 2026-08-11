@@ -49,7 +49,7 @@ async function bootstrap() {
     });
     app.setGlobalPrefix('api');
     const swaggerConfig = new swagger_1.DocumentBuilder()
-        .setTitle('VITAHUB API')
+        .setTitle('Espartanos API')
         .setDescription('Sistema de Gestión de Agencia - API REST')
         .setVersion('1.0')
         .addBearerAuth()
@@ -60,7 +60,7 @@ async function bootstrap() {
     }
     app.enableShutdownHooks();
     await app.listen(process.env.PORT || 3000);
-    logger.log(`VITAHUB API running on port ${process.env.PORT || 3000}`);
+    logger.log(`Espartanos API running on port ${process.env.PORT || 3000}`);
 }
 bootstrap().catch((error) => {
     const logger = new common_1.Logger('Bootstrap');

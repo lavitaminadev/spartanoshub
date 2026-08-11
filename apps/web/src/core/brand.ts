@@ -5,9 +5,9 @@
  * aplicaciones, así que un cambio de nombre era una búsqueda y reemplazo con riesgo de dejar
  * mitades sin tocar. Ahora es una edición.
  *
- * No confundir con los identificadores técnicos —`@vitahub/shared`, `DB_DATABASE`,
- * `vitahub_uploads`—: esos no los ve nadie y renombrarlos obliga a migrar datos y rutas del
- * servidor sin que nadie note la diferencia.
+ * Cubre solo lo que se lee en pantalla. Los identificadores técnicos —el ámbito de los paquetes,
+ * el nombre de la base, las rutas del servidor— no pasan por acá: viven en su propia
+ * configuración porque cambiarlos implica migrar datos y no solo texto.
  */
 export const BRAND = {
   /** Nombre de la agencia. */

@@ -23,6 +23,8 @@ const rxjs_1 = require("rxjs");
 const integration_entity_1 = require("../../modules/integrations/integration.entity");
 const integration_provider_enum_1 = require("../../modules/integrations/integration-provider.enum");
 const integration_secrets_1 = require("../../shared/security/integration-secrets");
+const CLOUDINARY_FOLDER_ROOT = 'espartanos';
+const CLOUDINARY_FOLDER_ROOTS = [CLOUDINARY_FOLDER_ROOT, 'vitahub'];
 function toSignString(params) {
     return Object.keys(params)
         .sort()
@@ -85,7 +87,7 @@ let CloudinaryService = CloudinaryService_1 = class CloudinaryService {
         if (!credentials?.cloudName || !credentials?.apiKey || !credentials?.apiSecret) {
             throw new common_1.BadRequestException('Cloudinary no está configurado para esta organización');
         }
-        const folder = options.folder || 'vitahub';
+        const folder = options.folder || 'espartanos';
         const timestamp = Math.floor(Date.now() / 1000);
         const params = { timestamp, folder, overwrite: 'true' };
         if (options.fileName) {
@@ -146,10 +148,12 @@ let CloudinaryService = CloudinaryService_1 = class CloudinaryService {
         }
     }
     static folderFor(organizationId, clientId) {
-        return clientId ? `vitahub/${organizationId}/${clientId}` : `vitahub/${organizationId}`;
+        return clientId
+            ? `${CLOUDINARY_FOLDER_ROOT}/${organizationId}/${clientId}`
+            : `${CLOUDINARY_FOLDER_ROOT}/${organizationId}`;
     }
     belongsToOrganization(publicId, organizationId) {
-        return publicId.startsWith(`${CloudinaryService_1.folderFor(organizationId)}/`);
+        return CLOUDINARY_FOLDER_ROOTS.some((root) => publicId.startsWith(`${root}/${organizationId}/`));
     }
     async listResources(organizationId, options = {}) {
         const credentials = await this.getCredentials(organizationId);

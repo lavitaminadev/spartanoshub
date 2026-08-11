@@ -47,7 +47,7 @@ let DataProtectionService = class DataProtectionService {
             throw new common_1.NotFoundException('User not found');
         await this.userRepo.update(userId, {
             name: 'Usuario Anónimo',
-            email: `anon-${userId}@vitahub.local`,
+            email: `anon-${userId}@espartanos.local`,
             phone: null,
             avatarUrl: null,
             refreshToken: null,

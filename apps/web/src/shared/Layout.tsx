@@ -10,6 +10,7 @@ import { parsePreviewRole, useRolePreview } from '../core/role-preview-context';
 import { ROLE_LABELS, roleLabel } from '../core/role-labels';
 import { getNavigation, getNavigationSections } from '../core/navigation.registry';
 import { NavGlyph } from './NavGlyph';
+import { openCommandPalette } from './command-events';
 import { ToastContainer } from './Toast';
 import { NotificationCenter } from './NotificationCenter';
 import { BrandMark } from './Brand';
@@ -87,12 +88,15 @@ export function Layout(): JSX.Element {
   // Calcula la navegación una vez por cambio de rol para evitar filtrar en cada render.
   const { previewRole, setPreviewRole, effectivePermissions, canPreview } = useRolePreview();
   const viewRole = previewRole ?? user?.role;
-  const navItems = useMemo(() => getNavigation(viewRole, user?.features, effectivePermissions), [viewRole, user?.features, effectivePermissions]);
+  const navItems = useMemo(
+    () => getNavigation(viewRole, user?.features, effectivePermissions, user?.moduleLifecycle),
+    [viewRole, user?.features, effectivePermissions, user?.moduleLifecycle],
+  );
   // Las secciones viven en el registro junto al orden del sidebar: mantenerlas acá hacía
   // que una ruta no listada desapareciera del menú sin aviso.
   const groupedNavItems = useMemo(
-    () => getNavigationSections(viewRole, user?.features, effectivePermissions),
-    [viewRole, user?.features, effectivePermissions],
+    () => getNavigationSections(viewRole, user?.features, effectivePermissions, user?.moduleLifecycle),
+    [viewRole, user?.features, effectivePermissions, user?.moduleLifecycle],
   );
 
   const toggleSidebar = useCallback(() => setSidebarOpen((open) => !open), []);
@@ -187,7 +191,7 @@ export function Layout(): JSX.Element {
             <button
               type="button"
               className="workspace-command workspace-search"
-              onClick={() => window.dispatchEvent(new Event('vitahub:open-command'))}
+              onClick={openCommandPalette}
               aria-label="Buscar o ejecutar una acción"
             >
               <span aria-hidden="true">🔍</span>

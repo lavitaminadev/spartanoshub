@@ -16,7 +16,7 @@
  * Uso:
  *
  *   node scripts/deploy/bootstrap-production.cjs \
- *     --org "La Vitamina" --code VITAHUB \
+ *     --org "La Vitamina" --code ESPARTANOS \
  *     --email nico@midominio.cl --name "Nico Salinas"
  *
  * La contraseña se genera acá y se imprime **una sola vez**. Nace marcada como temporal, así que
@@ -61,12 +61,12 @@ function uuid() {
 
 async function main() {
   const orgName = arg('org');
-  const orgCode = (arg('code') || 'VITAHUB').toUpperCase();
+  const orgCode = (arg('code') || 'ESPARTANOS').toUpperCase();
   const email = (arg('email') || '').trim().toLowerCase();
   const name = arg('name') || 'Administración';
 
   if (!orgName || !email) {
-    console.error('Faltan datos. Uso:\n  node scripts/deploy/bootstrap-production.cjs --org "La Vitamina" --code VITAHUB --email tu@dominio.cl --name "Tu Nombre"');
+    console.error('Faltan datos. Uso:\n  node scripts/deploy/bootstrap-production.cjs --org "La Vitamina" --code ESPARTANOS --email tu@dominio.cl --name "Tu Nombre"');
     process.exit(1);
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {

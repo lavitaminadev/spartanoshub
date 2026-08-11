@@ -6,9 +6,9 @@ const environmentSchema = z.object({
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
   DB_HOST: z.string().min(1).default('localhost'),
   DB_PORT: z.coerce.number().int().min(1).max(65535).default(3306),
-  DB_USERNAME: z.string().min(1).default('vitahub'),
+  DB_USERNAME: z.string().min(1).default('espartanos'),
   DB_PASSWORD: z.string().min(1),
-  DB_DATABASE: z.string().min(1).default('vitahub'),
+  DB_DATABASE: z.string().min(1).default('espartanos'),
   DB_SSL: z.enum(['true', 'false']).default('false'),
   DB_CONNECTION_LIMIT: z.coerce.number().int().min(1).max(50).default(10),
   JWT_SECRET: z.string().min(32),
@@ -47,7 +47,9 @@ export function validateEnvironment(environment: NodeJS.ProcessEnv = process.env
     const fields = result.error.issues.map((issue) => issue.path.join('.')).join(', ');
     throw new Error(`Invalid production environment: ${fields}`);
   }
-  const forbidden = ['vitahub_secret', 'change_me', 'change_this', 'generate_', 'replace_with', 'your_'];
+  // `vitahub_secret` sigue en la lista: es un valor de plantilla que pudo quedar copiado en un
+  // entorno anterior al cambio de nombre, y dejar de rechazarlo lo volvería aceptable.
+  const forbidden = ['espartanos_secret', 'vitahub_secret', 'change_me', 'change_this', 'generate_', 'replace_with', 'your_'];
   for (const key of ['DB_PASSWORD', 'JWT_SECRET', 'INTEGRATION_ENCRYPTION_KEY', 'OAUTH_STATE_SECRET', 'CRON_SECRET'] as const) {
     if (forbidden.some((value) => environment[key]?.includes(value))) throw new Error(`Unsafe production secret: ${key}`);
   }

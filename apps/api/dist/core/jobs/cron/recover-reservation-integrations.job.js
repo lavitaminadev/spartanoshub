@@ -21,6 +21,7 @@ const reservation_entity_1 = require("../../../modules/reservations/domain/reser
 const reservation_form_entity_1 = require("../../../modules/reservations/domain/reservation-form.entity");
 const google_calendar_service_1 = require("../../../modules/integrations/google/google-calendar.service");
 const lead_intake_service_1 = require("../../../modules/crm/leads/lead-intake.service");
+const shared_1 = require("@espartanos/shared");
 const MAX_AGE_DAYS = 7;
 const MIN_AGE_MINUTES = 5;
 const BATCH = 50;
@@ -69,7 +70,7 @@ let RecoverReservationIntegrationsJob = RecoverReservationIntegrationsJob_1 = cl
                     name: booking.guestName,
                     email: booking.guestEmail ?? undefined,
                     phone: booking.guestPhone ?? undefined,
-                    source: 'vitahub_reservations',
+                    source: shared_1.RESERVATION_LEAD_SOURCE,
                     sourceDetail: form.name,
                     status: 'reserved',
                     externalLeadId: `reservation:${booking.id}`,

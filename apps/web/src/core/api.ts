@@ -25,7 +25,7 @@ interface ApiErrorPayload {
   errors?: Array<{ field?: string; message: string }>;
 }
 
-export const API_ERROR_EVENT = 'vitahub:api-error';
+export const API_ERROR_EVENT = 'espartanos:api-error';
 
 export interface ApiErrorEventDetail {
   title: string;
@@ -155,7 +155,7 @@ function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
     // el lock y resuelve request() con su valor ya resuelto). Es un hueco
     // conocido de los tipos del DOM lib; el cast refleja el comportamiento
     // real en tiempo de ejecución.
-    return navigator.locks.request('vitahub-token-refresh', fn) as unknown as Promise<T>;
+    return navigator.locks.request('espartanos-token-refresh', fn) as unknown as Promise<T>;
   }
   return fn();
 }

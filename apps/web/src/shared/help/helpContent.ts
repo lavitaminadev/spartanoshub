@@ -73,10 +73,11 @@ export const helpRegistry: Record<string, { title: string; description: string; 
   },
   reservations: {
     title: 'Reservas',
-    description: 'Formularios de reserva publicos con Pixel de Meta integrado.',
+    description: 'Captacion del local: formularios de reserva, encuestas post-visita y reservas recibidas.',
     sections: [
-      { id: 'forms', title: 'Formularios', description: 'Crea formularios con campos arrastrables. Cada formulario tiene un enlace publico unico.' },
-      { id: 'bookings', title: 'Reservas', description: 'Lista de reservas recibidas. Marca asistencia con un clic para enviar la señal a Meta.', items: [
+      { id: 'forms', title: 'Formularios de reserva', description: 'Crea formularios publicos para captar reservas. Cada uno tiene agenda, disponibilidad y enlace propio.' },
+      { id: 'surveys', title: 'Encuestas post-visita', description: 'Crea encuestas separadas para medir experiencia y, si corresponde, derivar a Google Reviews.' },
+      { id: 'bookings', title: 'Reservas recibidas', description: 'Lista operativa de reservas confirmadas o pendientes. Marca asistencia con un clic para enviar la señal a Meta.', items: [
         { id: 'attendance', label: 'Asistencia', description: 'Al marcar Asistio se envia un evento de alto valor a Meta que mejora la optimizacion de campañas.' },
       ]},
       { id: 'availability', title: 'Disponibilidad', description: 'Configura horarios semanales, bloquea dias o franjas, y define el tope diario de reservas.' },

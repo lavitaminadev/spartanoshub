@@ -1,6 +1,6 @@
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
-import type { AuthResponse } from '@vitahub/shared';
+import { type AuthResponse, type OrganizationModuleLifecycleMap } from '@espartanos/shared';
 import { User } from '../../modules/users/user.entity';
 import { Organization } from '../../modules/organizations/organization.entity';
 import { OrganizationFeatures } from '../../modules/organizations/organization-features';
@@ -46,8 +46,10 @@ export declare class AuthService {
     }>;
     me(userId: string): Promise<(User & {
         features: OrganizationFeatures;
+        moduleLifecycle: OrganizationModuleLifecycleMap;
         mustAcceptTerms: boolean;
     }) | null>;
+    private organizationModuleLifecycle;
     acceptCurrentTerms(userId: string, acceptedConsents: string[], ipAddress?: string): Promise<{
         accepted: true;
     }>;

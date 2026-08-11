@@ -7,10 +7,20 @@
  */
 
 import { create } from 'zustand';
-import type { AuthResponse, UserRole } from '@vitahub/shared';
+import type { AuthResponse, ModuleLifecycleStatus, UserRole } from '@espartanos/shared';
 import { api, setApiToken } from './api';
+import { clearOfflineStore } from './offline-store';
 
 type BrowserAuthResponse = Pick<AuthResponse, 'accessToken' | 'user'>;
+
+/**
+ * Restauración de sesión en curso.
+ *
+ * La cookie de refresh rota en cada uso. Si dos `checkAuth()` salen al mismo tiempo con la
+ * misma cookie, uno puede alcanzar a rotarla y el otro quedar inválido, dejando al arranque en
+ * un falso "no autenticado". Se comparte esta promesa para serializar el bootstrap.
+ */
+let checkAuthPromise: Promise<void> | null = null;
 
 /**
  * Perfil del usuario autenticado expuesto a la UI.
@@ -35,6 +45,7 @@ export interface User {
    * de modo que lo visible coincida con lo que el backend autoriza.
    */
   features?: Record<string, boolean>;
+  moduleLifecycle?: Record<string, ModuleLifecycleStatus>;
   /**
    * Nivel de acceso efectivo por módulo: combina el módulo habilitado, el nivel del cargo
    * y las excepciones definidas para esta persona.
@@ -138,24 +149,34 @@ export const useAuth = create<AuthState>((set) => ({
       // La limpieza local igual procede si la sesión ya estaba expirada.
     }
     setApiToken(null);
+    // Lo guardado en el dispositivo es de la cuenta que lo generó: se borra acá para que no
+    // siga siendo legible por quien use el mismo equipo después.
+    void clearOfflineStore();
     set({ user: null, token: null });
   },
 
   checkAuth: async (): Promise<void> => {
-    try {
-      const session = await api.post<{ authenticated: boolean; accessToken?: string }>('/auth/session', {});
-      if (!session.authenticated || !session.accessToken) {
-        setApiToken(null);
-        set({ user: null, token: null, loading: false });
-        return;
-      }
-      setApiToken(session.accessToken);
-      const user = await loadProfile();
-      set({ user, token: session.accessToken, loading: false });
-    } catch {
-      setApiToken(null);
-      set({ user: null, token: null, loading: false });
+    if (!checkAuthPromise) {
+      checkAuthPromise = (async () => {
+        try {
+          const session = await api.post<{ authenticated: boolean; accessToken?: string }>('/auth/session', {});
+          if (!session.authenticated || !session.accessToken) {
+            setApiToken(null);
+            set({ user: null, token: null, loading: false });
+            return;
+          }
+          setApiToken(session.accessToken);
+          const user = await loadProfile();
+          set({ user, token: session.accessToken, loading: false });
+        } catch {
+          setApiToken(null);
+          set({ user: null, token: null, loading: false });
+        } finally {
+          checkAuthPromise = null;
+        }
+      })();
     }
+    await checkAuthPromise;
   },
 
   refreshProfile: async (): Promise<void> => {

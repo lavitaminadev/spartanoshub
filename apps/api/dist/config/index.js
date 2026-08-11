@@ -10,9 +10,9 @@ exports.config = {
     db: {
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT || '3306', 10),
-        username: process.env.DB_USERNAME || 'vitahub',
+        username: process.env.DB_USERNAME || 'espartanos',
         password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_DATABASE || 'vitahub',
+        database: process.env.DB_DATABASE || 'espartanos',
     },
     jwt: {
         secret: process.env.JWT_SECRET || developmentJwtSecret,

@@ -37,7 +37,9 @@ mkdir -p "$APP_DIR/logs"
 chmod 750 "$APP_DIR/logs"
 
 # Ejecutar el instalador varias veces reemplaza las tareas anteriores en vez de duplicarlas.
-EXISTING="$(crontab -l 2>/dev/null | grep -v '# Spartanoshub' | grep -v '# VitaHub' | grep -v "$CRON_URL" | grep -v 'infrastructure/scripts/backup.sh' | grep -v 'scripts/deploy/check-inodes.sh' | grep -v 'vitahub/logs/cron-' || true)"
+# Los rotulos y rutas en desuso siguen en la lista a proposito: son los que dejaron las
+# instalaciones previas, y quitarlos de aqui haria que esas lineas se acumularan en el crontab.
+EXISTING="$(crontab -l 2>/dev/null | grep -v '# Spartanoshub' | grep -v '# Espartanos' | grep -v '# VitaHub' | grep -v "$CRON_URL" | grep -v 'infrastructure/scripts/backup.sh' | grep -v 'scripts/deploy/check-inodes.sh' | grep -v 'vitahub/logs/cron-' || true)"
 
 echo "Instalando tareas para $CRON_URL..."
 {
@@ -69,7 +71,7 @@ echo "Instalando tareas para $CRON_URL..."
 30 3 * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/data-retention" -m 120 >> $APP_DIR/logs/cron-data-retention.log 2>&1
 
 # Spartanoshub - Backup MySQL local (diario, 03:00; retencion de 30 dias)
-0 3 * * * set -a && . $APP_DIR/.env && set +a && RETENTION_DAYS=30 bash $APP_DIR/infrastructure/scripts/backup.sh \$HOME/vitahub_backups >> $APP_DIR/logs/cron-backup.log 2>&1
+0 3 * * * set -a && . $APP_DIR/.env && set +a && RETENTION_DAYS=30 bash $APP_DIR/infrastructure/scripts/backup.sh \$HOME/espartanos_backups >> $APP_DIR/logs/cron-backup.log 2>&1
 
 # Spartanoshub - Alerta de inodos (lunes, 04:15; solo lectura)
 15 4 * * 1 cd $APP_DIR && /bin/bash scripts/deploy/check-inodes.sh >/dev/null

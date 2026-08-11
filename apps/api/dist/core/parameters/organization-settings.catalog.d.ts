@@ -1,4 +1,4 @@
-export type OrganizationSettingCategory = 'operation' | 'production' | 'design_budget' | 'meetings' | 'alerts' | 'documents' | 'compliance';
+export type OrganizationSettingCategory = 'operation' | 'production' | 'design_budget' | 'meetings' | 'alerts' | 'documents' | 'compliance' | 'modules';
 export type OrganizationSettingValueType = 'boolean' | 'number' | 'select' | 'text';
 export type MasterSettingStatus = 'master_defined' | 'direction_required';
 export interface OrganizationSettingOption {

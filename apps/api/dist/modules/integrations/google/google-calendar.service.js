@@ -71,7 +71,7 @@ let GoogleCalendarService = class GoogleCalendarService {
         const end = new Date(event.start.getTime() + event.durationMinutes * 60_000);
         return fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
             method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, signal: AbortSignal.timeout(15000),
-            body: JSON.stringify({ summary: event.summary, description: event.description, start: { dateTime: event.start.toISOString() }, end: { dateTime: end.toISOString() }, conferenceData: { createRequest: { requestId: `vitahub-${crypto.randomUUID()}` } } }),
+            body: JSON.stringify({ summary: event.summary, description: event.description, start: { dateTime: event.start.toISOString() }, end: { dateTime: end.toISOString() }, conferenceData: { createRequest: { requestId: `espartanos-${crypto.randomUUID()}` } } }),
         });
     }
 };

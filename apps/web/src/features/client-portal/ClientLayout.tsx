@@ -38,7 +38,7 @@ export function ClientLayout() {
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-header"><BrandMark decorative /><div><h2>Mi cuenta</h2><span>Espartanos</span></div></div>
         <nav className="sidebar-nav">
-          {CLIENT_NAV.filter((item) => isModuleInPhaseScope(item.module)).map((item) => {
+          {CLIENT_NAV.filter((item) => isModuleInPhaseScope(item.module, user?.moduleLifecycle)).map((item) => {
             const active = location.pathname === item.path || (item.path !== '/portal' && location.pathname.startsWith(`${item.path}/`));
             return (
               <Link key={item.path} to={item.path} className={`nav-item ${active ? 'active' : ''}`} onClick={() => setOpen(false)}>

@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import type { UserRole } from '@vitahub/shared';
+import type { UserRole } from '@espartanos/shared';
 export interface AuthUser {
     id: string;
     email: string;

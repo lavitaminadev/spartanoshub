@@ -14,7 +14,7 @@ export declare class AuthController {
     constructor(auth: AuthService);
     register(dto: RegisterDto, response: Response): Promise<{
         accessToken: string;
-        user: import("@vitahub/shared").UserDto;
+        user: import("@espartanos/shared").UserDto;
     }>;
     login(dto: LoginDto, request: Request, ip: string, response: Response): Promise<{
         accessToken: string;
@@ -51,6 +51,7 @@ export declare class AuthController {
     }>;
     me(user: AuthUser): Promise<(import("../../modules/users/user.entity").User & {
         features: import("../../modules/organizations/organization-features").OrganizationFeatures;
+        moduleLifecycle: import("@espartanos/shared").OrganizationModuleLifecycleMap;
         mustAcceptTerms: boolean;
     }) | null>;
     updateProfile(user: AuthUser, dto: UpdateProfileDto): Promise<import("../../modules/users/user.entity").User | null>;

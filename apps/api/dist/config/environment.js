@@ -9,9 +9,9 @@ const environmentSchema = zod_1.z.object({
     CORS_ORIGIN: zod_1.z.string().min(1).default('http://localhost:5173'),
     DB_HOST: zod_1.z.string().min(1).default('localhost'),
     DB_PORT: zod_1.z.coerce.number().int().min(1).max(65535).default(3306),
-    DB_USERNAME: zod_1.z.string().min(1).default('vitahub'),
+    DB_USERNAME: zod_1.z.string().min(1).default('espartanos'),
     DB_PASSWORD: zod_1.z.string().min(1),
-    DB_DATABASE: zod_1.z.string().min(1).default('vitahub'),
+    DB_DATABASE: zod_1.z.string().min(1).default('espartanos'),
     DB_SSL: zod_1.z.enum(['true', 'false']).default('false'),
     DB_CONNECTION_LIMIT: zod_1.z.coerce.number().int().min(1).max(50).default(10),
     JWT_SECRET: zod_1.z.string().min(32),
@@ -50,7 +50,7 @@ function validateEnvironment(environment = process.env) {
         const fields = result.error.issues.map((issue) => issue.path.join('.')).join(', ');
         throw new Error(`Invalid production environment: ${fields}`);
     }
-    const forbidden = ['vitahub_secret', 'change_me', 'change_this', 'generate_', 'replace_with', 'your_'];
+    const forbidden = ['espartanos_secret', 'vitahub_secret', 'change_me', 'change_this', 'generate_', 'replace_with', 'your_'];
     for (const key of ['DB_PASSWORD', 'JWT_SECRET', 'INTEGRATION_ENCRYPTION_KEY', 'OAUTH_STATE_SECRET', 'CRON_SECRET']) {
         if (forbidden.some((value) => environment[key]?.includes(value)))
             throw new Error(`Unsafe production secret: ${key}`);

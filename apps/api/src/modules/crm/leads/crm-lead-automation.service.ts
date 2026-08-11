@@ -8,6 +8,7 @@ import { User } from '../../users/user.entity';
 import { UserRole } from '../../organizations/user-role.enum';
 import { Lead } from './lead.entity';
 import { LeadFitStatus } from './lead-fit-status.enum';
+import { RESERVATION_LEAD_SOURCES } from '@espartanos/shared';
 
 @Injectable()
 export class CrmLeadAutomationService {
@@ -18,8 +19,8 @@ export class CrmLeadAutomationService {
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
   ) {}
 
-  /** Orígenes cuyo lead describe a un comensal, no a una organización que pueda comprar VITAHUB. */
-  private static readonly AUDIENCE_SOURCES = new Set(['vitahub_reservations']);
+  /** Orígenes cuyo lead describe a un comensal, no a una organización que pueda comprar Espartanos. */
+  private static readonly AUDIENCE_SOURCES = new Set<string>(RESERVATION_LEAD_SOURCES);
 
   async runForLead(lead: Lead, manager?: EntityManager): Promise<void> {
     // Una captura de audiencia que llegue por esta vía se atiende como tal aunque el llamador no
@@ -109,7 +110,7 @@ export class CrmLeadAutomationService {
 
   private async ensureOpportunity(lead: Lead, ownerId?: string, manager?: EntityManager): Promise<void> {
     // Segunda barrera, deliberadamente redundante con `runForLead`: una oportunidad representa una
-    // venta de VITAHUB a una empresa. Abrir una desde una reserva mete comensales en el forecast
+    // venta de Espartanos a una empresa. Abrir una desde una reserva mete comensales en el forecast
     // comercial y se los asigna a un ejecutivo, así que el origen se verifica también acá.
     if (this.isAudienceLead(lead)) return;
 

@@ -29,6 +29,7 @@ const timezone_1 = require("../domain/timezone");
 const phone_1 = require("../../../shared/phone");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
 const lead_intake_service_1 = require("../../crm/leads/lead-intake.service");
+const shared_1 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
 const notification_service_1 = require("../../../core/notifications/notification.service");
@@ -701,7 +702,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     name: result.booking.guestName,
                     email: result.booking.guestEmail ?? undefined,
                     phone: result.booking.guestPhone ?? undefined,
-                    source: 'vitahub_reservations',
+                    source: shared_1.RESERVATION_LEAD_SOURCE,
                     sourceDetail: result.form.name,
                     status: 'reserved',
                     externalLeadId: `reservation:${result.booking.id}`,

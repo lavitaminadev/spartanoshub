@@ -23,6 +23,7 @@ const interaction_entity_1 = require("../interactions/interaction.entity");
 const user_entity_1 = require("../../users/user.entity");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const lead_fit_status_enum_1 = require("./lead-fit-status.enum");
+const shared_1 = require("@espartanos/shared");
 let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomationService {
     constructor(contactsRepo, opportunitiesRepo, interactionsRepo, usersRepo) {
         this.contactsRepo = contactsRepo;
@@ -161,7 +162,7 @@ let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomat
     }
 };
 exports.CrmLeadAutomationService = CrmLeadAutomationService;
-CrmLeadAutomationService.AUDIENCE_SOURCES = new Set(['vitahub_reservations']);
+CrmLeadAutomationService.AUDIENCE_SOURCES = new Set(shared_1.RESERVATION_LEAD_SOURCES);
 exports.CrmLeadAutomationService = CrmLeadAutomationService = CrmLeadAutomationService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(contact_entity_1.Contact)),

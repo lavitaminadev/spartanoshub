@@ -19,7 +19,7 @@ function encryptionKey() {
         throw new Error('INTEGRATION_ENCRYPTION_KEY is required in production');
     }
     return (0, node_crypto_1.createHash)('sha256')
-        .update(process.env.JWT_SECRET || 'vitahub-local-integration-key')
+        .update(process.env.JWT_SECRET || 'espartanos-local-integration-key')
         .digest();
 }
 function protectSecret(value) {

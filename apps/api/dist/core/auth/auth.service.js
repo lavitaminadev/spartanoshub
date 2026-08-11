@@ -53,6 +53,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const bcrypt = __importStar(require("bcryptjs"));
 const crypto_1 = require("crypto");
+const shared_1 = require("@espartanos/shared");
 const user_entity_1 = require("../../modules/users/user.entity");
 const organization_entity_1 = require("../../modules/organizations/organization.entity");
 const organization_features_1 = require("../../modules/organizations/organization-features");
@@ -294,8 +295,22 @@ let AuthService = AuthService_1 = class AuthService {
         const organization = await this.orgRepo.findOne({ where: { id: user.organizationId }, select: ['id', 'features'] });
         return Object.assign(user, {
             features: (0, organization_features_1.normalizeOrganizationFeatures)(organization?.features),
+            moduleLifecycle: await this.organizationModuleLifecycle(user.organizationId),
             mustAcceptTerms: await this.termsPending(user),
         });
+    }
+    async organizationModuleLifecycle(organizationId) {
+        const defaults = (0, shared_1.buildDefaultOrganizationModuleLifecycleMap)();
+        const values = await Promise.all(Object.keys(defaults).map(async (module) => {
+            const key = (0, shared_1.moduleLifecycleSettingKey)(module);
+            const value = await this.parameters.get(key, null, null, organizationId);
+            return [module, value];
+        }));
+        for (const [module, value] of values) {
+            if (typeof value === 'string')
+                defaults[module] = value;
+        }
+        return defaults;
     }
     async acceptCurrentTerms(userId, acceptedConsents, ipAddress) {
         const user = await this.userRepo.findOne({ where: { id: userId, isActive: true }, select: ['id', 'organizationId'] });

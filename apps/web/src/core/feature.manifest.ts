@@ -4,7 +4,7 @@
  */
 
 import type { ComponentType, ReactNode } from 'react';
-import type { UserRole } from '@vitahub/shared';
+import type { UserRole } from '@espartanos/shared';
 
 /**
  * Ruta registrada por un módulo de feature.

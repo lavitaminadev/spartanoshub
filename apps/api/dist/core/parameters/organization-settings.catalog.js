@@ -2,6 +2,17 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ORGANIZATION_SETTINGS = void 0;
 exports.validateOrganizationSettingValue = validateOrganizationSettingValue;
+const shared_1 = require("@espartanos/shared");
+const MODULE_LIFECYCLE_SETTINGS = shared_1.ORGANIZATION_MODULE_CATALOG.map((module) => ({
+    key: (0, shared_1.moduleLifecycleSettingKey)(module.key),
+    category: 'modules',
+    label: `Lifecycle de ${module.key}`,
+    description: 'Define si el modulo esta en desarrollo, piloto, activo, mantenimiento o deshabilitado para esta organizacion.',
+    valueType: 'select',
+    defaultValue: module.lifecycle,
+    masterStatus: 'direction_required',
+    options: shared_1.MODULE_LIFECYCLE_STATUSES.map((status) => ({ value: status, label: status })),
+}));
 exports.ORGANIZATION_SETTINGS = [
     {
         key: 'compliance.terms_enforced',
@@ -185,6 +196,7 @@ exports.ORGANIZATION_SETTINGS = [
         defaultValue: true,
         masterStatus: 'master_defined',
     },
+    ...MODULE_LIFECYCLE_SETTINGS,
 ];
 function validateOrganizationSettingValue(definition, value) {
     if (value === null && definition.nullable)

@@ -1,4 +1,4 @@
-import { industryLabel } from '@vitahub/shared';
+import { industryLabel } from '@espartanos/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -106,13 +106,13 @@ export function ClientDetailPage() {
   const visibleQuickLinks = quickLinks.filter((item) => {
     const roles = getAllowedRolesForPath(item.to);
     const allowedByRole = !roles?.length || Boolean(user && roles.includes(user.role));
-    return allowedByRole && isPathEnabled(item.to, user?.features, user?.permissions);
+    return allowedByRole && isPathEnabled(item.to, user?.features, user?.permissions, user?.moduleLifecycle);
   });
   /** Módulos de agencia que alimentan los paneles de esta ficha. */
-  const showProduction = isModuleInPhaseScope('production');
-  const showMeetings = isModuleInPhaseScope('meetings');
-  const showDocuments = isModuleInPhaseScope('documents');
-  const showUdBudget = isModuleInPhaseScope('udBudget');
+  const showProduction = isModuleInPhaseScope('production', user?.moduleLifecycle);
+  const showMeetings = isModuleInPhaseScope('meetings', user?.moduleLifecycle);
+  const showDocuments = isModuleInPhaseScope('documents', user?.moduleLifecycle);
+  const showUdBudget = isModuleInPhaseScope('udBudget', user?.moduleLifecycle);
   const driveUrl = safeUrl(driveMutation.data?.rootUrl || (client.driveFolderId ? `https://drive.google.com/drive/folders/${client.driveFolderId}` : ''));
   const readiness = [
     { label: 'Responsable operativo', ready: Boolean(client.communityManagerId), value: manager || (client.communityManagerId ? 'Asignado' : 'Pendiente') },

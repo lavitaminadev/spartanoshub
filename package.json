@@ -1,7 +1,7 @@
 {
-  "name": "vitahub",
+  "name": "espartanos",
   "version": "1.0.0",
-  "description": "VITAHUB — Sistema de Gestión de Agencia",
+  "description": "Espartanos — Sistema de Gestión de Agencia",
   "private": true,
   "packageManager": "npm@11.16.0",
   "engines": {

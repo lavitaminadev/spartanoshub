@@ -251,6 +251,22 @@
 @media (max-width: 900px) { .commercial-inbox { grid-template-columns: 1fr; } }
 
 /* Production planning, dependencies and configured capacity. */
+.production-command-center { display:grid; gap:14px; margin:0 0 18px; }
+.production-command-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.production-command-card { display:grid; gap:8px; padding:18px; border:1px solid #dfe7df; border-radius:16px; background:linear-gradient(145deg,#fff,#f7faf5); box-shadow:0 10px 28px rgba(24,63,53,.05); }
+.production-command-card > span { color:#72837b; font-size:10px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.production-command-card > strong { color:var(--text-dark); font-family:Georgia,serif; font-size:28px; font-weight:500; }
+.production-command-card > p { margin:0; color:#556760; font-size:13px; line-height:1.5; }
+.production-command-card > small { color:#7d8b86; font-size:11px; line-height:1.45; }
+.production-command-card-emphasis { border-color:#ecd7c6; background:linear-gradient(135deg,#fff8f2,#fff1e4); }
+.production-source-chain { display:flex; flex-wrap:wrap; gap:8px; }
+.production-source-chain strong { display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px; background:#eef3ee; color:#29453c; font-size:10px; }
+.production-source-chain strong:not(:last-child)::after { content:'>'; color:#8ba097; margin-left:6px; }
+.production-workflow-strip { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:8px; }
+.production-workflow-strip button { display:grid; gap:4px; justify-items:start; padding:12px; border:1px solid #dfe7df; border-radius:14px; background:#fff; color:#60726c; cursor:pointer; text-align:left; }
+.production-workflow-strip button:hover,.production-workflow-strip button.active { border-color:#1f5c4d; background:#eef5f0; color:#183f35; }
+.production-workflow-strip strong { color:var(--text-dark); font-family:Georgia,serif; font-size:24px; font-weight:500; }
+.production-workflow-strip span { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
 .production-capacity { margin: 0 0 18px; padding: 17px; border: 1px solid #dfe7df; border-radius: 16px; background: #fff; }
 .production-capacity > header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 13px; }
 .production-capacity h2 { margin: 4px 0 0; color: var(--text-dark); font-size: 19px; }
@@ -289,8 +305,13 @@
 .gantt-row.is-blocked .gantt-lane > i { outline: 2px dashed #d46c22; outline-offset: 2px; }
 .production-dependency-select { min-height: 105px; }
 
+@media (max-width: 980px) {
+  .production-command-grid { grid-template-columns:1fr; }
+  .production-workflow-strip { grid-template-columns:repeat(4,minmax(0,1fr)); }
+}
 @media (max-width: 760px) {
   .production-capacity > header, .production-gantt > header { flex-direction: column; }
+  .production-workflow-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 
 /* Unified smart tables. */

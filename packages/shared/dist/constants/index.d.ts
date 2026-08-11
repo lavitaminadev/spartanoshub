@@ -1,5 +1,5 @@
 /**
- * @fileoverview Domain constants shared across the VITAHUB monorepo.
+ * @fileoverview Domain constants shared across the Espartanos monorepo.
  */
 /** API version prefix used by backend routes. */
 export declare const API_VERSION = "v1";
@@ -30,4 +30,6 @@ export declare const FILE_MAX_SIZE_BYTES: number;
 /** MIME types accepted for file uploads. */
 export declare const ALLOWED_FILE_TYPES: readonly ["image/jpeg", "image/png", "image/webp", "application/pdf", "video/mp4"];
 export * from './industries';
+export * from './lead-sources';
+export * from './modules';
 //# sourceMappingURL=index.d.ts.map

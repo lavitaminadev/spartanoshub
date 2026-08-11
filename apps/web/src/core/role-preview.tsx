@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { UserRole } from '@vitahub/shared';
+import type { UserRole } from '@espartanos/shared';
 import { api } from './api';
 import { useAuth } from './auth';
 import { parsePreviewRole, ROLE_PREVIEW_STORAGE_KEY, RolePreviewContext, type PermissionLevel, type RolePreviewValue } from './role-preview-context';

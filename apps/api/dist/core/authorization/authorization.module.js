@@ -19,6 +19,7 @@ const permission_resolver_service_1 = require("./permission-resolver.service");
 const permission_guard_1 = require("./permission.guard");
 const permissions_controller_1 = require("./permissions.controller");
 const audit_module_1 = require("../audit/audit.module");
+const parameters_module_1 = require("../parameters/parameters.module");
 let AuthorizationModule = class AuthorizationModule {
 };
 exports.AuthorizationModule = AuthorizationModule;
@@ -27,6 +28,7 @@ exports.AuthorizationModule = AuthorizationModule = __decorate([
         imports: [
             typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization, user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, user_client_access_entity_1.UserClientAccess]),
             audit_module_1.AuditModule,
+            parameters_module_1.ParametersModule,
         ],
         controllers: [permissions_controller_1.PermissionsController],
         providers: [

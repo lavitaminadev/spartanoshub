@@ -5,6 +5,7 @@ import { api } from '../core/api';
 import { useAuth } from '../core/auth';
 import { getNavigation, isPathEnabled } from '../core/navigation.registry';
 import { publicReservationUrl } from '../core/public-url';
+import { COMMAND_PALETTE_EVENT } from './command-events';
 
 interface SearchItem { id: string; group: string; title: string; description: string; path?: string; action?: () => void }
 interface ClientResult { id: string; name: string; industry?: string; status: string }
@@ -26,7 +27,10 @@ export function CommandPalette() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [taskMode, setTaskMode] = useState(false);
   const [taskForm, setTaskForm] = useState({ meetingId: '', description: '' });
-  const navigation = useMemo(() => getNavigation(user?.role, user?.features, user?.permissions), [user?.role, user?.features, user?.permissions]);
+  const navigation = useMemo(
+    () => getNavigation(user?.role, user?.features, user?.permissions, user?.moduleLifecycle),
+    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle],
+  );
   /**
    * Indica si una ruta concreta se puede abrir.
    *
@@ -36,8 +40,8 @@ export function CommandPalette() {
    * peor que no ofrecer el resultado.
    */
   const canOpen = useCallback(
-    (path: string) => isPathEnabled(path, user?.features, user?.permissions),
-    [user?.features, user?.permissions],
+    (path: string) => isPathEnabled(path, user?.features, user?.permissions, user?.moduleLifecycle),
+    [user?.features, user?.permissions, user?.moduleLifecycle],
   );
 
   useEffect(() => {
@@ -47,8 +51,8 @@ export function CommandPalette() {
     };
     const handleOpen = () => setOpen(true);
     window.addEventListener('keydown', handleKey);
-    window.addEventListener('vitahub:open-command', handleOpen);
-    return () => { window.removeEventListener('keydown', handleKey); window.removeEventListener('vitahub:open-command', handleOpen); };
+    window.addEventListener(COMMAND_PALETTE_EVENT, handleOpen);
+    return () => { window.removeEventListener('keydown', handleKey); window.removeEventListener(COMMAND_PALETTE_EVENT, handleOpen); };
   }, []);
 
   useEffect(() => {
@@ -87,14 +91,14 @@ export function CommandPalette() {
     if (canOpen('/crm/leads')) actions.unshift(
       { id: 'action-new-lead', group: 'Acciones rápidas', title: 'Crear lead', description: 'Abrir registro comercial', path: '/crm/leads?create=1' },
     );
-    if (canOpen('/reservations')) actions.unshift({ id: 'action-new-form', group: 'Acciones rápidas', title: 'Crear formulario o encuesta', description: 'Abrir el constructor guiado', path: '/reservations?create=1' });
+    if (canOpen('/reservations')) actions.unshift({ id: 'action-new-form', group: 'Acciones rápidas', title: 'Nuevo formulario de reserva', description: 'Abrir el flujo de captación de reservas', path: '/reservations?create=1' });
     if (canOpen('/meetings')) actions.unshift({ id: 'action-new-task', group: 'Acciones rápidas', title: 'Crear tarea de reunión', description: 'Registrar una acción sin abandonar la pantalla', action: () => setTaskMode(true) });
     const records: SearchItem[] = [
       ...(clientsQuery.data?.data || []).map((client) => ({ id: `client-${client.id}`, group: 'Clientes', title: client.name, description: `${client.industry || 'Sin industria'} · ${client.status}`, path: `/clients/${client.id}` })),
       ...(leadsQuery.data?.data || []).map((lead) => ({ id: `lead-${lead.id}`, group: 'Leads', title: lead.name, description: `${lead.company || lead.email || 'Sin empresa'} · ${lead.status}`, path: `/crm/leads?focus=${lead.id}` })),
       ...(documentsQuery.data?.data || []).map((document) => ({ id: `document-${document.id}`, group: 'Documentos', title: document.name, description: `${document.type} · ${document.status}`, path: `/documents?q=${encodeURIComponent(document.name)}` })),
-      ...(formsQuery.data || []).map((form) => ({ id: `form-${form.id}`, group: 'Reservas y formularios', title: form.name, description: `${form.status} · ${publicReservationUrl(form.publicSlug, form.publicUrl)}`, path: `/reservations/forms/${form.id}` })),
-      ...(reservationsQuery.data?.items || []).map((reservation) => ({ id: `reservation-${reservation.id}`, group: 'Reservas', title: reservation.guestName, description: `#${reservation.referenceCode} · ${reservation.guestEmail || reservation.guestPhone || reservation.status}`, path: `/reservations?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}` })),
+      ...(formsQuery.data || []).map((form) => ({ id: `form-${form.id}`, group: 'Captación', title: form.name, description: `${form.status} · ${publicReservationUrl(form.publicSlug, form.publicUrl)}`, path: `/reservations/forms/${form.id}` })),
+      ...(reservationsQuery.data?.items || []).map((reservation) => ({ id: `reservation-${reservation.id}`, group: 'Reservas recibidas', title: reservation.guestName, description: `#${reservation.referenceCode} · ${reservation.guestEmail || reservation.guestPhone || reservation.status}`, path: `/reservations?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}` })),
       ...(usersQuery.data || []).map((account) => ({ id: `user-${account.id}`, group: 'Usuarios', title: account.name, description: `${account.email} · ${account.role} · ${account.isActive ? 'activo' : 'inactivo'}`, path: `/users?q=${encodeURIComponent(account.email)}` })),
       ...(opportunitiesQuery.data?.data || []).map((opportunity) => ({ id: `opportunity-${opportunity.id}`, group: 'Oportunidades', title: opportunity.name, description: `${opportunity.stage} · ${opportunity.nextAction || `CLP ${Number(opportunity.amount || 0).toLocaleString('es-CL')}`}`, path: `/crm/opportunities?search=${encodeURIComponent(opportunity.name)}` })),
     ];

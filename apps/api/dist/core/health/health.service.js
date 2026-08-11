@@ -107,7 +107,7 @@ let HealthService = class HealthService {
     async checkDisk() {
         try {
             const tmpDir = os.tmpdir();
-            const testFile = path.join(tmpDir, `vitahub_health_${Date.now()}.tmp`);
+            const testFile = path.join(tmpDir, `espartanos_health_${Date.now()}.tmp`);
             fs.writeFileSync(testFile, 'ok');
             fs.unlinkSync(testFile);
             return { status: 'ok', writable: true };

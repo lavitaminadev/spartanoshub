@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("../lead.entity");
+const shared_1 = require("@espartanos/shared");
 let ListLeadsUseCase = class ListLeadsUseCase {
     constructor(repo) {
         this.repo = repo;
@@ -28,7 +29,7 @@ let ListLeadsUseCase = class ListLeadsUseCase {
         if (filters.fitStatus)
             where.fitStatus = filters.fitStatus;
         if (filters.source)
-            where.source = filters.source;
+            where.source = expandSourceFilter(filters.source);
         const domain = filters.domain ?? 'commercial';
         if (domain !== 'all')
             where.domain = domain;
@@ -63,4 +64,7 @@ exports.ListLeadsUseCase = ListLeadsUseCase = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], ListLeadsUseCase);
 const EMPTY_SCOPE = Symbol('empty-client-scope');
+function expandSourceFilter(source) {
+    return (0, shared_1.isReservationLeadSource)(source) ? (0, typeorm_2.In)([...shared_1.RESERVATION_LEAD_SOURCES]) : source;
+}
 //# sourceMappingURL=list-leads.use-case.js.map

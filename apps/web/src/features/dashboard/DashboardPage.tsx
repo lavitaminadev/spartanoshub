@@ -8,6 +8,7 @@ import { PulsoEspartano } from '../pulse/PulsoEspartano';
 import { statusLabel } from '../../shared/status-labels';
 import { useAuth } from '../../core/auth';
 import { isModuleInPhaseScope } from '../../core/phase-scope';
+import { readStoredJson, storageKey, writeStoredJson } from '../../core/browser-storage';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { ReservationResults } from './ReservationResults';
@@ -85,20 +86,15 @@ export function DashboardPage() {
   // La cola de conversiones la expone un endpoint restringido a estos tres roles.
   const canManageConversions = ['admin', 'operations_director', 'commercial_director'].includes(user?.role ?? '');
   const role = user?.role || 'admin';
-  const dashboardKey = `vitahub:dashboard:${role}`;
+  const dashboardKey = storageKey('dashboard', role);
   const rolePreset = ROLE_PRESETS[role] || ROLE_PRESETS.admin;
   const [configureOpen, setConfigureOpen] = useState(false);
   const [visibleWidgets, setVisibleWidgets] = useState<DashboardWidget[]>(() => {
-    try {
-      const stored = window.localStorage.getItem(dashboardKey);
-      if (!stored) return rolePreset;
-      const parsed: unknown = JSON.parse(stored);
-      return Array.isArray(parsed) ? parsed.filter((widget): widget is DashboardWidget => typeof widget === 'string' && widget in WIDGET_LABELS) : rolePreset;
-    } catch {
-      return rolePreset;
-    }
+    const stored = readStoredJson<unknown>(dashboardKey, null);
+    if (!Array.isArray(stored)) return rolePreset;
+    return stored.filter((widget): widget is DashboardWidget => typeof widget === 'string' && widget in WIDGET_LABELS);
   });
-  const setWidgets = (widgets: DashboardWidget[]) => { setVisibleWidgets(widgets); try { window.localStorage.setItem(dashboardKey, JSON.stringify(widgets)); } catch {} };
+  const setWidgets = (widgets: DashboardWidget[]) => { setVisibleWidgets(widgets); writeStoredJson(dashboardKey, widgets); };
   /**
    * Indica si un módulo está habilitado y el usuario tiene acceso a él.
    *
@@ -108,7 +104,7 @@ export function DashboardPage() {
   const moduleAllowed = (module: string): boolean => {
     // El alcance de fase manda sobre el permiso: una tarjeta de un módulo que el producto
     // todavía no ofrece no se muestra aunque el usuario tenga acceso a ese módulo.
-    if (!isModuleInPhaseScope(module)) return false;
+    if (!isModuleInPhaseScope(module, user?.moduleLifecycle)) return false;
     if (user?.permissions) return (user.permissions[module] ?? 'none') !== 'none';
     if (user?.features) return user.features[module] !== false;
     return true;
@@ -121,7 +117,7 @@ export function DashboardPage() {
    */
   const widgetAllowed = (widget: DashboardWidget): boolean => {
     const required = WIDGET_MODULE[widget];
-    if (!isModuleInPhaseScope(required)) return false;
+    if (!isModuleInPhaseScope(required, user?.moduleLifecycle)) return false;
     return !required || moduleAllowed(required);
   };
   // Comparte clave de caché con el panel de resultados: montados juntos resuelven con una sola

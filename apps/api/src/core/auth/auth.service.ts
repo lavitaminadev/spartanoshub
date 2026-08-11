@@ -4,7 +4,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes, randomUUID } from 'crypto';
-import type { AuthResponse, UserRole as SharedUserRole } from '@vitahub/shared';
+import {
+  buildDefaultOrganizationModuleLifecycleMap,
+  moduleLifecycleSettingKey,
+  type AuthResponse,
+  type ModuleLifecycleStatus,
+  type OrganizationModuleLifecycleMap,
+  type UserRole as SharedUserRole,
+} from '@espartanos/shared';
 import { User } from '../../modules/users/user.entity';
 import { Organization } from '../../modules/organizations/organization.entity';
 import { OrganizationFeatures, normalizeOrganizationFeatures } from '../../modules/organizations/organization-features';
@@ -267,7 +274,7 @@ export class AuthService {
   /**
    * Registra un usuario dentro de la organización de la agencia.
    *
-   * VITAHUB opera una sola organización, así que el registro no la elige ni la crea: se
+   * Espartanos opera una sola organización, así que el registro no la elige ni la crea: se
    * incorpora a `AGENCY_ORGANIZATION_ID`. Sin esa variable configurada el registro no
    * procede, porque la alternativa —inventar una organización— es precisamente el
    * comportamiento multi-empresa que el sistema no tiene.
@@ -401,14 +408,30 @@ export class AuthService {
    * Los `features` viajan aca para que el frontend construya el menu con la misma verdad
    * que aplica el backend, en vez de una lista paralela que puede divergir.
    */
-  async me(userId: string): Promise<(User & { features: OrganizationFeatures; mustAcceptTerms: boolean }) | null> {
+  async me(userId: string): Promise<(User & { features: OrganizationFeatures; moduleLifecycle: OrganizationModuleLifecycleMap; mustAcceptTerms: boolean }) | null> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) return null;
     const organization = await this.orgRepo.findOne({ where: { id: user.organizationId }, select: ['id', 'features'] });
     return Object.assign(user, {
       features: normalizeOrganizationFeatures(organization?.features),
+      moduleLifecycle: await this.organizationModuleLifecycle(user.organizationId),
       mustAcceptTerms: await this.termsPending(user),
     });
+  }
+
+  private async organizationModuleLifecycle(organizationId: string): Promise<OrganizationModuleLifecycleMap> {
+    const defaults = buildDefaultOrganizationModuleLifecycleMap();
+    const values = await Promise.all(
+      Object.keys(defaults).map(async (module) => {
+        const key = moduleLifecycleSettingKey(module as keyof OrganizationModuleLifecycleMap);
+        const value = await this.parameters.get(key, null, null, organizationId);
+        return [module, value] as const;
+      }),
+    );
+    for (const [module, value] of values) {
+      if (typeof value === 'string') defaults[module as keyof OrganizationModuleLifecycleMap] = value as ModuleLifecycleStatus;
+    }
+    return defaults;
   }
 
   /**

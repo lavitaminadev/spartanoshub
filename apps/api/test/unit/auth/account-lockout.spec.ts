@@ -18,7 +18,7 @@ describe('AuthService · bloqueo por intentos fallidos', () => {
 
   function buildUser(overrides: Record<string, unknown> = {}) {
     return {
-      id: 'user-1', email: 'ana@vitahub.cl', name: 'Ana', password: hash,
+      id: 'user-1', email: 'ana@espartanos.cl', name: 'Ana', password: hash,
       role: 'designer', organizationId: 'org-1', isActive: true,
       failedLoginAttempts: 0, lockedUntil: null, ...overrides,
     };
@@ -33,7 +33,7 @@ describe('AuthService · bloqueo por intentos fallidos', () => {
   it('suma un intento cuando la contraseña es incorrecta', async () => {
     userRepo.findOne.mockResolvedValue(buildUser({ failedLoginAttempts: 2 }));
 
-    await expect(service.validateUser('ana@vitahub.cl', 'incorrecta')).rejects.toThrow(UnauthorizedException);
+    await expect(service.validateUser('ana@espartanos.cl', 'incorrecta')).rejects.toThrow(UnauthorizedException);
 
     expect(userRepo.update).toHaveBeenCalledWith('user-1', expect.objectContaining({ failedLoginAttempts: 3 }));
   });
@@ -41,7 +41,7 @@ describe('AuthService · bloqueo por intentos fallidos', () => {
   it('bloquea la cuenta al quinto intento fallido', async () => {
     userRepo.findOne.mockResolvedValue(buildUser({ failedLoginAttempts: 4 }));
 
-    await expect(service.validateUser('ana@vitahub.cl', 'incorrecta')).rejects.toThrow(UnauthorizedException);
+    await expect(service.validateUser('ana@espartanos.cl', 'incorrecta')).rejects.toThrow(UnauthorizedException);
 
     const patch = userRepo.update.mock.calls[0][1];
     expect(patch.lockedUntil).toBeInstanceOf(Date);
@@ -53,13 +53,13 @@ describe('AuthService · bloqueo por intentos fallidos', () => {
   it('rechaza incluso con la contraseña correcta mientras el bloqueo siga vigente', async () => {
     userRepo.findOne.mockResolvedValue(buildUser({ lockedUntil: new Date(Date.now() + 10 * 60_000) }));
 
-    await expect(service.validateUser('ana@vitahub.cl', 'ClaveReal1')).rejects.toThrow(/Cuenta bloqueada/);
+    await expect(service.validateUser('ana@espartanos.cl', 'ClaveReal1')).rejects.toThrow(/Cuenta bloqueada/);
   });
 
   it('deja entrar cuando el bloqueo ya expiró y limpia el estado', async () => {
     userRepo.findOne.mockResolvedValue(buildUser({ failedLoginAttempts: 3, lockedUntil: new Date(Date.now() - 60_000) }));
 
-    const user = await service.validateUser('ana@vitahub.cl', 'ClaveReal1');
+    const user = await service.validateUser('ana@espartanos.cl', 'ClaveReal1');
 
     expect(user.id).toBe('user-1');
     expect(userRepo.update).toHaveBeenCalledWith('user-1', { failedLoginAttempts: 0, lockedUntil: null });
@@ -68,7 +68,7 @@ describe('AuthService · bloqueo por intentos fallidos', () => {
   it('no revela si el correo existe: responde igual que con contraseña incorrecta', async () => {
     userRepo.findOne.mockResolvedValue(null);
 
-    await expect(service.validateUser('nadie@vitahub.cl', 'loquesea')).rejects.toThrow('Credenciales inválidas');
+    await expect(service.validateUser('nadie@espartanos.cl', 'loquesea')).rejects.toThrow('Credenciales inválidas');
     expect(userRepo.update).not.toHaveBeenCalled();
   });
 });

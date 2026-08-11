@@ -31,7 +31,8 @@ const password_reset_dto_1 = require("./dto/password-reset.dto");
 const onboarding_dto_1 = require("./dto/onboarding.dto");
 const reauthenticate_dto_1 = require("./dto/reauthenticate.dto");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
-const REFRESH_COOKIE = 'vitahub_refresh';
+const REFRESH_COOKIE = 'espartanos_refresh';
+const LEGACY_REFRESH_COOKIE = 'vitahub_refresh';
 const REFRESH_COOKIE_PATH = '/api/auth';
 function sessionDurationMs(value) {
     const match = /^(\d+)([smhd])$/.exec(value.trim());
@@ -55,6 +56,9 @@ function readCookie(request, name) {
         return undefined;
     }
 }
+function readRefreshCookie(request) {
+    return readCookie(request, REFRESH_COOKIE) ?? readCookie(request, LEGACY_REFRESH_COOKIE);
+}
 function setRefreshCookie(response, token) {
     response.cookie(REFRESH_COOKIE, token, {
         httpOnly: true,
@@ -63,14 +67,17 @@ function setRefreshCookie(response, token) {
         path: REFRESH_COOKIE_PATH,
         maxAge: REFRESH_COOKIE_MAX_AGE_MS,
     });
+    response.clearCookie(LEGACY_REFRESH_COOKIE, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: REFRESH_COOKIE_PATH });
 }
 function clearRefreshCookie(response) {
-    response.clearCookie(REFRESH_COOKIE, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        path: REFRESH_COOKIE_PATH,
-    });
+    for (const name of [REFRESH_COOKIE, LEGACY_REFRESH_COOKIE]) {
+        response.clearCookie(name, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            path: REFRESH_COOKIE_PATH,
+        });
+    }
 }
 let AuthController = class AuthController {
     constructor(auth) {
@@ -100,13 +107,13 @@ let AuthController = class AuthController {
         };
     }
     async refresh(dto, request, response) {
-        const token = readCookie(request, REFRESH_COOKIE) ?? dto?.refreshToken;
+        const token = readRefreshCookie(request) ?? dto?.refreshToken;
         const refreshed = await this.auth.refreshToken(token ?? '');
         setRefreshCookie(response, refreshed.refreshToken);
         return { accessToken: refreshed.accessToken };
     }
     async browserSession(dto, request, response) {
-        const token = readCookie(request, REFRESH_COOKIE) ?? dto?.refreshToken;
+        const token = readRefreshCookie(request) ?? dto?.refreshToken;
         if (!token)
             return { authenticated: false };
         try {

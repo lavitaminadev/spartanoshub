@@ -63,8 +63,21 @@ describe('PermissionResolverService', () => {
     const { resolver } = makeResolver(null);
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
     expect(permissions.clientMetricsPanel).toBe('none');
-    expect(permissions.production).toBe('none');
+    expect(permissions.udBudget).toBe('none');
     expect(permissions.reservations).toBe('manage');
+    expect(permissions.production).toBe('none');
+  });
+
+  it('un modulo visible en producto sigue en none si la organizacion no lo enciende', async () => {
+    const { resolver } = makeResolver(null);
+    const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
+    expect(permissions.production).toBe('none');
+  });
+
+  it('un modulo visible y encendido usa el nivel del cargo', async () => {
+    const { resolver } = makeResolver({ production: true });
+    const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
+    expect(permissions.production).toBe('manage');
   });
 
   it('la excepción del usuario reemplaza el nivel del cargo', async () => {
@@ -94,6 +107,12 @@ describe('PermissionResolverService', () => {
     expect(permissions.production).toBe('none');
   });
 
+  it('un módulo oculto por lifecycle queda en none aunque la organización lo encienda', async () => {
+    const { resolver } = makeResolver({ udBudget: true });
+    const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
+    expect(permissions.udBudget).toBe('none');
+  });
+
   it('can compara contra el nivel exigido', async () => {
     const { resolver } = makeResolver({ reservations: true });
     await expect(resolver.can('org-1', 'user-1', UserRole.COMMUNITY_MANAGER, 'reservations', 'view')).resolves.toBe(true);
@@ -108,14 +127,20 @@ describe('PermissionResolverService', () => {
 
   it('explain distingue lo heredado del cargo de la excepción', async () => {
     const { resolver } = makeResolver(
-      { reports: true, reservations: true, production: false },
+      { reports: true, reservations: true, production: false, udBudget: true },
       [{ module: 'reports', level: 'manage' }],
     );
     const modules = await resolver.explain('org-1', 'user-1', UserRole.DESIGNER);
     const byModule = new Map(modules.map((item) => [item.module, item]));
-    expect(byModule.get('reports')).toMatchObject({ level: 'manage', source: 'override', moduleDisabled: false });
+    expect(byModule.get('reports')).toMatchObject({
+      level: 'manage',
+      source: 'override',
+      moduleDisabled: false,
+      productHidden: false,
+    });
     expect(byModule.get('reservations')).toMatchObject({ source: 'role' });
-    expect(byModule.get('production')).toMatchObject({ level: 'none', moduleDisabled: true });
+    expect(byModule.get('production')).toMatchObject({ level: 'none', moduleDisabled: true, productHidden: false });
+    expect(byModule.get('udBudget')).toMatchObject({ level: 'none', moduleDisabled: false, productHidden: true });
   });
 
   it('memoriza y relee después de invalidar el usuario', async () => {
