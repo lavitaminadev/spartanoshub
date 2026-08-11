@@ -13,7 +13,7 @@ describe('reservation timezone helpers', () => {
   });
 
   it('rejects an unknown timezone', () => {
-    expect(() => localToUtc('2026-07-20', '09:30', 'Invalid/Vitahub')).toThrow(BadRequestException);
+    expect(() => localToUtc('2026-07-20', '09:30', 'Invalid/Espartanos')).toThrow(BadRequestException);
   });
 });
 

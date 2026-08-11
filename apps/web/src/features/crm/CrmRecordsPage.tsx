@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { RESERVATION_LEAD_SOURCE } from '@espartanos/shared';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { DataTable } from '../../shared/DataTable';
@@ -89,7 +90,7 @@ export function ContactsPage() {
   // `/crm/leads` pagina de a 20 por defecto, por lo que límite y desplazamiento son explícitos.
   const contactsQuery = useQuery<PageResult<ReservationContact>>({
     queryKey: ['crm-reservation-contacts', clientFilter, statusFilter, page],
-    queryFn: () => api.get(`/crm/leads?domain=audience&source=vitahub_reservations&limit=${CONTACTS_PAGE_SIZE}&offset=${(page - 1) * CONTACTS_PAGE_SIZE}${clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`),
+    queryFn: () => api.get(`/crm/leads?domain=audience&source=${RESERVATION_LEAD_SOURCE}&limit=${CONTACTS_PAGE_SIZE}&offset=${(page - 1) * CONTACTS_PAGE_SIZE}${clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`),
     placeholderData: (previous) => previous,
   });
   const { data: historyReservations = [], isLoading: historyLoading } = useQuery<Array<{ id: string; referenceCode: string; status: string; startsAt: string; partySize: number }>>({
@@ -135,7 +136,7 @@ export function ContactsPage() {
     queryFn: async () => {
       const scope = clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : '';
       const pages = await Promise.all(CONTACT_STATUS_ORDER.map((status) =>
-        api.get(`/crm/leads?domain=audience&source=vitahub_reservations&limit=1&status=${status}${scope}`) as Promise<PageResult<ReservationContact>>,
+        api.get(`/crm/leads?domain=audience&source=${RESERVATION_LEAD_SOURCE}&limit=1&status=${status}${scope}`) as Promise<PageResult<ReservationContact>>,
       ));
       return Object.fromEntries(CONTACT_STATUS_ORDER.map((status, index) => [status, pages[index]?.total ?? 0]));
     },

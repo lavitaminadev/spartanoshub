@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsUUID, IsNumber, IsInt, MaxLength, MinLength, Min, Max, Matches, IsBoolean, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CLIENT_INDUSTRY_VALUES } from '@vitahub/shared';
+import { CLIENT_INDUSTRY_VALUES } from '@espartanos/shared';
 
 export class ClientCapabilitiesDto {
   @IsOptional() @IsBoolean() reservations?: boolean;

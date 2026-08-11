@@ -1,4 +1,5 @@
 import { useMemo, useState, type JSX, type ReactNode } from 'react';
+import { readStoredJson, storageKey as namespacedKey, writeStoredJson } from '../core/browser-storage';
 
 export interface Column<T> {
   key: keyof T | string;
@@ -35,15 +36,6 @@ export interface DataTableProps<T> {
   bulkActions?: BulkAction<T>[];
 }
 
-function readJson<T>(key: string, fallback: T): T {
-  try {
-    const value = window.localStorage.getItem(key);
-    return value ? JSON.parse(value) as T : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function csvValue(value: unknown): string {
   const normalized = value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
   return `"${normalized.replaceAll('"', '""')}"`;
@@ -60,30 +52,27 @@ export function DataTable<T extends object>({
   selectable = false,
   bulkActions = [],
 }: DataTableProps<T>): JSX.Element {
-  const settingsKey = `vitahub:table:${storageKey || 'temporary'}`;
-  const [sortKey, setSortKey] = useState<string | null>(() => storageKey ? readJson<{ sortKey?: string }>(settingsKey, {}).sortKey || null : null);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => storageKey ? readJson<{ sortDir?: 'asc' | 'desc' }>(settingsKey, {}).sortDir || 'asc' : 'asc');
+  const settingsKey = namespacedKey('table', storageKey || 'temporary');
+  const viewsKey = `${settingsKey}:views`;
+  const [sortKey, setSortKey] = useState<string | null>(() => storageKey ? readStoredJson<{ sortKey?: string }>(settingsKey, {}).sortKey || null : null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => storageKey ? readStoredJson<{ sortDir?: 'asc' | 'desc' }>(settingsKey, {}).sortDir || 'asc' : 'asc');
   const [hiddenKeys, setHiddenKeys] = useState<string[]>(() => {
     if (!storageKey) return [];
-    const stored = readJson<{ hiddenKeys?: unknown }>(settingsKey, {});
+    const stored = readStoredJson<{ hiddenKeys?: unknown }>(settingsKey, {});
     return Array.isArray(stored.hiddenKeys) ? stored.hiddenKeys.filter((value): value is string => typeof value === 'string') : [];
   });
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [viewName, setViewName] = useState('');
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
     if (!storageKey) return [];
-    const stored = readJson<unknown>(`${settingsKey}:views`, []);
+    const stored = readStoredJson<unknown>(viewsKey, []);
     return Array.isArray(stored) ? stored.filter((item): item is SavedView => Boolean(item) && typeof item === 'object' && typeof (item as SavedView).name === 'string' && Array.isArray((item as SavedView).visibleKeys)) : [];
   });
 
   const persist = (next: { sortKey?: string | null; sortDir?: 'asc' | 'desc'; hiddenKeys?: string[] }) => {
     if (!storageKey) return;
-    const current = readJson<Record<string, unknown>>(settingsKey, {});
-    try {
-      window.localStorage.setItem(settingsKey, JSON.stringify({ ...current, sortKey, sortDir, hiddenKeys, ...next }));
-    } catch {
-      // Navegación privada o cuota agotada: la tabla sigue funcionando sin persistencia.
-    }
+    const current = readStoredJson<Record<string, unknown>>(settingsKey, {});
+    writeStoredJson(settingsKey, { ...current, sortKey, sortDir, hiddenKeys, ...next });
   };
 
   const handleSort = (key: keyof T | string) => {
@@ -134,11 +123,7 @@ export function DataTable<T extends object>({
     const view: SavedView = { name, visibleKeys: visibleColumns.map((column) => String(column.key)), sortKey, sortDir };
     const next = [...savedViews.filter((item) => item.name !== name), view];
     setSavedViews(next); setViewName('');
-    try {
-      window.localStorage.setItem(`${settingsKey}:views`, JSON.stringify(next));
-    } catch {
-      // Sin persistencia disponible: conservamos la vista sólo en memoria.
-    }
+    writeStoredJson(viewsKey, next);
   };
 
   const applyView = (view: SavedView) => {

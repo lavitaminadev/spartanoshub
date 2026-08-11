@@ -49,7 +49,7 @@ describe('AuthController browser sessions', () => {
     );
 
     expect(result).not.toHaveProperty('refreshToken');
-    expect(response.cookie).toHaveBeenCalledWith('vitahub_refresh', 'refresh-token', expect.objectContaining({
+    expect(response.cookie).toHaveBeenCalledWith('espartanos_refresh', 'refresh-token', expect.objectContaining({
       httpOnly: true,
       secure: true,
       sameSite: 'strict',
@@ -59,13 +59,25 @@ describe('AuthController browser sessions', () => {
 
   it('prefers the cookie and replaces it after token rotation', async () => {
     auth.refreshToken.mockResolvedValue({ accessToken: 'new-access', refreshToken: 'new-refresh' });
-    const request = { headers: { cookie: 'other=x; vitahub_refresh=cookie-token' } } as Request;
+    const request = { headers: { cookie: 'other=x; espartanos_refresh=cookie-token' } } as Request;
 
     const result = await controller.refresh({ refreshToken: 'body-token' }, request, response);
 
     expect(auth.refreshToken).toHaveBeenCalledWith('cookie-token');
     expect(result).toEqual({ accessToken: 'new-access' });
-    expect(response.cookie).toHaveBeenCalledWith('vitahub_refresh', 'new-refresh', expect.any(Object));
+    expect(response.cookie).toHaveBeenCalledWith('espartanos_refresh', 'new-refresh', expect.any(Object));
+  });
+
+  it('accepts a session opened under the previous cookie name and migrates it', async () => {
+    auth.refreshToken.mockResolvedValue({ accessToken: 'new-access', refreshToken: 'new-refresh' });
+    const request = { headers: { cookie: 'other=x; vitahub_refresh=legacy-token' } } as Request;
+
+    const result = await controller.refresh({}, request, response);
+
+    expect(auth.refreshToken).toHaveBeenCalledWith('legacy-token');
+    expect(result).toEqual({ accessToken: 'new-access' });
+    expect(response.cookie).toHaveBeenCalledWith('espartanos_refresh', 'new-refresh', expect.any(Object));
+    expect(response.clearCookie).toHaveBeenCalledWith('vitahub_refresh', expect.any(Object));
   });
 
   it('reports an anonymous browser session without producing a 401', async () => {
@@ -84,12 +96,12 @@ describe('AuthController browser sessions', () => {
 
     const result = await controller.browserSession(
       {},
-      { headers: { cookie: 'vitahub_refresh=expired' } } as Request,
+      { headers: { cookie: 'espartanos_refresh=expired' } } as Request,
       response,
     );
 
     expect(result).toEqual({ authenticated: false });
-    expect(response.clearCookie).toHaveBeenCalledWith('vitahub_refresh', expect.any(Object));
+    expect(response.clearCookie).toHaveBeenCalledWith('espartanos_refresh', expect.any(Object));
   });
 
   it('revokes the session and clears the browser cookie on logout', async () => {
@@ -97,9 +109,12 @@ describe('AuthController browser sessions', () => {
 
     // Cerrar sesion en el telefono no cierra la del computador: se pasa la sesion en curso.
     expect(auth.logout).toHaveBeenCalledWith('user-1', 'session-1');
-    expect(response.clearCookie).toHaveBeenCalledWith('vitahub_refresh', expect.objectContaining({
+    expect(response.clearCookie).toHaveBeenCalledWith('espartanos_refresh', expect.objectContaining({
       httpOnly: true,
       path: '/api/auth',
     }));
+    // Tambien se retira la del nombre anterior: si no, una sesion abierta antes del cambio
+    // seguiria presentando una cookie valida despues de cerrar sesion.
+    expect(response.clearCookie).toHaveBeenCalledWith('vitahub_refresh', expect.any(Object));
   });
 });

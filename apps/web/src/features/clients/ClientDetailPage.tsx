@@ -1,4 +1,4 @@
-import { industryLabel } from '@vitahub/shared';
+import { industryLabel } from '@espartanos/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../../core/api';

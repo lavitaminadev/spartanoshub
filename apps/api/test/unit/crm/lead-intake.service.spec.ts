@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LeadIntakeService } from '../../../src/modules/crm/leads/lead-intake.service';
 import { LeadFitStatus } from '../../../src/modules/crm/leads/lead-fit-status.enum';
+import { RESERVATION_LEAD_SOURCE } from '@espartanos/shared';
 
 const repo = {
   create: vi.fn(),
@@ -92,7 +93,7 @@ describe('LeadIntakeService', () => {
       name: 'María Fernández',
       email: 'maria@empresapropia.cl',
       phone: '+56912345678',
-      source: 'vitahub_reservations',
+      source: RESERVATION_LEAD_SOURCE,
       sourceDetail: 'Reservas Restaurante Del Puerto',
       campaignName: 'Campaña Reservas Restaurante',
       status: 'reserved',
@@ -172,7 +173,7 @@ describe('LeadIntakeService', () => {
         clientId: 'client-1',
         name: diner.name,
         phone: diner.phone,
-        source: 'vitahub_reservations',
+        source: RESERVATION_LEAD_SOURCE,
       });
 
       expect(result.contact?.id).toBe('contact-1');
@@ -207,7 +208,7 @@ describe('CRM-05 · sobrescritura de identidad', () => {
 
       await service.captureAudience({
         organizationId: 'org-1', name: 'Ana Fuentes',
-        email: 'ana@example.cl', phone: '+56922222222', source: 'vitahub_reservations',
+        email: 'ana@example.cl', phone: '+56922222222', source: RESERVATION_LEAD_SOURCE,
       });
 
       expect(audit.log).toHaveBeenCalledTimes(1);
@@ -228,7 +229,7 @@ describe('CRM-05 · sobrescritura de identidad', () => {
 
       await service.captureAudience({
         organizationId: 'org-1', name: 'Ana Fuentes',
-        email: 'ana@example.cl', phone: '+56911111111', source: 'vitahub_reservations',
+        email: 'ana@example.cl', phone: '+56911111111', source: RESERVATION_LEAD_SOURCE,
       });
 
       expect(audit.log).not.toHaveBeenCalled();
@@ -243,7 +244,7 @@ describe('CRM-05 · sobrescritura de identidad', () => {
 
       const lead = await service.captureAudience({
         organizationId: 'org-1', name: 'Ana Fuentes',
-        phone: '+56922222222', source: 'vitahub_reservations',
+        phone: '+56922222222', source: RESERVATION_LEAD_SOURCE,
       });
 
       expect(lead.lead.phone).toBe('+56922222222');

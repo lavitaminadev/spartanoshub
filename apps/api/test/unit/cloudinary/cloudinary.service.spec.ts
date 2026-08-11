@@ -23,8 +23,8 @@ function makeService(listResponse: unknown = { resources: [] }) {
 
 describe('CloudinaryService.folderFor', () => {
   it('anida el cliente dentro de la carpeta de la organización', () => {
-    expect(CloudinaryService.folderFor('org-1')).toBe('vitahub/org-1');
-    expect(CloudinaryService.folderFor('org-1', 'client-9')).toBe('vitahub/org-1/client-9');
+    expect(CloudinaryService.folderFor('org-1')).toBe('espartanos/org-1');
+    expect(CloudinaryService.folderFor('org-1', 'client-9')).toBe('espartanos/org-1/client-9');
   });
 });
 
@@ -36,7 +36,7 @@ describe('CloudinaryService.listResources', () => {
     await service.listResources('org-1');
     expect(http.get).toHaveBeenCalledWith(
       expect.stringContaining('/resources/image'),
-      expect.objectContaining({ params: expect.objectContaining({ prefix: 'vitahub/org-1/' }) }),
+      expect.objectContaining({ params: expect.objectContaining({ prefix: 'espartanos/org-1/' }) }),
     );
   });
 
@@ -45,7 +45,7 @@ describe('CloudinaryService.listResources', () => {
     await service.listResources('org-1', { clientId: 'client-9' });
     expect(http.get).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ params: expect.objectContaining({ prefix: 'vitahub/org-1/client-9/' }) }),
+      expect.objectContaining({ params: expect.objectContaining({ prefix: 'espartanos/org-1/client-9/' }) }),
     );
   });
 
@@ -62,18 +62,18 @@ describe('CloudinaryService.destroy', () => {
 
   it('elimina un recurso de la propia organización', async () => {
     const { service, http } = makeService();
-    await service.destroy('vitahub/org-1/client-9/imagen', 'org-1');
+    await service.destroy('espartanos/org-1/client-9/imagen', 'org-1');
     expect(http.post).toHaveBeenCalledTimes(1);
   });
 
   it('rechaza un recurso de otra organización sin llamar a Cloudinary', async () => {
     const { service, http } = makeService();
-    await expect(service.destroy('vitahub/org-2/client-9/imagen', 'org-1'))
+    await expect(service.destroy('espartanos/org-2/client-9/imagen', 'org-1'))
       .rejects.toThrow('no pertenece a esta organización');
     expect(http.post).not.toHaveBeenCalled();
   });
 
-  it('rechaza un recurso fuera de la jerarquía de VitaHub', async () => {
+  it('rechaza un recurso fuera de la jerarquía de Espartanos', async () => {
     const { service, http } = makeService();
     await expect(service.destroy('otra-carpeta/imagen', 'org-1'))
       .rejects.toThrow('no pertenece a esta organización');
@@ -82,7 +82,20 @@ describe('CloudinaryService.destroy', () => {
 
   it('rechaza un identificador que solo comparte el prefijo del identificador de organización', async () => {
     const { service, http } = makeService();
-    await expect(service.destroy('vitahub/org-10/client-9/imagen', 'org-1'))
+    await expect(service.destroy('espartanos/org-10/client-9/imagen', 'org-1'))
+      .rejects.toThrow('no pertenece a esta organización');
+    expect(http.post).not.toHaveBeenCalled();
+  });
+
+  it('sigue administrando un recurso guardado bajo la raíz anterior', async () => {
+    const { service, http } = makeService();
+    await service.destroy('vitahub/org-1/client-9/imagen', 'org-1');
+    expect(http.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantiene el aislamiento entre organizaciones también en la raíz anterior', async () => {
+    const { service, http } = makeService();
+    await expect(service.destroy('vitahub/org-2/client-9/imagen', 'org-1'))
       .rejects.toThrow('no pertenece a esta organización');
     expect(http.post).not.toHaveBeenCalled();
   });

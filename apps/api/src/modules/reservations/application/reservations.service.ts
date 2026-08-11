@@ -14,6 +14,7 @@ import { normalizePhone } from '../../../shared/phone';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicReservationDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
+import { RESERVATION_LEAD_SOURCE } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
@@ -691,7 +692,7 @@ export class ReservationsService {
 
     if (result.created && result.form.crmEnabled && capabilities.crm) {
       try {
-        // Quien reserva una mesa es audiencia del local, no un prospecto para vender VITAHUB:
+        // Quien reserva una mesa es audiencia del local, no un prospecto para vender Espartanos:
         // `captureAudience` mantiene la captura fuera del embudo comercial y devuelve el contacto.
         const { contact } = await this.leadIntake.captureAudience({
           organizationId: result.form.organizationId,
@@ -699,7 +700,7 @@ export class ReservationsService {
           name: result.booking.guestName,
           email: result.booking.guestEmail ?? undefined,
           phone: result.booking.guestPhone ?? undefined,
-          source: 'vitahub_reservations',
+          source: RESERVATION_LEAD_SOURCE,
           sourceDetail: result.form.name,
           status: 'reserved',
           externalLeadId: `reservation:${result.booking.id}`,

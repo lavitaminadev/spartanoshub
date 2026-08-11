@@ -11,7 +11,7 @@ import {
   type ModuleLifecycleStatus,
   type OrganizationModuleLifecycleMap,
   type UserRole as SharedUserRole,
-} from '@vitahub/shared';
+} from '@espartanos/shared';
 import { User } from '../../modules/users/user.entity';
 import { Organization } from '../../modules/organizations/organization.entity';
 import { OrganizationFeatures, normalizeOrganizationFeatures } from '../../modules/organizations/organization-features';
@@ -274,7 +274,7 @@ export class AuthService {
   /**
    * Registra un usuario dentro de la organización de la agencia.
    *
-   * VITAHUB opera una sola organización, así que el registro no la elige ni la crea: se
+   * Espartanos opera una sola organización, así que el registro no la elige ni la crea: se
    * incorpora a `AGENCY_ORGANIZATION_ID`. Sin esa variable configurada el registro no
    * procede, porque la alternativa —inventar una organización— es precisamente el
    * comportamiento multi-empresa que el sistema no tiene.

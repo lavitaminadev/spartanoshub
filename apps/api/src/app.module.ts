@@ -57,9 +57,9 @@ import { IntakeModule } from './modules/intake/intake.module';
 
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = parseInt(process.env.DB_PORT || '3306', 10);
-const DB_USERNAME = process.env.DB_USERNAME || 'vitahub';
+const DB_USERNAME = process.env.DB_USERNAME || 'espartanos';
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
-const DB_DATABASE = process.env.DB_DATABASE || 'vitahub';
+const DB_DATABASE = process.env.DB_DATABASE || 'espartanos';
 
 /**
  * Conexiones que abre **cada proceso**, no la aplicación entera.

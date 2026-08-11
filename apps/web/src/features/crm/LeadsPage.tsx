@@ -10,7 +10,7 @@ import { LeadDetailDrawer } from './components/LeadDetailDrawer';
 import { matchesSearch } from '../../shared/search';
 import { Modal } from '../../shared/Modal';
 import { Link, useSearchParams } from 'react-router-dom';
-import { LEAD_PIPELINE_STAGES, LEAD_CLOSING_STAGES } from '@vitahub/shared';
+import { LEAD_PIPELINE_STAGES, LEAD_CLOSING_STAGES, RESERVATION_LEAD_SOURCES } from '@espartanos/shared';
 
 interface Lead {
   id: string;
@@ -37,7 +37,7 @@ interface Lead {
   createdAt?: string;
 }
 
-// Etapas del pipeline comercial de la agencia, importadas de @vitahub/shared para compartir
+// Etapas del pipeline comercial de la agencia, importadas de @espartanos/shared para compartir
 // la definición con el backend. Los contactos de reservas viven en /crm/contacts.
 const ACTIVE_STATUSES: string[] = [...LEAD_PIPELINE_STAGES];
 const CLOSING_STATUSES: string[] = [...LEAD_CLOSING_STAGES];
@@ -46,9 +46,12 @@ const FIT_FILTERS = ['all', 'qualified', 'review', 'discarded'] as const;
 type PipelineView = 'board' | 'list';
 type LeadUpdate = { status?: string; fitStatus?: string; discardReason?: string };
 
+// Los orígenes de reserva se etiquetan desde la constante compartida para que la lista siga
+// mostrando «Reservas» tanto en los registros migrados como en los guardados antes del cambio.
 const SOURCE_LABELS: Record<string, string> = {
   meta: 'Meta', meta_lead_ads: 'Meta Lead Ads', google_ads: 'Google Ads',
-  reservation: 'Reservas', vitahub_reservations: 'Reservas',
+  reservation: 'Reservas',
+  ...Object.fromEntries(RESERVATION_LEAD_SOURCES.map((source) => [source, 'Reservas'])),
   website: 'Sitio web', referral: 'Referido', manual: 'Ingreso manual',
 };
 

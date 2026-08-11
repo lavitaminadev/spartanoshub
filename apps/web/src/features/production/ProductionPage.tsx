@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
-import { StatusBadge } from '../../shared/StatusBadge';
-import { LoadingSpinner } from '../../shared/LoadingSpinner';
-import { Modal } from '../../shared/Modal';
+import { useAuth } from '../../core/auth';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
-import { Tooltip } from '../../shared/Tooltip';
-import { Link, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../core/auth';
+import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { Modal } from '../../shared/Modal';
 import { QueryErrorState } from '../../shared/QueryErrorState';
+import { StatusBadge } from '../../shared/StatusBadge';
+import { Tooltip } from '../../shared/Tooltip';
 
 interface Piece {
   id: string;
@@ -70,17 +70,60 @@ const PIECE_TYPES = [
   ['story_template', 'Historia con plantilla'],
   ['reel_cover', 'Portada de reel'],
   ['flyer_digital', 'Flyer digital'],
-  ['flyer_print', 'Flyer para impresión'],
+  ['flyer_print', 'Flyer para impresion'],
 ] as const;
 
 const ROLE_LABELS: Record<string, string> = {
-  designer: 'Diseño',
+  designer: 'Diseno',
   audiovisual: 'Audiovisual',
-  art_director: 'Dirección de arte',
+  art_director: 'Direccion de arte',
 };
 
+const WORKFLOW_COLUMNS = [
+  ['backlog', 'Backlog'],
+  ['assigned', 'Asignado'],
+  ['in_progress', 'En progreso'],
+  ['internal_review', 'Revision interna'],
+  ['client_validation', 'Cliente'],
+  ['correction', 'Correccion'],
+  ['approved', 'Aprobado'],
+  ['delivered', 'Entregado'],
+] as const;
+
 function getErrorMessage(error: Error): string {
-  return error.message || 'No se pudo completar la operación.';
+  return error.message || 'No se pudo completar la operacion.';
+}
+
+function getProductionActionLabel(status: string): string {
+  switch (status) {
+    case 'backlog':
+      return 'Asignar responsable y fecha';
+    case 'assigned':
+      return 'Iniciar produccion';
+    case 'in_progress':
+      return 'Subir version a revision';
+    case 'internal_review':
+      return 'Validar internamente y decidir';
+    case 'client_validation':
+      return 'Consolidar feedback del cliente';
+    case 'correction':
+      return 'Retomar correcciones';
+    case 'approved':
+      return 'Marcar entrega final';
+    default:
+      return 'Monitorear cierre';
+  }
+}
+
+function getProductionPriority(piece: Piece): number {
+  if (piece.status === 'approved') return 100;
+  if (piece.status === 'client_validation') return 95;
+  if (piece.status === 'internal_review') return 90;
+  if (piece.status === 'correction') return 85;
+  if (piece.status === 'assigned') return 80;
+  if (piece.status === 'in_progress') return 75;
+  if ((piece.dependencyIds?.length ?? 0) > 0) return 70;
+  return 10;
 }
 
 export function ProductionPage() {
@@ -111,9 +154,10 @@ export function ProductionPage() {
   if (clientFilter) pieceQuery.set('clientId', clientFilter);
   const querySuffix = pieceQuery.size ? `?${pieceQuery}` : '';
 
-  const { data: pieces, isLoading, error, refetch, isFetching } = useQuery<Piece[]>({
+  const { data: pieces, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery<Piece[]>({
     queryKey: ['pieces', statusFilter, clientFilter],
     queryFn: () => api.get(`/production/pieces${querySuffix}`),
+    refetchInterval: 60_000,
   });
 
   const { data: users } = useQuery<UserOption[]>({
@@ -127,7 +171,7 @@ export function ProductionPage() {
     queryFn: () => api.get('/clients'),
     enabled: canCreate,
   });
-  const clients = (clientsResp as any)?.data ?? [];
+  const clients = (clientsResp as { data?: ClientOption[] } | undefined)?.data ?? [];
 
   const assignableUsers = useMemo(
     () => (users ?? []).filter((user) => ['designer', 'audiovisual', 'art_director'].includes(user.role)),
@@ -148,19 +192,32 @@ export function ProductionPage() {
     const loads = new Map<string, { userId: string; name: string; ud: number; pieces: number; capacity: number }>();
     for (const piece of pieces ?? []) {
       if (!piece.assignedTo || ['delivered', 'cancelled'].includes(piece.status)) continue;
-      const current = loads.get(piece.assignedTo) || { userId: piece.assignedTo, name: userMap.get(piece.assignedTo) || 'Responsable', ud: 0, pieces: 0, capacity: capacityMap.get(piece.assignedTo) || 20 };
-      current.ud += Number(piece.udAmount || 0); current.pieces += 1; loads.set(piece.assignedTo, current);
+      const current = loads.get(piece.assignedTo) || {
+        userId: piece.assignedTo,
+        name: userMap.get(piece.assignedTo) || 'Responsable',
+        ud: 0,
+        pieces: 0,
+        capacity: capacityMap.get(piece.assignedTo) || 20,
+      };
+      current.ud += Number(piece.udAmount || 0);
+      current.pieces += 1;
+      loads.set(piece.assignedTo, current);
     }
     return [...loads.values()].sort((a, b) => b.ud / Math.max(b.capacity, 1) - a.ud / Math.max(a.capacity, 1));
   }, [pieces, userMap, capacityMap]);
 
-  const ganttStart = useMemo(() => { const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - 7); return date; }, []);
+  const ganttStart = useMemo(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - 7);
+    return date;
+  }, []);
   const ganttDays = 42;
   const ganttPosition = (piece: Piece) => {
     const start = new Date(piece.assignedAt || piece.createdAt || ganttStart);
     const end = new Date(piece.dueDate || new Date(start.getTime() + 7 * 86400000));
-    const left = Math.max(0, Math.min(100, (start.getTime() - ganttStart.getTime()) / 86400000 / ganttDays * 100));
-    const naturalWidth = Math.max(2.5, (end.getTime() - start.getTime()) / 86400000 / ganttDays * 100);
+    const left = Math.max(0, Math.min(100, ((start.getTime() - ganttStart.getTime()) / 86400000 / ganttDays) * 100));
+    const naturalWidth = Math.max(2.5, ((end.getTime() - start.getTime()) / 86400000 / ganttDays) * 100);
     return { left, width: Math.min(100 - left, naturalWidth) };
   };
 
@@ -169,32 +226,70 @@ export function ProductionPage() {
     setFeedbackMessage(message);
   };
 
-  const workflowColumns = [
-    ['backlog', 'Backlog'], ['assigned', 'Asignado'], ['in_progress', 'En progreso'],
-    ['internal_review', 'Revision interna'], ['client_validation', 'Cliente'],
-    ['correction', 'Correccion'], ['approved', 'Aprobado'], ['delivered', 'Entregado'],
-  ] as const;
+  const piecesByStatus = useMemo(
+    () => new Map(WORKFLOW_COLUMNS.map(([status]) => [status, (pieces ?? []).filter((piece) => piece.status === status)])),
+    [pieces],
+  );
 
-  const renderActions = (piece: Piece) => <div className="kanban-card-actions">
-    {canAssign && piece.status !== 'delivered' && <button className="btn btn-sm btn-outline" onClick={() => { setFeedbackMessage(null); setAssignModal({ open: true, pieceId: piece.id }); }}>{piece.assignedTo ? 'Reasignar' : 'Asignar'}</button>}
-    {canStart && piece.status === 'assigned' && <button className="btn btn-sm btn-outline" onClick={() => transitionMutation.mutate({ pieceId: piece.id, action: 'start' })}>Iniciar</button>}
-    {canStart && piece.status === 'correction' && <button className="btn btn-sm btn-outline" onClick={() => transitionMutation.mutate({ pieceId: piece.id, action: 'start' })}>Retomar</button>}
-    {canSubmitVersion && piece.status === 'in_progress' && <Tooltip label="Subir archivos y notificar al revisor"><button className="btn btn-sm btn-primary" onClick={() => { setFeedbackMessage(null); setVersionForm({ fileName: '', driveFileId: '' }); setVersionModal({ open: true, pieceId: piece.id }); }}>Enviar versión</button></Tooltip>}
-    {canSendToClient && piece.status === 'internal_review' && <Tooltip label="Enviar al cliente para validación"><button className="btn btn-sm btn-outline" onClick={() => transitionMutation.mutate({ pieceId: piece.id, action: 'send-to-client' })}>Enviar cliente</button></Tooltip>}
-    {piece.status === 'client_validation' && <Link className="btn btn-sm btn-outline" to="/approvals">Ver aprobación</Link>}
-    {canDeliver && piece.status === 'client_validation' && <Tooltip label="Aprobar la entrega final"><button className="btn btn-sm btn-primary" onClick={() => transitionMutation.mutate({ pieceId: piece.id, action: 'approve' })}>Aprobar</button></Tooltip>}
-    {canDeliver && piece.status === 'approved' && <Tooltip label="Marcar como entregado y cerrar el ciclo"><button className="btn btn-sm btn-outline" onClick={() => setDeliverPieceId(piece.id)}>Entregar</button></Tooltip>}
-  </div>;
+  const spotlightPiece = useMemo(
+    () => [...(pieces ?? [])].sort((left, right) => getProductionPriority(right) - getProductionPriority(left))[0],
+    [pieces],
+  );
+
+  const blockedPieces = useMemo(
+    () => (pieces ?? []).filter((piece) => (piece.dependencyIds?.length ?? 0) > 0),
+    [pieces],
+  );
+
+  const renderActions = (piece: Piece) => (
+    <div className="kanban-card-actions">
+      {canAssign && piece.status !== 'delivered' && (
+        <button className="btn btn-sm btn-outline" onClick={() => { setFeedbackMessage(null); setAssignModal({ open: true, pieceId: piece.id }); }}>
+          {piece.assignedTo ? 'Reasignar' : 'Asignar'}
+        </button>
+      )}
+      {canStart && piece.status === 'assigned' && <button className="btn btn-sm btn-outline" onClick={() => transitionMutation.mutate({ pieceId: piece.id, action: 'start' })}>Iniciar</button>}
+      {canStart && piece.status === 'correction' && <button className="btn btn-sm btn-outline" onClick={() => transitionMutation.mutate({ pieceId: piece.id, action: 'start' })}>Retomar</button>}
+      {canSubmitVersion && piece.status === 'in_progress' && (
+        <Tooltip label="Subir archivos y notificar al revisor">
+          <button className="btn btn-sm btn-primary" onClick={() => { setFeedbackMessage(null); setVersionForm({ fileName: '', driveFileId: '' }); setVersionModal({ open: true, pieceId: piece.id }); }}>
+            Enviar version
+          </button>
+        </Tooltip>
+      )}
+      {canSendToClient && piece.status === 'internal_review' && (
+        <Tooltip label="Enviar al cliente para validacion">
+          <button className="btn btn-sm btn-outline" onClick={() => transitionMutation.mutate({ pieceId: piece.id, action: 'send-to-client' })}>
+            Enviar cliente
+          </button>
+        </Tooltip>
+      )}
+      {piece.status === 'client_validation' && <Link className="btn btn-sm btn-outline" to="/approvals">Ver aprobacion</Link>}
+      {canDeliver && piece.status === 'client_validation' && (
+        <Tooltip label="Aprobar la entrega final">
+          <button className="btn btn-sm btn-primary" onClick={() => transitionMutation.mutate({ pieceId: piece.id, action: 'approve' })}>
+            Aprobar
+          </button>
+        </Tooltip>
+      )}
+      {canDeliver && piece.status === 'approved' && (
+        <Tooltip label="Marcar como entregado y cerrar el ciclo">
+          <button className="btn btn-sm btn-outline" onClick={() => setDeliverPieceId(piece.id)}>
+            Entregar
+          </button>
+        </Tooltip>
+      )}
+    </div>
+  );
 
   const assignMutation = useMutation({
-    mutationFn: ({ id, designerId }: { id: string; designerId: string }) =>
-      api.post(`/production/pieces/${id}/assign`, { designerId }),
+    mutationFn: ({ id, designerId }: { id: string; designerId: string }) => api.post(`/production/pieces/${id}/assign`, { designerId }),
     onSuccess: () => {
       void refreshPieces('Pieza asignada correctamente.');
       setAssignModal({ open: false, pieceId: '' });
       setAssigneeId('');
     },
-    onError: (error: Error) => setFeedbackMessage(`Error: ${getErrorMessage(error)}`),
+    onError: (mutationError: Error) => setFeedbackMessage(`Error: ${getErrorMessage(mutationError)}`),
   });
 
   const createMutation = useMutation({
@@ -204,7 +299,7 @@ export function ProductionPage() {
       setCreateModalOpen(false);
       setForm(EMPTY_FORM);
     },
-    onError: (error: Error) => setFeedbackMessage(`Error: ${getErrorMessage(error)}`),
+    onError: (mutationError: Error) => setFeedbackMessage(`Error: ${getErrorMessage(mutationError)}`),
   });
 
   const transitionMutation = useMutation({
@@ -219,29 +314,29 @@ export function ProductionPage() {
       };
       void refreshPieces(messages[variables.action]);
     },
-    onError: (error: Error) => setFeedbackMessage(`Error: ${getErrorMessage(error)}`),
+    onError: (mutationError: Error) => setFeedbackMessage(`Error: ${getErrorMessage(mutationError)}`),
   });
 
   const versionMutation = useMutation({
     mutationFn: ({ pieceId, fileName, driveFileId }: { pieceId: string; fileName: string; driveFileId?: string }) =>
       api.post(`/production/pieces/${pieceId}/versions`, { fileName, driveFileId }),
     onSuccess: () => {
-      void refreshPieces('Versión registrada y enviada a revisión interna.');
+      void refreshPieces('Version registrada y enviada a revision interna.');
       setVersionModal({ open: false, pieceId: '' });
       setVersionForm({ fileName: '', driveFileId: '' });
     },
-    onError: (error: Error) => setFeedbackMessage(`Error: ${getErrorMessage(error)}`),
+    onError: (mutationError: Error) => setFeedbackMessage(`Error: ${getErrorMessage(mutationError)}`),
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando piezas..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar el plan de producción" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error) return <QueryErrorState title="No pudimos cargar el plan de produccion" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Producción</h1>
-          <p className="page-subtitle">Gestión visual del flujo de piezas.</p>
+          <h1>Produccion</h1>
+          <p className="page-subtitle">Gestion visual del flujo de piezas.</p>
         </div>
         <div className="portal-item-actions">
           <div className="view-switch" role="group" aria-label="Vista de produccion">
@@ -249,7 +344,7 @@ export function ProductionPage() {
             <button className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('table')}>Tabla</button>
             <button className={`btn btn-sm ${viewMode === 'gantt' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('gantt')}>Gantt y carga</button>
           </div>
-          <select className="input" aria-label="Filtrar piezas por estado" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className="input" aria-label="Filtrar piezas por estado" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
             <option value="">Todos los estados</option>
             <option value="backlog">Backlog</option>
             <option value="assigned">Asignado</option>
@@ -260,10 +355,17 @@ export function ProductionPage() {
             <option value="approved">Aprobado</option>
             <option value="delivered">Entregado</option>
           </select>
-          {canCreate && <select className="input" aria-label="Filtrar piezas por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todos los clientes</option>{(clients ?? []).map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}
-          {canCreate && <button className="btn btn-primary" onClick={() => { setFeedbackMessage(null); setForm((current) => ({ ...current, clientId: clientFilter })); setCreateModalOpen(true); }}>
-            Nueva pieza
-          </button>}
+          {canCreate && (
+            <select className="input" aria-label="Filtrar piezas por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}>
+              <option value="">Todos los clientes</option>
+              {clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}
+            </select>
+          )}
+          {canCreate && (
+            <button className="btn btn-primary" onClick={() => { setFeedbackMessage(null); setForm((current) => ({ ...current, clientId: clientFilter })); setCreateModalOpen(true); }}>
+              Nueva pieza
+            </button>
+          )}
         </div>
       </div>
 
@@ -273,33 +375,155 @@ export function ProductionPage() {
         </div>
       )}
 
-      {workload.length > 0 && <section className="production-capacity"><header><div><span className="page-eyebrow">CAPACIDAD CONFIGURADA</span><h2>Carga activa por trabajador</h2></div><small>La capacidad semanal se edita en Usuarios</small></header><div>{workload.map((member) => { const usage = Math.round(member.ud / Math.max(member.capacity, 1) * 100); return <article className={usage > 100 ? 'is-overcapacity' : ''} key={member.userId}><div><strong>{member.name}</strong><span>{member.pieces} pieza(s)</span></div><div className="capacity-track"><i style={{ width: `${Math.min(usage, 100)}%` }} /></div><footer><span>{member.ud} / {member.capacity} UD</span><strong>{usage}%{usage > 100 ? ' · Sobrecapacidad' : ''}</strong></footer></article>; })}</div></section>}
+      <section className="production-command-center">
+        <div className="production-command-grid">
+          <article className="production-command-card">
+            <span>Cadena operativa</span>
+            <div className="production-source-chain">
+              <strong>Solicitud</strong>
+              <strong>Asignacion</strong>
+              <strong>Produccion</strong>
+              <strong>Revision</strong>
+              <strong>Cliente</strong>
+              <strong>Cierre</strong>
+            </div>
+            <small>La vista deja claro donde nace la pieza y cual es el siguiente paso esperado.</small>
+          </article>
+          <article className="production-command-card production-command-card-emphasis">
+            <span>Siguiente accion</span>
+            <strong>{spotlightPiece?.title ?? 'Sin piezas prioritarias'}</strong>
+            <p>{spotlightPiece ? `${getProductionActionLabel(spotlightPiece.status)} para ${spotlightPiece.clientName}.` : 'Cuando entren piezas nuevas, esta tarjeta destacara la que requiere movimiento inmediato.'}</p>
+            {spotlightPiece && (
+              <small>
+                {spotlightPiece.assignedTo ? `Responsable: ${userMap.get(spotlightPiece.assignedTo) ?? 'Equipo asignado'}` : 'Todavia sin responsable asignado'}
+                {spotlightPiece.dueDate ? ` · vence ${new Date(spotlightPiece.dueDate).toLocaleDateString('es-CL')}` : ''}
+              </small>
+            )}
+          </article>
+          <article className="production-command-card">
+            <span>Refresco automatico</span>
+            <strong>Cada 60 segundos</strong>
+            <p>{dataUpdatedAt ? `Ultima lectura ${new Date(dataUpdatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}.` : 'La primera lectura quedara registrada en cuanto haya datos.'}</p>
+            <small>{blockedPieces.length} pieza(s) con dependencias y {(piecesByStatus.get('client_validation') ?? []).length} esperando respuesta del cliente.</small>
+          </article>
+        </div>
+        <div className="production-workflow-strip" aria-label="Resumen del flujo">
+          {WORKFLOW_COLUMNS.map(([status, label]) => (
+            <button key={status} type="button" className={statusFilter === status ? 'active' : ''} onClick={() => setStatusFilter((current) => current === status ? '' : status)}>
+              <strong>{(piecesByStatus.get(status) ?? []).length}</strong>
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {workload.length > 0 && (
+        <section className="production-capacity">
+          <header>
+            <div>
+              <span className="page-eyebrow">CAPACIDAD CONFIGURADA</span>
+              <h2>Carga activa por trabajador</h2>
+            </div>
+            <small>La capacidad semanal se edita en Usuarios</small>
+          </header>
+          <div>
+            {workload.map((member) => {
+              const usage = Math.round((member.ud / Math.max(member.capacity, 1)) * 100);
+              return (
+                <article className={usage > 100 ? 'is-overcapacity' : ''} key={member.userId}>
+                  <div>
+                    <strong>{member.name}</strong>
+                    <span>{member.pieces} pieza(s)</span>
+                  </div>
+                  <div className="capacity-track"><i style={{ width: `${Math.min(usage, 100)}%` }} /></div>
+                  <footer>
+                    <span>{member.ud} / {member.capacity} UD</span>
+                    <strong>{usage}%{usage > 100 ? ' · Sobrecapacidad' : ''}</strong>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {(pieces?.length ?? 0) === 0 ? (
         <EmptyState
-          icon="🎨"
-          title="Sin piezas en producción"
-          description="Todavía no hay piezas activas para este filtro."
+          icon="P"
+          title="Sin piezas en produccion"
+          description="Todavia no hay piezas activas para este filtro."
           action={canCreate ? <button className="btn btn-primary" onClick={() => { setFeedbackMessage(null); setForm((current) => ({ ...current, clientId: clientFilter })); setCreateModalOpen(true); }}>Nueva pieza</button> : undefined}
         />
       ) : viewMode === 'board' ? (
         <div className="production-board">
-          {workflowColumns.map(([status, label]) => {
-            const columnPieces = pieces?.filter((piece) => piece.status === status) ?? [];
-            return <section className="kanban-column" key={status}>
-              <div className="kanban-header"><strong>{label}</strong><span className="kanban-count">{columnPieces.length}</span></div>
-              <div className="kanban-cards">{columnPieces.length === 0 ? <div className="kanban-empty">Sin piezas</div> : columnPieces.map((piece) => <article className="kanban-card" key={piece.id}>
-                <div className="kanban-card-title">{piece.title}</div>
-                <div className="kanban-card-client">{piece.clientName}</div>
-                <div className="kanban-card-metrics"><span>N{piece.difficultyLevel ?? 1}</span><span>{piece.udAmount} UD</span><span>{piece.correctionCount} corr.</span></div>
-                {piece.dueDate && <div className="kanban-card-info">Vence {new Date(piece.dueDate).toLocaleDateString('es-CL')}</div>}
-                {renderActions(piece)}
-              </article>)}</div>
-            </section>;
+          {WORKFLOW_COLUMNS.map(([status, label]) => {
+            const columnPieces = piecesByStatus.get(status) ?? [];
+            return (
+              <section className="kanban-column" key={status}>
+                <div className="kanban-header">
+                  <strong>{label}</strong>
+                  <span className="kanban-count">{columnPieces.length}</span>
+                </div>
+                <div className="kanban-cards">
+                  {columnPieces.length === 0 ? (
+                    <div className="kanban-empty">Sin piezas</div>
+                  ) : (
+                    columnPieces.map((piece) => (
+                      <article className="kanban-card" key={piece.id}>
+                        <div className="kanban-card-title">{piece.title}</div>
+                        <div className="kanban-card-client">{piece.clientName}</div>
+                        <div className="kanban-card-metrics"><span>N{piece.difficultyLevel ?? 1}</span><span>{piece.udAmount} UD</span><span>{piece.correctionCount} corr.</span></div>
+                        {piece.dueDate && <div className="kanban-card-info">Vence {new Date(piece.dueDate).toLocaleDateString('es-CL')}</div>}
+                        {renderActions(piece)}
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+            );
           })}
         </div>
       ) : viewMode === 'gantt' ? (
-        <section className="production-gantt"><header><div><span className="page-eyebrow">PLANIFICADOR DE 6 SEMANAS</span><h2>Dependencias, fechas y avance</h2></div><p>Desde la creación hasta el vencimiento.</p></header><div className="gantt-scroll"><div className="gantt-calendar"><div className="gantt-axis-label">Pieza / responsable</div><div className="gantt-axis">{Array.from({ length: 7 }, (_, index) => { const date = new Date(ganttStart); date.setDate(date.getDate() + index * 7); return <span key={date.toISOString()} style={{ left: `${index / 6 * 100}%` }}>{date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}</span>; })}</div>{pieces?.map((piece) => { const position = ganttPosition(piece); const blockers = (piece.dependencyIds || []).map((id) => pieces.find((candidate) => candidate.id === id)).filter(Boolean); const blocked = blockers.some((candidate) => candidate?.status !== 'delivered'); return <div className={`gantt-row ${blocked ? 'is-blocked' : ''}`} key={piece.id}><div className="gantt-row-label"><strong>{piece.title}</strong><small>{userMap.get(piece.assignedTo || '') || 'Sin asignar'} · {piece.udAmount} UD</small>{blockers.length > 0 && <em>{blocked ? 'Bloqueada por' : 'Dependía de'}: {blockers.map((dependency) => dependency?.title).join(', ')}</em>}</div><div className="gantt-lane"><i className={`status-${piece.status}`} style={{ left: `${position.left}%`, width: `${position.width}%` }}><span>{piece.dueDate ? new Date(piece.dueDate).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }) : '+7 días'}</span></i></div></div>; })}</div></div></section>
+        <section className="production-gantt">
+          <header>
+            <div>
+              <span className="page-eyebrow">PLANIFICADOR DE 6 SEMANAS</span>
+              <h2>Dependencias, fechas y avance</h2>
+            </div>
+            <p>Desde la creacion hasta el vencimiento.</p>
+          </header>
+          <div className="gantt-scroll">
+            <div className="gantt-calendar">
+              <div className="gantt-axis-label">Pieza / responsable</div>
+              <div className="gantt-axis">
+                {Array.from({ length: 7 }, (_, index) => {
+                  const date = new Date(ganttStart);
+                  date.setDate(date.getDate() + index * 7);
+                  return <span key={date.toISOString()} style={{ left: `${(index / 6) * 100}%` }}>{date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}</span>;
+                })}
+              </div>
+              {pieces?.map((piece) => {
+                const position = ganttPosition(piece);
+                const blockers = (piece.dependencyIds || []).map((id) => pieces.find((candidate) => candidate.id === id)).filter(Boolean);
+                const blocked = blockers.some((candidate) => candidate?.status !== 'delivered');
+                return (
+                  <div className={`gantt-row ${blocked ? 'is-blocked' : ''}`} key={piece.id}>
+                    <div className="gantt-row-label">
+                      <strong>{piece.title}</strong>
+                      <small>{userMap.get(piece.assignedTo || '') || 'Sin asignar'} · {piece.udAmount} UD</small>
+                      {blockers.length > 0 && <em>{blocked ? 'Bloqueada por' : 'Dependia de'}: {blockers.map((dependency) => dependency?.title).join(', ')}</em>}
+                    </div>
+                    <div className="gantt-lane">
+                      <i className={`status-${piece.status}`} style={{ left: `${position.left}%`, width: `${position.width}%` }}>
+                        <span>{piece.dueDate ? new Date(piece.dueDate).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }) : '+7 dias'}</span>
+                      </i>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
       ) : (
         <div className="table-wrapper">
           <table className="data-table">
@@ -329,9 +553,7 @@ export function ProductionPage() {
                   <td>{piece.correctionCount}</td>
                   <td>{piece.assignedTo ? userMap.get(piece.assignedTo) ?? piece.assignedTo : 'Sin asignar'}</td>
                   <td>{piece.dueDate ? new Date(piece.dueDate).toLocaleDateString() : 'Sin fecha'}</td>
-                  <td>
-                    {renderActions(piece)}
-                  </td>
+                  <td>{renderActions(piece)}</td>
                 </tr>
               ))}
             </tbody>
@@ -340,25 +562,14 @@ export function ProductionPage() {
       )}
 
       <Modal open={assignModal.open} onClose={() => { setAssignModal({ open: false, pieceId: '' }); setAssigneeId(''); }} title="Asignar pieza">
-        <form
-          className="modal-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            assignMutation.mutate({ id: assignModal.pieceId, designerId: assigneeId });
-          }}
-        >
+        <form className="modal-form" onSubmit={(event) => { event.preventDefault(); assignMutation.mutate({ id: assignModal.pieceId, designerId: assigneeId }); }}>
           <label>
             Asignar a
-            <select className="input" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} required>
+            <select className="input" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>
               <option value="">Selecciona un responsable</option>
-              {assignableUsers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} ({ROLE_LABELS[user.role] ?? user.role})
-                </option>
-              ))}
+              {assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.name} ({ROLE_LABELS[user.role] ?? user.role})</option>)}
             </select>
           </label>
-
           <button className="btn btn-primary btn-block" type="submit" disabled={assignMutation.isPending || !assigneeId}>
             {assignMutation.isPending ? 'Asignando...' : 'Confirmar asignacion'}
           </button>
@@ -368,8 +579,8 @@ export function ProductionPage() {
       <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Nueva pieza">
         <form
           className="modal-form"
-          onSubmit={(e) => {
-            e.preventDefault();
+          onSubmit={(event) => {
+            event.preventDefault();
             createMutation.mutate({
               clientId: form.clientId,
               title: form.title.trim(),
@@ -384,46 +595,30 @@ export function ProductionPage() {
         >
           <label>
             Cliente
-            <select className="input" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} required>
+            <select className="input" value={form.clientId} onChange={(event) => setForm({ ...form, clientId: event.target.value })} required>
               <option value="">Selecciona un cliente</option>
-              {(clients ?? []).map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
+              {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
             </select>
           </label>
           <label>
             Titulo
-            <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+            <input className="input" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
           </label>
           <label>
             Tipo
-            <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-              {PIECE_TYPES.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
+            <select className="input" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}>
+              {PIECE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
           {form.type === 'carousel' && (
             <label>
-              Cantidad de láminas
-              <input
-                className="input"
-                type="number"
-                min="2"
-                max="20"
-                value={form.carouselSlides}
-                onChange={(e) => setForm({ ...form, carouselSlides: e.target.value })}
-                required
-              />
+              Cantidad de laminas
+              <input className="input" type="number" min="2" max="20" value={form.carouselSlides} onChange={(event) => setForm({ ...form, carouselSlides: event.target.value })} required />
             </label>
           )}
           <label>
             Nivel
-            <select className="input" value={form.difficultyLevel} onChange={(e) => setForm({ ...form, difficultyLevel: e.target.value })}>
+            <select className="input" value={form.difficultyLevel} onChange={(event) => setForm({ ...form, difficultyLevel: event.target.value })}>
               <option value="1">N1</option>
               <option value="2">N2</option>
               <option value="3">N3</option>
@@ -432,19 +627,19 @@ export function ProductionPage() {
             </select>
           </label>
           <label>
-            Fecha límite
-            <input className="input" type="datetime-local" value={form.deadlineAt} onChange={(e) => setForm({ ...form, deadlineAt: e.target.value })} />
+            Fecha limite
+            <input className="input" type="datetime-local" value={form.deadlineAt} onChange={(event) => setForm({ ...form, deadlineAt: event.target.value })} />
           </label>
           <label>
             Dependencias previas
             <select className="input production-dependency-select" multiple value={form.dependencyIds} onChange={(event) => setForm({ ...form, dependencyIds: Array.from(event.currentTarget.selectedOptions, (option) => option.value) })}>
               {(pieces ?? []).filter((piece) => piece.status !== 'delivered').map((piece) => <option value={piece.id} key={piece.id}>{piece.title} · {piece.clientName}</option>)}
             </select>
-            <small>Usa Ctrl o Cmd para seleccionar varias. El Gantt mostrará los bloqueos pendientes.</small>
+            <small>Usa Ctrl o Cmd para seleccionar varias. El Gantt mostrara los bloqueos pendientes.</small>
           </label>
           <label>
             Indicaciones
-            <textarea className="input" rows={3} maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Objetivo, formato y observaciones para producción" />
+            <textarea className="input" rows={3} maxLength={2000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Objetivo, formato y observaciones para produccion" />
           </label>
           <button className="btn btn-primary btn-block" type="submit" disabled={createMutation.isPending}>
             {createMutation.isPending ? 'Creando...' : 'Crear pieza'}
@@ -452,9 +647,9 @@ export function ProductionPage() {
         </form>
       </Modal>
 
-      <Modal open={versionModal.open} onClose={() => setVersionModal({ open: false, pieceId: '' })} title="Enviar versión a revisión">
+      <Modal open={versionModal.open} onClose={() => setVersionModal({ open: false, pieceId: '' })} title="Enviar version a revision">
         <form className="modal-form" onSubmit={(event) => { event.preventDefault(); versionMutation.mutate({ pieceId: versionModal.pieceId, fileName: versionForm.fileName.trim(), driveFileId: versionForm.driveFileId.trim() || undefined }); }}>
-          <p className="page-subtitle">La nomenclatura se valida automáticamente antes de la revisión.</p>
+          <p className="page-subtitle">La nomenclatura se valida automaticamente antes de la revision.</p>
           <label>
             Nombre exacto del archivo
             <input className="input" required maxLength={255} value={versionForm.fileName} onChange={(event) => setVersionForm({ ...versionForm, fileName: event.target.value })} placeholder="CLIE_POST-CAMPANA_FEED-1080x1080_v1_REVISION" />
@@ -464,7 +659,7 @@ export function ProductionPage() {
             <input className="input" maxLength={255} value={versionForm.driveFileId} onChange={(event) => setVersionForm({ ...versionForm, driveFileId: event.target.value })} placeholder="ID ubicado entre /d/ y /view" />
           </label>
           <button className="btn btn-primary btn-block" type="submit" disabled={versionMutation.isPending || !versionForm.fileName.trim()}>
-            {versionMutation.isPending ? 'Validando y enviando...' : 'Registrar versión'}
+            {versionMutation.isPending ? 'Validando y enviando...' : 'Registrar version'}
           </button>
         </form>
       </Modal>
@@ -472,11 +667,15 @@ export function ProductionPage() {
       <ConfirmDialog
         open={Boolean(deliverPieceId)}
         title="Entregar pieza"
-        description="Se cerrará el ciclo. Esta acción no se puede deshacer."
+        description="Se cerrara el ciclo. Esta accion no se puede deshacer."
         confirmLabel="Entregar"
         pending={transitionMutation.isPending}
         onClose={() => setDeliverPieceId(null)}
-        onConfirm={() => { if (deliverPieceId) { transitionMutation.mutate({ pieceId: deliverPieceId, action: 'deliver' }, { onSuccess: () => setDeliverPieceId(null) }); } }}
+        onConfirm={() => {
+          if (deliverPieceId) {
+            transitionMutation.mutate({ pieceId: deliverPieceId, action: 'deliver' }, { onSuccess: () => setDeliverPieceId(null) });
+          }
+        }}
       />
     </div>
   );

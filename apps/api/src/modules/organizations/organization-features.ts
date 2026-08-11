@@ -1,7 +1,7 @@
 import {
   ORGANIZATION_MODULE_CATALOG,
   type OrganizationModuleKey,
-} from '@vitahub/shared';
+} from '@espartanos/shared';
 
 /**
  * Modulos que se pueden encender o apagar por organizacion.

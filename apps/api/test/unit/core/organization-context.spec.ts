@@ -23,7 +23,7 @@ describe('OrganizationContextGuard', () => {
   });
 
   it('ignora la organización que llega en la cabecera', () => {
-    // VITAHUB opera una sola organizacion y quien la indica es el JWT. Aceptar un valor de
+    // Espartanos opera una sola organizacion y quien la indica es el JWT. Aceptar un valor de
     // la peticion permitiria a un cliente elegir en que organizacion lee y escribe.
     const request = {
       headers: { 'x-organization-id': 'org-ajena' },

@@ -2,7 +2,7 @@
 # Backup MySQL seguro: la clave se entrega a mysqldump mediante un archivo temporal 0600.
 set -euo pipefail
 
-BACKUP_DIR="${1:-$HOME/vitahub_backups}"
+BACKUP_DIR="${1:-$HOME/espartanos_backups}"
 TIMESTAMP="$(date +"%Y%m%d_%H%M%S")"
 DB_NAME="${DB_DATABASE:?DB_DATABASE must be set}"
 DB_USER="${DB_USERNAME:?DB_USERNAME must be set}"

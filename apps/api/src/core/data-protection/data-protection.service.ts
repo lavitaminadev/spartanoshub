@@ -42,7 +42,7 @@ export class DataProtectionService {
 
     await this.userRepo.update(userId, {
       name: 'Usuario Anónimo',
-      email: `anon-${userId}@vitahub.local`,
+      email: `anon-${userId}@espartanos.local`,
       phone: null,
       avatarUrl: null,
       refreshToken: null,

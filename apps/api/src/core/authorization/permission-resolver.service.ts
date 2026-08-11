@@ -6,7 +6,7 @@ import {
   moduleLifecycleSettingKey,
   type ModuleLifecycleStatus,
   type OrganizationModuleLifecycleMap,
-} from '@vitahub/shared';
+} from '@espartanos/shared';
 import { Repository } from 'typeorm';
 import { Organization } from '../../modules/organizations/organization.entity';
 import {
@@ -158,10 +158,13 @@ export class PermissionResolverService {
 
   private async lifecycleOf(organizationId: string): Promise<OrganizationModuleLifecycleMap> {
     const defaults = buildDefaultOrganizationModuleLifecycleMap();
-    if (!this.parameters) return defaults;
+    // El servicio de parámetros es opcional: se resuelve una sola vez a una constante local para
+    // que las consultas en paralelo trabajen sobre una referencia ya verificada.
+    const parameters = this.parameters;
+    if (!parameters) return defaults;
     const configured = await Promise.all(
       ORGANIZATION_FEATURE_KEYS.map(async (module) => {
-        const value = await this.parameters.get(moduleLifecycleSettingKey(module), null, null, organizationId);
+        const value = await parameters.get(moduleLifecycleSettingKey(module), null, null, organizationId);
         return [module, value] as const;
       }),
     );

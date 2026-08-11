@@ -3,12 +3,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { BrandLockup } from '../../shared/Brand';
 import { buildSessionHostWarning } from './session-host-warning';
+import { readStoredText, storageKey, writeStoredText } from '../../core/browser-storage';
 
-const REMEMBERED_LOGIN_KEY = 'vitahub:remembered-login';
+const REMEMBERED_LOGIN_KEY = storageKey('remembered-login');
 
 function getRememberedLogin(): string {
-  if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem(REMEMBERED_LOGIN_KEY) ?? '';
+  return readStoredText(REMEMBERED_LOGIN_KEY) ?? '';
 }
 
 function getSessionHostWarning(): string | null {
@@ -48,11 +48,7 @@ export function LoginPage() {
     setError('');
     try {
       await login(email, password);
-      if (rememberLogin) {
-        window.localStorage.setItem(REMEMBERED_LOGIN_KEY, email.trim().toLowerCase());
-      } else {
-        window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
-      }
+      writeStoredText(REMEMBERED_LOGIN_KEY, rememberLogin ? email.trim().toLowerCase() : null);
       const loggedInUser = useAuth.getState().user;
       const needsFirstAccess = loggedInUser?.mustChangePassword || loggedInUser?.mustCompleteProfile || loggedInUser?.mustAcceptTerms;
       navigate(needsFirstAccess ? '/first-access' : loggedInUser?.role === 'client' ? '/portal' : '/dashboard', { replace: true });
