@@ -1,15 +1,21 @@
-import { MigrationInterface, QueryRunner, TableColumn, TableForeignKey } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableForeignKey } from 'typeorm';
+
+type SqlColumnDefinition = {
+  columnType: string;
+  charset: string | null;
+  collation: string | null;
+};
 
 /**
- * Un contacto es el vínculo de una persona con una cuenta, y toda persona vive en `leads`.
+ * Un contacto es el vinculo de una persona con una cuenta, y toda persona vive en `leads`.
  *
- * Los contactos flotantes —sin `lead_id`— solo podían entrar por los endpoints de alta que
- * ninguna pantalla usaba. Nadie los mostraba y ningún proceso los mantenía al día: eran
- * registros que existían sin que nada dependiera de ellos, y que al mismo tiempo hacían
+ * Los contactos flotantes -sin `lead_id`- solo podian entrar por los endpoints de alta que
+ * ninguna pantalla usaba. Nadie los mostraba y ningun proceso los mantenia al dia: eran
+ * registros que existian sin que nada dependiera de ellos, y que al mismo tiempo hacian
  * imposible afirmar que la identidad de una persona vive en un solo lugar.
  *
- * La restricción se aplica después de darles un lead a los que hubiera, de modo que la
- * migración no pierda datos aunque encuentre filas viejas.
+ * La restriccion se aplica despues de darles un lead a los que hubiera, de modo que la
+ * migracion no pierda datos aunque encuentre filas viejas.
  */
 export class ContactsRequireLead1726200000000 implements MigrationInterface {
   name = 'ContactsRequireLead1726200000000';
@@ -17,9 +23,14 @@ export class ContactsRequireLead1726200000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (!(await queryRunner.hasTable('crm_contacts'))) return;
 
-    // Un contacto huérfano lleva datos de una persona real: se le crea su lead en vez de
-    // borrarlo. El dominio se deduce de si pertenece a una cuenta —audiencia de un local— o
-    // no —contacto de una empresa prospecto—, que es la misma regla que usa la captura.
+    const sqlDefinition = await this.getLeadIdSqlDefinition(queryRunner);
+    await this.ensureLeadColumn(queryRunner, sqlDefinition);
+
+    // Recupera primero asociaciones de una ejecucion interrumpida. El segundo UPDATE tambien
+    // evita duplicar un lead si ya existe una identidad inequivalente por la fuente.
+    await this.linkExistingContacts(queryRunner, true);
+    await this.linkExistingContacts(queryRunner, false);
+
     await queryRunner.query(`
       INSERT INTO leads (id, organization_id, client_id, name, email, phone, domain, source, status, fit_status, quality_score, created_at, updated_at)
       SELECT UUID(), c.organization_id, c.client_id, c.name, c.email, c.phone,
@@ -29,20 +40,10 @@ export class ContactsRequireLead1726200000000 implements MigrationInterface {
       WHERE c.lead_id IS NULL
     `);
 
-    await queryRunner.query(`
-      UPDATE crm_contacts c
-      JOIN leads l
-        ON l.organization_id = c.organization_id
-       AND l.source = 'contacto_migrado'
-       AND l.name = c.name
-       AND (l.email <=> c.email)
-       AND (l.phone <=> c.phone)
-      SET c.lead_id = l.id
-      WHERE c.lead_id IS NULL
-    `);
+    await this.linkExistingContacts(queryRunner, true);
 
-    // Si algo quedó sin pareja, la columna no se puede endurecer sin perder la fila. Se corta
-    // acá: fallar la migración es recuperable, borrar datos de personas no lo es.
+    // Si algo quedo sin pareja, la columna no se puede endurecer sin perder la fila. Fallar la
+    // migracion es recuperable; borrar datos de personas no lo es.
     const [{ orphans }] = await queryRunner.query(
       `SELECT COUNT(*) AS orphans FROM crm_contacts WHERE lead_id IS NULL`,
     );
@@ -50,27 +51,16 @@ export class ContactsRequireLead1726200000000 implements MigrationInterface {
       throw new Error(`Quedan ${orphans} contactos sin lead: revisarlos a mano antes de continuar`);
     }
 
-    const {
-      contactLeadColumn,
-      referencedLeadColumn,
-      foreignKey: previousForeignKey,
-    } = await this.getLeadSchema(queryRunner);
+    const previousForeignKey = await this.findLeadForeignKey(queryRunner);
     if (previousForeignKey) await queryRunner.dropForeignKey('crm_contacts', previousForeignKey);
 
-    const requiredColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, false);
-    const nullableColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, true);
-    let columnChanged = false;
-
     try {
-      await queryRunner.changeColumn('crm_contacts', contactLeadColumn, requiredColumn);
-      columnChanged = true;
+      // No usar changeColumn aqui: TypeORM elimina y agrega la columna cuando MariaDB reporta
+      // UUID y una instalacion anterior dejo VARCHAR(36). MODIFY conserva todos los valores.
+      await this.setLeadColumnNullability(queryRunner, sqlDefinition, false);
       await queryRunner.createForeignKey('crm_contacts', this.leadForeignKey(previousForeignKey, 'RESTRICT'));
     } catch (error) {
-      // MySQL confirma cada ALTER TABLE aunque la migracion use una transaccion. La columna
-      // compatible tambien repara una ejecucion anterior que haya perdido cotejamiento o FK.
-      if (columnChanged) {
-        await queryRunner.changeColumn('crm_contacts', requiredColumn, nullableColumn);
-      }
+      await this.setLeadColumnNullability(queryRunner, sqlDefinition, true);
       await queryRunner.createForeignKey(
         'crm_contacts',
         previousForeignKey || this.leadForeignKey(undefined, 'SET NULL'),
@@ -81,25 +71,20 @@ export class ContactsRequireLead1726200000000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     if (!(await queryRunner.hasTable('crm_contacts'))) return;
-    const {
-      contactLeadColumn,
-      referencedLeadColumn,
-      foreignKey: requiredForeignKey,
-    } = await this.getLeadSchema(queryRunner);
+    const sqlDefinition = await this.getLeadIdSqlDefinition(queryRunner);
+
+    if (!(await queryRunner.hasColumn('crm_contacts', 'lead_id'))) {
+      throw new Error('No existe crm_contacts.lead_id para revertir la migracion');
+    }
+
+    const requiredForeignKey = await this.findLeadForeignKey(queryRunner);
     if (requiredForeignKey) await queryRunner.dropForeignKey('crm_contacts', requiredForeignKey);
 
-    const nullableColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, true);
-    const requiredColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, false);
-    let columnChanged = false;
-
     try {
-      await queryRunner.changeColumn('crm_contacts', contactLeadColumn, nullableColumn);
-      columnChanged = true;
+      await this.setLeadColumnNullability(queryRunner, sqlDefinition, true);
       await queryRunner.createForeignKey('crm_contacts', this.leadForeignKey(requiredForeignKey, 'SET NULL'));
     } catch (error) {
-      if (columnChanged) {
-        await queryRunner.changeColumn('crm_contacts', nullableColumn, requiredColumn);
-      }
+      await this.setLeadColumnNullability(queryRunner, sqlDefinition, false);
       await queryRunner.createForeignKey(
         'crm_contacts',
         requiredForeignKey || this.leadForeignKey(undefined, 'RESTRICT'),
@@ -108,55 +93,98 @@ export class ContactsRequireLead1726200000000 implements MigrationInterface {
     }
   }
 
-  private async getLeadSchema(queryRunner: QueryRunner): Promise<{
-    contactLeadColumn: TableColumn;
-    referencedLeadColumn: TableColumn;
-    foreignKey: TableForeignKey | undefined;
-  }> {
-    const [contactsTable, leadsTable] = await Promise.all([
-      queryRunner.getTable('crm_contacts'),
-      queryRunner.getTable('leads'),
-    ]);
-    const contactLeadColumn = contactsTable?.findColumnByName('lead_id');
-    const referencedLeadColumn = leadsTable?.findColumnByName('id');
+  private async getLeadIdSqlDefinition(queryRunner: QueryRunner): Promise<SqlColumnDefinition> {
+    const rows = await queryRunner.query(`
+      SELECT COLUMN_TYPE AS columnType,
+             CHARACTER_SET_NAME AS charset,
+             COLLATION_NAME AS collation
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'leads'
+        AND COLUMN_NAME = 'id'
+    `);
+    const row = rows[0] as Record<string, unknown> | undefined;
+    if (!row) throw new Error('No se pudo leer la definicion SQL de leads.id');
 
-    if (!contactLeadColumn || !referencedLeadColumn) {
-      throw new Error('No se pudo leer crm_contacts.lead_id o leads.id para validar su compatibilidad');
-    }
-
-    const foreignKey = contactsTable?.foreignKeys.find((candidate) =>
-      candidate.columnNames.length === 1
-      && candidate.columnNames[0] === 'lead_id'
-      && candidate.referencedTableName.split('.').pop() === 'leads',
-    );
-
-    return { contactLeadColumn, referencedLeadColumn, foreignKey };
+    const definition = {
+      columnType: String(row.columnType ?? row.COLUMN_TYPE ?? ''),
+      charset: this.optionalString(row.charset ?? row.CHARACTER_SET_NAME),
+      collation: this.optionalString(row.collation ?? row.COLLATION_NAME),
+    };
+    this.assertSafeSqlType(definition);
+    return definition;
   }
 
-  private compatibleLeadColumn(
-    current: TableColumn,
-    referenced: TableColumn,
+  private async ensureLeadColumn(
+    queryRunner: QueryRunner,
+    definition: SqlColumnDefinition,
+  ): Promise<void> {
+    if (await queryRunner.hasColumn('crm_contacts', 'lead_id')) return;
+    await queryRunner.query(
+      `ALTER TABLE crm_contacts ADD lead_id ${this.renderSqlType(definition)} NULL`,
+    );
+  }
+
+  private async linkExistingContacts(
+    queryRunner: QueryRunner,
+    onlyMigrated: boolean,
+  ): Promise<void> {
+    await queryRunner.query(`
+      UPDATE crm_contacts c
+      JOIN leads l
+        ON l.organization_id = c.organization_id
+       AND (l.client_id <=> c.client_id)
+       AND l.name = c.name
+       AND (l.email <=> c.email)
+       AND (l.phone <=> c.phone)
+       ${onlyMigrated ? "AND l.source = 'contacto_migrado'" : ''}
+      SET c.lead_id = l.id
+      WHERE c.lead_id IS NULL
+    `);
+  }
+
+  private async setLeadColumnNullability(
+    queryRunner: QueryRunner,
+    definition: SqlColumnDefinition,
     isNullable: boolean,
-  ): TableColumn {
-    const compatible = current.clone();
+  ): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE crm_contacts MODIFY lead_id ${this.renderSqlType(definition)} ${isNullable ? 'NULL' : 'NOT NULL'}`,
+    );
+  }
 
-    // Una FK MySQL exige que ambos lados coincidan tambien en longitud, unsigned y cotejamiento.
-    compatible.type = referenced.type;
-    compatible.length = referenced.length;
-    compatible.width = referenced.width;
-    compatible.charset = referenced.charset;
-    compatible.collation = referenced.collation;
-    compatible.precision = referenced.precision;
-    compatible.scale = referenced.scale;
-    compatible.zerofill = referenced.zerofill;
-    compatible.unsigned = referenced.unsigned;
-    compatible.enum = referenced.enum ? [...referenced.enum] : undefined;
-    compatible.enumName = referenced.enumName;
-    compatible.spatialFeatureType = referenced.spatialFeatureType;
-    compatible.srid = referenced.srid;
-    compatible.isNullable = isNullable;
+  private renderSqlType(definition: SqlColumnDefinition): string {
+    const charset = definition.charset ? ` CHARACTER SET ${definition.charset}` : '';
+    const collation = definition.collation ? ` COLLATE ${definition.collation}` : '';
+    return `${definition.columnType}${charset}${collation}`;
+  }
 
-    return compatible;
+  private assertSafeSqlType(definition: SqlColumnDefinition): void {
+    const columnTypePattern = /^[a-z][a-z0-9_]*(?:\(\d+(?:,\d+)?\))?(?: unsigned)?$/i;
+    const identifierPattern = /^[a-z][a-z0-9_]*$/i;
+
+    if (!columnTypePattern.test(definition.columnType)) {
+      throw new Error(`Tipo SQL inesperado para leads.id: ${definition.columnType || '(vacio)'}`);
+    }
+    if (definition.charset && !identifierPattern.test(definition.charset)) {
+      throw new Error(`Charset SQL inesperado para leads.id: ${definition.charset}`);
+    }
+    if (definition.collation && !identifierPattern.test(definition.collation)) {
+      throw new Error(`Collation SQL inesperada para leads.id: ${definition.collation}`);
+    }
+  }
+
+  private optionalString(value: unknown): string | null {
+    return value === null || value === undefined || value === '' ? null : String(value);
+  }
+
+  private async findLeadForeignKey(queryRunner: QueryRunner): Promise<TableForeignKey | undefined> {
+    const table = await queryRunner.getTable('crm_contacts');
+    return table?.foreignKeys.find((foreignKey) =>
+      foreignKey.columnNames.length === 1
+      && foreignKey.columnNames[0] === 'lead_id'
+      && foreignKey.referencedTableName.split('.').pop() === 'leads',
+    );
   }
 
   private leadForeignKey(previous: TableForeignKey | undefined, onDelete: 'RESTRICT' | 'SET NULL'): TableForeignKey {
