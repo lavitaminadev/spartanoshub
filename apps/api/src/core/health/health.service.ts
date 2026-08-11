@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
+import apiPackage from '../../../package.json';
 
 @Injectable()
 export class HealthService {
@@ -26,7 +27,8 @@ export class HealthService {
       status,
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || '1.0.0',
+      // Passenger inicia `node app.js` directamente, por lo que npm_package_version no existe.
+      version: apiPackage.version,
       database: db,
       memory,
       disk,
