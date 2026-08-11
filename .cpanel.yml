@@ -32,7 +32,12 @@ deployment:
     - test -x "$NODE_BIN/node" && test -x "$NODE_BIN/npm" || { echo "FALTA EL ENTORNO NODE 22 DE CPANEL"; exit 1; }
     - export PATH="$NODE_BIN:$PATH"
     - node --version
-    - npm ci --omit=dev
+
+    # Antes: `npm ci --omit=dev` conservaba miles de archivos en $HOME/.npm. El instalador
+    # mantiene la misma instalacion productiva, pero usa una cache temporal y siempre la borra.
+    - /bin/bash scripts/deploy/check-inodes.sh
+    - /bin/bash scripts/deploy/install-production-dependencies.sh
+    - /bin/bash scripts/deploy/check-inodes.sh
     - npm run check:production-env
 
     # TypeORM registra cada migracion aplicada; volver a desplegar solo ejecuta las pendientes.

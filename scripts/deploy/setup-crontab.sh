@@ -37,7 +37,7 @@ mkdir -p "$APP_DIR/logs"
 chmod 750 "$APP_DIR/logs"
 
 # Ejecutar el instalador varias veces reemplaza las tareas anteriores en vez de duplicarlas.
-EXISTING="$(crontab -l 2>/dev/null | grep -v '# Spartanoshub' | grep -v '# VitaHub' | grep -v "$CRON_URL" | grep -v 'infrastructure/scripts/backup.sh' | grep -v 'vitahub/logs/cron-' || true)"
+EXISTING="$(crontab -l 2>/dev/null | grep -v '# Spartanoshub' | grep -v '# VitaHub' | grep -v "$CRON_URL" | grep -v 'infrastructure/scripts/backup.sh' | grep -v 'scripts/deploy/check-inodes.sh' | grep -v 'vitahub/logs/cron-' || true)"
 
 echo "Instalando tareas para $CRON_URL..."
 {
@@ -70,6 +70,9 @@ echo "Instalando tareas para $CRON_URL..."
 
 # Spartanoshub - Backup MySQL local (diario, 03:00; retencion de 30 dias)
 0 3 * * * set -a && . $APP_DIR/.env && set +a && RETENTION_DAYS=30 bash $APP_DIR/infrastructure/scripts/backup.sh \$HOME/vitahub_backups >> $APP_DIR/logs/cron-backup.log 2>&1
+
+# Spartanoshub - Alerta de inodos (lunes, 04:15; solo lectura)
+15 4 * * 1 cd $APP_DIR && /bin/bash scripts/deploy/check-inodes.sh >/dev/null
 EOF
 } | crontab -
 

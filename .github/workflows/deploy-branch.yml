@@ -84,6 +84,15 @@ jobs:
             exit 1
           fi
 
+          # El despliegue validado usa 2.587 archivos. Este margen permite crecimiento normal,
+          # pero detiene copias, caches o artefactos masivos antes de consumir inodos en cPanel.
+          tracked_files="$(git ls-files --cached | wc -l | tr -d ' ')"
+          if [ "$tracked_files" -gt 4000 ]; then
+            echo "deploy contiene $tracked_files archivos; el limite permanente es 4000"
+            exit 1
+          fi
+          echo "Archivos versionados en deploy: $tracked_files/4000"
+
           tree="$(git write-tree)"
           message="Despliegue de ${GITHUB_SHA::7}
 
