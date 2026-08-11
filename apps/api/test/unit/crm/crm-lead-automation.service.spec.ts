@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CrmLeadAutomationService } from '../../../src/modules/crm/leads/crm-lead-automation.service';
+import { LEGACY_RESERVATION_LEAD_SOURCE, RESERVATION_LEAD_SOURCE } from '@espartanos/shared';
 
 const contacts = { findOne: vi.fn(), create: vi.fn(), save: vi.fn() };
 const opportunities = { findOne: vi.fn(), create: vi.fn(), save: vi.fn() };
@@ -19,7 +20,7 @@ function audienceLead(overrides: Record<string, unknown> = {}) {
     name: 'Ana Fuentes',
     email: 'ana@example.cl',
     phone: '+56912345678',
-    source: 'vitahub_reservations',
+    source: RESERVATION_LEAD_SOURCE,
     ...overrides,
   } as never;
 }
@@ -42,6 +43,17 @@ describe('CrmLeadAutomationService · el vínculo sigue al lead', () => {
       name: 'Ana Fuentes',
       phone: '+56912345678',
     });
+  });
+
+  it('CRM-01 · trata como audiencia un lead guardado con el origen anterior', async () => {
+    // Una fila anterior a la migración del origen no debe volver al embudo comercial.
+    contacts.findOne.mockResolvedValue(null);
+    const lead = audienceLead({ source: LEGACY_RESERVATION_LEAD_SOURCE });
+
+    await build().runForLead(lead);
+
+    expect(contacts.save).toHaveBeenCalled();
+    expect(opportunities.save).not.toHaveBeenCalled();
   });
 
   it('CRM-01 · pone al día la copia cuando la identidad del lead cambió', async () => {

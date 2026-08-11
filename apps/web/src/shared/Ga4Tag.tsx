@@ -31,10 +31,10 @@ export function Ga4Tag({ measurementId }: Ga4TagProps) {
       document.head.appendChild(script);
     }
 
-    window.__vitahubGa4Properties ??= new Set<string>();
-    if (!window.__vitahubGa4Properties.has(measurementId)) {
+    window.__espartanosGa4Properties ??= new Set<string>();
+    if (!window.__espartanosGa4Properties.has(measurementId)) {
       window.gtag('config', measurementId);
-      window.__vitahubGa4Properties.add(measurementId);
+      window.__espartanosGa4Properties.add(measurementId);
     }
   }, [measurementId]);
 
@@ -45,6 +45,6 @@ declare global {
   interface Window {
     dataLayer?: unknown[];
     gtag?: (...args: unknown[]) => void;
-    __vitahubGa4Properties?: Set<string>;
+    __espartanosGa4Properties?: Set<string>;
   }
 }

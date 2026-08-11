@@ -170,7 +170,7 @@ export function CloudinaryConfigModal({ open, onClose }: CloudinaryConfigModalPr
             />
             {hasSavedApiKey
               ? <small>Ya hay una API Key guardada. Por seguridad no mostramos el valor completo.</small>
-              : <small>Debe ser la API Key numérica de Cloudinary. No uses admin@vitahub.local.</small>}
+              : <small>Debe ser la API Key numérica de Cloudinary. No uses admin@espartanos.local.</small>}
           </label>
           <label>
             API Secret de Cloudinary

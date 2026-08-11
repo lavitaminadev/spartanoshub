@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { UserRoles, type UserRole } from '@vitahub/shared';
+import { UserRoles, type UserRole } from '@espartanos/shared';
 
 export type PermissionLevel = 'none' | 'view' | 'edit' | 'manage';
 

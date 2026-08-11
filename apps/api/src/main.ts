@@ -49,7 +49,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('VITAHUB API')
+    .setTitle('Espartanos API')
     .setDescription('Sistema de Gestión de Agencia - API REST')
     .setVersion('1.0')
     .addBearerAuth()
@@ -62,7 +62,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.listen(process.env.PORT || 3000);
-  logger.log(`VITAHUB API running on port ${process.env.PORT || 3000}`);
+  logger.log(`Espartanos API running on port ${process.env.PORT || 3000}`);
 }
 
 // Sin este catch, un fallo de arranque (ej. no puede conectar a la base de

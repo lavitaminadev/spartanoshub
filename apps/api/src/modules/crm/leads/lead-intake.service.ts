@@ -61,7 +61,7 @@ interface LeadMetadata {
 /**
  * Dominio al que pertenece la captura.
  *
- * `commercial` es una organización que puede convertirse en cliente de VITAHUB: se le aplica
+ * `commercial` es una organización que puede convertirse en cliente de Espartanos: se le aplica
  * el scoring comercial y, si califica, la automatización que abre contacto y oportunidad.
  *
  * `audience` es una persona que reservó en el local de un cliente. Nunca es una venta, así que

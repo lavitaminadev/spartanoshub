@@ -42,7 +42,7 @@ API_PUBLIC_URL=https://refugio.espartanos.cl/api
 VITE_API_URL=https://refugio.espartanos.cl/api
 VITE_APP_PUBLIC_URL=https://cuartel.espartanos.cl
 CORS_ORIGIN=https://cuartel.espartanos.cl
-UPLOAD_DIR=/home/espartanoscl/vitahub_uploads
+UPLOAD_DIR=/home/espartanoscl/espartanos_uploads
 ```
 
 ## Configuracion de Passenger

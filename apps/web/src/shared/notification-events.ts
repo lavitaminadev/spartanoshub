@@ -1,4 +1,4 @@
-export const NOTIFICATION_EVENT = 'vitahub-notification';
+export const NOTIFICATION_EVENT = 'espartanos-notification';
 
 export interface NotificationDetail {
   type: 'success' | 'error' | 'warning' | 'info';

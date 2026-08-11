@@ -8,7 +8,7 @@ const ORG = 'org-1';
 function userWith(role: UserRole, overrides: Record<string, unknown> = {}) {
   return {
     id: 'user-1',
-    email: 'persona@vitahub.cl',
+    email: 'persona@espartanos.cl',
     name: 'Persona',
     role,
     organizationId: ORG,

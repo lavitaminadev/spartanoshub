@@ -5,6 +5,7 @@ import { api } from '../core/api';
 import { useAuth } from '../core/auth';
 import { getNavigation, isPathEnabled } from '../core/navigation.registry';
 import { publicReservationUrl } from '../core/public-url';
+import { COMMAND_PALETTE_EVENT } from './command-events';
 
 interface SearchItem { id: string; group: string; title: string; description: string; path?: string; action?: () => void }
 interface ClientResult { id: string; name: string; industry?: string; status: string }
@@ -50,8 +51,8 @@ export function CommandPalette() {
     };
     const handleOpen = () => setOpen(true);
     window.addEventListener('keydown', handleKey);
-    window.addEventListener('vitahub:open-command', handleOpen);
-    return () => { window.removeEventListener('keydown', handleKey); window.removeEventListener('vitahub:open-command', handleOpen); };
+    window.addEventListener(COMMAND_PALETTE_EVENT, handleOpen);
+    return () => { window.removeEventListener('keydown', handleKey); window.removeEventListener(COMMAND_PALETTE_EVENT, handleOpen); };
   }, []);
 
   useEffect(() => {

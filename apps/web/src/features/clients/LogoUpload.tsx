@@ -21,7 +21,7 @@ export function LogoUpload({ currentLogoUrl, clientId, onSuccess, onError }: Log
       const body = new FormData();
       body.append('file', file);
       // Call uploads/images endpoint which organizes logos by clientId in Cloudinary
-      // The URL query parameter clientId tells the server to organize in vitahub/{orgId}/{clientId}/
+      // The URL query parameter clientId tells the server to organize in espartanos/{orgId}/{clientId}/
       return api.post<{ url: string; publicId: string; width?: number; height?: number }>(
         `/uploads/images?clientId=${encodeURIComponent(clientId)}`,
         body as any,

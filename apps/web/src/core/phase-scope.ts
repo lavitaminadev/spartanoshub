@@ -5,7 +5,7 @@ import {
   isModuleLifecycleVisible,
   type ProductModuleKey,
   type ModuleLifecycleStatus,
-} from '@vitahub/shared';
+} from '@espartanos/shared';
 
 /**
  * Interruptor maestro.

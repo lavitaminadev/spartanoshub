@@ -5,7 +5,7 @@ import { organizationContext } from './organization-context';
 /**
  * Fija la organización de la petición a partir del usuario autenticado.
  *
- * VITAHUB opera una sola organización: La Vitamina. La columna `organization_id` se
+ * Espartanos opera una sola organización: La Vitamina. La columna `organization_id` se
  * conserva en el modelo, pero no es algo que el cliente pueda elegir — se deriva del JWT ya
  * verificado y de ninguna otra fuente.
  *

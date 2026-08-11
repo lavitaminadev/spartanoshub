@@ -7,7 +7,7 @@ import type { JSX } from 'react';
 import { useAuth } from './auth';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { getAllowedRolesForPath, isPathEnabled } from './navigation.registry';
-import type { UserRole } from '@vitahub/shared';
+import type { UserRole } from '@espartanos/shared';
 
 /**
  * Props del route guard protegido.

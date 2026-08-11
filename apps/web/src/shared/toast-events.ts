@@ -1,4 +1,4 @@
-export const TOAST_EVENT = 'vitahub-toast';
+export const TOAST_EVENT = 'espartanos-toast';
 
 export interface ToastAction {
   label: string;

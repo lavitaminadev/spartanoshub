@@ -104,21 +104,42 @@ export class MetaConversionsService {
   async sendServerEvent(pixelId: string, accessToken: string, event: ConversionEvent): Promise<any> {
     const hashed = {
       ...event.userData,
-      em: event.userData.em?.map(e => createHash('sha256').update(e.trim().toLowerCase()).digest('hex')),
-      ph: event.userData.ph?.map(p => createHash('sha256').update(normalizePhoneForMeta(p)).digest('hex')),
-      fn: event.userData.fn?.map(f => createHash('sha256').update(f.trim().toLowerCase()).digest('hex')),
-      ln: event.userData.ln?.map(l => createHash('sha256').update(l.trim().toLowerCase()).digest('hex')),
-      externalId: event.userData.externalId?.map(id => createHash('sha256').update(id).digest('hex')),
+      em: hashAll(event.userData.em, (value) => value.trim().toLowerCase()),
+      ph: hashAll(event.userData.ph, normalizePhoneForMeta),
+      fn: hashAll(event.userData.fn, (value) => value.trim().toLowerCase()),
+      ln: hashAll(event.userData.ln, (value) => value.trim().toLowerCase()),
+      externalId: hashAll(event.userData.externalId, (value) => value),
       // ct/st/country ya llegan normalizados desde geo-inference (minúsculas,
       // sin acentos ni espacios), que es el formato que Meta exige antes de
       // hashear. Se aplica normalizeGeoValue igualmente por si el valor viene
       // de otra fuente.
-      ct: event.userData.ct?.map(c => createHash('sha256').update(normalizeGeoValue(c)).digest('hex')),
-      st: event.userData.st?.map(s => createHash('sha256').update(normalizeGeoValue(s)).digest('hex')),
-      country: event.userData.country?.map(c => createHash('sha256').update(normalizeGeoValue(c)).digest('hex')),
+      ct: hashAll(event.userData.ct, normalizeGeoValue),
+      st: hashAll(event.userData.st, normalizeGeoValue),
+      country: hashAll(event.userData.country, normalizeGeoValue),
     };
     return this.sendEvent(pixelId, accessToken, { ...event, userData: hashed });
   }
+}
+
+/**
+ * Normaliza y hashea los valores de un parámetro de identificación.
+ *
+ * Descarta lo que quede vacío tras normalizar, y omite el parámetro completo si no sobrevive
+ * ningún valor. La alternativa —hashear la cadena vacía— produce siempre el mismo digest, de
+ * modo que Meta recibiría un identificador idéntico para toda persona cuyo dato no se pudo
+ * normalizar y los trataría como una sola.
+ *
+ * @param values - Valores tal como vienen del evento, o `undefined` si el parámetro no viaja.
+ * @param normalize - Formato que Meta exige para ese parámetro antes de hashear.
+ * @returns Los digests en hexadecimal, o `undefined` si no queda ninguno que enviar.
+ */
+function hashAll(values: string[] | undefined, normalize: (value: string) => string): string[] | undefined {
+  if (!values?.length) return undefined;
+  const hashed = values
+    .map((value) => normalize(value ?? ''))
+    .filter((value) => value.length > 0)
+    .map((value) => createHash('sha256').update(value).digest('hex'));
+  return hashed.length > 0 ? hashed : undefined;
 }
 
 /**

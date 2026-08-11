@@ -2,7 +2,7 @@ import {
   MODULE_LIFECYCLE_STATUSES,
   ORGANIZATION_MODULE_CATALOG,
   moduleLifecycleSettingKey,
-} from '@vitahub/shared';
+} from '@espartanos/shared';
 
 export type OrganizationSettingCategory =
   | 'operation'

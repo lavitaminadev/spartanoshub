@@ -22,7 +22,7 @@ logs/
 # Claude Code: reference tool clones used locally to source agent/skill
 # templates. Each of these is its own git checkout (has its own .git/), so
 # committing them would embed broken nested repos and megabytes of content
-# unrelated to VitaHub. The curated, VitaHub-specific agents/skills we
+# unrelated to Espartanos. The curated, Espartanos-specific agents/skills we
 # actually use live in .claude/agents/ and .claude/skills/, which ARE
 # tracked — only these raw source clones are ignored.
 .claude/agents-pro/

@@ -5,6 +5,7 @@ import { Reservation } from '../../../modules/reservations/domain/reservation.en
 import { ReservationForm } from '../../../modules/reservations/domain/reservation-form.entity';
 import { GoogleCalendarService } from '../../../modules/integrations/google/google-calendar.service';
 import { LeadIntakeService } from '../../../modules/crm/leads/lead-intake.service';
+import { RESERVATION_LEAD_SOURCE } from '@espartanos/shared';
 
 /** Antigüedad máxima de una reserva para intentar recuperar su integración. */
 const MAX_AGE_DAYS = 7;
@@ -79,7 +80,7 @@ export class RecoverReservationIntegrationsJob {
           name: booking.guestName,
           email: booking.guestEmail ?? undefined,
           phone: booking.guestPhone ?? undefined,
-          source: 'vitahub_reservations',
+          source: RESERVATION_LEAD_SOURCE,
           sourceDetail: form.name,
           status: 'reserved',
           externalLeadId: `reservation:${booking.id}`,

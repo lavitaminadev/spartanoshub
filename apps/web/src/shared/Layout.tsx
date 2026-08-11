@@ -10,6 +10,7 @@ import { parsePreviewRole, useRolePreview } from '../core/role-preview-context';
 import { ROLE_LABELS, roleLabel } from '../core/role-labels';
 import { getNavigation, getNavigationSections } from '../core/navigation.registry';
 import { NavGlyph } from './NavGlyph';
+import { openCommandPalette } from './command-events';
 import { ToastContainer } from './Toast';
 import { NotificationCenter } from './NotificationCenter';
 import { BrandMark } from './Brand';
@@ -190,7 +191,7 @@ export function Layout(): JSX.Element {
             <button
               type="button"
               className="workspace-command workspace-search"
-              onClick={() => window.dispatchEvent(new Event('vitahub:open-command'))}
+              onClick={openCommandPalette}
               aria-label="Buscar o ejecutar una acción"
             >
               <span aria-hidden="true">🔍</span>

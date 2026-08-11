@@ -19,7 +19,15 @@ import { AcceptTermsDto, CompleteOnboardingDto } from './dto/onboarding.dto';
 import { ReauthenticateDto } from './dto/reauthenticate.dto';
 import { ModuleExempt } from '../authorization/module-scope.decorator';
 
-const REFRESH_COOKIE = 'vitahub_refresh';
+const REFRESH_COOKIE = 'espartanos_refresh';
+/**
+ * Nombre anterior de la cookie, aceptado solo al leer.
+ *
+ * Las sesiones abiertas antes del cambio de nombre siguen presentando la cookie vieja: se lee
+ * como alternativa y el primer refresh la reemplaza por la nueva, de modo que nadie queda fuera
+ * por un despliegue. Se puede retirar cuando haya pasado la vigencia de un refresh completo.
+ */
+const LEGACY_REFRESH_COOKIE = 'vitahub_refresh';
 const REFRESH_COOKIE_PATH = '/api/auth';
 
 function sessionDurationMs(value: string): number {
@@ -44,6 +52,11 @@ function readCookie(request: Request, name: string): string | undefined {
   }
 }
 
+/** Token de refresh presentado por el navegador, sea con el nombre actual o el anterior. */
+function readRefreshCookie(request: Request): string | undefined {
+  return readCookie(request, REFRESH_COOKIE) ?? readCookie(request, LEGACY_REFRESH_COOKIE);
+}
+
 function setRefreshCookie(response: Response, token: string): void {
   response.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
@@ -52,15 +65,19 @@ function setRefreshCookie(response: Response, token: string): void {
     path: REFRESH_COOKIE_PATH,
     maxAge: REFRESH_COOKIE_MAX_AGE_MS,
   });
+  // Una sesión que venía con el nombre anterior queda con una sola cookie tras renovarse.
+  response.clearCookie(LEGACY_REFRESH_COOKIE, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: REFRESH_COOKIE_PATH });
 }
 
 function clearRefreshCookie(response: Response): void {
-  response.clearCookie(REFRESH_COOKIE, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: REFRESH_COOKIE_PATH,
-  });
+  for (const name of [REFRESH_COOKIE, LEGACY_REFRESH_COOKIE]) {
+    response.clearCookie(name, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: REFRESH_COOKIE_PATH,
+    });
+  }
 }
 
 /**
@@ -130,7 +147,7 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const token = readCookie(request, REFRESH_COOKIE) ?? dto?.refreshToken;
+    const token = readRefreshCookie(request) ?? dto?.refreshToken;
     const refreshed = await this.auth.refreshToken(token ?? '');
     setRefreshCookie(response, refreshed.refreshToken);
     return { accessToken: refreshed.accessToken };
@@ -151,7 +168,7 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const token = readCookie(request, REFRESH_COOKIE) ?? dto?.refreshToken;
+    const token = readRefreshCookie(request) ?? dto?.refreshToken;
     if (!token) return { authenticated: false as const };
     try {
       const refreshed = await this.auth.refreshToken(token);

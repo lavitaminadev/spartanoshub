@@ -1,4 +1,4 @@
-import type { LeadStatus as SharedLeadStatus } from '@vitahub/shared';
+import type { LeadStatus as SharedLeadStatus } from '@espartanos/shared';
 
 /**
  * Estados de un lead.
@@ -22,7 +22,7 @@ export enum LeadStatus {
 }
 
 /**
- * Verificación mutua contra `@vitahub/shared`.
+ * Verificación mutua contra `@espartanos/shared`.
  *
  * Falla la compilación si el enum y el catálogo compartido dejan de contener exactamente los
  * mismos valores. La comprobación es en ambos sentidos a propósito: un subconjunto satisface

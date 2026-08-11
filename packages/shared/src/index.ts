@@ -1,5 +1,5 @@
 /**
- * @fileoverview Public barrel export for `@vitahub/shared`.
+ * @fileoverview Public barrel export for `@espartanos/shared`.
  *
  * Import from this package in both `apps/api` and `apps/web` to share domain
  * contracts, constants, and runtime arrays.

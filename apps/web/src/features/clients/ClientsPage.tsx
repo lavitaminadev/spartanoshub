@@ -11,7 +11,7 @@ import { LogoUpload } from './LogoUpload';
 import { triggerToast } from '../../shared/toast-events';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
-import { CLIENT_INDUSTRIES, industryLabel } from '@vitahub/shared';
+import { CLIENT_INDUSTRIES, industryLabel } from '@espartanos/shared';
 
 interface ClientRecord {
   [key: string]: unknown;

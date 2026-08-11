@@ -3,8 +3,8 @@
  * y produce listas de navegación conscientes del rol.
  */
 
-import type { UserRole } from '@vitahub/shared';
-import type { ModuleLifecycleStatus } from '@vitahub/shared';
+import type { UserRole } from '@espartanos/shared';
+import type { ModuleLifecycleStatus } from '@espartanos/shared';
 import type { FeatureManifest } from './feature.manifest';
 import { isModuleInPhaseScope } from './phase-scope';
 

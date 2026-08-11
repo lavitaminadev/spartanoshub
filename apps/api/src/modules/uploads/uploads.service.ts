@@ -75,7 +75,7 @@ export class UploadsService {
     const token = revealSecret(typeof integration.config?.accessToken === 'string' ? integration.config.accessToken : undefined);
     if (!token) throw new BadRequestException('Google Drive no está conectado');
 
-    const boundary = `vitahub_${uuidv4().replace(/-/g, '')}`;
+    const boundary = `espartanos_${uuidv4().replace(/-/g, '')}`;
     const metadata = JSON.stringify({ name: upload.originalName, ...(folderId ? { parents: [folderId] } : {}) });
     const file = await fs.promises.readFile(upload.path);
     const body = Buffer.concat([

@@ -8,6 +8,18 @@ import { Integration } from '../../modules/integrations/integration.entity';
 import { IntegrationProvider } from '../../modules/integrations/integration-provider.enum';
 import { revealSecret } from '../../shared/security/integration-secrets';
 
+/** Raíz bajo la que se guardan los recursos nuevos. */
+const CLOUDINARY_FOLDER_ROOT = 'espartanos';
+
+/**
+ * Raíces reconocidas al validar la pertenencia de un recurso, de la actual a la más antigua.
+ *
+ * Los recursos subidos antes del cambio de nombre siguen en la raíz anterior hasta que se
+ * mueva la carpeta en Cloudinary; mientras tanto se los sigue pudiendo listar por su
+ * identificador y administrar.
+ */
+const CLOUDINARY_FOLDER_ROOTS = [CLOUDINARY_FOLDER_ROOT, 'vitahub'] as const;
+
 export interface CloudinaryUploadResult {
   url: string;
   secureUrl: string;
@@ -135,7 +147,7 @@ export class CloudinaryService {
       throw new BadRequestException('Cloudinary no está configurado para esta organización');
     }
 
-    const folder = options.folder || 'vitahub';
+    const folder = options.folder || 'espartanos';
     const timestamp = Math.floor(Date.now() / 1000);
     const params: Record<string, string | number> = { timestamp, folder, overwrite: 'true' };
     if (options.fileName) {
@@ -228,12 +240,20 @@ export class CloudinaryService {
    * varias organizaciones, así que la separación la da la jerarquía de carpetas.
    */
   static folderFor(organizationId: string, clientId?: string): string {
-    return clientId ? `vitahub/${organizationId}/${clientId}` : `vitahub/${organizationId}`;
+    return clientId
+      ? `${CLOUDINARY_FOLDER_ROOT}/${organizationId}/${clientId}`
+      : `${CLOUDINARY_FOLDER_ROOT}/${organizationId}`;
   }
 
-  /** Indica si un recurso está dentro de la carpeta de la organización. */
+  /**
+   * Indica si un recurso está dentro de la carpeta de la organización.
+   *
+   * Acepta también la raíz anterior: lo que aísla a una organización de otra es el segmento
+   * `organizationId`, no el nombre de la raíz, de modo que reconocer la de antes mantiene
+   * administrables los recursos subidos previamente sin debilitar la separación.
+   */
   private belongsToOrganization(publicId: string, organizationId: string): boolean {
-    return publicId.startsWith(`${CloudinaryService.folderFor(organizationId)}/`);
+    return CLOUDINARY_FOLDER_ROOTS.some((root) => publicId.startsWith(`${root}/${organizationId}/`));
   }
 
   /**

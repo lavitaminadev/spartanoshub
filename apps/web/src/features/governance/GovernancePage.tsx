@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   MODULE_LIFECYCLE_STATUSES,
   ORGANIZATION_MODULE_CATALOG,
@@ -6,7 +6,7 @@ import {
   moduleLifecycleSettingKey,
   type ModuleLifecycleStatus,
   type OrganizationModuleKey,
-} from '@vitahub/shared';
+} from '@espartanos/shared';
 import { ROLE_LABELS } from '../../core/role-labels';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -29,6 +29,11 @@ type Feedback = { tone: 'success' | 'error'; text: string } | null;
 
 function newStep(index: number): WorkflowStep { return { key: `etapa_${index + 1}`, label: `Nueva etapa ${index + 1}`, required: true }; }
 
+function formatWorkflowRole(role?: string): string {
+  if (!role) return 'Responsable por asignar';
+  return ROLE_LABELS[role] ?? role;
+}
+
 export function GovernancePage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<'workflows' | 'pods' | 'modules' | 'audit'>('workflows');
@@ -40,7 +45,7 @@ export function GovernancePage() {
   const [podDraft, setPodDraft] = useState({ name: '', description: '', leaderId: '', monthlyCapacityUd: 80, memberIds: [] as string[], clientIds: [] as string[] });
   const [archivePodId, setArchivePodId] = useState<string | null>(null);
 
-  const workflowsQuery = useQuery<Workflow[]>({ queryKey: ['workflows'], queryFn: () => api.get('/workflows') });
+  const workflowsQuery = useQuery<Workflow[]>({ queryKey: ['workflows'], queryFn: () => api.get('/workflows'), refetchInterval: 60_000 });
   const podsQuery = useQuery<Pod[]>({ queryKey: ['pods'], queryFn: () => api.get('/pods') });
   const usersQuery = useQuery<UserOption[]>({ queryKey: ['governance-users'], queryFn: () => api.get('/users?isActive=true') });
   const clientsQuery = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
@@ -143,6 +148,18 @@ export function GovernancePage() {
   const updateLifecycle = (key: OrganizationModuleKey, lifecycle: ModuleLifecycleStatus) => {
     lifecycleMutation.mutate({ [moduleLifecycleSettingKey(key)]: lifecycle });
   };
+  const workflowOverview = useMemo(() => {
+    const workflows = workflowsQuery.data ?? [];
+    const totalStages = workflows.reduce((sum, workflow) => sum + workflow.steps.length, 0);
+    const stagesWithOwner = workflows.reduce((sum, workflow) => sum + workflow.steps.filter((step) => step.responsibleRole).length, 0);
+    const slaValues = workflows.flatMap((workflow) => workflow.steps.map((step) => step.slaHours).filter((value): value is number => Boolean(value)));
+
+    return {
+      totalStages,
+      coverage: totalStages ? Math.round(stagesWithOwner / totalStages * 100) : 0,
+      averageSla: slaValues.length ? Math.round(slaValues.reduce((sum, value) => sum + value, 0) / slaValues.length) : 0,
+    };
+  }, [workflowsQuery.data]);
 
   if (workflowsQuery.isLoading || podsQuery.isLoading || usersQuery.isLoading || clientsQuery.isLoading || featuresQuery.isLoading || settingsQuery.isLoading) {
     return <LoadingSpinner text="Preparando gobernanza operativa..." />;
@@ -160,7 +177,7 @@ export function GovernancePage() {
     <nav className="governance-tabs"><button className={tab === 'workflows' ? 'active' : ''} onClick={() => setTab('workflows')}><span>01</span><strong>Flujos operativos</strong><small>Etapas, responsables y SLA</small></button><button className={tab === 'pods' ? 'active' : ''} onClick={() => setTab('pods')}><span>02</span><strong>Pods y capacidad</strong><small>Equipo y cartera de cuentas</small></button><button className={tab === 'modules' ? 'active' : ''} onClick={() => setTab('modules')}><span>03</span><strong>Centro de módulos</strong><small>Lifecycle y acceso por organización</small></button><button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}><span>04</span><strong>Auditoría</strong><small>Cambios, actores y evidencia</small></button></nav>
     {feedback && <div className={`alert alert-${feedback.tone}`}>{feedback.text}</div>}
 
-    {tab === 'workflows' && <section className="workflow-grid">{workflowsQuery.data?.map((workflow) => <article className="workflow-card" key={workflow.id}><header><div><span>{workflow.code.replaceAll('_', ' ')}</span><h2>{workflow.name}</h2></div><i>v{workflow.version}</i></header><p>{workflow.description}</p><ol>{workflow.steps.slice(0, 6).map((step, index) => <li key={`${step.key}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><div><strong>{step.label}</strong><small>{step.responsibleRole ? ROLE_LABELS[step.responsibleRole] ?? step.responsibleRole : 'Responsable por asignar'}{step.slaHours ? ` · ${step.slaHours} h` : ''}</small></div></li>)}</ol>{workflow.steps.length > 6 && <div className="workflow-more">+ {workflow.steps.length - 6} etapas adicionales</div>}<footer><button className="btn btn-primary btn-sm" onClick={() => openWorkflow(workflow)}>Configurar flujo</button><button className="btn btn-outline btn-sm" onClick={() => resetWorkflowMutation.mutate(workflow.code)} disabled={resetWorkflowMutation.isPending}>Restaurar base</button></footer></article>)}</section>}
+    {tab === 'workflows' && <section className="workflow-management"><div className="workflow-command-bar"><article><span>Flujos activos</span><strong>{workflowsQuery.data?.filter((workflow) => workflow.isActive).length ?? 0}</strong><small>Publicados y visibles para la operación.</small></article><article><span>Etapas documentadas</span><strong>{workflowOverview.totalStages}</strong><small>{workflowOverview.coverage}% con responsable definido.</small></article><article><span>SLA promedio</span><strong>{workflowOverview.averageSla || '-'}</strong><small>{workflowOverview.averageSla ? 'Horas por etapa con compromiso declarado.' : 'Faltan SLA por definir.'}</small></article></div><div className="workflow-grid">{workflowsQuery.data?.map((workflow) => { const nextStep = workflow.steps.find((step) => !step.responsibleRole || !step.slaHours) ?? workflow.steps[0]; return <article className="workflow-card workflow-card-rich" key={workflow.id}><header><div><span>{workflow.code.replaceAll('_', ' ')}</span><h2>{workflow.name}</h2></div><i>v{workflow.version}</i></header><p>{workflow.description}</p><div className="workflow-release-bar"><span>Versión publicada <strong>v{workflow.version}</strong></span><span>{workflow.isActive ? 'Activa en producto' : 'Guardada sin activar'}</span><span>{workflow.steps.length} etapas</span></div><div className="workflow-strip" aria-label={`Secuencia de ${workflow.name}`}>{workflow.steps.map((step, index) => <span key={`${step.key}-${index}`} className={step.responsibleRole ? 'is-configured' : 'is-pending'}><b>{String(index + 1).padStart(2, '0')}</b>{step.label}</span>)}</div><div className="workflow-next-action"><span>Siguiente acción</span><strong>{nextStep?.label ?? 'Sin etapas'}</strong><small>{nextStep ? `${formatWorkflowRole(nextStep.responsibleRole)}${nextStep.slaHours ? ` · SLA ${nextStep.slaHours} h` : ' · falta definir SLA'}` : 'Completa la definición del flujo.'}</small></div><ol className="workflow-admin-list">{workflow.steps.slice(0, 4).map((step, index) => <li key={`${step.key}-${index}`}><strong>{step.label}</strong><span>{formatWorkflowRole(step.responsibleRole)}</span><small>{step.slaHours ? `${step.slaHours} h SLA` : 'Sin SLA'}</small></li>)}</ol>{workflow.steps.length > 4 && <div className="workflow-more">+ {workflow.steps.length - 4} etapas adicionales</div>}<footer><button className="btn btn-primary btn-sm" onClick={() => openWorkflow(workflow)}>Configurar flujo</button><button className="btn btn-outline btn-sm" onClick={() => resetWorkflowMutation.mutate(workflow.code)} disabled={resetWorkflowMutation.isPending}>Restaurar base</button></footer></article>; })}</div></section>}
 
     {tab === 'pods' && <section><div className="section-toolbar"><div><span className="page-eyebrow">ESTRUCTURA DE CUENTAS</span><h2>Pods operativos</h2></div><button className="btn btn-primary" onClick={() => openPod()}>+ Crear pod</button></div>{!podsQuery.data?.length ? <div className="governance-empty"><strong>Aún no hay pods</strong><p>Crea el primero, define su capacidad y asigna equipo y clientes.</p><button className="btn btn-primary" onClick={() => openPod()}>Crear primer pod</button></div> : <div className="pod-governance-grid">{podsQuery.data.map((pod) => { const demand = pod.clients.reduce((sum, client) => sum + Number((client as ClientOption & { defaultUdBudget?: number }).defaultUdBudget ?? 0), 0); const usage = Math.min(100, Math.round(demand / Math.max(Number(pod.monthlyCapacityUd), 1) * 100)); return <article key={pod.id}><header><div><span className={`status-dot ${pod.status}`} /><div><h3>{pod.name}</h3><small>{pod.description || 'Sin descripción'}</small></div></div><strong>{usage}%</strong></header><div className="pod-capacity"><i style={{ width: `${usage}%` }} /></div><div className="pod-facts"><span><small>Capacidad</small><strong>{Number(pod.monthlyCapacityUd)} UD</strong></span><span><small>Integrantes</small><strong>{pod.members.length}</strong></span><span><small>Cuentas</small><strong>{pod.clients.length}</strong></span></div><div className="pod-people">{pod.members.slice(0, 5).map((member) => <Tooltip key={member.id} label={member.name}><span>{member.name.slice(0, 2).toUpperCase()}</span></Tooltip>)}{pod.members.length > 5 && <span>+{pod.members.length - 5}</span>}</div><footer><button className="btn btn-outline btn-sm" onClick={() => openPod(pod)}>Editar estructura</button><button className="btn btn-outline btn-sm" onClick={() => setArchivePodId(pod.id)}>Archivar</button></footer></article>; })}</div>}</section>}
 

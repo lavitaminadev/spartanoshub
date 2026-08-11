@@ -19,7 +19,7 @@ function encryptionKey(): Buffer {
   }
 
   return createHash('sha256')
-    .update(process.env.JWT_SECRET || 'vitahub-local-integration-key')
+    .update(process.env.JWT_SECRET || 'espartanos-local-integration-key')
     .digest();
 }
 

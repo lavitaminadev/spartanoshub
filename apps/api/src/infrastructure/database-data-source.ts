@@ -2,9 +2,9 @@ import '../config/load-environment';
 import { DataSource, DataSourceOptions } from 'typeorm';
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = parseInt(process.env.DB_PORT || '3306', 10);
-const DB_USERNAME = process.env.DB_USERNAME || 'vitahub';
+const DB_USERNAME = process.env.DB_USERNAME || 'espartanos';
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
-const DB_DATABASE = process.env.DB_DATABASE || 'vitahub';
+const DB_DATABASE = process.env.DB_DATABASE || 'espartanos';
 const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT || '10', 10) || 10);
 
 export const dataSourceOptions: DataSourceOptions = {

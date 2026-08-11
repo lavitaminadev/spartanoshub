@@ -28,10 +28,10 @@ export function MetaPixel({ pixelId }: MetaPixelProps) {
       document.head.appendChild(script);
     }
 
-    window.__vitahubMetaPixels ??= new Set<string>();
-    if (!window.__vitahubMetaPixels.has(pixelId)) {
+    window.__espartanosMetaPixels ??= new Set<string>();
+    if (!window.__espartanosMetaPixels.has(pixelId)) {
       window.fbq('init', pixelId);
-      window.__vitahubMetaPixels.add(pixelId);
+      window.__espartanosMetaPixels.add(pixelId);
     }
     window.fbq('trackSingle', pixelId, 'PageView');
   }, [pixelId]);
@@ -51,6 +51,6 @@ declare global {
   interface Window {
     fbq?: MetaFbq;
     _fbq?: unknown;
-    __vitahubMetaPixels?: Set<string>;
+    __espartanosMetaPixels?: Set<string>;
   }
 }

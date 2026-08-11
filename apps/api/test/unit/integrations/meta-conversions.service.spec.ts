@@ -80,4 +80,35 @@ describe('MetaConversionsService', () => {
       await expect(normalizedFrom('+56912345678', ['56912345678'])).resolves.toBe('56912345678');
     });
   });
+
+  describe('identificadores que no sobreviven a la normalización', () => {
+    /** Devuelve el `user_data` que se envió a Meta para los datos dados. */
+    async function userDataFor(userData: Record<string, string[]>): Promise<Record<string, unknown>> {
+      const post = vi.fn().mockReturnValue(of({ data: {} }));
+      const service = new MetaConversionsService({ post } as any);
+      await service.sendServerEvent('pixel-1', 'token', {
+        eventName: 'Lead', eventTime: 1700000000, actionSource: 'website',
+        userData, eventId: 'event-1',
+      });
+      return post.mock.calls[0][1].data[0].user_data;
+    }
+
+    it('omite el parámetro en vez de enviar el hash de la cadena vacía', async () => {
+      // El digest de '' es una constante: enviarlo haría que toda persona con un teléfono
+      // ilegible llegara a Meta con el mismo identificador, y se contaran como una sola.
+      const { createHash } = await import('crypto');
+      const emptyDigest = createHash('sha256').update('').digest('hex');
+
+      const userData = await userDataFor({ ph: ['no-es-un-telefono'] });
+
+      expect(userData.ph).toBeUndefined();
+      expect(JSON.stringify(userData)).not.toContain(emptyDigest);
+    });
+
+    it('conserva los valores utilizables y descarta solo los vacíos', async () => {
+      const userData = await userDataFor({ em: ['  ', 'persona@ejemplo.cl'] });
+
+      expect(userData.em).toHaveLength(1);
+    });
+  });
 });

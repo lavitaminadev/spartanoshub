@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
+import { RESERVATION_LEAD_SOURCES, isReservationLeadSource } from '@espartanos/shared';
 
 /** Filtros aceptados al listar leads. */
 export interface ListLeadsFilters {
@@ -59,7 +60,7 @@ export class ListLeadsUseCase {
     const where: FindOptionsWhere<Lead> = { organizationId } as FindOptionsWhere<Lead>;
     if (filters.status) where.status = filters.status as Lead['status'];
     if (filters.fitStatus) where.fitStatus = filters.fitStatus as Lead['fitStatus'];
-    if (filters.source) where.source = filters.source;
+    if (filters.source) where.source = expandSourceFilter(filters.source);
     const domain = filters.domain ?? 'commercial';
     if (domain !== 'all') where.domain = domain;
 
@@ -93,3 +94,14 @@ export class ListLeadsUseCase {
 
 /** Marca un alcance que no puede coincidir con ningún registro. */
 const EMPTY_SCOPE = Symbol('empty-client-scope');
+
+/**
+ * Traduce el origen pedido al criterio que debe aplicarse sobre la columna.
+ *
+ * Pedir el origen de reservas devuelve también las filas guardadas con el nombre anterior, de
+ * modo que el listado es correcto tanto antes como después de que corra la migración que las
+ * reescribe, y durante un despliegue en el que ambas versiones convivan.
+ */
+function expandSourceFilter(source: string): FindOptionsWhere<Lead>['source'] {
+  return isReservationLeadSource(source) ? In([...RESERVATION_LEAD_SOURCES]) : source;
+}
