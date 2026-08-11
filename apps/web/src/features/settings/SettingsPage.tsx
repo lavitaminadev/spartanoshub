@@ -27,7 +27,7 @@ interface SettingOption {
 
 interface OrganizationSetting {
   key: string;
-  category: 'operation' | 'production' | 'design_budget' | 'meetings' | 'alerts' | 'documents';
+  category: 'operation' | 'production' | 'design_budget' | 'meetings' | 'alerts' | 'documents' | 'modules' | 'compliance';
   label: string;
   description: string;
   valueType: 'boolean' | 'number' | 'select' | 'text';
@@ -68,6 +68,8 @@ const GROUP_COPY: Record<OrganizationSetting['category'], { kicker: string; titl
   meetings: { kicker: 'Ritmo', title: 'Cadencia de reuniones', description: 'Mantiene una referencia común para el seguimiento operativo con clientes.' },
   alerts: { kicker: 'Prevención', title: 'Avisos de operación', description: 'Establece con cuánta anticipación se debe comunicar un riesgo de entrega.' },
   documents: { kicker: 'Fuente de verdad', title: 'Archivos y versiones', description: 'Protege la trazabilidad desde el archivo de trabajo hasta el final aprobado.' },
+  modules: { kicker: 'Oferta', title: 'Lifecycle de módulos', description: 'Define qué módulos están visibles como producto y cuáles siguen ocultos.' },
+  compliance: { kicker: 'Cumplimiento', title: 'Condiciones y renovaciones', description: 'Controla la aceptación de términos y su vigencia operativa.' },
 };
 
 function currentValue(setting: OrganizationSetting, draft: Record<string, SettingValue>): SettingValue {

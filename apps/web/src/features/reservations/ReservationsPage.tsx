@@ -31,8 +31,12 @@ function hasReadyPixel(binding?: PixelBinding) {
   return Boolean(binding?.pixelId && binding.tokenConfigured);
 }
 
+function isSurveyMode(mode?: string) {
+  return mode === 'survey' || mode === 'request';
+}
+
 function flowName(mode: string) {
-  return mode === 'survey' ? 'Opiniones' : 'Reserva';
+  return isSurveyMode(mode) ? 'Encuesta post-visita' : 'Formulario de reserva';
 }
 
 /**
@@ -65,7 +69,12 @@ const STATUS_LABELS: Record<string, string> = {
   rescheduled: 'Reagendada', cancelled_client: 'Cancelada por cliente',
   cancelled_business: 'Cancelada por empresa', waitlist: 'Lista de espera',
 };
-const MODE_LABELS: Record<string, string> = { appointment: 'Reserva', group: 'Reserva grupal', request: 'Encuesta', survey: 'Encuesta' };
+const MODE_LABELS: Record<string, string> = {
+  appointment: 'Reserva individual',
+  group: 'Reserva grupal',
+  request: 'Encuesta post-visita',
+  survey: 'Encuesta post-visita',
+};
 
 /** Estados que resumen el dia operativo: lo pendiente, lo confirmado y como cerro el ciclo. */
 const BOOKING_TILE_STATUSES = ['pending', 'confirmed', 'attended', 'no_show'];
@@ -110,6 +119,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const requestedTab = searchParams.get('tab');
   const [tab, setTab] = useState<'forms' | 'bookings' | 'metrics' | 'coupons'>(requestedTab === 'bookings' || requestedTab === 'metrics' || requestedTab === 'coupons' ? requestedTab : 'forms');
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
+  const [createStep, setCreateStep] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState<Reservation | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState('');
   const [bookingNotes, setBookingNotes] = useState('');
@@ -138,7 +148,11 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     pixelAccessToken: '',
     existingPixelId: '',
   });
-  const [formFilters, setFormFilters] = useState({ search: '', status: '' });
+  const [formFilters, setFormFilters] = useState<{ search: string; status: string; flow: 'all' | 'reservation' | 'survey' }>({
+    search: '',
+    status: '',
+    flow: 'all',
+  });
   const [filters, setFilters] = useState({ search: searchParams.get('search') ?? '', status: '', formId: '', from: '', to: '' });
   const search = useDeferredValue(filters.search.trim());
 
@@ -184,7 +198,28 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       calendarSaveEnabled: ['appointment', 'group'].includes(mode) ? current.calendarSaveEnabled : false,
     }));
   };
+  const openCreateFlow = (mode: 'appointment' | 'survey') => {
+    setFormData((current) => ({
+      ...current,
+      clientId: clientFilter,
+      mode,
+      name: '',
+      googleReviewUrl: '',
+      calendarSaveEnabled: mode === 'survey' ? false : current.calendarSaveEnabled,
+    }));
+    setCreateStep(0);
+    setCreateOpen(true);
+  };
+  const closeCreateFlow = () => {
+    setCreateOpen(false);
+    setCreateStep(0);
+  };
   const selectedFilterForm = forms.find((form) => form.id === filters.formId);
+  const createStepReady = [
+    Boolean(formData.clientId && formData.name.trim()),
+    true,
+    true,
+  ];
   const selectedDayBounds = (date: string) => selectedFilterForm
     ? localDateBoundsUtc(date, selectedFilterForm.timezone)
     : { from: browserDateBoundaryUtc(date), to: browserDateBoundaryUtc(date, true) };
@@ -241,7 +276,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       }
       return created;
     },
-    onSuccess: (created) => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); qc.invalidateQueries({ queryKey: ['meta-client-pixels'] }); setCreateOpen(false); triggerToast(`${flowName(created.mode)} creado`); navigate(`/reservations/forms/${created.id}`); },
+    onSuccess: (created) => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); qc.invalidateQueries({ queryKey: ['meta-client-pixels'] }); closeCreateFlow(); triggerToast(`${flowName(created.mode)} creado`); navigate(`/reservations/forms/${created.id}`); },
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: { status?: string; startsAt?: string; internalNotes?: string } }) => api.patch<Reservation>(`/reservations/${id}`, body),
@@ -315,10 +350,14 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const clientForms = forms.filter((form) => !clientFilter || form.clientId === clientFilter);
   const visibleForms = clientForms.filter((form) => {
     const matchesStatus = !formFilters.status || form.status === formFilters.status;
+    const matchesFlow = formFilters.flow === 'all'
+      || (formFilters.flow === 'survey' ? isSurveyMode(form.mode) : !isSurveyMode(form.mode));
     const needle = formFilters.search.trim().toLocaleLowerCase('es');
-    return matchesStatus && (!needle || form.name.toLocaleLowerCase('es').includes(needle) || form.publicSlug.toLocaleLowerCase('es').includes(needle));
+    return matchesStatus && matchesFlow && (!needle || form.name.toLocaleLowerCase('es').includes(needle) || form.publicSlug.toLocaleLowerCase('es').includes(needle));
   });
   const formCounts = clientForms.reduce<Record<string, number>>((counts, form) => ({ ...counts, [form.status]: (counts[form.status] || 0) + 1 }), {});
+  const reservationForms = visibleForms.filter((form) => !isSurveyMode(form.mode));
+  const surveyForms = visibleForms.filter((form) => isSurveyMode(form.mode));
   const backupForm = (form: ReservationForm) => {
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), form }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -330,32 +369,33 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   };
   const resetFilters = (patch: Partial<typeof filters>) => { setFilters((current) => ({ ...current, ...patch })); setPage(1); };
 
-  return <div className="page reservation-module">
-    <nav className="reservation-tabs" aria-label="Secciones de reservas">
-      {(clientView
-        ? ([['forms', 'Mi agenda'], ['bookings', 'Mis reservas'], ['metrics', 'Resultados']] as const)
-        : ([['forms', 'Formularios y encuestas'], ['bookings', 'Datos recopilados'], ['metrics', 'Analítica de reservas'], ['coupons', 'Cupones']] as const)
-      ).map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{key === 'bookings' && bookingPage?.total ? <span>{bookingPage.total}</span> : null}</button>)}
-    </nav>
+    return <div className="page reservation-module">
+      <nav className="reservation-tabs" aria-label="Secciones de reservas">
+        {(clientView
+          ? ([['forms', 'Mi agenda'], ['bookings', 'Mis reservas'], ['metrics', 'Resultados']] as const)
+          : ([['forms', 'Captación'], ['bookings', 'Reservas recibidas'], ['metrics', 'Resultados'], ['coupons', 'Cupones']] as const)
+        ).map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{key === 'bookings' && bookingPage?.total ? <span>{bookingPage.total}</span> : null}</button>)}
+      </nav>
 
-    {tab === 'forms' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">CENTRO DE CAPTURA</span><h1>Formularios, encuestas y agendas</h1></div><div className="reservation-actions"><p>{visibleForms.length} de {clientForms.length} activos visibles</p>{!clientView && <button className="btn reservation-cta" onClick={() => { setFormData((current) => ({ ...current, clientId: clientFilter })); setCreateOpen(true); }}>Reservas y Opiniones</button>}</div></div>
+      {tab === 'forms' && <section>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">CAPTACIÓN Y EXPERIENCIA</span><h1>Formularios de reserva y encuestas post-visita</h1></div><div className="reservation-actions"><p>{visibleForms.length} de {clientForms.length} flujos visibles</p>{!clientView && <div className="reservation-flow-actions"><button className="btn reservation-cta" onClick={() => openCreateFlow('appointment')}>Nuevo formulario de reserva</button><button className="btn btn-outline btn-sm" onClick={() => openCreateFlow('survey')}>Nueva encuesta post-visita</button></div>}</div></div>
+      <div className="reservation-flow-switch" role="group" aria-label="Filtrar por tipo de flujo"><button className={formFilters.flow === 'all' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, flow: 'all' }))}><strong>{visibleForms.length}</strong><span>Todos los flujos</span></button><button className={formFilters.flow === 'reservation' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, flow: 'reservation' }))}><strong>{reservationForms.length}</strong><span>Formularios de reserva</span></button><button className={formFilters.flow === 'survey' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, flow: 'survey' }))}><strong>{surveyForms.length}</strong><span>Encuestas post-visita</span></button></div>
       <div className="reservation-status-summary" aria-label="Resumen de formularios"><button className={!formFilters.status ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: '' }))}><strong>{clientForms.length}</strong><span>Todos</span></button><button className={formFilters.status === 'published' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'published' }))}><strong>{formCounts.published || 0}</strong><span>Publicados</span></button><button className={formFilters.status === 'paused' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'paused' }))}><strong>{formCounts.paused || 0}</strong><span>Pausados</span></button><button className={formFilters.status === 'draft' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'draft' }))}><strong>{formCounts.draft || 0}</strong><span>Borradores</span></button></div>
-      <div className="reservation-form-filters"><input className="input" type="search" aria-label="Buscar formulario" placeholder="Buscar por nombre o enlace" value={formFilters.search} onChange={(event) => setFormFilters((current) => ({ ...current, search: event.target.value }))} />{!clientView && <select className="input" aria-label="Filtrar formularios por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todos los clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar formularios por estado" value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Todos los estados</option><option value="published">Publicados</option><option value="paused">Pausados</option><option value="draft">Borradores</option></select><button type="button" className="btn btn-outline btn-sm" disabled={!formFilters.search && !formFilters.status && !clientFilter} onClick={() => { setFormFilters({ search: '', status: '' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{visibleForms.length} formulario{visibleForms.length === 1 ? '' : 's'}</span></div>
-      {visibleForms.length === 0 ? <div className="reservation-empty"><strong>Crea tu primera experiencia de reserva</strong><p>Configura campos, agenda y diseño.</p>{!clientView && <button className="btn btn-primary" onClick={() => { setFormData((current) => ({ ...current, clientId: clientFilter })); setCreateOpen(true); }}>Comenzar creación guiada</button>}</div> : <div className="reservation-form-grid">
+      <div className="reservation-form-filters"><input className="input" type="search" aria-label="Buscar flujo" placeholder="Buscar por nombre o enlace" value={formFilters.search} onChange={(event) => setFormFilters((current) => ({ ...current, search: event.target.value }))} />{!clientView && <select className="input" aria-label="Filtrar formularios por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todos los clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar formularios por estado" value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Todos los estados</option><option value="published">Publicados</option><option value="paused">Pausados</option><option value="draft">Borradores</option></select><button type="button" className="btn btn-outline btn-sm" disabled={!formFilters.search && !formFilters.status && !clientFilter && formFilters.flow === 'all'} onClick={() => { setFormFilters({ search: '', status: '', flow: 'all' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{visibleForms.length} flujo{visibleForms.length === 1 ? '' : 's'}</span></div>
+      {visibleForms.length === 0 ? <div className="reservation-empty"><strong>Crea tu primer flujo de captación</strong><p>Separa reservas de la experiencia post-visita y configura cada una con su propio objetivo.</p>{!clientView && <div className="reservation-flow-actions"><button className="btn btn-primary" onClick={() => openCreateFlow('appointment')}>Crear formulario de reserva</button><button className="btn btn-outline" onClick={() => openCreateFlow('survey')}>Crear encuesta post-visita</button></div>}</div> : <div className="reservation-form-grid">
         {visibleForms.map((form) => <article className="reservation-form-card" key={form.id}>
           <div className="form-card-accent" style={{ background: form.designConfig.primaryColor || '#0ec6b8' }} />
           <div className="form-card-head"><span className="form-mode">{MODE_LABELS[form.mode] ?? form.mode}</span><StatusBadge status={form.status} /></div>
           <h2>{form.name}</h2><p>{formPublicUrl(form)}</p>{!clientView && <small className="form-client-name">{clients.find((client) => client.id === form.clientId)?.name || 'Cliente no disponible'}</small>}
           {canReadPixels && (() => { const readiness = metaReadiness(form, pixelByClient.get(form.clientId)); return <span className={`meta-readiness is-${readiness.tone}`} title={readiness.title}>{readiness.label}</span>; })()}
           <div className="form-card-facts"><span>{form.durationMinutes} min</span><span>{form.capacityPerSlot} cupo(s)</span><span>{form.fieldSchema.length} campos</span></div>
-          <div className="form-card-actions"><Link className="btn btn-primary btn-sm" to={formPath(form.id)}>{clientView ? 'Configurar agenda' : 'Editar diseño y flujo'}</Link>{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Abrir enlace</a> : null}{!clientView && <button className="btn btn-outline btn-sm" disabled={duplicateMutation.isPending} onClick={() => setConfirmFormAction({ id: form.id, action: 'duplicate' })}>{duplicateMutation.isPending ? 'Duplicando...' : 'Duplicar'}</button>}<button className="btn btn-outline btn-sm" onClick={() => backupForm(form)}>Respaldar JSON</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
-        </article>)}
-      </div>}
-    </section>}
+            <div className="form-card-actions"><Link className="btn btn-primary btn-sm" to={formPath(form.id)}>{clientView ? 'Configurar agenda' : isSurveyMode(form.mode) ? 'Editar encuesta' : 'Editar formulario'}</Link>{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Abrir enlace</a> : null}{!clientView && <button className="btn btn-outline btn-sm" disabled={duplicateMutation.isPending} onClick={() => setConfirmFormAction({ id: form.id, action: 'duplicate' })}>{duplicateMutation.isPending ? 'Duplicando...' : 'Duplicar'}</button>}<button className="btn btn-outline btn-sm" onClick={() => backupForm(form)}>Respaldar JSON</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
+          </article>)}
+        </div>}
+      </section>}
 
-    {tab === 'bookings' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">OPERACIÓN DIARIA</span><h1>Lista de reservas</h1></div><div className="reservation-actions">{!clientView && <button className="btn btn-outline btn-sm" onClick={() => setManualOpen(true)}>Agregar reserva manual</button>}<button className="btn btn-outline btn-sm" onClick={() => setExportModalOpen(true)}>Exportar datos</button></div></div>
+      {tab === 'bookings' && <section>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">OPERACIÓN DIARIA</span><h1>Reservas recibidas</h1></div><div className="reservation-actions">{!clientView && <button className="btn btn-outline btn-sm" onClick={() => setManualOpen(true)}>Agregar reserva manual</button>}<button className="btn btn-outline btn-sm" onClick={() => setExportModalOpen(true)}>Exportar datos</button></div></div>
       <div className="status-tiles" role="group" aria-label="Filtrar por estado del ciclo de reserva">
         {BOOKING_TILE_STATUSES.map((status) => { const option = findStatusOption(RESERVATION_STATUS_OPTIONS, status); return <button
           key={status}
@@ -421,39 +461,63 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       {viewingCouponCode && <div className="coupon-usages"><div className="reservation-section-head"><div><span className="page-eyebrow">USOS DE {viewingCouponCode}</span><h2>Reservas que usaron este cupón</h2></div><button className="btn btn-outline btn-sm" onClick={() => setViewingCouponCode('')}>Cerrar</button></div>{couponUsages.length === 0 ? <EmptyState icon="🎫" title="Sin usos" description="Este cupón aún no ha sido utilizado en ninguna reserva." /> : <div className="booking-list">{couponUsages.map((item) => <article className="booking-row" key={item.id}><div className="booking-date"><strong>{new Date(item.startsAt).getDate()}</strong><span>{new Date(item.startsAt).toLocaleDateString('es-CL', { month: 'short' })}</span></div><div className="booking-guest"><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || '-'}</span><small>#{item.referenceCode}</small></div><StatusBadge status={item.status} /></article>)}</div>}</div>}
     </section>}
 
-    <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Crear reserva / opiniones">
-      <form className="modal-form" onSubmit={(event) => { event.preventDefault(); createMutation.mutate(); }}>
-        <p className="page-subtitle">Crea el flujo publico y deja la medicion inicial lista. Despues puedes editar diseno, campos y medicion desde el constructor.</p>
-        <label>Empresa o cliente<select className="input" required value={formData.clientId} onChange={(event) => updateCreateClient(event.target.value)}><option value="">Selecciona un cliente</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
-        <label>{formData.mode === 'survey' ? 'Nombre de opiniones' : 'Nombre de la reserva'}<input className="input" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder={formData.mode === 'survey' ? 'Ej. Opiniones post-visita' : 'Ej. Reserva terraza noche'} /></label>
-        <label>Tipo de flujo<select className="input" value={formData.mode} onChange={(event) => updateCreateMode(event.target.value)}><option value="appointment">Reserva con hora individual</option><option value="group">Reserva / inscripcion grupal</option><option value="survey">Opiniones / encuesta post-visita</option></select></label>
-        <div className={`measurement-card ${selectedPixelReady ? 'is-ready' : 'is-muted'}`}>
-          <strong>Medicion Meta Pixel + CAPI</strong>
-          <p>{selectedPixel?.pixelId ? `${selectedPixel.pixelName || 'Pixel guardado'} - ${selectedPixel.pixelId}` : 'Este cliente no tiene Pixel guardado. El flujo se creara sin Meta.'}</p>
-          {selectedPixel?.pixelId && !selectedPixel.tokenConfigured && <small>Falta token CAPI: no se activara automaticamente hasta completar la integracion.</small>}
-          <label className="toggle-row"><input type="checkbox" checked={formData.metaCapiEnabled} disabled={!selectedPixelReady && !canSetupMeta} onChange={(event) => setFormData({ ...formData, metaCapiEnabled: event.target.checked })} /> Usar Meta CAPI guardado para medir {measurementLabel}</label>
-          {!selectedPixelReady && <div className="pixel-mode-grid">
-            {([
-              ['manual', 'Agregar Pixel', 'Guardar Pixel ID, nombre y token CAPI para esta empresa.'],
-              ['existing', 'Usar existente', 'Reutilizar un Pixel ya guardado en otra empresa.'],
-              ['none', 'Sin Meta', 'Crear el flujo sin enviar conversiones a Meta.'],
-            ] as const).map(([mode, label, description]) => <button type="button" key={mode} className={formData.pixelMode === mode ? 'active' : ''} onClick={() => setFormData({ ...formData, pixelMode: mode, metaCapiEnabled: mode !== 'none' })}><strong>{label}</strong><small>{description}</small></button>)}
-          </div>}
-          {!selectedPixelReady && formData.pixelMode === 'manual' && <div className="form-row">
-            <label>Pixel ID<input className="input" inputMode="numeric" pattern="[0-9]+" value={formData.pixelId} onChange={(event) => setFormData({ ...formData, pixelId: event.target.value.replace(/\D/g, '') })} placeholder="123456789012345" /></label>
-            <label>Nombre del Pixel<input className="input" value={formData.pixelName} onChange={(event) => setFormData({ ...formData, pixelName: event.target.value })} placeholder="Pixel Restaurante Centro" /></label>
-            <label>Token CAPI<input className="input" type="password" autoComplete="new-password" value={formData.pixelAccessToken} onChange={(event) => setFormData({ ...formData, pixelAccessToken: event.target.value })} placeholder="EAAB..." /></label>
-          </div>}
-          {!selectedPixelReady && formData.pixelMode === 'existing' && <div className="form-row">
-            <label>Pixel existente<select className="input" value={formData.existingPixelId} onChange={(event) => setFormData({ ...formData, existingPixelId: event.target.value })}><option value="">Selecciona Pixel</option>{pixelCatalog?.pixels.map((pixel) => <option key={pixel.pixelId} value={pixel.pixelId}>{pixel.pixelNames[0] || 'Pixel'} - {pixel.pixelId} / {pixel.usageCount} empresa(s)</option>)}</select></label>
-            <label>Nombre para esta empresa<input className="input" value={formData.pixelName} onChange={(event) => setFormData({ ...formData, pixelName: event.target.value })} placeholder="Nombre visible opcional" /></label>
-          </div>}
+    <Modal open={createOpen} onClose={closeCreateFlow} title={isSurveyMode(formData.mode) ? 'Nueva encuesta post-visita' : 'Nuevo formulario de reserva'}>
+      <form className="modal-form reservation-create-wizard" onSubmit={(event) => { event.preventDefault(); if (createStep < 2) { if (createStepReady[createStep]) setCreateStep((current) => Math.min(2, current + 1)); return; } createMutation.mutate(); }}>
+        <div className="reservation-create-steps" role="list" aria-label="Pasos de creación">
+          {['Base', 'Medición', 'Revisión'].map((label, index) => <button key={label} type="button" className={index === createStep ? 'active' : index < createStep ? 'done' : ''} onClick={() => { if (index <= createStep || createStepReady[createStep]) setCreateStep(index); }}><strong>{String(index + 1).padStart(2, '0')}</strong><span>{label}</span></button>)}
         </div>
-        <label>ID de medicion Google Analytics 4<input className="input" list="reservation-ga4-options" value={formData.ga4MeasurementId} onChange={(event) => setFormData({ ...formData, ga4MeasurementId: event.target.value.trim() })} placeholder="G-XXXXXXXXXX" /><datalist id="reservation-ga4-options">{ga4Options.map((option) => <option key={option.measurementId} value={option.measurementId}>{option.label}</option>)}</datalist><small>Opcional. Puedes escribir uno nuevo o reutilizar un ID usado antes en otro flujo.</small></label>
-        {formData.mode === 'survey' && <label>Link de Google Reviews<input className="input" type="url" value={formData.googleReviewUrl} onChange={(event) => setFormData({ ...formData, googleReviewUrl: event.target.value })} placeholder="https://g.page/r/..." /><small>Opcional. Al finalizar la opinion, la persona decide si quiere ir a Google a evaluar el local.</small></label>}
-        {['appointment', 'group'].includes(formData.mode) && <label className="toggle-row"><input type="checkbox" checked={formData.calendarSaveEnabled} onChange={(event) => setFormData({ ...formData, calendarSaveEnabled: event.target.checked })} /> Al finalizar, ofrecer guardar en calendario iPhone/Android</label>}
+        {createStep === 0 && <>
+          <p className="page-subtitle">{isSurveyMode(formData.mode) ? 'Define la empresa, el tipo de flujo y el nombre base de la encuesta.' : 'Define la empresa, el tipo de reserva y el nombre base del formulario.'}</p>
+          <label>Empresa o cliente<select className="input" required value={formData.clientId} onChange={(event) => updateCreateClient(event.target.value)}><option value="">Selecciona un cliente</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+          <label>Tipo de flujo<select className="input" value={formData.mode} onChange={(event) => updateCreateMode(event.target.value)}><option value="appointment">Formulario de reserva con hora individual</option><option value="group">Formulario de reserva grupal</option><option value="survey">Encuesta post-visita</option></select></label>
+          <label>{isSurveyMode(formData.mode) ? 'Nombre de la encuesta' : 'Nombre del formulario de reserva'}<input className="input" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder={isSurveyMode(formData.mode) ? 'Ej. Experiencia post-visita terraza' : 'Ej. Reserva terraza noche'} /></label>
+        </>}
+        {createStep === 1 && <>
+          <p className="page-subtitle">{isSurveyMode(formData.mode) ? 'Define medición, Google Reviews y parámetros básicos de publicación.' : 'Define medición, Analytics y si ofrecerás guardado en calendario.'}</p>
+          <div className={`measurement-card ${selectedPixelReady ? 'is-ready' : 'is-muted'}`}>
+            <strong>Medición Meta Pixel + CAPI</strong>
+            <p>{selectedPixel?.pixelId ? `${selectedPixel.pixelName || 'Pixel guardado'} - ${selectedPixel.pixelId}` : 'Este cliente no tiene Pixel guardado. El flujo se creará sin Meta.'}</p>
+            {selectedPixel?.pixelId && !selectedPixel.tokenConfigured && <small>Falta token CAPI: no se activará automáticamente hasta completar la integración.</small>}
+            <label className="toggle-row"><input type="checkbox" checked={formData.metaCapiEnabled} disabled={!selectedPixelReady && !canSetupMeta} onChange={(event) => setFormData({ ...formData, metaCapiEnabled: event.target.checked })} /> Usar Meta CAPI guardado para medir {measurementLabel}</label>
+            {!selectedPixelReady && <div className="pixel-mode-grid">
+              {([
+                ['manual', 'Agregar Pixel', 'Guardar Pixel ID, nombre y token CAPI para esta empresa.'],
+                ['existing', 'Usar existente', 'Reutilizar un Pixel ya guardado en otra empresa.'],
+                ['none', 'Sin Meta', 'Crear el flujo sin enviar conversiones a Meta.'],
+              ] as const).map(([mode, label, description]) => <button type="button" key={mode} className={formData.pixelMode === mode ? 'active' : ''} onClick={() => setFormData({ ...formData, pixelMode: mode, metaCapiEnabled: mode !== 'none' })}><strong>{label}</strong><small>{description}</small></button>)}
+            </div>}
+            {!selectedPixelReady && formData.pixelMode === 'manual' && <div className="form-row">
+              <label>Pixel ID<input className="input" inputMode="numeric" pattern="[0-9]+" value={formData.pixelId} onChange={(event) => setFormData({ ...formData, pixelId: event.target.value.replace(/\D/g, '') })} placeholder="123456789012345" /></label>
+              <label>Nombre del Pixel<input className="input" value={formData.pixelName} onChange={(event) => setFormData({ ...formData, pixelName: event.target.value })} placeholder="Pixel Restaurante Centro" /></label>
+              <label>Token CAPI<input className="input" type="password" autoComplete="new-password" value={formData.pixelAccessToken} onChange={(event) => setFormData({ ...formData, pixelAccessToken: event.target.value })} placeholder="EAAB..." /></label>
+            </div>}
+            {!selectedPixelReady && formData.pixelMode === 'existing' && <div className="form-row">
+              <label>Pixel existente<select className="input" value={formData.existingPixelId} onChange={(event) => setFormData({ ...formData, existingPixelId: event.target.value })}><option value="">Selecciona Pixel</option>{pixelCatalog?.pixels.map((pixel) => <option key={pixel.pixelId} value={pixel.pixelId}>{pixel.pixelNames[0] || 'Pixel'} - {pixel.pixelId} / {pixel.usageCount} empresa(s)</option>)}</select></label>
+              <label>Nombre para esta empresa<input className="input" value={formData.pixelName} onChange={(event) => setFormData({ ...formData, pixelName: event.target.value })} placeholder="Nombre visible opcional" /></label>
+            </div>}
+          </div>
+          <label>ID de medición Google Analytics 4<input className="input" list="reservation-ga4-options" value={formData.ga4MeasurementId} onChange={(event) => setFormData({ ...formData, ga4MeasurementId: event.target.value.trim() })} placeholder="G-XXXXXXXXXX" /><datalist id="reservation-ga4-options">{ga4Options.map((option) => <option key={option.measurementId} value={option.measurementId}>{option.label}</option>)}</datalist><small>Opcional. Puedes escribir uno nuevo o reutilizar un ID usado antes en otro flujo.</small></label>
+          {isSurveyMode(formData.mode) && <label>Link de Google Reviews<input className="input" type="url" value={formData.googleReviewUrl} onChange={(event) => setFormData({ ...formData, googleReviewUrl: event.target.value })} placeholder="https://g.page/r/..." /><small>Opcional. Al finalizar la encuesta, la persona decide si quiere ir a Google a evaluar el local.</small></label>}
+          {['appointment', 'group'].includes(formData.mode) && <label className="toggle-row"><input type="checkbox" checked={formData.calendarSaveEnabled} onChange={(event) => setFormData({ ...formData, calendarSaveEnabled: event.target.checked })} /> Al finalizar, ofrecer guardar en calendario iPhone/Android</label>}
+        </>}
+        {createStep === 2 && <div className="reservation-create-summary">
+          <p className="page-subtitle">{isSurveyMode(formData.mode) ? 'Revisa la base de la encuesta antes de abrir el constructor.' : 'Revisa la base del formulario antes de abrir el constructor.'}</p>
+          <div className="reservation-flow-switch" role="group" aria-label="Resumen de creación">
+            <button type="button" className="active"><strong>{flowName(formData.mode)}</strong><span>{formData.name || 'Sin nombre aún'}</span></button>
+            <button type="button"><strong>{clients.find((client) => client.id === formData.clientId)?.name || 'Cliente pendiente'}</strong><span>Empresa asignada</span></button>
+            <button type="button"><strong>{formData.metaCapiEnabled ? 'Meta activa' : 'Meta apagada'}</strong><span>{formData.ga4MeasurementId ? 'GA4 configurado' : 'GA4 opcional'}</span></button>
+          </div>
+          <ul className="reservation-create-checklist">
+            <li>{isSurveyMode(formData.mode) ? 'Crearás una encuesta post-visita lista para ajustar diseño y preguntas.' : 'Crearás un formulario de reserva listo para ajustar campos, horarios y publicación.'}</li>
+            <li>{isSurveyMode(formData.mode) ? (formData.googleReviewUrl ? 'La encuesta incluirá salida opcional a Google Reviews.' : 'La salida a Google Reviews queda opcional para más tarde.') : (formData.calendarSaveEnabled ? 'La reserva ofrecerá guardar en calendario al finalizar.' : 'La reserva no ofrecerá guardar en calendario por ahora.')}</li>
+            <li>{formData.metaCapiEnabled ? 'El flujo intentará quedar listo para enviar conversiones a Meta.' : 'El flujo se creará sin conversiones activas hacia Meta.'}</li>
+          </ul>
+        </div>}
         {createMutation.error && <div className="alert alert-error">{createMutation.error.message}</div>}
-        <button className="btn btn-primary btn-block" disabled={createMutation.isPending}>{createMutation.isPending ? 'Creando...' : 'Crear y abrir constructor'}</button>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-outline" onClick={() => createStep === 0 ? closeCreateFlow() : setCreateStep((current) => current - 1)}>{createStep === 0 ? 'Cancelar' : 'Volver'}</button>
+          <button className="btn btn-primary" disabled={createMutation.isPending || (createStep < 2 && !createStepReady[createStep])}>{createMutation.isPending ? 'Creando...' : createStep < 2 ? 'Continuar' : isSurveyMode(formData.mode) ? 'Crear y editar encuesta' : 'Crear y editar formulario'}</button>
+        </div>
       </form>
     </Modal>
 

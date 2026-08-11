@@ -1,3 +1,9 @@
+import {
+  MODULE_LIFECYCLE_STATUSES,
+  ORGANIZATION_MODULE_CATALOG,
+  moduleLifecycleSettingKey,
+} from '@vitahub/shared';
+
 export type OrganizationSettingCategory =
   | 'operation'
   | 'production'
@@ -5,7 +11,8 @@ export type OrganizationSettingCategory =
   | 'meetings'
   | 'alerts'
   | 'documents'
-  | 'compliance';
+  | 'compliance'
+  | 'modules';
 
 export type OrganizationSettingValueType = 'boolean' | 'number' | 'select' | 'text';
 export type MasterSettingStatus = 'master_defined' | 'direction_required';
@@ -29,6 +36,17 @@ export interface OrganizationSettingDefinition {
   unit?: string;
   nullable?: boolean;
 }
+
+const MODULE_LIFECYCLE_SETTINGS: OrganizationSettingDefinition[] = ORGANIZATION_MODULE_CATALOG.map((module) => ({
+  key: moduleLifecycleSettingKey(module.key),
+  category: 'modules',
+  label: `Lifecycle de ${module.key}`,
+  description: 'Define si el modulo esta en desarrollo, piloto, activo, mantenimiento o deshabilitado para esta organizacion.',
+  valueType: 'select',
+  defaultValue: module.lifecycle,
+  masterStatus: 'direction_required',
+  options: MODULE_LIFECYCLE_STATUSES.map((status) => ({ value: status, label: status })),
+}));
 
 export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
   {
@@ -213,6 +231,7 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     defaultValue: true,
     masterStatus: 'master_defined',
   },
+  ...MODULE_LIFECYCLE_SETTINGS,
 ] as const;
 
 export function validateOrganizationSettingValue(

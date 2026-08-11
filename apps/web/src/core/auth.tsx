@@ -7,7 +7,7 @@
  */
 
 import { create } from 'zustand';
-import type { AuthResponse, UserRole } from '@vitahub/shared';
+import type { AuthResponse, ModuleLifecycleStatus, UserRole } from '@vitahub/shared';
 import { api, setApiToken } from './api';
 
 type BrowserAuthResponse = Pick<AuthResponse, 'accessToken' | 'user'>;
@@ -35,6 +35,7 @@ export interface User {
    * de modo que lo visible coincida con lo que el backend autoriza.
    */
   features?: Record<string, boolean>;
+  moduleLifecycle?: Record<string, ModuleLifecycleStatus>;
   /**
    * Nivel de acceso efectivo por módulo: combina el módulo habilitado, el nivel del cargo
    * y las excepciones definidas para esta persona.

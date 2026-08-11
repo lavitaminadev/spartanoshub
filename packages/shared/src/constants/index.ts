@@ -45,3 +45,4 @@ export const FILE_MAX_SIZE_BYTES = 50 * 1024 * 1024
 export const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'video/mp4'] as const
 
 export * from './industries'
+export * from './modules'
