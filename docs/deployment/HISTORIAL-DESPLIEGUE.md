@@ -44,7 +44,7 @@ del frontend llegan a `public_html/cuartel.espartanos.cl`.
   servidor.
 - Se revisaron y fijaron scripts de instalacion npm; la auditoria de dependencias quedo sin
   vulnerabilidades conocidas.
-- Resultado de la validacion anterior: 480 pruebas de API, 30 pruebas de frontend, lint y
+- Resultado de la validacion anterior: 482 pruebas de API, 30 pruebas de frontend, lint y
   compilacion para cPanel correctos.
 
 ## Cambios de esta salida 1.0.0
@@ -121,6 +121,12 @@ productivos afectados. La migracion deja de usar `changeColumn`: consulta y vali
 definicion SQL real, reconstruye una columna ausente, intenta recuperar asociaciones y usa
 `MODIFY`, que nunca elimina los valores existentes.
 
+La cuarta ejecucion completo y registro correctamente `ContactsRequireLead1726200000000`.
+La migracion siguiente, `UserSessions1726300000000`, aun declaraba sus identificadores como
+`VARCHAR(36)` aunque el modelo y las tablas referenciadas usan `UUID` nativo. MariaDB rechazo
+la FK hacia `users.id`. `id`, `user_id` y `organization_id` ahora usan `UUID`; una prueba de
+estructura comprueba esa compatibilidad y la creacion fallida no dejo la tabla a medias.
+
 ## Acceso y seguridad
 
 - El acceso de automatizacion usa una clave dedicada para cPanel; ninguna clave privada se
@@ -138,7 +144,7 @@ definicion SQL real, reconstruye una columna ausente, intenta recuperar asociaci
 | --- | --- | --- |
 | Repositorio limpio y publico | Completado | `lavitaminadev/spartanoshub` |
 | Auditoria funcional y de seguridad | Completado | Pruebas, lint, build y audit correctos |
-| Version 1.0.0 y health coherente | Completado | 480 pruebas API y 30 pruebas web correctas |
+| Version 1.0.0 y health coherente | Completado | 482 pruebas API y 30 pruebas web correctas |
 | Publicacion de cambios en `main` | Completado | PR `#3`, CI correcta |
 | Actualizacion automatica de `deploy` | En correccion | Se eliminan dependencias y force-push recurrente |
 | Git Version Control en cPanel | Completado | Repo privado del servidor sobre rama `deploy` |
