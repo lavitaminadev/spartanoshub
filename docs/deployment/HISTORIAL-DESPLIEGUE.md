@@ -142,7 +142,8 @@ el registro termino con codigo `0` y confirmo `No migrations are pending`.
 
 Evidencia final de infraestructura:
 
-- `https://cuartel.espartanos.cl/`, `/login`, `/reservations` y `/book/prueba` responden `200`.
+- `https://cuartel.espartanos.cl/`, `/login`, `/reservations` y
+  `/book/reserva-prueba-espartanos` responden `200`.
 - Los recursos versionados de JavaScript y CSS de Cuartel responden `200`.
 - El login se verifico en navegador sin el aviso incorrecto y sin errores de consola.
 - `https://refugio.espartanos.cl/api/health` responde `200`, estado `ok` y version `1.0.0`.
@@ -150,6 +151,43 @@ Evidencia final de infraestructura:
 - `https://espartanos.cl` conserva su respuesta inicial `403`; no se publicaron archivos ahi.
 - La instalacion productiva audito `371` paquetes y encontro `0` vulnerabilidades.
 - Las pruebas dirigidas de reservas pasaron: `70` de API y `2` de manejo horario web.
+
+## Inicializacion de cuentas y reserva real
+
+El 11 de agosto de 2026 se inicializo la organizacion productiva `Grupo Espartanos`, codigo
+`ESPARTANOS`. La operacion se ejecuto una sola vez mediante el inicializador protegido del
+repositorio, porque el registro publico esta deshabilitado y la cuenta de hosting no ofrece
+shell interactivo. El proceso comprobo que la base no tuviera usuarios antes de escribir y
+configuro `AGENCY_ORGANIZATION_ID` en el `.env` privado.
+
+Se crearon estas cuentas:
+
+- Nicolas Cardemil, `cardemil@lavitamina.cl`: propietario operativo principal y rol `admin`.
+- Maxi Barrios, `maxi@lavitamina.cl`: desarrollador con rol `admin`, por solicitud del
+  propietario.
+
+El modelo actual no separa `owner` de `admin`; por lo tanto, ambos usuarios tienen permisos
+administrativos totales. Las dos cuentas nacieron con cambio de contrasena obligatorio; la
+cuenta invitada de Maxi tambien exige completar el perfil. Las claves temporales se guardaron
+fuera de Git en `C:\Users\leno\Desktop\final\CREDENCIALES-INICIALES.txt`, con acceso
+restringido al usuario local de Windows.
+
+La inicializacion remota uso un bloqueo atomico, marcador de ejecucion y archivos con permisos
+privados. Al terminar se elimino la tarea temporal de cPanel, su script, su registro con la
+clave inicial y el marcador. La lista de tareas quedo sin referencias al inicializador.
+
+Prueba funcional ejecutada en produccion:
+
+- Cliente tecnico: `Prueba Reservas Espartanos`, con reservas y CRM habilitados.
+- Formulario: `Reserva de prueba`, publicado como `reserva-prueba-espartanos`.
+- URL publica: `https://cuartel.espartanos.cl/book/reserva-prueba-espartanos`, respuesta `200`.
+- Reserva de prueba: referencia `0E836053B22B`, estado `confirmed`.
+- La reserva se recupero desde el listado administrativo y su historial contiene el evento de
+  creacion.
+
+No se habilitaron conexiones externas de calendario, Meta, Google Ads ni correo durante esta
+prueba. El objetivo fue validar de extremo a extremo Cuartel, Refugio, MariaDB y el modulo de
+reservas sin depender de terceros.
 
 ## Acceso y seguridad
 
@@ -177,7 +215,8 @@ Evidencia final de infraestructura:
 | Migraciones | Completado | Despliegue `#6`: `No migrations are pending` |
 | Frontend Cuartel | Completado | HTTPS, rutas SPA, recursos y consola verificados |
 | Backend Refugio | Completado | `GET /api/health` devuelve `200` y version `1.0.0` |
-| Flujo de reservas | Pendiente | Crear primer administrador, formulario y reserva real |
+| Cuentas iniciales | Completado | Nicolas y Maxi validados como `admin`, ambos con cambio de clave obligatorio |
+| Flujo de reservas | Completado | Formulario publicado, reserva confirmada, listada y con historial |
 
 ## Criterio de cierre
 
@@ -186,6 +225,6 @@ version `1.0.0`, las migraciones terminan sin errores y el primer flujo de reser
 guardar y recuperar una reserva. Integraciones externas, SMTP y procesos programados pueden
 permanecer desactivados durante esta primera prueba.
 
-Los tres primeros criterios ya estan completados. Para el ultimo se necesita confirmar el
-nombre y correo del primer administrador; la contrasena temporal debe guardarse fuera de Git
-y cambiarse al iniciar sesion.
+Todos los criterios estan completados. Las contrasenas temporales permanecen fuera de Git y
+deben cambiarse en el primer ingreso. Los accesos de infraestructura compartidos durante la
+puesta en marcha deben rotarse despues de asegurar las cuentas personales.
