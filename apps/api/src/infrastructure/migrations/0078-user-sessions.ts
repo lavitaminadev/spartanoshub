@@ -19,9 +19,9 @@ export class UserSessions1726300000000 implements MigrationInterface {
     await queryRunner.createTable(new Table({
       name: 'user_sessions',
       columns: [
-        { name: 'id', type: 'varchar', length: '36', isPrimary: true },
-        { name: 'user_id', type: 'varchar', length: '36' },
-        { name: 'organization_id', type: 'varchar', length: '36' },
+        { name: 'id', type: 'uuid', isPrimary: true, isGenerated: true, generationStrategy: 'uuid' },
+        { name: 'user_id', type: 'uuid' },
+        { name: 'organization_id', type: 'uuid' },
         { name: 'refresh_token_hash', type: 'varchar', length: '64' },
         { name: 'reauthenticated_at', type: 'timestamp', isNullable: true },
         { name: 'user_agent', type: 'varchar', length: '400', isNullable: true },
