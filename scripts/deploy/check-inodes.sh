@@ -27,7 +27,12 @@ count_entries() {
     return
   fi
 
-  find "$path" -xdev -mindepth 1 -printf '.' | wc -c
+  # CloudLinux expone `node_modules` como symlink al entorno virtual y durante algunas
+  # operaciones aparecen entradas efimeras o colgantes. Para esta politica solo importa
+  # contar lo que existe de forma legible; una advertencia de `find` no debe tumbar el deploy.
+  local count
+  count="$(find "$path" -xdev -mindepth 1 -printf '.' 2>/dev/null | wc -c || true)"
+  printf '%s\n' "${count:-0}"
 }
 
 ACCOUNT_INODES="$(count_entries "$EXPECTED_HOME")"
@@ -62,10 +67,10 @@ check_limit "node_modules productivo" "$NODE_MODULES_INODES" "$MAX_NODE_MODULES_
 # dependency installation. A pipeline is used instead of /dev/fd because CloudLinux CageFS does
 # not expose that interface to cPanel deployment tasks.
 UNAUTHORIZED_TREES="$(
-  find "$EXPECTED_HOME" -xdev -type d -name node_modules -prune -print |
+  find "$EXPECTED_HOME" -xdev -type d -name node_modules -prune -print 2>/dev/null |
     while IFS= read -r dependency_tree; do
       if [ "$dependency_tree" != "$EXPECTED_APP_ROOT/node_modules" ] &&
-        [ -n "$(find "$dependency_tree" -xdev -mindepth 1 ! -type d -print -quit)" ]; then
+        [ -n "$(find "$dependency_tree" -xdev -mindepth 1 ! -type d -print -quit 2>/dev/null)" ]; then
         printf '%s\n' "$dependency_tree"
       fi
     done
