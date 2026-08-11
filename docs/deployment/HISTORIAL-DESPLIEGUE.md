@@ -252,3 +252,9 @@ inodos y se detuvo antes de instalar o reiniciar. CloudLinux CageFS no expone `/
 tareas de cPanel y Bash lo necesitaba para una sustitucion de proceso usada al buscar copias de
 `node_modules`. Se reemplazo por una tuberia compatible con CageFS sin relajar ningun limite;
 el fallo fue seguro y la version productiva anterior siguio atendiendo.
+
+El siguiente intento encontro un directorio vacio `apps/web/node_modules/@vitejs` que npm
+workspaces recrea durante cada instalacion productiva. No contenia paquetes, archivos ni
+enlaces, pero el control lo trataba como un arbol de dependencias duplicado. La proteccion ahora
+ignora solamente estructuras compuestas por directorios vacios y sigue rechazando cualquier
+`node_modules` secundario que contenga archivos o enlaces reales.

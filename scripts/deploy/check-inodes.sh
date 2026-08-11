@@ -57,12 +57,15 @@ check_limit "la papelera" "$TRASH_INODES" "$MAX_TRASH_INODES"
 check_limit "la cache global de npm" "$NPM_CACHE_INODES" "$MAX_NPM_CACHE_INODES"
 check_limit "node_modules productivo" "$NODE_MODULES_INODES" "$MAX_NODE_MODULES_INODES"
 
-# Production allows one dependency tree only. A pipeline is used instead of /dev/fd because
-# CloudLinux CageFS does not expose that interface to cPanel deployment tasks.
+# Production allows one dependency tree only. npm workspaces can leave empty scope directories
+# such as apps/web/node_modules/@vitejs; they consume only directory entries and are not a
+# dependency installation. A pipeline is used instead of /dev/fd because CloudLinux CageFS does
+# not expose that interface to cPanel deployment tasks.
 UNAUTHORIZED_TREES="$(
   find "$EXPECTED_HOME" -xdev -type d -name node_modules -prune -print |
     while IFS= read -r dependency_tree; do
-      if [ "$dependency_tree" != "$EXPECTED_APP_ROOT/node_modules" ]; then
+      if [ "$dependency_tree" != "$EXPECTED_APP_ROOT/node_modules" ] &&
+        [ -n "$(find "$dependency_tree" -xdev -mindepth 1 ! -type d -print -quit)" ]; then
         printf '%s\n' "$dependency_tree"
       fi
     done
