@@ -246,3 +246,9 @@ ahora mide la cuenta antes y despues de instalar, rechaza duplicados de `node_mo
 cache npm temporal y se detiene antes de reiniciar si supera los limites. GitHub Actions
 rechaza ademas una rama `deploy` con mas de 4.000 archivos o cualquier `node_modules`. Un
 control semanal de solo lectura avisa por cPanel si el consumo vuelve a superar la politica.
+
+El primer intento de activar la proteccion, despliegue `#9`, midio correctamente `29.676`
+inodos y se detuvo antes de instalar o reiniciar. CloudLinux CageFS no expone `/dev/fd` a las
+tareas de cPanel y Bash lo necesitaba para una sustitucion de proceso usada al buscar copias de
+`node_modules`. Se reemplazo por una tuberia compatible con CageFS sin relajar ningun limite;
+el fallo fue seguro y la version productiva anterior siguio atendiendo.
