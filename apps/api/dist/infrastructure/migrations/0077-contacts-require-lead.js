@@ -32,42 +32,79 @@ class ContactsRequireLead1726200000000 {
         if (Number(orphans) > 0) {
             throw new Error(`Quedan ${orphans} contactos sin lead: revisarlos a mano antes de continuar`);
         }
-        const previousForeignKey = await this.findLeadForeignKey(queryRunner);
+        const { contactLeadColumn, referencedLeadColumn, foreignKey: previousForeignKey, } = await this.getLeadSchema(queryRunner);
         if (previousForeignKey)
             await queryRunner.dropForeignKey('crm_contacts', previousForeignKey);
+        const requiredColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, false);
+        const nullableColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, true);
+        let columnChanged = false;
         try {
-            await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NOT NULL`);
+            await queryRunner.changeColumn('crm_contacts', contactLeadColumn, requiredColumn);
+            columnChanged = true;
             await queryRunner.createForeignKey('crm_contacts', this.leadForeignKey(previousForeignKey, 'RESTRICT'));
         }
         catch (error) {
-            await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NULL`);
-            if (previousForeignKey)
-                await queryRunner.createForeignKey('crm_contacts', previousForeignKey);
+            if (columnChanged) {
+                await queryRunner.changeColumn('crm_contacts', requiredColumn, nullableColumn);
+            }
+            await queryRunner.createForeignKey('crm_contacts', previousForeignKey || this.leadForeignKey(undefined, 'SET NULL'));
             throw error;
         }
     }
     async down(queryRunner) {
         if (!(await queryRunner.hasTable('crm_contacts')))
             return;
-        const requiredForeignKey = await this.findLeadForeignKey(queryRunner);
+        const { contactLeadColumn, referencedLeadColumn, foreignKey: requiredForeignKey, } = await this.getLeadSchema(queryRunner);
         if (requiredForeignKey)
             await queryRunner.dropForeignKey('crm_contacts', requiredForeignKey);
+        const nullableColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, true);
+        const requiredColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, false);
+        let columnChanged = false;
         try {
-            await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NULL`);
+            await queryRunner.changeColumn('crm_contacts', contactLeadColumn, nullableColumn);
+            columnChanged = true;
             await queryRunner.createForeignKey('crm_contacts', this.leadForeignKey(requiredForeignKey, 'SET NULL'));
         }
         catch (error) {
-            await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NOT NULL`);
-            if (requiredForeignKey)
-                await queryRunner.createForeignKey('crm_contacts', requiredForeignKey);
+            if (columnChanged) {
+                await queryRunner.changeColumn('crm_contacts', nullableColumn, requiredColumn);
+            }
+            await queryRunner.createForeignKey('crm_contacts', requiredForeignKey || this.leadForeignKey(undefined, 'RESTRICT'));
             throw error;
         }
     }
-    async findLeadForeignKey(queryRunner) {
-        const table = await queryRunner.getTable('crm_contacts');
-        return table?.foreignKeys.find((foreignKey) => foreignKey.columnNames.length === 1
-            && foreignKey.columnNames[0] === 'lead_id'
-            && foreignKey.referencedTableName.split('.').pop() === 'leads');
+    async getLeadSchema(queryRunner) {
+        const [contactsTable, leadsTable] = await Promise.all([
+            queryRunner.getTable('crm_contacts'),
+            queryRunner.getTable('leads'),
+        ]);
+        const contactLeadColumn = contactsTable?.findColumnByName('lead_id');
+        const referencedLeadColumn = leadsTable?.findColumnByName('id');
+        if (!contactLeadColumn || !referencedLeadColumn) {
+            throw new Error('No se pudo leer crm_contacts.lead_id o leads.id para validar su compatibilidad');
+        }
+        const foreignKey = contactsTable?.foreignKeys.find((candidate) => candidate.columnNames.length === 1
+            && candidate.columnNames[0] === 'lead_id'
+            && candidate.referencedTableName.split('.').pop() === 'leads');
+        return { contactLeadColumn, referencedLeadColumn, foreignKey };
+    }
+    compatibleLeadColumn(current, referenced, isNullable) {
+        const compatible = current.clone();
+        compatible.type = referenced.type;
+        compatible.length = referenced.length;
+        compatible.width = referenced.width;
+        compatible.charset = referenced.charset;
+        compatible.collation = referenced.collation;
+        compatible.precision = referenced.precision;
+        compatible.scale = referenced.scale;
+        compatible.zerofill = referenced.zerofill;
+        compatible.unsigned = referenced.unsigned;
+        compatible.enum = referenced.enum ? [...referenced.enum] : undefined;
+        compatible.enumName = referenced.enumName;
+        compatible.spatialFeatureType = referenced.spatialFeatureType;
+        compatible.srid = referenced.srid;
+        compatible.isNullable = isNullable;
+        return compatible;
     }
     leadForeignKey(previous, onDelete) {
         return new typeorm_1.TableForeignKey({

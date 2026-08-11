@@ -3,6 +3,7 @@ export declare class ContactsRequireLead1726200000000 implements MigrationInterf
     name: string;
     up(queryRunner: QueryRunner): Promise<void>;
     down(queryRunner: QueryRunner): Promise<void>;
-    private findLeadForeignKey;
+    private getLeadSchema;
+    private compatibleLeadColumn;
     private leadForeignKey;
 }
