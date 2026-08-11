@@ -4,7 +4,17 @@ import { DataSource } from 'typeorm';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
-import apiPackage from '../../../package.json';
+
+function readApiVersion(): string {
+  const packagePath = path.resolve(__dirname, '../../../package.json');
+  const parsed = JSON.parse(fs.readFileSync(packagePath, 'utf8')) as { version?: unknown };
+  if (typeof parsed.version !== 'string' || !parsed.version.trim()) {
+    throw new Error(`Invalid API package version in ${packagePath}`);
+  }
+  return parsed.version;
+}
+
+const API_VERSION = readApiVersion();
 
 @Injectable()
 export class HealthService {
@@ -28,7 +38,7 @@ export class HealthService {
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
       // Passenger inicia `node app.js` directamente, por lo que npm_package_version no existe.
-      version: apiPackage.version,
+      version: API_VERSION,
       database: db,
       memory,
       disk,

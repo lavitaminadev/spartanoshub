@@ -6,7 +6,7 @@
     "node": "^22.12.0 || ^24.0.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node ../../scripts/build/clean-api-output.cjs && tsc",
     "start": "node dist/main",
     "start:prod": "node dist/main",
     "start:dev": "ts-node src/main.ts",
