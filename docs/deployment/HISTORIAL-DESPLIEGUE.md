@@ -44,7 +44,7 @@ del frontend llegan a `public_html/cuartel.espartanos.cl`.
   servidor.
 - Se revisaron y fijaron scripts de instalacion npm; la auditoria de dependencias quedo sin
   vulnerabilidades conocidas.
-- Resultado de la validacion anterior: 472 pruebas de API, 30 pruebas de frontend, lint y
+- Resultado de la validacion anterior: 478 pruebas de API, 30 pruebas de frontend, lint y
   compilacion para cPanel correctos.
 
 ## Cambios de esta salida 1.0.0
@@ -106,6 +106,13 @@ El primer despliegue administrado instalo dependencias y valido el entorno, pero
 convierte la columna a obligatoria y la recrea como `RESTRICT`. Si algo falla, restaura la
 nulabilidad y la relacion anterior para no dejar la tabla a medias.
 
+La segunda ejecucion demostro que no era seguro declarar la columna como `VARCHAR(36)`:
+MySQL exige que una clave foranea coincida tambien en tipo, longitud, signo, codificacion y
+cotejamiento con la columna referenciada. Esa ejecucion pudo dejar `lead_id` nullable y sin
+clave foranea al fallar la restauracion. La migracion ahora lee la definicion real de
+`leads.id`, repara con ella `crm_contacts.lead_id`, cambia solamente su nulabilidad y puede
+recuperar automaticamente ese estado parcial antes de crear la relacion `RESTRICT`.
+
 ## Acceso y seguridad
 
 - El acceso de automatizacion usa una clave dedicada para cPanel; ninguna clave privada se
@@ -123,7 +130,7 @@ nulabilidad y la relacion anterior para no dejar la tabla a medias.
 | --- | --- | --- |
 | Repositorio limpio y publico | Completado | `lavitaminadev/spartanoshub` |
 | Auditoria funcional y de seguridad | Completado | Pruebas, lint, build y audit correctos |
-| Version 1.0.0 y health coherente | Completado | 476 pruebas API y 30 pruebas web correctas |
+| Version 1.0.0 y health coherente | Completado | 478 pruebas API y 30 pruebas web correctas |
 | Publicacion de cambios en `main` | Completado | PR `#3`, CI correcta |
 | Actualizacion automatica de `deploy` | En correccion | Se eliminan dependencias y force-push recurrente |
 | Git Version Control en cPanel | Completado | Repo privado del servidor sobre rama `deploy` |
