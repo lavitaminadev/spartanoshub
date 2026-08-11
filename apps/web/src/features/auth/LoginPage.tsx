@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { BrandLockup } from '../../shared/Brand';
+import { buildSessionHostWarning } from './session-host-warning';
 
 const REMEMBERED_LOGIN_KEY = 'vitahub:remembered-login';
 
@@ -12,18 +13,11 @@ function getRememberedLogin(): string {
 
 function getSessionHostWarning(): string | null {
   if (typeof window === 'undefined') return null;
-  const rawApiUrl = import.meta.env.VITE_API_URL as string | undefined;
-  if (!rawApiUrl || rawApiUrl.startsWith('/')) return null;
-  try {
-    const apiUrl = new URL(rawApiUrl);
-    const webHost = window.location.hostname;
-    if (apiUrl.hostname !== webHost) {
-      return `Estás entrando por ${webHost}, pero la API local está configurada en ${apiUrl.hostname}. Para que la sesión no se cierre al recargar, usa http://${apiUrl.hostname}:5173 o alinea ambos en localhost.`;
-    }
-  } catch {
-    return null;
-  }
-  return null;
+  return buildSessionHostWarning({
+    isDevelopment: import.meta.env.DEV,
+    webHost: window.location.hostname,
+    rawApiUrl: import.meta.env.VITE_API_URL as string | undefined,
+  });
 }
 
 export function LoginPage() {
