@@ -75,14 +75,14 @@ let MetaConversionsService = MetaConversionsService_1 = class MetaConversionsSer
     async sendServerEvent(pixelId, accessToken, event) {
         const hashed = {
             ...event.userData,
-            em: event.userData.em?.map(e => (0, node_crypto_1.createHash)('sha256').update(e.trim().toLowerCase()).digest('hex')),
-            ph: event.userData.ph?.map(p => (0, node_crypto_1.createHash)('sha256').update(normalizePhoneForMeta(p)).digest('hex')),
-            fn: event.userData.fn?.map(f => (0, node_crypto_1.createHash)('sha256').update(f.trim().toLowerCase()).digest('hex')),
-            ln: event.userData.ln?.map(l => (0, node_crypto_1.createHash)('sha256').update(l.trim().toLowerCase()).digest('hex')),
-            externalId: event.userData.externalId?.map(id => (0, node_crypto_1.createHash)('sha256').update(id).digest('hex')),
-            ct: event.userData.ct?.map(c => (0, node_crypto_1.createHash)('sha256').update((0, geo_inference_1.normalizeGeoValue)(c)).digest('hex')),
-            st: event.userData.st?.map(s => (0, node_crypto_1.createHash)('sha256').update((0, geo_inference_1.normalizeGeoValue)(s)).digest('hex')),
-            country: event.userData.country?.map(c => (0, node_crypto_1.createHash)('sha256').update((0, geo_inference_1.normalizeGeoValue)(c)).digest('hex')),
+            em: hashAll(event.userData.em, (value) => value.trim().toLowerCase()),
+            ph: hashAll(event.userData.ph, normalizePhoneForMeta),
+            fn: hashAll(event.userData.fn, (value) => value.trim().toLowerCase()),
+            ln: hashAll(event.userData.ln, (value) => value.trim().toLowerCase()),
+            externalId: hashAll(event.userData.externalId, (value) => value),
+            ct: hashAll(event.userData.ct, geo_inference_1.normalizeGeoValue),
+            st: hashAll(event.userData.st, geo_inference_1.normalizeGeoValue),
+            country: hashAll(event.userData.country, geo_inference_1.normalizeGeoValue),
         };
         return this.sendEvent(pixelId, accessToken, { ...event, userData: hashed });
     }
@@ -92,6 +92,15 @@ exports.MetaConversionsService = MetaConversionsService = MetaConversionsService
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [axios_1.HttpService])
 ], MetaConversionsService);
+function hashAll(values, normalize) {
+    if (!values?.length)
+        return undefined;
+    const hashed = values
+        .map((value) => normalize(value ?? ''))
+        .filter((value) => value.length > 0)
+        .map((value) => (0, node_crypto_1.createHash)('sha256').update(value).digest('hex'));
+    return hashed.length > 0 ? hashed : undefined;
+}
 function normalizePhoneForMeta(phone) {
     return (0, phone_1.normalizePhoneDigits)(phone) ?? '';
 }
