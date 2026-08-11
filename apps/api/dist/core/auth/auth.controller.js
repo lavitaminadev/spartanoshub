@@ -105,6 +105,22 @@ let AuthController = class AuthController {
         setRefreshCookie(response, refreshed.refreshToken);
         return { accessToken: refreshed.accessToken };
     }
+    async browserSession(dto, request, response) {
+        const token = readCookie(request, REFRESH_COOKIE) ?? dto?.refreshToken;
+        if (!token)
+            return { authenticated: false };
+        try {
+            const refreshed = await this.auth.refreshToken(token);
+            setRefreshCookie(response, refreshed.refreshToken);
+            return { authenticated: true, accessToken: refreshed.accessToken };
+        }
+        catch (error) {
+            if (!(error instanceof common_1.UnauthorizedException))
+                throw error;
+            clearRefreshCookie(response);
+            return { authenticated: false };
+        }
+    }
     async logout(user, response) {
         await this.auth.logout(user.id, user.sessionId);
         clearRefreshCookie(response);
@@ -133,11 +149,15 @@ let AuthController = class AuthController {
     completePasswordReset(dto) {
         return this.auth.completePasswordReset(dto.token, dto.password);
     }
-    changePassword(user, dto) {
-        return this.auth.changePassword(user.id, dto.currentPassword, dto.newPassword);
+    async changePassword(user, dto, response) {
+        const result = await this.auth.changePassword(user.id, dto.currentPassword, dto.newPassword);
+        clearRefreshCookie(response);
+        return result;
     }
-    completeOnboarding(user, dto, ipAddress) {
-        return this.auth.completeOnboarding(user.id, dto, ipAddress);
+    async completeOnboarding(user, dto, ipAddress, response) {
+        const result = await this.auth.completeOnboarding(user.id, user.sessionId, dto, ipAddress);
+        clearRefreshCookie(response);
+        return result;
     }
     acceptTerms(user, dto, ipAddress) {
         return this.auth.acceptCurrentTerms(user.id, dto.acceptedConsents, ipAddress);
@@ -185,6 +205,19 @@ __decorate([
     __metadata("design:paramtypes", [refresh_dto_1.RefreshDto, Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "refresh", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('session'),
+    (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, swagger_1.ApiOperation)({ summary: 'Comprobar y restaurar la sesión del navegador' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [refresh_dto_1.RefreshDto, Object, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "browserSession", null);
 __decorate([
     (0, common_1.Post)('logout'),
     (0, common_1.HttpCode)(common_1.HttpStatus.NO_CONTENT),
@@ -300,9 +333,10 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Cambiar contraseña autenticada' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, password_reset_dto_1.ChangePasswordDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object, password_reset_dto_1.ChangePasswordDto, Object]),
+    __metadata("design:returntype", Promise)
 ], AuthController.prototype, "changePassword", null);
 __decorate([
     (0, common_1.Post)('onboarding'),
@@ -310,13 +344,14 @@ __decorate([
     (0, roles_decorator_1.Roles)(...Object.values(user_role_enum_1.UserRole)),
     (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60000 } }),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Completar el primer ingreso: datos, condiciones y contraseña' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Completar el primer acceso: datos, condiciones y contraseña' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Ip)()),
+    __param(3, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, onboarding_dto_1.CompleteOnboardingDto, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object, onboarding_dto_1.CompleteOnboardingDto, String, Object]),
+    __metadata("design:returntype", Promise)
 ], AuthController.prototype, "completeOnboarding", null);
 __decorate([
     (0, common_1.Post)('terms/accept'),

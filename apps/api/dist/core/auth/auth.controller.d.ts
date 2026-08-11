@@ -32,6 +32,13 @@ export declare class AuthController {
     refresh(dto: RefreshDto, request: Request, response: Response): Promise<{
         accessToken: string;
     }>;
+    browserSession(dto: RefreshDto, request: Request, response: Response): Promise<{
+        authenticated: false;
+        accessToken?: undefined;
+    } | {
+        authenticated: true;
+        accessToken: string;
+    }>;
     logout(user: AuthUser, response: Response): Promise<void>;
     listSessions(user: AuthUser): Promise<import("./sessions.service").SessionSummary[]>;
     closeOtherSessions(user: AuthUser): Promise<{
@@ -53,10 +60,10 @@ export declare class AuthController {
     completePasswordReset(dto: CompletePasswordResetDto): Promise<{
         changed: true;
     }>;
-    changePassword(user: AuthUser, dto: ChangePasswordDto): Promise<{
+    changePassword(user: AuthUser, dto: ChangePasswordDto, response: Response): Promise<{
         changed: true;
     }>;
-    completeOnboarding(user: AuthUser, dto: CompleteOnboardingDto, ipAddress: string): Promise<{
+    completeOnboarding(user: AuthUser, dto: CompleteOnboardingDto, ipAddress: string, response: Response): Promise<{
         completed: true;
     }>;
     acceptTerms(user: AuthUser, dto: AcceptTermsDto, ipAddress: string): Promise<{

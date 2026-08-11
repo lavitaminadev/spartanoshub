@@ -25,6 +25,9 @@ export function LoginPage() {
   const sessionHostWarning = useMemo(getSessionHostWarning, []);
   const [searchParams] = useSearchParams();
   const sessionExpired = searchParams.get('reason') === 'session-expired';
+  const activationExpired = searchParams.get('reason') === 'activation-expired';
+  const firstAccessComplete = searchParams.get('reason') === 'first-access-complete';
+  const passwordChanged = searchParams.get('reason') === 'password-changed';
   const [email, setEmail] = useState(rememberedLogin);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState('');
@@ -51,7 +54,8 @@ export function LoginPage() {
         window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
       }
       const loggedInUser = useAuth.getState().user;
-      navigate(loggedInUser?.mustChangePassword ? '/change-password' : loggedInUser?.role === 'client' ? '/portal' : '/dashboard', { replace: true });
+      const needsFirstAccess = loggedInUser?.mustChangePassword || loggedInUser?.mustCompleteProfile || loggedInUser?.mustAcceptTerms;
+      navigate(needsFirstAccess ? '/first-access' : loggedInUser?.role === 'client' ? '/portal' : '/dashboard', { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {
@@ -72,6 +76,9 @@ export function LoginPage() {
         <h1 className="login-title">Bienvenido de vuelta</h1>
         <p className="login-subtitle">Ingresa a tu espacio operativo</p>
         {sessionExpired && <div className="alert alert-info login-session-warning">Tu sesión expiró. Inicia sesión de nuevo para continuar.</div>}
+        {activationExpired && <div className="alert alert-info login-session-warning">Por seguridad, el tiempo para activar tu cuenta terminó. Ingresa nuevamente con tu clave temporal para continuar.</div>}
+        {firstAccessComplete && <div className="alert alert-success login-session-warning">Tu cuenta quedó activada. Ingresa con tu nueva contraseña.</div>}
+        {passwordChanged && <div className="alert alert-success login-session-warning">Contraseña actualizada. Vuelve a ingresar para continuar.</div>}
         {sessionHostWarning && <div className="alert alert-warning login-session-warning">{sessionHostWarning}</div>}
         {error && <div className="alert alert-error">{error}</div>}
         <div className="form-group">

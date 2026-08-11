@@ -38,20 +38,9 @@ __decorate([
     (0, class_validator_1.Matches)(/^\+?[\d\s-]{7,}$/, { message: 'Teléfono inválido' }),
     __metadata("design:type", String)
 ], OnboardingProfileDto.prototype, "phone", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsIn)(['presential', 'hybrid', 'remote']),
-    __metadata("design:type", String)
-], OnboardingProfileDto.prototype, "workMode", void 0);
 class CompleteOnboardingDto {
 }
 exports.CompleteOnboardingDto = CompleteOnboardingDto;
-__decorate([
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(8),
-    (0, class_validator_1.MaxLength)(128),
-    __metadata("design:type", String)
-], CompleteOnboardingDto.prototype, "currentPassword", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MinLength)(8),
@@ -66,6 +55,7 @@ __decorate([
     __metadata("design:type", Array)
 ], CompleteOnboardingDto.prototype, "acceptedConsents", void 0);
 __decorate([
+    (0, class_validator_1.ValidateNested)(),
     (0, class_transformer_1.Type)(() => OnboardingProfileDto),
     __metadata("design:type", OnboardingProfileDto)
 ], CompleteOnboardingDto.prototype, "profile", void 0);

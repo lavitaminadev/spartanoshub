@@ -3,10 +3,8 @@ export declare const TERMS_VERSION = "v1";
 export declare class OnboardingProfileDto {
     name: string;
     phone?: string;
-    workMode?: 'presential' | 'hybrid' | 'remote';
 }
 export declare class CompleteOnboardingDto {
-    currentPassword: string;
     newPassword: string;
     acceptedConsents: string[];
     profile: OnboardingProfileDto;

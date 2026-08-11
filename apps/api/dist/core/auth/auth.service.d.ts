@@ -65,7 +65,7 @@ export declare class AuthService {
     changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{
         changed: true;
     }>;
-    completeOnboarding(userId: string, dto: CompleteOnboardingDto, ipAddress?: string): Promise<{
+    completeOnboarding(userId: string, sessionId: string | undefined, dto: CompleteOnboardingDto, ipAddress?: string): Promise<{
         completed: true;
     }>;
 }

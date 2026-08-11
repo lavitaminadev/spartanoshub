@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthController } from '../../../src/core/auth/auth.controller';
 
@@ -65,6 +66,30 @@ describe('AuthController browser sessions', () => {
     expect(auth.refreshToken).toHaveBeenCalledWith('cookie-token');
     expect(result).toEqual({ accessToken: 'new-access' });
     expect(response.cookie).toHaveBeenCalledWith('vitahub_refresh', 'new-refresh', expect.any(Object));
+  });
+
+  it('reports an anonymous browser session without producing a 401', async () => {
+    const result = await controller.browserSession(
+      {},
+      { headers: {} } as Request,
+      response,
+    );
+
+    expect(result).toEqual({ authenticated: false });
+    expect(auth.refreshToken).not.toHaveBeenCalled();
+  });
+
+  it('clears an expired browser session and reports it as anonymous', async () => {
+    auth.refreshToken.mockRejectedValue(new UnauthorizedException());
+
+    const result = await controller.browserSession(
+      {},
+      { headers: { cookie: 'vitahub_refresh=expired' } } as Request,
+      response,
+    );
+
+    expect(result).toEqual({ authenticated: false });
+    expect(response.clearCookie).toHaveBeenCalledWith('vitahub_refresh', expect.any(Object));
   });
 
   it('revokes the session and clears the browser cookie on logout', async () => {

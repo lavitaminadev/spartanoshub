@@ -8,6 +8,9 @@ const mockUserRepo = {
   create: vi.fn(),
   save: vi.fn(),
   update: vi.fn(),
+  manager: {
+    transaction: vi.fn(),
+  },
 };
 
 const mockOrgRepo = {
@@ -38,6 +41,12 @@ const mockSessions = {
   hasRecentAuth: vi.fn(),
 };
 
+const transactionManager = {
+  update: vi.fn(),
+  create: vi.fn((_entity, value) => value),
+  save: vi.fn(),
+};
+
 vi.mock('bcryptjs', () => ({
   default: {
     hash: vi.fn(),
@@ -61,6 +70,9 @@ describe('AuthService', () => {
     mockSessions.rotate.mockResolvedValue(undefined);
     mockSessions.revokeAll.mockResolvedValue(0);
     mockSessions.revoke.mockResolvedValue(true);
+    mockSessions.hasRecentAuth.mockResolvedValue(true);
+    mockParameters.get.mockResolvedValue(null);
+    mockUserRepo.manager.transaction.mockImplementation(async (callback) => callback(transactionManager));
     service = new AuthService(mockUserRepo as any, mockOrgRepo as any, mockResetRepo as any, mockEmailService as any, mockJwtService as any, mockParameters as any, mockSessions as any);
   });
 
@@ -158,6 +170,34 @@ describe('AuthService', () => {
       mockUserRepo.findOne.mockResolvedValue(null);
 
       await expect(service.validateUser('no@user.com', 'pass')).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('completeOnboarding', () => {
+    it('guarda perfil y consentimientos sin permitir que la persona defina su modalidad laboral', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', password: 'old-hash', organizationId: 'org-1' });
+      (bcrypt.compare as any).mockResolvedValue(false);
+      (bcrypt.hash as any).mockResolvedValue('new-hash');
+
+      const result = await service.completeOnboarding('user-1', 'session-1', {
+        newPassword: 'NuevaClave123!',
+        acceptedConsents: ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        profile: { name: 'Demo Vitalis', phone: '+56 9 1234 5678' },
+      }, '1.2.3.4');
+
+      expect(result).toEqual({ completed: true });
+      expect(transactionManager.update).toHaveBeenCalledWith(expect.anything(), 'user-1', expect.not.objectContaining({ workMode: expect.anything() }));
+      expect(mockSessions.revokeAll).toHaveBeenCalledWith('user-1', 'cambio_de_contrasena');
+    });
+
+    it('rechaza una sesión de activación que ya no es reciente', async () => {
+      mockSessions.hasRecentAuth.mockResolvedValue(false);
+
+      await expect(service.completeOnboarding('user-1', 'session-1', {
+        newPassword: 'NuevaClave123!',
+        acceptedConsents: ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        profile: { name: 'Demo Vitalis' },
+      })).rejects.toThrow(ForbiddenException);
     });
   });
 

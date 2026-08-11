@@ -410,14 +410,16 @@ let AuthService = AuthService_1 = class AuthService {
         await this.sessions.revokeAll(userId, sessions_service_1.REVOKE_REASONS.PASSWORD_CHANGE);
         return { changed: true };
     }
-    async completeOnboarding(userId, dto, ipAddress) {
+    async completeOnboarding(userId, sessionId, dto, ipAddress) {
+        if (!sessionId || !(await this.sessions.hasRecentAuth(sessionId))) {
+            throw new common_1.ForbiddenException('Tu sesión de activación expiró. Vuelve a ingresar con la contraseña temporal.');
+        }
         const user = await this.userRepo.findOne({
             where: { id: userId, isActive: true },
             select: ['id', 'password', 'organizationId'],
         });
-        if (!user || !await bcrypt.compare(dto.currentPassword, user.password)) {
-            throw new common_1.BadRequestException('La contraseña actual no es correcta');
-        }
+        if (!user)
+            throw new common_1.BadRequestException('Usuario no disponible');
         if (await bcrypt.compare(dto.newPassword, user.password)) {
             throw new common_1.BadRequestException('La nueva contraseña debe ser diferente');
         }
@@ -426,27 +428,29 @@ let AuthService = AuthService_1 = class AuthService {
             throw new common_1.BadRequestException('Debes aceptar todas las condiciones para continuar');
         }
         const now = new Date();
+        const termsVersion = String(await this.parameters.get('compliance.terms_version', null, null, user.organizationId)
+            ?? onboarding_dto_1.TERMS_VERSION);
         await this.userRepo.manager.transaction(async (manager) => {
             await manager.update(user_entity_1.User, userId, {
                 name: dto.profile.name.trim(),
                 phone: dto.profile.phone?.replace(/[^\d+]/g, '') || null,
-                workMode: dto.profile.workMode,
                 password: await bcrypt.hash(dto.newPassword, Number(process.env.BCRYPT_ROUNDS || 10)),
                 mustChangePassword: false,
                 mustCompleteProfile: false,
                 passwordChangedAt: now,
                 termsAcceptedAt: now,
-                termsVersion: onboarding_dto_1.TERMS_VERSION,
+                termsVersion,
                 refreshToken: null,
             });
             await manager.save(consent_entity_1.DataConsent, onboarding_dto_1.REQUIRED_CONSENTS.map((action) => manager.create(consent_entity_1.DataConsent, {
                 userId,
-                action: `${action}@${onboarding_dto_1.TERMS_VERSION}`,
+                action: `${action}@${termsVersion}`,
                 granted: true,
                 ipAddress: ipAddress ?? null,
             })));
         });
-        this.logger.log(`Usuario ${userId} completó el primer ingreso y aceptó ${onboarding_dto_1.TERMS_VERSION}`);
+        await this.sessions.revokeAll(userId, sessions_service_1.REVOKE_REASONS.PASSWORD_CHANGE);
+        this.logger.log(`Usuario ${userId} completó el primer acceso y aceptó ${termsVersion}`);
         return { completed: true };
     }
 };

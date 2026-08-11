@@ -29,15 +29,20 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   const loading = useAuth((s) => s.loading);
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;
-  if ((user.mustChangePassword || user.mustCompleteProfile || user.mustAcceptTerms) && path !== '/change-password') {
-    return <Navigate to="/change-password" replace />;
+  const needsFirstAccess = Boolean(user.mustChangePassword || user.mustCompleteProfile || user.mustAcceptTerms);
+  if (needsFirstAccess && path !== '/first-access') {
+    return <Navigate to="/first-access" replace />;
+  }
+  if (!needsFirstAccess && path === '/first-access') {
+    return <Navigate to={user.role === 'client' ? '/portal' : '/dashboard'} replace />;
   }
   if (user.role === 'client' && path && !path.startsWith('/portal')) {
     return <Navigate to="/portal" replace />;
   }
   // Las rutas de módulos sin acceso se bloquean también por URL directa, no solo se ocultan
   // del menú.
-  if (path && !isPathEnabled(path, user.features, user.permissions)) {
+  const isPersonalRoute = path === '/first-access' || path === '/change-password' || path === '/sesiones';
+  if (path && !isPersonalRoute && !isPathEnabled(path, user.features, user.permissions)) {
     return <Navigate to="/404" replace />;
   }
   const roles = allowedRoles ?? (path ? getAllowedRolesForPath(path) : undefined);
