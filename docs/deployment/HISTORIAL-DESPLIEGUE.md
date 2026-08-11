@@ -275,3 +275,5 @@ queda reservado para cuentas ya activas.
 El arranque anonimo del frontend ya no llama al refresh estricto: `/auth/session` devuelve un
 estado anonimo normal cuando no hay cookie o esta vencida, evitando un `401` esperado en la
 consola del login. Tambien se agrego la meta PWA moderna `mobile-web-app-capable`.
+La PWA registra explicitamente su actualizador: cuando un despliegue nuevo toma control,
+la pagina se recarga una sola vez y deja de servir la version anterior desde cache.
