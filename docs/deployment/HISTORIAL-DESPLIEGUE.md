@@ -64,7 +64,7 @@ version empaquetada de la API:
 
 ```text
 apps/web/package.json: 1.0.0
-health: apiPackage.version
+health: version leida desde apps/api/package.json
 ```
 
 ### Node y migraciones
@@ -91,6 +91,14 @@ de `src`; un artefacto antiguo en Windows habia ocultado el cambio de ruta. La v
 se lee en tiempo de ejecucion, `rootDir` queda fijado en `src` y el build limpia `dist` antes
 de compilar. Asi `apps/api/dist/main.js` se genera igual en una maquina nueva y en desarrollo.
 
+### Correccion de la migracion de contactos
+
+El primer despliegue administrado instalo dependencias y valido el entorno, pero MySQL detuvo
+`ContactsRequireLead1726200000000`: no permite cambiar `lead_id` mientras una clave foranea
+`SET NULL` usa esa columna. La migracion ahora elimina temporalmente solo esa relacion,
+convierte la columna a obligatoria y la recrea como `RESTRICT`. Si algo falla, restaura la
+nulabilidad y la relacion anterior para no dejar la tabla a medias.
+
 ## Acceso y seguridad
 
 - El acceso de automatizacion usa una clave dedicada para cPanel; ninguna clave privada se
@@ -108,13 +116,13 @@ de compilar. Asi `apps/api/dist/main.js` se genera igual en una maquina nueva y 
 | --- | --- | --- |
 | Repositorio limpio y publico | Completado | `lavitaminadev/spartanoshub` |
 | Auditoria funcional y de seguridad | Completado | Pruebas, lint, build y audit correctos |
-| Version 1.0.0 y health coherente | Completado | 473 pruebas API y 30 pruebas web correctas |
+| Version 1.0.0 y health coherente | Completado | 476 pruebas API y 30 pruebas web correctas |
 | Publicacion de cambios en `main` | Completado | PR `#3`, CI correcta |
-| Actualizacion automatica de `deploy` | En correccion | Bloqueo `.htaccess` ausente y una ruta de API incoherente en Linux |
-| Git Version Control en cPanel | Pendiente | Rama objetivo: `deploy` |
-| Aplicacion Node 22 para Refugio | Pendiente | Inicio: `app.js` |
-| Variables y base de datos | Pendiente | Secretos fuera del repositorio |
-| Migraciones | Pendiente | Ejecutadas por `.cpanel.yml` |
+| Actualizacion automatica de `deploy` | Completado | Rama compilada desde `main` por GitHub Actions |
+| Git Version Control en cPanel | Completado | Repo privado del servidor sobre rama `deploy` |
+| Aplicacion Node 22 para Refugio | Completado | Node 22.23.0, Production, inicio `app.js` |
+| Variables y base de datos | Completado | `.env` modo `600`, credencial MySQL renovada |
+| Migraciones | En correccion | cPanel detecto una clave foranea incompatible con `NOT NULL` |
 | Frontend Cuartel | Pendiente | Prueba HTTPS y carga de recursos |
 | Backend Refugio | Pendiente | Prueba `GET /api/health` |
 | Flujo de reservas | Pendiente | Formulario, enlace publico y registro en DB |

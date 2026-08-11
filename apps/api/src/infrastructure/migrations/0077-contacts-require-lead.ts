@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableForeignKey } from 'typeorm';
 
 /**
  * Un contacto es el vínculo de una persona con una cuenta, y toda persona vive en `leads`.
@@ -50,11 +50,53 @@ export class ContactsRequireLead1726200000000 implements MigrationInterface {
       throw new Error(`Quedan ${orphans} contactos sin lead: revisarlos a mano antes de continuar`);
     }
 
-    await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NOT NULL`);
+    const previousForeignKey = await this.findLeadForeignKey(queryRunner);
+    if (previousForeignKey) await queryRunner.dropForeignKey('crm_contacts', previousForeignKey);
+
+    try {
+      await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NOT NULL`);
+      await queryRunner.createForeignKey('crm_contacts', this.leadForeignKey(previousForeignKey, 'RESTRICT'));
+    } catch (error) {
+      // MySQL confirma cada ALTER TABLE aunque la migracion use una transaccion. Restaurar la
+      // nulabilidad y la relacion anterior evita dejar una tabla sin integridad referencial.
+      await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NULL`);
+      if (previousForeignKey) await queryRunner.createForeignKey('crm_contacts', previousForeignKey);
+      throw error;
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     if (!(await queryRunner.hasTable('crm_contacts'))) return;
-    await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NULL`);
+    const requiredForeignKey = await this.findLeadForeignKey(queryRunner);
+    if (requiredForeignKey) await queryRunner.dropForeignKey('crm_contacts', requiredForeignKey);
+
+    try {
+      await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NULL`);
+      await queryRunner.createForeignKey('crm_contacts', this.leadForeignKey(requiredForeignKey, 'SET NULL'));
+    } catch (error) {
+      await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id VARCHAR(36) NOT NULL`);
+      if (requiredForeignKey) await queryRunner.createForeignKey('crm_contacts', requiredForeignKey);
+      throw error;
+    }
+  }
+
+  private async findLeadForeignKey(queryRunner: QueryRunner): Promise<TableForeignKey | undefined> {
+    const table = await queryRunner.getTable('crm_contacts');
+    return table?.foreignKeys.find((foreignKey) =>
+      foreignKey.columnNames.length === 1
+      && foreignKey.columnNames[0] === 'lead_id'
+      && foreignKey.referencedTableName.split('.').pop() === 'leads',
+    );
+  }
+
+  private leadForeignKey(previous: TableForeignKey | undefined, onDelete: 'RESTRICT' | 'SET NULL'): TableForeignKey {
+    return new TableForeignKey({
+      name: previous?.name || 'FK_crm_contacts_lead',
+      columnNames: ['lead_id'],
+      referencedTableName: 'leads',
+      referencedColumnNames: ['id'],
+      onDelete,
+      onUpdate: previous?.onUpdate,
+    });
   }
 }
