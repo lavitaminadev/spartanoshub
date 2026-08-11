@@ -57,13 +57,21 @@ check_limit "la papelera" "$TRASH_INODES" "$MAX_TRASH_INODES"
 check_limit "la cache global de npm" "$NPM_CACHE_INODES" "$MAX_NPM_CACHE_INODES"
 check_limit "node_modules productivo" "$NODE_MODULES_INODES" "$MAX_NODE_MODULES_INODES"
 
-# Production allows one dependency tree only. Nested package dependencies are not traversed.
-while IFS= read -r dependency_tree; do
-  if [ "$dependency_tree" != "$EXPECTED_APP_ROOT/node_modules" ]; then
-    echo "INODE GUARD: node_modules duplicado fuera de produccion: $dependency_tree" >&2
-    FAILED=1
-  fi
-done < <(find "$EXPECTED_HOME" -xdev -type d -name node_modules -prune -print)
+# Production allows one dependency tree only. A pipeline is used instead of /dev/fd because
+# CloudLinux CageFS does not expose that interface to cPanel deployment tasks.
+UNAUTHORIZED_TREES="$(
+  find "$EXPECTED_HOME" -xdev -type d -name node_modules -prune -print |
+    while IFS= read -r dependency_tree; do
+      if [ "$dependency_tree" != "$EXPECTED_APP_ROOT/node_modules" ]; then
+        printf '%s\n' "$dependency_tree"
+      fi
+    done
+)"
+if [ -n "$UNAUTHORIZED_TREES" ]; then
+  printf 'INODE GUARD: node_modules duplicado fuera de produccion:\n%s\n' \
+    "$UNAUTHORIZED_TREES" >&2
+  FAILED=1
+fi
 
 if [ "$FAILED" -ne 0 ]; then
   echo "INODE GUARD: despliegue detenido antes de reiniciar la aplicacion." >&2
