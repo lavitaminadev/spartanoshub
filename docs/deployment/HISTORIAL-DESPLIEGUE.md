@@ -127,6 +127,30 @@ La migracion siguiente, `UserSessions1726300000000`, aun declaraba sus identific
 la FK hacia `users.id`. `id`, `user_id` y `organization_id` ahora usan `UUID`; una prueba de
 estructura comprueba esa compatibilidad y la creacion fallida no dejo la tabla a medias.
 
+## Despliegue productivo validado
+
+El despliegue administrado `#5` avanzo la rama remota hasta `aab2c75e`, aplico la correccion
+de sesiones, completo todas las migraciones y publico el frontend. La aplicacion Node se
+inicio manualmente una sola vez desde Setup Node.js App, con Node `22.23.0`, modo Production,
+raiz privada `repositories/spartanoshub` y archivo de inicio `app.js`.
+
+La primera comprobacion visual encontro un aviso de desarrollo incorrecto en el login: el
+frontend interpretaba la separacion intencional entre Cuartel y Refugio como un problema de
+host local. El PR `#11` limita ese diagnostico a desarrollo y agrega pruebas para produccion,
+hosts locales distintos y API relativa. El despliegue `#6` publico el artefacto `2b62609f`;
+el registro termino con codigo `0` y confirmo `No migrations are pending`.
+
+Evidencia final de infraestructura:
+
+- `https://cuartel.espartanos.cl/`, `/login`, `/reservations` y `/book/prueba` responden `200`.
+- Los recursos versionados de JavaScript y CSS de Cuartel responden `200`.
+- El login se verifico en navegador sin el aviso incorrecto y sin errores de consola.
+- `https://refugio.espartanos.cl/api/health` responde `200`, estado `ok` y version `1.0.0`.
+- CORS autoriza `https://cuartel.espartanos.cl` y no autoriza el dominio principal.
+- `https://espartanos.cl` conserva su respuesta inicial `403`; no se publicaron archivos ahi.
+- La instalacion productiva audito `371` paquetes y encontro `0` vulnerabilidades.
+- Las pruebas dirigidas de reservas pasaron: `70` de API y `2` de manejo horario web.
+
 ## Acceso y seguridad
 
 - El acceso de automatizacion usa una clave dedicada para cPanel; ninguna clave privada se
@@ -145,15 +169,15 @@ estructura comprueba esa compatibilidad y la creacion fallida no dejo la tabla a
 | Repositorio limpio y publico | Completado | `lavitaminadev/spartanoshub` |
 | Auditoria funcional y de seguridad | Completado | Pruebas, lint, build y audit correctos |
 | Version 1.0.0 y health coherente | Completado | 482 pruebas API y 30 pruebas web correctas |
-| Publicacion de cambios en `main` | Completado | PR `#3`, CI correcta |
-| Actualizacion automatica de `deploy` | En correccion | Se eliminan dependencias y force-push recurrente |
+| Publicacion de cambios en `main` | Completado | PR `#3` a `#11`, CI correcta |
+| Actualizacion automatica de `deploy` | Completado | Historia lineal, 2.587 archivos y ningun `node_modules` |
 | Git Version Control en cPanel | Completado | Repo privado del servidor sobre rama `deploy` |
 | Aplicacion Node 22 para Refugio | Completado | Node 22.23.0, Production, inicio `app.js` |
 | Variables y base de datos | Completado | `.env` modo `600`, credencial MySQL renovada |
-| Migraciones | En correccion | cPanel detecto una clave foranea incompatible con `NOT NULL` |
-| Frontend Cuartel | Pendiente | Prueba HTTPS y carga de recursos |
-| Backend Refugio | Pendiente | Prueba `GET /api/health` |
-| Flujo de reservas | Pendiente | Formulario, enlace publico y registro en DB |
+| Migraciones | Completado | Despliegue `#6`: `No migrations are pending` |
+| Frontend Cuartel | Completado | HTTPS, rutas SPA, recursos y consola verificados |
+| Backend Refugio | Completado | `GET /api/health` devuelve `200` y version `1.0.0` |
+| Flujo de reservas | Pendiente | Crear primer administrador, formulario y reserva real |
 
 ## Criterio de cierre
 
@@ -161,3 +185,7 @@ El despliegue queda cerrado cuando Cuartel carga por HTTPS, Refugio responde su 
 version `1.0.0`, las migraciones terminan sin errores y el primer flujo de reservas puede
 guardar y recuperar una reserva. Integraciones externas, SMTP y procesos programados pueden
 permanecer desactivados durante esta primera prueba.
+
+Los tres primeros criterios ya estan completados. Para el ultimo se necesita confirmar el
+nombre y correo del primer administrador; la contrasena temporal debe guardarse fuera de Git
+y cambiarse al iniciar sesion.
