@@ -9,6 +9,10 @@ class ContactsRequireLead1726200000000 {
     async up(queryRunner) {
         if (!(await queryRunner.hasTable('crm_contacts')))
             return;
+        const sqlDefinition = await this.getLeadIdSqlDefinition(queryRunner);
+        await this.ensureLeadColumn(queryRunner, sqlDefinition);
+        await this.linkExistingContacts(queryRunner, true);
+        await this.linkExistingContacts(queryRunner, false);
         await queryRunner.query(`
       INSERT INTO leads (id, organization_id, client_id, name, email, phone, domain, source, status, fit_status, quality_score, created_at, updated_at)
       SELECT UUID(), c.organization_id, c.client_id, c.name, c.email, c.phone,
@@ -17,36 +21,20 @@ class ContactsRequireLead1726200000000 {
       FROM crm_contacts c
       WHERE c.lead_id IS NULL
     `);
-        await queryRunner.query(`
-      UPDATE crm_contacts c
-      JOIN leads l
-        ON l.organization_id = c.organization_id
-       AND l.source = 'contacto_migrado'
-       AND l.name = c.name
-       AND (l.email <=> c.email)
-       AND (l.phone <=> c.phone)
-      SET c.lead_id = l.id
-      WHERE c.lead_id IS NULL
-    `);
+        await this.linkExistingContacts(queryRunner, true);
         const [{ orphans }] = await queryRunner.query(`SELECT COUNT(*) AS orphans FROM crm_contacts WHERE lead_id IS NULL`);
         if (Number(orphans) > 0) {
             throw new Error(`Quedan ${orphans} contactos sin lead: revisarlos a mano antes de continuar`);
         }
-        const { contactLeadColumn, referencedLeadColumn, foreignKey: previousForeignKey, } = await this.getLeadSchema(queryRunner);
+        const previousForeignKey = await this.findLeadForeignKey(queryRunner);
         if (previousForeignKey)
             await queryRunner.dropForeignKey('crm_contacts', previousForeignKey);
-        const requiredColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, false);
-        const nullableColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, true);
-        let columnChanged = false;
         try {
-            await queryRunner.changeColumn('crm_contacts', contactLeadColumn, requiredColumn);
-            columnChanged = true;
+            await this.setLeadColumnNullability(queryRunner, sqlDefinition, false);
             await queryRunner.createForeignKey('crm_contacts', this.leadForeignKey(previousForeignKey, 'RESTRICT'));
         }
         catch (error) {
-            if (columnChanged) {
-                await queryRunner.changeColumn('crm_contacts', requiredColumn, nullableColumn);
-            }
+            await this.setLeadColumnNullability(queryRunner, sqlDefinition, true);
             await queryRunner.createForeignKey('crm_contacts', previousForeignKey || this.leadForeignKey(undefined, 'SET NULL'));
             throw error;
         }
@@ -54,57 +42,92 @@ class ContactsRequireLead1726200000000 {
     async down(queryRunner) {
         if (!(await queryRunner.hasTable('crm_contacts')))
             return;
-        const { contactLeadColumn, referencedLeadColumn, foreignKey: requiredForeignKey, } = await this.getLeadSchema(queryRunner);
+        const sqlDefinition = await this.getLeadIdSqlDefinition(queryRunner);
+        if (!(await queryRunner.hasColumn('crm_contacts', 'lead_id'))) {
+            throw new Error('No existe crm_contacts.lead_id para revertir la migracion');
+        }
+        const requiredForeignKey = await this.findLeadForeignKey(queryRunner);
         if (requiredForeignKey)
             await queryRunner.dropForeignKey('crm_contacts', requiredForeignKey);
-        const nullableColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, true);
-        const requiredColumn = this.compatibleLeadColumn(contactLeadColumn, referencedLeadColumn, false);
-        let columnChanged = false;
         try {
-            await queryRunner.changeColumn('crm_contacts', contactLeadColumn, nullableColumn);
-            columnChanged = true;
+            await this.setLeadColumnNullability(queryRunner, sqlDefinition, true);
             await queryRunner.createForeignKey('crm_contacts', this.leadForeignKey(requiredForeignKey, 'SET NULL'));
         }
         catch (error) {
-            if (columnChanged) {
-                await queryRunner.changeColumn('crm_contacts', nullableColumn, requiredColumn);
-            }
+            await this.setLeadColumnNullability(queryRunner, sqlDefinition, false);
             await queryRunner.createForeignKey('crm_contacts', requiredForeignKey || this.leadForeignKey(undefined, 'RESTRICT'));
             throw error;
         }
     }
-    async getLeadSchema(queryRunner) {
-        const [contactsTable, leadsTable] = await Promise.all([
-            queryRunner.getTable('crm_contacts'),
-            queryRunner.getTable('leads'),
-        ]);
-        const contactLeadColumn = contactsTable?.findColumnByName('lead_id');
-        const referencedLeadColumn = leadsTable?.findColumnByName('id');
-        if (!contactLeadColumn || !referencedLeadColumn) {
-            throw new Error('No se pudo leer crm_contacts.lead_id o leads.id para validar su compatibilidad');
-        }
-        const foreignKey = contactsTable?.foreignKeys.find((candidate) => candidate.columnNames.length === 1
-            && candidate.columnNames[0] === 'lead_id'
-            && candidate.referencedTableName.split('.').pop() === 'leads');
-        return { contactLeadColumn, referencedLeadColumn, foreignKey };
+    async getLeadIdSqlDefinition(queryRunner) {
+        const rows = await queryRunner.query(`
+      SELECT COLUMN_TYPE AS columnType,
+             CHARACTER_SET_NAME AS charset,
+             COLLATION_NAME AS collation
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'leads'
+        AND COLUMN_NAME = 'id'
+    `);
+        const row = rows[0];
+        if (!row)
+            throw new Error('No se pudo leer la definicion SQL de leads.id');
+        const definition = {
+            columnType: String(row.columnType ?? row.COLUMN_TYPE ?? ''),
+            charset: this.optionalString(row.charset ?? row.CHARACTER_SET_NAME),
+            collation: this.optionalString(row.collation ?? row.COLLATION_NAME),
+        };
+        this.assertSafeSqlType(definition);
+        return definition;
     }
-    compatibleLeadColumn(current, referenced, isNullable) {
-        const compatible = current.clone();
-        compatible.type = referenced.type;
-        compatible.length = referenced.length;
-        compatible.width = referenced.width;
-        compatible.charset = referenced.charset;
-        compatible.collation = referenced.collation;
-        compatible.precision = referenced.precision;
-        compatible.scale = referenced.scale;
-        compatible.zerofill = referenced.zerofill;
-        compatible.unsigned = referenced.unsigned;
-        compatible.enum = referenced.enum ? [...referenced.enum] : undefined;
-        compatible.enumName = referenced.enumName;
-        compatible.spatialFeatureType = referenced.spatialFeatureType;
-        compatible.srid = referenced.srid;
-        compatible.isNullable = isNullable;
-        return compatible;
+    async ensureLeadColumn(queryRunner, definition) {
+        if (await queryRunner.hasColumn('crm_contacts', 'lead_id'))
+            return;
+        await queryRunner.query(`ALTER TABLE crm_contacts ADD lead_id ${this.renderSqlType(definition)} NULL`);
+    }
+    async linkExistingContacts(queryRunner, onlyMigrated) {
+        await queryRunner.query(`
+      UPDATE crm_contacts c
+      JOIN leads l
+        ON l.organization_id = c.organization_id
+       AND (l.client_id <=> c.client_id)
+       AND l.name = c.name
+       AND (l.email <=> c.email)
+       AND (l.phone <=> c.phone)
+       ${onlyMigrated ? "AND l.source = 'contacto_migrado'" : ''}
+      SET c.lead_id = l.id
+      WHERE c.lead_id IS NULL
+    `);
+    }
+    async setLeadColumnNullability(queryRunner, definition, isNullable) {
+        await queryRunner.query(`ALTER TABLE crm_contacts MODIFY lead_id ${this.renderSqlType(definition)} ${isNullable ? 'NULL' : 'NOT NULL'}`);
+    }
+    renderSqlType(definition) {
+        const charset = definition.charset ? ` CHARACTER SET ${definition.charset}` : '';
+        const collation = definition.collation ? ` COLLATE ${definition.collation}` : '';
+        return `${definition.columnType}${charset}${collation}`;
+    }
+    assertSafeSqlType(definition) {
+        const columnTypePattern = /^[a-z][a-z0-9_]*(?:\(\d+(?:,\d+)?\))?(?: unsigned)?$/i;
+        const identifierPattern = /^[a-z][a-z0-9_]*$/i;
+        if (!columnTypePattern.test(definition.columnType)) {
+            throw new Error(`Tipo SQL inesperado para leads.id: ${definition.columnType || '(vacio)'}`);
+        }
+        if (definition.charset && !identifierPattern.test(definition.charset)) {
+            throw new Error(`Charset SQL inesperado para leads.id: ${definition.charset}`);
+        }
+        if (definition.collation && !identifierPattern.test(definition.collation)) {
+            throw new Error(`Collation SQL inesperada para leads.id: ${definition.collation}`);
+        }
+    }
+    optionalString(value) {
+        return value === null || value === undefined || value === '' ? null : String(value);
+    }
+    async findLeadForeignKey(queryRunner) {
+        const table = await queryRunner.getTable('crm_contacts');
+        return table?.foreignKeys.find((foreignKey) => foreignKey.columnNames.length === 1
+            && foreignKey.columnNames[0] === 'lead_id'
+            && foreignKey.referencedTableName.split('.').pop() === 'leads');
     }
     leadForeignKey(previous, onDelete) {
         return new typeorm_1.TableForeignKey({

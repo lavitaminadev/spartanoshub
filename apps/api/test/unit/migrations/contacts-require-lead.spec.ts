@@ -1,8 +1,25 @@
-import { QueryRunner, Table, TableColumn, TableForeignKey } from 'typeorm';
+import { QueryRunner, Table, TableForeignKey } from 'typeorm';
 import { describe, expect, it, vi } from 'vitest';
 import { ContactsRequireLead1726200000000 } from '../../../src/infrastructure/migrations/0077-contacts-require-lead';
 
-function createQueryRunner(orphans = 0, withForeignKey = true) {
+type RunnerOptions = {
+  orphans?: number;
+  withColumn?: boolean;
+  withForeignKey?: boolean;
+  columnType?: string;
+  charset?: string | null;
+  collation?: string | null;
+};
+
+function createQueryRunner(options: RunnerOptions = {}) {
+  const {
+    orphans = 0,
+    withColumn = true,
+    withForeignKey = true,
+    columnType = 'uuid',
+    charset = null,
+    collation = null,
+  } = options;
   const existingForeignKey = new TableForeignKey({
     name: 'FK_existing_contact_lead',
     columnNames: ['lead_id'],
@@ -10,80 +27,89 @@ function createQueryRunner(orphans = 0, withForeignKey = true) {
     referencedColumnNames: ['id'],
     onDelete: 'SET NULL',
   });
-  const contactLeadColumn = new TableColumn({
-    name: 'lead_id',
-    type: 'varchar',
-    length: '36',
-    charset: 'latin1',
-    collation: 'latin1_swedish_ci',
-    isNullable: true,
-    comment: 'Relacion con la persona',
-  });
-  const referencedLeadColumn = new TableColumn({
-    name: 'id',
-    type: 'char',
-    length: '36',
-    charset: 'ascii',
-    collation: 'ascii_bin',
-    isPrimary: true,
-  });
   const contactsTable = new Table({ name: 'crm_contacts' });
-  contactsTable.columns = [contactLeadColumn];
   contactsTable.foreignKeys = withForeignKey ? [existingForeignKey] : [];
-  const leadsTable = new Table({ name: 'leads' });
-  leadsTable.columns = [referencedLeadColumn];
 
   const query = vi.fn().mockImplementation((sql: string) => {
+    if (sql.includes('INFORMATION_SCHEMA.COLUMNS')) {
+      return Promise.resolve([{ columnType, charset, collation }]);
+    }
     if (sql.includes('SELECT COUNT(*) AS orphans')) return Promise.resolve([{ orphans }]);
     return Promise.resolve(undefined);
   });
   const queryRunner = {
     hasTable: vi.fn().mockResolvedValue(true),
-    getTable: vi.fn().mockImplementation((tableName: string) => Promise.resolve(
-      tableName === 'crm_contacts' ? contactsTable : leadsTable,
-    )),
+    hasColumn: vi.fn().mockResolvedValue(withColumn),
+    getTable: vi.fn().mockResolvedValue(contactsTable),
     query,
     dropForeignKey: vi.fn().mockResolvedValue(undefined),
-    changeColumn: vi.fn().mockResolvedValue(undefined),
     createForeignKey: vi.fn().mockResolvedValue(undefined),
   } as unknown as QueryRunner;
 
-  return { queryRunner, existingForeignKey, contactLeadColumn, referencedLeadColumn };
+  return { queryRunner, existingForeignKey, query };
+}
+
+function executedSql(queryRunner: QueryRunner): string[] {
+  return vi.mocked(queryRunner.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').trim());
 }
 
 describe('ContactsRequireLead1726200000000', () => {
-  it('replaces SET NULL before making lead_id required', async () => {
-    const { queryRunner, existingForeignKey, contactLeadColumn, referencedLeadColumn } = createQueryRunner();
+  it('uses MODIFY with the native UUID type and never drops lead_id', async () => {
+    const { queryRunner, existingForeignKey } = createQueryRunner();
 
     await new ContactsRequireLead1726200000000().up(queryRunner);
 
+    const sql = executedSql(queryRunner);
+    expect(sql).toContain('ALTER TABLE crm_contacts MODIFY lead_id uuid NOT NULL');
+    expect(sql.some((statement) => /DROP (COLUMN )?`?lead_id/i.test(statement))).toBe(false);
     expect(queryRunner.dropForeignKey).toHaveBeenCalledWith('crm_contacts', existingForeignKey);
     const created = vi.mocked(queryRunner.createForeignKey).mock.calls[0][1] as TableForeignKey;
     expect(created.name).toBe(existingForeignKey.name);
     expect(created.onDelete).toBe('RESTRICT');
-    expect(created.columnNames).toEqual(['lead_id']);
-    const [, previousColumn, requiredColumn] = vi.mocked(queryRunner.changeColumn).mock.calls[0];
-    expect(previousColumn).toBe(contactLeadColumn);
-    expect(requiredColumn).toMatchObject({
-      name: 'lead_id',
-      type: referencedLeadColumn.type,
-      length: referencedLeadColumn.length,
-      charset: referencedLeadColumn.charset,
-      collation: referencedLeadColumn.collation,
-      isNullable: false,
-      comment: contactLeadColumn.comment,
+  });
+
+  it('recreates a missing lead_id before reading or migrating contacts', async () => {
+    const { queryRunner } = createQueryRunner({ withColumn: false, withForeignKey: false });
+
+    await new ContactsRequireLead1726200000000().up(queryRunner);
+
+    const sql = executedSql(queryRunner);
+    const addIndex = sql.indexOf('ALTER TABLE crm_contacts ADD lead_id uuid NULL');
+    const insertIndex = sql.findIndex((statement) => statement.startsWith('INSERT INTO leads'));
+    expect(addIndex).toBeGreaterThan(-1);
+    expect(addIndex).toBeLessThan(insertIndex);
+    const created = vi.mocked(queryRunner.createForeignKey).mock.calls[0][1] as TableForeignKey;
+    expect(created.name).toBe('FK_crm_contacts_lead');
+    expect(created.onDelete).toBe('RESTRICT');
+  });
+
+  it('preserves varchar charset and collation when the server does not use native UUID', async () => {
+    const { queryRunner } = createQueryRunner({
+      withColumn: false,
+      columnType: 'varchar(36)',
+      charset: 'utf8mb4',
+      collation: 'utf8mb4_bin',
     });
-    expect(vi.mocked(queryRunner.dropForeignKey).mock.invocationCallOrder[0])
-      .toBeLessThan(vi.mocked(queryRunner.changeColumn).mock.invocationCallOrder[0]);
+
+    await new ContactsRequireLead1726200000000().up(queryRunner);
+
+    const sql = executedSql(queryRunner);
+    expect(sql).toContain(
+      'ALTER TABLE crm_contacts ADD lead_id varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL',
+    );
+    expect(sql).toContain(
+      'ALTER TABLE crm_contacts MODIFY lead_id varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL',
+    );
   });
 
   it('does not alter constraints while orphan contacts remain', async () => {
-    const { queryRunner } = createQueryRunner(2);
+    const { queryRunner } = createQueryRunner({ orphans: 2 });
 
     await expect(new ContactsRequireLead1726200000000().up(queryRunner))
       .rejects.toThrow('Quedan 2 contactos sin lead');
     expect(queryRunner.dropForeignKey).not.toHaveBeenCalled();
     expect(queryRunner.createForeignKey).not.toHaveBeenCalled();
+    expect(executedSql(queryRunner)).not.toContain('ALTER TABLE crm_contacts MODIFY lead_id uuid NOT NULL');
   });
 
   it('restores SET NULL when the migration is reverted', async () => {
@@ -91,29 +117,9 @@ describe('ContactsRequireLead1726200000000', () => {
 
     await new ContactsRequireLead1726200000000().down(queryRunner);
 
+    expect(executedSql(queryRunner)).toContain('ALTER TABLE crm_contacts MODIFY lead_id uuid NULL');
     const created = vi.mocked(queryRunner.createForeignKey).mock.calls[0][1] as TableForeignKey;
     expect(created.onDelete).toBe('SET NULL');
-    const nullableColumn = vi.mocked(queryRunner.changeColumn).mock.calls[0][2] as TableColumn;
-    expect(nullableColumn.isNullable).toBe(true);
-    expect(nullableColumn.collation).toBe('ascii_bin');
-  });
-
-  it('repairs a previous partial run that left lead_id without a foreign key', async () => {
-    const { queryRunner } = createQueryRunner(0, false);
-
-    await new ContactsRequireLead1726200000000().up(queryRunner);
-
-    expect(queryRunner.dropForeignKey).not.toHaveBeenCalled();
-    const requiredColumn = vi.mocked(queryRunner.changeColumn).mock.calls[0][2] as TableColumn;
-    const created = vi.mocked(queryRunner.createForeignKey).mock.calls[0][1] as TableForeignKey;
-    expect(requiredColumn).toMatchObject({
-      type: 'char',
-      charset: 'ascii',
-      collation: 'ascii_bin',
-      isNullable: false,
-    });
-    expect(created.name).toBe('FK_crm_contacts_lead');
-    expect(created.onDelete).toBe('RESTRICT');
   });
 
   it('restores a compatible nullable column if recreating the foreign key fails', async () => {
@@ -125,10 +131,18 @@ describe('ContactsRequireLead1726200000000', () => {
     await expect(new ContactsRequireLead1726200000000().up(queryRunner))
       .rejects.toThrow('foreign key rejected');
 
-    expect(queryRunner.changeColumn).toHaveBeenCalledTimes(2);
-    const restoredColumn = vi.mocked(queryRunner.changeColumn).mock.calls[1][2] as TableColumn;
+    const sql = executedSql(queryRunner);
+    expect(sql).toContain('ALTER TABLE crm_contacts MODIFY lead_id uuid NOT NULL');
+    expect(sql).toContain('ALTER TABLE crm_contacts MODIFY lead_id uuid NULL');
     const restoredForeignKey = vi.mocked(queryRunner.createForeignKey).mock.calls[1][1] as TableForeignKey;
-    expect(restoredColumn).toMatchObject({ isNullable: true, collation: 'ascii_bin' });
     expect(restoredForeignKey.onDelete).toBe('SET NULL');
+  });
+
+  it('rejects an unexpected database type before interpolating it into SQL', async () => {
+    const { queryRunner } = createQueryRunner({ columnType: 'uuid; DROP TABLE leads' });
+
+    await expect(new ContactsRequireLead1726200000000().up(queryRunner))
+      .rejects.toThrow('Tipo SQL inesperado');
+    expect(executedSql(queryRunner).some((statement) => statement.startsWith('ALTER TABLE'))).toBe(false);
   });
 });
