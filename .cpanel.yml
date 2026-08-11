@@ -26,8 +26,18 @@ deployment:
     - test -f "$APP_ROOT/apps/web/dist/index.html" || { echo "FALTA apps/web/dist/index.html — compila antes de desplegar"; exit 1; }
     - test -f "$APP_ROOT/apps/web/dist/.htaccess" || { echo "FALTA apps/web/dist/.htaccess"; exit 1; }
 
+    # Git Deployment no activa automaticamente el entorno creado por Setup Node.js App.
+    # Sin este PATH, `npm` puede usar otra version de Node o no existir durante el despliegue.
+    - export NODE_BIN="$HOME/nodevenv/repositories/spartanoshub/22/bin"
+    - test -x "$NODE_BIN/node" && test -x "$NODE_BIN/npm" || { echo "FALTA EL ENTORNO NODE 22 DE CPANEL"; exit 1; }
+    - export PATH="$NODE_BIN:$PATH"
+    - node --version
     - npm ci --omit=dev
     - npm run check:production-env
+
+    # TypeORM registra cada migracion aplicada; volver a desplegar solo ejecuta las pendientes.
+    # La aplicacion no se reinicia ni el frontend se publica si la base de datos queda incompleta.
+    - npm run migration:run:prod
 
     - /bin/mkdir -p "$HOME/vitahub_storage" "$HOME/vitahub_uploads" "$HOME/vitahub_backups" "$APP_ROOT/tmp" "$APP_ROOT/logs"
     - /bin/chmod 750 "$HOME/vitahub_storage" "$HOME/vitahub_uploads" "$HOME/vitahub_backups" "$APP_ROOT/tmp" "$APP_ROOT/logs"
