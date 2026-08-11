@@ -77,6 +77,14 @@ publicar el frontend o reiniciar Passenger.
 Las lineas reemplazadas no se conservan como codigo muerto. El equivalente anterior y el
 objetivo de cada cambio quedan documentados aqui y junto a la configuracion activa.
 
+### Correccion del artefacto Apache
+
+La primera ejecucion remota de la rama `deploy` paso pruebas y compilacion, pero se detuvo al
+verificar `apps/web/dist/.htaccess`. Vite copiaba ese archivo oculto en Windows, pero no en el
+runner Linux de GitHub Actions. El build ahora realiza una copia explicita y multiplataforma
+desde `apps/web/public/.htaccess` y comprueba que el destino exista. Esta proteccion conserva
+el enrutamiento de React y evita publicar Cuartel sin sus cabeceras de seguridad.
+
 ## Acceso y seguridad
 
 - El acceso de automatizacion usa una clave dedicada para cPanel; ninguna clave privada se
@@ -95,8 +103,8 @@ objetivo de cada cambio quedan documentados aqui y junto a la configuracion acti
 | Repositorio limpio y publico | Completado | `lavitaminadev/spartanoshub` |
 | Auditoria funcional y de seguridad | Completado | Pruebas, lint, build y audit correctos |
 | Version 1.0.0 y health coherente | Completado | 473 pruebas API y 30 pruebas web correctas |
-| Publicacion de cambios en `main` | Pendiente | Se completa despues de CI |
-| Actualizacion automatica de `deploy` | Pendiente | Se completa despues de GitHub Actions |
+| Publicacion de cambios en `main` | Completado | PR `#3`, CI correcta |
+| Actualizacion automatica de `deploy` | En correccion | Detecto y bloqueo la ausencia de `.htaccess` en Linux |
 | Git Version Control en cPanel | Pendiente | Rama objetivo: `deploy` |
 | Aplicacion Node 22 para Refugio | Pendiente | Inicio: `app.js` |
 | Variables y base de datos | Pendiente | Secretos fuera del repositorio |
