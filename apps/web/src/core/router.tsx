@@ -12,6 +12,7 @@ const LoginPage = lazy(() => import('../features/auth/LoginPage').then(m => ({ d
 const ForgotPasswordPage = lazy(() => import('../features/auth/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import('../features/auth/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const ChangePasswordPage = lazy(() => import('../features/auth/ChangePasswordPage').then(m => ({ default: m.ChangePasswordPage })));
+const FirstAccessPage = lazy(() => import('../features/auth/FirstAccessPage').then(m => ({ default: m.FirstAccessPage })));
 const SessionsPage = lazy(() => import('../features/auth/SessionsPage').then(m => ({ default: m.SessionsPage })));
 const DashboardPage = lazy(() => import('../features/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ClientsPage = lazy(() => import('../features/clients/ClientsPage').then(m => ({ default: m.ClientsPage })));
@@ -66,6 +67,7 @@ function HomeRedirect() {
   const loading = useAuth((s) => s.loading);
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.mustChangePassword || user.mustCompleteProfile || user.mustAcceptTerms) return <Navigate to="/first-access" replace />;
   return <Navigate to={user.role === 'client' ? '/portal' : '/dashboard'} replace />;
 }
 
@@ -73,7 +75,7 @@ function LoginRoute() {
   const user = useAuth((s) => s.user);
   const loading = useAuth((s) => s.loading);
   if (loading) return <LoadingSpinner text="Restaurando tu sesión..." />;
-  if (user) return <Navigate to={user.role === 'client' ? '/portal' : '/dashboard'} replace />;
+  if (user) return <Navigate to={user.mustChangePassword || user.mustCompleteProfile || user.mustAcceptTerms ? '/first-access' : user.role === 'client' ? '/portal' : '/dashboard'} replace />;
   return <SafeSuspense><LoginPage /></SafeSuspense>;
 }
 
@@ -84,6 +86,7 @@ export function AppRouter() {
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/forgot-password" element={<SafeSuspense><ForgotPasswordPage /></SafeSuspense>} />
         <Route path="/reset-password" element={<SafeSuspense><ResetPasswordPage /></SafeSuspense>} />
+        <Route path="/first-access" element={<ProtectedRoute path="/first-access"><SafeSuspense><FirstAccessPage /></SafeSuspense></ProtectedRoute>} />
         <Route path="/change-password" element={<ProtectedRoute path="/change-password"><SafeSuspense><ChangePasswordPage /></SafeSuspense></ProtectedRoute>} />
         <Route path="/book/:slug" element={<SafeSuspense><PublicReservationPage /></SafeSuspense>} />
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>

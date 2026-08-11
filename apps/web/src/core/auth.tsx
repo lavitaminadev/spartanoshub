@@ -80,6 +80,8 @@ export interface AuthState {
   refreshProfile: () => Promise<void>;
   /** Limpia el estado de error transitorio. */
   clearError: () => void;
+  /** Limpia token y usuario sin llamar al servidor, usado cuando el servidor ya revocó la sesión. */
+  clearLocalSession: () => void;
 }
 
 /**
@@ -112,7 +114,14 @@ export const useAuth = create<AuthState>((set) => ({
     set({ error: null });
     const res = await api.post<BrowserAuthResponse>('/auth/login', { email, password });
     setApiToken(res.accessToken);
-    set({ user: res.user as User, token: res.accessToken });
+    try {
+      const user = await loadProfile();
+      set({ user, token: res.accessToken });
+    } catch (error) {
+      setApiToken(null);
+      set({ user: null, token: null });
+      throw error;
+    }
   },
 
   register: async (data: RegisterData): Promise<void> => {
@@ -134,7 +143,12 @@ export const useAuth = create<AuthState>((set) => ({
 
   checkAuth: async (): Promise<void> => {
     try {
-      const session = await api.post<{ accessToken: string }>('/auth/refresh', {});
+      const session = await api.post<{ authenticated: boolean; accessToken?: string }>('/auth/session', {});
+      if (!session.authenticated || !session.accessToken) {
+        setApiToken(null);
+        set({ user: null, token: null, loading: false });
+        return;
+      }
       setApiToken(session.accessToken);
       const user = await loadProfile();
       set({ user, token: session.accessToken, loading: false });
@@ -149,4 +163,8 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   clearError: (): void => set({ error: null }),
+  clearLocalSession: (): void => {
+    setApiToken(null);
+    set({ user: null, token: null, error: null });
+  },
 }));

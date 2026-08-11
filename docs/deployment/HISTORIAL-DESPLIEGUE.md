@@ -258,3 +258,20 @@ workspaces recrea durante cada instalacion productiva. No contenia paquetes, arc
 enlaces, pero el control lo trataba como un arbol de dependencias duplicado. La proteccion ahora
 ignora solamente estructuras compuestas por directorios vacios y sigue rechazando cualquier
 `node_modules` secundario que contenga archivos o enlaces reales.
+
+## Correccion del primer acceso
+
+La primera prueba con una cuenta invitada encontro que `profile` llegaba al endpoint de
+activacion, pero la validacion estricta lo rechazaba como propiedad desconocida. El DTO ahora
+valida el objeto anidado y una regresion comprueba el contrato completo. La modalidad laboral
+dejo de formar parte del autoservicio: es un dato que define administracion desde Usuarios.
+
+La activacion se separo de `change-password` en una ruta propia, `/first-access`, con datos
+personales minimos, cinco consentimientos obligatorios y una contrasena nueva. La clave temporal
+no se vuelve a pedir porque el ingreso que abre la sesion cuenta como autenticacion reciente.
+Al terminar se revocan todas las sesiones y se elimina la cookie anterior. `change-password`
+queda reservado para cuentas ya activas.
+
+El arranque anonimo del frontend ya no llama al refresh estricto: `/auth/session` devuelve un
+estado anonimo normal cuando no hay cookie o esta vencida, evitando un `401` esperado en la
+consola del login. Tambien se agrego la meta PWA moderna `mobile-web-app-capable`.

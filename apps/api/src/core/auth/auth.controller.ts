@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Put, Delete, Param, HttpCode, HttpStatus, Ip, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Put, Delete, Param, HttpCode, HttpStatus, Ip, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -136,6 +136,34 @@ export class AuthController {
     return { accessToken: refreshed.accessToken };
   }
 
+  /**
+   * Restaura una sesión del navegador sin convertir la ausencia normal de cookie en un 401.
+   * `/auth/refresh` conserva su semántica estricta para clientes de API; la interfaz usa este
+   * endpoint al arrancar, cuando no saber todavía si existe una sesión es un estado esperado.
+   */
+  @Public()
+  @Post('session')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Comprobar y restaurar la sesión del navegador' })
+  async browserSession(
+    @Body() dto: RefreshDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const token = readCookie(request, REFRESH_COOKIE) ?? dto?.refreshToken;
+    if (!token) return { authenticated: false as const };
+    try {
+      const refreshed = await this.auth.refreshToken(token);
+      setRefreshCookie(response, refreshed.refreshToken);
+      return { authenticated: true as const, accessToken: refreshed.accessToken };
+    } catch (error) {
+      if (!(error instanceof UnauthorizedException)) throw error;
+      clearRefreshCookie(response);
+      return { authenticated: false as const };
+    }
+  }
+
   /** Revoca la sesión persistida y elimina la cookie del navegador. */
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -252,8 +280,14 @@ export class AuthController {
   @Roles(...Object.values(UserRole))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cambiar contraseña autenticada' })
-  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
-    return this.auth.changePassword(user.id, dto.currentPassword, dto.newPassword);
+  async changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.auth.changePassword(user.id, dto.currentPassword, dto.newPassword);
+    clearRefreshCookie(response);
+    return result;
   }
 
   @Post('onboarding')
@@ -261,9 +295,16 @@ export class AuthController {
   @Roles(...Object.values(UserRole))
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Completar el primer ingreso: datos, condiciones y contraseña' })
-  completeOnboarding(@CurrentUser() user: AuthUser, @Body() dto: CompleteOnboardingDto, @Ip() ipAddress: string) {
-    return this.auth.completeOnboarding(user.id, dto, ipAddress);
+  @ApiOperation({ summary: 'Completar el primer acceso: datos, condiciones y contraseña' })
+  async completeOnboarding(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CompleteOnboardingDto,
+    @Ip() ipAddress: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.auth.completeOnboarding(user.id, user.sessionId, dto, ipAddress);
+    clearRefreshCookie(response);
+    return result;
   }
 
   /** Renovación: la cuenta ya está activa y solo debe aceptar el texto vigente. */

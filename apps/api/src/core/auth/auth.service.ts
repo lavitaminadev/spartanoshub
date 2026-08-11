@@ -556,25 +556,27 @@ export class AuthService {
   }
 
   /**
-   * Completa el primer ingreso: contraseña propia, consentimientos y datos personales.
+   * Completa el primer acceso: contraseña propia, consentimientos y datos personales.
    *
    * Las tres cosas ocurren en una transacción porque describen un mismo acto. Antes la
    * aceptación de términos solo controlaba la interfaz y no se guardaba en ningún lado, de
    * modo que no había forma de demostrar que alguien había aceptado nada.
    *
-   * La sesión se invalida al terminar (`refreshToken: null`) para que la contraseña de
-   * invitación deje de servir de inmediato.
+   * El endpoint exige una sesión autenticada recientemente, así que no vuelve a pedir la clave
+   * temporal que la persona acaba de usar para ingresar. Todas las sesiones se invalidan al
+   * terminar para que esa clave deje de servir de inmediato.
    *
    * @param ipAddress - Origen de la aceptación, parte del registro de consentimiento.
    */
-  async completeOnboarding(userId: string, dto: CompleteOnboardingDto, ipAddress?: string): Promise<{ completed: true }> {
+  async completeOnboarding(userId: string, sessionId: string | undefined, dto: CompleteOnboardingDto, ipAddress?: string): Promise<{ completed: true }> {
+    if (!sessionId || !(await this.sessions.hasRecentAuth(sessionId))) {
+      throw new ForbiddenException('Tu sesión de activación expiró. Vuelve a ingresar con la contraseña temporal.');
+    }
     const user = await this.userRepo.findOne({
       where: { id: userId, isActive: true },
       select: ['id', 'password', 'organizationId'],
     });
-    if (!user || !await bcrypt.compare(dto.currentPassword, user.password)) {
-      throw new BadRequestException('La contraseña actual no es correcta');
-    }
+    if (!user) throw new BadRequestException('Usuario no disponible');
     if (await bcrypt.compare(dto.newPassword, user.password)) {
       throw new BadRequestException('La nueva contraseña debe ser diferente');
     }
@@ -585,31 +587,35 @@ export class AuthService {
     }
 
     const now = new Date();
+    const termsVersion = String(
+      await this.parameters.get('compliance.terms_version', null, null, user.organizationId)
+        ?? TERMS_VERSION,
+    );
     await this.userRepo.manager.transaction(async (manager) => {
       await manager.update(User, userId, {
         name: dto.profile.name.trim(),
         phone: dto.profile.phone?.replace(/[^\d+]/g, '') || null,
-        workMode: dto.profile.workMode,
         password: await bcrypt.hash(dto.newPassword, Number(process.env.BCRYPT_ROUNDS || 10)),
         mustChangePassword: false,
         mustCompleteProfile: false,
         passwordChangedAt: now,
         termsAcceptedAt: now,
-        termsVersion: TERMS_VERSION,
+        termsVersion,
         refreshToken: null,
       });
       await manager.save(
         DataConsent,
         REQUIRED_CONSENTS.map((action) => manager.create(DataConsent, {
           userId,
-          action: `${action}@${TERMS_VERSION}`,
+          action: `${action}@${termsVersion}`,
           granted: true,
           ipAddress: ipAddress ?? null,
         })),
       );
     });
 
-    this.logger.log(`Usuario ${userId} completó el primer ingreso y aceptó ${TERMS_VERSION}`);
+    await this.sessions.revokeAll(userId, REVOKE_REASONS.PASSWORD_CHANGE);
+    this.logger.log(`Usuario ${userId} completó el primer acceso y aceptó ${termsVersion}`);
     return { completed: true };
   }
 }

@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/;
@@ -25,7 +25,6 @@ export const TERMS_VERSION = 'v1';
 export class OnboardingProfileDto {
   @IsString() @MinLength(3) @MaxLength(120) name: string;
   @IsOptional() @IsString() @MaxLength(30) @Matches(/^\+?[\d\s-]{7,}$/, { message: 'Teléfono inválido' }) phone?: string;
-  @IsOptional() @IsIn(['presential', 'hybrid', 'remote']) workMode?: 'presential' | 'hybrid' | 'remote';
 }
 
 /**
@@ -36,8 +35,6 @@ export class OnboardingProfileDto {
  * justificar más tarde.
  */
 export class CompleteOnboardingDto {
-  @IsString() @MinLength(8) @MaxLength(128) currentPassword: string;
-
   @IsString() @MinLength(8) @MaxLength(128) @Matches(PASSWORD_REGEX, { message: PASSWORD_MSG })
   newPassword: string;
 
@@ -45,6 +42,7 @@ export class CompleteOnboardingDto {
   @IsIn(REQUIRED_CONSENTS as unknown as string[], { each: true })
   acceptedConsents: string[];
 
+  @ValidateNested()
   @Type(() => OnboardingProfileDto)
   profile: OnboardingProfileDto;
 }
