@@ -85,6 +85,12 @@ runner Linux de GitHub Actions. El build ahora realiza una copia explicita y mul
 desde `apps/web/public/.htaccess` y comprueba que el destino exista. Esta proteccion conserva
 el enrutamiento de React y evita publicar Cuartel sin sus cabeceras de seguridad.
 
+La segunda ejecucion remota confirmo `.htaccess`, pero detecto que un build limpio ubicaba la
+entrada de API en `dist/src/main.js`. La causa era la importacion TypeScript de un JSON fuera
+de `src`; un artefacto antiguo en Windows habia ocultado el cambio de ruta. La version ahora
+se lee en tiempo de ejecucion, `rootDir` queda fijado en `src` y el build limpia `dist` antes
+de compilar. Asi `apps/api/dist/main.js` se genera igual en una maquina nueva y en desarrollo.
+
 ## Acceso y seguridad
 
 - El acceso de automatizacion usa una clave dedicada para cPanel; ninguna clave privada se
@@ -104,7 +110,7 @@ el enrutamiento de React y evita publicar Cuartel sin sus cabeceras de seguridad
 | Auditoria funcional y de seguridad | Completado | Pruebas, lint, build y audit correctos |
 | Version 1.0.0 y health coherente | Completado | 473 pruebas API y 30 pruebas web correctas |
 | Publicacion de cambios en `main` | Completado | PR `#3`, CI correcta |
-| Actualizacion automatica de `deploy` | En correccion | Detecto y bloqueo la ausencia de `.htaccess` en Linux |
+| Actualizacion automatica de `deploy` | En correccion | Bloqueo `.htaccess` ausente y una ruta de API incoherente en Linux |
 | Git Version Control en cPanel | Pendiente | Rama objetivo: `deploy` |
 | Aplicacion Node 22 para Refugio | Pendiente | Inicio: `app.js` |
 | Variables y base de datos | Pendiente | Secretos fuera del repositorio |
