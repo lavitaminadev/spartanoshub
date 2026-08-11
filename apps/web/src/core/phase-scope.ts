@@ -1,124 +1,61 @@
-/**
- * @fileoverview Alcance de fase: interruptor único que decide qué módulos de la plataforma
- * están visibles.
- *
- * Espartanos tiene construidos muchos más módulos de los que entran en el alcance de Fase 0 y 1.
- * Mostrarlos todos convierte el menú en un inventario de trabajo en curso: el usuario no puede
- * distinguir lo que el producto hace hoy de lo que hará más adelante.
- *
- * Este archivo concentra esa decisión en un solo lugar. Lo consumen tanto la navegación
- * (`navigation.registry.ts`) como los widgets del dashboard (`DashboardPage.tsx`), de modo que un
- * módulo fuera de alcance desaparece de ambos a la vez y para todos los roles, sin excepción.
- *
- * ─────────────────────────────────────────────────────────────────────────────────────────────
- *  PARA REACTIVAR TODA LA PLATAFORMA
- *  Poner `PHASE_SCOPE_ENABLED = false`. Eso restituye todos los módulos para todos los usuarios,
- *  sin tocar ningún otro archivo, sin migraciones y sin recompilar el backend.
- *
- *  PARA ACTIVAR UN MÓDULO SUELTO
- *  Mover su clave desde `OUT_OF_SCOPE_MODULES` hacia `PHASE_1_MODULES`.
- * ─────────────────────────────────────────────────────────────────────────────────────────────
- *
- * El filtro es de presentación: no reemplaza los permisos ni las capacidades por empresa, que
- * siguen resolviéndose en el backend. Un módulo dentro del alcance puede seguir estando oculto
- * para un usuario que no tenga permiso sobre él.
- */
+import {
+  buildDefaultOrganizationModuleLifecycleMap,
+  ORGANIZATION_MODULE_CATALOG,
+  WEB_ONLY_MODULE_CATALOG,
+  isModuleLifecycleVisible,
+  type ProductModuleKey,
+  type ModuleLifecycleStatus,
+} from '@vitahub/shared';
 
 /**
- * Interruptor maestro. En `true` solo se muestran los módulos de `PHASE_1_MODULES`.
+ * Interruptor maestro.
  *
- * Ponerlo en `false` devuelve la plataforma completa a todos los usuarios.
+ * Se conserva para poder reabrir todo el producto en una sola decisión, pero el detalle ya
+ * no vive en listas manuales: se deriva del catálogo compartido.
  */
 export const PHASE_SCOPE_ENABLED = true;
 
-/**
- * Módulos que entran en el alcance de Fase 0 y 1.
- *
- * El criterio es el circuito que el producto cierra hoy: una reserva llega desde una campaña,
- * queda registrada, se marca su asistencia y esa asistencia vuelve a Meta y Google como
- * conversión. Todo lo que ese circuito necesita está acá; lo demás espera su fase.
- *
- * Las claves coinciden con `ORGANIZATION_FEATURE_KEYS` del backend y con el mapa `PATH_FEATURE`
- * de `navigation.registry.ts`.
- */
-export const PHASE_1_MODULES: readonly string[] = [
-  // Circuito de reservas y conversiones
-  'reservations', // Reservas, páginas públicas, agenda y bloqueos
-  'crm', // Contactos de campañas (audiencia del local)
-  'integrations', // Meta y Google: pixel, CAPI, cola de conversiones
+const PRODUCT_MODULE_CATALOG = [...ORGANIZATION_MODULE_CATALOG, ...WEB_ONLY_MODULE_CATALOG] as const;
 
-  // Soporte imprescindible del circuito
-  'dashboard', // Inicio
-  'clients', // Cuentas: capacidades, pixel y configuración por empresa
-  'reports', // Resultados de reservas y asistencia
-  'users', // Altas y roles
-  'settings', // Configuración de la organización
-
-  // Excepción explícita, decidida el 2026-07-28.
-  //
-  // El brief de Fase 1 deja el pipeline fuera de alcance —«Fuera de alcance ahora: Pipeline,
-  // oportunidades, scoring, secuencias, multicanal»—, y esa exclusión sigue valiendo para
-  // *construir*: no se le agrega trabajo. Pero el módulo ya está hecho y se muestra a pedido
-  // del equipo, porque forma parte de lo que se presenta. Se mantiene en su propia sección de
-  // navegación, separada del CRM de campañas, según la regla de §4 del brief.
-  'commercialPipeline',
-
-  // Segunda excepción explícita, decidida el 2026-08-09.
-  //
-  // El plan de plataforma de Espartanos pone la puerta de entrada a producción —solicitudes,
-  // asignación y conversión en piezas— como primer entregable, y un entregable que no se ve no
-  // se puede revisar. Se muestra `production`, que cubre `/intake` y `/produccion`; el resto de
-  // la operación de agencia (contenido, aprobaciones, audiovisual) sigue fuera.
-  //
-  // Para volver atrás: quitar esta clave de acá. No hace falta tocar nada más.
-  'production',
-];
+const MODULE_LIFECYCLE = Object.fromEntries(
+  PRODUCT_MODULE_CATALOG.map((item) => [item.key, item.lifecycle]),
+) as Record<ProductModuleKey, ModuleLifecycleStatus>;
 
 /**
- * Módulos construidos pero fuera del alcance de Fase 0 y 1.
+ * Módulos visibles hoy según el catálogo de producto.
  *
- * Se listan de forma explícita, en vez de deducirlos por descarte, para que quede escrito qué
- * existe y por qué no se muestra todavía. La mayoría pertenece a la operación de agencia de
- * Espartanos —producción de contenido, aprobaciones, facturación— y no al producto Espartanos
- * que se vende a un restaurante.
+ * Se exporta para mantener trazabilidad en pruebas y documentación interna.
  */
-export const OUT_OF_SCOPE_MODULES: Readonly<Record<string, string>> = {
-  content: 'Calendario de contenido',
-  audiovisual: 'Producción audiovisual',
-  approvals: 'Aprobaciones de piezas',
-  briefs: 'Briefs de campaña',
-  documents: 'Documentos',
-  meetings: 'Reuniones',
-  billing: 'Facturación',
-  contracts: 'Contratos',
-  catalog: 'Catálogo y cotizaciones',
-  gamification: 'Gamificación del equipo',
-  knowledge: 'Base de conocimiento',
-  onboarding: 'Onboarding de clientes',
-  direction: 'Dirección y objetivos',
-  operations: 'Operaciones internas',
-  governance: 'Gobernanza',
-  udBudget: 'Unidades de dedicación',
-  // El brief de Fase 1 lo excluye por escrito: «Panel ads_read → No incluir en Fase 1».
-  // Depende además de permisos de Meta que se aprueban en Fase 2.
-  adsInsights: 'Panel de gasto y rendimiento de campañas (ads_read)',
-};
-
-/** Búsqueda O(1) sobre el alcance vigente. */
-const IN_SCOPE = new Set(PHASE_1_MODULES);
+export const PHASE_1_MODULES: readonly string[] = PRODUCT_MODULE_CATALOG
+  .filter((item) => isModuleLifecycleVisible(item.lifecycle))
+  .map((item) => item.key);
 
 /**
- * Indica si un módulo entra en el alcance vigente.
+ * Módulos existentes pero aún ocultos al usuario final.
  *
- * Un módulo desconocido se considera dentro del alcance: registrar una feature nueva nunca debe
- * hacerla desaparecer del menú sin que nadie lo note. Para ocultarla hay que decirlo acá.
- *
- * @param module - Clave del módulo, o `undefined` si la ruta no depende de ninguno.
- * @returns `true` si el módulo debe mostrarse.
+ * El valor es el estado de lifecycle para que se vea por qué están fuera.
  */
-export function isModuleInPhaseScope(module?: string): boolean {
+export const OUT_OF_SCOPE_MODULES: Readonly<Record<string, ModuleLifecycleStatus>> = Object.fromEntries(
+  PRODUCT_MODULE_CATALOG
+    .filter((item) => !isModuleLifecycleVisible(item.lifecycle))
+    .map((item) => [item.key, item.lifecycle]),
+);
+
+/**
+ * Indica si un módulo forma parte de la oferta visible del producto.
+ *
+ * Un módulo desconocido se deja pasar para que registrar una feature nueva no la esconda por
+ * accidente; ocultarla requiere declararla en el catálogo.
+ */
+export function isModuleInPhaseScope(
+  module?: string,
+  organizationLifecycle?: Partial<Record<string, ModuleLifecycleStatus>>,
+): boolean {
   if (!PHASE_SCOPE_ENABLED) return true;
   if (!module) return true;
-  if (IN_SCOPE.has(module)) return true;
-  return !(module in OUT_OF_SCOPE_MODULES);
+  const lifecycle = (organizationLifecycle?.[module]
+    ?? buildDefaultOrganizationModuleLifecycleMap()[module as keyof ReturnType<typeof buildDefaultOrganizationModuleLifecycleMap>]
+    ?? MODULE_LIFECYCLE[module as ProductModuleKey]) as ModuleLifecycleStatus | undefined;
+  if (!lifecycle) return true;
+  return isModuleLifecycleVisible(lifecycle);
 }

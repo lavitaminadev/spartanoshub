@@ -2,10 +2,10 @@ import { registerFeature } from '../../core/navigation.registry';
 
 registerFeature({
   id: 'reservations',
-  name: 'Reservas y formularios',
+  name: 'Reservas y captacion',
   navigation: [
     {
-      label: 'Reservas y formularios',
+      label: 'Reservas y captacion',
       path: '/reservations',
       icon: '🗓️',
       roles: ['admin', 'operations_director', 'commercial_director', 'community_manager'],

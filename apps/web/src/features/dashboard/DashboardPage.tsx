@@ -108,7 +108,7 @@ export function DashboardPage() {
   const moduleAllowed = (module: string): boolean => {
     // El alcance de fase manda sobre el permiso: una tarjeta de un módulo que el producto
     // todavía no ofrece no se muestra aunque el usuario tenga acceso a ese módulo.
-    if (!isModuleInPhaseScope(module)) return false;
+    if (!isModuleInPhaseScope(module, user?.moduleLifecycle)) return false;
     if (user?.permissions) return (user.permissions[module] ?? 'none') !== 'none';
     if (user?.features) return user.features[module] !== false;
     return true;
@@ -121,7 +121,7 @@ export function DashboardPage() {
    */
   const widgetAllowed = (widget: DashboardWidget): boolean => {
     const required = WIDGET_MODULE[widget];
-    if (!isModuleInPhaseScope(required)) return false;
+    if (!isModuleInPhaseScope(required, user?.moduleLifecycle)) return false;
     return !required || moduleAllowed(required);
   };
   // Comparte clave de caché con el panel de resultados: montados juntos resuelven con una sola

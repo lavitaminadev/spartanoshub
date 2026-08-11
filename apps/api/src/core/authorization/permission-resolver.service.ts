@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import {
+  buildDefaultOrganizationModuleLifecycleMap,
+  isModuleLifecycleVisible,
+  moduleLifecycleSettingKey,
+  type ModuleLifecycleStatus,
+  type OrganizationModuleLifecycleMap,
+} from '@vitahub/shared';
 import { Repository } from 'typeorm';
 import { Organization } from '../../modules/organizations/organization.entity';
 import {
@@ -10,6 +17,7 @@ import { UserRole } from '../../modules/organizations/user-role.enum';
 import { UserPermissionOverride } from './user-permission-override.entity';
 import { PermissionLevel, satisfies } from './permission-level';
 import { roleLevel } from './role-permissions';
+import { ParameterResolver } from '../parameters/parameter-resolver.service';
 
 /** Nivel efectivo por módulo, con la procedencia de cada valor. */
 export interface EffectivePermission {
@@ -19,6 +27,8 @@ export interface EffectivePermission {
   source: 'role' | 'override';
   /** `true` si el módulo está deshabilitado en la organización. */
   moduleDisabled: boolean;
+  /** `true` si el producto aún no expone el módulo a usuarios finales. */
+  productHidden: boolean;
 }
 
 export type PermissionMap = Record<OrganizationFeatureKey, PermissionLevel>;
@@ -28,10 +38,12 @@ export type PermissionMap = Record<OrganizationFeatureKey, PermissionLevel>;
  *
  * El nivel efectivo surge de tres condiciones evaluadas en cadena:
  *
- * 1. El módulo debe estar habilitado en la organización. Si no lo está, el nivel es `none`
+ * 1. El módulo debe estar visible en el catálogo de producto. Si sigue en desarrollo, el
+ *    nivel es `none` para todos.
+ * 2. El módulo debe estar habilitado en la organización. Si no lo está, el nivel es `none`
  *    para todos, incluida la administración.
- * 2. El cargo define el nivel base (`role-permissions.ts`).
- * 3. Una excepción por usuario, si existe, reemplaza ese nivel.
+ * 3. El cargo define el nivel base (`role-permissions.ts`).
+ * 4. Una excepción por usuario, si existe, reemplaza ese nivel.
  *
  * Es la única fuente de verdad de la autorización por módulo: tanto los guards del backend
  * como el menú del frontend derivan de acá, de modo que no pueden discrepar.
@@ -44,6 +56,7 @@ export class PermissionResolverService {
   constructor(
     @InjectRepository(Organization) private readonly organizations: Repository<Organization>,
     @InjectRepository(UserPermissionOverride) private readonly overrides: Repository<UserPermissionOverride>,
+    private readonly parameters?: ParameterResolver,
   ) {}
 
   /**
@@ -58,8 +71,9 @@ export class PermissionResolverService {
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.permissions;
 
-    const [features, overrides] = await Promise.all([
+    const [features, lifecycleMap, overrides] = await Promise.all([
       this.featuresOf(organizationId),
+      this.lifecycleOf(organizationId),
       this.overrides.find({ where: { organizationId, userId } }),
     ]);
     const overrideByModule = new Map(overrides.map((item) => [item.module, item.level]));
@@ -67,7 +81,9 @@ export class PermissionResolverService {
     const permissions = Object.fromEntries(
       ORGANIZATION_FEATURE_KEYS.map((module) => [
         module,
-        features[module] ? overrideByModule.get(module) ?? roleLevel(role, module) : 'none',
+        isModuleLifecycleVisible(lifecycleMap[module]) && features[module]
+          ? overrideByModule.get(module) ?? roleLevel(role, module)
+          : 'none',
       ]),
     ) as PermissionMap;
 
@@ -80,8 +96,9 @@ export class PermissionResolverService {
    * usuarios: permite distinguir lo heredado del cargo de lo ajustado a mano.
    */
   async explain(organizationId: string, userId: string, role: UserRole): Promise<EffectivePermission[]> {
-    const [features, overrides] = await Promise.all([
+    const [features, lifecycleMap, overrides] = await Promise.all([
       this.featuresOf(organizationId),
+      this.lifecycleOf(organizationId),
       this.overrides.find({ where: { organizationId, userId } }),
     ]);
     const overrideByModule = new Map(overrides.map((item) => [item.module, item.level]));
@@ -89,11 +106,13 @@ export class PermissionResolverService {
     return ORGANIZATION_FEATURE_KEYS.map((module) => {
       const override = overrideByModule.get(module);
       const moduleDisabled = !features[module];
+      const productHidden = !isModuleLifecycleVisible(lifecycleMap[module]);
       return {
         module,
-        level: moduleDisabled ? 'none' : override ?? roleLevel(role, module),
+        level: productHidden || moduleDisabled ? 'none' : override ?? roleLevel(role, module),
         source: override ? 'override' : 'role',
         moduleDisabled,
+        productHidden,
       };
     });
   }
@@ -135,5 +154,21 @@ export class PermissionResolverService {
       select: ['id', 'features'],
     });
     return normalizeOrganizationFeatures(organization?.features);
+  }
+
+  private async lifecycleOf(organizationId: string): Promise<OrganizationModuleLifecycleMap> {
+    const defaults = buildDefaultOrganizationModuleLifecycleMap();
+    if (!this.parameters) return defaults;
+    const configured = await Promise.all(
+      ORGANIZATION_FEATURE_KEYS.map(async (module) => {
+        const value = await this.parameters.get(moduleLifecycleSettingKey(module), null, null, organizationId);
+        return [module, value] as const;
+      }),
+    );
+
+    for (const [module, value] of configured) {
+      if (typeof value === 'string') defaults[module] = value as ModuleLifecycleStatus;
+    }
+    return defaults;
   }
 }

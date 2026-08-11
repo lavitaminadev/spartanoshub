@@ -4,6 +4,7 @@
  */
 
 import type { UserRole } from '@vitahub/shared';
+import type { ModuleLifecycleStatus } from '@vitahub/shared';
 import type { FeatureManifest } from './feature.manifest';
 import { isModuleInPhaseScope } from './phase-scope';
 
@@ -90,11 +91,12 @@ export function getNavigation(
   userRole?: UserRole,
   features?: Record<string, boolean>,
   permissions?: Record<string, string>,
+  moduleLifecycle?: Record<string, ModuleLifecycleStatus>,
 ): FeatureManifest['navigation'] {
   const roleAwareItems = getFeatures(userRole)
     .flatMap((f) => f.navigation)
     .filter((item) => !item.roles || !userRole || item.roles.includes(userRole))
-    .filter((item) => isPathEnabled(item.path, features, permissions));
+    .filter((item) => isPathEnabled(item.path, features, permissions, moduleLifecycle));
 
   const orderMap = new Map(NAVIGATION_ORDER.map((p, i) => [p, i]));
   return roleAwareItems
@@ -123,8 +125,9 @@ export function getNavigationSections(
   userRole?: UserRole,
   features?: Record<string, boolean>,
   permissions?: Record<string, string>,
+  moduleLifecycle?: Record<string, ModuleLifecycleStatus>,
 ): NavigationSection[] {
-  const items = getNavigation(userRole, features, permissions) ?? [];
+  const items = getNavigation(userRole, features, permissions, moduleLifecycle) ?? [];
   const byPath = new Map(items.map((item) => [item.path, item]));
   const assigned = new Set<string>();
 
@@ -221,11 +224,12 @@ export function isPathEnabled(
   path: string,
   features?: Record<string, boolean>,
   permissions?: Record<string, string>,
+  moduleLifecycle?: Record<string, ModuleLifecycleStatus>,
 ): boolean {
   const required = getFeatureForPath(path);
   // El alcance de fase se evalúa antes que permisos y capacidades: un módulo que el producto
   // todavía no ofrece no debe aparecer para nadie, por más permisos que tenga el usuario.
-  if (!isModuleInPhaseScope(required)) return false;
+  if (!isModuleInPhaseScope(required, moduleLifecycle)) return false;
   if (!required) return true;
   if (permissions) return permissions[required] !== undefined && permissions[required] !== 'none';
   if (features) return features[required] !== false;
