@@ -1,0 +1,30 @@
+import { Organization } from '../organizations/organization.entity';
+import { UserRole } from '../organizations/user-role.enum';
+export declare class User {
+    id: string;
+    organizationId: string;
+    organization: Organization;
+    name: string;
+    email: string;
+    password: string;
+    phone?: string | null;
+    role: UserRole;
+    avatarUrl?: string | null;
+    isActive: boolean;
+    clientId?: string;
+    workMode?: 'presential' | 'hybrid' | 'remote';
+    weeklyCapacityUd: number;
+    mustChangePassword: boolean;
+    invitedAt?: Date;
+    passwordChangedAt?: Date;
+    failedLoginAttempts: number;
+    lockedUntil?: Date | null;
+    lastLoginAt?: Date | null;
+    termsAcceptedAt?: Date | null;
+    termsVersion?: string | null;
+    mustCompleteProfile: boolean;
+    refreshToken?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    normalize(): void;
+}

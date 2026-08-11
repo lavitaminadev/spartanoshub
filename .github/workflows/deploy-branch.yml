@@ -1,0 +1,112 @@
+name: Rama de despliegue
+
+# Publica en la rama `deploy` el codigo mas los artefactos ya compilados, que es lo que
+# cPanel necesita para desplegar.
+#
+# El problema que resuelve: `.cpanel.yml` se detiene si no encuentra `apps/api/dist/main.js` y
+# `apps/web/dist/index.html`, pero `dist/` esta en `.gitignore` y por lo tanto nunca llega a
+# GitHub. Con `main` solo, el despliegue falla en el primer paso.
+#
+# Compilar en el servidor no es opcion: la cuenta tiene 768 MB para todos los procesos y `tsc`
+# necesita unos 600 MB. Passenger mantiene los procesos viejos atendiendo mientras corre el
+# despliegue, asi que compilar alla puede matar a los que estan atendiendo reservas.
+#
+# Versionar `dist/` en `main` tampoco: son 1675 archivos que cambian en cada build, y cada
+# rebase se convertiria en un conflicto binario.
+#
+# Asi que se compila aca, en una maquina que si tiene memoria, y el resultado va a una rama
+# aparte. `main` queda limpio y cPanel recibe algo que puede desplegar.
+#
+# En cPanel, `Git Version Control` debe apuntar a la rama `deploy`, no a `main`.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Solo lo que hace falta para empujar la rama. `GITHUB_TOKEN` lo emite Actions en cada
+# ejecucion, asi que no hay ningun secreto que guardar ni que rotar.
+permissions:
+  contents: write
+
+# Dos despliegues seguidos no deben cruzarse empujando la misma rama.
+concurrency:
+  group: deploy-branch
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Las pruebas corren antes de compilar: una rama de despliegue con codigo que no pasa
+      # las pruebas es peor que no tener rama, porque parece lista para subir.
+      - name: Pruebas
+        run: |
+          npm run test:api
+          npm run test:web
+
+      - name: Compilar
+        run: npm run build:cpanel
+        env:
+          # Valores publicos y fijos: el frontend nunca debe intentar resolver /api en Cuartel.
+          VITE_API_URL: https://refugio.espartanos.cl/api
+          VITE_APP_PUBLIC_URL: https://cuartel.espartanos.cl
+
+      # La misma comprobacion que hace `.cpanel.yml`, pero aca, donde fallar es gratis.
+      - name: Verificar artefactos
+        run: |
+          test -f apps/api/dist/main.js
+          test -f apps/web/dist/index.html
+          test -f apps/web/dist/.htaccess
+
+      - name: Publicar rama deploy
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # `git add -f` sin rutas tambien agregaria node_modules. Primero se prepara el codigo
+          # normal y luego se fuerzan exclusivamente los artefactos ignorados que cPanel usa.
+          git add -A
+          git add -f apps/api/dist apps/web/dist packages/shared/dist
+          if git ls-files --cached | grep -Eq '(^|/)node_modules/'; then
+            echo "node_modules no puede formar parte de deploy"
+            exit 1
+          fi
+
+          tree="$(git write-tree)"
+          message="Despliegue de ${GITHUB_SHA::7}
+
+          Compilado por Actions desde main. La historia funcional esta en main; esta rama
+          conserva una linea minima para que cPanel pueda actualizarla sin force-push."
+
+          # cPanel solo puede avanzar por fast-forward. Cada despliegue debe ser hijo del
+          # anterior; una rama huerfana y forzada funciona una vez, pero rompe la siguiente.
+          if git ls-remote --exit-code --heads origin deploy >/dev/null; then
+            git fetch --no-tags --depth=1 origin deploy
+            parent="$(git rev-parse FETCH_HEAD)"
+            commit="$(printf '%s\n' "$message" | git commit-tree "$tree" -p "$parent")"
+          else
+            commit="$(printf '%s\n' "$message" | git commit-tree "$tree")"
+          fi
+          git push origin "$commit:refs/heads/deploy"
+
+      - name: Resumen
+        run: |
+          {
+            echo "### Rama \`deploy\` actualizada"
+            echo ""
+            echo "Origen: \`${GITHUB_SHA::7}\` de main."
+            echo ""
+            echo "En cPanel: **Update from Remote** y luego **Deploy HEAD Commit**."
+          } >> "$GITHUB_STEP_SUMMARY"

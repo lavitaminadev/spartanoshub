@@ -1,0 +1,474 @@
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useParams, Link } from 'react-router-dom';
+import { api } from '../../core/api';
+import './PublicReservationPage.premium.css';
+import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import type { FormField, ReservationForm } from './types';
+import { plainDateInZone } from './local-time';
+import { accessibleForeground, contrastText, normalizeHexColor } from '../../shared/color-contrast';
+import { BrandMark } from '../../shared/Brand';
+import { MetaPixel } from '../../shared/MetaPixel';
+import { Ga4Tag } from '../../shared/Ga4Tag';
+import { trackGa4Event } from '../../shared/ga4-events';
+import { readMetaMatchData } from '../../shared/meta-match';
+import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible, slotDateKey } from './booking-utils';
+import { safeUrl } from '../../core/safe-url';
+
+interface Slot { startsAt: string; available: number }
+interface Created { id: string; referenceCode?: string; status?: string; startsAt?: string; couponCode?: string; createdAt?: string }
+const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)';
+
+/** Clave de `sessionStorage` donde vive la clave de idempotencia de la reserva en curso. */
+const BOOKING_KEY_STORAGE = 'vh-booking-key';
+
+export function PublicReservationPage() {
+  const { slug = '' } = useParams();
+  const params = new URLSearchParams(window.location.search);
+  const [step, setStep] = useState(1);
+  const [selected, setSelected] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [serviceId, setServiceId] = useState('');
+  const [resourceId, setResourceId] = useState('');
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const [guest, setGuest] = useState({ guestName: '', guestEmail: '', guestPhone: '', partySize: 1 });
+  // Campo trampa: invisible para la persona, presente en el HTML para los bots, que
+  // rellenan todo lo que encuentran. El servidor descarta cualquier envío que lo traiga.
+  const [website, setWebsite] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [couponValid, setCouponValid] = useState<boolean | null>(null);
+  const [couponMsg, setCouponMsg] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [slotDays, setSlotDays] = useState(14);
+
+  const started = useRef(false);
+  const formRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const focusTimerRef = useRef<number>(0);
+  const retryRef = useRef(false);
+
+  /**
+   * Clave de idempotencia de la reserva en curso.
+   *
+   * Persiste en `sessionStorage` para que un reintento tras un corte de red no genere una
+   * reserva duplicada: el backend reconoce la clave y devuelve la reserva ya creada.
+   *
+   * Se descarta al confirmarse la reserva, de modo que una segunda reserva en la misma
+   * pestaña use una clave nueva y no reciba de vuelta la anterior.
+   */
+  const [idempotencyKey] = useState(() => {
+    const stored = sessionStorage.getItem(BOOKING_KEY_STORAGE);
+    if (stored) return stored;
+    const key = uuid();
+    sessionStorage.setItem(BOOKING_KEY_STORAGE, key);
+    return key;
+  });
+  const [sessionId] = useState(() => uuid());
+  const [renderedAt] = useState(() => new Date().toISOString());
+
+  const utmSource = params.get('utm_source') || undefined;
+  const utmCampaign = params.get('utm_campaign') || undefined;
+
+  const { data: form, isLoading, error } = useQuery<ReservationForm>({ queryKey: ['public-form', slug], queryFn: () => api.get(`/public/reservations/${slug}`), retry: false });
+  const isSurvey = form ? ['request', 'survey'].includes(form.mode) : false;
+
+  useEffect(() => {
+    if (isSurvey) setStep(2);
+  }, [isSurvey]);
+
+  const from = form ? plainDateInZone(new Date(), form.timezone) : new Date().toISOString().slice(0, 10);
+  const fromDate = useMemo(() => {
+    if (!form) return from;
+    const [y, m, d] = from.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, d));
+    start.setUTCMonth(start.getUTCMonth() + monthOffset);
+    return `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}-${String(start.getUTCDate()).padStart(2, '0')}`;
+  }, [from, monthOffset, form]);
+
+  const slotParams = new URLSearchParams({ from: fromDate, days: String(slotDays), ...(serviceId ? { serviceId } : {}), ...(resourceId ? { resourceId } : {}) });
+  const { data: availability, isFetching: loadingSlots } = useQuery<{ slots: Slot[]; fullDays: string[] }>({ queryKey: ['public-slots', slug, fromDate, slotDays, serviceId, resourceId], queryFn: () => api.get(`/public/reservations/${slug}/slots?${slotParams}`), enabled: Boolean(form) && !isSurvey, staleTime: 30_000, gcTime: 60_000 });
+  const slots = useMemo(() => availability?.slots ?? [], [availability]);
+  /** Dias que alcanzaron el tope diario: se muestran completos, no cerrados. */
+  const fullDays = useMemo(() => new Set(availability?.fullDays ?? []), [availability]);
+
+  const pageTitle = useMemo(() => form ? `${form.name} · Reserva en línea · Espartanos` : 'Reserva en línea · Espartanos', [form]);
+  const pageDescription = useMemo(() => form ? `Reserva tu hora para ${form.name}. ${form.designConfig?.welcome || 'Agenda fácil y segura.'}` : 'Agenda tu hora de forma fácil y segura.', [form]);
+
+  useEffect(() => {
+    const prevTitle = document.title;
+    const metaDesc = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+    const ogTitle = document.querySelector('meta[property="og:title"]') as HTMLMetaElement | null;
+    const ogDesc = document.querySelector('meta[property="og:description"]') as HTMLMetaElement | null;
+    const prevDesc = metaDesc?.content;
+    const prevOgTitle = ogTitle?.content;
+    const prevOgDesc = ogDesc?.content;
+    document.title = pageTitle;
+    const setMeta = (selector: string, content: string) => { const el = document.querySelector(selector) as HTMLMetaElement | null; if (el) el.content = content; };
+    setMeta('meta[name="description"]', pageDescription);
+    setMeta('meta[property="og:title"]', pageTitle);
+    setMeta('meta[property="og:description"]', pageDescription);
+    setMeta('meta[property="og:type"]', 'website');
+    setMeta('meta[property="og:url"]', window.location.href);
+    return () => {
+      document.title = prevTitle;
+      if (metaDesc && prevDesc !== undefined) metaDesc.content = prevDesc;
+      if (ogTitle && prevOgTitle !== undefined) ogTitle.content = prevOgTitle;
+      if (ogDesc && prevOgDesc !== undefined) ogDesc.content = prevOgDesc;
+    };
+  }, [pageTitle, pageDescription]);
+
+  useEffect(() => {
+    if (!form) return;
+    api.post(`/public/reservations/${slug}/events`, { type: 'view', sessionId, utmSource, utmCampaign }).catch(() => undefined);
+  }, [form, sessionId, slug, utmCampaign, utmSource]);
+
+  const markStarted = () => {
+    if (started.current) return;
+    started.current = true;
+    api.post(`/public/reservations/${slug}/events`, { type: 'start', sessionId, utmSource, utmCampaign }).catch(() => undefined);
+  };
+
+  const submit = useMutation({
+    mutationFn: () => {
+      const meta = readMetaMatchData();
+      const baseBody = {
+        ...guest, answers, idempotencyKey, website,
+        eventSourceUrl: window.location.href,
+        utmSource, utmCampaign,
+        // Cada plataforma recibe su propio identificador. Mandarlos por un campo común hacía
+        // que un fbclid terminara subido a Google Ads como gclid, donde Google lo descarta.
+        gclid: params.get('gclid') || undefined,
+        gbraid: params.get('gbraid') || undefined,
+        wbraid: params.get('wbraid') || undefined,
+        fbclid: meta.fbclid || undefined,
+        fbc: meta.fbc, fbp: meta.fbp,
+      };
+      if (isSurvey) return api.post<Created>(`/public/reservations/${slug}/survey`, baseBody);
+      return api.post<Created>(`/public/reservations/${slug}`, {
+        startsAt: selected, serviceId: serviceId || undefined, resourceId: resourceId || undefined,
+        ...baseBody, renderedAt, consentVersion: 'v1',
+        couponCode: couponCode.trim() || undefined,
+        utmMedium: params.get('utm_medium') || undefined,
+        utmContent: params.get('utm_content') || undefined,
+      });
+    },
+  });
+
+  const validateCoupon = useMutation({
+    mutationFn: () => api.post(`/public/reservations/${slug}/coupon-validate`, { code: couponCode.trim(), startsAt: selected || undefined }),
+    onSuccess: () => { setCouponValid(true); setCouponMsg('Cupón válido'); },
+    onError: (err: Error) => { setCouponValid(false); setCouponMsg(err.message); },
+  });
+
+  // Confirmada la reserva, la clave cumplió su función. Liberarla evita que una segunda
+  // reserva en la misma pestaña reutilice la clave y reciba de vuelta la primera.
+  useEffect(() => {
+    if (submit.data?.id) sessionStorage.removeItem(BOOKING_KEY_STORAGE);
+  }, [submit.data?.id]);
+
+  // El nombre y el id del evento tienen que coincidir con los que emite el servidor por
+  // Conversions API, o Meta no puede deduplicar y cuenta la conversión dos veces. Para las
+  // encuestas el servidor manda `Lead`; disparar `Schedule` acá dejaba ambos eventos sin
+  // pareja y además inventaba una reserva que nunca existió.
+  useEffect(() => {
+    if (!submit.data?.id || !window.fbq) return;
+    if (!form?.pixelId) return;
+    const eventName = isSurvey ? 'Lead' : 'Schedule';
+    const eventId = `${eventName.toLowerCase()}:${submit.data.id}`;
+    window.fbq('trackSingle', form.pixelId, eventName, {}, { eventID: eventId });
+  }, [form?.pixelId, isSurvey, submit.data?.id]);
+
+  useEffect(() => {
+    if (!submit.data?.id || !form?.ga4MeasurementId) return;
+    trackGa4Event(form.ga4MeasurementId, 'reservation_created', {
+      transaction_id: submit.data.id,
+      form_slug: slug,
+      form_name: form.name,
+    });
+  }, [form?.ga4MeasurementId, form?.name, slug, submit.data?.id]);
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!guest.guestName.trim()) errs.name = 'El nombre es obligatorio';
+    if (systemFields.phone?.required && !guest.guestPhone.trim()) errs.phone = 'El teléfono es obligatorio';
+    if (systemFields.email?.required && !guest.guestEmail.trim()) errs.email = 'El correo es obligatorio';
+    else if (guest.guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guest.guestEmail)) errs.email = 'Correo inválido';
+    for (const field of customFields) {
+      if (field.required && field.type === 'consent' && !answers[field.id]) errs[field.id] = 'Debes aceptar';
+      if (field.required && ['text', 'textarea', 'phone', 'email', 'select', 'date', 'rating'].includes(field.type) && !answers[field.id]) errs[field.id] = 'Campo obligatorio';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const goToConfirm = () => {
+    if (!isSurvey && !selected) return;
+    if (!validate()) return;
+    if (isSurvey) { submit.mutate(); return; }
+    confirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setStep(3);
+  };
+
+  const goToForm = () => {
+    if (!selectedDate && selected) setSelectedDate(slotDateKey(selected, form!.timezone));
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setStep(2);
+    window.clearTimeout(focusTimerRef.current);
+    focusTimerRef.current = window.setTimeout(() => nameInputRef.current?.focus(), 300);
+  };
+
+  const goBackToSlots = () => {
+    setStep(1);
+    setSelectedDate('');
+    setSelected('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const retrySubmit = () => {
+    retryRef.current = true;
+    submit.reset();
+  };
+
+  // `mutate` es estable en react-query, asi que se depende de el y no del objeto de la
+  // mutacion completo: incluir `submit` reejecutaria el efecto en cada cambio de estado.
+  // El reintento lo gobierna retryRef, que se limpia antes de disparar.
+  const submitMutate = submit.mutate;
+  useEffect(() => {
+    if (retryRef.current && !submit.isPending && !submit.error && !submit.data) {
+      retryRef.current = false;
+      submitMutate();
+    }
+  }, [submit.isPending, submit.error, submit.data, submitMutate]);
+
+  useEffect(() => {
+    if (submit.isError && submit.error?.message?.includes('acaba de ocuparse')) {
+      setStep(2);
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [submit.isError, submit.error]);
+
+  // ── TODOS los hooks se llaman ANTES de cualquier return ──
+  const slotsByDate = useMemo(() => {
+    const map = new Map<string, Slot[]>();
+    for (const slot of slots) {
+      const key = slotDateKey(slot.startsAt, form?.timezone || 'UTC');
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(slot);
+    }
+    return map;
+  }, [slots, form]);
+
+  const calendarDays = useMemo(() => {
+    if (!form) return { rawDays: [], weeks: [] };
+    const [y, m, d] = fromDate.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, d));
+    const rawDays: Array<{ date: string; day: number; weekday: string; slots: Slot[]; hasSlots: boolean; isFull: boolean }> = [];
+    for (let i = 0; i < 28; i++) {
+      const date = new Date(start);
+      date.setUTCDate(date.getUTCDate() + i);
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const dayNum = String(date.getUTCDate()).padStart(2, '0');
+      const key = `${year}-${month}-${dayNum}`;
+      // `date` ya representa el día calendario del formulario, así que se formatea en UTC.
+      // Convertirlo a la zona del cliente lo corría un día y la etiqueta no coincidía con
+      // la columna: el 27 aparecía como domingo estando en la columna del lunes.
+      const weekday = new Intl.DateTimeFormat('es-CL', { weekday: 'short', timeZone: 'UTC' }).format(date);
+      const daySlots = slotsByDate.get(key) || [];
+      rawDays.push({ date: key, day: date.getUTCDate(), weekday, slots: daySlots, hasSlots: daySlots.length > 0, isFull: fullDays.has(key) });
+    }
+    // Agrupar en semanas que empiezan en lunes.
+    //
+    // La primera semana se rellena con huecos hasta el día que corresponde: sin ese relleno
+    // el primer día ocupa la columna del lunes sea cual sea, y toda la rejilla queda
+    // corrida respecto a la cabecera de días.
+    type Cell = typeof rawDays[number] | null;
+    const weeks: Cell[][] = [];
+    let currentWeek: Cell[] = [];
+    if (rawDays.length > 0) {
+      const firstDow = new Date(rawDays[0].date + 'T00:00:00Z').getUTCDay();
+      const leading = (firstDow + 6) % 7;
+      currentWeek = Array.from({ length: leading }, () => null);
+    }
+    for (const day of rawDays) {
+      currentWeek.push(day);
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) currentWeek.push(null);
+      weeks.push(currentWeek);
+    }
+    return { rawDays, weeks };
+  }, [fromDate, slotsByDate, form, fullDays]);
+
+  // ── Caminos de render ──
+  if (isLoading) return <LoadingSpinner text="Cargando disponibilidad..." />;
+  if (error || !form) return <div className="public-booking-error"><BrandMark /><h1>Este formulario no está disponible</h1><p>Puede estar pausado o el enlace ya no es válido.</p></div>;
+
+  const design = form.designConfig || {};
+  const primary = normalizeHexColor(design.primaryColor, '#0ec6b8');
+  const accent = normalizeHexColor(design.accentColor, '#ea0f63');
+  const background = normalizeHexColor(design.backgroundColor, '#f3f5ef');
+  const textColor = design.textColor || '#3f4e49';
+  const fontFamily = design.fontFamily || 'system-ui';
+  const backgroundOpacity = imageOverlayAlpha(design.backgroundOpacity);
+  const backgroundImage = design.backgroundMode === 'gradient'
+    ? design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT
+    : design.backgroundMode === 'image' && design.backgroundImage
+      ? `linear-gradient(rgba(243,245,239,${backgroundOpacity}),rgba(243,245,239,${backgroundOpacity})),url(${design.backgroundImage})`
+      : undefined;
+  const style = {
+    '--booking-primary': primary, '--booking-primary-contrast': contrastText(primary),
+    '--booking-primary-text': accessibleForeground(primary, '#ffffff', '#0ec6b8'),
+    '--booking-primary-page-text': accessibleForeground(primary, background, '#0ec6b8'),
+    '--booking-accent': accent, '--booking-accent-contrast': contrastText(accent),
+    '--booking-accent-text': accessibleForeground(accent, background, '#9f3e26'),
+    '--booking-bg': background, '--booking-text': textColor, '--booking-font': fontFamily,
+    '--booking-button-radius': `${design.buttonRadius || '12'}px`,
+    '--booking-field-radius': `${design.fieldRadius || '10'}px`,
+    '--booking-logo-align': safeDesignChoice(design.logoPosition, ['left', 'center', 'right'], 'left'),
+    '--booking-logo-size': `${safeNumber(design.logoSize, 64, 32, 180)}px`,
+    '--booking-title-size': `${safeNumber(design.titleSize, 72, 32, 96)}px`,
+    '--booking-welcome-size': `${safeNumber(design.welcomeSize, 16, 12, 24)}px`,
+    color: textColor, fontFamily, backgroundColor: background, backgroundImage,
+    backgroundPosition: design.backgroundAnchor || design.backgroundPosition || 'center center',
+    backgroundSize: safeDesignChoice(design.backgroundSize, ['cover', 'contain', 'auto'], 'cover'),
+    backgroundRepeat: 'no-repeat',
+  } as CSSProperties;
+
+  const customFields = (form.fieldSchema || []).filter((field) => !['name', 'email', 'phone'].includes(field.id));
+  const services = form.servicesConfig || [];
+  const resources = form.resourcesConfig || [];
+  const selectedService = services.find((service) => service.id === serviceId);
+  const systemFields = Object.fromEntries((form.fieldSchema || []).map((field) => [field.id, field]));
+  const poweredByText = design.poweredByText || 'Gestionado con\nEspartanos Reservas';
+  const badgeText = design.secureBadgeText || 'Reserva segura';
+  const eyebrowText = design.eyebrowText || 'AGENDA EN LÍNEA';
+  const durationLabel = design.durationLabel || 'minutos';
+  const confirmationLabel = design.confirmationLabel || 'confirmación';
+  const timezoneLabel = design.timezoneLabel || 'zona horaria';
+  const selectedDaySlots = slotsByDate.get(selectedDate) || [];
+
+  // Página de éxito
+  if (submit.data) {
+    const googleReviewUrl = safeUrl(design.googleReviewUrl || '');
+    const rating = Number(answers.rating || answers.experience_rating || 0);
+    const reviewMinRating = safeNumber(design.googleReviewMinRating, 4, 1, 5);
+    if (isSurvey) return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{design.surveySuccessTitle || 'Gracias por tu opinión'}</h1><p>{design.confirmationMessage || 'Tu respuesta fue registrada correctamente.'}</p>{Number.isFinite(rating) && rating > 0 && <p className="success-datetime">Calificación recibida: {rating}/5</p>}<div className="success-actions">{googleReviewUrl ? <a className="btn btn-primary" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">{rating >= reviewMinRating ? 'Dejar reseña en Google' : 'Ir a Google si quieres opinar públicamente'}</a> : null}<Link className="btn btn-outline" to={`/book/${slug}`}>Enviar otra respuesta</Link></div><small className="success-note">La reseña en Google es opcional y queda a tu criterio.</small></section></main>;
+    const svcDuration = serviceId ? (form.servicesConfig || []).find((s) => s.id === serviceId)?.durationMinutes : null;
+    const icsDuration = (svcDuration || form.durationMinutes || 60) * 60000;
+    const startDate = new Date(submit.data.startsAt!);
+    const endDate = new Date(startDate.getTime() + icsDuration);
+    const formatIcsDate = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const icsBody = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:${formatIcsDate(startDate)}\nDTEND:${formatIcsDate(endDate)}\nSUMMARY:${form.name}\nDESCRIPTION:Reserva ${submit.data.referenceCode}\nEND:VEVENT\nEND:VCALENDAR`;
+    const gcalUrl = safeUrl(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(form.name)}&dates=${formatIcsDate(startDate)}/${formatIcsDate(endDate)}&details=${encodeURIComponent('Reserva ' + submit.data.referenceCode)}`);
+    const icsBlob = new Blob([icsBody], { type: 'text/calendar;charset=utf-8' });
+    const icsUrl = URL.createObjectURL(icsBlob);
+    const calendarSaveEnabled = design.calendarSaveEnabled !== 'false';
+    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{submit.data.status === 'pending' ? 'Solicitud recibida' : 'Reserva confirmada'}</h1><p>{design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.'}</p><p className="success-datetime">{new Date(submit.data.startsAt!).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {submit.data.referenceCode}</strong></div>{submit.data.couponCode && <p className="success-coupon">🎫 Cupón <strong>{submit.data.couponCode}</strong> aplicado a esta reserva</p>}<small className="success-note">Guarda este código para cualquier cambio o consulta.</small><div className="success-actions">
+      {calendarSaveEnabled && gcalUrl ? <a className="btn btn-outline" href={gcalUrl} target="_blank" rel="noopener noreferrer">Android / Google Calendar</a> : null}
+      {calendarSaveEnabled ? <a className="btn btn-outline" href={icsUrl} download={`reserva-${submit.data.referenceCode}.ics`}>iPhone / Apple Calendar</a> : null}
+      {submit.data.status === 'pending' ? <small>Recibirás una confirmación pronto.</small> : <Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link>}
+    </div>{calendarSaveEnabled && <small className="success-note">{design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'}</small>}</section></main>;
+  }
+
+  if (form.status === 'paused') return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><Ga4Tag measurementId={form?.ga4MeasurementId} /><section className="booking-success"><h1>Formulario en mantenimiento</h1><p>Este formulario no acepta reservas en este momento. Vuelve más tarde o contacta al establecimiento.</p></section></main>;
+
+  return <main className={`public-booking layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style} onFocusCapture={markStarted} onPointerDown={markStarted}>
+    <MetaPixel pixelId={form.pixelId} />
+    <Ga4Tag measurementId={form.ga4MeasurementId} />
+    {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}
+    <div className="public-booking-layout">
+      <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div><div><strong>{design.timezoneValue || form.timezone.split('/').pop()?.replaceAll('_', ' ')}</strong><span>{timezoneLabel}</span></div></div>}</section>
+      <form className={`public-booking-card ${isSurvey ? 'is-survey' : ''}`} onSubmit={(event) => { event.preventDefault(); if (step === 3) { submit.mutate(); } else if (step === 2) { goToConfirm(); } else { goToForm(); } }}>
+        {/* Se oculta desplazándolo fuera de pantalla y no con `display:none`, que los bots
+            reconocen como campo técnico y omiten. `aria-hidden` y `tabIndex={-1}` lo dejan
+            fuera del alcance de lectores de pantalla y de la navegación con teclado. */}
+        <input
+          className="booking-honeypot"
+          type="text"
+          name="website"
+          value={website}
+          onChange={(event) => setWebsite(event.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+        />
+        <div className="booking-steps">{isSurvey ? <><div className="booking-step-dot active"><span>1</span><small>Experiencia</small></div><div className={`booking-step-dot ${submit.isSuccess ? 'active' : ''}`}><span>2</span><small>Gracias</small></div></> : <><div className={`booking-step-dot ${step >= 1 ? 'active' : ''}`}><span>1</span><small>Fecha</small></div><div className={`booking-step-dot ${step >= 2 ? 'active' : ''}`}><span>2</span><small>Datos</small></div><div className={`booking-step-dot ${step >= 3 ? 'active' : ''}`}><span>3</span><small>Confirmar</small></div></>}</div>
+
+        {step === 1 && <div>
+          <div className="booking-step-title"><span>01</span><div><strong>Selecciona fecha</strong><small>Elige un día disponible en el calendario.</small></div></div>
+          {(services.length > 0 || resources.length > 0) && <div className="public-resource-choice">
+            {services.length > 0 && <label>Servicio<select required value={serviceId} onChange={(event) => { setServiceId(event.target.value); setSelected(''); }}><option value="">Selecciona un servicio</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}{service.durationMinutes ? ` · ${service.durationMinutes} min` : ''}</option>)}</select></label>}
+            {resources.length > 0 && <label>Profesional o sucursal<select required value={resourceId} onChange={(event) => { setResourceId(event.target.value); setSelected(''); }}><option value="">Selecciona una opción</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label>}
+          </div>}
+          {loadingSlots && <div className="no-slots"><LoadingSpinner text="Buscando disponibilidad..." /></div>}
+          {!loadingSlots && calendarDays.rawDays.length > 0 && <div>
+            <div className="calendar-month-nav"><button type="button" className="btn btn-outline btn-xs" disabled={monthOffset <= 0} onClick={() => { setMonthOffset((m) => Math.max(0, m - 1)); setSelected(''); setSelectedDate(''); }}>← Mes anterior</button><span>{new Date(fromDate + 'T00:00:00').toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: form.timezone })}</span><button type="button" className="btn btn-outline btn-xs" onClick={() => { setMonthOffset((m) => m + 1); setSelected(''); setSelectedDate(''); }}>Mes siguiente →</button></div>
+            <div className="calendar-weekdays"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+            <div className="calendar-grid">{calendarDays.weeks.map((week, weekIndex) => <div key={weekIndex} className="calendar-week">{week.map((day, dayIndex) => day === null
+              ? <span key={`empty-${dayIndex}`} className="calendar-day is-empty" aria-hidden="true" />
+              : <button type="button" key={day.date} className={`calendar-day ${day.hasSlots ? 'has-slots' : day.isFull ? 'is-full' : 'no-slots'} ${selectedDate === day.date ? 'selected' : ''}`} disabled={!day.hasSlots} aria-label={`${day.weekday} ${day.day}${day.hasSlots ? '' : day.isFull ? ', completo' : ', cerrado'}`} onClick={() => { if (day.hasSlots) { setSelectedDate(day.date); setSelected(''); } }}><span className="calendar-weekday">{day.weekday}</span><span className="calendar-number">{day.day}</span>{day.isFull && !day.hasSlots && <span className="calendar-day-tag">Completo</span>}</button>)}</div>)}</div>
+            <div className="calendar-hint"><span className="dot available" /> Disponible <span className="dot full" /> Completo <span className="dot taken" /> Cerrado</div>
+            {slotDays <= 60 && <button type="button" className="btn btn-outline btn-sm calendar-load-more" onClick={() => setSlotDays((d) => d + 14)}>Cargar más fechas</button>}
+          </div>}
+          {!loadingSlots && calendarDays.rawDays.length === 0 && <div className="no-slots"><strong>Sin horarios disponibles</strong><p>Prueba otro servicio o contacta al local.</p></div>}
+
+          {selectedDate && <div className="slot-time-picker">
+            <h3>Horarios de {calendarDays.rawDays.find((d) => d.date === selectedDate)?.weekday} {calendarDays.rawDays.find((d) => d.date === selectedDate)?.day}</h3>
+            <div className="slot-time-grid">{selectedDaySlots.map((slot) => <button type="button" className={`slot-time-btn ${selected === slot.startsAt ? 'active' : ''}`} onClick={() => { setSelected(slot.startsAt); goToForm(); }} key={slot.startsAt}>
+              <strong>{new Date(slot.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>
+              <small>{slot.available} cupo{slot.available !== 1 ? 's' : ''}</small>
+            </button>)}</div>
+          </div>}
+        </div>}
+
+        {step === 2 && <div ref={formRef}>
+          <div className="booking-step-title"><span>{isSurvey ? '01' : '02'}</span><div><strong>{isSurvey ? (design.surveyTitle || 'Cuéntanos cómo fue tu experiencia') : 'Tus datos'}</strong><small>{isSurvey ? (design.surveyHelpText || 'Tus respuestas ayudan al local a mejorar cada visita.') : 'Se usarán solo para gestionar tu atención.'}</small></div></div>
+          <div className="booking-selected-slot">{selected && <div className="selected-slot-badge"><span>📅</span><strong>{new Date(selected).toLocaleString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong><button type="button" className="btn btn-outline btn-xs" onClick={goBackToSlots}>Cambiar</button></div>}</div>
+          <div className="public-form-fields">
+            {systemFields.name && <div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div>}
+            {systemFields.phone && <div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div>}
+            {systemFields.email && <div className={`public-field ${errors.email ? 'has-error' : ''}`}><label>{systemFields.email.label} {systemFields.email.required ? <span className="required-star">*</span> : null}<input className={errors.email ? 'input-error' : ''} type="email" required={systemFields.email.required} placeholder={systemFields.email.placeholder || 'tu@correo.com'} value={guest.guestEmail} onChange={(event) => setGuest({ ...guest, guestEmail: event.target.value })} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'error-email' : undefined} /></label>{errors.email && <span className="field-error" id="error-email" role="alert">{errors.email}</span>}</div>}
+            {systemFields.partySize && <div className="public-field"><label>{systemFields.partySize.label}<select value={guest.partySize} onChange={(event) => setGuest({ ...guest, partySize: Number(event.target.value) })}>{Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} persona{n !== 1 ? 's' : ''}</option>)}</select></label></div>}
+            {customFields.map((field) => <Fragment key={field.id}>{renderField(field, answers[field.id] as string | undefined, (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
+            {form.designConfig?.couponEnabled && <div className="public-field"><label>Cupón de descuento<div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código opcional" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
+          </div>
+          <button className="public-submit" type="submit" disabled={submit.isPending}><span>{isSurvey ? (submit.isPending ? 'Enviando...' : 'Enviar') : 'Continuar →'}</span></button>
+          {isSurvey && submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : 'Error al enviar la respuesta'}</p></div>}
+        </div>}
+
+        {step === 3 && <div ref={confirmRef}>
+          <div className="booking-step-title"><span>03</span><div><strong>Confirma tu reserva</strong><small>Revisa los datos antes de enviar.</small></div></div>
+          <div className="booking-confirm-details">
+            <div className="confirm-row"><span>Servicio</span><strong>{selectedService?.name || form.name}</strong></div>
+            {selected && <div className="confirm-row"><span>Fecha y hora</span><strong>{new Date(selected).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</strong></div>}
+            <div className="confirm-row"><span>Nombre</span><strong>{guest.guestName}</strong></div>
+            {guest.guestPhone && <div className="confirm-row"><span>Teléfono</span><strong>{guest.guestPhone}</strong></div>}
+            {guest.guestEmail && <div className="confirm-row"><span>Correo</span><strong>{guest.guestEmail}</strong></div>}
+            {customFields.filter((f) => f.type !== 'consent' && answers[f.id]).map((f) => <div className="confirm-row" key={f.id}><span>{f.label}</span><strong>{String(answers[f.id])}</strong></div>)}
+          </div>
+          <button className="public-submit" type="submit" disabled={submit.isPending}>{submit.isPending ? 'Enviando...' : 'Confirmar reserva'}</button>
+          {submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : 'Error al crear la reserva'}</p><button type="button" className="btn btn-outline btn-sm" onClick={retrySubmit}>Intentar de nuevo</button></div>}
+          <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => setStep(2)}>← Volver</button>
+        </div>}
+      </form>
+    </div>
+  </main>;
+}
+
+function renderField(field: FormField, value: string | undefined, onChange: (v: string | boolean) => void, error?: string) {
+  if (field.type === 'coupon') return null;
+  const errorId = `error-${field.id}`;
+  if (field.type === 'consent') return <div className={`public-consent ${error ? 'has-error' : ''}`}><label><input type="checkbox" required={field.required} checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /><span>{field.label} <span className="required-star">*</span></span></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
+  if (field.type === 'rating') return <fieldset className={`public-radio-group public-rating ${error ? 'has-error' : ''}`}><legend>{field.label}{field.required && <span className="required-star"> *</span>}</legend>{[1, 2, 3, 4, 5].map((rating) => <label key={rating}><input type="radio" name={field.id} required={field.required} checked={String(value || '') === String(rating)} onChange={() => onChange(String(rating))} /> <span>{rating}</span></label>)}{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</fieldset>;
+  if (field.type === 'select' && (field.display === 'radio' || (field.options?.length || 0) <= 5)) return <fieldset className={`public-radio-group ${error ? 'has-error' : ''}`}><legend>{field.label}{field.required && <span className="required-star"> *</span>}</legend>{field.options?.map((option) => <label key={option}><input type="radio" name={field.id} required={field.required} checked={String(value || '') === option} onChange={() => onChange(option)} /> <span>{option}</span></label>)}{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</fieldset>;
+  if (field.type === 'select') return <label>{field.label}{field.required && <span className="required-star"> *</span>}<select className={error ? 'input-error' : ''} required={field.required} value={String(value || '')} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined}><option value="">Selecciona</option>{field.options?.map((option) => <option key={option}>{option}</option>)}</select>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</label>;
+  if (field.type === 'textarea') return <label>{field.label}{field.required && <span className="required-star"> *</span>}<textarea className={error ? 'input-error' : ''} required={field.required} value={String(value || '')} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} />{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</label>;
+  return <div className={`public-field ${error ? 'has-error' : ''}`}><label>{field.label} {field.required ? <span className="required-star">*</span> : null}<input className={error ? 'input-error' : ''} type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'} required={field.required} placeholder={field.placeholder} value={String(value || '')} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
+}

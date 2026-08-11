@@ -1,0 +1,100 @@
+/* Design tokens: brand colors/spacing/radius (see :root), font-face, and the global CSS reset. Loaded first — every other file depends on these variables. */
+
+/*
+ * Plus Jakarta Sans, la tipografía del mockup. Tokotype, licencia SIL Open Font License.
+ *
+ * Es la versión variable: un solo archivo de 60 KB cubre todo el rango de pesos, en vez de un
+ * archivo por peso. Por eso `font-weight` declara un rango y no un valor.
+ *
+ * Se sirve desde el propio dominio y no desde Google Fonts a propósito: enlazarla afuera
+ * agregaría un tercero al camino de cada visita, incluidas las de los comensales que entran a
+ * la página pública de reservas.
+ */
+@font-face {
+  font-family: 'Espartano Sans';
+  src: url('/brand/plus-jakarta-sans.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+/*
+ * Única fuente de verdad de color, espaciado y radios.
+ *
+ * El primario es el cian de marca. Convivían dos sistemas: este archivo declaraba un verde
+ * petróleo mientras `theme-colors.css` declaraba el cian, y el cian iba escrito a mano en
+ * ocho archivos —cuarenta y una veces— sin pasar por ningún token. La aplicación se veía
+ * partida en dos porque literalmente lo estaba.
+ *
+ * No redeclarar `:root` en otro punto de este archivo: sobrescribe estos valores en silencio.
+ */
+:root {
+  --primary: #0ec6b8;
+  --primary-light: #4fd8ce;
+  --primary-hover: #0aa89c;
+  --primary-deep: #0b8c82;
+  --accent: #ea0f63;
+  --accent-hover: #c81661;
+  --brand-cyan: #0ec6b8;
+  --brand-cyan-dark: #0aa89c;
+  --brand-pink: #ea0f63;
+  --brand-pink-dark: #c81661;
+  --brand-ink: #0b0b0c;
+  --success: #2fae6b;
+  --warning: #d98a1f;
+  --danger: #b5332d;
+  --info: #1f6fb2;
+  --text: #55575e;
+  --text-light: #8a8d95;
+  --text-dark: #0b0b0c;
+  --text-muted: #3f7883;
+  --bg: #f4f5f7;
+  --bg-white: #fff;
+  /*
+   * Superficie oscura para bandas y tarjetas que llevan texto blanco encima.
+   *
+   * No usar el primario para eso: el cian de marca sobre blanco tiene un contraste de 2:1 y
+   * el texto queda ilegible. Este tono conserva la familia y sí llega a relación 12:1.
+   */
+  --surface-dark: #0d3b38;
+  --surface-dark-soft: #14524d;
+  --border: #e7e8ec;
+  --border-light: #f0f1f4;
+  --shadow: 0 8px 30px rgba(11, 140, 130, 0.07);
+  --shadow-md: 0 22px 60px rgba(11, 140, 130, 0.16);
+  --radius-sm: 9px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --sidebar-width: 240px;
+  --font: 'Espartano Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Espartano Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'SF Mono', Monaco, Consolas, monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: clamp(14px, 1.8vw, 17px);
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  color: var(--text-dark);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+h1 { font-size: 24px; }
+h2 { font-size: 18px; }
+h3 { font-size: 16px; }
+
+a { color: var(--info); text-decoration: none; }
+a:hover { text-decoration: underline; }
+

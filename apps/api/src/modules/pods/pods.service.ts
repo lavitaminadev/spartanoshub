@@ -1,0 +1,139 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { In, Repository } from 'typeorm';
+import { Client } from '../clients/client.entity';
+import { User } from '../users/user.entity';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
+import { CreatePodDto, UpdatePodDto } from './dto/pod.dto';
+import { PodMember } from './pod-member.entity';
+import { Pod } from './pod.entity';
+
+/**
+ * Pods: el equipo que atiende un conjunto de cuentas.
+ *
+ * Componer un pod define dos cosas a la vez, y por eso todo cambio de integrantes o de
+ * cuentas descarta el alcance memorizado: quién trabaja en la cuenta y quién puede verla.
+ */
+@Injectable()
+export class PodsService {
+  constructor(
+    @InjectRepository(Pod) private readonly pods: Repository<Pod>,
+    @InjectRepository(PodMember) private readonly members: Repository<PodMember>,
+    @InjectRepository(User) private readonly users: Repository<User>,
+    @InjectRepository(Client) private readonly clients: Repository<Client>,
+    private readonly accountAccess: AccountAccessService,
+  ) {}
+
+  /**
+   * Pods con sus integrantes y sus cuentas.
+   *
+   * Las consultas se hacen para todos los pods a la vez y se agrupan en memoria. Resolverlas
+   * dentro del recorrido costaba tres consultas por pod, y como guardar un pod vuelve a
+   * llamar a este método, cada cambio pagaba ese precio otra vez.
+   */
+  async list(organizationId: string) {
+    const pods = await this.pods.find({ where: { organizationId }, order: { name: 'ASC' } });
+    if (pods.length === 0) return [];
+
+    const podIds = pods.map((pod) => pod.id);
+    const memberRecords = await this.members.find({ where: { podId: In(podIds) } });
+    const memberIds = [...new Set(memberRecords.map((item) => item.userId))];
+
+    const [podUsers, podClients]: [User[], Client[]] = await Promise.all([
+      memberIds.length ? this.users.find({ where: { organizationId, id: In(memberIds) }, order: { name: 'ASC' } }) : Promise.resolve([] as User[]),
+      this.clients.find({ where: { organizationId, podId: In(podIds) }, order: { name: 'ASC' } }),
+    ]);
+
+    const usersById = new Map(podUsers.map((user) => [user.id, user]));
+    const memberIdsByPod = new Map<string, string[]>();
+    for (const record of memberRecords) {
+      const current = memberIdsByPod.get(record.podId);
+      if (current) current.push(record.userId);
+      else memberIdsByPod.set(record.podId, [record.userId]);
+    }
+    const clientsByPod = new Map<string, Client[]>();
+    for (const client of podClients) {
+      if (!client.podId) continue;
+      const current = clientsByPod.get(client.podId);
+      if (current) current.push(client);
+      else clientsByPod.set(client.podId, [client]);
+    }
+
+    return pods.map((pod) => ({
+      ...pod,
+      members: (memberIdsByPod.get(pod.id) ?? [])
+        .map((userId) => usersById.get(userId))
+        .filter((user): user is User => user !== undefined)
+        .map(({ id, name, role, workMode }) => ({ id, name, role, workMode })),
+      clients: (clientsByPod.get(pod.id) ?? []).map(({ id, name, status, defaultUdBudget }) => ({ id, name, status, defaultUdBudget })),
+    }));
+  }
+
+  async create(organizationId: string, dto: CreatePodDto): Promise<Pod> {
+    await this.validateLeader(dto.leaderId, organizationId);
+    const duplicate = await this.pods.findOne({ where: { organizationId, name: dto.name.trim() } });
+    if (duplicate) throw new BadRequestException('Ya existe un pod con este nombre');
+    return this.pods.save(this.pods.create({ ...dto, organizationId, name: dto.name.trim(), description: dto.description?.trim() || undefined }));
+  }
+
+  async update(id: string, organizationId: string, dto: UpdatePodDto): Promise<Pod> {
+    const pod = await this.find(id, organizationId);
+    await this.validateLeader(dto.leaderId, organizationId);
+    Object.assign(pod, dto);
+    if (dto.name !== undefined) pod.name = dto.name.trim();
+    if (dto.description !== undefined) pod.description = dto.description.trim() || undefined;
+    return this.pods.save(pod);
+  }
+
+  async setMembers(id: string, organizationId: string, userIds: string[]) {
+    const pod = await this.find(id, organizationId);
+    const uniqueIds = [...new Set(userIds)];
+    if (uniqueIds.length) {
+      const users = await this.users.find({ where: { organizationId, id: In(uniqueIds), isActive: true } });
+      if (users.length !== uniqueIds.length || users.some((user) => user.role === 'client')) throw new BadRequestException('Todos los integrantes deben ser usuarios internos activos');
+    }
+    await this.members.manager.transaction(async (manager) => {
+      await manager.delete(PodMember, { podId: pod.id });
+      if (uniqueIds.length) await manager.save(PodMember, uniqueIds.map((userId) => manager.create(PodMember, { podId: pod.id, userId })));
+    });
+    // Cambia el alcance tanto de quien entra como de quien sale, y a quien sale no se le
+    // conoce el id despues del borrado: se descarta todo lo memorizado.
+    this.accountAccess.invalidateAll();
+    return this.list(organizationId);
+  }
+
+  async setClients(id: string, organizationId: string, clientIds: string[]) {
+    const pod = await this.find(id, organizationId);
+    const uniqueIds = [...new Set(clientIds)];
+    if (uniqueIds.length) {
+      const clients = await this.clients.find({ where: { organizationId, id: In(uniqueIds) } });
+      if (clients.length !== uniqueIds.length) throw new BadRequestException('Una o más cuentas no pertenecen a la organización');
+    }
+    await this.clients.manager.transaction(async (manager) => {
+      await manager.createQueryBuilder().update(Client).set({ podId: undefined }).where('organization_id = :organizationId AND pod_id = :podId', { organizationId, podId: pod.id }).execute();
+      if (uniqueIds.length) await manager.createQueryBuilder().update(Client).set({ podId: pod.id }).where('organization_id = :organizationId AND id IN (:...ids)', { organizationId, ids: uniqueIds }).execute();
+    });
+    // Mover una cuenta entre pods cambia el alcance de ambos equipos a la vez.
+    this.accountAccess.invalidateAll();
+    return this.list(organizationId);
+  }
+
+  async remove(id: string, organizationId: string): Promise<{ archived: true }> {
+    const pod = await this.find(id, organizationId);
+    pod.status = 'archived';
+    await this.pods.save(pod);
+    return { archived: true };
+  }
+
+  private async find(id: string, organizationId: string): Promise<Pod> {
+    const pod = await this.pods.findOne({ where: { id, organizationId } });
+    if (!pod) throw new NotFoundException('Pod no encontrado');
+    return pod;
+  }
+
+  private async validateLeader(leaderId: string | undefined, organizationId: string): Promise<void> {
+    if (!leaderId) return;
+    const leader = await this.users.findOne({ where: { id: leaderId, organizationId, isActive: true } });
+    if (!leader || leader.role === 'client') throw new BadRequestException('El líder debe ser un usuario interno activo');
+  }
+}

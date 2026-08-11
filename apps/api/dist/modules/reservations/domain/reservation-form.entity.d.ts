@@ -1,0 +1,31 @@
+export declare class ReservationForm {
+    id: string;
+    organizationId: string;
+    clientId: string;
+    name: string;
+    publicSlug: string;
+    status: string;
+    mode: string;
+    timezone: string;
+    durationMinutes: number;
+    bufferMinutes: number;
+    capacityPerSlot: number;
+    dailyCapacity: number;
+    minimumNoticeHours: number;
+    maximumAdvanceDays: number;
+    confirmationMode: string;
+    fieldSchema: unknown[];
+    designConfig: Record<string, unknown>;
+    scheduleConfig: Record<string, unknown>;
+    servicesConfig?: unknown[];
+    resourcesConfig?: unknown[];
+    campaignId?: string;
+    crmEnabled: boolean;
+    calendarEnabled: boolean;
+    metaCapiEnabled: boolean;
+    ga4MeasurementId?: string | null;
+    teamNotifications?: string[];
+    createdBy: string;
+    createdAt: Date;
+    updatedAt: Date;
+}

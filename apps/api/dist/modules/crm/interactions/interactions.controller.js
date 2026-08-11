@@ -1,0 +1,97 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.InteractionsController = void 0;
+const common_1 = require("@nestjs/common");
+const passport_1 = require("@nestjs/passport");
+const interactions_service_1 = require("./interactions.service");
+const create_interaction_dto_1 = require("./dto/create-interaction.dto");
+const update_interaction_dto_1 = require("./dto/update-interaction.dto");
+const list_interactions_dto_1 = require("./dto/list-interactions.dto");
+const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
+const user_role_enum_1 = require("../../organizations/user-role.enum");
+const requires_feature_decorator_1 = require("../../../core/authorization/requires-feature.decorator");
+let InteractionsController = class InteractionsController {
+    constructor(service) {
+        this.service = service;
+    }
+    create(dto, req) {
+        return this.service.create(dto, req.organizationId, req.user.id);
+    }
+    findAll(query, req) {
+        return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId);
+    }
+    findOne(id, req) {
+        return this.service.findOne(id, req.organizationId);
+    }
+    update(id, dto, req) {
+        return this.service.update(id, dto, req.organizationId);
+    }
+    remove(id, req) {
+        return this.service.remove(id, req.organizationId);
+    }
+};
+exports.InteractionsController = InteractionsController;
+__decorate([
+    (0, common_1.Post)(),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [create_interaction_dto_1.CreateInteractionDto, Object]),
+    __metadata("design:returntype", void 0)
+], InteractionsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [list_interactions_dto_1.ListInteractionsDto, Object]),
+    __metadata("design:returntype", void 0)
+], InteractionsController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], InteractionsController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Put)(':id'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_interaction_dto_1.UpdateInteractionDto, Object]),
+    __metadata("design:returntype", void 0)
+], InteractionsController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], InteractionsController.prototype, "remove", null);
+exports.InteractionsController = InteractionsController = __decorate([
+    (0, common_1.Controller)('crm/interactions'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
+    (0, requires_feature_decorator_1.RequiresFeature)('commercialPipeline'),
+    __metadata("design:paramtypes", [interactions_service_1.InteractionsService])
+], InteractionsController);
+//# sourceMappingURL=interactions.controller.js.map

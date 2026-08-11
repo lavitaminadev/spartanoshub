@@ -1,0 +1,50 @@
+---
+# Despliegue en cPanel para Refugio Espartanos.
+#
+# La cuenta tiene 768 MB para TODOS los procesos. Passenger mantiene los procesos viejos
+# sirviendo mientras corre esto, asi que compilar aca sumaba los ~600 MB que necesita `tsc` a
+# los ~135 MB por proceso que ya estan ocupados: el build podia quedarse sin memoria o, peor,
+# matar a los procesos que estaban atendiendo reservas.
+#
+# Por eso solo se instalan las dependencias de PRODUCCION y se verifica que los artefactos ya
+# compilados esten presentes. `apps/api/dist` y `apps/web/dist` se generan antes de subir, en
+# la maquina de desarrollo o en integracion continua:
+#
+#   npm ci --include=dev && npm run build:cpanel
+#
+deployment:
+  tasks:
+    - export APP_ROOT=$PWD
+    - export FRONTEND_DEPLOYPATH=$HOME/public_html/cuartel.espartanos.cl
+    - test "$FRONTEND_DEPLOYPATH" = "/home/espartanoscl/public_html/cuartel.espartanos.cl" || { echo "RUTA DE FRONTEND NO AUTORIZADA"; exit 1; }
+    - case "$APP_ROOT" in "$HOME/public_html"*) echo "EL BACKEND NO PUEDE VIVIR EN PUBLIC_HTML"; exit 1;; esac
+    - /bin/mkdir -p "$FRONTEND_DEPLOYPATH"
+
+    # Los artefactos deben venir compilados. Si faltan, se detiene aca en vez de arrancar una
+    # aplicacion a medias.
+    - test -f "$APP_ROOT/apps/api/dist/main.js" || { echo "FALTA apps/api/dist/main.js — compila antes de desplegar"; exit 1; }
+    - test -f "$APP_ROOT/apps/web/dist/index.html" || { echo "FALTA apps/web/dist/index.html — compila antes de desplegar"; exit 1; }
+    - test -f "$APP_ROOT/apps/web/dist/.htaccess" || { echo "FALTA apps/web/dist/.htaccess"; exit 1; }
+
+    # Git Deployment no activa automaticamente el entorno creado por Setup Node.js App.
+    # Sin este PATH, `npm` puede usar otra version de Node o no existir durante el despliegue.
+    - export NODE_BIN="$HOME/nodevenv/repositories/spartanoshub/22/bin"
+    - test -x "$NODE_BIN/node" && test -x "$NODE_BIN/npm" || { echo "FALTA EL ENTORNO NODE 22 DE CPANEL"; exit 1; }
+    - export PATH="$NODE_BIN:$PATH"
+    - node --version
+    - npm ci --omit=dev
+    - npm run check:production-env
+
+    # TypeORM registra cada migracion aplicada; volver a desplegar solo ejecuta las pendientes.
+    # La aplicacion no se reinicia ni el frontend se publica si la base de datos queda incompleta.
+    - npm run migration:run:prod
+
+    - /bin/mkdir -p "$HOME/vitahub_storage" "$HOME/vitahub_uploads" "$HOME/vitahub_backups" "$APP_ROOT/tmp" "$APP_ROOT/logs"
+    - /bin/chmod 750 "$HOME/vitahub_storage" "$HOME/vitahub_uploads" "$HOME/vitahub_backups" "$APP_ROOT/tmp" "$APP_ROOT/logs"
+
+    - /bin/rm -rf "$FRONTEND_DEPLOYPATH/assets"
+    - /bin/rm -f "$FRONTEND_DEPLOYPATH/index.html" "$FRONTEND_DEPLOYPATH/sw.js" "$FRONTEND_DEPLOYPATH/registerSW.js" "$FRONTEND_DEPLOYPATH/manifest.webmanifest" "$FRONTEND_DEPLOYPATH"/workbox-*.js
+    - /bin/cp -R apps/web/dist/. "$FRONTEND_DEPLOYPATH"
+
+    - /bin/touch "$APP_ROOT/tmp/restart.txt"
+    - /bin/touch "$APP_ROOT/app.js"

@@ -1,0 +1,1 @@
+{"version":3,"file":"update-approval.dto.js","sourceRoot":"","sources":["../../../../src/modules/approvals/dto/update-approval.dto.ts"],"names":[],"mappings":";;;;;;;;;;;;AAAA,qDAAkE;AAElE,MAAa,iBAAiB;CAG7B;AAHD,8CAGC;AAF4B;IAA1B,IAAA,0BAAQ,GAAE;IAAE,IAAA,2BAAS,EAAC,EAAE,CAAC;;iDAAgB;AACC;IAA1C,IAAA,4BAAU,GAAE;IAAE,IAAA,0BAAQ,GAAE;IAAE,IAAA,2BAAS,EAAC,IAAI,CAAC;;wDAAwB"}

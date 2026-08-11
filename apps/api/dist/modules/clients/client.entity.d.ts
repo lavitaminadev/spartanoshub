@@ -1,0 +1,31 @@
+import { Organization } from '../organizations/organization.entity';
+import { Lead } from '../crm/leads/lead.entity';
+import { ClientStatus } from './client-status.enum';
+import { ClientCapabilities } from './client-capabilities';
+export declare class Client {
+    id: string;
+    organizationId: string;
+    organization: Organization;
+    leadId?: string;
+    lead?: Lead;
+    communityManagerId?: string;
+    podId?: string;
+    name: string;
+    legalName?: string;
+    industry?: string;
+    status: ClientStatus;
+    retainerAmount?: number;
+    currency: string;
+    startedAt?: Date;
+    renewalAt?: Date;
+    whatsappGroup?: string;
+    driveFolderId?: string;
+    defaultUdBudget: number;
+    capabilities?: ClientCapabilities;
+    logoUrl?: string;
+    logoPublicId?: string;
+    dailyReservationCap: number;
+    createdAt: Date;
+    updatedAt: Date;
+    normalize(): void;
+}
