@@ -44,7 +44,7 @@ del frontend llegan a `public_html/cuartel.espartanos.cl`.
   servidor.
 - Se revisaron y fijaron scripts de instalacion npm; la auditoria de dependencias quedo sin
   vulnerabilidades conocidas.
-- Resultado de la validacion anterior: 478 pruebas de API, 30 pruebas de frontend, lint y
+- Resultado de la validacion anterior: 480 pruebas de API, 30 pruebas de frontend, lint y
   compilacion para cPanel correctos.
 
 ## Cambios de esta salida 1.0.0
@@ -113,6 +113,14 @@ clave foranea al fallar la restauracion. La migracion ahora lee la definicion re
 `leads.id`, repara con ella `crm_contacts.lead_id`, cambia solamente su nulabilidad y puede
 recuperar automaticamente ese estado parcial antes de crear la relacion `RESTRICT`.
 
+La tercera ejecucion confirmo que este MariaDB usa el tipo nativo `UUID`. TypeORM intento
+resolver la diferencia con el `VARCHAR(36)` anterior eliminando y agregando `lead_id`; el
+agregado fallo porque arrastro un default textual `'NULL'`. La inspeccion posterior confirmo
+`0` contactos, `0` leads y `0` filas en las seis tablas de reservas, por lo que no hubo datos
+productivos afectados. La migracion deja de usar `changeColumn`: consulta y valida la
+definicion SQL real, reconstruye una columna ausente, intenta recuperar asociaciones y usa
+`MODIFY`, que nunca elimina los valores existentes.
+
 ## Acceso y seguridad
 
 - El acceso de automatizacion usa una clave dedicada para cPanel; ninguna clave privada se
@@ -130,7 +138,7 @@ recuperar automaticamente ese estado parcial antes de crear la relacion `RESTRIC
 | --- | --- | --- |
 | Repositorio limpio y publico | Completado | `lavitaminadev/spartanoshub` |
 | Auditoria funcional y de seguridad | Completado | Pruebas, lint, build y audit correctos |
-| Version 1.0.0 y health coherente | Completado | 478 pruebas API y 30 pruebas web correctas |
+| Version 1.0.0 y health coherente | Completado | 480 pruebas API y 30 pruebas web correctas |
 | Publicacion de cambios en `main` | Completado | PR `#3`, CI correcta |
 | Actualizacion automatica de `deploy` | En correccion | Se eliminan dependencias y force-push recurrente |
 | Git Version Control en cPanel | Completado | Repo privado del servidor sobre rama `deploy` |
