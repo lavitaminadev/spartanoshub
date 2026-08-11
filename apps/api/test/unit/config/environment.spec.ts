@@ -4,10 +4,10 @@ import { validateEnvironment } from '../../../src/config/environment';
 const productionEnvironment: NodeJS.ProcessEnv = {
   NODE_ENV: 'production',
   PORT: '3000',
-  CORS_ORIGIN: 'https://app.example.com',
-  APP_PUBLIC_URL: 'https://app.example.com',
-  API_PUBLIC_URL: 'https://api.example.com/api',
-  VITE_API_URL: 'https://api.example.com/api',
+  CORS_ORIGIN: 'https://cuartel.espartanos.cl',
+  APP_PUBLIC_URL: 'https://cuartel.espartanos.cl',
+  API_PUBLIC_URL: 'https://refugio.espartanos.cl/api',
+  VITE_API_URL: 'https://refugio.espartanos.cl/api',
   UPLOAD_DIR: '/home/account/vitahub_uploads',
   DB_HOST: 'localhost',
   DB_PORT: '3306',
@@ -17,6 +17,7 @@ const productionEnvironment: NodeJS.ProcessEnv = {
   JWT_SECRET: 'jwt-secret-with-at-least-thirty-two-characters',
   INTEGRATION_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   OAUTH_STATE_SECRET: 'oauth-state-secret-with-thirty-two-characters',
+  CRON_SECRET: 'cron-secret-with-at-least-thirty-two-characters',
 };
 
 describe('validateEnvironment', () => {
@@ -25,7 +26,7 @@ describe('validateEnvironment', () => {
   });
 
   it('rejects non-HTTPS public URLs and wildcard CORS in production', () => {
-    expect(() => validateEnvironment({ ...productionEnvironment, APP_PUBLIC_URL: 'http://app.example.com' })).toThrow('Unsafe production URL');
+    expect(() => validateEnvironment({ ...productionEnvironment, APP_PUBLIC_URL: 'http://cuartel.espartanos.cl' })).toThrow('Unsafe production URL');
     expect(() => validateEnvironment({ ...productionEnvironment, CORS_ORIGIN: '*' })).toThrow('Unsafe production CORS_ORIGIN');
   });
 
@@ -60,5 +61,11 @@ describe('validateEnvironment', () => {
       ...productionEnvironment,
       JWT_EXPIRES_IN: '900',
     })).toThrow('Invalid production environment: JWT_EXPIRES_IN');
+  });
+
+  it('rejects weak cron secrets and unsafe bcrypt cost values', () => {
+    expect(() => validateEnvironment({ ...productionEnvironment, CRON_SECRET: 'short' })).toThrow('Invalid production environment: CRON_SECRET');
+    expect(() => validateEnvironment({ ...productionEnvironment, CRON_SECRET: 'cron secret with spaces is not safe here' })).toThrow('Invalid production environment: CRON_SECRET');
+    expect(() => validateEnvironment({ ...productionEnvironment, BCRYPT_ROUNDS: '4' })).toThrow('Invalid production environment: BCRYPT_ROUNDS');
   });
 });

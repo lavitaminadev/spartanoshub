@@ -28,6 +28,7 @@ type ScheduleWindow = { day: number; start: string; end: string };
 type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number };
 type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[] };
 type FieldConfig = { id: string; type: string; label: string; required?: boolean; internal?: boolean; options?: string[] };
+type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string };
 type DesignConfig = {
   primaryColor?: string;
   accentColor?: string;
@@ -161,6 +162,19 @@ export class ReservationsService {
     }
   }
 
+  private validateSubmission(form: ReservationForm, answers: Record<string, unknown>, guest: GuestSubmission): void {
+    this.validateAnswers(form, answers);
+    for (const field of form.fieldSchema as FieldConfig[]) {
+      const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : answers[field.id];
+      const empty = value == null || value === '' || value === false || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && value.length === 0);
+      if (field.required && empty) throw new BadRequestException(`Falta completar ${field.label}`);
+      if (empty) continue;
+      if (field.type === 'select' && field.options && !field.options.includes(String(value))) throw new BadRequestException(`Respuesta inválida en ${field.label}`);
+      if (field.type === 'multi_select' && field.options && (!Array.isArray(value) || value.some((entry) => !field.options!.includes(String(entry))))) throw new BadRequestException(`Respuesta inválida en ${field.label}`);
+      if (field.type === 'email' && typeof value === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new BadRequestException(`Correo inválido en ${field.label}`);
+    }
+  }
+
   private async assertClientOwnership(organizationId: string, clientId: string) {
     const rows = await this.dataSource.query('SELECT id FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
     if (!Array.isArray(rows) || rows.length === 0) throw new ForbiddenException('El cliente no pertenece a esta organización');
@@ -245,7 +259,7 @@ export class ReservationsService {
   }
   async duplicateForm(organizationId: string, id: string, userId: string, clientIds?: string[]) { const source = await this.getForm(organizationId, id, undefined, clientIds); const copy = this.forms.create({ ...source, id: undefined, name: `${source.name} (copia)`, publicSlug: await this.uniqueSlug(source.publicSlug), status: 'draft', createdBy: userId, createdAt: undefined, updatedAt: undefined }); return this.forms.save(copy); }
 
-  async addBlock(organizationId: string, formId: string, userId: string, dto: CreateBlockDto, clientId?: string, clientIds?: string[]) { const form = await this.getForm(organizationId, formId, clientId, clientIds); const startsAt = new Date(dto.startsAt); const endsAt = new Date(dto.endsAt); if (Number.isNaN(startsAt.getTime()) || endsAt <= startsAt) throw new BadRequestException('El fin debe ser posterior al inicio'); return this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason })); }
+  async addBlock(organizationId: string, formId: string, userId: string, dto: CreateBlockDto, clientId?: string, clientIds?: string[]) { const form = await this.getForm(organizationId, formId, clientId, clientIds); const startsAt = new Date(dto.startsAt); const endsAt = new Date(dto.endsAt); if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new BadRequestException('El fin debe ser posterior al inicio'); if (endsAt.getTime() - startsAt.getTime() > 366 * 86400000) throw new BadRequestException('Un bloqueo no puede superar 366 días'); return this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason })); }
   async listBlocks(organizationId: string, formId: string, clientId?: string, clientIds?: string[]) { await this.getForm(organizationId, formId, clientId, clientIds); return this.blocks.find({ where: { organizationId, formId }, order: { startsAt: 'ASC' } }); }
   async removeBlock(organizationId: string, id: string, clientId?: string, clientIds?: string[], actorId?: string) { const block = await this.blocks.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } }); if (!block) throw new NotFoundException('Bloqueo no encontrado'); await this.blocks.remove(block); await this.audit.log({ organizationId, actorId, entityType: 'AvailabilityBlock', entityId: id, action: 'deleted', before: { startsAt: block.startsAt, endsAt: block.endsAt, reason: block.reason, formId: block.formId } }); return { deleted: true }; }
 
@@ -311,6 +325,8 @@ export class ReservationsService {
     const startsAt = new Date(dto.startsAt);
     if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
     this.validateEmailDomain(dto.guestEmail);
+    const guestName = dto.guestName.trim();
+    if (!guestName) throw new BadRequestException('El nombre es obligatorio');
     const partySize = dto.partySize || 1;
     const result = await this.transaction('crear reserva manual', async (manager) => {
       await manager.getRepository(ReservationForm).createQueryBuilder('f').setLock('pessimistic_write').where('f.id = :id', { id: form.id }).getOne();
@@ -325,7 +341,7 @@ export class ReservationsService {
       const booking = await manager.save(Reservation, manager.create(Reservation, {
         organizationId, clientId: form.clientId, formId: form.id, referenceCode: randomBytes(6).toString('hex').toUpperCase(),
         status: 'confirmed', startsAt, endsAt, partySize,
-        guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: normalizePhone(dto.guestPhone),
+        guestName, guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: normalizePhone(dto.guestPhone),
         serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers || {}, internalNotes: dto.internalNotes,
       }));
       await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: form.clientId, reservationId: booking.id, type: 'created', toStatus: 'confirmed', actorId: userId, actorType: 'team', metadata: { startsAt: startsAt.toISOString(), serviceId: dto.serviceId, resourceId: dto.resourceId, manual: true, skipAvailability: dto.skipAvailability } }));
@@ -405,8 +421,9 @@ export class ReservationsService {
   async slots(slug: string, from: string, days = 14, serviceId?: string, resourceId?: string) {
     const form = await this.publishedForm(slug);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new BadRequestException('Fecha inválida');
+    if (!Number.isInteger(days) || days < 1 || days > 31) throw new BadRequestException('El rango debe contener entre 1 y 31 días');
     const rules = this.effectiveRules(form, serviceId, resourceId);
-    const count = Math.min(Math.max(days, 1), 31);
+    const count = days;
     const rangeStart = startOfLocalDayUtc(from, form.timezone);
     const rangeEnd = startOfLocalDayUtc(addPlainDays(from, count), form.timezone);
     const existingQb = this.reservations.createQueryBuilder('r')
@@ -445,11 +462,13 @@ export class ReservationsService {
       list.push(item);
       reservationsByDate.set(key, list);
     }
+    const lastRequestedDate = addPlainDays(from, count - 1);
     for (const block of blocks) {
       const startKey = this.localDateKey(block.startsAt, form.timezone);
       const endKey = this.localDateKey(block.endsAt, form.timezone);
-      const keys = startKey === endKey ? [startKey] : [startKey, endKey];
-      for (const key of keys) {
+      const firstKey = startKey < from ? from : startKey;
+      const lastKey = endKey > lastRequestedDate ? lastRequestedDate : endKey;
+      for (let key = firstKey; key <= lastKey; key = addPlainDays(key, 1)) {
         const list = blocksByDate.get(key) || [];
         list.push(block);
         blocksByDate.set(key, list);
@@ -533,7 +552,8 @@ export class ReservationsService {
     if (dto.website) throw new BadRequestException('Solicitud inválida');
     const form = await this.publishedForm(slug);
     if (!['request', 'survey'].includes(form.mode)) throw new BadRequestException('Este enlace requiere selección de horario');
-    this.validateAnswers(form, dto.answers);
+    this.validateSubmission(form, dto.answers, dto);
+    this.validateEmailDomain(dto.guestEmail);
     const existing = await this.formEvents.findOne({ where: { formId: form.id, type: 'submit', sessionId: dto.idempotencyKey } });
     if (existing) return existing;
     const response = await this.saveFormEventOnce(this.formEvents.create({
@@ -610,17 +630,7 @@ export class ReservationsService {
       if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
       const partySize = dto.partySize || 1;
       const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId);
-      this.validateAnswers(form, dto.answers);
-
-      for (const field of form.fieldSchema as FieldConfig[]) {
-        const value = field.id === 'name' ? dto.guestName : field.id === 'email' ? dto.guestEmail : field.id === 'phone' ? dto.guestPhone : dto.answers[field.id];
-        const empty = value == null || value === '' || value === false || (Array.isArray(value) && value.length === 0);
-        if (field.required && empty) throw new BadRequestException(`Falta completar ${field.label}`);
-        if (empty) continue;
-        if (field.type === 'select' && field.options && !field.options.includes(String(value))) throw new BadRequestException(`Respuesta inválida en ${field.label}`);
-        if (field.type === 'multi_select' && field.options && (!Array.isArray(value) || value.some((entry) => !field.options!.includes(String(entry))))) throw new BadRequestException(`Respuesta inválida en ${field.label}`);
-        if (field.type === 'email' && typeof value === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new BadRequestException(`Correo inválido en ${field.label}`);
-      }
+      this.validateSubmission(form, dto.answers, dto);
 
       const coupon = await this.validateCoupon(dto.couponCode, form, manager, startsAt);
       if (coupon) {
@@ -890,7 +900,8 @@ export class ReservationsService {
       await this.notifications.notifyMultiple(form.organizationId, userIds, 'reservation_created', 'Nueva reserva recibida', `${booking.guestName} reservó ${form.name} para el ${booking.startsAt.toLocaleString('es-CL')}.`, { reservationId: booking.id, formId: form.id, clientId: form.clientId, referenceCode: booking.referenceCode });
       const teamEmails = (form.teamNotifications || []).filter((email) => typeof email === 'string' && email.includes('@'));
       if (teamEmails.length > 0) {
-        const html = `<h2>Nueva reserva recibida</h2><p><strong>${booking.guestName}</strong> reservó <strong>${form.name}</strong>.</p><p>Fecha: ${booking.startsAt.toLocaleString('es-CL')}<br>Personas: ${booking.partySize}<br>Código: ${booking.referenceCode}</p>`;
+        const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+        const html = `<h2>Nueva reserva recibida</h2><p><strong>${escapeHtml(booking.guestName)}</strong> reservó <strong>${escapeHtml(form.name)}</strong>.</p><p>Fecha: ${escapeHtml(booking.startsAt.toLocaleString('es-CL'))}<br>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p>`;
         // Sin esperar: el envío es un handshake TLS más una entrega por destinatario, y con
         // el servidor de correo lento o caído eso se sumaba entero a lo que espera quien
         // reserva. Que el correo no salga ya estaba aceptado —lo dice el catch de abajo—, así
@@ -1236,13 +1247,17 @@ export class ReservationsService {
 
   async createCoupon(organizationId: string, userId: string, dto: CreateCouponDto, clientId?: string) {
     const code = dto.code.trim().toUpperCase();
+    if (!code) throw new BadRequestException('El código es obligatorio');
     const exists = await this.coupons.findOne({ where: { organizationId, code } });
     if (exists) throw new ConflictException('Ya existe un cupón con ese código');
-    const validDays = Array.isArray(dto.validDaysOfWeek) ? dto.validDaysOfWeek.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6) : undefined;
+    const validDays = dto.validDaysOfWeek ? [...new Set(dto.validDaysOfWeek)] : undefined;
     if (dto.validFromTime && dto.validUntilTime && this.minutes(dto.validFromTime) >= this.minutes(dto.validUntilTime)) {
       throw new BadRequestException('La hora de inicio del cupón debe ser anterior a la de término');
     }
-    const coupon = this.coupons.create({ organizationId, clientId, code, discountType: dto.discountType || 'percentage', value: dto.value ?? 0, maxUses: dto.maxUses ?? 0, validFrom: dto.validFrom ? new Date(dto.validFrom) : undefined, validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined, formIds: dto.formIds, validDaysOfWeek: validDays, validFromTime: dto.validFromTime, validUntilTime: dto.validUntilTime });
+    const validFrom = dto.validFrom ? new Date(dto.validFrom) : undefined;
+    const validUntil = dto.validUntil ? new Date(dto.validUntil) : undefined;
+    if (validFrom && validUntil && validUntil <= validFrom) throw new BadRequestException('La fecha de término debe ser posterior a la fecha de inicio');
+    const coupon = this.coupons.create({ organizationId, clientId, code, discountType: dto.discountType || 'percentage', value: dto.value ?? 0, maxUses: dto.maxUses ?? 0, validFrom, validUntil, formIds: dto.formIds, validDaysOfWeek: validDays, validFromTime: dto.validFromTime, validUntilTime: dto.validUntilTime });
     return this.coupons.save(coupon);
   }
 
@@ -1252,35 +1267,36 @@ export class ReservationsService {
     if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) throw new ForbiddenException('No tienes acceso a este cupón');
     const update: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(dto).filter(([, value]) => value !== undefined)) {
-      if (key === 'validDaysOfWeek') update.validDaysOfWeek = Array.isArray(value) ? (value as unknown[]).filter((d: unknown): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6) : value;
+      if (key === 'validDaysOfWeek') update.validDaysOfWeek = Array.isArray(value) ? [...new Set(value as number[])] : value;
+      else if (key === 'validFrom' || key === 'validUntil') update[key] = new Date(value as string);
       else update[key] = value;
     }
     Object.assign(coupon, update);
+    if (coupon.validFrom && coupon.validUntil && coupon.validUntil <= coupon.validFrom) throw new BadRequestException('La fecha de término debe ser posterior a la fecha de inicio');
+    if (coupon.validFromTime && coupon.validUntilTime && this.minutes(coupon.validFromTime) >= this.minutes(coupon.validUntilTime)) throw new BadRequestException('La hora de inicio del cupón debe ser anterior a la de término');
     return this.coupons.save(coupon);
   }
 
-  listCoupons(organizationId: string, clientId?: string) {
-    const where: Record<string, unknown> = { organizationId };
-    if (clientId) where.clientId = clientId;
-    return this.coupons.find({ where, order: { createdAt: 'DESC' } });
+  listCoupons(organizationId: string, clientId?: string, clientIds?: string[]) {
+    const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
+    if (clientId) qb.andWhere('(coupon.client_id = :clientId OR coupon.client_id IS NULL)', { clientId });
+    else if (clientIds?.length) qb.andWhere('(coupon.client_id IN (:...clientIds) OR coupon.client_id IS NULL)', { clientIds });
+    else if (clientIds !== undefined) qb.andWhere('coupon.client_id IS NULL');
+    return qb.orderBy('coupon.created_at', 'DESC').getMany();
   }
 
   async validatePublicCoupon(slug: string, code: string, startsAt?: Date) {
     const form = await this.publishedForm(slug);
     const coupon = await this.coupons.findOne({ where: { organizationId: form.organizationId, code: code.trim().toUpperCase(), active: true } });
     if (!coupon) throw new BadRequestException('Cupón no válido');
+    if (coupon.clientId && coupon.clientId !== form.clientId) throw new BadRequestException('Cupón no válido');
     const now = new Date();
     if (coupon.validFrom && now < coupon.validFrom) throw new BadRequestException('El cupón aún no está activo');
     if (coupon.validUntil && now > coupon.validUntil) throw new BadRequestException('El cupón ha expirado');
     if (coupon.maxUses > 0 && coupon.usageCount >= coupon.maxUses) throw new BadRequestException('El cupón ya no tiene usos disponibles');
     if (coupon.formIds && coupon.formIds.length > 0 && !coupon.formIds.includes(form.id)) throw new BadRequestException('El cupón no aplica para este formulario');
-    if (coupon.validDaysOfWeek && coupon.validDaysOfWeek.length > 0) {
-      // El día de la semana describe cuándo se consume el beneficio (turno reservado),
-      // no cuándo se consulta la vista previa; ver validateCoupon.
-      const reference = startsAt ?? now;
-      const weekday = new Date(reference.toLocaleString('en-US', { timeZone: form.timezone })).getDay();
-      if (!coupon.validDaysOfWeek.includes(weekday)) throw new BadRequestException('El cupón no es válido para el día de la reserva');
-    }
+    if ((coupon.validDaysOfWeek?.length || coupon.validFromTime || coupon.validUntilTime) && !startsAt) throw new BadRequestException('Selecciona un horario para validar este cupón');
+    if (startsAt) this.assertCouponSchedule(coupon, form, startsAt);
     return { valid: true, discountType: coupon.discountType, value: coupon.value };
   }
 
@@ -1298,14 +1314,20 @@ export class ReservationsService {
    */
   private async validateCoupon(code: string | undefined, form: ReservationForm, manager: EntityManager, startsAt: Date): Promise<ReservationCoupon | undefined> {
     if (!code) return undefined;
-    const coupon = await manager.getRepository(ReservationCoupon).findOne({ where: { organizationId: form.organizationId, code: code.trim().toUpperCase(), active: true } });
+    const coupon = await manager.getRepository(ReservationCoupon).findOne({ where: { organizationId: form.organizationId, code: code.trim().toUpperCase(), active: true }, lock: { mode: 'pessimistic_write' } });
     if (!coupon) throw new BadRequestException('Cupón no válido');
+    if (coupon.clientId && coupon.clientId !== form.clientId) throw new BadRequestException('Cupón no válido');
     const now = new Date();
     if (coupon.validFrom && now < coupon.validFrom) throw new BadRequestException('El cupón aún no está activo');
     if (coupon.validUntil && now > coupon.validUntil) throw new BadRequestException('El cupón ha expirado');
     if (coupon.maxUses > 0 && coupon.usageCount >= coupon.maxUses) throw new BadRequestException('El cupón ya no tiene usos disponibles');
     if (coupon.formIds && coupon.formIds.length > 0 && !coupon.formIds.includes(form.id)) throw new BadRequestException('El cupón no aplica para este formulario');
 
+    this.assertCouponSchedule(coupon, form, startsAt);
+    return coupon;
+  }
+
+  private assertCouponSchedule(coupon: ReservationCoupon, form: ReservationForm, startsAt: Date): void {
     const local = new Intl.DateTimeFormat('en-US', { timeZone: form.timezone, hourCycle: 'h23', weekday: 'short', hour: '2-digit', minute: '2-digit' })
       .formatToParts(startsAt)
       .reduce<Record<string, string>>((parts, part) => ({ ...parts, [part.type]: part.value }), {});
@@ -1322,6 +1344,5 @@ export class ReservationsService {
         throw new BadRequestException(`El cupón solo aplica entre ${coupon.validFromTime ?? '00:00'} y ${coupon.validUntilTime ?? '23:59'}`);
       }
     }
-    return coupon;
   }
 }

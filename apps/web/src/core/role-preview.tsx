@@ -1,10 +1,9 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { UserRoles, type UserRole } from '@vitahub/shared';
+import type { UserRole } from '@vitahub/shared';
 import { api } from './api';
 import { useAuth } from './auth';
-
-type PermissionLevel = 'none' | 'view' | 'edit' | 'manage';
+import { parsePreviewRole, ROLE_PREVIEW_STORAGE_KEY, RolePreviewContext, type PermissionLevel, type RolePreviewValue } from './role-preview-context';
 
 /**
  * Interpreta lo que había guardado como cargo, o `null` si no es uno.
@@ -17,29 +16,6 @@ type PermissionLevel = 'none' | 'view' | 'edit' | 'manage';
  * No es un control de seguridad —la autorización la resuelve el servidor con la sesión de quien
  * mira—, es que el tipo diga la verdad sobre el dato.
  */
-export function parsePreviewRole(value: string | null): UserRole | null {
-  return value && (UserRoles as readonly string[]).includes(value) ? (value as UserRole) : null;
-}
-
-interface RolePreviewValue {
-  /** Cargo que se está previsualizando, o `null` cuando se mira con los propios ojos. */
-  previewRole: UserRole | null;
-  setPreviewRole: (role: UserRole | null) => void;
-  /** Permisos con los que la interfaz debe dibujarse. */
-  effectivePermissions: Record<string, PermissionLevel> | undefined;
-  /** Si quien mira puede usar la previsualización. */
-  canPreview: boolean;
-}
-
-const RolePreviewContext = createContext<RolePreviewValue>({
-  previewRole: null,
-  setPreviewRole: () => {},
-  effectivePermissions: undefined,
-  canPreview: false,
-});
-
-const STORAGE_KEY = 'espartanos:role-preview';
-
 /**
  * Previsualización de la aplicación con los permisos de otro cargo.
  *
@@ -61,7 +37,7 @@ export function RolePreviewProvider({ children }: { children: ReactNode }) {
 
   const [previewRole, setPreviewRoleState] = useState<UserRole | null>(() => {
     if (typeof window === 'undefined') return null;
-    return parsePreviewRole(window.sessionStorage.getItem(STORAGE_KEY));
+    return parsePreviewRole(window.sessionStorage.getItem(ROLE_PREVIEW_STORAGE_KEY));
   });
 
   const setPreviewRole = useCallback((role: UserRole | null) => {
@@ -69,8 +45,8 @@ export function RolePreviewProvider({ children }: { children: ReactNode }) {
     try {
       // En `sessionStorage` y no en `localStorage`: la previsualización no debe sobrevivir al
       // cierre del navegador ni aparecer sin querer en la sesión siguiente.
-      if (role) window.sessionStorage.setItem(STORAGE_KEY, role);
-      else window.sessionStorage.removeItem(STORAGE_KEY);
+      if (role) window.sessionStorage.setItem(ROLE_PREVIEW_STORAGE_KEY, role);
+      else window.sessionStorage.removeItem(ROLE_PREVIEW_STORAGE_KEY);
     } catch { /* almacenamiento no disponible: la previsualización dura lo que la pestaña */ }
   }, []);
 
@@ -90,8 +66,4 @@ export function RolePreviewProvider({ children }: { children: ReactNode }) {
   }), [active, data?.permissions, user?.permissions, setPreviewRole, canPreview]);
 
   return <RolePreviewContext.Provider value={value}>{children}</RolePreviewContext.Provider>;
-}
-
-export function useRolePreview(): RolePreviewValue {
-  return useContext(RolePreviewContext);
 }

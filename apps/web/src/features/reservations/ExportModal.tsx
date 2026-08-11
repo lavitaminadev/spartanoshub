@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import './ExportModal.css';
 import { VitaIcons } from '../../shared/Icons';
-import { triggerToast } from '../../shared/Toast';
+import { triggerToast } from '../../shared/toast-events';
 
 interface ExportOptions {
   format: 'csv' | 'json';

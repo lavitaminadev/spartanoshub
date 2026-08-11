@@ -23,3 +23,36 @@ export function localInputToUtc(value: string, timeZone: string): string {
   if (check.year !== year || check.month !== month || check.day !== day || check.hour !== hour || check.minute !== minute) throw new Error('Esa hora no existe en la zona horaria seleccionada');
   return new Date(guess).toISOString();
 }
+
+function addPlainDays(value: string, days: number): string {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function firstInstantOfLocalDay(date: string, timeZone: string): string {
+  for (let hour = 0; hour < 4; hour += 1) {
+    try {
+      return localInputToUtc(`${date}T${String(hour).padStart(2, '0')}:00`, timeZone);
+    } catch {
+      // Algunos cambios de horario de verano eliminan la medianoche local.
+    }
+  }
+  throw new Error('No se pudo interpretar esa fecha en la zona horaria seleccionada');
+}
+
+/** Límites UTC inclusivos de un día civil en una zona horaria concreta. */
+export function localDateBoundsUtc(date: string, timeZone: string): { from: string; to: string } {
+  const from = firstInstantOfLocalDay(date, timeZone);
+  const nextDay = firstInstantOfLocalDay(addPlainDays(date, 1), timeZone);
+  return { from, to: new Date(new Date(nextDay).getTime() - 1).toISOString() };
+}
+
+/** Convierte una fecha del navegador al inicio o final inclusivo del día. */
+export function browserDateBoundaryUtc(date: string, end = false): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const value = end
+    ? new Date(year, month - 1, day, 23, 59, 59, 999)
+    : new Date(year, month - 1, day, 0, 0, 0, 0);
+  if (Number.isNaN(value.getTime())) throw new Error('Fecha inválida');
+  return value.toISOString();
+}

@@ -5,7 +5,7 @@ import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
-import { triggerToast } from '../../shared/Toast';
+import { triggerToast } from '../../shared/toast-events';
 import { ImageUpload } from '../../shared/ImageUpload';
 import type { DesignConfig, FormField, ReservationForm } from './types';
 import { localInputToUtc, plainDateInZone } from './local-time';

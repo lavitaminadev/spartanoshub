@@ -18,6 +18,7 @@ import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import { CYCLE_COLORS, RESERVATION_STATUS_OPTIONS, findStatusOption } from '../../shared/status-palette';
 import type { Reservation, ReservationForm } from './types';
+import { localDateBoundsUtc } from './local-time';
 import './AgendaPage.css';
 
 interface Client { id: string; name: string }
@@ -25,6 +26,7 @@ interface ReservationPage { items: Reservation[]; total: number; page: number; p
 
 const GENERAL_ZONE_ID = '__general__';
 const NO_SHOW_STATUSES = new Set(['no_show']);
+const EMPTY_RESERVATIONS: Reservation[] = [];
 
 /** Fecha en formato `YYYY-MM-DD` a partir de un `Date` local. */
 function dateKey(date: Date): string {
@@ -67,8 +69,10 @@ export function AgendaPage() {
   const activeForm = forms.find((form) => form.id === formId) ?? forms[0];
   const effectiveFormId = formId || activeForm?.id || '';
 
-  const dayFrom = `${dateFilter}T00:00:00`;
-  const dayTo = `${dateFilter}T23:59:59`;
+  const dayRange = useMemo(
+    () => activeForm ? localDateBoundsUtc(dateFilter, activeForm.timezone) : { from: '', to: '' },
+    [activeForm, dateFilter],
+  );
   const {
     data: reservationPage,
     isLoading: loadingReservations,
@@ -77,10 +81,10 @@ export function AgendaPage() {
     refetch: refetchReservations,
   } = useQuery<ReservationPage>({
     queryKey: ['agenda-reservations', clientId, effectiveFormId, dateFilter],
-    queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, from: dayFrom, to: dayTo, pageSize: '100' })}`),
+    queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, ...dayRange, pageSize: '100' })}`),
     enabled: Boolean(clientId && effectiveFormId),
   });
-  const reservations = Array.isArray(reservationPage?.items) ? reservationPage!.items : [];
+  const reservations = Array.isArray(reservationPage?.items) ? reservationPage.items : EMPTY_RESERVATIONS;
 
   const zones = useMemo(() => {
     const configured = activeForm?.resourcesConfig ?? [];

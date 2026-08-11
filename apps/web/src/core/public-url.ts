@@ -1,4 +1,7 @@
-const configuredPublicOrigin = String(import.meta.env.VITE_APP_PUBLIC_URL || '').trim().replace(/\/$/, '');
+const configuredPublicOrigin = String(
+  import.meta.env.VITE_APP_PUBLIC_URL
+    || (import.meta.env.PROD ? 'https://cuartel.espartanos.cl' : ''),
+).trim().replace(/\/$/, '');
 
 if (import.meta.env.PROD && configuredPublicOrigin && !configuredPublicOrigin.startsWith('https://')) {
   throw new Error('VITE_APP_PUBLIC_URL must use https:// in production');

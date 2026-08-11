@@ -94,7 +94,7 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
       extra: {
         charset: 'utf8mb4_unicode_ci',
         connectionLimit: DB_CONNECTION_LIMIT,
-        ...(process.env.NODE_ENV === 'production' ? { ssl: { rejectUnauthorized: true } } : {}),
+        ...(process.env.DB_SSL === 'true' ? { ssl: { rejectUnauthorized: true } } : {}),
       },
     }),
     // El almacenamiento del limitador vive en memoria del proceso, así que el límite
