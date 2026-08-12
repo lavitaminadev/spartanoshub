@@ -56,6 +56,7 @@ const data_protection_module_1 = require("./core/data-protection/data-protection
 const account_cycles_module_1 = require("./modules/account-cycles/account-cycles.module");
 const objectives_module_1 = require("./modules/objectives/objectives.module");
 const reservations_module_1 = require("./modules/reservations/reservations.module");
+const surveys_module_1 = require("./modules/surveys/surveys.module");
 const account_access_module_1 = require("./core/client-scope/account-access.module");
 const cron_module_1 = require("./core/cron/cron.module");
 const workflows_module_1 = require("./modules/workflows/workflows.module");
@@ -137,6 +138,7 @@ exports.AppModule = AppModule = __decorate([
             account_cycles_module_1.AccountCyclesModule,
             objectives_module_1.ObjectivesModule,
             reservations_module_1.ReservationsModule,
+            surveys_module_1.SurveysModule,
             workflows_module_1.WorkflowsModule,
             pods_module_1.PodsModule,
             intake_module_1.IntakeModule,

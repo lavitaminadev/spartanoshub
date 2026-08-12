@@ -17,7 +17,7 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { PageHero } from '../../shared/PageHero';
 import { triggerToast } from '../../shared/toast-events';
 import { useDeleteSurvey, useSurveys } from './useSurveys';
-import type { Survey, SurveyType } from './types';
+import type { Survey, SurveyType } from '@espartanos/shared';
 import './surveys.css';
 
 const TYPE_LABELS: Record<SurveyType, string> = { internal: 'Equipo', customer: 'Clientes' };
