@@ -139,6 +139,9 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly defaultEnabled: false;
 }];
 export type OrganizationModuleKey = (typeof ORGANIZATION_MODULE_CATALOG)[number]['key'];
+export declare const AGENCY_CORE_MODULE_KEYS: readonly ["dashboard", "settings", "users", "clients", "reports", "integrations", "reservations", "crm", "surveys"];
+export type OrganizationFeaturesMap = Record<OrganizationModuleKey, boolean>;
+export declare function buildAgencyCoreOrganizationFeatures(): OrganizationFeaturesMap;
 /**
  * Modulos de UI sin interruptor por organizacion.
  *

@@ -80,6 +80,28 @@ export const ORGANIZATION_MODULE_CATALOG = [
 
 export type OrganizationModuleKey = (typeof ORGANIZATION_MODULE_CATALOG)[number]['key'];
 
+export const AGENCY_CORE_MODULE_KEYS = [
+  'dashboard',
+  'settings',
+  'users',
+  'clients',
+  'reports',
+  'integrations',
+  'reservations',
+  'crm',
+  'surveys',
+] as const satisfies readonly OrganizationModuleKey[];
+
+const AGENCY_CORE_MODULE_SET = new Set<OrganizationModuleKey>(AGENCY_CORE_MODULE_KEYS);
+
+export type OrganizationFeaturesMap = Record<OrganizationModuleKey, boolean>;
+
+export function buildAgencyCoreOrganizationFeatures(): OrganizationFeaturesMap {
+  return Object.fromEntries(
+    ORGANIZATION_MODULE_CATALOG.map((item) => [item.key, AGENCY_CORE_MODULE_SET.has(item.key)]),
+  ) as OrganizationFeaturesMap;
+}
+
 /**
  * Modulos de UI sin interruptor por organizacion.
  *
