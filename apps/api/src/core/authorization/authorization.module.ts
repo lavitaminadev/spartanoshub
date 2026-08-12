@@ -5,6 +5,7 @@ import { Organization } from '../../modules/organizations/organization.entity';
 import { User } from '../../modules/users/user.entity';
 import { Client } from '../../modules/clients/client.entity';
 import { UserPermissionOverride } from './user-permission-override.entity';
+import { RolePermissionOverride } from './role-permission-override.entity';
 import { UserClientAccess } from '../client-scope/user-client-access.entity';
 import { PermissionResolverService } from './permission-resolver.service';
 import { PermissionGuard } from './permission.guard';
@@ -21,7 +22,7 @@ import { ParametersModule } from '../parameters/parameters.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Organization, User, Client, UserPermissionOverride, UserClientAccess]),
+    TypeOrmModule.forFeature([Organization, User, Client, UserPermissionOverride, RolePermissionOverride, UserClientAccess]),
     AuditModule,
     ParametersModule,
   ],
