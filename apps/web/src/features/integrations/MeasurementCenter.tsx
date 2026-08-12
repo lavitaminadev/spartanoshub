@@ -50,7 +50,7 @@ export function MeasurementCenter() {
       <div className="integration-header">
         <span className="integration-icon">M</span>
         <div className="integration-info">
-          <div className="integration-name">Centro de medicion</div>
+          <div className="integration-name">Centro de medición</div>
           <div className="integration-provider">Meta Pixel + CAPI, Google Analytics 4 y uso por empresa/flujo</div>
         </div>
       </div>
@@ -65,10 +65,10 @@ export function MeasurementCenter() {
       <div className="measurement-grid">
         <section>
           <div className="integration-section-head">
-            <div><h4>Meta Pixel + CAPI</h4><p className="page-subtitle">Que Pixel esta guardado, cuantas empresas lo usan y cuantos flujos envian eventos.</p></div>
+            <div><h4>Meta Pixel + CAPI</h4><p className="page-subtitle">Qué Pixel está guardado, cuántas empresas lo usan y cuántos flujos envían eventos.</p></div>
           </div>
           <div className="measurement-list">
-            {configuredPixels.length === 0 ? <div className="alert alert-warning">Aun no hay Pixels guardados.</div> : configuredPixels.map((pixel) => {
+            {configuredPixels.length === 0 ? <div className="alert alert-warning">Aún no hay Pixels guardados.</div> : configuredPixels.map((pixel) => {
               const formsUsingPixel = pixelUsage.get(pixel.pixelId) ?? [];
               return <article key={pixel.pixelId} className="measurement-row">
                 <div><strong>{pixel.pixelNames[0] || 'Pixel Meta'}</strong><span>{pixel.pixelId}</span></div>
@@ -84,10 +84,10 @@ export function MeasurementCenter() {
 
         <section>
           <div className="integration-section-head">
-            <div><h4>Google Analytics 4</h4><p className="page-subtitle">IDs de medicion reutilizados desde los flujos publicados o borradores.</p></div>
+            <div><h4>Google Analytics 4</h4><p className="page-subtitle">IDs de medición reutilizados desde los flujos publicados o borradores.</p></div>
           </div>
           <div className="measurement-list">
-            {ga4Rows.length === 0 ? <div className="alert alert-warning">Aun no hay IDs GA4 guardados en flujos.</div> : ga4Rows.map((row) => <article key={row.measurementId} className="measurement-row">
+            {ga4Rows.length === 0 ? <div className="alert alert-warning">Aún no hay IDs GA4 guardados en flujos.</div> : ga4Rows.map((row) => <article key={row.measurementId} className="measurement-row">
               <div><strong>GA4</strong><span>{row.measurementId}</span></div>
               <div><b>{row.clients.size}</b><small>empresa(s)</small></div>
               <div><b>{row.forms.length}</b><small>flujo(s)</small></div>

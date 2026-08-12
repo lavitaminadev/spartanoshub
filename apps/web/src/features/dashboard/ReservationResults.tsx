@@ -203,7 +203,7 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
                         <LabelList
                           dataKey="value"
                           position="right"
-                          formatter={(value: number) => numberFormat(value)}
+                          formatter={(value) => numberFormat(Number(value))}
                           style={{ fill: '#0ec6b8', fontSize: 11, fontWeight: 700 }}
                         />
                       </Bar>
@@ -243,7 +243,7 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
                       <LabelList
                         dataKey="rate"
                         position="right"
-                        formatter={(value: number) => `${value}% asistió`}
+                        formatter={(value) => `${Number(value)}% asistió`}
                         style={{ fill: '#75857e', fontSize: 10, fontWeight: 700 }}
                       />
                     </Bar>

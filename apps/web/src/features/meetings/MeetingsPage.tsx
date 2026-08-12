@@ -147,12 +147,12 @@ export function MeetingsPage() {
           <p className="page-subtitle">Seguimiento de reuniones y compromisos.</p>
         </div>
         <button className="btn btn-primary" onClick={() => { setForm((current) => ({ ...current, clientId: clientFilter })); setModalOpen(true); }}>
-          + Nueva Reunión
+          + Nueva ReuniÃ³n
         </button>
       </div>
       <div className="filters"><select className="input" aria-label="Filtrar reuniones por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todos los clientes</option>{(clients ?? []).map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select><span className="filter-result-count">{sorted.length} reuniones</span></div>
       {sorted.length === 0 ? (
-        <EmptyState icon="📅" title="Sin reuniones" description="Agenda tu primera reunión." action={<button className="btn btn-primary" onClick={() => { setForm((current) => ({ ...current, clientId: clientFilter })); setModalOpen(true); }}>+ Nueva Reunión</button>} />
+        <EmptyState icon="ðŸ“…" title="Sin reuniones" description="Agenda tu primera reuniÃ³n." action={<button className="btn btn-primary" onClick={() => { setForm((current) => ({ ...current, clientId: clientFilter })); setModalOpen(true); }}>+ Nueva ReuniÃ³n</button>} />
       ) : (
         <div className="meeting-list">
           {sorted.map((meeting) => {
@@ -166,7 +166,7 @@ export function MeetingsPage() {
                 <div className="meeting-info">
                   <div className="meeting-title">{meeting.title}</div>
                   <div className="meeting-meta">
-                    {scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {meeting.durationMinutes ?? 60} min · {statusLabel(meeting.type)}
+                    {scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Â· {meeting.durationMinutes ?? 60} min Â· {statusLabel(meeting.type)}
                   </div>
                   {meeting.clientId && (
                     <div className="meeting-participants">Cliente: {clientMap.get(meeting.clientId) ?? meeting.clientId}</div>
@@ -187,7 +187,7 @@ export function MeetingsPage() {
                     {!meeting.meetingLink && <button className="btn btn-sm btn-outline" onClick={() => calendarMutation.mutate(meeting.id)} disabled={calendarMutation.isPending}>Publicar en Google Calendar</button>}
                     <input
                       className="input"
-                      placeholder="Nuevo compromiso o accion"
+                      placeholder="Nuevo compromiso o acción"
                       value={actionItemDrafts[meeting.id] || ''}
                       onChange={(e) => setActionItemDrafts((current) => ({ ...current, [meeting.id]: e.target.value }))}
                     />
@@ -228,7 +228,7 @@ export function MeetingsPage() {
           })}
         </div>
       )}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nueva Reunión">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nueva ReuniÃ³n">
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Cliente</label>
@@ -250,7 +250,7 @@ export function MeetingsPage() {
               <label>Tipo</label>
               <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                 <option value="weekly">Semanal</option>
-                <option value="strategic">Estratégica</option>
+                <option value="strategic">EstratÃ©gica</option>
               </select>
             </div>
             <div className="form-group">
@@ -278,15 +278,15 @@ export function MeetingsPage() {
           </div>
           <div className="form-group">
             <label>Acta o acuerdos iniciales <span className="text-muted">(opcional)</span></label>
-            <textarea className="input" rows={4} value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} placeholder="Decisiones, contexto y próximos pasos" />
+            <textarea className="input" rows={4} value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} placeholder="Decisiones, contexto y prÃ³ximos pasos" />
           </div>
-          {createMutation.error && <div className="alert alert-error">No fue posible crear la reunión. Revisa los datos e inténtalo nuevamente.</div>}
+          {createMutation.error && <div className="alert alert-error">No fue posible crear la reuniÃ³n. Revisa los datos e intÃ©ntalo nuevamente.</div>}
           <button className="btn btn-primary btn-block" type="submit" disabled={createMutation.isPending}>
             {createMutation.isPending ? 'Creando...' : 'Crear Reunion'}
           </button>
         </form>
       </Modal>
-      <Modal open={Boolean(editingMeeting)} onClose={() => setEditingMeeting(null)} title="Acta de reunión">
+      <Modal open={Boolean(editingMeeting)} onClose={() => setEditingMeeting(null)} title="Acta de reuniÃ³n">
         <form onSubmit={(event) => { event.preventDefault(); if (editingMeeting) updateMeetingMutation.mutate({ id: editingMeeting.id, minutes: minutesDraft.trim(), status: meetingStatus }); }}>
           <div className="form-group">
             <label htmlFor="meeting-status">Estado</label>
@@ -299,7 +299,7 @@ export function MeetingsPage() {
           </div>
           <div className="form-group">
             <label htmlFor="meeting-minutes">Decisiones y acuerdos</label>
-            <textarea id="meeting-minutes" className="input" rows={8} value={minutesDraft} onChange={(event) => setMinutesDraft(event.target.value)} placeholder="Registra decisiones, responsables y próximos pasos" />
+            <textarea id="meeting-minutes" className="input" rows={8} value={minutesDraft} onChange={(event) => setMinutesDraft(event.target.value)} placeholder="Registra decisiones, responsables y prÃ³ximos pasos" />
           </div>
           {updateMeetingMutation.error && <div className="alert alert-error">No fue posible guardar el acta.</div>}
           <button className="btn btn-primary btn-block" type="submit" disabled={updateMeetingMutation.isPending}>

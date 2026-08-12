@@ -36,10 +36,12 @@ let features: FeatureManifest[] = [];
  *   requests    → /intake                                                 (Solicitudes)
  *   production  → /production, /audiovisual, /gamification                (Trabajos)
  *   approvals   → /approvals                                              (Aprobaciones)
- *   content     → /content   — moodboards no tiene ruta propia aún; vive en contenido  (Contenido)
- *   reports     → /reports, /direction, /surveys                          (Resultados)
- *   admin       → /users, /settings, /integrations, /governance,
- *                 /operations, /knowledge, /security                      (Administración)
+ *   content     → /content   — moodboards vive dentro de /audiovisual     (Contenido)
+ *   reports     → /reports, /direction                                    (Resultados)
+ *   surveys     → /surveys  — sección propia, separada de Reservas        (Encuestas)
+ *   admin       → /admin, /users, /governance, /settings, /operations     (Administración)
+ *   Integraciones, Conocimiento y Seguridad no tienen sección: caen en «Más» y se acceden
+ *   también desde el panel /admin.
  *
  * Una ruta sin sección cae en «Más», de modo que registrar una feature nueva nunca la
  * esconde del menú.
@@ -201,11 +203,6 @@ const PATH_FEATURE: Record<string, string> = {
   '/reservations/calendar': 'reservations',
   '/reservations/waitlist': 'reservations',
   '/reservations/analytics': 'reservations',
-  // Encuestas propias, distintas de la encuesta post-visita que vive dentro de reservas. El
-  // módulo declara su propio estado de producto en `ORGANIZATION_MODULE_CATALOG`, y esta
-  // entrada es lo que hace que ese estado gobierne el menú: sin ella la ruta no pertenece a
-  // ningún módulo y se muestra siempre, sea cual sea su fase.
-  '/surveys': 'surveys',
   '/crm/contacts': 'crm',
   '/crm/leads': 'commercialPipeline',
   '/crm/opportunities': 'commercialPipeline',
@@ -231,6 +228,8 @@ const PATH_FEATURE: Record<string, string> = {
   '/direction': 'direction',
   '/operations': 'operations',
   '/governance': 'governance',
+  // Seguridad no es un módulo de organización: no se apaga. Sin entrada acá la ruta queda
+  // disponible por rol (manifest), que es lo correcto para una página de cumplimiento.
 };
 
 /** Módulo requerido por una ruta, o `undefined` si la ruta no depende de ninguno. */

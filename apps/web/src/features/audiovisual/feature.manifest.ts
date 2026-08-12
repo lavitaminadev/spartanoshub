@@ -5,7 +5,7 @@ registerFeature({
   name: 'Audiovisual',
   enabled: true,
   navigation: [{
-    label: 'Video y fotografía',
+    label: 'Audiovisual',
     path: '/audiovisual',
     icon: '🎬',
     roles: ['admin', 'creative_director', 'operations_director', 'av_director', 'audiovisual'],

@@ -39,7 +39,7 @@ const WRITE_DELAY_MS = 1_500;
  * responderlas desde una copia local, aunque sea por un instante, mostraría permisos que el
  * servidor ya pudo haber revocado.
  */
-const EXCLUDED_KEY_PARTS = ['session', 'sessions', 'permissions', 'me'];
+const EXCLUDED_KEY_PARTS = ['session', 'sessions', 'role-preview', 'permissions', 'me'];
 
 interface PersistedQuery {
   key: unknown[];

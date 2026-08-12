@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../core/auth';
-import { roleLabel } from '../core/role-labels';
+import { parsePreviewRole, useRolePreview } from '../core/role-preview-context';
+import { ROLE_LABELS, roleLabel } from '../core/role-labels';
 import { getNavigation, getNavigationSections } from '../core/navigation.registry';
 import { NavGlyph } from './NavGlyph';
 import { openCommandPalette } from './command-events';
@@ -83,18 +84,17 @@ export function Layout(): JSX.Element {
   }, [sidebarTrapActive]);
 
   // Calcula la navegación una vez por cambio de rol para evitar filtrar en cada render.
-  //
-  // El menú se arma con el cargo y los permisos de quien mira, sin intermediarios: lo que se
-  // dibuja y lo que se autoriza describen a la misma persona.
+  const { previewRole, setPreviewRole, effectivePermissions, canPreview } = useRolePreview();
+  const viewRole = previewRole ?? user?.role;
   const navItems = useMemo(
-    () => getNavigation(user?.role, user?.features, user?.permissions, user?.moduleLifecycle),
-    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle],
+    () => getNavigation(viewRole, user?.features, effectivePermissions, user?.moduleLifecycle),
+    [viewRole, user?.features, effectivePermissions, user?.moduleLifecycle],
   );
   // Las secciones viven en el registro junto al orden del sidebar: mantenerlas acá hacía
   // que una ruta no listada desapareciera del menú sin aviso.
   const groupedNavItems = useMemo(
-    () => getNavigationSections(user?.role, user?.features, user?.permissions, user?.moduleLifecycle),
-    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle],
+    () => getNavigationSections(viewRole, user?.features, effectivePermissions, user?.moduleLifecycle),
+    [viewRole, user?.features, effectivePermissions, user?.moduleLifecycle],
   );
 
   const toggleSidebar = useCallback(() => setSidebarOpen((open) => !open), []);
@@ -115,6 +115,29 @@ export function Layout(): JSX.Element {
           <BrandMark decorative />
           <div><h2>Espartanos</h2><span>{roleLabel(user?.role)}</span></div>
         </div>
+
+        {canPreview && (
+          <div className="role-preview">
+            <label htmlFor="role-preview-select">Viendo como</label>
+            <select
+              id="role-preview-select"
+              value={previewRole ?? ''}
+              // El valor del `select` es texto; `parsePreviewRole` lo devuelve al dominio de
+              // los cargos o a `null`, que es «mi propio cargo».
+              onChange={(event) => setPreviewRole(parsePreviewRole(event.target.value))}
+            >
+              <option value="">Mi propio cargo</option>
+              {Object.entries(ROLE_LABELS).map(([role, label]) => (
+                <option key={role} value={role}>{label}</option>
+              ))}
+            </select>
+            {previewRole && (
+              <p className="role-preview-note" role="status">
+                Solo cambia lo que se muestra. Tus permisos reales siguen aplicándose.
+              </p>
+            )}
+          </div>
+        )}
 
         <nav className="sidebar-nav">
           {groupedNavItems.map((group) => (

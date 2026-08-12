@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
-import { useOrganizationSettings } from '../../core/organization-settings';
 import { useAuth } from '../../core/auth';
 import { PasswordField } from './PasswordField';
 import { passwordRulesPassed, type PasswordPolicy } from './password-rules';
@@ -13,7 +13,10 @@ export function ChangePasswordPage() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { data: serverPolicy } = useOrganizationSettings();
+  const { data: serverPolicy } = useQuery<Record<string, string>>({
+    queryKey: ['password-policy'],
+    queryFn: () => api.get('/settings?prefix=security.password'),
+  });
   const policy: Partial<PasswordPolicy> | undefined = serverPolicy ? {
     minLength: Number(serverPolicy['security.password.minLength']) || 8,
     requireUppercase: serverPolicy['security.password.requireUppercase'] !== 'false',

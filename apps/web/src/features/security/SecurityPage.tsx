@@ -9,7 +9,6 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
-import { useOrganizationSettings } from '../../core/organization-settings';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
@@ -84,6 +83,7 @@ export function SecurityPage() {
   const anonymizationsQuery = useQuery<AnonymizationRow[]>({
     queryKey: ['security-anonymizations'],
     queryFn: () => api.get('/audit?action=anonymize&limit=100'),
+    retry: false,
   });
   const consentActiveQuery = useQuery<{ id: string; version: number; title: string; text: string; publishedAt: string }>({
     queryKey: ['consent-active'],
@@ -93,7 +93,10 @@ export function SecurityPage() {
     queryKey: ['consent-pending'],
     queryFn: () => api.get('/consent/pending-count'),
   });
-  const pwdPolicyQuery = useOrganizationSettings();
+  const pwdPolicyQuery = useQuery<Record<string, string>>({
+    queryKey: ['security-password-policy'],
+    queryFn: () => api.get('/settings?prefix=security.password'),
+  });
 
   return <div className="page security-page">
     <PageHero

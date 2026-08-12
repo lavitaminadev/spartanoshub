@@ -151,3 +151,20 @@
 .section { margin-top: 28px; }
 
 
+/* ============ VISTA PREVIA DE CARGO ============ */
+.role-preview { padding: 0 16px 12px; display: grid; gap: 6px; }
+.role-preview label {
+  font-size: 10.5px; font-weight: 700; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.role-preview select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-white); color: var(--text-dark); font: inherit; font-size: 12.5px; font-weight: 700;
+}
+/* El aviso es permanente y no un mensaje que se cierra: mientras la vista esté alterada, quien
+   mira tiene que poder saberlo sin recordar que la activó. */
+.role-preview-note {
+  margin: 0; padding: 7px 9px; border-radius: 8px;
+  background: rgba(217, 138, 31, .14); color: #7a4a04;
+  font-size: 11px; font-weight: 600; line-height: 1.35;
+}

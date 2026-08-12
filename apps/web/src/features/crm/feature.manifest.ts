@@ -13,9 +13,9 @@ registerFeature({
     //
     // El "pipeline" es el recorrido por etapas de las oportunidades (nuevo → calificado →
     // propuesta → negociación → ganado/perdido); los prospectos son quienes entran a él.
-    { label: 'Contactos captados', path: '/crm/contacts', icon: '🙋', roles: ['admin', 'commercial_director', 'operations_director', 'community_manager'] },
-    { label: 'Posibles clientes', path: '/crm/leads', icon: '🌱', roles: ['admin', 'commercial_director'] },
-    { label: 'Oportunidades de venta', path: '/crm/opportunities', icon: '🧭', roles: ['admin', 'commercial_director'] },
+    { label: 'Contactos de campañas', path: '/crm/contacts', icon: '🙋', roles: ['admin', 'commercial_director', 'operations_director', 'community_manager'] },
+    { label: 'Prospectos', path: '/crm/leads', icon: '🌱', roles: ['admin', 'commercial_director'] },
+    { label: 'Pipeline de oportunidades', path: '/crm/opportunities', icon: '🧭', roles: ['admin', 'commercial_director'] },
     { label: 'Actividad comercial', path: '/crm/interactions', icon: '☎️', roles: ['admin', 'commercial_director'] },
   ],
   routes: [],

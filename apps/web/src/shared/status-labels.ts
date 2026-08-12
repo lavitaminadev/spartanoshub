@@ -1,10 +1,3 @@
-/**
- * Nombre visible de cada estado interno.
- *
- * Es la única tabla de la que salen los estados que ve el usuario: insignias, filtros,
- * selectores y timelines. Toda pantalla que muestre un estado lo pide acá, de modo que un
- * mismo valor se lea igual en todas y no queden restos en inglés o con guiones bajos.
- */
 const STATUS_LABELS: Record<string, string> = {
   active: 'Activo',
   inactive: 'Inactivo',
@@ -16,7 +9,6 @@ const STATUS_LABELS: Record<string, string> = {
   approved: 'Aprobado',
   rejected: 'Rechazado',
   scheduled: 'Programado',
-  planning: 'Planificación',
   strategic: 'Estratégica',
   weekly: 'Semanal',
   onboarding: 'Incorporación',
@@ -40,9 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelado',
   meeting_scheduled: 'Reunión agendada',
   quote_sent: 'Cotización enviada',
-  proposal: 'Propuesta',
   negotiation: 'Negociación',
-  backlog: 'Por asignar',
   assigned: 'Asignado',
   correction: 'Corrección',
   delivered: 'Entregado',
@@ -65,13 +55,6 @@ const STATUS_LABELS: Record<string, string> = {
   waitlist: 'Lista de espera',
   open: 'Pendiente',
   done: 'Completado',
-  // Tipos de interacción comercial (crm_interactions.type). Se muestran con `statusLabel`
-  // en la línea de tiempo del lead y en la actividad comercial.
-  call: 'Llamada',
-  email: 'Correo',
-  meeting: 'Reunión',
-  whatsapp: 'WhatsApp',
-  note: 'Nota',
   // Estados de la cola de envío a Meta CAPI (meta_conversion_outbox.status).
   processed: 'Enviado',
   processing: 'Enviando',
@@ -80,13 +63,6 @@ const STATUS_LABELS: Record<string, string> = {
   expired: 'Expirado',
 };
 
-/**
- * Etiqueta visible de un estado.
- *
- * Devuelve cadena vacía si no hay estado. Para valores que no están en la tabla —por
- * ejemplo categorías que escribe el equipo— garantiza que nunca se muestre snake_case:
- * cambia los guiones bajos por espacios y capitaliza la primera letra.
- */
 export function statusLabel(status: string | null | undefined): string {
   if (!status) return '';
   return STATUS_LABELS[status] ?? status

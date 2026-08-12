@@ -8,7 +8,6 @@ import { useAuth } from '../../core/auth';
 import { Modal } from '../../shared/Modal';
 import { EmptyState } from '../../shared/EmptyState';
 import { statusLabel } from '../../shared/status-labels';
-import { roleLabel } from '../../core/role-labels';
 
 interface Pod {
   id: string;
@@ -83,7 +82,7 @@ export function OperationsPage() {
     queryFn: () => api.get('/clients'),
     enabled: canManageObjectives,
   });
-  const clients: ClientOption[] = clientsResp?.data ?? [];
+  const clients = (clientsResp as any)?.data ?? [];
   const objectiveMutation = useMutation({ mutationFn: ({ id, progress }: { id: string; progress: number }) => api.put(`/objectives/${id}`, { progress }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['objectives'] }) });
   const createObjective = useMutation({
     mutationFn: () => api.post('/objectives', {
@@ -116,9 +115,9 @@ export function OperationsPage() {
     <div className="page">
       <h1>Operaciones</h1>
       <div className="card-grid">
-        <Card title="Capacidad Total" value={data.totalCapacity > 0 ? `${data.totalCapacity} UD` : 'Sin definir'} icon="📊" color="var(--info)" />
-        <Card title="Demanda Actual" value={`${data.usedCapacity} UD`} icon="⚡" color="var(--amber)" />
-        <Card title="Utilización" value={data.totalCapacity > 0 ? `${utilizationPct}%` : 'Sin definir'} icon="📈" color={utilizationPct > 80 ? 'var(--danger)' : 'var(--success)'} />
+        <Card title="Capacidad Total" value={data.totalCapacity > 0 ? `${data.totalCapacity} UD` : 'Sin definir'} icon="📊" color="#3498db" />
+        <Card title="Demanda Actual" value={`${data.usedCapacity} UD`} icon="⚡" color="#e67e22" />
+        <Card title="Utilización" value={data.totalCapacity > 0 ? `${utilizationPct}%` : 'Sin definir'} icon="📈" color={utilizationPct > 80 ? '#e74c3c' : '#27ae60'} />
       </div>
       <div className="section">
         <div className="section-title-row">
@@ -206,7 +205,7 @@ export function OperationsPage() {
                     <span>{pod.currentLoad}/{pod.capacity} UD</span>
                   </div>
                   <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${loadPct}%`, background: loadPct > 80 ? 'var(--danger)' : 'var(--success)' }} />
+                    <div className="progress-fill" style={{ width: `${loadPct}%`, background: loadPct > 80 ? '#e74c3c' : '#27ae60' }} />
                   </div>
                   <div className="pod-load">{loadPct}%</div>
                 </div>
@@ -228,7 +227,7 @@ export function OperationsPage() {
                 <span className="workload-avatar">{m.name.trim().charAt(0).toUpperCase()}</span>
                 <div className="workload-info">
                   <strong>{m.name}</strong>
-                  <small>{roleLabel(m.role)} · {m.currentPieces} piezas</small>
+                  <small>{m.role.replace(/_/g, ' ')} · {m.currentPieces} piezas</small>
                   <div className="load-bar"><i style={{ width: `${load}%`, background: load > 90 ? 'var(--danger)' : load > 70 ? 'var(--amber)' : 'var(--success)' }} /></div>
                 </div>
                 <b className={`workload-pct ${isOverloaded ? 'amber-text' : ''}`}>{m.capacity > 0 ? `${m.currentPieces}/${m.capacity} UD` : 'Pendiente'}</b>
@@ -247,7 +246,7 @@ export function OperationsPage() {
         </div>
         {objectives.length === 0 ? <EmptyState icon="🎯" title="Sin objetivos" description="No se han definido objetivos operativos para el equipo." action={canManageObjectives ? <button className="btn btn-primary" type="button" onClick={() => setObjectiveOpen(true)}>+ Nuevo objetivo</button> : undefined} /> : <div className="objective-grid">
           {objectives.map((objective) => <article className="objective-card" key={objective.id}>
-            <div className="cycle-card-head"><span className="objective-category">{statusLabel(objective.category)}</span><StatusBadge status={objective.status} /></div>
+            <div className="cycle-card-head"><span className="objective-category">{objective.category}</span><StatusBadge status={objective.status} /></div>
             <h3>{objective.title}</h3>
             <div className="progress-bar"><div className="progress-fill" style={{ width: `${objective.progress}%` }} /></div>
             <div className="objective-footer"><span>{objective.progress}%</span>{objective.dueAt && <span>Hasta {new Date(objective.dueAt).toLocaleDateString('es-CL')}</span>}</div>
@@ -264,7 +263,7 @@ export function OperationsPage() {
           </div>
           <label>Descripción<textarea className="input" rows={4} maxLength={5000} value={objectiveForm.description} onChange={(event) => setObjectiveForm({ ...objectiveForm, description: event.target.value })} /></label>
           <div className="form-row">
-            <label>Responsable<select className="input" value={objectiveForm.ownerId} onChange={(event) => setObjectiveForm({ ...objectiveForm, ownerId: event.target.value })}><option value="">Objetivo general</option>{users.map((member) => <option key={member.id} value={member.id}>{member.name} · {roleLabel(member.role)}</option>)}</select></label>
+            <label>Responsable<select className="input" value={objectiveForm.ownerId} onChange={(event) => setObjectiveForm({ ...objectiveForm, ownerId: event.target.value })}><option value="">Objetivo general</option>{users.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role.replace(/_/g, ' ')}</option>)}</select></label>
             <label>Cuenta asociada<select className="input" value={objectiveForm.clientId} onChange={(event) => setObjectiveForm({ ...objectiveForm, clientId: event.target.value })}><option value="">Sin cuenta específica</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
           </div>
           <label>Progreso inicial: {objectiveForm.progress}%<input type="range" min="0" max="100" step="5" value={objectiveForm.progress} onChange={(event) => setObjectiveForm({ ...objectiveForm, progress: Number(event.target.value) })} /></label>

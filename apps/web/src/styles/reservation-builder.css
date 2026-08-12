@@ -116,7 +116,7 @@
 /* Safe reservation brand customization */
 .design-mini-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
 .design-mini-grid .input { min-width:0; font-size:11px; }
-.design-section-body textarea.input { resize:vertical; min-height:64px; }
+.design-custom-panel textarea.input { resize:vertical; min-height:64px; }
 .public-booking-intro h1 { font-size:clamp(34px,6vw,var(--booking-title-size,72px)); }
 .preview-public-intro h2 { font-size:clamp(28px,4vw,var(--booking-title-size,54px)); }
 .public-booking-intro>p,.preview-public-intro p { font-size:var(--booking-welcome-size,16px); }
@@ -172,37 +172,14 @@
   .day-windows .add-window{width:100%}
 }
 
-/* Entorno visual: plantilla primero, lo esencial a la vista y el resto en bloques plegados. */
-.design-controls { display:flex; flex-direction:column; gap:14px; max-height:calc(100vh - 220px); overflow-y:auto; }
-.design-controls .color-controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
-.design-controls .design-mini-grid label { margin:0; }
-
-.design-starter { padding:14px; border:1px solid var(--border); border-radius:14px; background:#fbfdf9; }
-.design-starter-eyebrow { color:#8a9691; font-size:10px; font-weight:800; letter-spacing:.06em; }
-.design-starter strong { display:block; margin-top:4px; font-size:14px; }
-.design-starter small { display:block; margin:4px 0 10px; color:#6c7a74; font-size:11px; line-height:1.45; }
-.design-templates { display:flex; flex-wrap:wrap; gap:7px; }
-
-.design-essentials { display:flex; flex-direction:column; }
-
-.design-section { border:1px solid var(--border); border-radius:14px; background:#fff; }
-.design-section > summary { padding:12px 14px; font-size:12px; font-weight:800; cursor:pointer; list-style:none; }
-.design-section > summary::-webkit-details-marker { display:none; }
-.design-section > summary::after { content:'+'; float:right; color:#8a9691; font-weight:700; }
-.design-section[open] > summary::after { content:'−'; }
-.design-section[open] > summary { border-bottom:1px solid var(--border); }
-.design-section-body { padding:14px; }
-.design-section-body > label:last-child { margin-bottom:0; }
-.design-reset { align-self:flex-start; }
-
-/* La vista previa mantiene el selector de dispositivo a la vista mientras se desplazan los
-   controles: comprobar el resultado en móvil es parte de decidir, no un paso posterior. */
-.design-preview-column { display:flex; flex-direction:column; gap:10px; }
-.design-preview-column .preview-device-toggle { position:sticky; top:0; z-index:1; }
-
-@media(max-width:900px){
-  .design-controls { max-height:none; overflow:visible; }
-}
+/* Visual editor cleanup: keep one complete design panel and hide legacy duplicate controls. */
+.design-controls > .design-custom-panel ~ .design-templates,
+.design-controls > .design-custom-panel ~ label,
+.design-controls > .design-custom-panel ~ .color-controls { display:none; }
+.design-custom-panel .design-templates,
+.design-custom-panel .color-controls { display:flex; }
+.design-custom-panel .color-controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+.design-custom-panel .design-mini-grid label { margin:0; }
 
 /* Booking steps indicator */
 .booking-steps { display:flex; justify-content:center; gap:12px; margin-bottom:24px; padding:12px 0; border-bottom:1px solid var(--border); }
@@ -300,36 +277,3 @@
 .field-editor-body label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--text-dark)}
 .field-editor-actions{display:flex;gap:8px;padding-top:8px;border-top:1px solid #eaeaea}
 .field-editor-footer{display:flex;justify-content:flex-end;gap:8px;padding-top:12px;border-top:1px solid #eaeaea}
-
-/* Publicación: primero si se puede publicar, después el enlace, y la medición plegada.
-   El orden reproduce la decisión real —¿está listo? ¿dónde está el enlace?— en vez de abrir
-   con la configuración de anuncios, que solo hace falta cuando hay campaña pagada. */
-.publish-checklist { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
-.publish-checklist li { display:grid; gap:3px; padding:12px 14px 12px 34px; position:relative; border:1px solid var(--border); border-radius:13px; background:#fff; }
-.publish-checklist li::before { position:absolute; left:12px; top:12px; font-size:13px; font-weight:900; }
-.publish-checklist li.is-ok { border-color:#cfe4d2; background:#f7fcf7; }
-.publish-checklist li.is-ok::before { content:'✓'; color:#1f7a46; }
-.publish-checklist li.is-warning { border-color:#e8d9a8; background:#fdfaf1; }
-.publish-checklist li.is-warning::before { content:'!'; color:#9a5a00; }
-.publish-checklist li.is-blocking { border-color:#e6bdba; background:#fdf6f5; }
-.publish-checklist li.is-blocking::before { content:'!'; color:#b5332d; }
-.publish-checklist strong { color:var(--text-dark); font-size:13px; }
-.publish-checklist small { color:#6c7a74; font-size:11px; line-height:1.45; }
-
-.publish-tracking { margin-top:14px; border:1px solid var(--border); border-radius:13px; background:#fbfdf9; }
-.publish-tracking > summary { padding:12px 14px; color:#40584f; font-size:12px; font-weight:800; cursor:pointer; list-style:none; }
-.publish-tracking > summary::-webkit-details-marker { display:none; }
-.publish-tracking > summary::after { content:'+'; float:right; color:#8a9691; }
-.publish-tracking[open] > summary::after { content:'−'; }
-.publish-tracking > summary em { color:#8a9691; font-style:normal; font-weight:600; }
-.publish-tracking-body { display:grid; gap:13px; padding:0 14px 14px; }
-.publish-tracking-body > .page-subtitle { margin:0; font-size:11px; line-height:1.5; }
-.publish-tracking-body label { margin:0; }
-
-.publish-meta-state { display:grid; gap:3px; padding:11px 13px; border:1px solid var(--border); border-radius:11px; background:#fff; }
-.publish-meta-state.is-ok { border-color:#cfe4d2; background:#f7fcf7; }
-.publish-meta-state.is-warning { border-color:#e8d9a8; background:#fdfaf1; }
-.publish-meta-state strong { font-size:12px; }
-.publish-meta-state small { color:#6c7a74; font-size:11px; line-height:1.45; }
-
-.publish-link .publish-blocker { color:#ffd9d6; font-weight:700; }

@@ -14,7 +14,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { useAuth } from '../../core/auth';
 import { triggerToast } from '../../shared/toast-events';
 import { useCreateSurvey, useSurvey, useUpdateSurvey } from './useSurveys';
-import type { QuestionType, Survey, SurveyDistributionChannel, SurveyQuestion, SurveyType } from '@espartanos/shared';
+import type { QuestionType, Survey, SurveyDistributionChannel, SurveyQuestion, SurveyType } from './types';
 import './surveys.css';
 
 const STEPS: WizardStepDescriptor[] = [

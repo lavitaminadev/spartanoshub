@@ -135,6 +135,13 @@
 .public-cookie-banner span { font-size:18px; flex-shrink:0; }
 .public-cookie-banner strong { display:block; font-size:12px; color:var(--ink); margin-bottom:2px; }
 .public-cookie-banner p { margin:0; font-size:10px; color:var(--muted); line-height:1.4; }
+.contact-interstitial { margin:18px 0; padding:18px; border:1px solid var(--amber); border-radius:14px; background:var(--amber-bg); }
+.contact-interstitial h2 { font-size:16px; color:var(--ink); margin:0 0 6px; }
+.contact-interstitial p { font-size:13px; color:var(--muted); margin:0 0 12px; }
+.design-background-block { margin:15px 0; padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--soft); }
+.design-background-block legend { padding:0 8px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+.design-background-block label { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; color:var(--text-dark); font-size:10px; font-weight:800; }
+.design-background-block label small { color:var(--muted); font-size:9px; font-weight:400; line-height:1.4; }
 .field-template-section { margin-bottom:14px; border:1px solid var(--border-light); border-radius:10px; overflow:hidden; }
 .field-template-section > summary { display:flex; flex-direction:column; padding:10px 12px; background:var(--soft); cursor:pointer; list-style:none; }
 .field-template-section > summary::-webkit-details-marker { display:none; }
