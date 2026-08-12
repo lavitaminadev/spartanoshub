@@ -7,9 +7,9 @@ LOG_FILE="$APP_ROOT/logs/startup-check.log"
 mkdir -p "$APP_ROOT/logs"
 rm -f "$LOG_FILE"
 
-# Use a random local port so the smoke test does not collide with Passenger.
+# Use a dedicated local port so the smoke test does not collide with Passenger.
 set +e
-NODE_ENV=production PORT=0 /usr/bin/timeout 25s node app.js > "$LOG_FILE" 2>&1
+NODE_ENV=production PORT="${STARTUP_CHECK_PORT:-3100}" /usr/bin/timeout 25s node app.js > "$LOG_FILE" 2>&1
 status=$?
 set -e
 
