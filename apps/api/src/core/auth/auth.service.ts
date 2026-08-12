@@ -448,7 +448,7 @@ export class AuthService {
     const missing = REQUIRED_CONSENTS.filter((key) => !acceptedConsents.includes(key));
     if (missing.length > 0) throw new BadRequestException('Debes aceptar todas las condiciones para continuar');
 
-    const version = await this.parameters.get('compliance.terms_version', null, null, user.organizationId) ?? TERMS_VERSION;
+    const version = String(await this.parameters.get('compliance.terms_version', null, null, user.organizationId) ?? TERMS_VERSION);
     const now = new Date();
     await this.userRepo.manager.transaction(async (manager) => {
       await manager.update(User, userId, { termsAcceptedAt: now, termsVersion: String(version) });
@@ -486,7 +486,8 @@ export class AuthService {
       ]);
       if (enforced === false) return false;
       if (!user.termsAcceptedAt) return true;
-      if (version && user.termsVersion !== version) return true;
+      const currentVersion = version === null || version === undefined ? null : String(version);
+      if (currentVersion && user.termsVersion !== currentVersion) return true;
 
       const months = Number(renewalMonths) || 0;
       if (months <= 0) return false;
