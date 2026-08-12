@@ -68,10 +68,10 @@ exports.ORGANIZATION_MODULE_CATALOG = [
     { key: 'governance', lifecycle: 'development', defaultEnabled: false },
     { key: 'direction', lifecycle: 'development', defaultEnabled: false },
     // Encuestas propias, distintas de la encuesta post-visita que ya vive dentro de reservas.
-    // La interfaz existe (`/surveys`) pero la API `/surveys` todavia no, asi que declararlo
-    // `active` prometeria una pantalla que responde error. Al publicar el controlador, subir
-    // `lifecycle` a `active` es el unico cambio necesario para poder encenderlo.
-    { key: 'surveys', lifecycle: 'development', defaultEnabled: false },
+    // Su API existe (`SurveysController`), asi que el producto ya la ofrece; nace apagada
+    // porque distribuir una encuesta es una decision de cada organizacion, no un valor por
+    // defecto, y queda a un interruptor de distancia en el panel de administracion.
+    { key: 'surveys', lifecycle: 'active', defaultEnabled: false },
 ];
 /**
  * Modulos de UI sin interruptor por organizacion.

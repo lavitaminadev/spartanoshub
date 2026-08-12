@@ -47,7 +47,7 @@ export function AdminPage() {
   const [matrixDraft, setMatrixDraft] = useState<Record<string, Record<string, PermissionLevel>>>({});
   const [exceptionOpen, setExceptionOpen] = useState(false);
   const [exceptionDraft, setExceptionDraft] = useState({ userId: '', userRole: '', module: '', level: 'view' as PermissionLevel, reason: '', expiresAt: '' });
-  const [revokeId, setRevokeId] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<{ userId: string; module: string } | null>(null);
   const [exceptionSearch, setExceptionSearch] = useState('');
   const [exceptionClient, setExceptionClient] = useState('');
   const [consentDraft, setConsentDraft] = useState({ title: '', text: '' });
@@ -55,7 +55,7 @@ export function AdminPage() {
   const [pwdPolicy, setPwdPolicy] = useState({ minLength: 8, requireUppercase: true, requireNumber: true, requireSpecial: false, expiryDays: 90, preventReuse: 5 });
 
   const permsQuery = useQuery<{ matrix?: Record<string, Record<string, string>> }>({ queryKey: ['role-permissions'], queryFn: () => api.get('/roles/permissions') });
-  const exceptionsQuery = useQuery<{ items?: AccessException[] }>({ queryKey: ['access-exceptions'], queryFn: () => api.get('/role-access/exceptions') });
+  const exceptionsQuery = useQuery<{ items?: AccessException[] }>({ queryKey: ['access-exceptions'], queryFn: () => api.get('/permission-overrides') });
   const usersQuery = useQuery<(UserOption[] | { data: UserOption[] })>({ queryKey: ['admin-users'], queryFn: () => api.get('/users?isActive=true') });
   const featuresQuery = useQuery<{ features?: OrganizationFeatures }>({ queryKey: ['organization-features'], queryFn: () => api.get('/organizations/features') });
   const settingsQuery = useQuery<OrganizationSetting[]>({ queryKey: ['organization-settings'], queryFn: () => api.get('/settings') });
@@ -98,14 +98,22 @@ export function AdminPage() {
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
 
+  // La excepción se identifica por la pareja persona + módulo, que es como la guarda el
+  // backend: una persona tiene a lo sumo una excepción por módulo, así que crear y reemplazar
+  // son la misma operación y no hace falta un identificador propio para dirigirla.
   const excCreateMutation = useMutation({
-    mutationFn: (body: typeof exceptionDraft) => api.post('/role-access/exceptions', { ...body, expiresAt: body.expiresAt || undefined }),
+    mutationFn: (body: typeof exceptionDraft) => api.put(`/users/${body.userId}/permissions/${body.module}`, {
+      level: body.level,
+      reason: body.reason || undefined,
+      // El `datetime-local` del formulario da hora local sin zona; el backend espera ISO 8601.
+      expiresAt: body.expiresAt ? new Date(body.expiresAt).toISOString() : undefined,
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['access-exceptions'] }); setExceptionOpen(false); setFeedback({ tone: 'success', text: 'Excepción de acceso creada.' }); },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
 
   const excRevokeMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/role-access/exceptions/${id}`),
+    mutationFn: (target: { userId: string; module: string }) => api.delete(`/users/${target.userId}/permissions/${target.module}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['access-exceptions'] }); setFeedback({ tone: 'success', text: 'Excepción revocada.' }); },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
@@ -276,7 +284,7 @@ export function AdminPage() {
       <div className="filters"><input className="input" value={exceptionSearch} onChange={(e) => setExceptionSearch(e.target.value)} placeholder="Buscar persona, módulo o nivel..." /><select className="input" value={exceptionClient} onChange={(e) => setExceptionClient(e.target.value)}><option value="">Todas las personas</option>{exceptionUsers.map((u) => <option key={u.id} value={u.id}>{u.name} · {ROLE_LABELS[u.role] ?? u.role}</option>)}</select></div>
       {visibleExceptions.length === 0
         ? <EmptyState icon="🔑" title="Sin excepciones" description={exceptions.length === 0 ? 'No hay excepciones de acceso. Crea una para otorgar acceso temporal.' : 'Ninguna excepción coincide con el filtro.'} action={exceptions.length === 0 ? <button className="btn btn-primary" onClick={() => setExceptionOpen(true)}>Crear primera excepción</button> : undefined} />
-        : <div className="table-wrapper"><table className="data-table"><thead><tr><th>Persona</th><th>Cargo</th><th>Módulo</th><th>Nivel</th><th>Vencimiento</th><th>Motivo</th><th></th></tr></thead><tbody>{visibleExceptions.map((e) => <tr key={e.id} className={e.status === 'expired' ? 'row-muted' : ''}><td><strong>{e.userName}</strong></td><td>{e.userRole ? (ROLE_LABELS[e.userRole] ?? e.userRole) : '—'}</td><td>{e.module}</td><td><span className={`level-pill level-${e.level}`} style={{ backgroundColor: `${LEVEL_COLORS[e.level as PermissionLevel] ?? '#889991'}18`, color: LEVEL_COLORS[e.level as PermissionLevel] ?? '#889991', borderColor: LEVEL_COLORS[e.level as PermissionLevel] ?? '#889991' }}>{LEVEL_LABELS[e.level as PermissionLevel] ?? e.level}</span></td><td>{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString('es-CL') : 'Sin vencimiento'}<br /><small><StatusBadge status={e.status} /></small></td><td>{e.reason || '—'}</td><td>{e.status === 'active' ? <button className="btn btn-outline btn-sm" onClick={() => setRevokeId(e.id)}>Revocar</button> : null}</td></tr>)}</tbody></table></div>}
+        : <div className="table-wrapper"><table className="data-table"><thead><tr><th>Persona</th><th>Cargo</th><th>Módulo</th><th>Nivel</th><th>Vencimiento</th><th>Motivo</th><th></th></tr></thead><tbody>{visibleExceptions.map((e) => <tr key={e.id} className={e.status === 'expired' ? 'row-muted' : ''}><td><strong>{e.userName}</strong></td><td>{e.userRole ? (ROLE_LABELS[e.userRole] ?? e.userRole) : '—'}</td><td>{e.module}</td><td><span className={`level-pill level-${e.level}`} style={{ backgroundColor: `${LEVEL_COLORS[e.level as PermissionLevel] ?? '#889991'}18`, color: LEVEL_COLORS[e.level as PermissionLevel] ?? '#889991', borderColor: LEVEL_COLORS[e.level as PermissionLevel] ?? '#889991' }}>{LEVEL_LABELS[e.level as PermissionLevel] ?? e.level}</span></td><td>{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString('es-CL') : 'Sin vencimiento'}<br /><small><StatusBadge status={e.status} /></small></td><td>{e.reason || '—'}</td><td>{e.status === 'active' ? <button className="btn btn-outline btn-sm" onClick={() => setRevokeTarget({ userId: e.userId, module: e.module })}>Revocar</button> : null}</td></tr>)}</tbody></table></div>}
     </section>}
 
     {tab === 'consentimiento' && <section>
@@ -329,6 +337,6 @@ export function AdminPage() {
       </form>
     </Modal>
 
-    <ConfirmDialog open={!!revokeId} title="Revocar excepción" description="La persona volverá al nivel de acceso que su cargo define. Esta acción se registra en auditoría." confirmLabel="Revocar" pending={excRevokeMutation.isPending} onClose={() => setRevokeId(null)} onConfirm={() => { if (revokeId) { excRevokeMutation.mutate(revokeId, { onSuccess: () => setRevokeId(null) }); } }} />
+    <ConfirmDialog open={!!revokeTarget} title="Revocar excepción" description="La persona volverá al nivel de acceso que su cargo define. Esta acción se registra en auditoría." confirmLabel="Revocar" pending={excRevokeMutation.isPending} onClose={() => setRevokeTarget(null)} onConfirm={() => { if (revokeTarget) { excRevokeMutation.mutate(revokeTarget, { onSuccess: () => setRevokeTarget(null) }); } }} />
   </div>;
 }

@@ -19,6 +19,8 @@ export * from './types/organization';
 export * from './types/billing';
 export * from './types/approval';
 export * from './types/integration';
+export * from './types/survey';
+export * from './survey-metrics';
 export * from './enums';
 export * from './constants';
 //# sourceMappingURL=index.d.ts.map
