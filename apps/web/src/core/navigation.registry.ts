@@ -201,6 +201,11 @@ const PATH_FEATURE: Record<string, string> = {
   '/reservations/calendar': 'reservations',
   '/reservations/waitlist': 'reservations',
   '/reservations/analytics': 'reservations',
+  // Encuestas propias, distintas de la encuesta post-visita que vive dentro de reservas. El
+  // módulo declara su propio estado de producto en `ORGANIZATION_MODULE_CATALOG`, y esta
+  // entrada es lo que hace que ese estado gobierne el menú: sin ella la ruta no pertenece a
+  // ningún módulo y se muestra siempre, sea cual sea su fase.
+  '/surveys': 'surveys',
   '/crm/contacts': 'crm',
   '/crm/leads': 'commercialPipeline',
   '/crm/opportunities': 'commercialPipeline',

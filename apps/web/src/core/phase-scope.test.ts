@@ -55,7 +55,7 @@ describe('navegación bajo el alcance de fase', () => {
   it('oculta las rutas fuera de alcance para cualquier rol', () => {
     const outOfScopePaths = ['/content', '/audiovisual', '/approvals', '/briefs',
       '/meetings', '/billing', '/contracts', '/catalog', '/gamification', '/knowledge',
-      '/onboarding', '/direction', '/operations', '/governance', '/documents'];
+      '/onboarding', '/direction', '/operations', '/governance', '/documents', '/surveys'];
 
     for (const path of outOfScopePaths) {
       expect(visible(path), path).toBe(false);
