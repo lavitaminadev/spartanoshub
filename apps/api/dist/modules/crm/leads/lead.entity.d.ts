@@ -1,0 +1,34 @@
+import { Organization } from '../../organizations/organization.entity';
+export declare class Lead {
+    id: string;
+    organizationId: string;
+    organization: Organization;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    company?: string | null;
+    source?: string;
+    domain: 'audience' | 'commercial';
+    sourceDetail?: string | null;
+    clientId?: string;
+    tags?: string[];
+    externalLeadId?: string;
+    externalFormId?: string;
+    externalCampaignId?: string;
+    campaignName?: string | null;
+    pageId?: string;
+    status: string;
+    fitStatus: string;
+    qualityScore: number;
+    discardReason?: string;
+    assignedTo?: string;
+    notes?: string;
+    consentCapturedAt?: Date;
+    retentionReviewAt?: Date;
+    metadata?: Record<string, any>;
+    convertedAt?: Date;
+    convertedToClientId?: string;
+    createdAt: Date;
+    updatedAt: Date;
+    normalize(): void;
+}
