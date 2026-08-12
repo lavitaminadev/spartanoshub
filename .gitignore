@@ -5,13 +5,20 @@ node_modules/
 .env.production
 .env.*.local
 .local/
-apps/api/dist/
-apps/web/dist/
-packages/shared/dist/
+# Los artefactos compilados de la API y del frontend SI se versionan: `.cpanel.yml` no
+# compila en el servidor (la cuenta tiene 768 MB para todos los procesos y `tsc` necesita
+# ~600 MB) y aborta el despliegue si no encuentra `apps/api/dist/main.js` y
+# `apps/web/dist/index.html`. El servidor recibe lo que hay en el commit, de modo que
+# ignorarlos dejaba fuera cada archivo nuevo del build —los chunks del frontend cambian de
+# hash en cada compilacion— y se desplegaba un artefacto incompleto.
+#
+# `packages/shared/dist` entra por la misma razon: nueve archivos de `apps/api/dist` hacen
+# `require('@espartanos/shared')` en tiempo de ejecucion y esa ruta resuelve a su `dist`.
+#
+# Se compilan antes de subir con: npm ci --include=dev && npm run build:cpanel
 *.log
 .DS_Store
 Thumbs.db
-dist/
 coverage/
 tmp/
 logs/
