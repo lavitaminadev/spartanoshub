@@ -34,4 +34,3 @@ exports.PodMember = PodMember = __decorate([
     (0, typeorm_1.Entity)('pod_members'),
     (0, typeorm_1.Index)('UQ_pod_members_pair', ['podId', 'userId'], { unique: true })
 ], PodMember);
-//# sourceMappingURL=pod-member.entity.js.map

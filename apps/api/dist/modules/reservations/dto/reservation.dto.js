@@ -9,9 +9,63 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateReservationDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = void 0;
+exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateReservationDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.FORM_FIELD_TYPES = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
+exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'];
+class FormFieldDto {
+}
+exports.FormFieldDto = FormFieldDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/^[a-zA-Z0-9_-]{1,80}$/, { message: 'El identificador del campo no es válido' }),
+    __metadata("design:type", String)
+], FormFieldDto.prototype, "id", void 0);
+__decorate([
+    (0, class_validator_1.IsIn)(exports.FORM_FIELD_TYPES),
+    __metadata("design:type", String)
+], FormFieldDto.prototype, "type", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/\S/, { message: 'Cada campo necesita un enunciado' }),
+    (0, class_validator_1.MaxLength)(180),
+    __metadata("design:type", String)
+], FormFieldDto.prototype, "label", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], FormFieldDto.prototype, "required", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], FormFieldDto.prototype, "system", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], FormFieldDto.prototype, "internal", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(180),
+    __metadata("design:type", String)
+], FormFieldDto.prototype, "placeholder", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['radio', 'select']),
+    __metadata("design:type", String)
+], FormFieldDto.prototype, "display", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ArrayMaxSize)(100),
+    (0, class_validator_1.IsString)({ each: true }),
+    (0, class_validator_1.MaxLength)(180, { each: true }),
+    __metadata("design:type", Array)
+], FormFieldDto.prototype, "options", void 0);
 class CreateReservationFormDto {
 }
 exports.CreateReservationFormDto = CreateReservationFormDto;
@@ -106,6 +160,10 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ArrayMaxSize)(80),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => FormFieldDto),
     __metadata("design:type", Array)
 ], UpdateReservationFormDto.prototype, "fieldSchema", void 0);
 __decorate([
@@ -239,8 +297,9 @@ __decorate([
 ], PublicReservationDto.prototype, "answers", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(8),
+    (0, class_validator_1.MinLength)(24),
     (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }),
     __metadata("design:type", String)
 ], PublicReservationDto.prototype, "idempotencyKey", void 0);
 __decorate([
@@ -357,6 +416,11 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], UpdateReservationDto.prototype, "startsAt", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['draft', 'sent', 'confirmed', 'preparation', 'execution', 'delivered']),
+    __metadata("design:type", String)
+], UpdateReservationDto.prototype, "workflowState", void 0);
 class PublicFormEventDto {
 }
 exports.PublicFormEventDto = PublicFormEventDto;
@@ -408,8 +472,9 @@ __decorate([
 ], PublicSurveyResponseDto.prototype, "answers", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(8),
+    (0, class_validator_1.MinLength)(24),
     (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }),
     __metadata("design:type", String)
 ], PublicSurveyResponseDto.prototype, "idempotencyKey", void 0);
 __decorate([
@@ -421,9 +486,21 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(120),
+    __metadata("design:type", String)
+], PublicSurveyResponseDto.prototype, "utmMedium", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(180),
     __metadata("design:type", String)
 ], PublicSurveyResponseDto.prototype, "utmCampaign", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(180),
+    __metadata("design:type", String)
+], PublicSurveyResponseDto.prototype, "utmContent", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -478,9 +555,56 @@ __decorate([
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
 ], PublicSurveyResponseDto.prototype, "website", void 0);
+class PublicContactRequestDto {
+}
+exports.PublicContactRequestDto = PublicContactRequestDto;
+__decorate([
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], PublicContactRequestDto.prototype, "responseId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEmail)(),
+    __metadata("design:type", String)
+], PublicContactRequestDto.prototype, "email", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(50),
+    __metadata("design:type", String)
+], PublicContactRequestDto.prototype, "phone", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2000),
+    __metadata("design:type", String)
+], PublicContactRequestDto.prototype, "message", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], PublicContactRequestDto.prototype, "website", void 0);
+class UpdateContactRequestDto {
+}
+exports.UpdateContactRequestDto = UpdateContactRequestDto;
+__decorate([
+    (0, class_validator_1.IsIn)(['pending', 'contacted', 'resolved']),
+    __metadata("design:type", String)
+], UpdateContactRequestDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2000),
+    __metadata("design:type", String)
+], UpdateContactRequestDto.prototype, "notes", void 0);
 class CreateCouponDto {
 }
 exports.CreateCouponDto = CreateCouponDto;
+__decorate([
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateCouponDto.prototype, "clientId", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.Matches)(/\S/, { message: 'El código es obligatorio' }),
@@ -795,4 +919,3 @@ __decorate([
     (0, class_validator_1.Max)(365),
     __metadata("design:type", Number)
 ], ReservationScopeDto.prototype, "days", void 0);
-//# sourceMappingURL=reservation.dto.js.map

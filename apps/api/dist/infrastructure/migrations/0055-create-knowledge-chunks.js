@@ -38,4 +38,3 @@ class CreateKnowledgeChunks1721767000000 {
     }
 }
 exports.CreateKnowledgeChunks1721767000000 = CreateKnowledgeChunks1721767000000;
-//# sourceMappingURL=0055-create-knowledge-chunks.js.map

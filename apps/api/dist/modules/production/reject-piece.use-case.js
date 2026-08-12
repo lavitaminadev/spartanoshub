@@ -87,4 +87,3 @@ exports.RejectPieceUseCase = RejectPieceUseCase = __decorate([
         piece_rules_service_1.PieceRulesService,
         event_emitter_1.EventEmitter2])
 ], RejectPieceUseCase);
-//# sourceMappingURL=reject-piece.use-case.js.map

@@ -7,4 +7,3 @@ class LeadConvertedEvent {
     }
 }
 exports.LeadConvertedEvent = LeadConvertedEvent;
-//# sourceMappingURL=lead-converted.event.js.map

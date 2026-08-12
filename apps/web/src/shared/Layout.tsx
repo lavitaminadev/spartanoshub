@@ -30,12 +30,10 @@ const MOBILE_BREAKPOINT_QUERY = '(max-width: 768px)';
 /**
  * Secciones del menú lateral.
  *
- * Cada grupo responde a una pregunta distinta de quien lo usa, y el orden va de lo más
- * frecuente a lo más ocasional. Una ruta que no figure en ningún grupo no se muestra, así
- * que al registrar una feature nueva hay que agregarla acá.
- *
- * La separación entre los dos CRM es deliberada: «Contactos de campañas» pertenece a la
- * operación de las cuentas de clientes, mientras el pipeline es de la propia agencia.
+ * Vive en `NAVIGATION_SECTIONS` de `core/navigation.registry.ts`: el orden reproduce el
+ * flujo del prototipo (Cliente → Brief → Solicitud → Trabajo → Aprobación → Entrega) y cada
+ * rol ve solo sus grupos, porque los vacíos se descartan. Mantenerlo acá obligaría a que
+ * una ruta nueva se agregara en dos lugares y se olvidara.
  */
 /**
  * Shell de layout principal renderizado para usuarios autenticados.

@@ -36,4 +36,3 @@ exports.EmbeddingsService = EmbeddingsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [axios_1.HttpService])
 ], EmbeddingsService);
-//# sourceMappingURL=embeddings.service.js.map

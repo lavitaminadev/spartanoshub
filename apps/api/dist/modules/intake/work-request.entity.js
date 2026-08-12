@@ -136,4 +136,3 @@ exports.WorkRequest = WorkRequest = __decorate([
     (0, typeorm_1.Index)('IDX_work_requests_org_client', ['organizationId', 'clientId']),
     (0, typeorm_1.Index)('IDX_work_requests_assignee', ['organizationId', 'assignedTo'])
 ], WorkRequest);
-//# sourceMappingURL=work-request.entity.js.map

@@ -111,4 +111,3 @@ exports.OpportunitiesController = OpportunitiesController = __decorate([
         remove_opportunity_use_case_1.RemoveOpportunityUseCase,
         account_access_service_1.AccountAccessService])
 ], OpportunitiesController);
-//# sourceMappingURL=opportunities.controller.js.map

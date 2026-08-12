@@ -69,4 +69,3 @@ exports.FeatureGuard = FeatureGuard = FeatureGuard_1 = __decorate([
     __metadata("design:paramtypes", [core_1.Reflector,
         typeorm_2.Repository])
 ], FeatureGuard);
-//# sourceMappingURL=feature.guard.js.map

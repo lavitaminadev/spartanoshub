@@ -11,4 +11,3 @@ var XPEventType;
     XPEventType["CORRECTION_PENALTY"] = "correction_penalty";
     XPEventType["MANUAL_ADJUSTMENT"] = "manual_adjustment";
 })(XPEventType || (exports.XPEventType = XPEventType = {}));
-//# sourceMappingURL=xp-event-type.enum.js.map

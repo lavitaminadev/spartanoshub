@@ -19,4 +19,3 @@ exports.OperationsModule = OperationsModule = __decorate([
         providers: [get_operations_overview_use_case_1.GetOperationsOverviewUseCase],
     })
 ], OperationsModule);
-//# sourceMappingURL=operations.module.js.map

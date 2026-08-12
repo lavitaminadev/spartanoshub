@@ -18,4 +18,3 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], ClientIdDto.prototype, "clientId", void 0);
-//# sourceMappingURL=client-id.dto.js.map

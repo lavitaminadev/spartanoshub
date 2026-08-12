@@ -70,4 +70,3 @@ exports.DashboardsController = DashboardsController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('dashboard'),
     __metadata("design:paramtypes", [dashboards_service_1.DashboardsService])
 ], DashboardsController);
-//# sourceMappingURL=dashboards.controller.js.map

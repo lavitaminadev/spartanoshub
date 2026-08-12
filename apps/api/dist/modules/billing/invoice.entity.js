@@ -90,4 +90,3 @@ exports.Invoice = Invoice = __decorate([
     (0, typeorm_1.Entity)('invoices'),
     (0, typeorm_1.Index)('UQ_invoices_org_number', ['organizationId', 'number'], { unique: true })
 ], Invoice);
-//# sourceMappingURL=invoice.entity.js.map

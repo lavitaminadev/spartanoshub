@@ -98,4 +98,3 @@ exports.Contract = Contract = __decorate([
     (0, typeorm_1.Entity)('contracts'),
     (0, typeorm_1.Index)('IDX_contracts_org_created', ['organizationId', 'createdAt'])
 ], Contract);
-//# sourceMappingURL=contract.entity.js.map

@@ -58,4 +58,3 @@ exports.UpdateOpportunityUseCase = UpdateOpportunityUseCase = __decorate([
         opportunity_reference_validator_service_1.OpportunityReferenceValidator,
         get_opportunity_use_case_1.GetOpportunityUseCase])
 ], UpdateOpportunityUseCase);
-//# sourceMappingURL=update-opportunity.use-case.js.map

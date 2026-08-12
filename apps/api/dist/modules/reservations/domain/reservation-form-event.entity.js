@@ -59,4 +59,3 @@ exports.ReservationFormEvent = ReservationFormEvent = __decorate([
     (0, typeorm_1.Index)('IDX_reservation_form_events_form_date', ['formId', 'createdAt']),
     (0, typeorm_1.Index)('UQ_reservation_form_event_session', ['formId', 'type', 'sessionId'], { unique: true })
 ], ReservationFormEvent);
-//# sourceMappingURL=reservation-form-event.entity.js.map

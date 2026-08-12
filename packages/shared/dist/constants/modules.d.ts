@@ -26,11 +26,23 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly lifecycle: "active";
     readonly defaultEnabled: true;
 }, {
-    readonly key: "clients";
+    readonly key: "settings";
     readonly lifecycle: "active";
     readonly defaultEnabled: true;
 }, {
     readonly key: "users";
+    readonly lifecycle: "active";
+    readonly defaultEnabled: true;
+}, {
+    readonly key: "clients";
+    readonly lifecycle: "active";
+    readonly defaultEnabled: true;
+}, {
+    readonly key: "reports";
+    readonly lifecycle: "active";
+    readonly defaultEnabled: true;
+}, {
+    readonly key: "integrations";
     readonly lifecycle: "active";
     readonly defaultEnabled: true;
 }, {
@@ -40,15 +52,15 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "crm";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
-    readonly key: "integrations";
+    readonly key: "commercialPipeline";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
-    readonly key: "settings";
+    readonly key: "production";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "clientMetricsPanel";
     readonly lifecycle: "development";
@@ -56,10 +68,6 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "multiClientOnboarding";
     readonly lifecycle: "development";
-    readonly defaultEnabled: false;
-}, {
-    readonly key: "production";
-    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "udBudget";
@@ -110,10 +118,6 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly lifecycle: "development";
     readonly defaultEnabled: false;
 }, {
-    readonly key: "reports";
-    readonly lifecycle: "active";
-    readonly defaultEnabled: false;
-}, {
     readonly key: "onboarding";
     readonly lifecycle: "development";
     readonly defaultEnabled: false;
@@ -130,8 +134,8 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly lifecycle: "development";
     readonly defaultEnabled: false;
 }, {
-    readonly key: "commercialPipeline";
-    readonly lifecycle: "active";
+    readonly key: "surveys";
+    readonly lifecycle: "development";
     readonly defaultEnabled: false;
 }];
 export type OrganizationModuleKey = (typeof ORGANIZATION_MODULE_CATALOG)[number]['key'];

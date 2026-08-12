@@ -40,4 +40,3 @@ function assertConfigHasNoSecrets(config) {
         throw new common_1.BadRequestException(`Integration secret '${secretKey}' must be configured through its OAuth flow`);
     }
 }
-//# sourceMappingURL=integration-response.js.map

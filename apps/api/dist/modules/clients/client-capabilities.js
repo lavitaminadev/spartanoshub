@@ -15,4 +15,3 @@ function normalizeClientCapabilities(value) {
         ...(value || {}),
     };
 }
-//# sourceMappingURL=client-capabilities.js.map

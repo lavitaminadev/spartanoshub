@@ -26,4 +26,3 @@ class OperationalGovernance1710000000023 {
     }
 }
 exports.OperationalGovernance1710000000023 = OperationalGovernance1710000000023;
-//# sourceMappingURL=0023-operational-governance.js.map

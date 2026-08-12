@@ -75,4 +75,3 @@ __decorate([
 exports.ContentGrid = ContentGrid = __decorate([
     (0, typeorm_1.Entity)('content_grids')
 ], ContentGrid);
-//# sourceMappingURL=content-grid.entity.js.map

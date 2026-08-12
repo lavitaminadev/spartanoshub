@@ -8,4 +8,3 @@ var IntegrationStatus;
     IntegrationStatus["ERROR"] = "error";
     IntegrationStatus["DISABLED"] = "disabled";
 })(IntegrationStatus || (exports.IntegrationStatus = IntegrationStatus = {}));
-//# sourceMappingURL=integration-status.enum.js.map

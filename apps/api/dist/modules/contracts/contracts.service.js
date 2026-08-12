@@ -101,4 +101,3 @@ exports.ContractsService = ContractsService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], ContractsService);
-//# sourceMappingURL=contracts.service.js.map

@@ -50,4 +50,3 @@ exports.ListContentGridsUseCase = ListContentGridsUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(content_grid_entity_1.ContentGrid)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], ListContentGridsUseCase);
-//# sourceMappingURL=list-content-grids.use-case.js.map

@@ -67,4 +67,3 @@ __decorate([
 exports.Pack = Pack = __decorate([
     (0, typeorm_1.Entity)('catalog_packs')
 ], Pack);
-//# sourceMappingURL=pack.entity.js.map

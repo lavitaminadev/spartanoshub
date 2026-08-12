@@ -38,4 +38,3 @@ exports.ProductionModule = ProductionModule = __decorate([
         exports: [typeorm_1.TypeOrmModule],
     })
 ], ProductionModule);
-//# sourceMappingURL=production.module.js.map

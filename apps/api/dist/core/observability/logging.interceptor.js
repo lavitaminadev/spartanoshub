@@ -59,4 +59,3 @@ exports.LoggingInterceptor = LoggingInterceptor = __decorate([
     __metadata("design:paramtypes", [logger_service_1.LoggerService,
         metrics_service_1.MetricsService])
 ], LoggingInterceptor);
-//# sourceMappingURL=logging.interceptor.js.map

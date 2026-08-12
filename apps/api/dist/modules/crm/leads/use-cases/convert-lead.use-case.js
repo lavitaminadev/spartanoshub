@@ -68,4 +68,3 @@ exports.ConvertLeadUseCase = ConvertLeadUseCase = __decorate([
         typeorm_2.Repository,
         event_emitter_1.EventEmitter2])
 ], ConvertLeadUseCase);
-//# sourceMappingURL=convert-lead.use-case.js.map

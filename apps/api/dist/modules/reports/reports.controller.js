@@ -242,7 +242,10 @@ let ReportingController = class ReportingController {
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
         return this.monthlyReports.generate(req.organizationId, req.user.id, dto);
     }
-    updateMonthlyReport(req, id, dto) { return this.monthlyReports.update(id, req.organizationId, dto); }
+    async updateMonthlyReport(req, id, dto) {
+        const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.monthlyReports.update(id, req.organizationId, dto, allowedClientIds);
+    }
     publishMonthlyReport(req, id) { return this.monthlyReports.setPublished(id, req.organizationId, req.user.id, true); }
     unpublishMonthlyReport(req, id) { return this.monthlyReports.setPublished(id, req.organizationId, req.user.id, false); }
 };
@@ -320,7 +323,7 @@ __decorate([
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, monthly_report_dto_1.UpdateMonthlyReportDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReportingController.prototype, "updateMonthlyReport", null);
 __decorate([
     (0, common_1.Post)('monthly-reports/:id/publish'),
@@ -352,4 +355,3 @@ exports.ReportingController = ReportingController = __decorate([
         account_access_service_1.AccountAccessService,
         monthly_reports_service_1.MonthlyReportsService])
 ], ReportingController);
-//# sourceMappingURL=reports.controller.js.map

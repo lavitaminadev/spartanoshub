@@ -25,4 +25,3 @@ exports.DocumentsModule = DocumentsModule = __decorate([
         providers: [documents_service_1.DocumentsService, google_drive_service_1.GoogleDriveService],
     })
 ], DocumentsModule);
-//# sourceMappingURL=documents.module.js.map

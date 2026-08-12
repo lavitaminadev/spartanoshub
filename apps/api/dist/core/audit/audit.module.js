@@ -24,4 +24,3 @@ exports.AuditModule = AuditModule = __decorate([
         exports: [audit_service_1.AuditService, audit_interceptor_1.AuditInterceptor],
     })
 ], AuditModule);
-//# sourceMappingURL=audit.module.js.map

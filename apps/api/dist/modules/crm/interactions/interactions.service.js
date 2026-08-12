@@ -97,4 +97,3 @@ exports.InteractionsService = InteractionsService = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], InteractionsService);
-//# sourceMappingURL=interactions.service.js.map

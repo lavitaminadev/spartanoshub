@@ -15,4 +15,3 @@ var UserRole;
     UserRole["AUDIOVISUAL"] = "audiovisual";
     UserRole["CLIENT"] = "client";
 })(UserRole || (exports.UserRole = UserRole = {}));
-//# sourceMappingURL=user-role.enum.js.map

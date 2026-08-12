@@ -69,4 +69,3 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], CreateOpportunityDto.prototype, "assignedTo", void 0);
-//# sourceMappingURL=create-opportunity.dto.js.map

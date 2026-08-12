@@ -85,4 +85,3 @@ exports.CollectionEmailsJob = CollectionEmailsJob = CollectionEmailsJob_1 = __de
         typeorm_2.Repository,
         email_service_1.EmailService])
 ], CollectionEmailsJob);
-//# sourceMappingURL=collection-emails.job.js.map

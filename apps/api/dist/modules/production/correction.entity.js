@@ -78,4 +78,3 @@ __decorate([
 exports.Correction = Correction = __decorate([
     (0, typeorm_1.Entity)('corrections')
 ], Correction);
-//# sourceMappingURL=correction.entity.js.map

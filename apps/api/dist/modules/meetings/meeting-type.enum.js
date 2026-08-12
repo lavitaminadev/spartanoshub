@@ -6,4 +6,3 @@ var MeetingType;
     MeetingType["STRATEGIC"] = "strategic";
     MeetingType["WEEKLY"] = "weekly";
 })(MeetingType || (exports.MeetingType = MeetingType = {}));
-//# sourceMappingURL=meeting-type.enum.js.map

@@ -60,4 +60,3 @@ exports.JwtStrategy = JwtStrategy = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         sessions_service_1.SessionsService])
 ], JwtStrategy);
-//# sourceMappingURL=jwt.strategy.js.map

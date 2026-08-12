@@ -4,4 +4,3 @@ exports.BudgetAlertDto = void 0;
 class BudgetAlertDto {
 }
 exports.BudgetAlertDto = BudgetAlertDto;
-//# sourceMappingURL=budget-alert.dto.js.map

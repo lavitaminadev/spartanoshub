@@ -39,4 +39,3 @@ class XpDisputes1710000000024 {
     }
 }
 exports.XpDisputes1710000000024 = XpDisputes1710000000024;
-//# sourceMappingURL=0024-xp-disputes.js.map

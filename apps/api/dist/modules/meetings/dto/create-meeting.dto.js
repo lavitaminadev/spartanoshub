@@ -66,4 +66,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], CreateMeetingDto.prototype, "meetingLink", void 0);
-//# sourceMappingURL=create-meeting.dto.js.map

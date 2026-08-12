@@ -27,4 +27,3 @@ exports.ClientsModule = ClientsModule = __decorate([
         providers: [create_client_use_case_1.CreateClientUseCase, list_clients_use_case_1.ListClientsUseCase, get_client_use_case_1.GetClientUseCase, client_overview_service_1.ClientOverviewService],
     })
 ], ClientsModule);
-//# sourceMappingURL=clients.module.js.map

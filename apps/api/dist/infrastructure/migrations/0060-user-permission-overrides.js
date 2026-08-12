@@ -40,4 +40,3 @@ class UserPermissionOverrides1724247700000 {
     }
 }
 exports.UserPermissionOverrides1724247700000 = UserPermissionOverrides1724247700000;
-//# sourceMappingURL=0060-user-permission-overrides.js.map

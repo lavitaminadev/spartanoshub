@@ -125,4 +125,3 @@ exports.DataProtectionController = DataProtectionController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('governance'),
     __metadata("design:paramtypes", [data_protection_service_1.DataProtectionService])
 ], DataProtectionController);
-//# sourceMappingURL=data-protection.controller.js.map

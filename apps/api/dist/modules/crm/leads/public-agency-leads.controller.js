@@ -62,7 +62,7 @@ let PublicAgencyLeadsController = class PublicAgencyLeadsController {
                 tracking: dto.tracking ? { ...dto.tracking } : undefined,
                 consent: { marketingAccepted: Boolean(dto.consent.marketingAccepted), policyVersion: dto.consent.policyVersion },
             },
-        });
+        }, 'create-only');
         return { success: true, submissionId: (0, crypto_1.randomUUID)(), message: 'Información recibida correctamente' };
     }
 };
@@ -81,4 +81,3 @@ exports.PublicAgencyLeadsController = PublicAgencyLeadsController = __decorate([
     (0, common_1.Controller)('public/agency-crm/leads'),
     __metadata("design:paramtypes", [lead_intake_service_1.LeadIntakeService])
 ], PublicAgencyLeadsController);
-//# sourceMappingURL=public-agency-leads.controller.js.map

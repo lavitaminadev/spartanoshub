@@ -28,4 +28,3 @@ class CriticalIndexes1710000000034 {
     }
 }
 exports.CriticalIndexes1710000000034 = CriticalIndexes1710000000034;
-//# sourceMappingURL=0034-critical-indexes.js.map

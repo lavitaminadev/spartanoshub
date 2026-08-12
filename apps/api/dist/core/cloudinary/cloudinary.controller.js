@@ -147,4 +147,3 @@ exports.CloudinaryController = CloudinaryController = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         cloudinary_service_1.CloudinaryService])
 ], CloudinaryController);
-//# sourceMappingURL=cloudinary.controller.js.map

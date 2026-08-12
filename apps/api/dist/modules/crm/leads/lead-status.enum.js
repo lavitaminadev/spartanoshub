@@ -39,4 +39,3 @@ function isStatusInDomain(domain, status) {
     const allowed = exports.STATUSES_BY_DOMAIN[domain];
     return Boolean(allowed?.includes(status));
 }
-//# sourceMappingURL=lead-status.enum.js.map

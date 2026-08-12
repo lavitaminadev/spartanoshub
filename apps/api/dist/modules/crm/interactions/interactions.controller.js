@@ -94,4 +94,3 @@ exports.InteractionsController = InteractionsController = __decorate([
     (0, requires_feature_decorator_1.RequiresFeature)('commercialPipeline'),
     __metadata("design:paramtypes", [interactions_service_1.InteractionsService])
 ], InteractionsController);
-//# sourceMappingURL=interactions.controller.js.map

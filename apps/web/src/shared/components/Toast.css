@@ -1,0 +1,85 @@
+/* Namespace `flow-toast`: distinto de `.toast` / `.toast-container`
+   (styles/reservation-brand.css), que pertenece al sistema global `shared/Toast.tsx`
+   montado en `Layout` y ya posicionado arriba a la derecha con otra paleta por tipo. */
+
+.flow-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(370px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--white);
+  box-shadow: var(--shadow-md, 0 16px 46px rgba(31, 17, 25, 0.24));
+  font-size: 12.5px;
+  font-weight: 600;
+  animation: flow-toast-in 0.2s ease both;
+}
+
+.flow-toast-icon {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  font-weight: 900;
+  color: var(--ink);
+  background: var(--cyan);
+}
+
+.flow-toast--warning .flow-toast-icon {
+  background: var(--amber);
+}
+
+.flow-toast--error .flow-toast-icon {
+  background: var(--pink);
+  color: var(--white);
+}
+
+.flow-toast-message {
+  flex: 1;
+}
+
+.flow-toast-close {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 2px;
+}
+
+.flow-toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes flow-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-toast {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .flow-toast {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    max-width: none;
+  }
+}

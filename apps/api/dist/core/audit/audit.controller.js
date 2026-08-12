@@ -47,4 +47,3 @@ exports.AuditController = AuditController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('governance'),
     __metadata("design:paramtypes", [audit_service_1.AuditService])
 ], AuditController);
-//# sourceMappingURL=audit.controller.js.map

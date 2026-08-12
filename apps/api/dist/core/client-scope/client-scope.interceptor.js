@@ -22,4 +22,3 @@ exports.ClientScopeInterceptor = ClientScopeInterceptor;
 exports.ClientScopeInterceptor = ClientScopeInterceptor = __decorate([
     (0, common_1.Injectable)()
 ], ClientScopeInterceptor);
-//# sourceMappingURL=client-scope.interceptor.js.map

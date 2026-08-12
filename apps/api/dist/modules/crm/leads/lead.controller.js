@@ -181,4 +181,3 @@ exports.LeadController = LeadController = __decorate([
         typeorm_2.Repository,
         account_access_service_1.AccountAccessService])
 ], LeadController);
-//# sourceMappingURL=lead.controller.js.map

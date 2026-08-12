@@ -62,4 +62,3 @@ __decorate([
 class UpdateObjectiveDto extends (0, swagger_1.PartialType)(CreateObjectiveDto) {
 }
 exports.UpdateObjectiveDto = UpdateObjectiveDto;
-//# sourceMappingURL=objective.dto.js.map

@@ -74,21 +74,28 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
     async captureAudience(input) {
         return this.capture({ ...input, domain: 'audience' });
     }
-    async captureLead(input) {
-        const { lead } = await this.capture(input);
+    async captureLead(input, mode = 'upsert') {
+        const { lead } = await this.capture(input, mode);
         return lead;
     }
-    async capture(input) {
+    async capture(input, mode = 'upsert') {
         const { domain, payload } = this.splitDomain(input);
         const normalized = this.normalizeInput(payload);
         const transactionManager = this.repo.manager;
         if (!transactionManager?.transaction) {
-            return this.persistCapture(normalized, domain, this.repo);
+            return this.persistCapture(normalized, domain, this.repo, undefined, mode);
         }
-        return transactionManager.transaction(async (manager) => this.persistCapture(normalized, domain, manager.getRepository(lead_entity_1.Lead), manager));
+        return transactionManager.transaction(async (manager) => this.persistCapture(normalized, domain, manager.getRepository(lead_entity_1.Lead), manager, mode));
     }
-    async persistCapture(normalized, domain, repo, manager) {
-        const match = await this.findExistingLead(normalized, repo, domain);
+    async persistCapture(normalized, domain, repo, manager, mode = 'upsert') {
+        if (mode === 'create-only') {
+            const replay = await this.findReplay(normalized, repo);
+            if (replay)
+                return { lead: replay, contact: null };
+        }
+        const match = mode === 'create-only'
+            ? { lead: null }
+            : await this.findExistingLead(normalized, repo, domain);
         const qualification = this.qualifyLead(normalized, domain);
         const retentionReviewAt = this.buildRetentionReviewDate();
         const lead = match.lead ?? repo.create({ organizationId: normalized.organizationId });
@@ -114,6 +121,11 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
             await this.recordIdentityChange(savedLead, identityChange);
         const contact = await this.runAutomation(savedLead, domain, manager);
         return { lead: await repo.save(savedLead), contact };
+    }
+    async findReplay(input, repo) {
+        if (!input.externalLeadId)
+            return null;
+        return repo.findOne({ where: { organizationId: input.organizationId, externalLeadId: input.externalLeadId } });
     }
     identityDiff(existing, incoming) {
         const fields = ['name', 'email', 'phone', 'company'];
@@ -318,4 +330,3 @@ exports.LeadIntakeService = LeadIntakeService = LeadIntakeService_1 = __decorate
         crm_lead_automation_service_1.CrmLeadAutomationService,
         audit_service_1.AuditService])
 ], LeadIntakeService);
-//# sourceMappingURL=lead-intake.service.js.map

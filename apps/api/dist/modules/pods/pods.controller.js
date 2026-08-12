@@ -93,4 +93,3 @@ exports.PodsController = PodsController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('users'),
     __metadata("design:paramtypes", [pods_service_1.PodsService])
 ], PodsController);
-//# sourceMappingURL=pods.controller.js.map

@@ -500,3 +500,8 @@ select option[value="table"] { display:none; }
   .op-home-stats { grid-template-columns: 1fr; }
   .op-party { display: none; }
 }
+.mood-art { height:120px; border-radius:var(--radius-sm); display:grid; place-items:center; margin-bottom:var(--space-sm); }
+.mood-art.art-0 { background:linear-gradient(135deg, var(--soft), #e8ece8); }
+.mood-art.art-1 { background:linear-gradient(135deg, var(--pink-bg), #fce4ec); }
+.mood-art.art-2 { background:linear-gradient(135deg, var(--cyan-bg), #e0f2f1); }
+.mood-art > span { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }

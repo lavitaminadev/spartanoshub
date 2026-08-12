@@ -8,6 +8,7 @@ import { useAuth } from '../../core/auth';
 import { Modal } from '../../shared/Modal';
 import { EmptyState } from '../../shared/EmptyState';
 import { statusLabel } from '../../shared/status-labels';
+import { roleLabel } from '../../core/role-labels';
 
 interface Pod {
   id: string;
@@ -82,7 +83,7 @@ export function OperationsPage() {
     queryFn: () => api.get('/clients'),
     enabled: canManageObjectives,
   });
-  const clients = (clientsResp as any)?.data ?? [];
+  const clients: ClientOption[] = clientsResp?.data ?? [];
   const objectiveMutation = useMutation({ mutationFn: ({ id, progress }: { id: string; progress: number }) => api.put(`/objectives/${id}`, { progress }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['objectives'] }) });
   const createObjective = useMutation({
     mutationFn: () => api.post('/objectives', {
@@ -115,9 +116,9 @@ export function OperationsPage() {
     <div className="page">
       <h1>Operaciones</h1>
       <div className="card-grid">
-        <Card title="Capacidad Total" value={data.totalCapacity > 0 ? `${data.totalCapacity} UD` : 'Sin definir'} icon="📊" color="#3498db" />
-        <Card title="Demanda Actual" value={`${data.usedCapacity} UD`} icon="⚡" color="#e67e22" />
-        <Card title="Utilización" value={data.totalCapacity > 0 ? `${utilizationPct}%` : 'Sin definir'} icon="📈" color={utilizationPct > 80 ? '#e74c3c' : '#27ae60'} />
+        <Card title="Capacidad Total" value={data.totalCapacity > 0 ? `${data.totalCapacity} UD` : 'Sin definir'} icon="📊" color="var(--info)" />
+        <Card title="Demanda Actual" value={`${data.usedCapacity} UD`} icon="⚡" color="var(--amber)" />
+        <Card title="Utilización" value={data.totalCapacity > 0 ? `${utilizationPct}%` : 'Sin definir'} icon="📈" color={utilizationPct > 80 ? 'var(--danger)' : 'var(--success)'} />
       </div>
       <div className="section">
         <div className="section-title-row">
@@ -187,7 +188,7 @@ export function OperationsPage() {
         )}
       </div>
       <div className="section">
-        <h2>Pods</h2>
+        <div className="section-title-row"><div><h2>Pods y capacidad</h2><p className="page-subtitle">Estructura operativa con carga actual.</p></div><span className="page-eyebrow">{data?.pods?.length ?? 0} pods · {data?.usedCapacity ?? 0}/{data?.totalCapacity ?? 0} UD</span></div>
         {data.pods.length === 0 ? (
           <div className="alert alert-info">La asignación por pods está pendiente de definición operativa. El equipo y la demanda real siguen visibles abajo.</div>
         ) : (
@@ -205,7 +206,7 @@ export function OperationsPage() {
                     <span>{pod.currentLoad}/{pod.capacity} UD</span>
                   </div>
                   <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${loadPct}%`, background: loadPct > 80 ? '#e74c3c' : '#27ae60' }} />
+                    <div className="progress-fill" style={{ width: `${loadPct}%`, background: loadPct > 80 ? 'var(--danger)' : 'var(--success)' }} />
                   </div>
                   <div className="pod-load">{loadPct}%</div>
                 </div>
@@ -215,41 +216,24 @@ export function OperationsPage() {
         )}
       </div>
       <div className="section">
-        <h2>Equipo</h2>
+        <div className="section-title-row"><div><h2>Equipo y carga</h2><p className="page-subtitle">Capacidad asignada y carga actual por persona.</p></div><span className="page-eyebrow">{data.team.length} personas</span></div>
         {data.team.length === 0 ? (
           <EmptyState icon="👥" title="Equipo vacío" description="No hay miembros registrados en el equipo todavía." />
         ) : (
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Rol</th>
-                  <th>Piezas Actuales</th>
-                  <th>Capacidad</th>
-                  <th>Carga</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.team.map((m) => {
-                  const load = m.capacity > 0 ? Math.round((m.currentPieces / m.capacity) * 100) : 0;
-                  return (
-                    <tr key={m.id}>
-                      <td>{m.name}</td>
-                      <td>{m.role}</td>
-                      <td>{m.currentPieces}</td>
-                      <td>{m.capacity > 0 ? `${m.capacity} UD` : 'Sin definir'}</td>
-                      <td>
-                        <div className="progress-bar" style={{ width: '100%' }}>
-                          <div className="progress-fill" style={{ width: `${m.capacity > 0 ? load : 0}%`, background: load > 80 ? '#e74c3c' : '#27ae60' }} />
-                        </div>
-                        <span style={{ fontSize: 12, marginLeft: 8 }}>{m.capacity > 0 ? `${load}%` : 'Pendiente'}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="workload-grid">
+            {data.team.map((m) => {
+              const load = m.capacity > 0 ? Math.round((m.currentPieces / m.capacity) * 100) : 0;
+              const isOverloaded = load > 90;
+              return <article className={`workload-person ${isOverloaded ? 'is-over' : ''}`} key={m.id}>
+                <span className="workload-avatar">{m.name.trim().charAt(0).toUpperCase()}</span>
+                <div className="workload-info">
+                  <strong>{m.name}</strong>
+                  <small>{roleLabel(m.role)} · {m.currentPieces} piezas</small>
+                  <div className="load-bar"><i style={{ width: `${load}%`, background: load > 90 ? 'var(--danger)' : load > 70 ? 'var(--amber)' : 'var(--success)' }} /></div>
+                </div>
+                <b className={`workload-pct ${isOverloaded ? 'amber-text' : ''}`}>{m.capacity > 0 ? `${m.currentPieces}/${m.capacity} UD` : 'Pendiente'}</b>
+              </article>;
+            })}
           </div>
         )}
       </div>
@@ -263,7 +247,7 @@ export function OperationsPage() {
         </div>
         {objectives.length === 0 ? <EmptyState icon="🎯" title="Sin objetivos" description="No se han definido objetivos operativos para el equipo." action={canManageObjectives ? <button className="btn btn-primary" type="button" onClick={() => setObjectiveOpen(true)}>+ Nuevo objetivo</button> : undefined} /> : <div className="objective-grid">
           {objectives.map((objective) => <article className="objective-card" key={objective.id}>
-            <div className="cycle-card-head"><span className="objective-category">{objective.category}</span><StatusBadge status={objective.status} /></div>
+            <div className="cycle-card-head"><span className="objective-category">{statusLabel(objective.category)}</span><StatusBadge status={objective.status} /></div>
             <h3>{objective.title}</h3>
             <div className="progress-bar"><div className="progress-fill" style={{ width: `${objective.progress}%` }} /></div>
             <div className="objective-footer"><span>{objective.progress}%</span>{objective.dueAt && <span>Hasta {new Date(objective.dueAt).toLocaleDateString('es-CL')}</span>}</div>
@@ -280,7 +264,7 @@ export function OperationsPage() {
           </div>
           <label>Descripción<textarea className="input" rows={4} maxLength={5000} value={objectiveForm.description} onChange={(event) => setObjectiveForm({ ...objectiveForm, description: event.target.value })} /></label>
           <div className="form-row">
-            <label>Responsable<select className="input" value={objectiveForm.ownerId} onChange={(event) => setObjectiveForm({ ...objectiveForm, ownerId: event.target.value })}><option value="">Objetivo general</option>{users.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role.replace(/_/g, ' ')}</option>)}</select></label>
+            <label>Responsable<select className="input" value={objectiveForm.ownerId} onChange={(event) => setObjectiveForm({ ...objectiveForm, ownerId: event.target.value })}><option value="">Objetivo general</option>{users.map((member) => <option key={member.id} value={member.id}>{member.name} · {roleLabel(member.role)}</option>)}</select></label>
             <label>Cuenta asociada<select className="input" value={objectiveForm.clientId} onChange={(event) => setObjectiveForm({ ...objectiveForm, clientId: event.target.value })}><option value="">Sin cuenta específica</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
           </div>
           <label>Progreso inicial: {objectiveForm.progress}%<input type="range" min="0" max="100" step="5" value={objectiveForm.progress} onChange={(event) => setObjectiveForm({ ...objectiveForm, progress: Number(event.target.value) })} /></label>

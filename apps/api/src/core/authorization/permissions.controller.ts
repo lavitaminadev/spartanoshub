@@ -2,15 +2,19 @@ import { Body, Controller, Delete, Get, Param, Put, Req, UseGuards } from '@nest
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PermissionResolverService } from './permission-resolver.service';
 import { UserPermissionOverride } from './user-permission-override.entity';
+import { RolePermissionOverride } from './role-permission-override.entity';
 import { UpsertPermissionOverrideDto } from './dto/upsert-permission-override.dto';
+import { UpdateRoleMatrixDto } from './dto/update-role-matrix.dto';
 import { Roles } from './roles.decorator';
+import { RequiresRecentAuth } from '../auth/requires-recent-auth.decorator';
 import { UserRole } from '../../modules/organizations/user-role.enum';
 import { User } from '../../modules/users/user.entity';
-import { isOrganizationFeatureKey, ORGANIZATION_FEATURE_KEYS } from '../../modules/organizations/organization-features';
+import { isOrganizationFeatureKey, ORGANIZATION_FEATURE_KEYS, type OrganizationFeatureKey } from '../../modules/organizations/organization-features';
+import { isPermissionLevel, type PermissionLevel } from './permission-level';
 import { roleLevel } from './role-permissions';
 import { AuditService } from '../audit/audit.service';
 import type { AuthenticatedRequest } from '../../shared/types/request';
@@ -32,12 +36,152 @@ export class PermissionsController {
   constructor(
     private readonly permissions: PermissionResolverService,
     @InjectRepository(UserPermissionOverride) private readonly overrides: Repository<UserPermissionOverride>,
+    @InjectRepository(RolePermissionOverride) private readonly roleOverrides: Repository<RolePermissionOverride>,
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(UserClientAccess) private readonly clientAccess: Repository<UserClientAccess>,
     @InjectRepository(Client) private readonly clients: Repository<Client>,
     private readonly accountAccess: AccountAccessService,
     private readonly audit: AuditService,
   ) {}
+
+  /**
+   * Matriz completa de cargos, con la procedencia de cada celda.
+   *
+   * `matrix[módulo][cargo]` es el nivel vigente y `sources[módulo][cargo]` dice si sale del
+   * código (`code`) o de un ajuste guardado para esta organización (`override`). Sin esa
+   * segunda mitad, el panel no puede distinguir un valor por defecto de uno movido a mano, que
+   * es justo lo que hay que saber para decidir si tocarlo.
+   */
+  @Get('roles/permissions')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Matriz de permisos por cargo y módulo' })
+  async roleMatrix(@Req() req: AuthenticatedRequest) {
+    return this.permissions.roleMatrix(req.organizationId);
+  }
+
+  /**
+   * Guarda la matriz de cargos como diferencias respecto del código.
+   *
+   * Recibe la matriz completa y persiste solo las celdas que se apartan de
+   * `role-permissions.ts`. Una celda que vuelve a su valor de código borra su ajuste, de modo
+   * que a partir de ahí sigue al código si este cambia: guardar el mismo valor la congelaría.
+   *
+   * Los módulos que el catálogo no conoce y los cargos inexistentes se rechazan enteros en vez
+   * de ignorarse, para que un panel desactualizado no guarde en silencio una matriz parcial.
+   */
+  @Put('roles/permissions')
+  @Roles(UserRole.ADMIN)
+  @RequiresRecentAuth('cambiar los permisos de un cargo')
+  @ApiOperation({ summary: 'Guardar la matriz de permisos por cargo' })
+  async updateRoleMatrix(@Body() dto: UpdateRoleMatrixDto, @Req() req: AuthenticatedRequest) {
+    const organizationId = req.organizationId;
+    const validRoles = new Set<string>(Object.values(UserRole));
+
+    /** Celdas que difieren del código, ya validadas. */
+    const desired = new Map<string, { role: UserRole; module: OrganizationFeatureKey; level: PermissionLevel }>();
+    for (const [module, byRole] of Object.entries(dto.matrix ?? {})) {
+      if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
+      for (const [role, level] of Object.entries(byRole ?? {})) {
+        if (!validRoles.has(role)) throw new BadRequestException(`Cargo desconocido: ${role}`);
+        if (!isPermissionLevel(level)) throw new BadRequestException(`Nivel desconocido: ${level}`);
+        if (level === this.permissions.codeLevel(role as UserRole, module)) continue;
+        desired.set(`${role}:${module}`, { role: role as UserRole, module, level });
+      }
+    }
+
+    const existing = await this.roleOverrides.find({ where: { organizationId } });
+    const before: Record<string, string> = {};
+    const after: Record<string, string> = {};
+
+    const obsolete = existing.filter((row) => !desired.has(`${row.role}:${row.module}`));
+    for (const row of obsolete) {
+      before[`${row.role}:${row.module}`] = row.level;
+      after[`${row.role}:${row.module}`] = isOrganizationFeatureKey(row.module)
+        ? this.permissions.codeLevel(row.role as UserRole, row.module)
+        : 'none';
+    }
+    if (obsolete.length > 0) await this.roleOverrides.remove(obsolete);
+
+    const existingByCell = new Map(existing.map((row) => [`${row.role}:${row.module}`, row]));
+    const toSave = [];
+    for (const [key, cell] of desired) {
+      const current = existingByCell.get(key);
+      if (current?.level === cell.level) continue;
+      before[key] = current?.level ?? this.permissions.codeLevel(cell.role, cell.module);
+      after[key] = cell.level;
+      toSave.push({
+        ...(current ?? {}),
+        organizationId,
+        role: cell.role,
+        module: cell.module,
+        level: cell.level,
+        reason: dto.reason ?? null,
+        grantedBy: req.user.id,
+      });
+    }
+    if (toSave.length > 0) await this.roleOverrides.save(toSave);
+
+    // El nivel de cualquier persona de la organización puede depender de lo que cambió.
+    this.permissions.invalidateOrganization(organizationId);
+
+    if (Object.keys(after).length > 0) {
+      await this.audit.log({
+        organizationId,
+        actorId: req.user.id,
+        entityType: 'RolePermissionOverride',
+        entityId: organizationId,
+        action: 'updated',
+        before,
+        after,
+        reason: dto.reason,
+      });
+    }
+
+    return { ...(await this.permissions.roleMatrix(organizationId)), changed: Object.keys(after).length };
+  }
+
+  /**
+   * Todas las excepciones por persona de la organización.
+   *
+   * El detalle por usuario (`GET users/:id/permissions`) responde "qué alcanza esta persona";
+   * este listado responde "qué excepciones existen", que es la pregunta de una revisión de
+   * accesos y no se puede contestar recorriendo usuario por usuario.
+   *
+   * Una excepción vencida se devuelve con `status: 'expired'` y ya no concede nada: la fila se
+   * conserva como constancia de lo que se otorgó.
+   */
+  @Get('permission-overrides')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @ApiOperation({ summary: 'Excepciones de permiso de toda la organización' })
+  async listOverrides(@Req() req: AuthenticatedRequest) {
+    const rows = await this.overrides.find({
+      where: { organizationId: req.organizationId },
+      order: { createdAt: 'DESC' },
+    });
+    if (rows.length === 0) return { items: [] };
+
+    const owners = await this.users.find({
+      where: { id: In([...new Set(rows.map((row) => row.userId))]) },
+      select: { id: true, name: true, role: true },
+    });
+    const ownerById = new Map(owners.map((owner) => [owner.id, owner]));
+    const now = Date.now();
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        userId: row.userId,
+        userName: ownerById.get(row.userId)?.name ?? 'Usuario no disponible',
+        userRole: ownerById.get(row.userId)?.role,
+        module: row.module,
+        level: row.level,
+        reason: row.reason ?? undefined,
+        expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
+        status: row.expiresAt && row.expiresAt.getTime() <= now ? 'expired' : 'active',
+        createdAt: row.createdAt?.toISOString(),
+      })),
+    };
+  }
 
   /**
    * Permisos efectivos del usuario autenticado.

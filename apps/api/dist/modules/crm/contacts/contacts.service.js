@@ -108,4 +108,3 @@ exports.ContactsService = ContactsService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.DataSource])
 ], ContactsService);
-//# sourceMappingURL=contacts.service.js.map

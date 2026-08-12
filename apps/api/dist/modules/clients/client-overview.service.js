@@ -110,4 +110,3 @@ exports.ClientOverviewService = ClientOverviewService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.DataSource])
 ], ClientOverviewService);
-//# sourceMappingURL=client-overview.service.js.map

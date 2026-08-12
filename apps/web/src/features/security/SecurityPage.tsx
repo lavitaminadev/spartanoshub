@@ -84,6 +84,18 @@ export function SecurityPage() {
     queryKey: ['security-anonymizations'],
     queryFn: () => api.get('/audit?action=anonymize&limit=100'),
   });
+  const consentActiveQuery = useQuery<{ id: string; version: number; title: string; text: string; publishedAt: string }>({
+    queryKey: ['consent-active'],
+    queryFn: () => api.get('/consent/active'),
+  });
+  const consentPendingQuery = useQuery<{ pending: number; total: number }>({
+    queryKey: ['consent-pending'],
+    queryFn: () => api.get('/consent/pending-count'),
+  });
+  const pwdPolicyQuery = useQuery<Record<string, string>>({
+    queryKey: ['security-password-policy'],
+    queryFn: () => api.get('/settings?prefix=security.password'),
+  });
 
   return <div className="page security-page">
     <PageHero
@@ -148,6 +160,58 @@ export function SecurityPage() {
             <td>{row.reason ?? '—'}</td>
           </tr>)}</tbody>
         </table>}
+    </section>
+
+    <section>
+      <div className="section-toolbar">
+        <div><span className="page-eyebrow">POLÍTICA DE CONTRASEÑAS</span><h2>Requisitos de seguridad</h2><p className="page-subtitle">Aplica a todos los usuarios. Se configura desde el panel de control de acceso.</p></div>
+      </div>
+      {pwdPolicyQuery.isLoading ? <LoadingSpinner text="Cargando política..." /> :
+        <div className="security-policy-grid">
+          <article>
+            <h3>Caducidad</h3>
+            <p>La contraseña debe cambiarse cada <strong>{pwdPolicyQuery.data?.['security.password.expiryDays'] ?? 90} días</strong>. Al cumplirse el plazo, el sistema exige el cambio al iniciar sesión.</p>
+          </article>
+          <article>
+            <h3>Complejidad</h3>
+            <p>Mínimo <strong>{pwdPolicyQuery.data?.['security.password.minLength'] ?? 8} caracteres</strong>{pwdPolicyQuery.data?.['security.password.requireUppercase'] !== 'false' ? ', al menos una mayúscula' : ''}{pwdPolicyQuery.data?.['security.password.requireNumber'] !== 'false' ? ', un número' : ''}{pwdPolicyQuery.data?.['security.password.requireSpecial'] === 'true' ? ', un carácter especial' : ''}.</p>
+          </article>
+          <article>
+            <h3>Historial</h3>
+            <p>No se puede reutilizar ninguna de las últimas <strong>{pwdPolicyQuery.data?.['security.password.preventReuse'] ?? 5} contraseñas</strong>.</p>
+          </article>
+          <article>
+            <h3>Validación mensual</h3>
+            <p>Cada {pwdPolicyQuery.data?.['security.password.expiryDays'] ?? 90} días el sistema solicita el cambio. El administrador recibe una notificación si hay usuarios con contraseña vencida.</p>
+          </article>
+        </div>}
+    </section>
+
+    <section>
+      <div className="section-toolbar">
+        <div><span className="page-eyebrow">CONSENTIMIENTO INFORMADO</span><h2>Versión activa y estado de aceptación</h2><p className="page-subtitle">Cumplimiento Ley 19.628. Cada nueva versión requiere re-aceptación de todos los usuarios.</p></div>
+      </div>
+      {consentActiveQuery.isLoading ? <LoadingSpinner text="Cargando consentimiento..." /> :
+        consentActiveQuery.data ? <div className="security-policy-grid">
+          <article>
+            <h3>Versión activa</h3>
+            <p><strong>v{consentActiveQuery.data.version}</strong> — {consentActiveQuery.data.title}</p>
+            <p style={{fontSize:11,color:'var(--muted)',marginTop:4}}>Publicada el {new Date(consentActiveQuery.data.publishedAt).toLocaleDateString('es-CL')}</p>
+          </article>
+          <article>
+            <h3>Aceptación</h3>
+            <p><strong>{consentPendingQuery.data ? consentPendingQuery.data.total - (consentPendingQuery.data.pending ?? 0) : '—'} de {consentPendingQuery.data?.total ?? '—'}</strong> usuarios aceptaron</p>
+            {consentPendingQuery.data && consentPendingQuery.data.pending > 0 && <p style={{fontSize:11,color:'var(--amber)',marginTop:4}}>{consentPendingQuery.data.pending} usuario{consentPendingQuery.data.pending !== 1 ? 's' : ''} pendiente{consentPendingQuery.data.pending !== 1 ? 's' : ''} de aceptación</p>}
+          </article>
+          <article>
+            <h3>Flujo legal</h3>
+            <p>Al registrarse, cada usuario acepta la versión vigente. Si el consentimiento cambia, debe re-aceptarlo. El administrador puede otorgar acceso sin aceptación, dejando auditoría.</p>
+          </article>
+          <article>
+            <h3>Derechos ARCO</h3>
+            <p>Acceso, Rectificación, Cancelación y Oposición. Cualquier usuario puede solicitar la exportación o anonimización de sus datos desde su perfil.</p>
+          </article>
+        </div> : <EmptyState icon="📜" title="Sin consentimiento publicado" description="Publica la primera versión desde el panel de control de acceso para activar el registro de aceptaciones." />}
     </section>
 
     <section>

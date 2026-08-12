@@ -38,4 +38,3 @@ exports.ListMeetingsUseCase = ListMeetingsUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(meeting_entity_1.Meeting)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], ListMeetingsUseCase);
-//# sourceMappingURL=list-meetings.use-case.js.map

@@ -36,4 +36,3 @@ exports.ListIntegrationsUseCase = ListIntegrationsUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(integration_entity_1.Integration)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], ListIntegrationsUseCase);
-//# sourceMappingURL=list-integrations.use-case.js.map

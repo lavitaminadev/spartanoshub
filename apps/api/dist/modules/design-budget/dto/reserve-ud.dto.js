@@ -38,4 +38,3 @@ __decorate([
     (0, class_validator_1.Max)(12),
     __metadata("design:type", Number)
 ], ReserveUdDto.prototype, "month", void 0);
-//# sourceMappingURL=reserve-ud.dto.js.map

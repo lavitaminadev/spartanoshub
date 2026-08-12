@@ -109,4 +109,3 @@ exports.GamificationController = GamificationController = __decorate([
         get_weekly_ranking_use_case_1.GetWeeklyRankingUseCase,
         xp_disputes_service_1.XpDisputesService])
 ], GamificationController);
-//# sourceMappingURL=gamification.controller.js.map

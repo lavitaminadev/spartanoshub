@@ -29,4 +29,3 @@ __decorate([
     (0, class_validator_1.IsEnum)(correction_origin_enum_1.CorrectionOrigin),
     __metadata("design:type", String)
 ], RejectPieceDto.prototype, "origin", void 0);
-//# sourceMappingURL=reject-piece.dto.js.map

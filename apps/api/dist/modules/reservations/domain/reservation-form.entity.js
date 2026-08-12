@@ -134,4 +134,3 @@ exports.ReservationForm = ReservationForm = __decorate([
     (0, typeorm_1.Entity)('reservation_forms'),
     (0, typeorm_1.Index)('UQ_reservation_forms_public_slug', ['publicSlug'], { unique: true })
 ], ReservationForm);
-//# sourceMappingURL=reservation-form.entity.js.map

@@ -19,4 +19,3 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], RefreshDto.prototype, "refreshToken", void 0);
-//# sourceMappingURL=refresh.dto.js.map

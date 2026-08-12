@@ -25,4 +25,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(5000),
     __metadata("design:type", String)
 ], UpdateApprovalDto.prototype, "decisionNotes", void 0);
-//# sourceMappingURL=update-approval.dto.js.map

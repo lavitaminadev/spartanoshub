@@ -65,4 +65,3 @@ exports.NotificationService = NotificationService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(notification_entity_1.Notification)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], NotificationService);
-//# sourceMappingURL=notification.service.js.map

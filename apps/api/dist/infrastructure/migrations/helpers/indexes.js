@@ -33,4 +33,3 @@ async function dropIndexes(queryRunner, specs) {
         await queryRunner.query(`ALTER TABLE \`${spec.table}\` DROP INDEX \`${spec.name}\``);
     }
 }
-//# sourceMappingURL=indexes.js.map

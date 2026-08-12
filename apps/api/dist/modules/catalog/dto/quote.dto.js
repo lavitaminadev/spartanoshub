@@ -82,4 +82,3 @@ __decorate([
 class UpdateQuoteDto extends CreateQuoteDto {
 }
 exports.UpdateQuoteDto = UpdateQuoteDto;
-//# sourceMappingURL=quote.dto.js.map

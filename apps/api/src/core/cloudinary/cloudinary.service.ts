@@ -80,6 +80,21 @@ function sha1(input: string): string {
   return createHash('sha1').update(input).digest('hex');
 }
 
+/**
+ * Deja un identificador en condiciones de ser un segmento de carpeta.
+ *
+ * Cloudinary interpreta las barras del `public_id` como jerarquía, así que un segmento
+ * conserva solo caracteres de identificador: cualquier otro —barras, puntos, espacios— se
+ * reemplaza y no puede alterar la ruta ni salir de la carpeta que le corresponde.
+ *
+ * @throws BadRequestException si no queda ningún carácter utilizable.
+ */
+function folderSegment(value: string): string {
+  const clean = value.replace(/[^A-Za-z0-9_-]/g, '_');
+  if (!clean) throw new BadRequestException('Identificador de carpeta inválido');
+  return clean;
+}
+
 @Injectable()
 export class CloudinaryService {
   private readonly logger = new Logger(CloudinaryService.name);
@@ -238,11 +253,14 @@ export class CloudinaryService {
    *
    * Es el mecanismo de aislamiento: las credenciales de Cloudinary pueden ser comunes a
    * varias organizaciones, así que la separación la da la jerarquía de carpetas.
+   *
+   * La ruta que devuelve tiene siempre dos o tres segmentos y ninguno puede escapar de su
+   * nivel: quien pase un identificador con barras o con `..` obtiene igualmente una carpeta
+   * dentro de la de su organización.
    */
   static folderFor(organizationId: string, clientId?: string): string {
-    return clientId
-      ? `${CLOUDINARY_FOLDER_ROOT}/${organizationId}/${clientId}`
-      : `${CLOUDINARY_FOLDER_ROOT}/${organizationId}`;
+    const root = `${CLOUDINARY_FOLDER_ROOT}/${folderSegment(organizationId)}`;
+    return clientId ? `${root}/${folderSegment(clientId)}` : root;
   }
 
   /**

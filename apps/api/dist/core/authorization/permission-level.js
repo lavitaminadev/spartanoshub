@@ -10,4 +10,3 @@ function satisfies(granted, required) {
 function isPermissionLevel(value) {
     return exports.PERMISSION_LEVELS.includes(value);
 }
-//# sourceMappingURL=permission-level.js.map

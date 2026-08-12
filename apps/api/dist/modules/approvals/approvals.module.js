@@ -29,4 +29,3 @@ exports.ApprovalsModule = ApprovalsModule = __decorate([
         providers: [list_approvals_use_case_1.ListApprovalsUseCase, update_approval_status_use_case_1.UpdateApprovalStatusUseCase, piece_rules_service_1.PieceRulesService],
     })
 ], ApprovalsModule);
-//# sourceMappingURL=approvals.module.js.map

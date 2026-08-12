@@ -11,4 +11,3 @@ var IntegrationProvider;
     IntegrationProvider["CLOUDINARY"] = "cloudinary";
     IntegrationProvider["OTHER"] = "other";
 })(IntegrationProvider || (exports.IntegrationProvider = IntegrationProvider = {}));
-//# sourceMappingURL=integration-provider.enum.js.map

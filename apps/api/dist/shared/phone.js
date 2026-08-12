@@ -24,4 +24,3 @@ function normalizePhone(value) {
 function normalizePhoneDigits(value) {
     return normalizePhone(value)?.slice(1);
 }
-//# sourceMappingURL=phone.js.map

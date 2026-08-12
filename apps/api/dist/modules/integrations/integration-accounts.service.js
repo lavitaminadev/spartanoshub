@@ -48,4 +48,3 @@ exports.IntegrationAccountsService = IntegrationAccountsService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], IntegrationAccountsService);
-//# sourceMappingURL=integration-accounts.service.js.map

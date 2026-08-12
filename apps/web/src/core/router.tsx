@@ -22,6 +22,7 @@ const OpportunitiesPage = lazy(() => import('../features/crm/CrmRecordsPage').th
 const ContactsPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.ContactsPage })));
 const InteractionsPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.InteractionsPage })));
 const ProductionPage = lazy(() => import('../features/production/ProductionPage').then(m => ({ default: m.ProductionPage })));
+const WorkDetailPage = lazy(() => import('../features/production/WorkDetailPage').then(m => ({ default: m.WorkDetailPage })));
 const IntakePage = lazy(() => import('../features/intake/IntakePage').then(m => ({ default: m.IntakePage })));
 const ContentGridPage = lazy(() => import('../features/content/ContentGridPage').then(m => ({ default: m.ContentGridPage })));
 const ApprovalsPage = lazy(() => import('../features/approvals/ApprovalsPage').then(m => ({ default: m.ApprovalsPage })));
@@ -57,6 +58,10 @@ const PublicReservationPage = lazy(() => import('../features/reservations/Public
 const AudiovisualPage = lazy(() => import('../features/audiovisual/AudiovisualPage').then(m => ({ default: m.AudiovisualPage })));
 const GovernancePage = lazy(() => import('../features/governance/GovernancePage').then(m => ({ default: m.GovernancePage })));
 const SecurityPage = lazy(() => import('../features/security/SecurityPage').then(m => ({ default: m.SecurityPage })));
+const AdminPage = lazy(() => import('../features/admin/AdminPage').then(m => ({ default: m.AdminPage })));
+const SurveysPage = lazy(() => import('../features/surveys/SurveysPage').then(m => ({ default: m.SurveysPage })));
+const CreateSurveyWizard = lazy(() => import('../features/surveys/CreateSurveyWizard').then(m => ({ default: m.CreateSurveyWizard })));
+const SurveyResultsPage = lazy(() => import('../features/surveys/SurveyResultsPage').then(m => ({ default: m.SurveyResultsPage })));
 
 function SafeSuspense({ children }: { children: React.ReactNode }) {
   return <ErrorBoundary><Suspense fallback={<LoadingSpinner text="Preparando tu espacio..." />}>{children}</Suspense></ErrorBoundary>;
@@ -101,6 +106,7 @@ export function AppRouter() {
           <Route path="/sesiones" element={<ProtectedRoute path="/sesiones"><SafeSuspense><SessionsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/intake" element={<ProtectedRoute path="/intake"><SafeSuspense><IntakePage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/production" element={<ProtectedRoute path="/production"><SafeSuspense><ProductionPage /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/production/:id" element={<ProtectedRoute path="/production"><SafeSuspense><WorkDetailPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/audiovisual" element={<ProtectedRoute path="/audiovisual"><SafeSuspense><AudiovisualPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/content" element={<ProtectedRoute path="/content"><SafeSuspense><ContentGridPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/approvals" element={<ProtectedRoute path="/approvals"><SafeSuspense><ApprovalsPage /></SafeSuspense></ProtectedRoute>} />
@@ -120,8 +126,13 @@ export function AppRouter() {
           <Route path="/users" element={<ProtectedRoute path="/users"><SafeSuspense><UsersPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/governance" element={<ProtectedRoute path="/governance"><SafeSuspense><GovernancePage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/security" element={<ProtectedRoute path="/security"><SafeSuspense><SecurityPage /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute path="/admin"><SafeSuspense><AdminPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/catalog" element={<ProtectedRoute path="/catalog"><SafeSuspense><CatalogPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute path="/knowledge"><SafeSuspense><KnowledgePage /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/surveys" element={<ProtectedRoute path="/surveys"><SafeSuspense><SurveysPage /></SafeSuspense></ProtectedRoute>} />
+          {/* `?id=` re-abre el mismo asistente para editar, en vez de una cuarta ruta: mismo rol que la lista. */}
+          <Route path="/surveys/create" element={<ProtectedRoute path="/surveys"><SafeSuspense><CreateSurveyWizard /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/surveys/:id/results" element={<ProtectedRoute path="/surveys"><SafeSuspense><SurveyResultsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/reservations" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/reservations/forms/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/reservations/agenda" element={<ProtectedRoute path="/reservations/agenda"><SafeSuspense><AgendaPage /></SafeSuspense></ProtectedRoute>} />
@@ -173,3 +184,5 @@ import '../features/settings/feature.manifest';
 import '../features/audiovisual/feature.manifest';
 import '../features/governance/feature.manifest';
 import '../features/security/feature.manifest';
+import '../features/admin/feature.manifest';
+import '../features/surveys/feature.manifest';

@@ -71,4 +71,3 @@ function addPlainDays(value, days) {
     return date.toISOString().slice(0, 10);
 }
 function plainDateParts(value) { const [year, month, day] = value.split('-').map(Number); return { year, month, day, weekday: new Date(Date.UTC(year, month - 1, day)).getUTCDay() }; }
-//# sourceMappingURL=timezone.js.map

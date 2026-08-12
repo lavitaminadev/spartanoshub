@@ -35,4 +35,3 @@ exports.RemoveOpportunityUseCase = RemoveOpportunityUseCase = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         get_opportunity_use_case_1.GetOpportunityUseCase])
 ], RemoveOpportunityUseCase);
-//# sourceMappingURL=remove-opportunity.use-case.js.map

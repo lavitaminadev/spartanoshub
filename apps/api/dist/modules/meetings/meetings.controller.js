@@ -309,4 +309,3 @@ exports.MeetingsController = MeetingsController = __decorate([
         list_meetings_use_case_1.ListMeetingsUseCase,
         google_calendar_service_1.GoogleCalendarService])
 ], MeetingsController);
-//# sourceMappingURL=meetings.controller.js.map

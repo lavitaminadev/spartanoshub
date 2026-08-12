@@ -46,4 +46,3 @@ exports.JobsModule = JobsModule = __decorate([
         exports: [close_xp_periods_job_1.CloseXpPeriodsJob, create_monthly_cycles_job_1.CreateMonthlyCyclesJob, detect_stale_pieces_job_1.DetectStalePiecesJob, collection_emails_job_1.CollectionEmailsJob, purge_expired_leads_job_1.PurgeExpiredLeadsJob, meta_lead_recovery_job_1.MetaLeadRecoveryJob, operational_alerts_job_1.OperationalAlertsJob, recover_reservation_integrations_job_1.RecoverReservationIntegrationsJob],
     })
 ], JobsModule);
-//# sourceMappingURL=jobs.module.js.map

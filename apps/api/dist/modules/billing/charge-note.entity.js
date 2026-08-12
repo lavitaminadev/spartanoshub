@@ -71,4 +71,3 @@ exports.ChargeNote = ChargeNote = __decorate([
     (0, typeorm_1.Index)('UQ_charge_notes_correction', ['correctionId'], { unique: true }),
     (0, typeorm_1.Index)('IDX_charge_notes_org_created', ['organizationId', 'createdAt'])
 ], ChargeNote);
-//# sourceMappingURL=charge-note.entity.js.map

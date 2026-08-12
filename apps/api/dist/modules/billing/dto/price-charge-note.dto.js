@@ -19,4 +19,3 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], PriceChargeNoteDto.prototype, "amount", void 0);
-//# sourceMappingURL=price-charge-note.dto.js.map

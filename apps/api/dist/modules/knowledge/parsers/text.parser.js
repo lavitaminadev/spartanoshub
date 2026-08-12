@@ -21,4 +21,3 @@ async function parseText(buffer, filename) {
         },
     };
 }
-//# sourceMappingURL=text.parser.js.map

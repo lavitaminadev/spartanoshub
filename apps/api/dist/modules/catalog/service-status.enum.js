@@ -7,4 +7,3 @@ var ServiceStatus;
     ServiceStatus["INACTIVE"] = "inactive";
     ServiceStatus["ARCHIVED"] = "archived";
 })(ServiceStatus || (exports.ServiceStatus = ServiceStatus = {}));
-//# sourceMappingURL=service-status.enum.js.map

@@ -19,4 +19,3 @@ class Objectives1710000000016 {
     async down(queryRunner) { await queryRunner.dropTable('objectives'); }
 }
 exports.Objectives1710000000016 = Objectives1710000000016;
-//# sourceMappingURL=0016-objectives.js.map

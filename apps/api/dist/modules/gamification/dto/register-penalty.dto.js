@@ -31,4 +31,3 @@ __decorate([
     (0, class_validator_1.IsEnum)(xp_event_type_enum_1.XPEventType),
     __metadata("design:type", String)
 ], RegisterPenaltyDto.prototype, "eventType", void 0);
-//# sourceMappingURL=register-penalty.dto.js.map

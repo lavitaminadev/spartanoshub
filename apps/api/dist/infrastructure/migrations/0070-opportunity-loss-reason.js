@@ -26,4 +26,3 @@ class OpportunityLossReason1725600000000 {
     }
 }
 exports.OpportunityLossReason1725600000000 = OpportunityLossReason1725600000000;
-//# sourceMappingURL=0070-opportunity-loss-reason.js.map

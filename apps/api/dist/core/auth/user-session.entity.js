@@ -72,4 +72,3 @@ exports.UserSession = UserSession = __decorate([
     (0, typeorm_1.Entity)('user_sessions'),
     (0, typeorm_1.Index)('IDX_user_sessions_user_active', ['userId', 'revokedAt'])
 ], UserSession);
-//# sourceMappingURL=user-session.entity.js.map

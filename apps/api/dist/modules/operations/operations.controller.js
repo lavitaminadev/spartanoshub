@@ -46,4 +46,3 @@ exports.OperationsController = OperationsController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('operations'),
     __metadata("design:paramtypes", [get_operations_overview_use_case_1.GetOperationsOverviewUseCase])
 ], OperationsController);
-//# sourceMappingURL=operations.controller.js.map

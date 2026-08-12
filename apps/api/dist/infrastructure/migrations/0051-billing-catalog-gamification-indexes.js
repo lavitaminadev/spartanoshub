@@ -28,4 +28,3 @@ class BillingCatalogGamificationIndexes1721756500000 {
     }
 }
 exports.BillingCatalogGamificationIndexes1721756500000 = BillingCatalogGamificationIndexes1721756500000;
-//# sourceMappingURL=0051-billing-catalog-gamification-indexes.js.map

@@ -29,4 +29,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(2048),
     __metadata("design:type", String)
 ], GoogleOAuthCallbackDto.prototype, "redirectUri", void 0);
-//# sourceMappingURL=google-oauth-callback.dto.js.map

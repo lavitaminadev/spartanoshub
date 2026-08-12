@@ -36,4 +36,3 @@ exports.BillingService = BillingService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(charge_note_entity_1.ChargeNote)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], BillingService);
-//# sourceMappingURL=billing.service.js.map

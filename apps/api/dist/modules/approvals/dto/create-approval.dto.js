@@ -48,4 +48,3 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], CreateApprovalDto.prototype, "dueAt", void 0);
-//# sourceMappingURL=create-approval.dto.js.map

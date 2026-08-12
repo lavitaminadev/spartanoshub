@@ -110,4 +110,3 @@ function validateEnvironment(environment = process.env) {
 function parseCorsOrigins(value = process.env.CORS_ORIGIN ?? 'http://localhost:5173') {
     return value.split(',').map((origin) => origin.trim().replace(/\/$/, '')).filter(Boolean);
 }
-//# sourceMappingURL=environment.js.map

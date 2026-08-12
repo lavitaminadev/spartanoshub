@@ -44,4 +44,3 @@ __decorate([
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
 ], UpdateLeadDto.prototype, "tags", void 0);
-//# sourceMappingURL=update-lead.dto.js.map

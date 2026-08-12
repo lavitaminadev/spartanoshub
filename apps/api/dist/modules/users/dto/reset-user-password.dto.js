@@ -19,4 +19,3 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ResetUserPasswordDto.prototype, "sendEmail", void 0);
-//# sourceMappingURL=reset-user-password.dto.js.map

@@ -25,4 +25,8 @@ __decorate([
     (0, class_validator_1.MaxLength)(300),
     __metadata("design:type", String)
 ], UpsertPermissionOverrideDto.prototype, "reason", void 0);
-//# sourceMappingURL=upsert-permission-override.dto.js.map
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsISO8601)(),
+    __metadata("design:type", Object)
+], UpsertPermissionOverrideDto.prototype, "expiresAt", void 0);

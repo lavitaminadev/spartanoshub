@@ -360,4 +360,3 @@ exports.CronController = CronController = __decorate([
         recover_reservation_integrations_job_1.RecoverReservationIntegrationsJob,
         close_xp_periods_job_1.CloseXpPeriodsJob])
 ], CronController);
-//# sourceMappingURL=cron.controller.js.map

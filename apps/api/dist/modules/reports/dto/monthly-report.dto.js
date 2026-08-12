@@ -63,4 +63,3 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpdateMonthlyReportDto.prototype, "salesGenerated", void 0);
-//# sourceMappingURL=monthly-report.dto.js.map

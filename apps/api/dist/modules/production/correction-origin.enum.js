@@ -7,4 +7,3 @@ var CorrectionOrigin;
     CorrectionOrigin["DESIGNER_ERROR"] = "designer_error";
     CorrectionOrigin["INTERNAL_FEEDBACK"] = "internal_feedback";
 })(CorrectionOrigin || (exports.CorrectionOrigin = CorrectionOrigin = {}));
-//# sourceMappingURL=correction-origin.enum.js.map

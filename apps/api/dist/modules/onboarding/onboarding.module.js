@@ -25,4 +25,3 @@ exports.OnboardingModule = OnboardingModule = __decorate([
         providers: [onboarding_service_1.OnboardingService],
     })
 ], OnboardingModule);
-//# sourceMappingURL=onboarding.module.js.map

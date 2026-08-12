@@ -27,6 +27,7 @@ const STATUS_COLORS: Record<string, string> = {
   error: '#b5332d',
   review: '#1f6fb2',
   draft: '#596562',
+  closed: '#1f6fb2',
   new: '#1f6fb2',
   contacted: '#9a5a00',
   meeting_scheduled: '#1f6fb2',

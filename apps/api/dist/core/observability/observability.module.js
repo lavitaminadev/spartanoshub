@@ -28,4 +28,3 @@ exports.ObservabilityModule = ObservabilityModule = __decorate([
         exports: [logger_service_1.LoggerService, metrics_service_1.MetricsService],
     })
 ], ObservabilityModule);
-//# sourceMappingURL=observability.module.js.map

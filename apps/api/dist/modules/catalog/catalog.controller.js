@@ -204,4 +204,3 @@ exports.CatalogController = CatalogController = __decorate([
         typeorm_2.Repository,
         quotes_service_1.QuotesService])
 ], CatalogController);
-//# sourceMappingURL=catalog.controller.js.map

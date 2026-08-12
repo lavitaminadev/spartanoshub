@@ -100,4 +100,3 @@ exports.LeadConvertedHandler = LeadConvertedHandler = LeadConvertedHandler_1 = _
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], LeadConvertedHandler);
-//# sourceMappingURL=lead-converted.handler.js.map

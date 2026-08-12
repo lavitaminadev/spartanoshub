@@ -68,4 +68,3 @@ __decorate([
     (0, class_validator_1.IsIn)(exports.REQUIRED_CONSENTS, { each: true }),
     __metadata("design:type", Array)
 ], AcceptTermsDto.prototype, "acceptedConsents", void 0);
-//# sourceMappingURL=onboarding.dto.js.map

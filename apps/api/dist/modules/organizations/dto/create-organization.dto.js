@@ -32,4 +32,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(3),
     __metadata("design:type", String)
 ], CreateOrganizationDto.prototype, "currency", void 0);
-//# sourceMappingURL=create-organization.dto.js.map

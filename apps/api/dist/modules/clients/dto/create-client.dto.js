@@ -92,4 +92,3 @@ __decorate([
     (0, class_transformer_1.Type)(() => ClientCapabilitiesDto),
     __metadata("design:type", ClientCapabilitiesDto)
 ], CreateClientDto.prototype, "capabilities", void 0);
-//# sourceMappingURL=create-client.dto.js.map

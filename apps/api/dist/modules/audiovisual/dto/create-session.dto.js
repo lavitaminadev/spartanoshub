@@ -50,4 +50,3 @@ __decorate([
     (0, class_validator_1.IsIn)(['scheduled', 'confirmed', 'completed', 'cancelled', 'rescheduled']),
     __metadata("design:type", String)
 ], CreateSessionDto.prototype, "status", void 0);
-//# sourceMappingURL=create-session.dto.js.map

@@ -29,4 +29,3 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], RegisterAnalyticsPropertyDto.prototype, "clientId", void 0);
-//# sourceMappingURL=register-analytics-property.dto.js.map

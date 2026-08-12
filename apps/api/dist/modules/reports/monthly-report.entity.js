@@ -102,4 +102,3 @@ exports.MonthlyReport = MonthlyReport = __decorate([
     (0, typeorm_1.Entity)('monthly_reports'),
     (0, typeorm_1.Index)('UQ_monthly_reports_client_period', ['clientId', 'year', 'month'], { unique: true })
 ], MonthlyReport);
-//# sourceMappingURL=monthly-report.entity.js.map

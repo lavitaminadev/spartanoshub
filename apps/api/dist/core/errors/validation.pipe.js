@@ -22,4 +22,3 @@ class ValidationPipe extends common_1.ValidationPipe {
     }
 }
 exports.ValidationPipe = ValidationPipe;
-//# sourceMappingURL=validation.pipe.js.map

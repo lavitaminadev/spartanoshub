@@ -72,4 +72,3 @@ __decorate([
     (0, class_transformer_1.Type)(() => WorkflowStepDto),
     __metadata("design:type", Array)
 ], UpdateWorkflowDto.prototype, "steps", void 0);
-//# sourceMappingURL=update-workflow.dto.js.map

@@ -39,4 +39,3 @@ class PaginatedResult {
     }
 }
 exports.PaginatedResult = PaginatedResult;
-//# sourceMappingURL=pagination.dto.js.map

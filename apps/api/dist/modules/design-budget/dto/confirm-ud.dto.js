@@ -33,4 +33,3 @@ __decorate([
     (0, class_validator_1.Max)(12),
     __metadata("design:type", Number)
 ], ConfirmUdDto.prototype, "month", void 0);
-//# sourceMappingURL=confirm-ud.dto.js.map

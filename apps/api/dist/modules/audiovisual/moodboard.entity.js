@@ -74,4 +74,3 @@ exports.Moodboard = Moodboard = __decorate([
     (0, typeorm_1.Entity)('moodboards'),
     (0, typeorm_1.Index)('IDX_moodboards_org_created', ['organizationId', 'createdAt'])
 ], Moodboard);
-//# sourceMappingURL=moodboard.entity.js.map

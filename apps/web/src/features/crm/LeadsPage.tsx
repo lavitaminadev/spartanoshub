@@ -53,7 +53,16 @@ const SOURCE_LABELS: Record<string, string> = {
   reservation: 'Reservas',
   ...Object.fromEntries(RESERVATION_LEAD_SOURCES.map((source) => [source, 'Reservas'])),
   website: 'Sitio web', referral: 'Referido', manual: 'Ingreso manual',
+  event: 'Evento', other: 'Otro',
 };
+
+/**
+ * Etapas que el equipo puede elegir desde la tarjeta.
+ *
+ * `won` no está: el cierre como ganado crea la ficha del cliente y se hace desde la ficha
+ * del lead con «Convertir en cliente». `lost` sí, porque descartar no crea nada.
+ */
+const SELECTABLE_STATUSES: string[] = [...ACTIVE_STATUSES, 'lost'];
 
 /** `externalLeadId` llega como `reservation:<uuid>` cuando el contacto nacio de una reserva. */
 function cameFromReservation(lead: Lead): boolean {
@@ -83,6 +92,18 @@ function leadInitials(name: string): string {
 
 function leadDate(value?: string): string {
   return value ? new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha';
+}
+
+function leadAge(createdAt?: string): string {
+  if (!createdAt) return 'Sin fecha';
+  const ms = Date.now() - new Date(createdAt).getTime();
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return 'Ahora';
+  if (hours < 24) return `Hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `Hace ${days} d`;
+  if (days < 30) return `Hace ${Math.floor(days / 7)} sem`;
+  return leadDate(createdAt);
 }
 
 export function LeadsPage() {
@@ -402,7 +423,7 @@ export function LeadsPage() {
                 <span className="crm-legend-chip"><span className="crm-legend-dot is-review" /> Revision manual</span>
                 <span className="crm-legend-chip"><span className="crm-legend-dot is-discarded" /> Descartado</span>
               </div>
-              <span className="crm-selection-hint">{selectedVisibleIds.length > 0 ? `${selectedVisibleIds.length} seleccionados` : pipelineView === 'board' ? 'Arrastra para cambiar de etapa' : 'Selecciona filas para editar en lote'}</span>
+              <span className="crm-selection-hint">{selectedVisibleIds.length > 0 ? `${selectedVisibleIds.length} seleccionados` : pipelineView === 'board' ? 'Cambia la etapa desde la tarjeta o arrastra entre columnas' : 'Selecciona filas para editar en lote'}</span>
             </div>
           {pipelineView === 'board' ? (
           <div className="kanban crm-pipeline-board" aria-label="Pipeline comercial por etapas">
@@ -452,101 +473,61 @@ export function LeadsPage() {
                         setDropStatus(null);
                       }}
                     >
+                                            <div className="job-top" style={{marginBottom:'8px'}}>
+                        <span>{lead.id.slice(0,8).toUpperCase()}</span>
+                        <i>{lead.sourceDetail || (lead.source ? SOURCE_LABELS[lead.source] ?? statusLabel(lead.source) : 'Origen no informado')}</i>
+                      </div>
                       <div className="crm-lead-card-head">
                         <label className="crm-select-control" title="Seleccionar lead">
                           <input type="checkbox" checked={selectedLeadIds.has(lead.id)} onChange={() => toggleLeadSelection(lead.id)} aria-label={`Seleccionar a ${lead.name}`} />
                         </label>
                         <button type="button" className="crm-lead-open" onClick={() => setSelectedLeadId(lead.id)} aria-label={`Abrir ficha de ${lead.name}`}>
                           <span className="crm-lead-avatar" aria-hidden="true">{leadInitials(lead.name)}</span>
-                          <span><strong>{lead.name}</strong><small>{lead.company || 'Sin empresa informada'}</small></span>
+                          <span><strong>{lead.name}</strong><small>{lead.company || lead.email || lead.phone || 'Sin datos'}</small></span>
                         </button>
                       </div>
-                      <div className="lead-card-meta">
+                      <div className="lead-card-meta" style={{justifyContent:'space-between', marginBottom:'8px'}}>
                         <StatusBadge status={lead.fitStatus} />
-                        <span className={`lead-score ${lead.qualityScore >= 70 ? 'lead-score-good' : lead.qualityScore >= 35 ? 'lead-score-mid' : 'lead-score-bad'}`}>
-                          Score {lead.qualityScore}
-                        </span>
+                        <span className="lead-score" style={{color:lead.qualityScore>=70?'var(--success)':lead.qualityScore>=40?'var(--amber)':'var(--danger)'}}>{lead.qualityScore}</span>
                       </div>
-                      <div className="kanban-card-info">{lead.email || lead.phone || 'Sin canal de contacto'}</div>
+                      <div className="job-tags" style={{marginBottom:'8px'}}>
+                        <span>{leadAge(lead.createdAt)}</span>
+                        {lead.campaignName && <span>{lead.campaignName}</span>}
+                        {lead.consentCapturedAt && <span className="tag-consent">Consentimiento</span>}
+                      </div>
                       <div className="kanban-card-info">Cliente: {clientNameOf(lead)}</div>
-                      <div className="kanban-card-info">{lead.sourceDetail || (lead.source ? SOURCE_LABELS[lead.source] ?? statusLabel(lead.source) : 'Origen no informado')}</div>
-                      {lead.campaignName && <div className="kanban-card-info">Campana: {lead.campaignName}</div>}
-                      <div className="kanban-card-info">Ingreso: {leadDate(lead.createdAt)}</div>
-                      {lead.consentCapturedAt && <div className="kanban-card-info is-consent">Consentimiento registrado</div>}
                       {lead.discardReason && <div className="lead-discard-reason">{lead.discardReason}</div>}
                       {lead.notes && <div className="lead-note-preview">{lead.notes.split('\n')[0]}</div>}
-
-                      <div className="kanban-card-actions crm-card-stage-actions">
-                        {ACTIVE_STATUSES.indexOf(status) > 0 && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              updateMutation.mutate({ id: lead.id, status: ACTIVE_STATUSES[ACTIVE_STATUSES.indexOf(status) - 1] });
-                            }}
-                          >
-                            Anterior
-                          </button>
-                        )}
-                        <button type="button" className="btn btn-sm btn-outline" onClick={() => setSelectedLeadId(lead.id)}>Ver ficha</button>
-                        {ACTIVE_STATUSES.includes(status) && status !== 'negotiation' && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              updateMutation.mutate({ id: lead.id, status: ACTIVE_STATUSES[ACTIVE_STATUSES.indexOf(status) + 1] });
-                            }}
-                          >
-                            Siguiente
-                          </button>
-                        )}
-                        {status === 'negotiation' && <button type="button" className="btn btn-sm btn-primary" onClick={() => setSelectedLeadId(lead.id)}>Cerrar venta</button>}
-                      </div>
-
-                      <div className="kanban-card-actions crm-card-fit-actions">
-                        {lead.fitStatus !== 'qualified' && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              updateMutation.mutate({ id: lead.id, fitStatus: 'qualified', discardReason: '' });
-                            }}
-                          >
-                            Marcar util
-                          </button>
-                        )}
-                        {lead.fitStatus !== 'review' && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              updateMutation.mutate({ id: lead.id, fitStatus: 'review', discardReason: '' });
-                            }}
-                          >
-                            En revision
-                          </button>
-                        )}
-                        {lead.fitStatus !== 'discarded' && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline btn-danger"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              updateMutation.mutate({
-                                id: lead.id,
-                                fitStatus: 'discarded',
-                                discardReason: lead.discardReason || 'Descartado por revision comercial.',
-                                status: status === 'won' ? status : 'lost',
-                              });
-                            }}
-                          >
+                      <div className="kanban-card-actions" style={{marginTop:'10px', flexDirection:'column', gap:'4px'}}>
+                        {/*
+                          Cambio de etapa desde la tarjeta. Es un selector y no un par de flechas
+                          porque permite saltar varias etapas de una vez y porque funciona con
+                          teclado y en pantallas táctiles, donde arrastrar no es una opción.
+                        */}
+                        <select
+                          className="input crm-card-stage-select"
+                          draggable={false}
+                          aria-label={`Etapa de ${lead.name}`}
+                          value={lead.status}
+                          disabled={lead.status === 'won' || updateMutation.isPending}
+                          onChange={(event) => updateMutation.mutate({ id: lead.id, status: event.target.value })}
+                        >
+                          {lead.status === 'won'
+                            ? <option value="won">{statusLabel('won')}</option>
+                            : SELECTABLE_STATUSES.map((option) => <option key={option} value={option}>{statusLabel(option)}</option>)}
+                        </select>
+                        {status === 'negotiation' && <button type="button" className="btn btn-sm btn-primary btn-block" onClick={() => setSelectedLeadId(lead.id)}>Cerrar venta</button>}
+                        <div style={{display:'flex', gap:'4px'}}>
+                          <button type="button" className="btn btn-sm btn-outline" onClick={() => setSelectedLeadId(lead.id)} style={{flex:1}}>Ficha</button>
+                          {lead.fitStatus !== 'qualified' && <button type="button" className="btn btn-sm btn-outline" style={{flex:1, color:'var(--success)', borderColor:'var(--success)'}}
+                            onClick={(event) => { event.stopPropagation(); updateMutation.mutate({ id: lead.id, fitStatus: 'qualified', discardReason: '' }); }}>
+                            Útil
+                          </button>}
+                          {lead.fitStatus !== 'discarded' && <button type="button" className="btn btn-sm btn-outline" style={{flex:1, color:'var(--danger)', borderColor:'var(--danger)'}}
+                            onClick={(event) => { event.stopPropagation(); updateMutation.mutate({ id: lead.id, fitStatus: 'discarded', discardReason: lead.discardReason || 'Descartado', status: status === 'won' ? status : 'lost' }); }}>
                             Descartar
-                          </button>
-                        )}
+                          </button>}
+                        </div>
                       </div>
                     </article>
                   ))}

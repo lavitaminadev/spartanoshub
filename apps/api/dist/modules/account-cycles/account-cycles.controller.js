@@ -60,4 +60,3 @@ exports.AccountCyclesController = AccountCyclesController = __decorate([
     __metadata("design:paramtypes", [account_cycles_service_1.AccountCyclesService,
         account_access_service_1.AccountAccessService])
 ], AccountCyclesController);
-//# sourceMappingURL=account-cycles.controller.js.map

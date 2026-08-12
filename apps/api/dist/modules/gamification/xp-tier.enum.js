@@ -16,4 +16,3 @@ exports.XP_TIER_THRESHOLDS = {
     [XpTier.PLATINUM]: 150,
     [XpTier.DIAMOND]: 200,
 };
-//# sourceMappingURL=xp-tier.enum.js.map

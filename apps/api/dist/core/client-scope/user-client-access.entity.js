@@ -47,4 +47,3 @@ exports.UserClientAccess = UserClientAccess = __decorate([
     (0, typeorm_1.Index)('UQ_user_client_access_pair', ['userId', 'clientId'], { unique: true }),
     (0, typeorm_1.Index)('IDX_user_client_access_user', ['organizationId', 'userId'])
 ], UserClientAccess);
-//# sourceMappingURL=user-client-access.entity.js.map

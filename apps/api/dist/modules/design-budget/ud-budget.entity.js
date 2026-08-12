@@ -63,4 +63,3 @@ __decorate([
 exports.UDBudget = UDBudget = __decorate([
     (0, typeorm_1.Entity)('ud_budgets')
 ], UDBudget);
-//# sourceMappingURL=ud-budget.entity.js.map

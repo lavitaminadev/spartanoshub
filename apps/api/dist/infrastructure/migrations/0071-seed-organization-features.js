@@ -34,4 +34,3 @@ class SeedOrganizationFeatures1725700000000 {
     }
 }
 exports.SeedOrganizationFeatures1725700000000 = SeedOrganizationFeatures1725700000000;
-//# sourceMappingURL=0071-seed-organization-features.js.map

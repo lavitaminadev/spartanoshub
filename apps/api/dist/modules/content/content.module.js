@@ -25,4 +25,3 @@ exports.ContentModule = ContentModule = __decorate([
         providers: [create_content_grid_use_case_1.CreateContentGridUseCase, list_content_grids_use_case_1.ListContentGridsUseCase],
     })
 ], ContentModule);
-//# sourceMappingURL=content.module.js.map

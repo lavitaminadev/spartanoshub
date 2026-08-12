@@ -37,4 +37,3 @@ exports.ListInvoicesUseCase = ListInvoicesUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(invoice_entity_1.Invoice)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], ListInvoicesUseCase);
-//# sourceMappingURL=list-invoices.use-case.js.map

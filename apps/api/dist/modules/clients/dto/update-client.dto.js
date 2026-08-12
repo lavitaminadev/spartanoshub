@@ -56,4 +56,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], UpdateClientDto.prototype, "logoPublicId", void 0);
-//# sourceMappingURL=update-client.dto.js.map

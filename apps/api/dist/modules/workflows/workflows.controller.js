@@ -64,4 +64,3 @@ exports.WorkflowsController = WorkflowsController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('operations'),
     __metadata("design:paramtypes", [workflows_service_1.WorkflowsService])
 ], WorkflowsController);
-//# sourceMappingURL=workflows.controller.js.map

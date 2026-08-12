@@ -165,7 +165,8 @@ __decorate([
 ], PublicLeadSubmissionDto.prototype, "company_website_confirm", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(16),
     (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9_-]{16,80}$/, { message: 'idempotencyKey debe ser un identificador aleatorio de 16 a 80 caracteres (A-Z, a-z, 0-9, guion o guion bajo)' }),
     __metadata("design:type", String)
 ], PublicLeadSubmissionDto.prototype, "idempotencyKey", void 0);
-//# sourceMappingURL=public-lead-submission.dto.js.map

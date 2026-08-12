@@ -175,4 +175,3 @@ exports.DesignBudgetService = DesignBudgetService = __decorate([
         typeorm_2.Repository,
         parameter_resolver_service_1.ParameterResolver])
 ], DesignBudgetService);
-//# sourceMappingURL=design-budget.service.js.map

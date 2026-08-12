@@ -28,4 +28,3 @@ class OrganizationWelcomeMessage1724162000000 {
     }
 }
 exports.OrganizationWelcomeMessage1724162000000 = OrganizationWelcomeMessage1724162000000;
-//# sourceMappingURL=0061-organization-welcome-message.js.map

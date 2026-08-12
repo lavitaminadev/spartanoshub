@@ -42,4 +42,3 @@ exports.MetricsController = MetricsController = __decorate([
     (0, module_scope_decorator_1.ModuleExempt)('Sonda de operacion consumida por el monitoreo, no por la aplicacion'),
     __metadata("design:paramtypes", [metrics_service_1.MetricsService])
 ], MetricsController);
-//# sourceMappingURL=metrics.controller.js.map

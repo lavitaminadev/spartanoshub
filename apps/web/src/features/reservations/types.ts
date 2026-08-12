@@ -14,7 +14,17 @@ export interface DesignConfig {
   [key: string]: string | undefined;
 }
 export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; ga4MeasurementId?: string | null; capabilities?: { reservations: boolean; crm: boolean; metaConversions: boolean; googleConversions?: boolean }; updatedAt: string }
-export interface Reservation { id: string; formId: string; referenceCode: string; status: string; startsAt: string; partySize: number; guestName: string; guestEmail?: string; guestPhone?: string; answers?: Record<string, unknown>; utmSource?: string; utmCampaign?: string; internalNotes?: string; couponCode?: string; createdAt?: string; metaConversion?: MetaConversionStatus; contactId?: string }
+export interface Reservation { id: string; formId: string; referenceCode: string; status: string; startsAt: string; partySize: number; guestName: string; guestEmail?: string; guestPhone?: string; answers?: Record<string, unknown>; utmSource?: string; utmCampaign?: string; internalNotes?: string; couponCode?: string; createdAt?: string; metaConversion?: MetaConversionStatus; contactId?: string; workflowState?: ReservationState }
+
+/**
+ * Etapa del flujo operativo agencia → cliente de una reserva.
+ *
+ * Es independiente del `status` de asistencia (pending/confirmed/attended/...): ese describe
+ * si la visita ocurrió, este describe en qué parte de la producción del servicio está la
+ * reserva, desde que es una propuesta interna hasta que el cliente recibió lo acordado.
+ * Ausente en una reserva existente, se trata como `draft` (ver `resolveWorkflowState`).
+ */
+export type ReservationState = 'draft' | 'sent' | 'confirmed' | 'preparation' | 'execution' | 'delivered';
 
 /**
  * Estado del circuito de conversión de una reserva.

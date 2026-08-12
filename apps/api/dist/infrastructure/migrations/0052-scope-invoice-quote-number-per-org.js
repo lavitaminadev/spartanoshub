@@ -28,4 +28,3 @@ class ScopeInvoiceQuoteNumberPerOrg1721765000000 {
     }
 }
 exports.ScopeInvoiceQuoteNumberPerOrg1721765000000 = ScopeInvoiceQuoteNumberPerOrg1721765000000;
-//# sourceMappingURL=0052-scope-invoice-quote-number-per-org.js.map

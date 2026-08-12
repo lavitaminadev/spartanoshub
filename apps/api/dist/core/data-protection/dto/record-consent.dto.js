@@ -24,4 +24,3 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], RecordConsentDto.prototype, "granted", void 0);
-//# sourceMappingURL=record-consent.dto.js.map

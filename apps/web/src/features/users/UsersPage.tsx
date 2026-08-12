@@ -2,6 +2,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
+import { roleLabel } from '../../core/role-labels';
 import { DataTable } from '../../shared/DataTable';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
@@ -46,20 +47,6 @@ const USER_ROLES = [
   'admin', 'commercial_director', 'creative_director', 'operations_director', 'art_director',
   'av_director', 'ai_lead', 'community_manager', 'designer', 'audiovisual', 'client',
 ] as const;
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: 'Administrador',
-  commercial_director: 'Dirección comercial',
-  creative_director: 'Dirección creativa',
-  operations_director: 'Dirección de operaciones',
-  art_director: 'Dirección de arte',
-  av_director: 'Dirección audiovisual',
-  ai_lead: 'Líder de automatización',
-  community_manager: 'Community manager',
-  designer: 'Diseño',
-  audiovisual: 'Audiovisual',
-  client: 'Cliente',
-};
 
 const WORK_MODE_LABELS: Record<string, string> = { presential: 'Presencial', hybrid: 'Híbrida', remote: 'Remota' };
 
@@ -262,7 +249,7 @@ export function UsersPage() {
         <input className="input" aria-label="Buscar usuarios" placeholder="Nombre, email, teléfono o rol..." value={search} onChange={(event) => setSearch(event.target.value)} />
         <select className="input" aria-label="Filtrar por rol" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
           <option value="">Todos los roles</option>
-          {USER_ROLES.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+          {USER_ROLES.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
         </select>
         <select className="input" aria-label="Filtrar por acceso" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
           <option value="">Activos e inactivos</option><option value="true">Solo activos</option><option value="false">Solo inactivos</option>
@@ -283,7 +270,7 @@ export function UsersPage() {
         keyExtractor={(row) => row.id}
         columns={[
           { key: 'name', label: 'Persona', sortable: true, render: (row) => <div className="user-cell"><strong>{row.name}</strong><small>{row.email}</small></div> },
-          { key: 'role', label: 'Rol', sortable: true, sortValue: (row) => ROLE_LABELS[row.role], render: (row) => <span className="access-role">{ROLE_LABELS[row.role] ?? row.role}</span> },
+          { key: 'role', label: 'Rol', sortable: true, sortValue: (row) => roleLabel(row.role), render: (row) => <span className="access-role">{roleLabel(row.role)}</span> },
           { key: 'clientId', label: 'Alcance', render: (row) => <span className="access-scope"><strong>{row.clientId ? clientMap.get(row.clientId) ?? 'Empresa no disponible' : 'Equipo interno'}</strong><small>{row.role === 'client' ? 'Portal de cliente' : WORK_MODE_LABELS[row.workMode || 'hybrid']}</small></span> },
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
@@ -318,8 +305,8 @@ export function UsersPage() {
           </div>
           <div className="form-row">
             <label htmlFor="user-role">Rol<select id="user-role" className="input" value={form.role} disabled={editing?.id === currentUser?.id} onChange={(event) => setForm({ ...form, role: event.target.value, clientId: event.target.value === 'client' ? form.clientId : '' })}>
-              {availableRoles.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
-              {!availableRoles.includes(form.role as (typeof USER_ROLES)[number]) && <option value={form.role}>{ROLE_LABELS[form.role] ?? form.role}</option>}
+              {availableRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
+              {!availableRoles.includes(form.role as (typeof USER_ROLES)[number]) && <option value={form.role}>{roleLabel(form.role)}</option>}
             </select></label>
             <label htmlFor="user-client">Empresa<select id="user-client" className="input" value={form.clientId} disabled={!clientRequired} required={clientRequired} onChange={(event) => setForm({ ...form, clientId: event.target.value })}>
               <option value="">Selecciona una empresa</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}

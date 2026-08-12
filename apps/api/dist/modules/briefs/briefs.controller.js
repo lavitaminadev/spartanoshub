@@ -102,4 +102,3 @@ exports.BriefsController = BriefsController = __decorate([
     (0, requires_feature_decorator_1.RequiresFeature)('briefs'),
     __metadata("design:paramtypes", [briefs_service_1.BriefsService])
 ], BriefsController);
-//# sourceMappingURL=briefs.controller.js.map

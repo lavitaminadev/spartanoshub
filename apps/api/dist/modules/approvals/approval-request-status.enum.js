@@ -9,4 +9,3 @@ var ApprovalRequestStatus;
     ApprovalRequestStatus["REJECTED"] = "rejected";
     ApprovalRequestStatus["EXPIRED"] = "expired";
 })(ApprovalRequestStatus || (exports.ApprovalRequestStatus = ApprovalRequestStatus = {}));
-//# sourceMappingURL=approval-request-status.enum.js.map

@@ -22,4 +22,3 @@ class OrganizationFeatures1724247600000 {
     }
 }
 exports.OrganizationFeatures1724247600000 = OrganizationFeatures1724247600000;
-//# sourceMappingURL=0059-organization-features.js.map

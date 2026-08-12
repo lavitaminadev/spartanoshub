@@ -58,4 +58,3 @@ exports.WorkflowTemplate = WorkflowTemplate = __decorate([
     (0, typeorm_1.Entity)('workflow_templates'),
     (0, typeorm_1.Index)('UQ_workflow_templates_org_code', ['organizationId', 'code'], { unique: true })
 ], WorkflowTemplate);
-//# sourceMappingURL=workflow-template.entity.js.map

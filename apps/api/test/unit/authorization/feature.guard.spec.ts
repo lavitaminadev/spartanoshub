@@ -109,7 +109,7 @@ describe('normalizeOrganizationFeatures', () => {
   it('deja encendido solo el alcance de Fase 0 y 1 por defecto', () => {
     const enabled = ORGANIZATION_FEATURE_KEYS.filter((key) => DEFAULT_ORGANIZATION_FEATURES[key]);
     expect([...enabled].sort()).toEqual(
-      ['clients', 'crm', 'dashboard', 'integrations', 'reservations', 'settings', 'users'],
+      ['clients', 'dashboard', 'integrations', 'reports', 'reservations', 'settings', 'users'],
     );
   });
 });

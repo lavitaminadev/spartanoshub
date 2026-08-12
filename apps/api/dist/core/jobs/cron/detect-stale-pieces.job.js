@@ -91,4 +91,3 @@ exports.DetectStalePiecesJob = DetectStalePiecesJob = DetectStalePiecesJob_1 = _
         typeorm_2.Repository,
         parameter_resolver_service_1.ParameterResolver])
 ], DetectStalePiecesJob);
-//# sourceMappingURL=detect-stale-pieces.job.js.map

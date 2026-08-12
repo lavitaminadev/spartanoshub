@@ -61,4 +61,3 @@ exports.PieceRejectedHandler = PieceRejectedHandler = PieceRejectedHandler_1 = _
         typeorm_2.Repository,
         billing_service_1.BillingService])
 ], PieceRejectedHandler);
-//# sourceMappingURL=piece-rejected.handler.js.map

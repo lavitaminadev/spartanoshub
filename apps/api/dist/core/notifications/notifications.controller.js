@@ -84,4 +84,3 @@ exports.NotificationsController = NotificationsController = __decorate([
     (0, module_scope_decorator_1.ModuleExempt)('Autoservicio: cada persona ve y marca sus propios avisos'),
     __metadata("design:paramtypes", [notification_service_1.NotificationService])
 ], NotificationsController);
-//# sourceMappingURL=notifications.controller.js.map

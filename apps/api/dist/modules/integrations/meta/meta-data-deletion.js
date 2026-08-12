@@ -51,4 +51,3 @@ function verifyDeletionConfirmation(code, appSecret) {
         throw new common_1.UnauthorizedException('Invalid deletion confirmation');
     }
 }
-//# sourceMappingURL=meta-data-deletion.js.map

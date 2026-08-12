@@ -34,6 +34,12 @@ function toSignString(params) {
 function sha1(input) {
     return (0, crypto_1.createHash)('sha1').update(input).digest('hex');
 }
+function folderSegment(value) {
+    const clean = value.replace(/[^A-Za-z0-9_-]/g, '_');
+    if (!clean)
+        throw new common_1.BadRequestException('Identificador de carpeta inválido');
+    return clean;
+}
 let CloudinaryService = CloudinaryService_1 = class CloudinaryService {
     constructor(integrations, http) {
         this.integrations = integrations;
@@ -148,9 +154,8 @@ let CloudinaryService = CloudinaryService_1 = class CloudinaryService {
         }
     }
     static folderFor(organizationId, clientId) {
-        return clientId
-            ? `${CLOUDINARY_FOLDER_ROOT}/${organizationId}/${clientId}`
-            : `${CLOUDINARY_FOLDER_ROOT}/${organizationId}`;
+        const root = `${CLOUDINARY_FOLDER_ROOT}/${folderSegment(organizationId)}`;
+        return clientId ? `${root}/${folderSegment(clientId)}` : root;
     }
     belongsToOrganization(publicId, organizationId) {
         return CLOUDINARY_FOLDER_ROOTS.some((root) => publicId.startsWith(`${root}/${organizationId}/`));
@@ -195,4 +200,3 @@ exports.CloudinaryService = CloudinaryService = CloudinaryService_1 = __decorate
     __metadata("design:paramtypes", [typeorm_2.Repository,
         axios_1.HttpService])
 ], CloudinaryService);
-//# sourceMappingURL=cloudinary.service.js.map

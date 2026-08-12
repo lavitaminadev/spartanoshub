@@ -18,4 +18,3 @@ class AddCouponDaysOfWeek1710000000033 {
     }
 }
 exports.AddCouponDaysOfWeek1710000000033 = AddCouponDaysOfWeek1710000000033;
-//# sourceMappingURL=0033-coupon-days-of-week.js.map

@@ -10,6 +10,9 @@ import { Modal } from '../../shared/Modal';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { Tooltip } from '../../shared/Tooltip';
+import { statusLabel } from '../../shared/status-labels';
+import { roleLabel } from '../../core/role-labels';
+import { PIECE_TYPE_OPTIONS, PRODUCTION_WORKFLOW, pieceTypeLabel } from './production-labels';
 
 interface Piece {
   id: string;
@@ -60,35 +63,6 @@ const EMPTY_FORM: PieceFormState = {
   description: '',
   dependencyIds: [],
 };
-
-const PIECE_TYPES = [
-  ['post_simple', 'Post simple'],
-  ['post_author', 'Post de autor'],
-  ['carousel', 'Carrusel'],
-  ['story_original', 'Historia original'],
-  ['story_adapted', 'Historia adaptada'],
-  ['story_template', 'Historia con plantilla'],
-  ['reel_cover', 'Portada de reel'],
-  ['flyer_digital', 'Flyer digital'],
-  ['flyer_print', 'Flyer para impresion'],
-] as const;
-
-const ROLE_LABELS: Record<string, string> = {
-  designer: 'Diseno',
-  audiovisual: 'Audiovisual',
-  art_director: 'Direccion de arte',
-};
-
-const WORKFLOW_COLUMNS = [
-  ['backlog', 'Backlog'],
-  ['assigned', 'Asignado'],
-  ['in_progress', 'En progreso'],
-  ['internal_review', 'Revision interna'],
-  ['client_validation', 'Cliente'],
-  ['correction', 'Correccion'],
-  ['approved', 'Aprobado'],
-  ['delivered', 'Entregado'],
-] as const;
 
 function getErrorMessage(error: Error): string {
   return error.message || 'No se pudo completar la operacion.';
@@ -227,7 +201,7 @@ export function ProductionPage() {
   };
 
   const piecesByStatus = useMemo(
-    () => new Map(WORKFLOW_COLUMNS.map(([status]) => [status, (pieces ?? []).filter((piece) => piece.status === status)])),
+    () => new Map(PRODUCTION_WORKFLOW.map((status) => [status, (pieces ?? []).filter((piece) => piece.status === status)])),
     [pieces],
   );
 
@@ -346,14 +320,7 @@ export function ProductionPage() {
           </div>
           <select className="input" aria-label="Filtrar piezas por estado" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
             <option value="">Todos los estados</option>
-            <option value="backlog">Backlog</option>
-            <option value="assigned">Asignado</option>
-            <option value="in_progress">En progreso</option>
-            <option value="internal_review">Revision interna</option>
-            <option value="client_validation">Validacion cliente</option>
-            <option value="correction">Correccion</option>
-            <option value="approved">Aprobado</option>
-            <option value="delivered">Entregado</option>
+            {PRODUCTION_WORKFLOW.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
           </select>
           {canCreate && (
             <select className="input" aria-label="Filtrar piezas por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}>
@@ -408,10 +375,10 @@ export function ProductionPage() {
           </article>
         </div>
         <div className="production-workflow-strip" aria-label="Resumen del flujo">
-          {WORKFLOW_COLUMNS.map(([status, label]) => (
+          {PRODUCTION_WORKFLOW.map((status) => (
             <button key={status} type="button" className={statusFilter === status ? 'active' : ''} onClick={() => setStatusFilter((current) => current === status ? '' : status)}>
               <strong>{(piecesByStatus.get(status) ?? []).length}</strong>
-              <span>{label}</span>
+              <span>{statusLabel(status)}</span>
             </button>
           ))}
         </div>
@@ -456,12 +423,12 @@ export function ProductionPage() {
         />
       ) : viewMode === 'board' ? (
         <div className="production-board">
-          {WORKFLOW_COLUMNS.map(([status, label]) => {
+          {PRODUCTION_WORKFLOW.map((status) => {
             const columnPieces = piecesByStatus.get(status) ?? [];
             return (
               <section className="kanban-column" key={status}>
                 <div className="kanban-header">
-                  <strong>{label}</strong>
+                  <strong>{statusLabel(status)}</strong>
                   <span className="kanban-count">{columnPieces.length}</span>
                 </div>
                 <div className="kanban-cards">
@@ -470,7 +437,7 @@ export function ProductionPage() {
                   ) : (
                     columnPieces.map((piece) => (
                       <article className="kanban-card" key={piece.id}>
-                        <div className="kanban-card-title">{piece.title}</div>
+                        <Link to={`/production/${piece.id}`} className="kanban-card-title">{piece.title}</Link>
                         <div className="kanban-card-client">{piece.clientName}</div>
                         <div className="kanban-card-metrics"><span>N{piece.difficultyLevel ?? 1}</span><span>{piece.udAmount} UD</span><span>{piece.correctionCount} corr.</span></div>
                         {piece.dueDate && <div className="kanban-card-info">Vence {new Date(piece.dueDate).toLocaleDateString('es-CL')}</div>}
@@ -546,7 +513,7 @@ export function ProductionPage() {
                 <tr key={piece.id}>
                   <td>{piece.title}</td>
                   <td>{piece.clientName}</td>
-                  <td>{PIECE_TYPES.find(([value]) => value === piece.type)?.[1] ?? piece.type}</td>
+                  <td>{pieceTypeLabel(piece.type)}</td>
                   <td><StatusBadge status={piece.status} /></td>
                   <td>N{piece.difficultyLevel ?? 1}</td>
                   <td>{piece.udAmount}</td>
@@ -567,7 +534,7 @@ export function ProductionPage() {
             Asignar a
             <select className="input" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>
               <option value="">Selecciona un responsable</option>
-              {assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.name} ({ROLE_LABELS[user.role] ?? user.role})</option>)}
+              {assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.name} ({roleLabel(user.role)})</option>)}
             </select>
           </label>
           <button className="btn btn-primary btn-block" type="submit" disabled={assignMutation.isPending || !assigneeId}>
@@ -607,7 +574,7 @@ export function ProductionPage() {
           <label>
             Tipo
             <select className="input" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}>
-              {PIECE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              {PIECE_TYPE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
           {form.type === 'carousel' && (

@@ -6,4 +6,3 @@ var XPPeriodStatus;
     XPPeriodStatus["OPEN"] = "open";
     XPPeriodStatus["CLOSED"] = "closed";
 })(XPPeriodStatus || (exports.XPPeriodStatus = XPPeriodStatus = {}));
-//# sourceMappingURL=xp-period-status.enum.js.map

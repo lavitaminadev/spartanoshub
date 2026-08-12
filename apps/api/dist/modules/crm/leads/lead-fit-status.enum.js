@@ -7,4 +7,3 @@ var LeadFitStatus;
     LeadFitStatus["REVIEW"] = "review";
     LeadFitStatus["DISCARDED"] = "discarded";
 })(LeadFitStatus || (exports.LeadFitStatus = LeadFitStatus = {}));
-//# sourceMappingURL=lead-fit-status.enum.js.map

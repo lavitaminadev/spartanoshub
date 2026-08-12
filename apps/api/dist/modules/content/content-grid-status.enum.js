@@ -9,4 +9,3 @@ var ContentGridStatus;
     ContentGridStatus["REJECTED"] = "rejected";
     ContentGridStatus["PUBLISHED"] = "published";
 })(ContentGridStatus || (exports.ContentGridStatus = ContentGridStatus = {}));
-//# sourceMappingURL=content-grid-status.enum.js.map

@@ -44,4 +44,3 @@ exports.GetWeeklyRankingUseCase = GetWeeklyRankingUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(xp_period_entity_1.XPPeriod)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], GetWeeklyRankingUseCase);
-//# sourceMappingURL=get-weekly-ranking.use-case.js.map

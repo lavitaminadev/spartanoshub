@@ -70,4 +70,3 @@ exports.Objective = Objective = __decorate([
     (0, typeorm_1.Entity)('objectives'),
     (0, typeorm_1.Index)('IDX_objectives_org_status', ['organizationId', 'status'])
 ], Objective);
-//# sourceMappingURL=objective.entity.js.map

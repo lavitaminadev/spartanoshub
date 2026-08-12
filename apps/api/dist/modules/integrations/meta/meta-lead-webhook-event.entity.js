@@ -66,4 +66,3 @@ exports.MetaLeadWebhookEvent = MetaLeadWebhookEvent = __decorate([
     (0, typeorm_1.Entity)('meta_lead_webhook_events'),
     (0, typeorm_1.Index)('UQ_meta_lead_webhook_page_lead', ['pageId', 'leadgenId'], { unique: true })
 ], MetaLeadWebhookEvent);
-//# sourceMappingURL=meta-lead-webhook-event.entity.js.map

@@ -57,4 +57,3 @@ exports.OrganizationSettingsController = OrganizationSettingsController = __deco
     (0, module_scope_decorator_1.ModuleScope)('settings'),
     __metadata("design:paramtypes", [organization_settings_service_1.OrganizationSettingsService])
 ], OrganizationSettingsController);
-//# sourceMappingURL=organization-settings.controller.js.map

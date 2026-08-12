@@ -9,4 +9,3 @@ var IntegrationAccountType;
     IntegrationAccountType["PROFILE"] = "profile";
     IntegrationAccountType["OTHER"] = "other";
 })(IntegrationAccountType || (exports.IntegrationAccountType = IntegrationAccountType = {}));
-//# sourceMappingURL=integration-account-type.enum.js.map

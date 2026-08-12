@@ -23,4 +23,3 @@ class ClientCapabilities1710000000032 {
     }
 }
 exports.ClientCapabilities1710000000032 = ClientCapabilities1710000000032;
-//# sourceMappingURL=0032-client-capabilities.js.map

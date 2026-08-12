@@ -21,4 +21,3 @@ exports.PodsModule = PodsModule;
 exports.PodsModule = PodsModule = __decorate([
     (0, common_1.Module)({ imports: [typeorm_1.TypeOrmModule.forFeature([pod_entity_1.Pod, pod_member_entity_1.PodMember, user_entity_1.User, client_entity_1.Client])], controllers: [pods_controller_1.PodsController], providers: [pods_service_1.PodsService], exports: [pods_service_1.PodsService] })
 ], PodsModule);
-//# sourceMappingURL=pods.module.js.map

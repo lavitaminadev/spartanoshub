@@ -83,4 +83,3 @@ exports.PieceDeliveredHandler = PieceDeliveredHandler = PieceDeliveredHandler_1 
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], PieceDeliveredHandler);
-//# sourceMappingURL=piece-delivered.handler.js.map

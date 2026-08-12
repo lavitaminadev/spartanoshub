@@ -92,4 +92,3 @@ exports.AccountCycle = AccountCycle = __decorate([
     (0, typeorm_1.Entity)('account_cycles'),
     (0, typeorm_1.Index)('UQ_account_cycles_client_period', ['clientId', 'year', 'month'], { unique: true })
 ], AccountCycle);
-//# sourceMappingURL=account-cycle.entity.js.map

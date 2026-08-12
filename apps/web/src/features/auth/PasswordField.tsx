@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PASSWORD_RULES } from './password-rules';
+import { buildPasswordRules, type PasswordPolicy } from './password-rules';
 
 interface PasswordFieldProps {
   id: string;
@@ -8,10 +8,12 @@ interface PasswordFieldProps {
   onChange: (value: string) => void;
   autoComplete: 'current-password' | 'new-password';
   showRules?: boolean;
+  policy?: Partial<PasswordPolicy> | null;
 }
 
-export function PasswordField({ id, label, value, onChange, autoComplete, showRules }: PasswordFieldProps) {
+export function PasswordField({ id, label, value, onChange, autoComplete, showRules, policy }: PasswordFieldProps) {
   const [visible, setVisible] = useState(false);
+  const rules = showRules ? buildPasswordRules(policy) : [];
   return (
     <div className="form-group">
       <label htmlFor={id}>{label} <span className="required-mark">Obligatorio</span></label>
@@ -23,7 +25,7 @@ export function PasswordField({ id, label, value, onChange, autoComplete, showRu
           type={visible ? 'text' : 'password'}
           autoComplete={autoComplete}
           required
-          minLength={8}
+          minLength={policy?.minLength ?? 8}
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -36,9 +38,9 @@ export function PasswordField({ id, label, value, onChange, autoComplete, showRu
           {visible ? 'Ocultar' : 'Mostrar'}
         </button>
       </div>
-      {showRules && (
+      {showRules && rules.length > 0 && (
         <ul className="password-rules" aria-label="Requisitos de contraseña">
-          {PASSWORD_RULES.map((rule) => {
+          {rules.map((rule) => {
             const passed = rule.test(value);
             return <li key={rule.label} className={passed ? 'passed' : 'pending'}>{passed ? 'Cumple' : 'Pendiente'}: {rule.label}</li>;
           })}

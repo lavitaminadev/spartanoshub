@@ -9,4 +9,3 @@ class NamingValidationResult {
     }
 }
 exports.NamingValidationResult = NamingValidationResult;
-//# sourceMappingURL=naming-validation-result.js.map

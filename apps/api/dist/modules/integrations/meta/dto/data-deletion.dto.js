@@ -20,4 +20,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(10000),
     __metadata("design:type", String)
 ], MetaDataDeletionDto.prototype, "signed_request", void 0);
-//# sourceMappingURL=data-deletion.dto.js.map

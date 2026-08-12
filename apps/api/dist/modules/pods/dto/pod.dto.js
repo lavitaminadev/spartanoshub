@@ -86,4 +86,3 @@ __decorate([
     (0, class_validator_1.IsUUID)(undefined, { each: true }),
     __metadata("design:type", Array)
 ], SetPodClientsDto.prototype, "clientIds", void 0);
-//# sourceMappingURL=pod.dto.js.map

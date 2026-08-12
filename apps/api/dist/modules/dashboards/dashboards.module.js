@@ -19,4 +19,3 @@ exports.DashboardsModule = DashboardsModule = __decorate([
         providers: [dashboards_service_1.DashboardsService],
     })
 ], DashboardsModule);
-//# sourceMappingURL=dashboards.module.js.map
