@@ -35,6 +35,8 @@ __exportStar(require("./types/organization"), exports);
 __exportStar(require("./types/billing"), exports);
 __exportStar(require("./types/approval"), exports);
 __exportStar(require("./types/integration"), exports);
+__exportStar(require("./types/survey"), exports);
+__exportStar(require("./survey-metrics"), exports);
 __exportStar(require("./enums"), exports);
 __exportStar(require("./constants"), exports);
 //# sourceMappingURL=index.js.map

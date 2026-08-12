@@ -14,8 +14,8 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { api, ApiError } from '../../core/api';
 import { readStoredJson, storageKey, writeStoredJson } from '../../core/browser-storage';
-import type { Survey, SurveyQuestion, SurveyResponse, SurveyResultsSummary, SurveyType } from './types';
-import { computeSurveyResults } from './survey-metrics';
+import type { Survey, SurveyQuestion, SurveyResponse, SurveyResultsSummary, SurveyType } from '@espartanos/shared';
+import { computeSurveyResults } from '@espartanos/shared';
 
 const LIST_KEY = storageKey('surveys', 'list');
 const responsesKey = (surveyId: string) => storageKey('surveys', 'responses', surveyId);

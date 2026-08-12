@@ -14,6 +14,7 @@ const organization_entity_1 = require("../../modules/organizations/organization.
 const user_entity_1 = require("../../modules/users/user.entity");
 const client_entity_1 = require("../../modules/clients/client.entity");
 const user_permission_override_entity_1 = require("./user-permission-override.entity");
+const role_permission_override_entity_1 = require("./role-permission-override.entity");
 const user_client_access_entity_1 = require("../client-scope/user-client-access.entity");
 const permission_resolver_service_1 = require("./permission-resolver.service");
 const permission_guard_1 = require("./permission.guard");
@@ -26,7 +27,7 @@ exports.AuthorizationModule = AuthorizationModule;
 exports.AuthorizationModule = AuthorizationModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization, user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, user_client_access_entity_1.UserClientAccess]),
+            typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization, user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, role_permission_override_entity_1.RolePermissionOverride, user_client_access_entity_1.UserClientAccess]),
             audit_module_1.AuditModule,
             parameters_module_1.ParametersModule,
         ],

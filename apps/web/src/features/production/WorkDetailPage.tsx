@@ -4,16 +4,20 @@
  * Reproduce la pantalla "WorkScreen" del prototipo (línea 424 de page.tsx) con:
  * - SourceChain (trazabilidad: Cliente → Brief → Solicitud → Pieza)
  * - WorkflowTimeline (etapas del flujo con estados)
- * - Tabs: Resumen, Archivos, Comentarios, Historial
+ * - Tabs: Resumen, Archivos, Historial
  * - Sidebar con acciones y datos heredados
  *
- * Backend pendiente: GET /production/pieces/:id/detail
- * Mientras tanto usa la lista existente de piezas y el WorkflowTimeline como referencia visual.
+ * Se arma con tres lecturas que sí existen: la lista de piezas, las versiones cargadas y la
+ * auditoría transversal filtrada por esta pieza. No hay un endpoint de «detalle» que las
+ * devuelva juntas, y no hacía falta inventarlo para poder mostrarlas.
+ *
+ * La pestaña de comentarios se retiró: no hay dominio de comentarios en el backend y su
+ * cuadro de texto ofrecía publicar algo que siempre fallaba.
  */
 
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -33,16 +37,23 @@ interface Piece {
   dependencyIds?: string[]; createdAt: string; assignedAt?: string;
 }
 
-interface PieceDetail {
-  piece: Piece & { description?: string; campaign?: string; clientId?: string; assignedName?: string };
-  sourceChain: Array<{ type: string; label: string; id?: string; name: string }>;
-  requirements: Array<{ label: string; detail: string; completed: boolean }>;
-  versions: Array<{ id: string; kind: string; name: string; metadata: string; status: string; fileUrl?: string; createdAt: string }>;
-  comments: Array<{ id: string; author: string; text: string; createdAt: string }>;
-  workflowStages: Array<{ name: string; owner: string }>;
-  currentStageIndex: number;
-  audit: Array<{ id: number; title: string; detail: string; actor: string; time: string; tone?: string }>;
+interface PieceVersionRow {
+  id: string; versionNumber: number; fileName: string; driveFileId?: string;
+  stateLabel?: string; isFinal: boolean; namingValid?: boolean; createdAt: string;
 }
+
+interface AuditRow {
+  id: string | number; action: string; reason?: string | null;
+  actorName?: string | null; occurredAt: string;
+}
+
+/** Nombre legible de cada movimiento auditado de una pieza. */
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  created: 'Pieza creada',
+  updated: 'Pieza actualizada',
+  assigned: 'Responsable asignado',
+  deleted: 'Pieza eliminada',
+};
 
 type Feedback = { tone: 'success' | 'error'; text: string } | null;
 
@@ -60,6 +71,25 @@ const STATUS_STAGE: Record<string, number> = {
   client_review: 5, correction: 6, approved: 7, delivered: 8,
 };
 
+/**
+ * Transición que corresponde al estado actual de la pieza.
+ *
+ * Reproduce el mismo mapa que ofrece el tablero (`ProductionPage`): un estado admite una sola
+ * salida hacia adelante, y las que necesitan datos —asignar responsable, subir una versión—
+ * no se resuelven desde acá porque piden un formulario propio. Devolver `null` es lo que
+ * mantiene el botón fuera de la pantalla cuando no hay nada que avanzar.
+ */
+function nextTransition(status: string, role: string): { action: 'start' | 'send-to-client' | 'approve' | 'deliver'; label: string } | null {
+  const canStart = ['admin', 'art_director', 'operations_director', 'designer', 'audiovisual'].includes(role);
+  const canReview = ['admin', 'art_director', 'operations_director'].includes(role);
+  if (canStart && status === 'assigned') return { action: 'start', label: 'Iniciar' };
+  if (canStart && status === 'correction') return { action: 'start', label: 'Retomar' };
+  if (canReview && status === 'internal_review') return { action: 'send-to-client', label: 'Enviar a cliente' };
+  if (canReview && status === 'client_validation') return { action: 'approve', label: 'Aprobar' };
+  if (canReview && status === 'approved') return { action: 'deliver', label: 'Entregar' };
+  return null;
+}
+
 function buildWorkflowStages(piece?: Piece | null): { stages: WorkflowStage[]; index: number } {
   const current = piece?.status ?? 'draft';
   const idx = STATUS_STAGE[current] ?? 0;
@@ -73,7 +103,6 @@ function buildWorkflowStages(piece?: Piece | null): { stages: WorkflowStage[]; i
 const TABS = [
   { key: 'summary', label: 'Resumen' },
   { key: 'files', label: 'Archivos' },
-  { key: 'comments', label: 'Comentarios' },
   { key: 'history', label: 'Historial' },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
@@ -83,51 +112,68 @@ export function WorkDetailPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('summary');
-  const [commentText, setCommentText] = useState('');
   const [feedback, setFeedback] = useState<Feedback>(null);
 
   const piecesQuery = useQuery<Piece[]>({ queryKey: ['pieces'], queryFn: () => api.get('/production/pieces') });
   const pieces = piecesQuery.data ?? [];
   const found = pieces.find((p) => p.id === id);
 
-  const detailQuery = useQuery<PieceDetail>({
-    queryKey: ['piece-detail', id],
-    queryFn: () => api.get(`/production/pieces/${id}/detail`),
-    enabled: !!id,
-  });
-  const detail = detailQuery.data;
-
-  const piece = detail?.piece ?? found ?? null;
-  const sourceChain = detail?.sourceChain ?? (
-    piece ? [
+  const piece = found ?? null;
+  const sourceChain = piece
+    ? [
       { type: 'client', label: 'Cliente', name: piece.clientName },
       { type: 'piece', label: 'Trabajo', name: piece.title },
-    ] : []
-  );
-  const requirements = detail?.requirements ?? [];
-  const versions = detail?.versions ?? [];
-  const comments = detail?.comments ?? [];
-  const audit = detail?.audit ?? [];
+    ]
+    : [];
+  const versionsQuery = useQuery<PieceVersionRow[]>({
+    queryKey: ['piece-versions', id],
+    queryFn: () => api.get(`/production/pieces/${id}/versions`),
+    enabled: Boolean(id),
+  });
+  // La auditoría es transversal y ya guarda los movimientos de cada pieza bajo `piece`; no
+  // hace falta un historial propio del módulo para poder mostrarlos.
+  const auditQuery = useQuery<AuditRow[]>({
+    queryKey: ['piece-audit', id],
+    queryFn: () => api.get(`/audit?entityType=piece&entityId=${encodeURIComponent(id)}&limit=100`),
+    enabled: Boolean(id),
+  });
+
+  const versions = (versionsQuery.data ?? []).map((row) => ({
+    id: row.id,
+    kind: row.isFinal ? 'FINAL' : `V${row.versionNumber}`,
+    name: row.fileName,
+    metadata: [row.stateLabel, new Date(row.createdAt).toLocaleDateString('es-CL')].filter(Boolean).join(' · '),
+    status: row.namingValid === false ? 'Nombre fuera de norma' : 'Cargada',
+    fileUrl: row.driveFileId ? `https://drive.google.com/file/d/${row.driveFileId}/view` : undefined,
+    createdAt: row.createdAt,
+  }));
+  const audit = (auditQuery.data ?? []).map((row) => ({
+    id: String(row.id),
+    title: AUDIT_ACTION_LABELS[row.action] ?? row.action,
+    detail: row.reason ?? '',
+    actor: row.actorName ?? 'Sistema',
+    time: new Date(row.occurredAt).toLocaleString('es-CL'),
+  }));
+  // Los requerimientos no tienen origen en la API: se dejan vacíos en vez de inventarlos.
+  const requirements: Array<{ label: string; detail: string; completed: boolean }> = [];
+  const readiness: number | null = null;
   const { stages, index: currentStageIndex } = buildWorkflowStages(piece);
 
-  const readiness = requirements.length
-    ? Math.round(requirements.filter((r) => r.completed).length / requirements.length * 100)
-    : null;
-
-  const commentMutation = useMutation({
-    mutationFn: (text: string) => api.post(`/production/pieces/${id}/comments`, { text }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['piece-detail', id] }); setCommentText(''); setFeedback({ tone: 'success', text: 'Comentario publicado.' }); },
+  const transition = piece ? nextTransition(piece.status, user?.role ?? '') : null;
+  const transitionMutation = useMutation({
+    mutationFn: (action: string) => api.post(`/production/pieces/${id}/${action}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pieces'] }); setFeedback({ tone: 'success', text: 'El trabajo avanzó de etapa.' }); },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
 
-  const isLoading = (!found && piecesQuery.isLoading) || detailQuery.isLoading;
-  const loadError = piecesQuery.error || detailQuery.error;
+  const isLoading = !found && piecesQuery.isLoading;
+  const loadError = piecesQuery.error;
 
   if (isLoading) return <LoadingSpinner text="Abriendo detalle del trabajo..." />;
-  if (loadError && !found && !detail) return <div className="page"><div className="alert alert-error">No se pudo cargar el detalle: {loadError.message}</div><Link to="/production" className="back-link">Volver a producción</Link></div>;
+  if (loadError && !found) return <div className="page"><div className="alert alert-error">No se pudo cargar el detalle: {loadError.message}</div><Link to="/production" className="back-link">Volver a producción</Link></div>;
   if (!piece) return <EmptyState icon="🔍" title="Trabajo no encontrado" description="La pieza que buscas no existe o fue eliminada." action={<Link to="/production" className="btn btn-outline">Volver a producción</Link>} />;
 
-  const canAdvance = user?.role !== 'client' && currentStageIndex < DEFAULT_WORKFLOW.length - 1;
+  const advance = () => { if (transition) transitionMutation.mutate(transition.action); };
 
   return <div className="page">
     <Link to="/production" className="back-link">← Volver a producción</Link>
@@ -140,13 +186,12 @@ export function WorkDetailPage() {
       tone="entity"
       badge={<StatusBadge status={piece.status} />}
       actions={<>
-        <button className="btn btn-outline btn-sm" onClick={() => setTab('comments')}>Comentar</button>
-        {canAdvance && <button className="btn btn-primary btn-sm" onClick={() => setFeedback({ tone: 'error', text: 'El avance de etapa se conecta al backend pendiente.' })}>Avanzar estado</button>}
+        {transition && <button className="btn btn-primary btn-sm" disabled={transitionMutation.isPending} onClick={advance}>{transitionMutation.isPending ? 'Avanzando...' : transition.label}</button>}
       </>}
       footer={<SourceChain links={sourceChain.map((s) => ({ label: s.label, value: s.name }))} />}
     />
 
-    <WorkflowTimeline stages={stages} currentStage={currentStageIndex} onAdvance={canAdvance ? () => setFeedback({ tone: 'error', text: 'Avance pendiente de conexión al backend.' }) : undefined} />
+    <WorkflowTimeline stages={stages} currentStage={currentStageIndex} onAdvance={transition ? advance : undefined} />
 
     <nav className="work-tabs">
       {TABS.map((t) => <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>{t.label}</button>)}
@@ -158,8 +203,7 @@ export function WorkDetailPage() {
       <section className="work-detail-main">
         {tab === 'summary' && <SummaryTab piece={piece} requirements={requirements} readiness={readiness} />}
         {tab === 'files' && <FilesTab versions={versions} />}
-        {tab === 'comments' && <CommentsTab comments={comments} commentText={commentText} setCommentText={setCommentText} onPost={() => { if (commentText.trim()) commentMutation.mutate(commentText.trim()); }} pending={commentMutation.isPending} />}
-        {tab === 'history' && <AuditLog entries={audit.map((e) => ({ id: String(e.id), title: e.title, detail: e.detail, actor: e.actor, time: e.time, tone: (e.tone as 'pink' | 'cyan' | 'amber' | undefined) }))} emptyMessage="Aún no hay movimientos registrados para este trabajo." />}
+        {tab === 'history' && <AuditLog entries={audit} emptyMessage="Aún no hay movimientos registrados para este trabajo." />}
       </section>
 
       <aside className="work-context">
@@ -215,29 +259,6 @@ function FilesTab({ versions }: { versions: Array<{ id: string; kind: string; na
       </article>
     ))}
   </div>;
-}
-
-function CommentsTab({ comments, commentText, setCommentText, onPost, pending }: { comments: Array<{ id: string; author: string; text: string; createdAt: string }>; commentText: string; setCommentText: (v: string) => void; onPost: () => void; pending: boolean }) {
-  return <>
-    <div className="comment-list">
-      {comments.length === 0 && <p className="page-subtitle" style={{ padding: '12px 0', color: 'var(--muted)' }}>Sin comentarios todavía.</p>}
-      {comments.map((c) => (
-        <article key={c.id}>
-          <span className="comment-avatar">{c.author.trim().charAt(0).toUpperCase()}</span>
-          <div>
-            <header><b>{c.author}</b><small>{new Date(c.createdAt).toLocaleString('es-CL')}</small></header>
-            <p>{c.text}</p>
-          </div>
-        </article>
-      ))}
-    </div>
-    <div className="comment-box">
-      <textarea className="input" rows={3} value={commentText} onChange={(e) => setCommentText(e.target.value)} placeholder="Escribí un comentario o nota interna..." />
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary btn-sm" disabled={!commentText.trim() || pending} onClick={onPost}>{pending ? 'Publicando...' : 'Publicar'}</button>
-      </div>
-    </div>
-  </>;
 }
 
 function ContextSidebar({ piece, readiness, nextStage }: { piece: Piece; readiness: number | null; nextStage?: { name: string; owner: string } }) {

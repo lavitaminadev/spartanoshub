@@ -12,7 +12,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, ReservationScopeDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 
 @ApiTags('Reservas')
@@ -296,8 +296,8 @@ export class ReservationsController {
 
   @Get('analytics/occupancy')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async occupancy(@Req() req: AuthenticatedRequest, @Query('month') month: string, @Query() query: ReservationScopeDto) {
+  async occupancy(@Req() req: AuthenticatedRequest, @Query() query: OccupancyQueryDto) {
     const scope = await this.requestedScope(req, query.clientId);
-    return this.service.occupancyCalendar(req.organizationId, month, scope.clientId, scope.clientIds);
+    return this.service.occupancyCalendar(req.organizationId, query.month, scope.clientId, scope.clientIds);
   }
 }

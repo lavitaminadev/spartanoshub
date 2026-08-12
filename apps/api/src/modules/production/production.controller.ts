@@ -105,6 +105,32 @@ export class ProductionController {
     return this.assignPiece.execute(id, dto.designerId, req.organizationId, req.user.id);
   }
 
+  /**
+   * Versiones cargadas de una pieza, de la más reciente a la más antigua.
+   *
+   * Existía la subida (`POST :id/versions`) pero no la lectura, así que la pestaña de
+   * archivos del detalle no tenía de dónde llenarse: los archivos estaban guardados y no
+   * había forma de verlos.
+   */
+  @Get(':id/versions')
+  @ApiOperation({ summary: 'Listar versiones de una pieza' })
+  async versions(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const piece = await this.pieceRepo.findOne({ where: { id, organizationId: req.organizationId } });
+    if (!piece) throw new NotFoundException('Piece not found');
+    await this.accountAccess.assertClient(req.organizationId, req.user, piece.clientId);
+    const rows = await this.versionRepo.find({ where: { pieceId: piece.id }, order: { versionNumber: 'DESC' } });
+    return rows.map((row) => ({
+      id: row.id,
+      versionNumber: row.versionNumber,
+      fileName: row.fileName,
+      driveFileId: row.driveFileId ?? undefined,
+      stateLabel: row.stateLabel ?? undefined,
+      isFinal: row.isFinal,
+      namingValid: row.namingValid ?? undefined,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
   @Post(':id/versions')
   @Roles(UserRole.DESIGNER, UserRole.AUDIOVISUAL, UserRole.ART_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Subir nueva version de una pieza' })

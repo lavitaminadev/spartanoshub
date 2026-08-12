@@ -82,6 +82,17 @@ describe('navegación bajo el alcance de fase', () => {
     expect(getFeatureForPath('/intake')).toBe('production');
   });
 
+  it('Encuestas depende del interruptor de la organización, no de la fase', () => {
+    // El módulo dejó de estar en `development` cuando se publicó `SurveysController`. Ahora la
+    // ruta la gobierna el interruptor: sin él, la pantalla llamaría a una API que sí existe
+    // pero que la organización no contrató.
+    expect(getFeatureForPath('/surveys')).toBe('surveys');
+    expect(isPathEnabled('/surveys', { surveys: false }, undefined)).toBe(false);
+    expect(isPathEnabled('/surveys', { surveys: true }, undefined)).toBe(true);
+    expect(isPathEnabled('/surveys', undefined, { surveys: 'none' })).toBe(false);
+    expect(isPathEnabled('/surveys', undefined, { surveys: 'edit' })).toBe(true);
+  });
+
   it('toda ruta fuera de alcance declara su módulo, sin lo cual no se podría ocultar', () => {
     for (const path of ['/content', '/billing', '/contracts']) {
       expect(getFeatureForPath(path), path).toBeDefined();

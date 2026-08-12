@@ -135,7 +135,7 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly defaultEnabled: false;
 }, {
     readonly key: "surveys";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }];
 export type OrganizationModuleKey = (typeof ORGANIZATION_MODULE_CATALOG)[number]['key'];

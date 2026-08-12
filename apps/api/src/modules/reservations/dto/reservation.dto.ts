@@ -225,3 +225,16 @@ export class ReservationScopeDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100000) limit?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(365) days?: number;
 }
+
+/**
+ * Alcance del calendario de ocupación, que además necesita el mes.
+ *
+ * El mes se declara acá y no se lee con un `@Query('month')` aparte porque la validación
+ * global corre con `forbidNonWhitelisted`: al validar el objeto completo contra un DTO que no
+ * declaraba `month`, la petición se rechazaba con «property month should not exist» aunque
+ * todos sus valores fueran correctos.
+ */
+export class OccupancyQueryDto extends ReservationScopeDto {
+  @IsString() @Matches(/^\d{4}-\d{2}$/, { message: 'El mes debe tener el formato YYYY-MM' })
+  month: string;
+}

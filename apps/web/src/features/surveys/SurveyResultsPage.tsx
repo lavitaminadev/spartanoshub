@@ -18,7 +18,7 @@ import type {
   SurveyQuestionResult,
   SurveyResultsSummary,
   TextQuestionResult,
-} from './types';
+} from '@espartanos/shared';
 import './surveys.css';
 
 const RATING_SCALE = ['1', '2', '3', '4', '5'];
