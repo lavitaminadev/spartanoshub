@@ -11,7 +11,7 @@ import {
   type ModuleLifecycleStatus,
   type OrganizationModuleKey,
 } from '@espartanos/shared';
-import type { PermissionLevel } from '../../core/role-preview-context';
+import type { PermissionLevel } from '../../core/permission-level';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
