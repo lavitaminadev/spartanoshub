@@ -23,6 +23,6 @@ exports.ParametersModule = ParametersModule = __decorate([
         imports: [typeorm_1.TypeOrmModule.forFeature([parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), audit_module_1.AuditModule],
         controllers: [organization_settings_controller_1.OrganizationSettingsController],
         providers: [parameter_resolver_service_1.ParameterResolver, organization_settings_service_1.OrganizationSettingsService],
-        exports: [parameter_resolver_service_1.ParameterResolver, typeorm_1.TypeOrmModule],
+        exports: [parameter_resolver_service_1.ParameterResolver, organization_settings_service_1.OrganizationSettingsService, typeorm_1.TypeOrmModule],
     })
 ], ParametersModule);
