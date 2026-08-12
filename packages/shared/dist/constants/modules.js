@@ -10,7 +10,8 @@
  * El frontend lo usa para decidir si un modulo puede mostrarse siquiera.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PRODUCT_VISIBLE_LIFECYCLES = exports.WEB_ONLY_MODULE_CATALOG = exports.ORGANIZATION_MODULE_CATALOG = exports.MODULE_LIFECYCLE_STATUSES = void 0;
+exports.PRODUCT_VISIBLE_LIFECYCLES = exports.WEB_ONLY_MODULE_CATALOG = exports.AGENCY_CORE_MODULE_KEYS = exports.ORGANIZATION_MODULE_CATALOG = exports.MODULE_LIFECYCLE_STATUSES = void 0;
+exports.buildAgencyCoreOrganizationFeatures = buildAgencyCoreOrganizationFeatures;
 exports.isModuleLifecycleVisible = isModuleLifecycleVisible;
 exports.getOrganizationModuleLifecycle = getOrganizationModuleLifecycle;
 exports.isOrganizationModuleVisible = isOrganizationModuleVisible;
@@ -73,6 +74,21 @@ exports.ORGANIZATION_MODULE_CATALOG = [
     // defecto, y queda a un interruptor de distancia en el panel de administracion.
     { key: 'surveys', lifecycle: 'active', defaultEnabled: false },
 ];
+exports.AGENCY_CORE_MODULE_KEYS = [
+    'dashboard',
+    'settings',
+    'users',
+    'clients',
+    'reports',
+    'integrations',
+    'reservations',
+    'crm',
+    'surveys',
+];
+const AGENCY_CORE_MODULE_SET = new Set(exports.AGENCY_CORE_MODULE_KEYS);
+function buildAgencyCoreOrganizationFeatures() {
+    return Object.fromEntries(exports.ORGANIZATION_MODULE_CATALOG.map((item) => [item.key, AGENCY_CORE_MODULE_SET.has(item.key)]));
+}
 /**
  * Modulos de UI sin interruptor por organizacion.
  *

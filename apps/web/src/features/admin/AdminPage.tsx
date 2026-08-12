@@ -6,6 +6,7 @@ import { ROLE_LABELS } from '../../core/role-labels';
 import {
   MODULE_LIFECYCLE_STATUSES,
   ORGANIZATION_MODULE_CATALOG,
+  buildAgencyCoreOrganizationFeatures,
   isModuleLifecycleVisible,
   moduleLifecycleSettingKey,
   type ModuleLifecycleStatus,
@@ -171,6 +172,10 @@ export function AdminPage() {
     featuresMutation.mutate({ [key]: enabled } as Partial<OrganizationFeatures>);
   };
 
+  const applyAgencyCorePreset = () => {
+    featuresMutation.mutate(buildAgencyCoreOrganizationFeatures());
+  };
+
   const updateLifecycle = (key: OrganizationModuleKey, lifecycle: ModuleLifecycleStatus) => {
     lifecycleMutation.mutate({ [moduleLifecycleSettingKey(key)]: lifecycle });
   };
@@ -239,6 +244,7 @@ export function AdminPage() {
           <h2>Centro de módulos</h2>
           <p className="page-subtitle">Controla si el producto muestra cada módulo y si esta organización puede usarlo. Un módulo en desarrollo sigue oculto aunque esté encendido para la organización.</p>
         </div>
+        <button className="btn btn-primary" type="button" disabled={featuresMutation.isPending} onClick={applyAgencyCorePreset}>Usar solo operación base</button>
       </div>
       <div className="reservation-flow-switch module-lifecycle-summary" role="group" aria-label="Resumen por lifecycle">
         <button className="active" type="button"><strong>{lifecycleSummary.active ?? 0}</strong><span>Activos</span></button>
