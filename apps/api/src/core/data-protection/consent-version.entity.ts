@@ -26,7 +26,7 @@ export class ConsentVersion {
 
   @CreateDateColumn({ name: 'published_at' }) publishedAt: Date;
 
-  @Column({ name: 'published_by', length: 36, nullable: true }) publishedBy?: string | null;
+  @Column({ name: 'published_by', type: 'varchar', length: 36, nullable: true }) publishedBy?: string | null;
 
   /** Solo una versión por organización queda vigente; publicar una nueva retira la anterior. */
   @Column({ type: 'boolean', default: false }) active: boolean;
