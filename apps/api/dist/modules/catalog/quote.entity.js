@@ -114,4 +114,3 @@ exports.Quote = Quote = __decorate([
     (0, typeorm_1.Index)('UQ_quotes_org_number', ['organizationId', 'number'], { unique: true }),
     (0, typeorm_1.Index)('IDX_quotes_org_created', ['organizationId', 'createdAt'])
 ], Quote);
-//# sourceMappingURL=quote.entity.js.map

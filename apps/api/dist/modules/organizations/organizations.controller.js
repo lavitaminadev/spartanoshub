@@ -143,4 +143,3 @@ exports.OrganizationsController = OrganizationsController = __decorate([
         feature_guard_1.FeatureGuard,
         audit_service_1.AuditService])
 ], OrganizationsController);
-//# sourceMappingURL=organizations.controller.js.map

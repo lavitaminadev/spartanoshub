@@ -82,4 +82,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(2000),
     __metadata("design:type", String)
 ], UpdateOpportunityDto.prototype, "lossNote", void 0);
-//# sourceMappingURL=update-opportunity.dto.js.map

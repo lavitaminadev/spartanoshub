@@ -90,4 +90,3 @@ exports.ContactsController = ContactsController = __decorate([
     __metadata("design:paramtypes", [contacts_service_1.ContactsService,
         account_access_service_1.AccountAccessService])
 ], ContactsController);
-//# sourceMappingURL=contacts.controller.js.map

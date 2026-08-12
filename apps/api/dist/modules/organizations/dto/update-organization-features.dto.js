@@ -26,4 +26,3 @@ __decorate([
     (0, class_validator_1.IsNotEmptyObject)(),
     __metadata("design:type", Object)
 ], UpdateOrganizationFeaturesDto.prototype, "features", void 0);
-//# sourceMappingURL=update-organization-features.dto.js.map

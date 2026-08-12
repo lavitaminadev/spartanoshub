@@ -55,4 +55,3 @@ __decorate([
 exports.KnowledgeChunk = KnowledgeChunk = __decorate([
     (0, typeorm_1.Entity)('knowledge_chunks')
 ], KnowledgeChunk);
-//# sourceMappingURL=knowledge-chunk.entity.js.map

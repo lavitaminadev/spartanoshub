@@ -67,4 +67,3 @@ bootstrap().catch((error) => {
     logger.error(`Fallo al iniciar la aplicacion: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
 });
-//# sourceMappingURL=main.js.map

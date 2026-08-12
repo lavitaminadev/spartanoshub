@@ -88,4 +88,3 @@ exports.DesignBudgetController = DesignBudgetController = __decorate([
         confirm_ud_consumption_use_case_1.ConfirmUdConsumptionUseCase,
         account_access_service_1.AccountAccessService])
 ], DesignBudgetController);
-//# sourceMappingURL=design-budget.controller.js.map

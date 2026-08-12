@@ -1,0 +1,195 @@
+/**
+ * Panel de flujo operativo de una reserva (ReservationWorkflow.tsx).
+ *
+ * Reutiliza los tokens de src/shared/theme-colors.css (--blanco, --gray, --line, --txt*) para
+ * que el panel siga el mismo tema claro/oscuro que el resto de Reservas sin declarar nada
+ * propio: `prefers-color-scheme: dark` ya redefine esos tokens una sola vez.
+ */
+
+.reservation-workflow {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--card-radius, 12px);
+  background: var(--blanco);
+  animation: reservation-workflow-in 0.22s ease-out both;
+}
+
+@keyframes reservation-workflow-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reservation-workflow { animation: none; }
+}
+
+/* ===== Encabezado: etapa actual + progreso ===== */
+.reservation-workflow-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.reservation-workflow-head h3 {
+  margin: 0 0 2px;
+  color: var(--txt);
+}
+
+.reservation-workflow-head p {
+  margin: 0;
+  color: var(--txt-secondary);
+  font-size: 12.5px;
+}
+
+.reservation-workflow-head p b {
+  color: var(--txt);
+}
+
+.reservation-workflow-progress {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  min-width: 96px;
+}
+
+.reservation-workflow-progress strong {
+  color: var(--cian-dark);
+  font-size: 13px;
+}
+
+.reservation-workflow-progress-bar {
+  width: 96px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.reservation-workflow-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cian), var(--rosa));
+  transition: width 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reservation-workflow-progress-bar span { transition: none; }
+}
+
+/* ===== Acciones: requisitos pendientes + botones de avance ===== */
+.reservation-workflow-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.reservation-workflow-pending {
+  animation: reservation-workflow-fade 0.18s ease-out both;
+}
+
+.reservation-workflow-pending b {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.reservation-workflow-pending ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.reservation-workflow-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reservation-workflow-force {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.reservation-workflow-force:hover:not(:disabled) {
+  background: var(--amber-soft);
+}
+
+.reservation-workflow-complete {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--cian-soft, #e9fbf9);
+  color: var(--cian-dark);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+/* ===== Auditoría del flujo ===== */
+.reservation-workflow-audit {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.reservation-workflow-audit h4 {
+  margin: 0 0 10px;
+  color: var(--txt);
+  font-size: 13px;
+}
+
+/* ===== Modal de confirmación ===== */
+.reservation-workflow-confirm {
+  display: grid;
+  gap: 12px;
+  animation: reservation-workflow-fade 0.16s ease-out both;
+}
+
+.reservation-workflow-confirm-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--txt-secondary);
+  font-size: 12.5px;
+}
+
+@keyframes reservation-workflow-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reservation-workflow-pending,
+  .reservation-workflow-confirm { animation: none; }
+}
+
+/* ===== Responsive: la línea de tiempo pasa de grilla horizontal a vertical ===== */
+@media (max-width: 640px) {
+  .reservation-workflow {
+    padding: 14px;
+  }
+
+  .reservation-workflow-head {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-workflow-progress {
+    justify-items: start;
+  }
+
+  /*
+   * Sobreescribe el layout de WorkflowTimeline.css solo dentro de este panel: en escritorio la
+   * herencia es la grilla horizontal con scroll de shared/components/WorkflowTimeline.css (útil
+   * para flujos de más etapas), pero acá el pedido es una columna vertical legible en móvil.
+   */
+  .reservation-workflow .wf-timeline {
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    overflow-x: visible;
+  }
+
+  .reservation-workflow .wf-timeline-stage {
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+    min-height: unset;
+  }
+}

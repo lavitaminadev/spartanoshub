@@ -21,4 +21,3 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], AssignIntegrationClientDto.prototype, "clientId", void 0);
-//# sourceMappingURL=assign-integration-client.dto.js.map

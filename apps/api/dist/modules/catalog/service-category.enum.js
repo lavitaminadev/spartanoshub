@@ -8,4 +8,3 @@ var ServiceCategory;
     ServiceCategory["PROJECT"] = "project";
     ServiceCategory["ONE_TIME"] = "one_time";
 })(ServiceCategory || (exports.ServiceCategory = ServiceCategory = {}));
-//# sourceMappingURL=service-category.enum.js.map

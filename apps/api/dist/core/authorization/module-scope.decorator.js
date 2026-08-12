@@ -8,4 +8,3 @@ const ModuleScope = (module) => (0, common_1.SetMetadata)(exports.MODULE_SCOPE_K
 exports.ModuleScope = ModuleScope;
 const ModuleExempt = (reason) => (0, common_1.SetMetadata)(exports.MODULE_EXEMPT_KEY, reason);
 exports.ModuleExempt = ModuleExempt;
-//# sourceMappingURL=module-scope.decorator.js.map

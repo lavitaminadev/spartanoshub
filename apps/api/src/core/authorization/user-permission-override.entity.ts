@@ -27,6 +27,14 @@ export class UserPermissionOverride {
   /** Motivo de la excepción, para que sea auditable meses después. */
   @Column({ type: 'varchar', length: 300, nullable: true }) reason?: string | null;
 
+  /**
+   * Momento a partir del cual la excepción deja de conceder acceso.
+   *
+   * Nulo significa sin vencimiento. Vencida, la fila se conserva como constancia pero el
+   * nivel efectivo vuelve al que define el cargo.
+   */
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true }) expiresAt?: Date | null;
+
   @Column({ name: 'granted_by', type: 'uuid', nullable: true }) grantedBy?: string | null;
 
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;

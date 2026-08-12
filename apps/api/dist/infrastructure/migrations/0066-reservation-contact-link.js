@@ -55,4 +55,3 @@ class ReservationContactLink1724164200000 {
     }
 }
 exports.ReservationContactLink1724164200000 = ReservationContactLink1724164200000;
-//# sourceMappingURL=0066-reservation-contact-link.js.map

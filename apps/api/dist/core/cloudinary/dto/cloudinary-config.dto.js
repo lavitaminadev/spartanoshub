@@ -32,4 +32,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], CloudinaryConfigDto.prototype, "apiSecret", void 0);
-//# sourceMappingURL=cloudinary-config.dto.js.map

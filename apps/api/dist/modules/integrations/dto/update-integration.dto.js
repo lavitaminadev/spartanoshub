@@ -25,4 +25,3 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], UpdateIntegrationDto.prototype, "config", void 0);
-//# sourceMappingURL=update-integration.dto.js.map

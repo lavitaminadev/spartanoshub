@@ -106,4 +106,3 @@ class CreateApprovalsBriefs1710000000010 {
     }
 }
 exports.CreateApprovalsBriefs1710000000010 = CreateApprovalsBriefs1710000000010;
-//# sourceMappingURL=0010-create-approvals-briefs.js.map

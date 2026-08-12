@@ -34,4 +34,3 @@ exports.WORKFLOW_DEFAULTS = {
         steps: ['Planificación de parrilla', 'Revisión creativa', 'Producción y publicación', 'Reunión estratégica', 'Reporte de resultados'].map((label) => ({ key: label.toLowerCase().replaceAll(' ', '_'), label, required: true })),
     },
 };
-//# sourceMappingURL=workflow-defaults.js.map

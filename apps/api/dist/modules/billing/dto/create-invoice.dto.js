@@ -59,4 +59,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(5000),
     __metadata("design:type", String)
 ], CreateInvoiceDto.prototype, "notes", void 0);
-//# sourceMappingURL=create-invoice.dto.js.map

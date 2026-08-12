@@ -37,4 +37,3 @@ exports.GetClientUseCase = GetClientUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], GetClientUseCase);
-//# sourceMappingURL=get-client.use-case.js.map

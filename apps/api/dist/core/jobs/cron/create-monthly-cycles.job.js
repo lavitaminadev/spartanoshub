@@ -73,4 +73,3 @@ exports.CreateMonthlyCyclesJob = CreateMonthlyCyclesJob = CreateMonthlyCyclesJob
         typeorm_2.Repository,
         account_cycles_service_1.AccountCyclesService])
 ], CreateMonthlyCyclesJob);
-//# sourceMappingURL=create-monthly-cycles.job.js.map

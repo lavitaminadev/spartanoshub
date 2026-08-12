@@ -62,4 +62,3 @@ exports.ReservationEvent = ReservationEvent = __decorate([
     (0, typeorm_1.Entity)('reservation_events'),
     (0, typeorm_1.Index)('IDX_reservation_events_reservation', ['reservationId', 'createdAt'])
 ], ReservationEvent);
-//# sourceMappingURL=reservation-event.entity.js.map

@@ -66,4 +66,3 @@ __decorate([
 exports.ActionItem = ActionItem = __decorate([
     (0, typeorm_1.Entity)('action_items')
 ], ActionItem);
-//# sourceMappingURL=action-item.entity.js.map

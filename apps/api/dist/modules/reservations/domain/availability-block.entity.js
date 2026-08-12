@@ -54,4 +54,3 @@ exports.AvailabilityBlock = AvailabilityBlock = __decorate([
     (0, typeorm_1.Entity)('reservation_availability_blocks'),
     (0, typeorm_1.Index)('IDX_reservation_blocks_form_range', ['formId', 'startsAt', 'endsAt'])
 ], AvailabilityBlock);
-//# sourceMappingURL=availability-block.entity.js.map

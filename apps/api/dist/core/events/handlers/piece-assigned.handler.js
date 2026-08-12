@@ -59,4 +59,3 @@ exports.PieceAssignedHandler = PieceAssignedHandler = PieceAssignedHandler_1 = _
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], PieceAssignedHandler);
-//# sourceMappingURL=piece-assigned.handler.js.map

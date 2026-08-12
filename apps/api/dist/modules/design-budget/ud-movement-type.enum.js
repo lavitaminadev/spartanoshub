@@ -10,4 +10,3 @@ var UDMovementType;
     UDMovementType["EXTRA"] = "extra";
     UDMovementType["ROLLOVER"] = "rollover";
 })(UDMovementType || (exports.UDMovementType = UDMovementType = {}));
-//# sourceMappingURL=ud-movement-type.enum.js.map

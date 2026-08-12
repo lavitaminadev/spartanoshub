@@ -59,4 +59,3 @@ __decorate([
 exports.Interaction = Interaction = __decorate([
     (0, typeorm_1.Entity)('crm_interactions')
 ], Interaction);
-//# sourceMappingURL=interaction.entity.js.map

@@ -38,4 +38,3 @@ class OrganizationQuotaExceededException extends BusinessException {
     }
 }
 exports.OrganizationQuotaExceededException = OrganizationQuotaExceededException;
-//# sourceMappingURL=business.exception.js.map

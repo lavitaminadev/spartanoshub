@@ -24,4 +24,3 @@ exports.AccountAccessModule = AccountAccessModule = __decorate([
         exports: [account_access_service_1.AccountAccessService],
     })
 ], AccountAccessModule);
-//# sourceMappingURL=account-access.module.js.map

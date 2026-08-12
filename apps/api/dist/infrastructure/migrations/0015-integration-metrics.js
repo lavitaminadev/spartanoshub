@@ -23,4 +23,3 @@ class IntegrationMetrics1710000000015 {
     async down(queryRunner) { await queryRunner.dropTable('integration_metrics'); }
 }
 exports.IntegrationMetrics1710000000015 = IntegrationMetrics1710000000015;
-//# sourceMappingURL=0015-integration-metrics.js.map

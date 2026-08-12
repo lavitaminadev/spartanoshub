@@ -176,4 +176,3 @@ exports.ContentController = ContentController = __decorate([
         typeorm_2.Repository,
         account_access_service_1.AccountAccessService])
 ], ContentController);
-//# sourceMappingURL=content.controller.js.map

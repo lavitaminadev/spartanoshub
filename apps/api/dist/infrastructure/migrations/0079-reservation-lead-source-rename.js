@@ -24,4 +24,3 @@ class ReservationLeadSourceRename1726900000000 {
 exports.ReservationLeadSourceRename1726900000000 = ReservationLeadSourceRename1726900000000;
 ReservationLeadSourceRename1726900000000.PREVIOUS = 'vitahub_reservations';
 ReservationLeadSourceRename1726900000000.CURRENT = 'espartanos_reservations';
-//# sourceMappingURL=0079-reservation-lead-source-rename.js.map

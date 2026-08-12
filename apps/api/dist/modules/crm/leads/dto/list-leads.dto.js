@@ -42,4 +42,3 @@ __decorate([
     (0, class_validator_1.IsIn)(['audience', 'commercial', 'all']),
     __metadata("design:type", String)
 ], ListLeadsQueryDto.prototype, "domain", void 0);
-//# sourceMappingURL=list-leads.dto.js.map

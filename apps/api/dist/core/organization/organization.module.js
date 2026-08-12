@@ -21,4 +21,3 @@ exports.OrganizationModule = OrganizationModule = __decorate([
         providers: [organization_stamp_subscriber_1.OrganizationStampSubscriber],
     })
 ], OrganizationModule);
-//# sourceMappingURL=organization.module.js.map

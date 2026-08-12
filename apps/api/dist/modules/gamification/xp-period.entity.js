@@ -67,4 +67,3 @@ __decorate([
 exports.XPPeriod = XPPeriod = __decorate([
     (0, typeorm_1.Entity)('xp_periods')
 ], XPPeriod);
-//# sourceMappingURL=xp-period.entity.js.map

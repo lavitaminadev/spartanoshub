@@ -81,4 +81,3 @@ exports.DocumentsService = DocumentsService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], DocumentsService);
-//# sourceMappingURL=documents.service.js.map

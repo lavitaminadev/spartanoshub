@@ -85,4 +85,3 @@ class CreateUdXp1710000000006 {
     }
 }
 exports.CreateUdXp1710000000006 = CreateUdXp1710000000006;
-//# sourceMappingURL=0006-create-ud-xp.js.map

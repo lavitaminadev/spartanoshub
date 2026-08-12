@@ -63,4 +63,3 @@ __decorate([
 exports.Upload = Upload = __decorate([
     (0, typeorm_1.Entity)('uploads')
 ], Upload);
-//# sourceMappingURL=upload.entity.js.map

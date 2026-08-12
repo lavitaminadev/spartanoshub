@@ -24,4 +24,3 @@ exports.CloudinaryModule = CloudinaryModule = __decorate([
         exports: [cloudinary_service_1.CloudinaryService],
     })
 ], CloudinaryModule);
-//# sourceMappingURL=cloudinary.module.js.map

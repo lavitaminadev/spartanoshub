@@ -133,4 +133,3 @@ __decorate([
 exports.Client = Client = __decorate([
     (0, typeorm_1.Entity)('clients')
 ], Client);
-//# sourceMappingURL=client.entity.js.map

@@ -50,5 +50,17 @@ export class PublicLeadSubmissionDto {
    */
   @IsOptional() @IsString() @MaxLength(200) company_website_confirm?: string;
 
-  @IsString() @MaxLength(80) idempotencyKey: string;
+  /**
+   * Identificador que el formulario genera una vez por envío.
+   *
+   * Sirve para que un reenvío del mismo formulario —doble clic, reintento del navegador— no
+   * deje dos leads. Es solo una guardia contra repeticiones: el endpoint es anónimo, así que
+   * la clave nunca autoriza a escribir sobre un lead que ya existe.
+   *
+   * El formato exigido es el de un identificador generado al azar (`crypto.randomUUID()` y
+   * similares). Debe ser impredecible: una clave corta o adivinable permitiría enumerar los
+   * envíos de otras personas.
+   */
+  @IsString() @MinLength(16) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]{16,80}$/, { message: 'idempotencyKey debe ser un identificador aleatorio de 16 a 80 caracteres (A-Z, a-z, 0-9, guion o guion bajo)' })
+  idempotencyKey: string;
 }

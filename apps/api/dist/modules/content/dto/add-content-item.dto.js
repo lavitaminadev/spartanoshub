@@ -46,4 +46,3 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], AddContentItemDto.prototype, "pieceId", void 0);
-//# sourceMappingURL=add-content-item.dto.js.map

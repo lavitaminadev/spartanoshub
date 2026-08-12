@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { PasswordField } from './PasswordField';
-import { passwordRulesPassed } from './password-rules';
+import { passwordRulesPassed, type PasswordPolicy } from './password-rules';
 
 export function ChangePasswordPage() {
   const navigate = useNavigate();
@@ -11,7 +12,20 @@ export function ChangePasswordPage() {
   const [form, setForm] = useState({ current: '', next: '', confirmation: '' });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const securePassword = useMemo(() => passwordRulesPassed(form.next), [form.next]);
+
+  const { data: serverPolicy } = useQuery<Record<string, string>>({
+    queryKey: ['password-policy'],
+    queryFn: () => api.get('/settings?prefix=security.password'),
+  });
+  const policy: Partial<PasswordPolicy> | undefined = serverPolicy ? {
+    minLength: Number(serverPolicy['security.password.minLength']) || 8,
+    requireUppercase: serverPolicy['security.password.requireUppercase'] !== 'false',
+    requireLowercase: true,
+    requireNumber: serverPolicy['security.password.requireNumber'] !== 'false',
+    requireSpecial: serverPolicy['security.password.requireSpecial'] === 'true',
+  } : undefined;
+
+  const securePassword = useMemo(() => passwordRulesPassed(form.next, policy), [form.next, policy]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -42,7 +56,7 @@ export function ChangePasswordPage() {
     <p>Esta sección es solo para cuentas activas. Al guardar, cerraremos las demás sesiones por seguridad.</p>
     <form onSubmit={submit}>
       <PasswordField id="current-password" label="Contraseña actual" autoComplete="current-password" value={form.current} onChange={(current) => setForm({ ...form, current })} />
-      <PasswordField id="new-password" label="Nueva contraseña" autoComplete="new-password" value={form.next} onChange={(next) => setForm({ ...form, next })} showRules />
+      <PasswordField id="new-password" label="Nueva contraseña" autoComplete="new-password" value={form.next} onChange={(next) => setForm({ ...form, next })} showRules policy={policy} />
       <PasswordField id="confirm-password" label="Confirmar nueva contraseña" autoComplete="new-password" value={form.confirmation} onChange={(confirmation) => setForm({ ...form, confirmation })} />
       {feedback && <div className="alert alert-error" role="alert">{feedback}</div>}
       <div className="first-access-actions">

@@ -27,4 +27,3 @@ exports.OrganizationStampSubscriber = OrganizationStampSubscriber;
 exports.OrganizationStampSubscriber = OrganizationStampSubscriber = __decorate([
     (0, typeorm_1.EventSubscriber)()
 ], OrganizationStampSubscriber);
-//# sourceMappingURL=organization-stamp.subscriber.js.map

@@ -53,4 +53,3 @@ __decorate([
     (0, class_validator_1.Matches)(PASSWORD_REGEX, { message: PASSWORD_MSG }),
     __metadata("design:type", String)
 ], ChangePasswordDto.prototype, "newPassword", void 0);
-//# sourceMappingURL=password-reset.dto.js.map

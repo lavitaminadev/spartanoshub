@@ -380,4 +380,3 @@ exports.AuthController = AuthController = __decorate([
     (0, module_scope_decorator_1.ModuleExempt)('Autoservicio de la propia cuenta: sesion, perfil y contrasena'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])
 ], AuthController);
-//# sourceMappingURL=auth.controller.js.map

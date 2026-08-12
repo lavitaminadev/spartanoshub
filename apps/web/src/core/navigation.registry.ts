@@ -14,44 +14,71 @@ let features: FeatureManifest[] = [];
 /**
  * Secciones del sidebar, en orden de aparición, con las rutas que contiene cada una.
  *
- * Agrupar responde a una confusión concreta: Espartanos tiene dos CRM distintos. «CRM»
- * reúne lo que la agencia opera **para** sus clientes (reservas y los contactos
- * que llegan de sus campañas), y «Pipeline» es el pipeline propio de la
- * agencia (leads, oportunidades, contratos). Verlos en secciones separadas evita
- * leerlos como un mismo embudo.
+ * El orden reproduce el flujo del prototipo de El Cuartel de los Espartanos
+ * (`El_Cuartel_de_los_Espartanos_prototipo_completo`), que va de lo que la agencia
+ * captura a lo que entrega: Cliente → Brief → Solicitud → Trabajo → Aprobación → Entrega.
+ *
+ *   Inicio → Ventas y CRM → Clientes → Reservas → Solicitudes → Trabajos
+ *           → Aprobaciones → Contenido → Resultados → Administración
+ *
+ * Cada rol ve su propio subconjunto: `getNavigationSections` descarta las secciones que
+ * quedan vacías para ese rol, y los ítems se ordenan según el orden de estas secciones.
+ * No es una lista plana por rol como en el prototipo, pero preserva el mismo flujo para
+ * todos y no reparte el menú por dominio (CRM vs Pipeline vs Producción), que fue lo que
+ * se reemplazó.
+ *
+ * Mapeo pantallas del prototipo → ruta existente de la app:
+ *   home        → /dashboard                 (Inicio)
+ *   sales       → /crm/leads, /crm/opportunities, /crm/interactions, /crm/contacts,
+ *                 /catalog, /contracts, /billing                          (Ventas y CRM)
+ *   clients     → /clients, /onboarding, /briefs, /meetings, /documents   (Clientes)
+ *   reservations→ /reservations(+ agenda/calendar/waitlist/analytics)     (Reservas)
+ *   requests    → /intake                                                 (Solicitudes)
+ *   production  → /production, /audiovisual, /gamification                (Trabajos)
+ *   approvals   → /approvals                                              (Aprobaciones)
+ *   content     → /content   — moodboards no tiene ruta propia aún; vive en contenido  (Contenido)
+ *   reports     → /reports, /direction, /surveys                          (Resultados)
+ *   admin       → /users, /settings, /integrations, /governance,
+ *                 /operations, /knowledge, /security                      (Administración)
  *
  * Una ruta sin sección cae en «Más», de modo que registrar una feature nueva nunca la
  * esconde del menú.
  */
 export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: string[] }> = [
-  { id: 'today', label: 'Hoy', paths: ['/dashboard'] },
+  { id: 'home', label: 'Inicio', paths: ['/dashboard'] },
   {
-    id: 'crm',
-    label: 'CRM',
-    paths: ['/reservations', '/reservations/agenda', '/reservations/calendar', '/reservations/waitlist', '/reservations/analytics', '/crm/contacts'],
+    id: 'sales',
+    label: 'Ventas y CRM',
+    paths: ['/crm/leads', '/crm/opportunities', '/crm/interactions', '/crm/contacts', '/catalog', '/contracts', '/billing'],
   },
   {
-    id: 'pipeline',
-    label: 'Pipeline',
-    paths: ['/crm/leads', '/crm/opportunities', '/crm/interactions', '/catalog', '/contracts', '/billing'],
+    id: 'clients',
+    label: 'Clientes',
+    paths: ['/clients', '/onboarding', '/briefs', '/meetings', '/documents'],
   },
   {
-    id: 'accounts',
-    label: 'Cuentas',
-    paths: ['/clients', '/onboarding', '/meetings', '/briefs', '/documents'],
+    id: 'reservations',
+    label: 'Reservas',
+    paths: ['/reservations', '/reservations/agenda', '/reservations/calendar', '/reservations/waitlist', '/reservations/analytics'],
   },
+  { id: 'requests', label: 'Solicitudes', paths: ['/intake'] },
   {
     id: 'production',
-    label: 'Producción',
-    // Solicitudes va primero porque es donde empieza el trabajo: se pide, se acepta y recién
-    // ahí aparece en el tablero. El orden del menú cuenta el orden del proceso.
-    paths: ['/intake', '/production', '/content', '/audiovisual', '/approvals', '/gamification'],
+    label: 'Trabajos',
+    // El flujo del trabajo: se pide (Solicitudes), se produce (Producción/Audiovisual) y el
+    // resultado se reconoce (Gamificación). El orden del menú cuenta el orden del proceso.
+    paths: ['/production', '/audiovisual', '/gamification'],
   },
-  { id: 'insight', label: 'Análisis', paths: ['/reports', '/direction'] },
+  { id: 'approvals', label: 'Aprobaciones', paths: ['/approvals'] },
+  { id: 'content', label: 'Contenido', paths: ['/content'] },
+  { id: 'surveys', label: 'Encuestas', paths: ['/surveys'] },
+  { id: 'results', label: 'Resultados', paths: ['/reports', '/direction'] },
   {
     id: 'admin',
     label: 'Administración',
-    paths: ['/users', '/settings', '/integrations', '/governance', '/operations', '/knowledge', '/security'],
+    // Panel principal + páginas que usan roles no-admin (operations_director necesita Users, Settings, Governance, Operations).
+    // Integraciones, Conocimiento y Seguridad se acceden desde el panel /admin (menos frecuente).
+    paths: ['/admin', '/users', '/governance', '/settings', '/operations'],
   },
 ];
 

@@ -11,4 +11,3 @@ exports.ALLOWED_MIME_TYPES = [
 ];
 exports.ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv", ".html"];
 exports.MAX_FILE_SIZE = 10 * 1024 * 1024;
-//# sourceMappingURL=document-types.js.map

@@ -29,39 +29,53 @@
  * No redeclarar `:root` en otro punto de este archivo: sobrescribe estos valores en silencio.
  */
 :root {
-  --primary: #0ec6b8;
-  --primary-light: #4fd8ce;
-  --primary-hover: #0aa89c;
-  --primary-deep: #0b8c82;
-  --accent: #ea0f63;
-  --accent-hover: #c81661;
-  --brand-cyan: #0ec6b8;
-  --brand-cyan-dark: #0aa89c;
-  --brand-pink: #ea0f63;
-  --brand-pink-dark: #c81661;
-  --brand-ink: #0b0b0c;
+  /* Paleta del prototipo - colores base */
+  --ink: #151317;
+  --muted: #706a73;
+  --soft: #f6f4f5;
+  --line: #e7e1e5;
+  --white: #ffffff;
+
+  /* Colores de marca */
+  --cyan: #0fb9b1;
+  --cyan-soft: #e9fbf9;
+  --pink: #ec0b61;
+  --pink-dark: #b90749;
+  --pink-soft: #fff0f6;
+  --amber: #c67912;
+  --amber-soft: #fff6e7;
+
+  /* Alias para compatibilidad con código actual */
+  --primary: #0fb9b1;              /* cyan */
+  --primary-light: #0fb9b1;
+  --primary-hover: #0fb9b1;
+  --primary-deep: #0fb9b1;
+  --accent: #ec0b61;               /* pink */
+  --accent-hover: #b90749;          /* pink-dark */
+  --brand-cyan: #0fb9b1;
+  --brand-cyan-dark: #0fb9b1;
+  --brand-pink: #ec0b61;
+  --brand-pink-dark: #b90749;
+  --brand-ink: #151317;
   --success: #2fae6b;
-  --warning: #d98a1f;
+  --warning: #c67912;              /* amber */
   --danger: #b5332d;
   --info: #1f6fb2;
-  --text: #55575e;
-  --text-light: #8a8d95;
-  --text-dark: #0b0b0c;
-  --text-muted: #3f7883;
-  --bg: #f4f5f7;
-  --bg-white: #fff;
+  --text: #706a73;                 /* muted */
+  --text-light: #706a73;
+  --text-dark: #151317;            /* ink */
+  --text-muted: #706a73;           /* muted */
+  --bg: #f6f4f5;                   /* soft */
+  --bg-white: #ffffff;
   /*
    * Superficie oscura para bandas y tarjetas que llevan texto blanco encima.
-   *
-   * No usar el primario para eso: el cian de marca sobre blanco tiene un contraste de 2:1 y
-   * el texto queda ilegible. Este tono conserva la familia y sí llega a relación 12:1.
    */
-  --surface-dark: #0d3b38;
-  --surface-dark-soft: #14524d;
-  --border: #e7e8ec;
+  --surface-dark: #151317;
+  --surface-dark-soft: #2a282f;
+  --border: #e7e1e5;               /* line */
   --border-light: #f0f1f4;
-  --shadow: 0 8px 30px rgba(11, 140, 130, 0.07);
-  --shadow-md: 0 22px 60px rgba(11, 140, 130, 0.16);
+  --shadow: 0 16px 46px rgba(31, 17, 25, 0.08);
+  --shadow-md: 0 22px 60px rgba(31, 17, 25, 0.12);
   --radius-sm: 9px;
   --radius-md: 14px;
   --radius-lg: 20px;
@@ -69,6 +83,29 @@
   --font: 'Espartano Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-display: 'Espartano Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: 'SF Mono', Monaco, Consolas, monospace;
+  /* Barras de progreso y fondos tonales (extensión prototipo) */
+  --progress-xs: 4px;
+  --progress-sm: 6px;
+  --progress-lg: 10px;
+  --cyan-bg: #e9fbf9;
+  --pink-bg: #fff0f6;
+  --amber-bg: #fff6e7;
+  --success-bg: #e8f5e9;
+  --flow-line: #e7e1e5;
+  --flow-done-bg: #0fb9b1;
+  --flow-done-text: #ffffff;
+  --flow-current-border: #0fb9b1;
+  --check-done-bg: #e8f5e9;
+  --check-done-border: #2fae6b;
+  --check-pending-bg: #fff6e7;
+  --check-pending-border: #c67912;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --timeline-dot-size: 10px;
+  --metric-card-bg: #ffffff;
+  --metric-card-border: #e7e1e5;
 }
 
 *, *::before, *::after {

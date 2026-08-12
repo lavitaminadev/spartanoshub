@@ -316,4 +316,3 @@ exports.ProductionController = ProductionController = __decorate([
         deliver_piece_use_case_1.DeliverPieceUseCase,
         list_pieces_use_case_1.ListPiecesUseCase])
 ], ProductionController);
-//# sourceMappingURL=production.controller.js.map

@@ -60,6 +60,7 @@ const PATH_CONTROLLER: Record<string, string | null> = {
   '/settings': null,
   '/integrations': null,
   '/audiovisual': null,
+  '/admin': null,
   // Agrega health/audit/data-protection de varios modulos, sin controlador propio unico.
   '/security': null,
 };

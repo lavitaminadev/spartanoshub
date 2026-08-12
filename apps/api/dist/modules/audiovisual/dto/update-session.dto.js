@@ -48,4 +48,3 @@ __decorate([
     (0, class_validator_1.IsIn)(['scheduled', 'confirmed', 'completed', 'cancelled', 'rescheduled']),
     __metadata("design:type", String)
 ], UpdateSessionDto.prototype, "status", void 0);
-//# sourceMappingURL=update-session.dto.js.map

@@ -24,6 +24,13 @@ export class Reservation {
   @Column({ name: 'reference_code', type: 'varchar', length: 20 }) referenceCode: string;
   @Column({ name: 'idempotency_key', type: 'varchar', length: 80, nullable: true }) idempotencyKey?: string;
   @Column({ type: 'varchar', length: 24, default: 'confirmed' }) status: string;
+  /**
+   * Etapa del flujo de producción agencia → cliente.
+   *
+   * Corre en paralelo a `status`, que describe la asistencia del comensal. Esta columna
+   * describe en qué punto de la entrega del servicio va la reserva.
+   */
+  @Column({ name: 'workflow_state', type: 'varchar', length: 20, default: 'draft' }) workflowState: string;
   @Column({ name: 'starts_at', type: 'timestamp' }) startsAt: Date;
   @Column({ name: 'ends_at', type: 'timestamp' }) endsAt: Date;
   @Column({ name: 'party_size', type: 'smallint', default: 1 }) partySize: number;

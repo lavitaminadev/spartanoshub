@@ -21,4 +21,3 @@ exports.CronModule = CronModule = __decorate([
         controllers: [cron_controller_1.CronController],
     })
 ], CronModule);
-//# sourceMappingURL=cron.module.js.map

@@ -124,4 +124,3 @@ exports.PublicReservationsController = PublicReservationsController = __decorate
     (0, common_1.Controller)('public/reservations'),
     __metadata("design:paramtypes", [reservations_service_1.ReservationsService])
 ], PublicReservationsController);
-//# sourceMappingURL=public-reservations.controller.js.map

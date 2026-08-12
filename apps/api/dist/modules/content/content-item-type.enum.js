@@ -11,4 +11,3 @@ var ContentItemType;
     ContentItemType["COPY"] = "copy";
     ContentItemType["AD"] = "ad";
 })(ContentItemType || (exports.ContentItemType = ContentItemType = {}));
-//# sourceMappingURL=content-item-type.enum.js.map

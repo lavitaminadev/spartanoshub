@@ -65,4 +65,3 @@ __decorate([
 exports.Integration = Integration = __decorate([
     (0, typeorm_1.Entity)('integrations')
 ], Integration);
-//# sourceMappingURL=integration.entity.js.map

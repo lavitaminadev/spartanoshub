@@ -41,4 +41,3 @@ __decorate([
 exports.ParameterDefinition = ParameterDefinition = __decorate([
     (0, typeorm_1.Entity)('parameter_definitions')
 ], ParameterDefinition);
-//# sourceMappingURL=parameter-definition.entity.js.map

@@ -1,0 +1,85 @@
+.wf-timeline-wrap {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.wf-timeline {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(82px, 1fr);
+  gap: 5px;
+  overflow-x: auto;
+  padding: 0 0 5px;
+  margin: 0;
+  list-style: none;
+}
+
+.wf-timeline-stage {
+  min-width: 82px;
+  min-height: 66px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--white);
+  text-align: center;
+}
+
+.wf-timeline-index {
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.wf-timeline-name {
+  font-size: 10.5px;
+}
+
+.wf-timeline-owner {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.wf-timeline-sr-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.wf-timeline-stage--done .wf-timeline-index {
+  color: var(--cyan);
+  background: var(--cyan-soft);
+}
+
+.wf-timeline-stage--current {
+  border-color: var(--pink);
+  background: var(--pink-soft);
+}
+
+.wf-timeline-stage--current .wf-timeline-index {
+  background: var(--pink);
+  color: var(--white);
+}
+
+.wf-timeline-advance {
+  justify-self: start;
+}
+
+@media (max-width: 640px) {
+  .wf-timeline-wrap {
+    margin-right: -15px;
+  }
+}

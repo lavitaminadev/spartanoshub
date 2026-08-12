@@ -13,4 +13,3 @@ var PieceType;
     PieceType["FLYER_DIGITAL"] = "flyer_digital";
     PieceType["FLYER_PRINT"] = "flyer_print";
 })(PieceType || (exports.PieceType = PieceType = {}));
-//# sourceMappingURL=piece-type.enum.js.map

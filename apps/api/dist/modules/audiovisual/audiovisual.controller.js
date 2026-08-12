@@ -162,4 +162,3 @@ exports.AudiovisualController = AudiovisualController = __decorate([
     (0, requires_feature_decorator_1.RequiresFeature)('audiovisual'),
     __metadata("design:paramtypes", [audiovisual_service_1.AudiovisualService])
 ], AudiovisualController);
-//# sourceMappingURL=audiovisual.controller.js.map

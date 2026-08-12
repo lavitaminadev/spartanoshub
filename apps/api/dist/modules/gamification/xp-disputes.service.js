@@ -73,4 +73,3 @@ exports.XpDisputesService = XpDisputesService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], XpDisputesService);
-//# sourceMappingURL=xp-disputes.service.js.map

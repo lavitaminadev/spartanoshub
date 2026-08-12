@@ -72,4 +72,3 @@ exports.KnowledgeController = KnowledgeController = __decorate([
     __metadata("design:paramtypes", [knowledge_store_1.KnowledgeStore,
         rag_service_1.RagService])
 ], KnowledgeController);
-//# sourceMappingURL=knowledge.controller.js.map

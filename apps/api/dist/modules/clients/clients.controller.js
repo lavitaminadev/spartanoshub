@@ -175,4 +175,3 @@ exports.ClientsController = ClientsController = __decorate([
         list_clients_use_case_1.ListClientsUseCase,
         get_client_use_case_1.GetClientUseCase])
 ], ClientsController);
-//# sourceMappingURL=clients.controller.js.map

@@ -24,16 +24,33 @@ exports.MODULE_LIFECYCLE_STATUSES = ['development', 'pilot', 'active', 'maintena
  * `defaultEnabled` responde "si creo una organizacion nueva, este modulo parte encendido".
  */
 exports.ORGANIZATION_MODULE_CATALOG = [
+    // Base minima: sin estos modulos la aplicacion no se puede usar. No es una preferencia
+    // comercial, es lo que sostienen los guardias del backend:
+    // - `dashboard` es la pantalla de aterrizaje de todo cargo que no sea cliente.
+    // - `settings` gobierna `/settings` y `/organizations` (de ahi salen los interruptores).
+    // - `users` gobierna `/users` y `/roles/permissions` (la matriz del panel de administracion).
+    // - `clients` gobierna `GET /clients`, que consultan las cinco pantallas de reservas para
+    //   poblar el selector de cuenta; sin el, no se puede crear un formulario de reserva.
+    // - `reports` gobierna `/reporting/*`, de donde el dashboard y el pulso toman sus datos.
+    // - `integrations` gobierna `/integrations/meta/*`, que es como una reserva se convierte en
+    //   conversion enviada a Meta: apagarlo deja la captacion sin su ultimo tramo.
     { key: 'dashboard', lifecycle: 'active', defaultEnabled: true },
-    { key: 'clients', lifecycle: 'active', defaultEnabled: true },
-    { key: 'users', lifecycle: 'active', defaultEnabled: true },
-    { key: 'reservations', lifecycle: 'active', defaultEnabled: true },
-    { key: 'crm', lifecycle: 'active', defaultEnabled: true },
-    { key: 'integrations', lifecycle: 'active', defaultEnabled: true },
     { key: 'settings', lifecycle: 'active', defaultEnabled: true },
+    { key: 'users', lifecycle: 'active', defaultEnabled: true },
+    { key: 'clients', lifecycle: 'active', defaultEnabled: true },
+    { key: 'reports', lifecycle: 'active', defaultEnabled: true },
+    { key: 'integrations', lifecycle: 'active', defaultEnabled: true },
+    // Operacion en produccion hoy: reservas y su circuito de captacion.
+    { key: 'reservations', lifecycle: 'active', defaultEnabled: true },
+    // Ofrecidos por el producto y listos para usarse, pero apagados de fabrica: quedan a un
+    // interruptor de distancia en el panel de administracion, sin tocar codigo.
+    { key: 'crm', lifecycle: 'active', defaultEnabled: false },
+    { key: 'commercialPipeline', lifecycle: 'active', defaultEnabled: false },
+    { key: 'production', lifecycle: 'active', defaultEnabled: false },
+    // En desarrollo: el producto todavia no los ofrece, asi que encenderlos no los hace
+    // visibles. Para abrir uno hay que subir su `lifecycle`, no solo su interruptor.
     { key: 'clientMetricsPanel', lifecycle: 'development', defaultEnabled: false },
     { key: 'multiClientOnboarding', lifecycle: 'development', defaultEnabled: false },
-    { key: 'production', lifecycle: 'active', defaultEnabled: false },
     { key: 'udBudget', lifecycle: 'development', defaultEnabled: false },
     { key: 'gamification', lifecycle: 'development', defaultEnabled: false },
     { key: 'billing', lifecycle: 'development', defaultEnabled: false },
@@ -46,12 +63,15 @@ exports.ORGANIZATION_MODULE_CATALOG = [
     { key: 'approvals', lifecycle: 'development', defaultEnabled: false },
     { key: 'audiovisual', lifecycle: 'development', defaultEnabled: false },
     { key: 'knowledge', lifecycle: 'development', defaultEnabled: false },
-    { key: 'reports', lifecycle: 'active', defaultEnabled: false },
     { key: 'onboarding', lifecycle: 'development', defaultEnabled: false },
     { key: 'operations', lifecycle: 'development', defaultEnabled: false },
     { key: 'governance', lifecycle: 'development', defaultEnabled: false },
     { key: 'direction', lifecycle: 'development', defaultEnabled: false },
-    { key: 'commercialPipeline', lifecycle: 'active', defaultEnabled: false },
+    // Encuestas propias, distintas de la encuesta post-visita que ya vive dentro de reservas.
+    // La interfaz existe (`/surveys`) pero la API `/surveys` todavia no, asi que declararlo
+    // `active` prometeria una pantalla que responde error. Al publicar el controlador, subir
+    // `lifecycle` a `active` es el unico cambio necesario para poder encenderlo.
+    { key: 'surveys', lifecycle: 'development', defaultEnabled: false },
 ];
 /**
  * Modulos de UI sin interruptor por organizacion.

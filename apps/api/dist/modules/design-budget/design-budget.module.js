@@ -30,4 +30,3 @@ exports.DesignBudgetModule = DesignBudgetModule = __decorate([
         exports: [design_budget_service_1.DesignBudgetService],
     })
 ], DesignBudgetModule);
-//# sourceMappingURL=design-budget.module.js.map

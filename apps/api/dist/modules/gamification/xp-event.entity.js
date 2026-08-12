@@ -63,4 +63,3 @@ __decorate([
 exports.XPEvent = XPEvent = __decorate([
     (0, typeorm_1.Entity)('xp_events')
 ], XPEvent);
-//# sourceMappingURL=xp-event.entity.js.map

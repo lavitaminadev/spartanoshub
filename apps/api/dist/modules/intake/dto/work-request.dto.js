@@ -160,4 +160,3 @@ __decorate([
     (0, class_transformer_1.Type)(() => ConvertSessionDto),
     __metadata("design:type", ConvertSessionDto)
 ], ResolveWorkRequestDto.prototype, "session", void 0);
-//# sourceMappingURL=work-request.dto.js.map

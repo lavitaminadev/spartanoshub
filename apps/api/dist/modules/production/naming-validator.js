@@ -34,4 +34,3 @@ function extractState(fileName) {
     const match = fileName.match(/_(FINAL|BORRADOR|REVISION)$/i);
     return match ? match[1].toUpperCase() : null;
 }
-//# sourceMappingURL=naming-validator.js.map

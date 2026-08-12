@@ -38,4 +38,3 @@ exports.ListClientsUseCase = ListClientsUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], ListClientsUseCase);
-//# sourceMappingURL=list-clients.use-case.js.map

@@ -35,4 +35,3 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], GetOrCreateBudgetDto.prototype, "defaultBudget", void 0);
-//# sourceMappingURL=get-or-create-budget.dto.js.map

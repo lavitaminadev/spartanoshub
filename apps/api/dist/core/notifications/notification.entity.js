@@ -65,4 +65,3 @@ __decorate([
 exports.Notification = Notification = __decorate([
     (0, typeorm_1.Entity)('notifications')
 ], Notification);
-//# sourceMappingURL=notification.entity.js.map

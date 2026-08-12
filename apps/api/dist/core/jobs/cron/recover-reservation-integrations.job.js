@@ -119,4 +119,3 @@ exports.RecoverReservationIntegrationsJob = RecoverReservationIntegrationsJob = 
         lead_intake_service_1.LeadIntakeService])
 ], RecoverReservationIntegrationsJob);
 const INACTIVE_STATUSES = ['cancelled', 'cancelled_by_guest', 'cancelled_by_client', 'no_show'];
-//# sourceMappingURL=recover-reservation-integrations.job.js.map

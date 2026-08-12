@@ -70,4 +70,3 @@ exports.Brief = Brief = __decorate([
     (0, typeorm_1.Entity)('briefs'),
     (0, typeorm_1.Index)('IDX_briefs_org_created', ['organizationId', 'createdAt'])
 ], Brief);
-//# sourceMappingURL=brief.entity.js.map

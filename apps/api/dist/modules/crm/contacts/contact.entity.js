@@ -74,4 +74,3 @@ exports.Contact = Contact = __decorate([
     (0, typeorm_1.Entity)('crm_contacts'),
     (0, typeorm_1.Index)('IDX_crm_contacts_org_client_created', ['organizationId', 'clientId', 'createdAt'])
 ], Contact);
-//# sourceMappingURL=contact.entity.js.map

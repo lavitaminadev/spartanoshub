@@ -154,4 +154,3 @@ exports.UploadsController = UploadsController = __decorate([
     __metadata("design:paramtypes", [uploads_service_1.UploadsService,
         cloudinary_service_1.CloudinaryService])
 ], UploadsController);
-//# sourceMappingURL=uploads.controller.js.map

@@ -47,6 +47,10 @@ __decorate([
     __metadata("design:type", String)
 ], Reservation.prototype, "status", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'workflow_state', type: 'varchar', length: 20, default: 'draft' }),
+    __metadata("design:type", String)
+], Reservation.prototype, "workflowState", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'starts_at', type: 'timestamp' }),
     __metadata("design:type", Date)
 ], Reservation.prototype, "startsAt", void 0);
@@ -169,4 +173,3 @@ exports.Reservation = Reservation = __decorate([
     (0, typeorm_1.Index)('IDX_reservations_contact', ['contactId']),
     (0, typeorm_1.Index)('IDX_reservations_org_client_starts', ['organizationId', 'clientId', 'startsAt'])
 ], Reservation);
-//# sourceMappingURL=reservation.entity.js.map

@@ -19,4 +19,3 @@ __decorate([
     (0, class_validator_1.IsEnum)(content_grid_status_enum_1.ContentGridStatus),
     __metadata("design:type", String)
 ], UpdateGridStatusDto.prototype, "status", void 0);
-//# sourceMappingURL=update-grid-status.dto.js.map

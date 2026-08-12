@@ -28,4 +28,3 @@ exports.dataSourceOptions = {
 };
 const dataSource = new typeorm_1.DataSource(exports.dataSourceOptions);
 exports.default = dataSource;
-//# sourceMappingURL=database-data-source.js.map

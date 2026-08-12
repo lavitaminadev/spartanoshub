@@ -22,4 +22,3 @@ class ReservationFormEventMetadata1724248700000 {
     }
 }
 exports.ReservationFormEventMetadata1724248700000 = ReservationFormEventMetadata1724248700000;
-//# sourceMappingURL=0062-reservation-form-event-metadata.js.map

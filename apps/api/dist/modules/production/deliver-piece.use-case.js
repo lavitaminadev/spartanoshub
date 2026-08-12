@@ -58,4 +58,3 @@ exports.DeliverPieceUseCase = DeliverPieceUseCase = __decorate([
         xp_service_1.XPService,
         event_emitter_1.EventEmitter2])
 ], DeliverPieceUseCase);
-//# sourceMappingURL=deliver-piece.use-case.js.map

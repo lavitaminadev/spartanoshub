@@ -41,4 +41,3 @@ __decorate([
     (0, class_validator_1.IsIn)(['draft', 'review', 'approved', 'rejected']),
     __metadata("design:type", String)
 ], CreateMoodboardDto.prototype, "status", void 0);
-//# sourceMappingURL=create-moodboard.dto.js.map

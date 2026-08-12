@@ -5,4 +5,3 @@ const common_1 = require("@nestjs/common");
 exports.REQUIRES_PERMISSION_KEY = 'requiresPermission';
 const RequiresPermission = (module, level) => (0, common_1.SetMetadata)(exports.REQUIRES_PERMISSION_KEY, { module, level });
 exports.RequiresPermission = RequiresPermission;
-//# sourceMappingURL=requires-permission.decorator.js.map

@@ -26,4 +26,3 @@ exports.ParametersModule = ParametersModule = __decorate([
         exports: [parameter_resolver_service_1.ParameterResolver, typeorm_1.TypeOrmModule],
     })
 ], ParametersModule);
-//# sourceMappingURL=parameters.module.js.map

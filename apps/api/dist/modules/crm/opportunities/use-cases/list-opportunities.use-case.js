@@ -46,4 +46,3 @@ exports.ListOpportunitiesUseCase = ListOpportunitiesUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(opportunity_entity_1.Opportunity)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], ListOpportunitiesUseCase);
-//# sourceMappingURL=list-opportunities.use-case.js.map

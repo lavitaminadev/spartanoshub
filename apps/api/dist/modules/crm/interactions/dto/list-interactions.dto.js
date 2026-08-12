@@ -20,4 +20,3 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], ListInteractionsDto.prototype, "leadId", void 0);
-//# sourceMappingURL=list-interactions.dto.js.map

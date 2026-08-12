@@ -107,4 +107,3 @@ exports.OnboardingController = OnboardingController = __decorate([
     (0, requires_feature_decorator_1.RequiresFeature)('onboarding'),
     __metadata("design:paramtypes", [onboarding_service_1.OnboardingService])
 ], OnboardingController);
-//# sourceMappingURL=onboarding.controller.js.map

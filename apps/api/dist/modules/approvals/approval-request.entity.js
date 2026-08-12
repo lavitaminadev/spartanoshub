@@ -97,4 +97,3 @@ exports.ApprovalRequest = ApprovalRequest = __decorate([
     (0, typeorm_1.Entity)('approval_requests'),
     (0, typeorm_1.Index)('IDX_approval_requests_org_created', ['organizationId', 'createdAt'])
 ], ApprovalRequest);
-//# sourceMappingURL=approval-request.entity.js.map

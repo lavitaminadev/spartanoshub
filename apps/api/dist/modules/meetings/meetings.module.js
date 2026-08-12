@@ -27,4 +27,3 @@ exports.MeetingsModule = MeetingsModule = __decorate([
         providers: [create_meeting_use_case_1.CreateMeetingUseCase, list_meetings_use_case_1.ListMeetingsUseCase],
     })
 ], MeetingsModule);
-//# sourceMappingURL=meetings.module.js.map

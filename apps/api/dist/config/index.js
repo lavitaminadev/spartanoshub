@@ -27,4 +27,3 @@ exports.config = {
         limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10),
     },
 };
-//# sourceMappingURL=index.js.map

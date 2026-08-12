@@ -25,4 +25,3 @@ exports.AudiovisualModule = AudiovisualModule = __decorate([
         providers: [audiovisual_service_1.AudiovisualService],
     })
 ], AudiovisualModule);
-//# sourceMappingURL=audiovisual.module.js.map

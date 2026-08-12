@@ -4,6 +4,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 const PRODUCTION_API_URL = 'https://refugio.espartanos.cl/api'
 const PRODUCTION_APP_URL = 'https://cuartel.espartanos.cl'
+const PRODUCTION_OXC = {
+  jsx: {
+    runtime: 'automatic',
+    importSource: 'react',
+    development: false,
+    refresh: false,
+  },
+} as any
 
 export default defineConfig(({ command }) => {
   const isBuild = command === 'build'
@@ -66,11 +74,13 @@ export default defineConfig(({ command }) => {
       },
     })],
     define: isBuild ? {
+      'process.env.NODE_ENV': JSON.stringify('production'),
       'import.meta.env.DEV': 'false',
       'import.meta.env.PROD': 'true',
       'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL),
       'import.meta.env.VITE_APP_PUBLIC_URL': JSON.stringify(process.env.VITE_APP_PUBLIC_URL),
     } : undefined,
+    oxc: isBuild ? PRODUCTION_OXC : undefined,
     build: {
       rollupOptions: {
         output: {

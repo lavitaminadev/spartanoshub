@@ -148,4 +148,3 @@ exports.UploadsService = UploadsService = __decorate([
         typeorm_2.Repository,
         google_oauth_service_1.GoogleOAuthService])
 ], UploadsService);
-//# sourceMappingURL=uploads.service.js.map

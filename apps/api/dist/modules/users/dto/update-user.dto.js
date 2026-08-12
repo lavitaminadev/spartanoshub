@@ -68,4 +68,3 @@ __decorate([
     (0, class_validator_1.Max)(1000),
     __metadata("design:type", Number)
 ], UpdateUserDto.prototype, "weeklyCapacityUd", void 0);
-//# sourceMappingURL=update-user.dto.js.map

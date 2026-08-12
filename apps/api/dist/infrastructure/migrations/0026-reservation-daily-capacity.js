@@ -23,4 +23,3 @@ class ReservationDailyCapacity1710000000026 {
     }
 }
 exports.ReservationDailyCapacity1710000000026 = ReservationDailyCapacity1710000000026;
-//# sourceMappingURL=0026-reservation-daily-capacity.js.map

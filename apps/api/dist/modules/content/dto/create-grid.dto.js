@@ -37,4 +37,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(5000),
     __metadata("design:type", String)
 ], CreateGridDto.prototype, "notes", void 0);
-//# sourceMappingURL=create-grid.dto.js.map

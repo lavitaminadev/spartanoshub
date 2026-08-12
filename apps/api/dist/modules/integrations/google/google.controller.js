@@ -157,4 +157,3 @@ exports.GoogleController = GoogleController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('integrations'),
     __metadata("design:paramtypes", [google_oauth_service_1.GoogleOAuthService, google_data_service_1.GoogleDataService])
 ], GoogleController);
-//# sourceMappingURL=google.controller.js.map

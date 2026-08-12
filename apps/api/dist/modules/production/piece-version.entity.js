@@ -71,4 +71,3 @@ __decorate([
 exports.PieceVersion = PieceVersion = __decorate([
     (0, typeorm_1.Entity)('piece_versions')
 ], PieceVersion);
-//# sourceMappingURL=piece-version.entity.js.map

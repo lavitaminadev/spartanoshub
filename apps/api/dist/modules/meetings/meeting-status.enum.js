@@ -8,4 +8,3 @@ var MeetingStatus;
     MeetingStatus["CANCELLED"] = "cancelled";
     MeetingStatus["RESCHEDULED"] = "rescheduled";
 })(MeetingStatus || (exports.MeetingStatus = MeetingStatus = {}));
-//# sourceMappingURL=meeting-status.enum.js.map

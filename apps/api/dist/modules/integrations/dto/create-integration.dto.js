@@ -30,4 +30,3 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], CreateIntegrationDto.prototype, "config", void 0);
-//# sourceMappingURL=create-integration.dto.js.map

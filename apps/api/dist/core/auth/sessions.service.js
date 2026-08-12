@@ -130,4 +130,3 @@ exports.SessionsService = SessionsService = SessionsService_1 = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(user_session_entity_1.UserSession)),
     __metadata("design:paramtypes", [typeorm_2.Repository])
 ], SessionsService);
-//# sourceMappingURL=sessions.service.js.map

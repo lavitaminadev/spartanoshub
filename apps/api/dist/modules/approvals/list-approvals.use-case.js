@@ -89,4 +89,3 @@ exports.ListApprovalsUseCase = ListApprovalsUseCase = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], ListApprovalsUseCase);
-//# sourceMappingURL=list-approvals.use-case.js.map

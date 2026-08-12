@@ -48,4 +48,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(5000),
     __metadata("design:type", String)
 ], UpdateContentItemDto.prototype, "notes", void 0);
-//# sourceMappingURL=update-item.dto.js.map

@@ -81,4 +81,3 @@ __decorate([
 exports.Meeting = Meeting = __decorate([
     (0, typeorm_1.Entity)('meetings')
 ], Meeting);
-//# sourceMappingURL=meeting.entity.js.map

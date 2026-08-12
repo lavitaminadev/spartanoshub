@@ -13,4 +13,3 @@ exports.STANDARD_ONBOARDING_STEPS = [
     'Grilla mes 1 + Moodboard',
     'Operacion activa',
 ];
-//# sourceMappingURL=onboarding-template.js.map

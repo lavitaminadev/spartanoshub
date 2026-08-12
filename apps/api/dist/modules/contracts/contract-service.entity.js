@@ -51,4 +51,3 @@ __decorate([
 exports.ContractService = ContractService = __decorate([
     (0, typeorm_1.Entity)('contract_services')
 ], ContractService);
-//# sourceMappingURL=contract-service.entity.js.map

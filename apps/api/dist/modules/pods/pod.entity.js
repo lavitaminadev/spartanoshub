@@ -54,4 +54,3 @@ exports.Pod = Pod = __decorate([
     (0, typeorm_1.Entity)('pods'),
     (0, typeorm_1.Index)('UQ_pods_org_name', ['organizationId', 'name'], { unique: true })
 ], Pod);
-//# sourceMappingURL=pod.entity.js.map

@@ -41,4 +41,3 @@ __decorate([
 exports.DataConsent = DataConsent = __decorate([
     (0, typeorm_1.Entity)('data_consents')
 ], DataConsent);
-//# sourceMappingURL=consent.entity.js.map

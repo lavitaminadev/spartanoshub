@@ -50,4 +50,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(10000),
     __metadata("design:type", String)
 ], CreateLeadDto.prototype, "notes", void 0);
-//# sourceMappingURL=create-lead.dto.js.map

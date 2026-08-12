@@ -44,4 +44,3 @@ __decorate([
     (0, class_validator_1.Max)(500),
     __metadata("design:type", Number)
 ], ResolveXpDisputeDto.prototype, "adjustmentPoints", void 0);
-//# sourceMappingURL=xp-dispute.dto.js.map

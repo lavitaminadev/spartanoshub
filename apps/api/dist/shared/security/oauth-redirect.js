@@ -39,4 +39,3 @@ function resolveOAuthRedirect(provider, requested) {
         throw new common_1.BadRequestException('OAuth redirect origin is not allowed');
     return `${url.origin}${url.pathname}`;
 }
-//# sourceMappingURL=oauth-redirect.js.map

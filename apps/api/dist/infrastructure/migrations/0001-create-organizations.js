@@ -27,4 +27,3 @@ class CreateOrganizations1710000000001 {
     }
 }
 exports.CreateOrganizations1710000000001 = CreateOrganizations1710000000001;
-//# sourceMappingURL=0001-create-organizations.js.map

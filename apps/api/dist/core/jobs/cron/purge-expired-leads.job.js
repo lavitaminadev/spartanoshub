@@ -61,4 +61,3 @@ exports.PurgeExpiredLeadsJob = PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = _
     __metadata("design:paramtypes", [typeorm_2.Repository,
         data_protection_service_1.DataProtectionService])
 ], PurgeExpiredLeadsJob);
-//# sourceMappingURL=purge-expired-leads.job.js.map

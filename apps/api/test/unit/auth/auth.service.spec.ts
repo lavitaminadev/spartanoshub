@@ -201,6 +201,25 @@ describe('AuthService', () => {
     });
   });
 
+  describe('termsPending', () => {
+    it('no vuelve a pedir condiciones cuando la version configurada llega como numero', async () => {
+      mockParameters.get.mockImplementation(async (key: string) => {
+        if (key === 'compliance.terms_version') return 1;
+        if (key === 'compliance.terms_renewal_months') return 0;
+        return null;
+      });
+
+      const pending = await (service as any).termsPending({
+        id: 'user-1',
+        organizationId: 'org-1',
+        termsAcceptedAt: new Date(),
+        termsVersion: '1',
+      });
+
+      expect(pending).toBe(false);
+    });
+  });
+
   describe('refreshToken', () => {
     it('should return a new access token for valid refresh token', async () => {
       mockJwtService.verify.mockReturnValue({ sub: 'user-1', email: 'a@b.com' });

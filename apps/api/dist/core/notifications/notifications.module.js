@@ -24,4 +24,3 @@ exports.NotificationsModule = NotificationsModule = __decorate([
         exports: [notification_service_1.NotificationService, typeorm_1.TypeOrmModule, email_module_1.EmailModule],
     })
 ], NotificationsModule);
-//# sourceMappingURL=notifications.module.js.map

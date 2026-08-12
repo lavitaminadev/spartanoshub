@@ -18,4 +18,3 @@ exports.OrganizationContextMiddleware = OrganizationContextMiddleware;
 exports.OrganizationContextMiddleware = OrganizationContextMiddleware = __decorate([
     (0, common_1.Injectable)()
 ], OrganizationContextMiddleware);
-//# sourceMappingURL=organization-context.middleware.js.map

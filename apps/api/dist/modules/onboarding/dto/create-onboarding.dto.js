@@ -60,4 +60,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(255, { each: true }),
     __metadata("design:type", Array)
 ], CreateOnboardingDto.prototype, "receivedDocuments", void 0);
-//# sourceMappingURL=create-onboarding.dto.js.map

@@ -38,4 +38,3 @@ exports.AuthorizationModule = AuthorizationModule = __decorate([
         exports: [permission_resolver_service_1.PermissionResolverService, typeorm_1.TypeOrmModule],
     })
 ], AuthorizationModule);
-//# sourceMappingURL=authorization.module.js.map

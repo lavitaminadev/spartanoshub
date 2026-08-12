@@ -9,4 +9,3 @@ var QuoteStatus;
     QuoteStatus["REJECTED"] = "rejected";
     QuoteStatus["EXPIRED"] = "expired";
 })(QuoteStatus || (exports.QuoteStatus = QuoteStatus = {}));
-//# sourceMappingURL=quote-status.enum.js.map

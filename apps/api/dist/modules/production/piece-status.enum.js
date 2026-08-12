@@ -12,4 +12,3 @@ var PieceStatus;
     PieceStatus["APPROVED"] = "approved";
     PieceStatus["DELIVERED"] = "delivered";
 })(PieceStatus || (exports.PieceStatus = PieceStatus = {}));
-//# sourceMappingURL=piece-status.enum.js.map

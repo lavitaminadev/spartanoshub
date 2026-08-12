@@ -29,4 +29,3 @@ exports.IntegrationsModule = IntegrationsModule = __decorate([
         exports: [typeorm_1.TypeOrmModule, integration_accounts_service_1.IntegrationAccountsService],
     })
 ], IntegrationsModule);
-//# sourceMappingURL=integrations.module.js.map

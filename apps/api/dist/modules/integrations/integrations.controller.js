@@ -100,4 +100,3 @@ exports.IntegrationsController = IntegrationsController = __decorate([
         update_integration_use_case_1.UpdateIntegrationUseCase,
         integration_accounts_service_1.IntegrationAccountsService])
 ], IntegrationsController);
-//# sourceMappingURL=integrations.controller.js.map

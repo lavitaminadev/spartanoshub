@@ -53,4 +53,3 @@ function calculateWeeklyTier(totalXp) {
         return xp_tier_enum_1.XpTier.BRONZE;
     return null;
 }
-//# sourceMappingURL=xp-calculator.js.map

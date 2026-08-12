@@ -146,4 +146,3 @@ exports.ROLE_PERMISSIONS = {
 function roleLevel(role, module) {
     return exports.ROLE_PERMISSIONS[role]?.[module] ?? 'none';
 }
-//# sourceMappingURL=role-permissions.js.map

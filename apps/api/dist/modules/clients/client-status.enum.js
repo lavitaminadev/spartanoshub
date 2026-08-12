@@ -9,4 +9,3 @@ var ClientStatus;
     ClientStatus["AT_RISK"] = "at_risk";
     ClientStatus["CHURNED"] = "churned";
 })(ClientStatus || (exports.ClientStatus = ClientStatus = {}));
-//# sourceMappingURL=client-status.enum.js.map

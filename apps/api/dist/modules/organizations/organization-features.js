@@ -18,4 +18,3 @@ function normalizeOrganizationFeatures(value) {
 function isOrganizationFeatureKey(value) {
     return exports.ORGANIZATION_FEATURE_KEYS.includes(value);
 }
-//# sourceMappingURL=organization-features.js.map

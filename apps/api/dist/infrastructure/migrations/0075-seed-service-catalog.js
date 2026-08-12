@@ -36,4 +36,3 @@ class SeedServiceCatalog1726000000000 {
     }
 }
 exports.SeedServiceCatalog1726000000000 = SeedServiceCatalog1726000000000;
-//# sourceMappingURL=0075-seed-service-catalog.js.map

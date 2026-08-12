@@ -90,4 +90,3 @@ exports.CloseXpPeriodsJob = CloseXpPeriodsJob = CloseXpPeriodsJob_1 = __decorate
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], CloseXpPeriodsJob);
-//# sourceMappingURL=close-xp-periods.job.js.map

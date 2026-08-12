@@ -30,7 +30,7 @@ export class MonthlyReportsService {
   async generate(organizationId: string, userId: string, dto: GenerateMonthlyReportDto): Promise<MonthlyReport> {
     const client = await this.clients.findOne({ where: { id: dto.clientId, organizationId } });
     if (!client) throw new NotFoundException('Cliente no encontrado');
-    const existing = await this.reports.findOne({ where: { clientId: dto.clientId, year: dto.year, month: dto.month } });
+    const existing = await this.reports.findOne({ where: { organizationId, clientId: dto.clientId, year: dto.year, month: dto.month } });
     if (existing?.status === 'published') throw new BadRequestException('El reporte publicado debe volver a borrador antes de regenerarse');
     const start = `${dto.year}-${String(dto.month).padStart(2, '0')}-01`;
     const endDate = new Date(dto.year, dto.month, 1);
@@ -59,8 +59,16 @@ export class MonthlyReportsService {
     return this.reports.save(report);
   }
 
-  async update(id: string, organizationId: string, dto: UpdateMonthlyReportDto): Promise<MonthlyReport> {
-    const report = await this.find(id, organizationId);
+  /**
+   * Edita el contenido redactado de un reporte en borrador.
+   *
+   * @param allowedClientIds - Cuentas que alcanza quien edita; `undefined` significa sin
+   * límite. El reporte debe pertenecer a una de ellas: el título, el resumen ejecutivo y las
+   * recomendaciones son el relato que la agencia le entrega a un cliente concreto, y quien no
+   * lleva esa cuenta no tiene por qué reescribirlo.
+   */
+  async update(id: string, organizationId: string, dto: UpdateMonthlyReportDto, allowedClientIds?: string[]): Promise<MonthlyReport> {
+    const report = await this.find(id, organizationId, allowedClientIds);
     if (report.status === 'published') throw new BadRequestException('Devuelve el reporte a borrador antes de editarlo');
     Object.assign(report, dto);
     if (dto.title !== undefined) report.title = dto.title.trim();
@@ -79,9 +87,21 @@ export class MonthlyReportsService {
     return this.reports.save(report);
   }
 
-  private async find(id: string, organizationId: string) {
+  /**
+   * Recupera un reporte de la organización, opcionalmente acotado a un conjunto de cuentas.
+   *
+   * Responde 404 y no 403 cuando el reporte existe pero queda fuera del alcance: distinguir
+   * ambos casos ya revela qué clientes tiene la agencia y en qué meses les reporta.
+   *
+   * @param allowedClientIds - Cuentas que alcanza quien consulta; `undefined` significa sin
+   * límite y un arreglo vacío significa ninguna.
+   */
+  private async find(id: string, organizationId: string, allowedClientIds?: string[]) {
     const report = await this.reports.findOne({ where: { id, organizationId } });
     if (!report) throw new NotFoundException('Reporte mensual no encontrado');
+    if (allowedClientIds !== undefined && !allowedClientIds.includes(report.clientId)) {
+      throw new NotFoundException('Reporte mensual no encontrado');
+    }
     return report;
   }
 }

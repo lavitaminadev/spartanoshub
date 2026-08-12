@@ -39,6 +39,10 @@ __decorate([
     __metadata("design:type", Object)
 ], UserPermissionOverride.prototype, "reason", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'expires_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserPermissionOverride.prototype, "expiresAt", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'granted_by', type: 'uuid', nullable: true }),
     __metadata("design:type", Object)
 ], UserPermissionOverride.prototype, "grantedBy", void 0);
@@ -54,4 +58,3 @@ exports.UserPermissionOverride = UserPermissionOverride = __decorate([
     (0, typeorm_1.Entity)('user_permission_overrides'),
     (0, typeorm_1.Index)('UQ_user_permission_override', ['userId', 'module'], { unique: true })
 ], UserPermissionOverride);
-//# sourceMappingURL=user-permission-override.entity.js.map

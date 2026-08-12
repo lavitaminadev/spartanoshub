@@ -136,4 +136,3 @@ function validateFileContent(mimeType, buffer) {
     }
     return { extension: MIME_EXTENSIONS[mimeType] };
 }
-//# sourceMappingURL=file-content-validator.js.map

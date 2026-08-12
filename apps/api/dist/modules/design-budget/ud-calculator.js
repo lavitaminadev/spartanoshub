@@ -21,4 +21,3 @@ function calculatePieceUd(pieceType, carouselSlides = 0) {
     }
     return exports.UD_MATRIX[pieceType] ?? 1.0;
 }
-//# sourceMappingURL=ud-calculator.js.map

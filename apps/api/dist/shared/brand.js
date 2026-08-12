@@ -6,4 +6,3 @@ exports.BRAND = {
     legalName: 'Cuartel Espartano',
     teamSignature: 'Equipo Espartanos',
 };
-//# sourceMappingURL=brand.js.map

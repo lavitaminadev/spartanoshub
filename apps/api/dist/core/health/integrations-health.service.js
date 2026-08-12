@@ -24,4 +24,3 @@ exports.IntegrationsHealthService = IntegrationsHealthService;
 exports.IntegrationsHealthService = IntegrationsHealthService = __decorate([
     (0, common_1.Injectable)()
 ], IntegrationsHealthService);
-//# sourceMappingURL=integrations-health.service.js.map

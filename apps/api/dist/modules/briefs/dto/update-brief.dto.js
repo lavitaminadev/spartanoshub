@@ -40,4 +40,3 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], UpdateBriefDto.prototype, "dueDate", void 0);
-//# sourceMappingURL=update-brief.dto.js.map

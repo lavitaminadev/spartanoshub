@@ -28,4 +28,3 @@ exports.GamificationModule = GamificationModule = __decorate([
         exports: [xp_service_1.XPService, typeorm_1.TypeOrmModule],
     })
 ], GamificationModule);
-//# sourceMappingURL=gamification.module.js.map

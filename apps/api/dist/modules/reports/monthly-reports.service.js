@@ -46,7 +46,7 @@ let MonthlyReportsService = class MonthlyReportsService {
         const client = await this.clients.findOne({ where: { id: dto.clientId, organizationId } });
         if (!client)
             throw new common_1.NotFoundException('Cliente no encontrado');
-        const existing = await this.reports.findOne({ where: { clientId: dto.clientId, year: dto.year, month: dto.month } });
+        const existing = await this.reports.findOne({ where: { organizationId, clientId: dto.clientId, year: dto.year, month: dto.month } });
         if (existing?.status === 'published')
             throw new common_1.BadRequestException('El reporte publicado debe volver a borrador antes de regenerarse');
         const start = `${dto.year}-${String(dto.month).padStart(2, '0')}-01`;
@@ -75,8 +75,8 @@ let MonthlyReportsService = class MonthlyReportsService {
         });
         return this.reports.save(report);
     }
-    async update(id, organizationId, dto) {
-        const report = await this.find(id, organizationId);
+    async update(id, organizationId, dto, allowedClientIds) {
+        const report = await this.find(id, organizationId, allowedClientIds);
         if (report.status === 'published')
             throw new common_1.BadRequestException('Devuelve el reporte a borrador antes de editarlo');
         Object.assign(report, dto);
@@ -98,10 +98,13 @@ let MonthlyReportsService = class MonthlyReportsService {
         await this.dataSource.query('UPDATE account_cycles SET report_status = ? WHERE organization_id = ? AND client_id = ? AND year = ? AND month = ?', [published ? 'completed' : 'in_progress', organizationId, report.clientId, report.year, report.month]);
         return this.reports.save(report);
     }
-    async find(id, organizationId) {
+    async find(id, organizationId, allowedClientIds) {
         const report = await this.reports.findOne({ where: { id, organizationId } });
         if (!report)
             throw new common_1.NotFoundException('Reporte mensual no encontrado');
+        if (allowedClientIds !== undefined && !allowedClientIds.includes(report.clientId)) {
+            throw new common_1.NotFoundException('Reporte mensual no encontrado');
+        }
         return report;
     }
 };
@@ -115,4 +118,3 @@ exports.MonthlyReportsService = MonthlyReportsService = __decorate([
         typeorm_2.Repository,
         typeorm_2.DataSource])
 ], MonthlyReportsService);
-//# sourceMappingURL=monthly-reports.service.js.map

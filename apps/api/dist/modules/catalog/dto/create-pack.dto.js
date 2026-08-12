@@ -55,4 +55,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(20000),
     __metadata("design:type", String)
 ], CreatePackDto.prototype, "services", void 0);
-//# sourceMappingURL=create-pack.dto.js.map

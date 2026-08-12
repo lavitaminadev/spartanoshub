@@ -7,10 +7,12 @@ import { UserRole } from '../../../src/modules/organizations/user-role.enum';
 function makeResolver(features: Record<string, boolean> | null, overrides: unknown[] = []) {
   const organizations = { findOne: vi.fn().mockResolvedValue({ id: 'org-1', features }) };
   const overrideRepo = { find: vi.fn().mockResolvedValue(overrides) };
+  const roleOverrideRepo = { find: vi.fn().mockResolvedValue([]) };
   return {
-    resolver: new PermissionResolverService(organizations as never, overrideRepo as never),
+    resolver: new PermissionResolverService(organizations as never, overrideRepo as never, roleOverrideRepo as never),
     organizations,
     overrideRepo,
+    roleOverrideRepo,
   };
 }
 

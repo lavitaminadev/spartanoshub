@@ -28,4 +28,3 @@ exports.UsersModule = UsersModule = __decorate([
         exports: [typeorm_1.TypeOrmModule],
     })
 ], UsersModule);
-//# sourceMappingURL=users.module.js.map

@@ -78,4 +78,3 @@ exports.XPDispute = XPDispute = __decorate([
     (0, typeorm_1.Entity)('xp_disputes'),
     (0, typeorm_1.Index)('IDX_xp_disputes_org_status', ['organizationId', 'status'])
 ], XPDispute);
-//# sourceMappingURL=xp-dispute.entity.js.map

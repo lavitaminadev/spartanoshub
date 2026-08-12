@@ -23,4 +23,3 @@ exports.BriefsModule = BriefsModule = __decorate([
         providers: [briefs_service_1.BriefsService],
     })
 ], BriefsModule);
-//# sourceMappingURL=briefs.module.js.map

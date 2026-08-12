@@ -46,4 +46,3 @@ exports.PasswordResetToken = PasswordResetToken = __decorate([
     (0, typeorm_1.Entity)('password_reset_tokens'),
     (0, typeorm_1.Index)('IDX_password_reset_user', ['userId', 'usedAt'])
 ], PasswordResetToken);
-//# sourceMappingURL=password-reset-token.entity.js.map

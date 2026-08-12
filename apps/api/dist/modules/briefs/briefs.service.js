@@ -76,4 +76,3 @@ exports.BriefsService = BriefsService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], BriefsService);
-//# sourceMappingURL=briefs.service.js.map

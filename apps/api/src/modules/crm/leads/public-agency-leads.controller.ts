@@ -49,6 +49,8 @@ export class PublicAgencyLeadsController {
     const messageParts = [dto.message, dto.serviceInterest ? `Interés: ${dto.serviceInterest}` : undefined, dto.budgetRange ? `Presupuesto: ${dto.budgetRange}` : undefined]
       .filter(Boolean);
 
+    // `create-only`: un envío anónimo puede dar de alta un prospecto, nunca reescribir uno que
+    // ya existe. La clave de idempotencia solo evita que un reenvío duplique la captura.
     await this.leadIntake.captureLead({
       organizationId,
       domain: 'commercial',
@@ -68,7 +70,7 @@ export class PublicAgencyLeadsController {
         tracking: dto.tracking ? { ...dto.tracking } : undefined,
         consent: { marketingAccepted: Boolean(dto.consent.marketingAccepted), policyVersion: dto.consent.policyVersion },
       },
-    });
+    }, 'create-only');
 
     // Respuesta pública mínima: nunca el id interno del lead, pipeline, responsable ni estado.
     return { success: true, submissionId: randomUUID(), message: 'Información recibida correctamente' };

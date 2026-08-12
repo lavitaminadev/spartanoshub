@@ -130,4 +130,3 @@ exports.ObjectivesController = ObjectivesController = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], ObjectivesController);
-//# sourceMappingURL=objectives.controller.js.map

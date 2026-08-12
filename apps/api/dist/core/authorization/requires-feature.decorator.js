@@ -5,4 +5,3 @@ const common_1 = require("@nestjs/common");
 exports.REQUIRES_FEATURE_KEY = 'requiresFeature';
 const RequiresFeature = (feature) => (0, common_1.SetMetadata)(exports.REQUIRES_FEATURE_KEY, feature);
 exports.RequiresFeature = RequiresFeature;
-//# sourceMappingURL=requires-feature.decorator.js.map

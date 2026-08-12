@@ -65,4 +65,3 @@ __decorate([
 exports.UDMovement = UDMovement = __decorate([
     (0, typeorm_1.Entity)('ud_movements')
 ], UDMovement);
-//# sourceMappingURL=ud-movement.entity.js.map

@@ -27,4 +27,3 @@ exports.CatalogModule = CatalogModule = __decorate([
         providers: [quotes_service_1.QuotesService],
     })
 ], CatalogModule);
-//# sourceMappingURL=catalog.module.js.map

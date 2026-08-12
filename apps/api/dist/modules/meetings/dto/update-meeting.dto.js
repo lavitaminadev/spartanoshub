@@ -22,4 +22,3 @@ __decorate([
     (0, class_validator_1.IsEnum)(meeting_status_enum_1.MeetingStatus),
     __metadata("design:type", String)
 ], UpdateMeetingDto.prototype, "status", void 0);
-//# sourceMappingURL=update-meeting.dto.js.map

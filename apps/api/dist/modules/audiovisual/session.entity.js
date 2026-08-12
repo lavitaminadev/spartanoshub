@@ -74,4 +74,3 @@ exports.Session = Session = __decorate([
     (0, typeorm_1.Entity)('av_sessions'),
     (0, typeorm_1.Index)('IDX_av_sessions_org_date', ['organizationId', 'date'])
 ], Session);
-//# sourceMappingURL=session.entity.js.map

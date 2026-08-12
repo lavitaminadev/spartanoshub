@@ -78,4 +78,3 @@ exports.IntegrationMetric = IntegrationMetric = __decorate([
     (0, typeorm_1.Entity)('integration_metrics'),
     (0, typeorm_1.Index)('UQ_integration_metric_daily', ['provider', 'externalAccountId', 'clientId', 'metricDate'], { unique: true })
 ], IntegrationMetric);
-//# sourceMappingURL=integration-metric.entity.js.map

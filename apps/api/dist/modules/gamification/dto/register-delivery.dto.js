@@ -51,4 +51,3 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], RegisterDeliveryDto.prototype, "delayJustification", void 0);
-//# sourceMappingURL=register-delivery.dto.js.map

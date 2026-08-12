@@ -26,4 +26,3 @@ exports.OrganizationsModule = OrganizationsModule = __decorate([
         exports: [typeorm_1.TypeOrmModule],
     })
 ], OrganizationsModule);
-//# sourceMappingURL=organizations.module.js.map

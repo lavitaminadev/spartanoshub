@@ -12,9 +12,9 @@ function getRememberedLogin(): string {
 }
 
 function getSessionHostWarning(): string | null {
-  if (typeof window === 'undefined') return null;
+  if (!import.meta.env.DEV || typeof window === 'undefined') return null;
   return buildSessionHostWarning({
-    isDevelopment: import.meta.env.DEV,
+    isDevelopment: true,
     webHost: window.location.hostname,
     rawApiUrl: import.meta.env.VITE_API_URL as string | undefined,
   });

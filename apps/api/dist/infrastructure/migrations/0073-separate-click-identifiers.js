@@ -25,4 +25,3 @@ class SeparateClickIdentifiers1725800000000 {
 }
 exports.SeparateClickIdentifiers1725800000000 = SeparateClickIdentifiers1725800000000;
 SeparateClickIdentifiers1725800000000.COLUMNS = ['gclid', 'gbraid', 'wbraid', 'fbclid'];
-//# sourceMappingURL=0073-separate-click-identifiers.js.map

@@ -360,7 +360,10 @@ export class ReportingController {
 
   @Put('monthly-reports/:id')
   @Roles(UserRole.ADMIN, UserRole.CREATIVE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
-  updateMonthlyReport(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateMonthlyReportDto) { return this.monthlyReports.update(id, req.organizationId!, dto); }
+  async updateMonthlyReport(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateMonthlyReportDto) {
+    const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
+    return this.monthlyReports.update(id, req.organizationId!, dto, allowedClientIds);
+  }
 
   @Post('monthly-reports/:id/publish')
   @Roles(UserRole.ADMIN, UserRole.CREATIVE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR)

@@ -57,4 +57,3 @@ __decorate([
     (0, class_validator_1.MaxLength)(50, { each: true }),
     __metadata("design:type", Array)
 ], UpdateDocumentDto.prototype, "tags", void 0);
-//# sourceMappingURL=update-document.dto.js.map

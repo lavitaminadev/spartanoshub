@@ -68,4 +68,3 @@ __decorate([
 exports.IntegrationAccount = IntegrationAccount = __decorate([
     (0, typeorm_1.Entity)('integration_accounts')
 ], IntegrationAccount);
-//# sourceMappingURL=integration-account.entity.js.map

@@ -96,4 +96,3 @@ exports.BillingController = BillingController = __decorate([
         list_charge_notes_use_case_1.ListChargeNotesUseCase,
         price_charge_note_use_case_1.PriceChargeNoteUseCase])
 ], BillingController);
-//# sourceMappingURL=billing.controller.js.map

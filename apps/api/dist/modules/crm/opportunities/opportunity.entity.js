@@ -88,4 +88,3 @@ exports.Opportunity = Opportunity = __decorate([
     (0, typeorm_1.Entity)('crm_opportunities'),
     (0, typeorm_1.Index)('IDX_crm_opportunities_org_created', ['organizationId', 'createdAt'])
 ], Opportunity);
-//# sourceMappingURL=opportunity.entity.js.map

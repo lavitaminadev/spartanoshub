@@ -94,4 +94,3 @@ exports.ContractsController = ContractsController = __decorate([
     (0, requires_feature_decorator_1.RequiresFeature)('contracts'),
     __metadata("design:paramtypes", [contracts_service_1.ContractsService])
 ], ContractsController);
-//# sourceMappingURL=contracts.controller.js.map

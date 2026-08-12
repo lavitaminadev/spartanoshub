@@ -86,4 +86,3 @@ exports.ReservationCoupon = ReservationCoupon = __decorate([
     (0, typeorm_1.Entity)('reservation_coupons'),
     (0, typeorm_1.Index)('UQ_reservation_coupons_code_org', ['code', 'organizationId'], { unique: true })
 ], ReservationCoupon);
-//# sourceMappingURL=reservation-coupon.entity.js.map

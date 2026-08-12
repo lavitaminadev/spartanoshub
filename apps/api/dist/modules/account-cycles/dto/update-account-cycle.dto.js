@@ -47,4 +47,3 @@ __decorate([
     (0, class_validator_1.IsIn)(PROCESS_STATUSES),
     __metadata("design:type", String)
 ], UpdateAccountCycleDto.prototype, "reportStatus", void 0);
-//# sourceMappingURL=update-account-cycle.dto.js.map

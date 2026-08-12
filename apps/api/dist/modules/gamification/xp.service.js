@@ -112,4 +112,3 @@ exports.XPService = XPService = __decorate([
         typeorm_2.Repository,
         register_xp_use_case_1.RegisterXpUseCase])
 ], XPService);
-//# sourceMappingURL=xp.service.js.map

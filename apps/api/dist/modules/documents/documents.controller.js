@@ -124,4 +124,3 @@ exports.DocumentsController = DocumentsController = __decorate([
         google_drive_service_1.GoogleDriveService,
         account_access_service_1.AccountAccessService])
 ], DocumentsController);
-//# sourceMappingURL=documents.controller.js.map

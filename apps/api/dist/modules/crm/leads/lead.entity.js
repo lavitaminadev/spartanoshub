@@ -158,4 +158,3 @@ exports.Lead = Lead = __decorate([
     (0, typeorm_1.Entity)('leads'),
     (0, typeorm_1.Index)('UQ_leads_org_external', ['organizationId', 'externalLeadId'], { unique: true })
 ], Lead);
-//# sourceMappingURL=lead.entity.js.map

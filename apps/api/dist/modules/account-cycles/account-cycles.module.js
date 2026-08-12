@@ -23,4 +23,3 @@ exports.AccountCyclesModule = AccountCyclesModule = __decorate([
         exports: [account_cycles_service_1.AccountCyclesService],
     })
 ], AccountCyclesModule);
-//# sourceMappingURL=account-cycles.module.js.map

@@ -7,4 +7,3 @@ class PieceDeliveredEvent {
     }
 }
 exports.PieceDeliveredEvent = PieceDeliveredEvent;
-//# sourceMappingURL=piece-delivered.event.js.map

@@ -66,4 +66,3 @@ exports.MetaConversionOutbox = MetaConversionOutbox = __decorate([
     (0, typeorm_1.Entity)('meta_conversion_outbox'),
     (0, typeorm_1.Index)('UQ_meta_conversion_event', ['organizationId', 'eventId'], { unique: true })
 ], MetaConversionOutbox);
-//# sourceMappingURL=meta-conversion-outbox.entity.js.map

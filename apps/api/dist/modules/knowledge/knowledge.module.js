@@ -44,4 +44,3 @@ exports.KnowledgeModule = KnowledgeModule = __decorate([
         ],
     })
 ], KnowledgeModule);
-//# sourceMappingURL=knowledge.module.js.map

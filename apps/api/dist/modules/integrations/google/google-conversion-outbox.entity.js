@@ -70,4 +70,3 @@ exports.GoogleConversionOutbox = GoogleConversionOutbox = __decorate([
     (0, typeorm_1.Entity)('google_conversion_outbox'),
     (0, typeorm_1.Index)('UQ_google_conversion_event', ['organizationId', 'eventId'], { unique: true })
 ], GoogleConversionOutbox);
-//# sourceMappingURL=google-conversion-outbox.entity.js.map

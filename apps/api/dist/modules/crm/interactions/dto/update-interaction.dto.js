@@ -41,4 +41,3 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], UpdateInteractionDto.prototype, "date", void 0);
-//# sourceMappingURL=update-interaction.dto.js.map

@@ -69,6 +69,20 @@ interface LeadMetadata {
  */
 export type LeadDomain = 'commercial' | 'audience';
 
+/**
+ * Qué puede hacer una captura sobre un lead que ya existe.
+ *
+ * `upsert` — reconoce a la persona por correo, teléfono o identificador externo y actualiza
+ * sus datos. Es lo que corresponde a los orígenes de confianza: el webhook firmado de Meta,
+ * las reservas creadas por el sistema y el alta manual de un usuario autenticado.
+ *
+ * `create-only` — nunca escribe sobre un lead existente; solo crea. Es lo que corresponde a
+ * un origen anónimo, donde quien envía el formulario no ha probado ser la persona cuyos datos
+ * pisaría. En este modo `externalLeadId` actúa únicamente como guardia contra reenvíos: si ya
+ * hay una captura con esa clave, se devuelve tal cual y no se toca nada.
+ */
+export type LeadCaptureMode = 'upsert' | 'create-only';
+
 export interface LeadCaptureInput {
   organizationId: string;
   clientId?: string;
@@ -90,6 +104,13 @@ export interface LeadCaptureInput {
   tags?: string[];
   consentCapturedAt?: Date;
   metadata?: LeadMetadata;
+}
+
+/** Resultado de buscar una captura previa de la misma persona. */
+interface LeadMatch {
+  lead: Lead | null;
+  matchedBy?: 'externalLeadId' | 'phone' | 'email';
+  conflict?: { otherLeadId: string; otherMatchedBy: 'phone' | 'email' };
 }
 
 interface LeadQualificationResult {
@@ -123,9 +144,12 @@ export class LeadIntakeService {
    * Captura una persona u organización y devuelve el lead resultante.
    *
    * Se conserva por compatibilidad con quienes solo necesitan el lead.
+   *
+   * @param mode - `create-only` para orígenes anónimos, donde la captura jamás puede escribir
+   * sobre un lead existente. Por defecto `upsert`, reservado a los orígenes de confianza.
    */
-  async captureLead(input: LeadCaptureInput): Promise<Lead> {
-    const { lead } = await this.capture(input);
+  async captureLead(input: LeadCaptureInput, mode: LeadCaptureMode = 'upsert'): Promise<Lead> {
+    const { lead } = await this.capture(input, mode);
     return lead;
   }
 
@@ -134,7 +158,7 @@ export class LeadIntakeService {
    * en vez de exponerlo en un campo compartido del servicio: dos reservas simultáneas se
    * pisarían ese campo entre los `await` de la transacción.
    */
-  private async capture(input: LeadCaptureInput): Promise<{ lead: Lead; contact: Contact | null }> {
+  private async capture(input: LeadCaptureInput, mode: LeadCaptureMode = 'upsert'): Promise<{ lead: Lead; contact: Contact | null }> {
     const { domain, payload } = this.splitDomain(input);
     const normalized = this.normalizeInput(payload);
     const transactionManager = this.repo.manager;
@@ -143,11 +167,11 @@ export class LeadIntakeService {
     // llaman al mismo método a propósito: cuando eran dos copias, la auditoría de sobrescritura
     // se agregó solo a una y el camino sin transacción siguió pisando datos en silencio.
     if (!transactionManager?.transaction) {
-      return this.persistCapture(normalized, domain, this.repo);
+      return this.persistCapture(normalized, domain, this.repo, undefined, mode);
     }
 
     return transactionManager.transaction(async (manager) =>
-      this.persistCapture(normalized, domain, manager.getRepository(Lead), manager));
+      this.persistCapture(normalized, domain, manager.getRepository(Lead), manager, mode));
   }
 
   /**
@@ -160,16 +184,29 @@ export class LeadIntakeService {
    * teléfono mal escrito lo cambiaba de forma permanente y sin dejar rastro de cuál era el
    * anterior.
    *
+   * En `create-only` nada de eso ocurre: la captura no busca a quién parecerse, así que no
+   * hay identidad que pisar. Un reenvío con la misma clave devuelve la captura anterior sin
+   * modificarla y sin volver a correr la automatización, que ya corrió la primera vez.
+   *
    * @param repo - Repositorio de la transacción, o el del servicio si no hay ninguna.
    * @param manager - Se propaga a la automatización para que escriba en la misma transacción.
+   * @param mode - Ver {@link LeadCaptureMode}.
    */
   private async persistCapture(
     normalized: LeadCaptureInput & { retentionReviewAt?: Date },
     domain: LeadDomain,
     repo: Repository<Lead>,
     manager?: EntityManager,
+    mode: LeadCaptureMode = 'upsert',
   ): Promise<{ lead: Lead; contact: Contact | null }> {
-    const match = await this.findExistingLead(normalized, repo, domain);
+    if (mode === 'create-only') {
+      const replay = await this.findReplay(normalized, repo);
+      if (replay) return { lead: replay, contact: null };
+    }
+
+    const match: LeadMatch = mode === 'create-only'
+      ? { lead: null }
+      : await this.findExistingLead(normalized, repo, domain);
     const qualification = this.qualifyLead(normalized, domain);
     const retentionReviewAt = this.buildRetentionReviewDate();
 
@@ -198,6 +235,18 @@ export class LeadIntakeService {
     if (identityChange) await this.recordIdentityChange(savedLead, identityChange);
     const contact = await this.runAutomation(savedLead, domain, manager);
     return { lead: await repo.save(savedLead), contact };
+  }
+
+  /**
+   * Captura anterior con el mismo `externalLeadId`, si la hay.
+   *
+   * Es la guardia contra reenvíos del modo `create-only`: identifica al envío, no a la
+   * persona. Solo se compara la clave —nunca correo ni teléfono—, de modo que conocerla no
+   * alcanza para llegar a un lead que se creó por otra vía.
+   */
+  private async findReplay(input: LeadCaptureInput, repo: Repository<Lead>): Promise<Lead | null> {
+    if (!input.externalLeadId) return null;
+    return repo.findOne({ where: { organizationId: input.organizationId, externalLeadId: input.externalLeadId } });
   }
 
   /** Campos de identidad que cambian de valor, o `null` si ninguno cambia. */
@@ -329,7 +378,7 @@ export class LeadIntakeService {
     input: LeadCaptureInput,
     repo: Repository<Lead> = this.repo,
     domain: LeadDomain = 'commercial',
-  ): Promise<{ lead: Lead | null; matchedBy?: 'externalLeadId' | 'phone' | 'email'; conflict?: { otherLeadId: string; otherMatchedBy: 'phone' | 'email' } }> {
+  ): Promise<LeadMatch> {
     if (input.externalLeadId) {
       const byExternalId = await repo.findOne({
         where: { organizationId: input.organizationId, externalLeadId: input.externalLeadId },

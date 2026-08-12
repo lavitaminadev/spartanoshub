@@ -9,4 +9,3 @@ var ContentItemStatus;
     ContentItemStatus["PUBLISHED"] = "published";
     ContentItemStatus["CANCELLED"] = "cancelled";
 })(ContentItemStatus || (exports.ContentItemStatus = ContentItemStatus = {}));
-//# sourceMappingURL=content-item-status.enum.js.map

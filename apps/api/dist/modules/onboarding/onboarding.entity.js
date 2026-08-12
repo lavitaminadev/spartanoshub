@@ -87,4 +87,3 @@ __decorate([
 exports.Onboarding = Onboarding = __decorate([
     (0, typeorm_1.Entity)('onboarding')
 ], Onboarding);
-//# sourceMappingURL=onboarding.entity.js.map

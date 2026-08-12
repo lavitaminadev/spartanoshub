@@ -24,4 +24,3 @@ exports.ReportsModule = ReportsModule = __decorate([
         providers: [vitamina_pulse_service_1.VitaminaPulseService, monthly_reports_service_1.MonthlyReportsService],
     })
 ], ReportsModule);
-//# sourceMappingURL=reports.module.js.map

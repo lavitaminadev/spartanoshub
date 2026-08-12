@@ -18,4 +18,3 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], AssignPieceDto.prototype, "designerId", void 0);
-//# sourceMappingURL=assign-piece.dto.js.map

@@ -72,4 +72,3 @@ exports.SubmitVersionUseCase = SubmitVersionUseCase = __decorate([
         typeorm_2.Repository,
         parameter_resolver_service_1.ParameterResolver])
 ], SubmitVersionUseCase);
-//# sourceMappingURL=submit-version.use-case.js.map

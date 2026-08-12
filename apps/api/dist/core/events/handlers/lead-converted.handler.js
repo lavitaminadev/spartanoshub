@@ -87,4 +87,3 @@ exports.LeadConvertedHandler = LeadConvertedHandler = LeadConvertedHandler_1 = _
         typeorm_2.Repository,
         workflows_service_1.WorkflowsService])
 ], LeadConvertedHandler);
-//# sourceMappingURL=lead-converted.handler.js.map

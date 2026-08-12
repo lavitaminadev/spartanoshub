@@ -19,4 +19,3 @@ exports.ObjectivesModule = ObjectivesModule;
 exports.ObjectivesModule = ObjectivesModule = __decorate([
     (0, common_1.Module)({ imports: [typeorm_1.TypeOrmModule.forFeature([objective_entity_1.Objective, client_entity_1.Client, user_entity_1.User])], controllers: [objectives_controller_1.ObjectivesController] })
 ], ObjectivesModule);
-//# sourceMappingURL=objectives.module.js.map

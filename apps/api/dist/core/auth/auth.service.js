@@ -319,7 +319,7 @@ let AuthService = AuthService_1 = class AuthService {
         const missing = onboarding_dto_1.REQUIRED_CONSENTS.filter((key) => !acceptedConsents.includes(key));
         if (missing.length > 0)
             throw new common_1.BadRequestException('Debes aceptar todas las condiciones para continuar');
-        const version = await this.parameters.get('compliance.terms_version', null, null, user.organizationId) ?? onboarding_dto_1.TERMS_VERSION;
+        const version = String(await this.parameters.get('compliance.terms_version', null, null, user.organizationId) ?? onboarding_dto_1.TERMS_VERSION);
         const now = new Date();
         await this.userRepo.manager.transaction(async (manager) => {
             await manager.update(user_entity_1.User, userId, { termsAcceptedAt: now, termsVersion: String(version) });
@@ -344,7 +344,8 @@ let AuthService = AuthService_1 = class AuthService {
                 return false;
             if (!user.termsAcceptedAt)
                 return true;
-            if (version && user.termsVersion !== version)
+            const currentVersion = version === null || version === undefined ? null : String(version);
+            if (currentVersion && user.termsVersion !== currentVersion)
                 return true;
             const months = Number(renewalMonths) || 0;
             if (months <= 0)
@@ -483,4 +484,3 @@ exports.AuthService = AuthService = AuthService_1 = __decorate([
         parameter_resolver_service_1.ParameterResolver,
         sessions_service_1.SessionsService])
 ], AuthService);
-//# sourceMappingURL=auth.service.js.map
