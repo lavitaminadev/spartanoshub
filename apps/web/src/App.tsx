@@ -6,7 +6,6 @@
 
 import { useEffect, useState, type JSX } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RolePreviewProvider } from './core/role-preview';
 import { useAuth } from './core/auth';
 import { AppRouter } from './core/router';
 import { ErrorBoundary } from './core/ErrorBoundary';
@@ -41,9 +40,7 @@ export default function App(): JSX.Element {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <RolePreviewProvider>
-          <AuthBootstrap />
-        </RolePreviewProvider>
+        <AuthBootstrap />
       </QueryClientProvider>
     </ErrorBoundary>
   );

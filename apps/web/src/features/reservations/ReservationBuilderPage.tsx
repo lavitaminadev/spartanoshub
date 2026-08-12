@@ -392,29 +392,16 @@ export function ReservationBuilderPage() {
         <div className="block-list">{blocks.length === 0 ? <p className="page-subtitle">No hay bloqueos futuros.</p> : blocks.map((item) => <div key={item.id}><div><strong>{item.reason || 'Agenda cerrada'}</strong><small>{new Date(item.startsAt).toLocaleString('es-CL')} → {new Date(item.endsAt).toLocaleString('es-CL')}</small></div><button onClick={() => setConfirmDeleteBlock(item.id)}>Quitar</button></div>)}</div></aside>
     </div></div>}
 
-    {step === 2 && <div className="builder-stage"><div className="stage-heading"><span className="page-eyebrow">ENTORNO VISUAL</span><h2>Haz que la reserva se sienta propia.</h2><p>Personaliza logo, colores y mensaje sin afectar la claridad.</p></div><div className="design-studio"><div className="design-controls"><label>Título público<input className="input" value={draft.designConfig.title || ''} onChange={(event) => change({ designConfig: { ...draft.designConfig, title: event.target.value } })} /></label><label>Mensaje de bienvenida<textarea className="input" rows={4} value={draft.designConfig.welcome || ''} onChange={(event) => change({ designConfig: { ...draft.designConfig, welcome: event.target.value } })} /></label><ImageUpload
-              label="Logo de la empresa"
-              value={draft.designConfig.logoUrl}
-              onChange={(url) => saveDesignAsset('logoUrl', url)}
-              placeholder="https://empresa.cl/logo.png"
-              maxSizeMB={3}
-            />
-            <DesignAdvancedControls design={draft.designConfig} onChange={(designConfig) => change({ designConfig })} />
-            <div className="design-templates">{DESIGN_TEMPLATES.map((template) => <button type="button" key={template.name} onClick={() => change({ designConfig: { ...draft.designConfig, ...template.config } })}>{template.name}</button>)}</div>
-            <label>Tipo de fondo<select className="input" value={draft.designConfig.backgroundMode || (draft.designConfig.backgroundImage ? 'image' : 'color')} onChange={(event) => change({ designConfig: { ...draft.designConfig, backgroundMode: event.target.value, ...(event.target.value === 'gradient' && !draft.designConfig.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) } })}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
-            <label>Degradado<input className="input" value={draft.designConfig.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT} onChange={(event) => change({ designConfig: { ...draft.designConfig, backgroundGradient: event.target.value } })} /></label>
-            <label>Opacidad de fondo ({draft.designConfig.backgroundOpacity || '88'}%)<input type="range" min="0" max="100" value={draft.designConfig.backgroundOpacity || '88'} onChange={(event) => change({ designConfig: { ...draft.designConfig, backgroundOpacity: event.target.value } })} /></label>
-            <label>Posición del fondo<select className="input" value={draft.designConfig.backgroundPosition || 'center'} onChange={(event) => change({ designConfig: { ...draft.designConfig, backgroundPosition: event.target.value } })}><option value="center">Centro</option><option value="top">Arriba</option><option value="bottom">Abajo</option><option value="left">Izquierda</option><option value="right">Derecha</option></select></label>
-            <label>Forma de botones<select className="input" value={draft.designConfig.buttonRadius || '12'} onChange={(event) => change({ designConfig: { ...draft.designConfig, buttonRadius: event.target.value } })}><option value="4">Rectos</option><option value="12">Suaves</option><option value="999">Píldora</option></select></label>
-            <label>Forma de campos<select className="input" value={draft.designConfig.fieldRadius || '10'} onChange={(event) => change({ designConfig: { ...draft.designConfig, fieldRadius: event.target.value } })}><option value="2">Rectos</option><option value="10">Suaves</option><option value="18">Redondeados</option></select></label>
-            <div className="preview-device-toggle"><button type="button" className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>Vista móvil</button><button type="button" className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>Vista escritorio</button></div>
-            <ImageUpload
-              label="Imagen de fondo"
-              value={draft.designConfig.backgroundImage}
-              onChange={(url) => saveDesignAsset('backgroundImage', url)}
-              placeholder="https://..."
-              maxSizeMB={5}
-            />            <div className="color-controls"><label>Principal<input type="color" value={draft.designConfig.primaryColor || '#0ec6b8'} onChange={(event) => change({ designConfig: { ...draft.designConfig, primaryColor: event.target.value } })} /></label><label>Acento<input type="color" value={draft.designConfig.accentColor || '#ea0f63'} onChange={(event) => change({ designConfig: { ...draft.designConfig, accentColor: event.target.value } })} /></label><label>Fondo<input type="color" value={draft.designConfig.backgroundColor || '#f3f5ef'} onChange={(event) => change({ designConfig: { ...draft.designConfig, backgroundColor: event.target.value } })} /></label><label>Color de letras<input type="color" value={draft.designConfig.textColor || '#3f4e49'} onChange={(event) => change({ designConfig: { ...draft.designConfig, textColor: event.target.value } })} /></label></div><label>Tipo de letra<select className="input" value={draft.designConfig.fontFamily || 'system-ui'} onChange={(event) => change({ designConfig: { ...draft.designConfig, fontFamily: event.target.value } })}><option value="system-ui">Sistema</option><option value="Inter, sans-serif">Inter</option><option value="Georgia, serif">Georgia</option><option value="'Courier New', monospace">Monospace</option></select></label></div><ReservationLivePreview draft={draft} fields={fields} previewDevice={previewDevice} style={designPreviewStyle} /></div></div>}
+    {step === 2 && <div className="builder-stage">
+      <div className="stage-heading"><span className="page-eyebrow">ENTORNO VISUAL</span><h2>Haz que {surveyMode ? 'la encuesta' : 'la reserva'} se sienta propia.</h2><p>Elige una plantilla y ajusta solo lo que quieras cambiar. Cada bloque cerrado ya trae un valor que funciona.</p></div>
+      <div className="design-studio">
+        <DesignStudioControls design={draft.designConfig} onChange={(designConfig) => change({ designConfig })} onAsset={saveDesignAsset} />
+        <div className="design-preview-column">
+          <div className="preview-device-toggle"><button type="button" className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>Vista móvil</button><button type="button" className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>Vista escritorio</button></div>
+          <ReservationLivePreview draft={draft} fields={fields} previewDevice={previewDevice} style={designPreviewStyle} />
+        </div>
+      </div>
+    </div>}
 
     {step === 3 && <div className="builder-stage"><div className="stage-heading"><span className="page-eyebrow">PUBLICACIÓN</span><h2>Verifica la medición y comparte.</h2><p>Pixel de la empresa y Conversions API.</p></div><div className="publish-grid"><div className="publish-summary"><h3>Revisión operativa</h3><div><span>Tipo de flujo</span><strong>{flowLabelCaps}</strong></div><div><span>Campos configurados</span><strong>{fields.length}</strong></div><div><span>Días habilitados</span><strong>{new Set(windows.map((window) => window.day)).size}</strong></div><div><span>CRM de reservas</span><strong>{draft.capabilities?.crm ? 'Habilitado' : 'No habilitado'}</strong></div><div><span>Pixel de la empresa</span><strong>{draft.pixelName ? `${draft.pixelName} · ••••${draft.pixelId?.slice(-4) || '----'}` : draft.pixelId ? `••••${draft.pixelId.slice(-4)}` : 'Sin Pixel asignado'}</strong></div><div><span>Estado de Meta</span><strong className={draft.metaReady ? 'status-ready' : 'status-warning'}>{draft.metaReady ? 'Listo para CAPI' : 'En alerta'}</strong></div><div><span>Token CAPI</span><strong>{draft.metaReady ? 'Validado' : 'Pendiente'}</strong></div><div><span>Dominio público</span><strong className={publicUrlReady ? 'status-ready' : 'status-warning'}>{publicUrlReady ? 'HTTPS listo' : 'Pendiente HTTPS'}</strong></div>{!clientMode && <label className={`meta-publication-toggle ${draft.metaCapiEnabled ? 'active' : ''}`}><input type="checkbox" checked={Boolean(draft.metaCapiEnabled)} disabled={!draft.capabilities?.metaConversions} onChange={(event) => change({ metaCapiEnabled: event.target.checked })} /><span><strong>Enviar conversiones a Meta</strong><small>Schedule al reservar y Reserva_Asistida al marcar asistencia.</small></span></label>}<label>Referencia de campaña en Espartanos<input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" /><small>Es una etiqueta de atribución. Las campañas reales se leerán en Fase 2 con ads_read.</small></label><label>ID de medición de Google Analytics 4<input className="input" value={draft.ga4MeasurementId || ''} onChange={(event) => change({ ga4MeasurementId: event.target.value.trim() })} placeholder="G-XXXXXXXXXX" /><small>Opcional. Emite <code>reservation_created</code> en la página pública al confirmar una reserva. Déjalo vacío para no cargar GA4.</small></label>{!publicUrlReady && <div className="alert alert-warning">Para anuncios reales necesitas configurar VITE_APP_PUBLIC_URL y APP_PUBLIC_URL con dominio HTTPS de iHosting. En local puedes probar, pero no uses este enlace en Meta.</div>}{draft.capabilities?.metaConversions && !draft.metaReady && <div className="alert alert-warning">Meta está habilitado para la empresa, pero esta reserva publicará en modo alerta: el {flowLabel} podrá salir igual, y la conversión sólo se enviará si la empresa tiene Pixel y token válidos.</div>}</div><div className="publish-link"><span>ENLACE HTTPS PARA ANUNCIOS</span><strong>{campaignUrl}</strong><div><button className="btn btn-outline" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar enlace'}</button>{publicPreviewReady && safeCampaignUrl ? <a className="btn btn-outline" href={safeCampaignUrl} target="_blank" rel="noreferrer">Probar experiencia</a> : <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>{publishedButDirty ? 'Guardar para probar' : 'Ver vista interna'}</button>}</div><small>{publicPreviewReady ? 'El enlace añade utm_source=meta y la referencia indicada; fbclid llegará automáticamente desde el anuncio.' : 'La experiencia pública se habilita después de publicar y guardar el formulario.'}</small><button className="btn reservation-cta" disabled={saveMutation.isPending || windows.length === 0} onClick={() => saveMutation.mutate({ ...draft, status: 'published' })}>{draft.status === 'published' ? 'Guardar y mantener publicado' : surveyMode ? 'Publicar encuesta' : 'Publicar formulario'}</button>{windows.length === 0 && <small>Debes habilitar al menos un día antes de publicar.</small>}{!APP_PUBLIC_URL_CONFIGURED && <small>Dominio público no configurado en frontend; usando origen actual solo para prueba local.</small>}{draft.capabilities?.metaConversions && !draft.metaReady && <small>Se publicará igual, pero Meta quedará en alerta hasta que el Pixel y el token estén listos.</small>}</div></div></div>}
 
@@ -424,91 +411,131 @@ export function ReservationBuilderPage() {
   </div>;
 }
 
-function DesignAdvancedControls({
+/**
+ * Controles del entorno visual del formulario público.
+ *
+ * Presenta primero la decisión que resuelve casi todo —la plantilla— y deja visible solo lo
+ * que cambia el aspecto de un vistazo: textos, logo, colores y tipo de fondo. El resto vive
+ * en bloques plegados que se abren cuando hacen falta, de modo que la personalización sigue
+ * completa: cada clave de `DesignConfig` se sigue editando desde aquí.
+ *
+ * Los ajustes de fondo (posición, tamaño, visibilidad) aparecen solo con degradado o imagen,
+ * que es cuando tienen efecto: sobre un color plano no cambian nada y solo hacían dudar.
+ */
+function DesignStudioControls({
   design,
   onChange,
+  onAsset,
 }: {
   design: DesignConfig;
   onChange: (design: DesignConfig) => void;
+  onAsset: (key: 'logoUrl' | 'backgroundImage', url: string) => void;
 }) {
   const update = (patch: Partial<DesignConfig>) => onChange({ ...design, ...patch });
+  const backgroundMode = design.backgroundMode || (design.backgroundImage ? 'image' : 'color');
   const activePosition = design.backgroundAnchor || design.backgroundPosition || 'center center';
   const activeLayout = design.layoutPosition || 'right';
   const activeLogo = design.logoPosition || 'left';
 
   return (
-    <section className="design-custom-panel">
-      <div>
-        <span>Diseño personalizado</span>
-        <strong>Ubicación y fondo</strong>
-        <small>Controles seguros: personalizas la página sin romper móvil, contraste ni publicación.</small>
-      </div>
-      <div className="design-control-group">
-        <span>Marca superior</span>
-        <label className="toggle-row"><input type="checkbox" checked={visible(design.showPoweredBy)} onChange={(event) => update({ showPoweredBy: String(event.target.checked) })} /> Mostrar “Gestionado con”</label>
-        <textarea className="input" rows={2} value={design.poweredByText || 'Gestionado con\nEspartanos Reservas'} onChange={(event) => update({ poweredByText: event.target.value })} />
-        <label className="toggle-row"><input type="checkbox" checked={visible(design.showSecureBadge)} onChange={(event) => update({ showSecureBadge: String(event.target.checked) })} /> Mostrar sello “Reserva segura”</label>
-        <input className="input" value={design.secureBadgeText || 'Reserva segura'} onChange={(event) => update({ secureBadgeText: event.target.value })} />
-      </div>
-      <div className="design-control-group">
-        <span>Encabezado público</span>
-        <label className="toggle-row"><input type="checkbox" checked={visible(design.showLogo)} onChange={(event) => update({ showLogo: String(event.target.checked) })} /> Mostrar logo</label>
-        <label>Tamaño del logo ({design.logoSize || '64'}px)<input type="range" min="32" max="180" value={design.logoSize || '64'} onChange={(event) => update({ logoSize: event.target.value })} /></label>
-        <label className="toggle-row"><input type="checkbox" checked={visible(design.showEyebrow)} onChange={(event) => update({ showEyebrow: String(event.target.checked) })} /> Mostrar etiqueta superior</label>
-        <input className="input" value={design.eyebrowText || 'AGENDA EN LÍNEA'} onChange={(event) => update({ eyebrowText: event.target.value })} />
-        <label>Tamaño del título ({design.titleSize || '72'}px)<input type="range" min="32" max="96" value={design.titleSize || '72'} onChange={(event) => update({ titleSize: event.target.value })} /></label>
-        <label className="toggle-row"><input type="checkbox" checked={visible(design.showWelcome)} onChange={(event) => update({ showWelcome: String(event.target.checked) })} /> Mostrar mensaje de bienvenida</label>
-        <label>Tamaño del mensaje ({design.welcomeSize || '16'}px)<input type="range" min="12" max="24" value={design.welcomeSize || '16'} onChange={(event) => update({ welcomeSize: event.target.value })} /></label>
-      </div>
-      <div className="design-control-group">
-        <span>Datos rápidos</span>
-        <label className="toggle-row"><input type="checkbox" checked={visible(design.showFacts)} onChange={(event) => update({ showFacts: String(event.target.checked) })} /> Mostrar minutos, confirmación y zona horaria</label>
-        <div className="design-mini-grid"><input className="input" value={design.durationLabel || 'minutos'} onChange={(event) => update({ durationLabel: event.target.value })} /><input className="input" value={design.confirmationLabel || 'confirmación'} onChange={(event) => update({ confirmationLabel: event.target.value })} /><input className="input" value={design.timezoneLabel || 'zona horaria'} onChange={(event) => update({ timezoneLabel: event.target.value })} /></div>
-        <div className="design-mini-grid"><input className="input" value={design.automaticLabel || 'Directa'} onChange={(event) => update({ automaticLabel: event.target.value })} /><input className="input" value={design.manualLabel || 'Manual'} onChange={(event) => update({ manualLabel: event.target.value })} /><input className="input" value={design.timezoneValue || ''} placeholder="Ej.: Santiago" onChange={(event) => update({ timezoneValue: event.target.value })} /></div>
-      </div>
-      <div className="design-control-group">
-        <span>Plantillas visuales</span>
+    <div className="design-controls">
+      <section className="design-starter">
+        <span className="design-starter-eyebrow">EMPIEZA POR AQUÍ</span>
+        <strong>Plantillas visuales</strong>
+        <small>Aplica una combinación completa de colores, tipografía y formas. Después ajusta lo que quieras.</small>
         <div className="design-templates">{DESIGN_TEMPLATES.map((template) => <button type="button" key={template.name} onClick={() => onChange({ ...design, ...template.config })}>{template.name}</button>)}</div>
-      </div>
-      <label>Mensaje de confirmación<textarea className="input" rows={3} value={design.confirmationMessage || ''} onChange={(event) => update({ confirmationMessage: event.target.value })} placeholder="Tu reserva quedó registrada. Te esperamos." /></label>
-      <div className="design-control-group">
-        <span>Calendario del visitante</span>
-        <label className="toggle-row"><input type="checkbox" checked={design.calendarSaveEnabled !== 'false'} onChange={(event) => update({ calendarSaveEnabled: String(event.target.checked) })} /> Ofrecer guardar la reserva en calendario</label>
-        <textarea className="input" rows={2} value={design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'} onChange={(event) => update({ calendarSaveText: event.target.value })} />
-      </div>
-      <div className="design-control-group">
-        <span>Encuesta y reseñas</span>
-        <label>Título de encuesta<input className="input" value={design.surveyTitle || ''} onChange={(event) => update({ surveyTitle: event.target.value })} placeholder="Cuéntanos cómo fue tu experiencia" /></label>
-        <label>Ayuda de encuesta<textarea className="input" rows={2} value={design.surveyHelpText || ''} onChange={(event) => update({ surveyHelpText: event.target.value })} placeholder="Tus respuestas ayudan al local a mejorar cada visita." /></label>
-        <label>URL de reseña en Google<input className="input" value={design.googleReviewUrl || ''} onChange={(event) => update({ googleReviewUrl: event.target.value })} placeholder="https://g.page/r/..." /></label>
-        <label>Destacar Google desde ({design.googleReviewMinRating || '4'} estrellas)<input type="range" min="1" max="5" value={design.googleReviewMinRating || '4'} onChange={(event) => update({ googleReviewMinRating: event.target.value })} /></label>
-      </div>
-      <label>Tipo de fondo<select className="input" value={design.backgroundMode || (design.backgroundImage ? 'image' : 'color')} onChange={(event) => update({ backgroundMode: event.target.value, ...(event.target.value === 'gradient' && !design.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) })}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
-      <label>Degradado<input className="input" value={design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT} onChange={(event) => update({ backgroundGradient: event.target.value })} /></label>
-      <div className="color-controls"><label>Principal<input type="color" value={design.primaryColor || '#0ec6b8'} onChange={(event) => update({ primaryColor: event.target.value })} /></label><label>Acento<input type="color" value={design.accentColor || '#ea0f63'} onChange={(event) => update({ accentColor: event.target.value })} /></label><label>Fondo<input type="color" value={design.backgroundColor || '#f3f5ef'} onChange={(event) => update({ backgroundColor: event.target.value })} /></label><label>Color de letras<input type="color" value={design.textColor || '#3f4e49'} onChange={(event) => update({ textColor: event.target.value })} /></label></div>
-      <label>Tipo de letra<select className="input" value={design.fontFamily || 'system-ui'} onChange={(event) => update({ fontFamily: event.target.value })}><option value="system-ui">Sistema</option><option value="Inter, sans-serif">Inter</option><option value="Georgia, serif">Georgia</option><option value="'Courier New', monospace">Monospace</option></select></label>
-      <div className="design-mini-grid"><label>Forma de botones<select className="input" value={design.buttonRadius || '12'} onChange={(event) => update({ buttonRadius: event.target.value })}><option value="4">Rectos</option><option value="12">Suaves</option><option value="999">Píldora</option></select></label><label>Forma de campos<select className="input" value={design.fieldRadius || '10'} onChange={(event) => update({ fieldRadius: event.target.value })}><option value="2">Rectos</option><option value="10">Suaves</option><option value="18">Redondeados</option></select></label></div>
-      <label>Visibilidad del fondo ({design.backgroundOpacity || '88'}%)<input type="range" min="0" max="100" value={design.backgroundOpacity || '88'} onChange={(event) => update({ backgroundOpacity: event.target.value })} /></label>
-      <div className="design-control-group">
-        <span>Posición del fondo</span>
-        <div className="position-grid">
-          {BACKGROUND_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activePosition === value ? 'active' : ''} title={label} aria-label={label} onClick={() => update({ backgroundAnchor: value, backgroundPosition: value.includes('top') ? 'top' : value.includes('bottom') ? 'bottom' : value.includes('left') ? 'left' : value.includes('right') ? 'right' : 'center' })} />)}
+      </section>
+
+      <section className="design-essentials">
+        <label>Título público<input className="input" value={design.title || ''} onChange={(event) => update({ title: event.target.value })} /></label>
+        <label>Mensaje de bienvenida<textarea className="input" rows={3} value={design.welcome || ''} onChange={(event) => update({ welcome: event.target.value })} /></label>
+        <ImageUpload label="Logo de la empresa" value={design.logoUrl} onChange={(url) => onAsset('logoUrl', url)} placeholder="https://empresa.cl/logo.png" maxSizeMB={3} />
+        <div className="color-controls"><label>Principal<input type="color" value={design.primaryColor || '#0ec6b8'} onChange={(event) => update({ primaryColor: event.target.value })} /></label><label>Acento<input type="color" value={design.accentColor || '#ea0f63'} onChange={(event) => update({ accentColor: event.target.value })} /></label><label>Fondo<input type="color" value={design.backgroundColor || '#f3f5ef'} onChange={(event) => update({ backgroundColor: event.target.value })} /></label><label>Letras<input type="color" value={design.textColor || '#3f4e49'} onChange={(event) => update({ textColor: event.target.value })} /></label></div>
+        <label>Tipo de fondo<select className="input" value={backgroundMode} onChange={(event) => update({ backgroundMode: event.target.value, ...(event.target.value === 'gradient' && !design.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) })}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
+        {backgroundMode === 'gradient' && <label>Degradado<input className="input" value={design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT} onChange={(event) => update({ backgroundGradient: event.target.value })} /></label>}
+        {backgroundMode === 'image' && <ImageUpload label="Imagen de fondo" value={design.backgroundImage} onChange={(url) => onAsset('backgroundImage', url)} placeholder="https://..." maxSizeMB={5} />}
+      </section>
+
+      <details className="design-section">
+        <summary>Tipografía y formas</summary>
+        <div className="design-section-body">
+          <label>Tipo de letra<select className="input" value={design.fontFamily || 'system-ui'} onChange={(event) => update({ fontFamily: event.target.value })}><option value="system-ui">Sistema</option><option value="Inter, sans-serif">Inter</option><option value="Georgia, serif">Georgia</option><option value="'Courier New', monospace">Monospace</option></select></label>
+          <div className="design-mini-grid"><label>Forma de botones<select className="input" value={design.buttonRadius || '12'} onChange={(event) => update({ buttonRadius: event.target.value })}><option value="4">Rectos</option><option value="12">Suaves</option><option value="999">Píldora</option></select></label><label>Forma de campos<select className="input" value={design.fieldRadius || '10'} onChange={(event) => update({ fieldRadius: event.target.value })}><option value="2">Rectos</option><option value="10">Suaves</option><option value="18">Redondeados</option></select></label></div>
         </div>
-      </div>
-      <div className="segmented-control">
-        <span>Tamaño del fondo</span>
-        <div>{BACKGROUND_SIZES.map(([value, label]) => <button type="button" key={value} className={(design.backgroundSize || 'cover') === value ? 'active' : ''} onClick={() => update({ backgroundSize: value })}>{label}</button>)}</div>
-      </div>
-      <div className="segmented-control">
-        <span>Ubicación del formulario</span>
-        <div>{LAYOUT_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLayout === value ? 'active' : ''} onClick={() => update({ layoutPosition: value })}>{label}</button>)}</div>
-      </div>
-      <div className="segmented-control">
-        <span>Alineación del logo</span>
-        <div>{LOGO_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLogo === value ? 'active' : ''} onClick={() => update({ logoPosition: value })}>{label}</button>)}</div>
-      </div>
-      <button type="button" className="btn btn-outline btn-sm" onClick={() => update({ showPoweredBy: 'true', poweredByText: 'Gestionado con\nEspartanos Reservas', showSecureBadge: 'true', secureBadgeText: 'Reserva segura', showLogo: 'true', showEyebrow: 'true', eyebrowText: 'AGENDA EN LÍNEA', showWelcome: 'true', showFacts: 'true', logoSize: '64', titleSize: '72', welcomeSize: '16', durationLabel: 'minutos', confirmationLabel: 'confirmación', timezoneLabel: 'zona horaria', automaticLabel: 'Directa', manualLabel: 'Manual', timezoneValue: '', backgroundOpacity: '88', backgroundAnchor: 'center center', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'right', logoPosition: 'left' })}>Restablecer diseño público</button>
-    </section>
+      </details>
+
+      {backgroundMode !== 'color' && <details className="design-section">
+        <summary>Ajuste del fondo</summary>
+        <div className="design-section-body">
+          {backgroundMode === 'image' && <label>Visibilidad del fondo ({design.backgroundOpacity || '88'}%)<small>Cuánto se aclara la imagen para que el texto siga legible.</small><input type="range" min="0" max="100" value={design.backgroundOpacity || '88'} onChange={(event) => update({ backgroundOpacity: event.target.value })} /></label>}
+          <div className="design-control-group">
+            <span>Posición del fondo</span>
+            <div className="position-grid">
+              {BACKGROUND_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activePosition === value ? 'active' : ''} title={label} aria-label={label} onClick={() => update({ backgroundAnchor: value, backgroundPosition: value.includes('top') ? 'top' : value.includes('bottom') ? 'bottom' : value.includes('left') ? 'left' : value.includes('right') ? 'right' : 'center' })} />)}
+            </div>
+          </div>
+          <div className="segmented-control">
+            <span>Tamaño del fondo</span>
+            <div>{BACKGROUND_SIZES.map(([value, label]) => <button type="button" key={value} className={(design.backgroundSize || 'cover') === value ? 'active' : ''} onClick={() => update({ backgroundSize: value })}>{label}</button>)}</div>
+          </div>
+        </div>
+      </details>}
+
+      <details className="design-section">
+        <summary>Encabezado y marca</summary>
+        <div className="design-section-body">
+          <label className="toggle-row"><input type="checkbox" checked={visible(design.showLogo)} onChange={(event) => update({ showLogo: String(event.target.checked) })} /> Mostrar logo</label>
+          <label>Tamaño del logo ({design.logoSize || '64'}px)<input type="range" min="32" max="180" value={design.logoSize || '64'} onChange={(event) => update({ logoSize: event.target.value })} /></label>
+          <div className="segmented-control">
+            <span>Alineación del logo</span>
+            <div>{LOGO_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLogo === value ? 'active' : ''} onClick={() => update({ logoPosition: value })}>{label}</button>)}</div>
+          </div>
+          <label className="toggle-row"><input type="checkbox" checked={visible(design.showEyebrow)} onChange={(event) => update({ showEyebrow: String(event.target.checked) })} /> Mostrar etiqueta superior</label>
+          <input className="input" value={design.eyebrowText || 'AGENDA EN LÍNEA'} onChange={(event) => update({ eyebrowText: event.target.value })} />
+          <label>Tamaño del título ({design.titleSize || '72'}px)<input type="range" min="32" max="96" value={design.titleSize || '72'} onChange={(event) => update({ titleSize: event.target.value })} /></label>
+          <label className="toggle-row"><input type="checkbox" checked={visible(design.showWelcome)} onChange={(event) => update({ showWelcome: String(event.target.checked) })} /> Mostrar mensaje de bienvenida</label>
+          <label>Tamaño del mensaje ({design.welcomeSize || '16'}px)<input type="range" min="12" max="24" value={design.welcomeSize || '16'} onChange={(event) => update({ welcomeSize: event.target.value })} /></label>
+          <div className="segmented-control">
+            <span>Ubicación del formulario</span>
+            <div>{LAYOUT_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLayout === value ? 'active' : ''} onClick={() => update({ layoutPosition: value })}>{label}</button>)}</div>
+          </div>
+          <label className="toggle-row"><input type="checkbox" checked={visible(design.showPoweredBy)} onChange={(event) => update({ showPoweredBy: String(event.target.checked) })} /> Mostrar “Gestionado con”</label>
+          <textarea className="input" rows={2} value={design.poweredByText || 'Gestionado con\nEspartanos Reservas'} onChange={(event) => update({ poweredByText: event.target.value })} />
+          <label className="toggle-row"><input type="checkbox" checked={visible(design.showSecureBadge)} onChange={(event) => update({ showSecureBadge: String(event.target.checked) })} /> Mostrar sello “Reserva segura”</label>
+          <input className="input" value={design.secureBadgeText || 'Reserva segura'} onChange={(event) => update({ secureBadgeText: event.target.value })} />
+        </div>
+      </details>
+
+      <details className="design-section">
+        <summary>Datos rápidos bajo el título</summary>
+        <div className="design-section-body">
+          <label className="toggle-row"><input type="checkbox" checked={visible(design.showFacts)} onChange={(event) => update({ showFacts: String(event.target.checked) })} /> Mostrar minutos, confirmación y zona horaria</label>
+          <div className="design-mini-grid"><input className="input" value={design.durationLabel || 'minutos'} onChange={(event) => update({ durationLabel: event.target.value })} /><input className="input" value={design.confirmationLabel || 'confirmación'} onChange={(event) => update({ confirmationLabel: event.target.value })} /><input className="input" value={design.timezoneLabel || 'zona horaria'} onChange={(event) => update({ timezoneLabel: event.target.value })} /></div>
+          <div className="design-mini-grid"><input className="input" value={design.automaticLabel || 'Directa'} onChange={(event) => update({ automaticLabel: event.target.value })} /><input className="input" value={design.manualLabel || 'Manual'} onChange={(event) => update({ manualLabel: event.target.value })} /><input className="input" value={design.timezoneValue || ''} placeholder="Ej.: Santiago" onChange={(event) => update({ timezoneValue: event.target.value })} /></div>
+        </div>
+      </details>
+
+      <details className="design-section">
+        <summary>Después de reservar</summary>
+        <div className="design-section-body">
+          <label>Mensaje de confirmación<textarea className="input" rows={3} value={design.confirmationMessage || ''} onChange={(event) => update({ confirmationMessage: event.target.value })} placeholder="Tu reserva quedó registrada. Te esperamos." /></label>
+          <label className="toggle-row"><input type="checkbox" checked={design.calendarSaveEnabled !== 'false'} onChange={(event) => update({ calendarSaveEnabled: String(event.target.checked) })} /> Ofrecer guardar la reserva en calendario</label>
+          <textarea className="input" rows={2} value={design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'} onChange={(event) => update({ calendarSaveText: event.target.value })} />
+        </div>
+      </details>
+
+      <details className="design-section">
+        <summary>Encuesta y reseñas</summary>
+        <div className="design-section-body">
+          <label>Título de encuesta<input className="input" value={design.surveyTitle || ''} onChange={(event) => update({ surveyTitle: event.target.value })} placeholder="Cuéntanos cómo fue tu experiencia" /></label>
+          <label>Ayuda de encuesta<textarea className="input" rows={2} value={design.surveyHelpText || ''} onChange={(event) => update({ surveyHelpText: event.target.value })} placeholder="Tus respuestas ayudan al local a mejorar cada visita." /></label>
+          <label>URL de reseña en Google<input className="input" value={design.googleReviewUrl || ''} onChange={(event) => update({ googleReviewUrl: event.target.value })} placeholder="https://g.page/r/..." /></label>
+          <label>Destacar Google desde ({design.googleReviewMinRating || '4'} estrellas)<input type="range" min="1" max="5" value={design.googleReviewMinRating || '4'} onChange={(event) => update({ googleReviewMinRating: event.target.value })} /></label>
+        </div>
+      </details>
+
+      <button type="button" className="btn btn-outline btn-sm design-reset" onClick={() => update({ showPoweredBy: 'true', poweredByText: 'Gestionado con\nEspartanos Reservas', showSecureBadge: 'true', secureBadgeText: 'Reserva segura', showLogo: 'true', showEyebrow: 'true', eyebrowText: 'AGENDA EN LÍNEA', showWelcome: 'true', showFacts: 'true', logoSize: '64', titleSize: '72', welcomeSize: '16', durationLabel: 'minutos', confirmationLabel: 'confirmación', timezoneLabel: 'zona horaria', automaticLabel: 'Directa', manualLabel: 'Manual', timezoneValue: '', backgroundOpacity: '88', backgroundAnchor: 'center center', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'right', logoPosition: 'left' })}>Restablecer diseño público</button>
+    </div>
   );
 }
 
