@@ -9,6 +9,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
+import { useOrganizationSettings } from '../../core/organization-settings';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
@@ -92,10 +93,7 @@ export function SecurityPage() {
     queryKey: ['consent-pending'],
     queryFn: () => api.get('/consent/pending-count'),
   });
-  const pwdPolicyQuery = useQuery<Record<string, string>>({
-    queryKey: ['security-password-policy'],
-    queryFn: () => api.get('/settings?prefix=security.password'),
-  });
+  const pwdPolicyQuery = useOrganizationSettings();
 
   return <div className="page security-page">
     <PageHero

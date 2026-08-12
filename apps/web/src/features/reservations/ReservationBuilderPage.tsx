@@ -10,7 +10,7 @@ import { ImageUpload } from '../../shared/ImageUpload';
 import type { DesignConfig, FormField, ReservationForm } from './types';
 import { localInputToUtc, plainDateInZone } from './local-time';
 import { contrastText, normalizeHexColor } from '../../shared/color-contrast';
-import { APP_PUBLIC_URL_CONFIGURED, APP_PUBLIC_URL_IS_HTTPS, publicReservationUrl } from '../../core/public-url';
+import { APP_PUBLIC_URL_IS_HTTPS, publicReservationUrl } from '../../core/public-url';
 import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
 
@@ -254,10 +254,14 @@ export function ReservationBuilderPage() {
 
   if (isLoading || !draft) return <LoadingSpinner text="Abriendo constructor del flujo..." />;
   const fields = draft.fieldSchema || [];
+  // Un formulario guardado antes de que existiera la personalización no trae `designConfig`, y
+  // leer una propiedad suya sin proteger tumbaba el constructor entero en vez de abrirlo con
+  // los valores por defecto.
+  const design = draft.designConfig || {};
   const windows = draft.scheduleConfig?.windows || [];
+  const diasHabilitados = new Set(windows.map((window) => window.day)).size;
   const surveyMode = isSurveyMode(draft.mode);
   const flowLabel = surveyMode ? 'encuesta post-visita' : 'formulario de reserva';
-  const flowLabelCaps = surveyMode ? 'Encuesta post-visita' : 'Formulario de reserva';
 
   const addField = (type: string) => {
     const field: FormField = { id: `field_${uuid().slice(0, 8)}`, type, label: FIELD_LIBRARY.find(([key]) => key === type)?.[1] || 'Campo', required: false, ...(['select', 'multi_select'].includes(type) ? { options: ['Opción 1', 'Opción 2'] } : {}) };
@@ -317,7 +321,7 @@ export function ReservationBuilderPage() {
         <aside className="field-library"><span className="page-eyebrow">BIBLIOTECA DE CAMPOS</span><h3>Agrega campos</h3><p>Arrastra al formulario o usa los botones.</p>
           <div className="field-library-help field-library-meta"><strong>Campos que mejoran CAPI</strong><small>Nombre, teléfono, correo y consentimiento aumentan la calidad de coincidencia en Meta (EMQ). Cada campo que agregues sin estos reduce la tasa de match.</small></div>{FIELD_LIBRARY.map(([type, label]) => <button draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('new-field', type); }} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span>{label.slice(0, 2).toUpperCase()}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Recomendado para reservas' : 'Campo opcional'}</small></div><em>Agregar</em></button>)}</aside>
         <main className={`builder-canvas ${canvasDragOver ? 'drag-over' : ''}`} onDragEnter={() => setCanvasDragOver(true)} onDragLeave={(event) => { if (event.currentTarget === event.target) setCanvasDragOver(false); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = event.dataTransfer.types.includes('new-field') ? 'copy' : 'move'; setCanvasDragOver(true); }} onDrop={(event) => { event.preventDefault(); setCanvasDragOver(false); const type = event.dataTransfer.getData('new-field'); if (type) { addField(type); return; } const from = event.dataTransfer.getData('field-id'); if (from && fields.length > 1) { const current = fields.find((field) => field.id === from); if (current && fields[fields.length - 1]?.id !== from) change({ fieldSchema: [...fields.filter((field) => field.id !== from), current] }); } }}>
-          <div className="canvas-intro"><span>FORMULARIO</span><h2>{draft.designConfig.title || draft.name}</h2><p>{draft.designConfig.welcome}</p><small>Arrastra campos o usa los botones de cada fila.</small></div>
+          <div className="canvas-intro"><span>FORMULARIO</span><h2>{design.title || draft.name}</h2><p>{design.welcome}</p><small>Arrastra campos o usa los botones de cada fila.</small></div>
           {fields.length > RECOMMENDED_FIELD_COUNT && <div className="canvas-scope-hint" role="status">
             <strong>{fields.length} campos en el formulario</strong>
             <span>El alcance pide lo mínimo: nombre, teléfono, correo opcional y número de personas. La fecha y la hora las resuelve la agenda. Cada campo extra baja la tasa de reserva desde el celular, que es por donde llega casi todo el tráfico de los anuncios.</span>
@@ -395,7 +399,7 @@ export function ReservationBuilderPage() {
     {step === 2 && <div className="builder-stage">
       <div className="stage-heading"><span className="page-eyebrow">ENTORNO VISUAL</span><h2>Haz que {surveyMode ? 'la encuesta' : 'la reserva'} se sienta propia.</h2><p>Elige una plantilla y ajusta solo lo que quieras cambiar. Cada bloque cerrado ya trae un valor que funciona.</p></div>
       <div className="design-studio">
-        <DesignStudioControls design={draft.designConfig} onChange={(designConfig) => change({ designConfig })} onAsset={saveDesignAsset} />
+        <DesignStudioControls design={design} onChange={(designConfig) => change({ designConfig })} onAsset={saveDesignAsset} />
         <div className="design-preview-column">
           <div className="preview-device-toggle"><button type="button" className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>Vista móvil</button><button type="button" className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>Vista escritorio</button></div>
           <ReservationLivePreview draft={draft} fields={fields} previewDevice={previewDevice} style={designPreviewStyle} />
@@ -403,7 +407,77 @@ export function ReservationBuilderPage() {
       </div>
     </div>}
 
-    {step === 3 && <div className="builder-stage"><div className="stage-heading"><span className="page-eyebrow">PUBLICACIÓN</span><h2>Verifica la medición y comparte.</h2><p>Pixel de la empresa y Conversions API.</p></div><div className="publish-grid"><div className="publish-summary"><h3>Revisión operativa</h3><div><span>Tipo de flujo</span><strong>{flowLabelCaps}</strong></div><div><span>Campos configurados</span><strong>{fields.length}</strong></div><div><span>Días habilitados</span><strong>{new Set(windows.map((window) => window.day)).size}</strong></div><div><span>CRM de reservas</span><strong>{draft.capabilities?.crm ? 'Habilitado' : 'No habilitado'}</strong></div><div><span>Pixel de la empresa</span><strong>{draft.pixelName ? `${draft.pixelName} · ••••${draft.pixelId?.slice(-4) || '----'}` : draft.pixelId ? `••••${draft.pixelId.slice(-4)}` : 'Sin Pixel asignado'}</strong></div><div><span>Estado de Meta</span><strong className={draft.metaReady ? 'status-ready' : 'status-warning'}>{draft.metaReady ? 'Listo para CAPI' : 'En alerta'}</strong></div><div><span>Token CAPI</span><strong>{draft.metaReady ? 'Validado' : 'Pendiente'}</strong></div><div><span>Dominio público</span><strong className={publicUrlReady ? 'status-ready' : 'status-warning'}>{publicUrlReady ? 'HTTPS listo' : 'Pendiente HTTPS'}</strong></div>{!clientMode && <label className={`meta-publication-toggle ${draft.metaCapiEnabled ? 'active' : ''}`}><input type="checkbox" checked={Boolean(draft.metaCapiEnabled)} disabled={!draft.capabilities?.metaConversions} onChange={(event) => change({ metaCapiEnabled: event.target.checked })} /><span><strong>Enviar conversiones a Meta</strong><small>Schedule al reservar y Reserva_Asistida al marcar asistencia.</small></span></label>}<label>Referencia de campaña en Espartanos<input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" /><small>Es una etiqueta de atribución. Las campañas reales se leerán en Fase 2 con ads_read.</small></label><label>ID de medición de Google Analytics 4<input className="input" value={draft.ga4MeasurementId || ''} onChange={(event) => change({ ga4MeasurementId: event.target.value.trim() })} placeholder="G-XXXXXXXXXX" /><small>Opcional. Emite <code>reservation_created</code> en la página pública al confirmar una reserva. Déjalo vacío para no cargar GA4.</small></label>{!publicUrlReady && <div className="alert alert-warning">Para anuncios reales necesitas configurar VITE_APP_PUBLIC_URL y APP_PUBLIC_URL con dominio HTTPS de iHosting. En local puedes probar, pero no uses este enlace en Meta.</div>}{draft.capabilities?.metaConversions && !draft.metaReady && <div className="alert alert-warning">Meta está habilitado para la empresa, pero esta reserva publicará en modo alerta: el {flowLabel} podrá salir igual, y la conversión sólo se enviará si la empresa tiene Pixel y token válidos.</div>}</div><div className="publish-link"><span>ENLACE HTTPS PARA ANUNCIOS</span><strong>{campaignUrl}</strong><div><button className="btn btn-outline" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar enlace'}</button>{publicPreviewReady && safeCampaignUrl ? <a className="btn btn-outline" href={safeCampaignUrl} target="_blank" rel="noreferrer">Probar experiencia</a> : <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>{publishedButDirty ? 'Guardar para probar' : 'Ver vista interna'}</button>}</div><small>{publicPreviewReady ? 'El enlace añade utm_source=meta y la referencia indicada; fbclid llegará automáticamente desde el anuncio.' : 'La experiencia pública se habilita después de publicar y guardar el formulario.'}</small><button className="btn reservation-cta" disabled={saveMutation.isPending || windows.length === 0} onClick={() => saveMutation.mutate({ ...draft, status: 'published' })}>{draft.status === 'published' ? 'Guardar y mantener publicado' : surveyMode ? 'Publicar encuesta' : 'Publicar formulario'}</button>{windows.length === 0 && <small>Debes habilitar al menos un día antes de publicar.</small>}{!APP_PUBLIC_URL_CONFIGURED && <small>Dominio público no configurado en frontend; usando origen actual solo para prueba local.</small>}{draft.capabilities?.metaConversions && !draft.metaReady && <small>Se publicará igual, pero Meta quedará en alerta hasta que el Pixel y el token estén listos.</small>}</div></div></div>}
+    {step === 3 && <div className="builder-stage">
+      <div className="stage-heading"><span className="page-eyebrow">PUBLICACIÓN</span><h2>Revisa, publica y comparte.</h2><p>Comprueba que esté todo listo, publícalo y copia el enlace que vas a repartir.</p></div>
+      <div className="publish-grid">
+        <div className="publish-summary">
+          <h3>Antes de publicar</h3>
+          <ul className="publish-checklist">
+            <li className={windows.length > 0 ? 'is-ok' : 'is-blocking'}>
+              <strong>{diasHabilitados > 0 ? `${diasHabilitados} día${diasHabilitados !== 1 ? 's' : ''} de atención` : 'Sin días de atención'}</strong>
+              <small>{diasHabilitados > 0 ? 'Los visitantes solo verán horarios en estos días.' : 'Vuelve al paso «Disponibilidad» y marca al menos un día. Sin esto no se puede publicar.'}</small>
+            </li>
+            <li className="is-ok">
+              <strong>{fields.length} campo{fields.length !== 1 ? 's' : ''} que se piden</strong>
+              <small>Es lo que la persona completa al reservar. Puedes cambiarlo en el paso «Estructura».</small>
+            </li>
+            <li className={publicUrlReady ? 'is-ok' : 'is-warning'}>
+              <strong>{publicUrlReady ? 'Enlace seguro (https)' : 'El enlace todavía no es seguro'}</strong>
+              <small>{publicUrlReady ? 'Se puede compartir en cualquier parte, incluidos anuncios.' : 'Sirve para probar, pero no lo uses en anuncios hasta que el dominio esté configurado.'}</small>
+            </li>
+          </ul>
+
+          <details className="publish-tracking">
+            <summary>Medir de dónde vienen las reservas <em>(opcional)</em></summary>
+            <div className="publish-tracking-body">
+              <p className="page-subtitle">Solo hace falta si vas a promocionar este {flowLabel} con anuncios pagados. Si lo compartes por redes o WhatsApp, puedes saltarte esta parte.</p>
+
+              {!clientMode && <label className={`meta-publication-toggle ${draft.metaCapiEnabled ? 'active' : ''}`}>
+                <input type="checkbox" checked={Boolean(draft.metaCapiEnabled)} disabled={!draft.capabilities?.metaConversions} onChange={(event) => change({ metaCapiEnabled: event.target.checked })} />
+                <span><strong>Avisarle a Meta cuando alguien reserva</strong><small>Permite que Facebook e Instagram sepan qué anuncio trajo cada reserva y muestren el anuncio a gente parecida.</small></span>
+              </label>}
+
+              {draft.capabilities?.metaConversions && <div className={`publish-meta-state ${draft.metaReady ? 'is-ok' : 'is-warning'}`}>
+                <strong>{draft.metaReady ? 'Meta está listo' : 'Falta configurar Meta'}</strong>
+                <small>{draft.metaReady
+                  ? `Cuenta conectada${draft.pixelName ? `: ${draft.pixelName}` : ''}. Las reservas se le informarán automáticamente.`
+                  : 'Se puede publicar igual, pero las reservas no llegarán a Meta hasta que Administración conecte la cuenta.'}</small>
+              </div>}
+
+              <label>Nombre de esta campaña
+                <input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" />
+                <small>Una etiqueta tuya para distinguir de qué campaña vino cada reserva. Se agrega al enlace y aparece después en los resultados.</small>
+              </label>
+
+              <label>Google Analytics
+                <input className="input" value={draft.ga4MeasurementId || ''} onChange={(event) => change({ ga4MeasurementId: event.target.value.trim() })} placeholder="G-XXXXXXXXXX" />
+                <small>Si tu empresa usa Google Analytics, pega acá su identificador para que las reservas también se cuenten ahí. Déjalo vacío si no lo usas.</small>
+              </label>
+            </div>
+          </details>
+        </div>
+
+        <div className="publish-link">
+          <span>ENLACE PARA COMPARTIR</span>
+          <strong>{campaignUrl}</strong>
+          <div>
+            <button className="btn btn-outline" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar enlace'}</button>
+            {publicPreviewReady && safeCampaignUrl
+              ? <a className="btn btn-outline" href={safeCampaignUrl} target="_blank" rel="noreferrer">Abrir como visitante</a>
+              : <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>{publishedButDirty ? 'Guarda para poder abrirlo' : 'Ver cómo se verá'}</button>}
+          </div>
+          <small>{publicPreviewReady
+            ? 'Este es el enlace definitivo. Puedes repartirlo tal cual.'
+            : 'El enlace empieza a funcionar cuando publiques.'}</small>
+
+          <button className="btn reservation-cta" disabled={saveMutation.isPending || windows.length === 0} onClick={() => saveMutation.mutate({ ...draft, status: 'published' })}>
+            {saveMutation.isPending ? 'Publicando...' : draft.status === 'published' ? 'Guardar cambios' : surveyMode ? 'Publicar encuesta' : 'Publicar formulario'}
+          </button>
+          {draft.status === 'published' && <small>Ya está publicado. Guarda para que los cambios se vean.</small>}
+          {windows.length === 0 && <small className="publish-blocker">Marca al menos un día de atención para poder publicar.</small>}
+        </div>
+      </div>
+    </div>}
 
     <footer className="builder-footer"><span>Paso {step + 1} de {STEPS.length}</span>{!clientMode && step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(step - 1)}>Anterior</button>}{!clientMode && step < STEPS.length - 1 && <button className="btn btn-primary btn-sm" onClick={() => setStep(step + 1)}>Continuar</button>}<button className="btn btn-outline btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>Guardar</button></footer>
     <ConfirmDialog open={Boolean(confirmDeleteField)} title="Eliminar campo" description="¿Estás seguro de eliminar este campo? Los datos recopilados previamente no se perderán." confirmLabel="Eliminar" onClose={() => setConfirmDeleteField(null)} onConfirm={() => { if (confirmDeleteField) { change({ fieldSchema: fields.filter((field) => field.id !== confirmDeleteField) }); setSelected(null); } setConfirmDeleteField(null); }} />
@@ -566,7 +640,7 @@ function ReservationLivePreview({
           <div className="preview-public-facts">
             <div><strong>{draft.durationMinutes}</strong><span>minutos</span></div>
             <div><strong>{draft.confirmationMode === 'automatic' ? 'Directa' : 'Manual'}</strong><span>confirmación</span></div>
-            <div><strong>{draft.timezone.split('/').pop()?.replaceAll('_', ' ')}</strong><span>zona horaria</span></div>
+            <div><strong>{draft.timezone?.split('/').pop()?.replaceAll('_', ' ')}</strong><span>zona horaria</span></div>
           </div>
         </section>
         <section className="preview-public-card">

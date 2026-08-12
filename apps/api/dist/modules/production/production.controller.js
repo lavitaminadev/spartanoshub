@@ -98,6 +98,23 @@ let ProductionController = class ProductionController {
     assign(id, dto, req) {
         return this.assignPiece.execute(id, dto.designerId, req.organizationId, req.user.id);
     }
+    async versions(id, req) {
+        const piece = await this.pieceRepo.findOne({ where: { id, organizationId: req.organizationId } });
+        if (!piece)
+            throw new common_1.NotFoundException('Piece not found');
+        await this.accountAccess.assertClient(req.organizationId, req.user, piece.clientId);
+        const rows = await this.versionRepo.find({ where: { pieceId: piece.id }, order: { versionNumber: 'DESC' } });
+        return rows.map((row) => ({
+            id: row.id,
+            versionNumber: row.versionNumber,
+            fileName: row.fileName,
+            driveFileId: row.driveFileId ?? undefined,
+            stateLabel: row.stateLabel ?? undefined,
+            isFinal: row.isFinal,
+            namingValid: row.namingValid ?? undefined,
+            createdAt: row.createdAt.toISOString(),
+        }));
+    }
     submitVersion(id, dto, req) {
         return this.submitVer.execute(id, req.organizationId, { ...dto, userId: req.user.id, role: req.user.role });
     }
@@ -227,6 +244,15 @@ __decorate([
     __metadata("design:paramtypes", [String, assign_piece_dto_1.AssignPieceDto, Object]),
     __metadata("design:returntype", void 0)
 ], ProductionController.prototype, "assign", null);
+__decorate([
+    (0, common_1.Get)(':id/versions'),
+    (0, swagger_1.ApiOperation)({ summary: 'Listar versiones de una pieza' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ProductionController.prototype, "versions", null);
 __decorate([
     (0, common_1.Post)(':id/versions'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.ADMIN),

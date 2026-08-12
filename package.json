@@ -17,6 +17,7 @@
     "start:passenger": "node app.js",
     "dev:api": "npm run build:shared && cd apps/api && npm run start:dev",
     "dev:web": "npm run build:shared && cd apps/web && npm run dev",
+    "dev:visual": "npm run build:shared && cd apps/web && npm run dev:visual",
     "local:start": "node scripts/local/start.cjs",
     "local:stop": "node scripts/local/stop.cjs",
     "local:status": "node scripts/local/status.cjs",
