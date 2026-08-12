@@ -14,6 +14,29 @@ RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,NE]
   Header always set X-Frame-Options "DENY"
 </IfModule>
 
+# El shell de la SPA y el service worker deben revalidarse siempre para que un despliegue
+# reemplace el bundle viejo en la primera recarga. Los assets con hash quedan libres para
+# cache largo porque cambian de nombre en cada build.
+<FilesMatch "^(index\.html|sw\.js|registerSW\.js|manifest\.webmanifest)$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </IfModule>
+</FilesMatch>
+
+<FilesMatch "^workbox-.*\.js$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </IfModule>
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  <FilesMatch "^assets/.+\.[A-Za-z0-9_-]+\.(css|js)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
