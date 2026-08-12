@@ -7,10 +7,12 @@
  * - Tabs: Resumen, Archivos, Historial
  * - Sidebar con acciones y datos heredados
  *
- * Se alimenta de `GET /production/pieces`, que es lo único que la API expone por ahora. El
- * detalle por pieza y los comentarios no existen en el backend: la pestaña de comentarios se
- * retiró en vez de dejar un cuadro de texto cuyo botón siempre fallaba, y las que solo leen
- * quedan con su estado vacío hasta que haya de dónde llenarlas.
+ * Se arma con tres lecturas que sí existen: la lista de piezas, las versiones cargadas y la
+ * auditoría transversal filtrada por esta pieza. No hay un endpoint de «detalle» que las
+ * devuelva juntas, y no hacía falta inventarlo para poder mostrarlas.
+ *
+ * La pestaña de comentarios se retiró: no hay dominio de comentarios en el backend y su
+ * cuadro de texto ofrecía publicar algo que siempre fallaba.
  */
 
 import { useState } from 'react';
@@ -34,6 +36,24 @@ interface Piece {
   assignedTo?: string; assignedName?: string; dueDate?: string;
   dependencyIds?: string[]; createdAt: string; assignedAt?: string;
 }
+
+interface PieceVersionRow {
+  id: string; versionNumber: number; fileName: string; driveFileId?: string;
+  stateLabel?: string; isFinal: boolean; namingValid?: boolean; createdAt: string;
+}
+
+interface AuditRow {
+  id: string | number; action: string; reason?: string | null;
+  actorName?: string | null; occurredAt: string;
+}
+
+/** Nombre legible de cada movimiento auditado de una pieza. */
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  created: 'Pieza creada',
+  updated: 'Pieza actualizada',
+  assigned: 'Responsable asignado',
+  deleted: 'Pieza eliminada',
+};
 
 type Feedback = { tone: 'success' | 'error'; text: string } | null;
 
@@ -105,11 +125,36 @@ export function WorkDetailPage() {
       { type: 'piece', label: 'Trabajo', name: piece.title },
     ]
     : [];
-  // La pieza se arma con lo que devuelve la lista, que es lo que la API ofrece hoy. Archivos,
-  // requerimientos e historial se muestran vacíos en vez de inventados: el detalle por pieza
-  // (`GET /production/pieces/:id/detail`) no existe en el backend, y una pantalla que promete
-  // datos que nadie puede darle es peor que una que declara lo que todavía no tiene.
-  const versions: Array<{ id: string; kind: string; name: string; metadata: string; status: string; fileUrl?: string; createdAt: string }> = [];
+  const versionsQuery = useQuery<PieceVersionRow[]>({
+    queryKey: ['piece-versions', id],
+    queryFn: () => api.get(`/production/pieces/${id}/versions`),
+    enabled: Boolean(id),
+  });
+  // La auditoría es transversal y ya guarda los movimientos de cada pieza bajo `piece`; no
+  // hace falta un historial propio del módulo para poder mostrarlos.
+  const auditQuery = useQuery<AuditRow[]>({
+    queryKey: ['piece-audit', id],
+    queryFn: () => api.get(`/audit?entityType=piece&entityId=${encodeURIComponent(id)}&limit=100`),
+    enabled: Boolean(id),
+  });
+
+  const versions = (versionsQuery.data ?? []).map((row) => ({
+    id: row.id,
+    kind: row.isFinal ? 'FINAL' : `V${row.versionNumber}`,
+    name: row.fileName,
+    metadata: [row.stateLabel, new Date(row.createdAt).toLocaleDateString('es-CL')].filter(Boolean).join(' · '),
+    status: row.namingValid === false ? 'Nombre fuera de norma' : 'Cargada',
+    fileUrl: row.driveFileId ? `https://drive.google.com/file/d/${row.driveFileId}/view` : undefined,
+    createdAt: row.createdAt,
+  }));
+  const audit = (auditQuery.data ?? []).map((row) => ({
+    id: String(row.id),
+    title: AUDIT_ACTION_LABELS[row.action] ?? row.action,
+    detail: row.reason ?? '',
+    actor: row.actorName ?? 'Sistema',
+    time: new Date(row.occurredAt).toLocaleString('es-CL'),
+  }));
+  // Los requerimientos no tienen origen en la API: se dejan vacíos en vez de inventarlos.
   const requirements: Array<{ label: string; detail: string; completed: boolean }> = [];
   const readiness: number | null = null;
   const { stages, index: currentStageIndex } = buildWorkflowStages(piece);
@@ -158,7 +203,7 @@ export function WorkDetailPage() {
       <section className="work-detail-main">
         {tab === 'summary' && <SummaryTab piece={piece} requirements={requirements} readiness={readiness} />}
         {tab === 'files' && <FilesTab versions={versions} />}
-        {tab === 'history' && <AuditLog entries={[]} emptyMessage="Aún no hay movimientos registrados para este trabajo." />}
+        {tab === 'history' && <AuditLog entries={audit} emptyMessage="Aún no hay movimientos registrados para este trabajo." />}
       </section>
 
       <aside className="work-context">

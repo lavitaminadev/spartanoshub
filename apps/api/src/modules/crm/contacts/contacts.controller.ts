@@ -2,7 +2,7 @@ import { Controller, Get, Patch, Body, Param, Req, UseGuards, Query } from '@nes
 import { AuthGuard } from '@nestjs/passport';
 import { ContactsService } from './contacts.service';
 import { UpdateContactDto } from './dto/update-contact.dto';
-import { PaginationDto } from '../../../shared/dto/pagination.dto';
+import { ListContactsDto } from './dto/list-contacts.dto';
 import { Roles } from '../../../core/authorization/roles.decorator';
 import { UserRole } from '../../organizations/user-role.enum';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
@@ -30,10 +30,10 @@ export class ContactsController {
   ) {}
 
   @Get()
-  async findAll(@Query() query: PaginationDto, @Query('clientId') clientId: string | undefined, @Req() req: AuthenticatedRequest) {
-    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+  async findAll(@Query() query: ListContactsDto, @Req() req: AuthenticatedRequest) {
+    await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.service.findAll(req.organizationId, query.limit, query.offset, clientId, allowed);
+    return this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed);
   }
 
   @Get('segments')

@@ -204,9 +204,9 @@ let ReservationsController = class ReservationsController {
         const scope = await this.requestedScope(req, query.clientId);
         return this.service.metrics(req.organizationId, scope.clientId, scope.clientIds, query.days ? String(query.days) : '30');
     }
-    async occupancy(req, month, query) {
+    async occupancy(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
-        return this.service.occupancyCalendar(req.organizationId, month, scope.clientId, scope.clientIds);
+        return this.service.occupancyCalendar(req.organizationId, query.month, scope.clientId, scope.clientIds);
     }
 };
 exports.ReservationsController = ReservationsController;
@@ -412,10 +412,9 @@ __decorate([
     (0, common_1.Get)('analytics/occupancy'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('month')),
-    __param(2, (0, common_1.Query)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, reservation_dto_1.ReservationScopeDto]),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.OccupancyQueryDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "occupancy", null);
 exports.ReservationsController = ReservationsController = __decorate([

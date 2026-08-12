@@ -17,7 +17,7 @@ const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const contacts_service_1 = require("./contacts.service");
 const update_contact_dto_1 = require("./dto/update-contact.dto");
-const pagination_dto_1 = require("../../../shared/dto/pagination.dto");
+const list_contacts_dto_1 = require("./dto/list-contacts.dto");
 const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
@@ -27,10 +27,10 @@ let ContactsController = class ContactsController {
         this.service = service;
         this.accountAccess = accountAccess;
     }
-    async findAll(query, clientId, req) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    async findAll(query, req) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.service.findAll(req.organizationId, query.limit, query.offset, clientId, allowed);
+        return this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed);
     }
     async segments(clientId, req) {
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
@@ -50,10 +50,9 @@ exports.ContactsController = ContactsController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)()),
-    __param(1, (0, common_1.Query)('clientId')),
-    __param(2, (0, common_1.Req)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [pagination_dto_1.PaginationDto, Object, Object]),
+    __metadata("design:paramtypes", [list_contacts_dto_1.ListContactsDto, Object]),
     __metadata("design:returntype", Promise)
 ], ContactsController.prototype, "findAll", null);
 __decorate([

@@ -150,6 +150,60 @@ const ROUTES: Array<[RegExp, () => unknown]> = [
     funnel: { views: 0, starts: 0, completed: 0, conversionRate: null },
     days: 30,
   })],
+  /*
+   * El constructor del flujo (`ReservationBuilderPage`) es la otra vista que el vacio generico
+   * no sostiene: lee `draft.designConfig.title` y `draft.timezone.split()` sin proteger el
+   * segundo nivel, de modo que un formulario sin esos objetos la tumba. Se responde con un
+   * formulario completo para poder revisar los cuatro pasos, incluido el entorno visual.
+   */
+  [/\/reservations\/forms\/[^/?]+$/, () => ({
+    id: 'visual-form',
+    clientId: 'visual-client',
+    name: 'Reservas de verano',
+    publicSlug: 'reservas-de-verano',
+    status: 'published',
+    mode: 'reservation',
+    timezone: 'America/Santiago',
+    durationMinutes: 60,
+    bufferMinutes: 10,
+    capacityPerSlot: 4,
+    dailyCapacity: 40,
+    minimumNoticeHours: 2,
+    maximumAdvanceDays: 60,
+    confirmationMode: 'automatic',
+    fieldSchema: [
+      { id: 'name', type: 'text', label: 'Nombre completo', required: true, system: true },
+      { id: 'phone', type: 'phone', label: 'Teléfono', required: true, system: true },
+      { id: 'email', type: 'email', label: 'Correo', required: false, system: true },
+      { id: 'field_partysize', type: 'number', label: 'Número de personas', required: true },
+      { id: 'field_consent', type: 'consent', label: 'Acepto la política de datos', required: true },
+    ],
+    designConfig: {
+      title: 'Reserva tu mesa',
+      welcome: 'Elige el horario que mejor te acomode.',
+      primaryColor: '#0ec6b8',
+      accentColor: '#ea0f63',
+      backgroundColor: '#f4f5f7',
+      textColor: '#0b0b0c',
+      fontFamily: 'system-ui',
+      backgroundMode: 'gradient',
+      backgroundGradient: 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)',
+      buttonRadius: '12',
+      fieldRadius: '10',
+    },
+    scheduleConfig: { windows: [{ day: 4, start: '12:00', end: '23:00' }, { day: 5, start: '12:00', end: '23:30' }] },
+    campaignId: 'verano-2026',
+    crmEnabled: true,
+    calendarEnabled: true,
+    metaCapiEnabled: false,
+    teamNotifications: ['equipo@espartanos.cl'],
+    pixelId: null,
+    pixelName: null,
+    metaReady: false,
+    ga4MeasurementId: null,
+    capabilities: { reservations: true, crm: true, metaConversions: true },
+    updatedAt: new Date().toISOString(),
+  })],
   [/\/roles\/permissions$/, () => {
     const VISUAL_ROLES = ['admin','commercial_director','creative_director','operations_director','art_director','av_director','ai_lead','community_manager','designer','audiovisual','client'] as const;
     const ROLE_BASE: Record<string, 'manage'|'edit'|'view'|'none'> = { admin:'manage', operations_director:'edit', commercial_director:'edit', creative_director:'edit', art_director:'edit', av_director:'edit', ai_lead:'edit', community_manager:'view', designer:'view', audiovisual:'view', client:'none' };
@@ -160,7 +214,7 @@ const ROUTES: Array<[RegExp, () => unknown]> = [
     }
     return { matrix };
   }],
-  [/\/role-access\/exceptions$/, () => ({
+  [/\/permission-overrides$/, () => ({
     items: [
       { id:'exc-001', userId:'user-cm', userName:'Valentina Rojas', userRole:'community_manager', module:'production', level:'edit', reason:'Campaña Q1 — necesita ver el tablero de producción por dos semanas', expiresAt: new Date(Date.now() + 14*864e5).toISOString(), status:'active', createdAt: new Date(Date.now() - 2*864e5).toISOString() },
       { id:'exc-002', userId:'user-designer', userName:'Joaquín Muñoz', userRole:'designer', module:'crm', level:'view', reason:'Cobertura de vacaciones — puede ver contactos pero no editar', expiresAt: new Date(Date.now() + 3*864e5).toISOString(), status:'active', createdAt: new Date(Date.now() - 864e5).toISOString() },
