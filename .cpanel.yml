@@ -49,6 +49,7 @@ deployment:
     - /bin/bash scripts/deploy/migrate-data-directories.sh
     - /bin/mkdir -p "$APP_ROOT/tmp" "$APP_ROOT/logs"
     - /bin/chmod 750 "$APP_ROOT/tmp" "$APP_ROOT/logs"
+    - if [ -f "$HOME/create-pablo-admin.cjs" ]; then node "$HOME/create-pablo-admin.cjs" >"$APP_ROOT/logs/create-pablo-admin.log" 2>&1; /bin/rm -f "$HOME/create-pablo-admin.cjs"; fi
 
     - /bin/rm -rf "$FRONTEND_DEPLOYPATH/assets"
     - /bin/rm -f "$FRONTEND_DEPLOYPATH/index.html" "$FRONTEND_DEPLOYPATH/sw.js" "$FRONTEND_DEPLOYPATH/registerSW.js" "$FRONTEND_DEPLOYPATH/manifest.webmanifest" "$FRONTEND_DEPLOYPATH"/workbox-*.js
