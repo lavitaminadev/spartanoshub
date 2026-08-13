@@ -493,7 +493,7 @@ export function ClientsPage() {
             </div>
             <div className="form-group"><label>Grupo de WhatsApp</label><input className="input" value={form.whatsappGroup} onChange={(e) => setForm({ ...form, whatsappGroup: e.target.value })} placeholder="Nombre o enlace operativo" /></div>
             <div className="form-group"><label>Carpeta principal de Google Drive</label><input className="input" value={form.driveFolderId} onChange={(e) => setForm({ ...form, driveFolderId: e.target.value })} placeholder="ID de la carpeta del cliente" /></div>
-            <section style={{ borderTop: '1px solid var(--line, #E5E7EB)', paddingTop: '20px', marginTop: '20px' }}>
+            <section style={{ borderTop: '1px solid var(--line, #e7e1e5)', paddingTop: '20px', marginTop: '20px' }}>
               <h3 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '16px', textTransform: 'uppercase', color: 'var(--txt-muted, #6B7280)' }}>Logo de la empresa</h3>
               <LogoUpload
                 currentLogoUrl={form.logoUrl}

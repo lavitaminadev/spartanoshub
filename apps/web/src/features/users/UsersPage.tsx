@@ -35,13 +35,13 @@ interface UserFormState {
   email: string;
   password: string;
   phone: string;
+  accountType: 'internal' | 'client';
   role: string;
   clientId: string;
-  workMode: string;
-  weeklyCapacityUd: number;
+  newClientName: string;
 }
 
-const EMPTY_FORM: UserFormState = { name: '', email: '', password: '', phone: '', role: 'designer', clientId: '', workMode: 'hybrid', weeklyCapacityUd: 20 };
+const EMPTY_FORM: UserFormState = { name: '', email: '', password: '', phone: '', accountType: 'internal', role: 'designer', clientId: '', newClientName: '' };
 
 const USER_ROLES = [
   'admin', 'commercial_director', 'creative_director', 'operations_director', 'art_director',
@@ -49,6 +49,7 @@ const USER_ROLES = [
 ] as const;
 
 const WORK_MODE_LABELS: Record<string, string> = { presential: 'Presencial', hybrid: 'Híbrida', remote: 'Remota' };
+const NEW_CLIENT_VALUE = '__new_client__';
 
 interface ResetResult {
   userId: string;
@@ -78,7 +79,7 @@ export function UsersPage() {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
   const [createdName, setCreatedName] = useState<string>('');
-  const [newCompany, setNewCompany] = useState('');
+  const [creatingClient, setCreatingClient] = useState(false);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
   const [pendingBulkAccess, setPendingBulkAccess] = useState<{ rows: UserRow[]; isActive: boolean } | null>(null);
   const [bulkAccessPending, setBulkAccessPending] = useState(false);
@@ -104,6 +105,7 @@ export function UsersPage() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setCreatedPassword(null);
+    setCreatingClient(false);
     setFeedback(null);
   };
 
@@ -138,17 +140,6 @@ export function UsersPage() {
     onError: (mutationError) => setFeedback({ tone: 'error', text: mutationError.message }),
   });
 
-  const createClientMutation = useMutation({
-    mutationFn: (name: string) => api.post<{ id: string }>('/clients', { name }),
-    onSuccess: async (created) => {
-      await queryClient.invalidateQueries({ queryKey: ['clients'] });
-      setForm((current) => ({ ...current, clientId: created.id }));
-      setNewCompany('');
-      setFeedback({ tone: 'success', text: 'Empresa creada y asignada a esta cuenta.' });
-    },
-    onError: (mutationError: Error) => setFeedback({ tone: 'error', text: mutationError.message }),
-  });
-
   const users = Array.isArray(data) ? data : [];
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const availableRoles = currentUser?.role === 'operations_director'
@@ -167,21 +158,38 @@ export function UsersPage() {
   const openEditModal = (row: UserRow) => {
     setFeedback(null);
     setEditing(row);
-    setForm({ name: row.name, email: row.email, password: '', phone: row.phone ?? '', role: row.role, clientId: row.clientId ?? '', workMode: row.workMode ?? 'hybrid', weeklyCapacityUd: Number(row.weeklyCapacityUd ?? 20) });
+    setForm({ name: row.name, email: row.email, password: '', phone: row.phone ?? '', accountType: row.role === 'client' ? 'client' : 'internal', role: row.role, clientId: row.clientId ?? '', newClientName: '' });
     setModalOpen(true);
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFeedback(null);
+    let clientId = form.accountType === 'client' ? form.clientId : '';
+    if (form.accountType === 'client' && clientId === NEW_CLIENT_VALUE) {
+      const name = form.newClientName.trim().replace(/\s+/g, ' ');
+      if (name.length < 2) {
+        setFeedback({ tone: 'error', text: 'Ingresa el nombre de la empresa.' });
+        return;
+      }
+      setCreatingClient(true);
+      try {
+        const created = await api.post<ClientOption>('/clients', { name });
+        clientId = created.id;
+        await queryClient.invalidateQueries({ queryKey: ['clients'] });
+      } catch (clientError) {
+        setFeedback({ tone: 'error', text: clientError instanceof Error ? clientError.message : 'No se pudo crear la empresa.' });
+        setCreatingClient(false);
+        return;
+      }
+      setCreatingClient(false);
+    }
     const body: Record<string, unknown> = {
       name: form.name.trim().replace(/\s+/g, ' '),
       email: form.email.trim().toLowerCase(),
       phone: form.phone.trim() || undefined,
-      role: form.role,
-      clientId: form.role === 'client' ? form.clientId : null,
-      workMode: form.role === 'client' ? undefined : form.workMode,
-      weeklyCapacityUd: form.role === 'client' ? undefined : form.weeklyCapacityUd,
+      role: form.accountType === 'client' ? 'client' : form.role,
+      clientId: form.accountType === 'client' ? clientId : null,
     };
     if (form.password) body.password = form.password;
     if (editing) updateMutation.mutate({ id: editing.id, body });
@@ -242,7 +250,8 @@ export function UsersPage() {
   if (error) return <div className="alert alert-error">Error al cargar usuarios: {error.message}</div>;
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  const clientRequired = form.role === 'client';
+  const clientRequired = form.accountType === 'client';
+  const requiresNewClientName = clientRequired && form.clientId === NEW_CLIENT_VALUE;
 
   return (
     <div className="page">
@@ -308,29 +317,32 @@ export function UsersPage() {
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="modal-form">
-          <div className="account-form-intro"><strong>{editing ? 'Datos y permisos' : 'Nueva identidad de acceso'}</strong><p>{editing ? 'Modifica datos, alcance y acceso de la cuenta.' : 'La empresa determina el alcance de la cuenta. Una cuenta de cliente debe quedar vinculada a una empresa.'}</p></div>
+          <div className="account-form-intro"><strong>{editing ? 'Identidad y alcance' : 'Nueva identidad de acceso'}</strong><p>Primero define si la persona entra como equipo interno o como usuario de empresa. Los permisos finos se ajustan luego desde Administración.</p></div>
           {feedback?.tone === 'error' && <div className="alert alert-error" role="alert">{feedback.text}</div>}
-          <div className="form-row">
-            <label htmlFor="user-client">Empresa<select id="user-client" className="input" value={form.clientId} disabled={!clientRequired} required={clientRequired} onChange={(event) => setForm({ ...form, clientId: event.target.value })}>
-              <option value="">{clients.length ? 'Selecciona una empresa' : 'Crea una empresa'}</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-            </select></label>
-            {!editing && <label htmlFor="user-new-company">¿No existe? Créala<input id="user-new-company" className="input" value={newCompany} placeholder="Nombre de la nueva empresa" onChange={(event) => setNewCompany(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (newCompany.trim()) createClientMutation.mutate(newCompany.trim()); } }} /><button type="button" className="btn btn-outline btn-sm" style={{marginTop:6}} disabled={!newCompany.trim() || createClientMutation.isPending} onClick={() => createClientMutation.mutate(newCompany.trim())}>{createClientMutation.isPending ? 'Creando...' : 'Crear empresa'}</button></label>}
-          </div>
           <label htmlFor="user-name">Nombre completo<input id="user-name" className="input" autoComplete="name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} minLength={2} maxLength={255} required /></label>
           <div className="form-row">
             <label htmlFor="user-email">Email<input id="user-email" className="input" type="email" autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
             <label htmlFor="user-phone">Teléfono<input id="user-phone" className="input" type="tel" autoComplete="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
           </div>
+          <fieldset className="form-choice-group">
+            <legend>Tipo de cuenta</legend>
+            <label className="toggle-row"><input type="radio" name="account-type" checked={form.accountType === 'internal'} disabled={editing?.id === currentUser?.id} onChange={() => setForm({ ...form, accountType: 'internal', role: form.role === 'client' ? 'designer' : form.role, clientId: '', newClientName: '' })} /> Equipo interno</label>
+            <label className="toggle-row"><input type="radio" name="account-type" checked={form.accountType === 'client'} disabled={editing?.id === currentUser?.id} onChange={() => setForm({ ...form, accountType: 'client', role: 'client' })} /> Acceso de empresa / cliente</label>
+          </fieldset>
           <div className="form-row">
-            <label htmlFor="user-role">Rol<select id="user-role" className="input" value={form.role} disabled={editing?.id === currentUser?.id} onChange={(event) => setForm({ ...form, role: event.target.value, clientId: event.target.value === 'client' ? form.clientId : '' })}>
-              {availableRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
+            <label htmlFor="user-role">Rol<select id="user-role" className="input" value={clientRequired ? 'client' : form.role} disabled={clientRequired || editing?.id === currentUser?.id} onChange={(event) => setForm({ ...form, role: event.target.value })}>
+              {availableRoles.filter((role) => role !== 'client').map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
               {!availableRoles.includes(form.role as (typeof USER_ROLES)[number]) && <option value={form.role}>{roleLabel(form.role)}</option>}
             </select></label>
-            {editing && <label htmlFor="user-work-mode">Modalidad laboral<select id="user-work-mode" className="input" value={form.workMode} onChange={(event) => setForm({ ...form, workMode: event.target.value })}><option value="presential">Presencial</option><option value="hybrid">Híbrida</option><option value="remote">Remota</option></select></label>}
+            <label htmlFor="user-client">Empresa<select id="user-client" className="input" value={form.clientId} disabled={!clientRequired} required={clientRequired} onChange={(event) => setForm({ ...form, clientId: event.target.value })}>
+              <option value="">Selecciona una empresa</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+              <option value={NEW_CLIENT_VALUE}>+ Crear empresa nueva</option>
+            </select></label>
           </div>
-          {editing && form.role !== 'client' && <label htmlFor="user-capacity">Capacidad semanal UD<small style={{color:'var(--muted)'}}>Se configura después de crear la cuenta; solo se ajusta en edición.</small><input id="user-capacity" className="input" type="number" min={1} max={1000} value={form.weeklyCapacityUd} onChange={(event) => setForm({ ...form, weeklyCapacityUd: Number(event.target.value) })} /></label>}
+          {requiresNewClientName && <label htmlFor="user-new-client">Nombre de la empresa nueva<input id="user-new-client" className="input" value={form.newClientName} onChange={(event) => setForm({ ...form, newClientName: event.target.value })} minLength={2} maxLength={255} required /></label>}
+          <div className="alert alert-info">La capacidad, pods y permisos especiales se configuran después desde Gobernanza o Administración.</div>
           <label htmlFor="user-password">{editing ? 'Nueva contraseña temporal (opcional)' : 'Contraseña temporal'}<div className="password-generator"><input id="user-password" className="input" type="text" autoComplete="new-password" minLength={8} maxLength={128} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required={!editing} /><button type="button" className="btn btn-outline btn-sm" onClick={generatePassword}>Generar segura</button></div><small>Se solicitará una clave personal en el primer ingreso.</small></label>
-          <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={closeModal}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={isSaving || (clientRequired && !form.clientId)}>{isSaving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear usuario'}</button></div>
+          <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={closeModal}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={isSaving || creatingClient || (clientRequired && !form.clientId) || (requiresNewClientName && form.newClientName.trim().length < 2)}>{isSaving || creatingClient ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear usuario'}</button></div>
         </form>
         )}
       </Modal>

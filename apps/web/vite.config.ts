@@ -28,10 +28,7 @@ export default defineConfig(({ command }) => {
     // necesario para que Vite resuelva sus exportaciones nombradas en tiempo de ejecucion.
     optimizeDeps: { include: ['@espartanos/shared'] },
     plugins: [react(), VitePWA({
-      // 'prompt' en vez de 'autoUpdate': nunca recarga solo. El SW descarga la versión nueva
-      // y `registerSW` en main.tsx muestra un aviso "Nueva versión disponible" con botón de
-      // actualización manual. Un usuario trabajando no pierde el estado de su formulario.
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       includeAssets: [
         'favicon.svg',
         'icon-192x192.png',

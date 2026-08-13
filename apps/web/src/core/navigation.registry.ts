@@ -36,12 +36,10 @@ let features: FeatureManifest[] = [];
  *   requests    → /intake                                                 (Solicitudes)
  *   production  → /production, /audiovisual, /gamification                (Trabajos)
  *   approvals   → /approvals                                              (Aprobaciones)
- *   content     → /content   — moodboards vive dentro de /audiovisual     (Contenido)
- *   reports     → /reports, /direction                                    (Resultados)
- *   surveys     → /surveys  — sección propia, separada de Reservas        (Encuestas)
- *   admin       → /admin, /users, /governance, /settings, /operations     (Administración)
- *   Integraciones, Conocimiento y Seguridad no tienen sección: caen en «Más» y se acceden
- *   también desde el panel /admin.
+ *   content     → /content   — moodboards no tiene ruta propia aún; vive en contenido  (Contenido)
+ *   reports     → /reports, /direction, /surveys                          (Resultados)
+ *   admin       → /users, /settings, /integrations, /governance,
+ *                 /operations, /knowledge, /security                      (Administración)
  *
  * Una ruta sin sección cae en «Más», de modo que registrar una feature nueva nunca la
  * esconde del menú.
@@ -63,18 +61,22 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
     label: 'Reservas',
     paths: ['/reservations', '/reservations/agenda', '/reservations/calendar', '/reservations/waitlist', '/reservations/analytics'],
   },
-  { id: 'requests', label: 'Solicitudes', paths: ['/intake'] },
   {
     id: 'production',
     label: 'Trabajos',
-    // El flujo del trabajo: se pide (Solicitudes), se produce (Producción/Audiovisual) y el
-    // resultado se reconoce (Gamificación). El orden del menú cuenta el orden del proceso.
-    paths: ['/production', '/audiovisual', '/gamification'],
+    // El flujo completo del trabajo, en su orden real: se pide, se produce, se aprueba y se
+    // publica. Antes cada etapa era su propia sección de un solo ítem, de modo que el menú
+    // repetía la palabra dos veces seguidas —«Solicitudes / Solicitudes»— y separaba pasos
+    // que pertenecen al mismo recorrido.
+    paths: ['/intake', '/production', '/audiovisual', '/approvals', '/content', '/gamification'],
   },
-  { id: 'approvals', label: 'Aprobaciones', paths: ['/approvals'] },
-  { id: 'content', label: 'Contenido', paths: ['/content'] },
-  { id: 'surveys', label: 'Encuestas', paths: ['/surveys'] },
-  { id: 'results', label: 'Resultados', paths: ['/reports', '/direction'] },
+  {
+    id: 'results',
+    label: 'Medición',
+    // Encuestas vive acá y no en su propia sección: lo que se pregunta y lo que se reporta
+    // responden la misma pregunta —cómo fue— y se consultan juntos.
+    paths: ['/surveys', '/reports', '/direction'],
+  },
   {
     id: 'admin',
     label: 'Administración',
@@ -203,6 +205,11 @@ const PATH_FEATURE: Record<string, string> = {
   '/reservations/calendar': 'reservations',
   '/reservations/waitlist': 'reservations',
   '/reservations/analytics': 'reservations',
+  // Encuestas propias, distintas de la encuesta post-visita que vive dentro de reservas. El
+  // módulo declara su propio estado de producto en `ORGANIZATION_MODULE_CATALOG`, y esta
+  // entrada es lo que hace que ese estado gobierne el menú: sin ella la ruta no pertenece a
+  // ningún módulo y se muestra siempre, sea cual sea su fase.
+  '/surveys': 'surveys',
   '/crm/contacts': 'crm',
   '/crm/leads': 'commercialPipeline',
   '/crm/opportunities': 'commercialPipeline',
@@ -228,8 +235,6 @@ const PATH_FEATURE: Record<string, string> = {
   '/direction': 'direction',
   '/operations': 'operations',
   '/governance': 'governance',
-  // Seguridad no es un módulo de organización: no se apaga. Sin entrada acá la ruta queda
-  // disponible por rol (manifest), que es lo correcto para una página de cumplimiento.
 };
 
 /** Módulo requerido por una ruta, o `undefined` si la ruta no depende de ninguno. */

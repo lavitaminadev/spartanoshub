@@ -11,9 +11,6 @@ export interface DesignConfig {
   timezoneLabel?: string; automaticLabel?: string; manualLabel?: string; timezoneValue?: string;
   calendarSaveEnabled?: string; calendarSaveText?: string;
   buttonRadius?: string; fieldRadius?: string; fontFamily?: string; couponEnabled?: string;
-  googleReviewUrl?: string; googleReviewMinRating?: string;
-  surveyTitle?: string; surveyHelpText?: string; surveySuccessTitle?: string;
-  surveyLowRatingMessage?: string;
   [key: string]: string | undefined;
 }
 export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; ga4MeasurementId?: string | null; capabilities?: { reservations: boolean; crm: boolean; metaConversions: boolean; googleConversions?: boolean }; updatedAt: string }

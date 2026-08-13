@@ -40,7 +40,7 @@
 
 .reservation-module .reservation-flow-switch button {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--blanco);
   padding: 14px;
   text-align: left;
@@ -75,7 +75,7 @@
 
 .reservation-module .reservation-create-steps button {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--blanco);
   padding: 12px;
   text-align: left;
@@ -109,11 +109,11 @@
 .reservation-module .reservation-tabs {
   border-color: var(--line);
   background: var(--blanco);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 
 .reservation-module .reservation-tabs button {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--txt-secondary);
   transition: background .15s ease, color .15s ease;
 }
@@ -146,7 +146,7 @@
 .reservation-module .status-tile {
   border: 1px solid var(--line);
   border-left: 3px solid var(--tile-color, var(--cian));
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--blanco);
   box-shadow: 0 1px 2px rgba(11, 11, 12, .04);
   transition: box-shadow .15s ease, border-color .15s ease, transform .1s ease;
@@ -174,11 +174,11 @@
 .reservation-module .reservation-filters {
   background: var(--blanco);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 
 .reservation-module .reservation-filters .input {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .reservation-module .reservation-filters .input:focus-visible,
@@ -195,7 +195,7 @@
 
 .reservation-module .booking-row {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--blanco);
   box-shadow: 0 1px 2px rgba(11, 11, 12, .04);
   transition: box-shadow .15s ease, border-color .15s ease;
@@ -222,12 +222,12 @@
 .reservation-module .booking-guest-button:focus-visible {
   outline: 2px solid var(--cian);
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 /* Botones de asistencia: gesto principal de la bandeja, en el color de marca. */
 .reservation-module .attendance-quick .btn {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-weight: 700;
 }
 
@@ -267,7 +267,7 @@
 .reservation-module .query-error-state,
 .reservation-module .empty-state {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--blanco);
 }
 

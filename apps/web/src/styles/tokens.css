@@ -21,43 +21,49 @@
 /*
  * Única fuente de verdad de color, espaciado y radios.
  *
- * El primario es el cian de marca. Convivían dos sistemas: este archivo declaraba un verde
- * petróleo mientras `theme-colors.css` declaraba el cian, y el cian iba escrito a mano en
- * ocho archivos —cuarenta y una veces— sin pasar por ningún token. La aplicación se veía
- * partida en dos porque literalmente lo estaba.
+ * Paleta del prototipo El Cuartel: cian de marca + rosa de acción sobre neutros
+ * ciruela/lavanda (#706a73 / #f6f4f5 / #e7e1e5) y superficies oscuras #171417.
  *
  * No redeclarar `:root` en otro punto de este archivo: sobrescribe estos valores en silencio.
  */
 :root {
-  /* Paleta del prototipo - colores base */
+  /* Colores base */
   --ink: #151317;
-  --muted: #706a73;
-  --soft: #f6f4f5;
-  --line: #e7e1e5;
+  --muted: #706a73;              /* gris ciruela: texto secundario y contadores */
+  --soft: #f6f4f5;               /* fondo claro lavanda del prototipo */
+  --line: #e7e1e5;               /* borde neutro con tinte rosado */
   --white: #ffffff;
+  --surface-sage: #eee8ec;       /* banda/panel lavanda */
+  --terracotta: #b90749;         /* acento de énfasis: rosa profundo */
 
   /* Colores de marca */
   --cyan: #0fb9b1;
   --cyan-soft: #e9fbf9;
+  --cyan-deep: #087e79;          /* cian oscuro: estados ok y texto meta */
   --pink: #ec0b61;
   --pink-dark: #b90749;
   --pink-soft: #fff0f6;
+  --lime: #4bd6cf;               /* cian vivo: resaltos sobre oscuro */
   --amber: #c67912;
+  --amber-deep: #9a5a00;
   --amber-soft: #fff6e7;
 
   /* Alias para compatibilidad con código actual */
-  --primary: #0fb9b1;              /* cyan */
-  --primary-light: #0fb9b1;
-  --primary-hover: #0fb9b1;
-  --primary-deep: #0fb9b1;
+  --primary: #ec0b61;              /* pink: acción principal (prototipo) */
+  --primary-light: #ff75aa;
+  --primary-hover: #b90749;
+  --primary-deep: #b90749;
   --accent: #ec0b61;               /* pink */
   --accent-hover: #b90749;          /* pink-dark */
   --brand-cyan: #0fb9b1;
-  --brand-cyan-dark: #0fb9b1;
+  --brand-cyan-dark: #087e79;
   --brand-pink: #ec0b61;
   --brand-pink-dark: #b90749;
   --brand-ink: #151317;
-  --success: #2fae6b;
+  --brand-mint: #4bd6cf;            /* acento menta del gradiente de marca */
+  --success: #087e79;              /* ok: cian oscuro, no verde */
+  --success-deep: #096f6b;         /* cian profundo: "asistió", marcas de ok */
+  --success-bg: #e9fbf9;
   --warning: #c67912;              /* amber */
   --danger: #b5332d;
   --info: #1f6fb2;
@@ -76,27 +82,33 @@
   --border-light: #f0f1f4;
   --shadow: 0 16px 46px rgba(31, 17, 25, 0.08);
   --shadow-md: 0 22px 60px rgba(31, 17, 25, 0.12);
-  --radius-sm: 9px;
-  --radius-md: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius-lg: 20px;
   --sidebar-width: 240px;
   --font: 'Espartano Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  /*
+   * Familia de los títulos. Es la misma que el texto corrido: la jerarquía la dan el tamaño,
+   * el peso ligero y el interletrado cerrado, no una segunda tipografía.
+   */
   --font-display: 'Espartano Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display-weight: 400;
+  --font-display-tracking: -.05em;
   --font-mono: 'SF Mono', Monaco, Consolas, monospace;
-  /* Barras de progreso y fondos tonales (extensión prototipo) */
+  /* Barras de progreso y fondos tonales */
   --progress-xs: 4px;
   --progress-sm: 6px;
   --progress-lg: 10px;
   --cyan-bg: #e9fbf9;
   --pink-bg: #fff0f6;
   --amber-bg: #fff6e7;
-  --success-bg: #e8f5e9;
+  --success-bg: #e9fbf9;
   --flow-line: #e7e1e5;
   --flow-done-bg: #0fb9b1;
   --flow-done-text: #ffffff;
   --flow-current-border: #0fb9b1;
-  --check-done-bg: #e8f5e9;
-  --check-done-border: #2fae6b;
+  --check-done-bg: #e9fbf9;
+  --check-done-border: #087e79;
   --check-pending-bg: #fff6e7;
   --check-pending-border: #c67912;
   --space-xs: 4px;
@@ -134,4 +146,3 @@ h3 { font-size: 16px; }
 
 a { color: var(--info); text-decoration: none; }
 a:hover { text-decoration: underline; }
-

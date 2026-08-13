@@ -68,7 +68,7 @@ const WIDGET_MODULE: Partial<Record<DashboardWidget, string>> = {
 
 const PIECE_COLORS: Record<string, string> = {
   backlog: '#95a5a6', assigned: '#3498db', in_progress: '#f39c12', internal_review: '#9b59b6',
-  client_validation: '#e67e22', corrections: '#e74c3c', approved: '#2ecc71', delivered: '#27ae60',
+  client_validation: '#e67e22', corrections: '#e74c3c', approved: '#087e79', delivered: '#087e79',
 };
 /**
  * Serie categórica de los gráficos.
@@ -77,7 +77,7 @@ const PIECE_COLORS: Record<string, string> = {
  * en escala de grises y para quien no diferencia rojo y verde, que es donde una paleta
  * elegida solo por gusto deja de comunicar.
  */
-const CHART_COLORS = ['#0ec6b8', '#ea0f63', '#1f6fb2', '#d98a1f', '#7040a0', '#2fae6b', '#3f7883', '#0b8c82'];
+const CHART_COLORS = ['#0ec6b8', '#ea0f63', '#1f6fb2', '#d98a1f', '#7040a0', '#087e79', '#3f7883', '#0b8c82'];
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -169,7 +169,7 @@ export function DashboardPage() {
         {!personalView && moduleAllowed('clients') && <Card title="Clientes Activos" value={data.activeClients ?? 0} color="#1a1a2e" />}
         {moduleAllowed('production') && <Card title="Piezas Pendientes" value={data.pendingPieces ?? 0} color="#f39c12" />}
         {moduleAllowed('gamification') && <Card title="XP del Equipo" value={data.teamXp ?? 0} color="#9b59b6" />}
-        {!personalView && moduleAllowed('udBudget') && <Card title="UD este Mes" value={data.monthUd ?? 0} color="#27ae60" />}
+        {!personalView && moduleAllowed('udBudget') && <Card title="UD este Mes" value={data.monthUd ?? 0} color="#087e79" />}
       </div>}
 
       {!personalView && widgetVisible('reservations') && <ReservationResults />}
@@ -179,10 +179,10 @@ export function DashboardPage() {
       {canViewPerformance && widgetVisible('performance') && <div className="section performance-section">
         <div className="section-title-row"><div><h2>Rendimiento digital</h2><p className="page-subtitle">Métricas de Meta y Google.</p></div><span className={`data-health ${performance?.hasData ? 'is-live' : ''}`}>{performance?.hasData ? 'Datos conectados' : 'Sin datos sincronizados'}</span></div>
         {performance?.hasData ? <div className="dashboard-charts-row">
-          <div className="dashboard-chart-card"><h3>Inversión por plataforma</h3>
-            <ResponsiveContainer width="100%" height={200}><BarChart data={performance.providers.map((p) => ({ name: PROVIDER_LABELS[p.provider] ?? p.provider, spend: p.spend, leads: p.leads }))}><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => `$${Number(v).toLocaleString('es-CL')}`} /><Bar dataKey="spend" fill="#0ec6b8" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
+          <div className="dashboard-chart-card"><h3>Inversion por plataforma</h3>
+            <ResponsiveContainer width="100%" height={200}><BarChart data={performance.providers.map((p) => ({ name: PROVIDER_LABELS[p.provider] ?? p.provider, spend: p.spend, leads: p.leads }))}><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(v: number) => `$${v.toLocaleString('es-CL')}`} /><Bar dataKey="spend" fill="#0ec6b8" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
           </div>
-          <div className="dashboard-chart-card"><h3>Métricas de conversión</h3>
+          <div className="dashboard-chart-card"><h3>Metricas de conversion</h3>
             <div className="metric-grid">
               <div><span>CTR</span><strong>{performance.derived.ctr == null ? '—' : `${performance.derived.ctr.toFixed(1)}%`}</strong></div>
               <div><span>CPC</span><strong>{performance.derived.cpc == null ? '—' : `$${Math.round(performance.derived.cpc).toLocaleString('es-CL')}`}</strong></div>
@@ -190,24 +190,24 @@ export function DashboardPage() {
               <div><span>Conv. Rate</span><strong>{performance.derived.conversionRate == null ? '—' : `${performance.derived.conversionRate.toFixed(1)}%`}</strong></div>
             </div>
           </div>
-        </div> : <div className="empty-insight"><strong>Conecta y asigna cuentas publicitarias</strong><span>El dashboard mostrará métricas cuando exista una sincronización válida.</span></div>}
+        </div> : <div className="empty-insight"><strong>Conecta y asigna cuentas publicitarias</strong><span>El dashboard mostrara metricas cuando exista una sincronizacion valida.</span></div>}
       </div>}
 
       {widgetVisible('flow') && <div className="section master-flow-section">
         <div className="section-title-row"><div><h2>Ciclo Maestro</h2><p className="page-subtitle">Flujo de venta a resultado.</p></div></div>
         <div className="master-flow" aria-label="Flujo operativo principal">
-          {['01 Lead', '02 Cierre', '03 Onboarding', '04 Planificación', '05 Producción', '06 Cliente', '07 Resultados'].map((label, i) => <div className="master-flow-step" key={i}><span className="flow-number">{label.split(' ')[0]}</span><div><strong>{label.split(' ').slice(1).join(' ')}</strong></div>{i < 6 && <span className="flow-line" />}</div>)}
+          {['01 Lead', '02 Cierre', '03 Onboarding', '04 Planificacion', '05 Produccion', '06 Cliente', '07 Resultados'].map((label, i) => <div className="master-flow-step" key={i}><span className="flow-number">{label.split(' ')[0]}</span><div><strong>{label.split(' ').slice(1).join(' ')}</strong></div>{i < 6 && <span className="flow-line" />}</div>)}
         </div>
       </div>}
 
       {!personalView && widgetVisible('ud') && data.ud && <div className="section">
-        <h2>Unidades de Dedicación</h2>
+        <h2>Unidades de Dedicacion</h2>
         <div className="dashboard-charts-row">
           <div className="dashboard-chart-card"><h3>Consumo UD</h3>
-            <ResponsiveContainer width="100%" height={200}><BarChart data={[{ name: 'Contratadas', value: data.ud.contracted, fill: '#e67e22' }, { name: 'Consumidas', value: data.ud.consumed, fill: '#27ae60' }, { name: 'Reservadas', value: data.ud.reserved, fill: '#3498db' }]} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}><Cell fill="#e67e22" /><Cell fill="#27ae60" /><Cell fill="#3498db" /></Bar></BarChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={200}><BarChart data={[{ name: 'Contratadas', value: data.ud.contracted, fill: '#e67e22' }, { name: 'Consumidas', value: data.ud.consumed, fill: '#087e79' }, { name: 'Reservadas', value: data.ud.reserved, fill: '#3498db' }]} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}><Cell fill="#e67e22" /><Cell fill="#087e79" /><Cell fill="#3498db" /></Bar></BarChart></ResponsiveContainer>
           </div>
           <div className="dashboard-chart-card"><h3>% Consumo</h3>
-            <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={[{ name: 'Consumido', value: data.ud.consumed }, { name: 'Disponible', value: Math.max(0, data.ud.contracted - data.ud.consumed) }]} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}><Cell fill="#27ae60" /><Cell fill="#e8ece8" /></Pie><Tooltip /></PieChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={[{ name: 'Consumido', value: data.ud.consumed }, { name: 'Disponible', value: Math.max(0, data.ud.contracted - data.ud.consumed) }]} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}><Cell fill="#087e79" /><Cell fill="#e8ece8" /></Pie><Tooltip /></PieChart></ResponsiveContainer>
           </div>
         </div>
       </div>}
@@ -215,7 +215,7 @@ export function DashboardPage() {
       {widgetVisible('pieces') && data.pieces && data.pieces.length > 0 && <div className="section">
         <h2>Estado de Piezas</h2>
         <div className="dashboard-charts-row">
-          <div className="dashboard-chart-card"><h3>Distribución por estado</h3>
+          <div className="dashboard-chart-card"><h3>Distribucion por estado</h3>
             <ResponsiveContainer width="100%" height={250}><PieChart><Pie data={data.pieces.map((p) => ({ name: statusLabel(p.status), value: p.count, color: PIECE_COLORS[p.status] || '#8e44ad' }))} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, value }: any) => `${name}: ${value}`}>{data.pieces.map((p, i) => <Cell key={p.status} fill={PIECE_COLORS[p.status] || CHART_COLORS[i % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer>
           </div>
           <div className="dashboard-chart-card"><h3>Rendimiento por tipo</h3>

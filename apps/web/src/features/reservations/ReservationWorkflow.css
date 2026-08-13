@@ -118,8 +118,8 @@
 .reservation-workflow-complete {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--cian-soft, #e9fbf9);
+  border-radius: var(--radius-md);
+  background: var(--cian-soft, var(--cyan-soft));
   color: var(--cian-dark);
   font-size: 12.5px;
   font-weight: 700;

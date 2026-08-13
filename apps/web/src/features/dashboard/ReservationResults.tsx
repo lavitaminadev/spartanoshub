@@ -21,8 +21,8 @@ import { reservationTotals, useReservationMetrics } from './use-reservation-metr
 const SERIES_RESERVAS = '#2a78d6';
 const SERIES_ASISTENCIAS = '#1baf7a';
 const FUNNEL_RAMP = ['#8fd0b8', '#55b995', '#2a9d78', '#17795c'];
-const AXIS_INK = '#75857e';
-const GRID_INK = '#e7ede8';
+const AXIS_INK = '#706a73';
+const GRID_INK = '#e7e1e5';
 
 const RANGES = [
   { days: 7, label: '7 días' },
@@ -203,7 +203,7 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
                         <LabelList
                           dataKey="value"
                           position="right"
-                          formatter={(value) => numberFormat(Number(value))}
+                          formatter={(value: number) => numberFormat(value)}
                           style={{ fill: '#0ec6b8', fontSize: 11, fontWeight: 700 }}
                         />
                       </Bar>
@@ -243,8 +243,8 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
                       <LabelList
                         dataKey="rate"
                         position="right"
-                        formatter={(value) => `${Number(value)}% asistió`}
-                        style={{ fill: '#75857e', fontSize: 10, fontWeight: 700 }}
+                        formatter={(value: number) => `${value}% asistió`}
+                        style={{ fill: '#706a73', fontSize: 10, fontWeight: 700 }}
                       />
                     </Bar>
                   </BarChart>

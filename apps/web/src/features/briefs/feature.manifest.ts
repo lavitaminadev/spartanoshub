@@ -4,6 +4,6 @@ registerFeature({
   id: 'briefs',
   name: 'Briefs',
   enabled: true,
-  navigation: [{ label: 'Briefs', path: '/briefs', icon: '📋', roles: ['admin', 'operations_director', 'creative_director'] }],
+  navigation: [{ label: 'Encargos del cliente', path: '/briefs', icon: '📋', roles: ['admin', 'operations_director', 'creative_director'] }],
   routes: [],
 });

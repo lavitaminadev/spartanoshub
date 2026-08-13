@@ -17,7 +17,7 @@ import { safeUrl } from '../../core/safe-url';
 
 interface Slot { startsAt: string; available: number }
 interface Created { id: string; referenceCode?: string; status?: string; startsAt?: string; couponCode?: string; createdAt?: string }
-const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)';
+const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f6f4f5 0%, #dce9df 100%)';
 
 /** Clave de `sessionStorage` donde vive la clave de idempotencia de la reserva en curso. */
 const BOOKING_KEY_STORAGE = 'vh-booking-key';
@@ -41,9 +41,6 @@ export function PublicReservationPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [monthOffset, setMonthOffset] = useState(0);
   const [slotDays, setSlotDays] = useState(14);
-  // Flujo post-encuesta con calificación baja: se pregunta si quiere contacto antes
-  // de ofrecer la reseña en Google. Protege la reputación del local.
-  const [contactRequested, setContactRequested] = useState<'none' | 'pending' | 'done' | 'declined'>('none');
 
   const started = useRef(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -163,18 +160,6 @@ export function PublicReservationPage() {
     mutationFn: () => api.post(`/public/reservations/${slug}/coupon-validate`, { code: couponCode.trim(), startsAt: selected || undefined }),
     onSuccess: () => { setCouponValid(true); setCouponMsg('Cupón válido'); },
     onError: (err: Error) => { setCouponValid(false); setCouponMsg(err.message); },
-  });
-
-  // Solicitud de contacto post-encuesta (calificación baja). El backend notifica al
-  // administrador y registra el caso para seguimiento.
-  const contactRequest = useMutation({
-    mutationFn: () => api.post(`/public/reservations/${slug}/contact-request`, {
-      surveyResponseId: submit.data?.id,
-      email: guest.guestEmail || undefined,
-      phone: guest.guestPhone || undefined,
-    }),
-    onSuccess: () => setContactRequested('done'),
-    onError: () => setContactRequested('done'),
   });
 
   // Confirmada la reserva, la clave cumplió su función. Liberarla evita que una segunda
@@ -328,7 +313,7 @@ export function PublicReservationPage() {
   const design = form.designConfig || {};
   const primary = normalizeHexColor(design.primaryColor, '#0ec6b8');
   const accent = normalizeHexColor(design.accentColor, '#ea0f63');
-  const background = normalizeHexColor(design.backgroundColor, '#f3f5ef');
+  const background = normalizeHexColor(design.backgroundColor, '#f6f4f5');
   const textColor = design.textColor || '#3f4e49';
   const fontFamily = design.fontFamily || 'system-ui';
   const backgroundOpacity = imageOverlayAlpha(design.backgroundOpacity);
@@ -374,21 +359,7 @@ export function PublicReservationPage() {
     const googleReviewUrl = safeUrl(design.googleReviewUrl || '');
     const rating = Number(answers.rating || answers.experience_rating || 0);
     const reviewMinRating = safeNumber(design.googleReviewMinRating, 4, 1, 5);
-    if (isSurvey) return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId ?? undefined} /><section className="booking-success"><span className="success-icon">✓</span><h1>{design.surveySuccessTitle || 'Gracias por tu opinión'}</h1><p>{design.confirmationMessage || 'Tu respuesta fue registrada correctamente.'}</p>{Number.isFinite(rating) && rating > 0 && <p className="success-datetime">Calificación recibida: {rating}/5</p>}
-      {googleReviewUrl && rating > 0 && rating < reviewMinRating && contactRequested === 'none' && (
-        <div className="contact-interstitial">
-          <h2>Lamentamos que tu experiencia no haya sido la mejor.</h2>
-          <p>{design.surveyLowRatingMessage || '¿Quieres que alguien del equipo se comunique contigo para ayudarte?'}</p>
-          <div className="success-actions">
-            <button type="button" className="btn btn-primary" disabled={contactRequest.isPending} onClick={() => { setContactRequested('pending'); contactRequest.mutate(); }}>
-              {contactRequest.isPending ? 'Enviando...' : 'Sí, que me contacten'}
-            </button>
-            <button type="button" className="btn btn-outline" onClick={() => setContactRequested('declined')}>No, gracias</button>
-          </div>
-        </div>
-      )}
-      {contactRequested === 'done' && <p className="success-datetime" style={{ background: 'var(--success-bg)', color: 'var(--success)', padding: '10px 14px', borderRadius: 8 }}>Gracias. Alguien del equipo se comunicará contigo pronto.</p>}
-      <div className="success-actions">{googleReviewUrl && (contactRequested !== 'none' || rating >= reviewMinRating || rating === 0) ? <a className="btn btn-primary" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">{rating >= reviewMinRating ? 'Dejar reseña en Google' : 'Dejar tu opinión en Google'}</a> : null}<Link className="btn btn-outline" to={`/book/${slug}`}>Enviar otra respuesta</Link></div><small className="success-note">La reseña en Google es opcional y queda a tu criterio.</small></section></main>;
+    if (isSurvey) return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{design.surveySuccessTitle || 'Gracias por tu opinión'}</h1><p>{design.confirmationMessage || 'Tu respuesta fue registrada correctamente.'}</p>{Number.isFinite(rating) && rating > 0 && <p className="success-datetime">Calificación recibida: {rating}/5</p>}<div className="success-actions">{googleReviewUrl ? <a className="btn btn-primary" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">{rating >= reviewMinRating ? 'Dejar reseña en Google' : 'Ir a Google si quieres opinar públicamente'}</a> : null}<Link className="btn btn-outline" to={`/book/${slug}`}>Enviar otra respuesta</Link></div><small className="success-note">La reseña en Google es opcional y queda a tu criterio.</small></section></main>;
     const svcDuration = serviceId ? (form.servicesConfig || []).find((s) => s.id === serviceId)?.durationMinutes : null;
     const icsDuration = (svcDuration || form.durationMinutes || 60) * 60000;
     const startDate = new Date(submit.data.startsAt!);
@@ -399,17 +370,17 @@ export function PublicReservationPage() {
     const icsBlob = new Blob([icsBody], { type: 'text/calendar;charset=utf-8' });
     const icsUrl = URL.createObjectURL(icsBlob);
     const calendarSaveEnabled = design.calendarSaveEnabled !== 'false';
-    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId ?? undefined} /><section className="booking-success"><span className="success-icon">✓</span><h1>{submit.data.status === 'pending' ? 'Solicitud recibida' : 'Reserva confirmada'}</h1><p>{design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.'}</p><p className="success-datetime">{new Date(submit.data.startsAt!).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {submit.data.referenceCode}</strong></div>{submit.data.couponCode && <p className="success-coupon">🎫 Cupón <strong>{submit.data.couponCode}</strong> aplicado a esta reserva</p>}<small className="success-note">Guarda este código para cualquier cambio o consulta.</small><div className="success-actions">
+    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{submit.data.status === 'pending' ? 'Solicitud recibida' : 'Reserva confirmada'}</h1><p>{design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.'}</p><p className="success-datetime">{new Date(submit.data.startsAt!).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {submit.data.referenceCode}</strong></div>{submit.data.couponCode && <p className="success-coupon">🎫 Cupón <strong>{submit.data.couponCode}</strong> aplicado a esta reserva</p>}<small className="success-note">Guarda este código para cualquier cambio o consulta.</small><div className="success-actions">
       {calendarSaveEnabled && gcalUrl ? <a className="btn btn-outline" href={gcalUrl} target="_blank" rel="noopener noreferrer">Android / Google Calendar</a> : null}
       {calendarSaveEnabled ? <a className="btn btn-outline" href={icsUrl} download={`reserva-${submit.data.referenceCode}.ics`}>iPhone / Apple Calendar</a> : null}
       {submit.data.status === 'pending' ? <small>Recibirás una confirmación pronto.</small> : <Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link>}
     </div>{calendarSaveEnabled && <small className="success-note">{design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'}</small>}</section></main>;
   }
 
-  if (form.status === 'paused') return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId ?? undefined} /><Ga4Tag measurementId={form?.ga4MeasurementId} /><section className="booking-success"><h1>Formulario en mantenimiento</h1><p>Este formulario no acepta reservas en este momento. Vuelve más tarde o contacta al establecimiento.</p></section></main>;
+  if (form.status === 'paused') return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><Ga4Tag measurementId={form?.ga4MeasurementId} /><section className="booking-success"><h1>Formulario en mantenimiento</h1><p>Este formulario no acepta reservas en este momento. Vuelve más tarde o contacta al establecimiento.</p></section></main>;
 
   return <main className={`public-booking layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style} onFocusCapture={markStarted} onPointerDown={markStarted}>
-    <MetaPixel pixelId={form.pixelId ?? undefined} />
+    <MetaPixel pixelId={form.pixelId} />
     <Ga4Tag measurementId={form.ga4MeasurementId} />
     {(form.metaCapiEnabled || form.ga4MeasurementId) && <div className="public-cookie-banner"><span>🍪</span><div><strong>Este sitio utiliza cookies de medición</strong><p>Usamos Meta Pixel y Google Analytics para medir conversiones y mejorar el servicio. Al continuar, aceptas esta medición anónima. No se comparten datos personales con terceros.</p></div></div>}
     {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}

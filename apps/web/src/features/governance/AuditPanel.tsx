@@ -18,9 +18,7 @@ export function AuditPanel() {
   const [search, setSearch] = useState('');
   const [entity, setEntity] = useState('');
   const [selected, setSelected] = useState<AuditRow | null>(null);
-  // `retry: false`: si el backend responde 403 (rol sin acceso), no se re-intenta ni spamea.
-  // La vista degrada a su estado vacío normal.
-  const query = useQuery<AuditRow[]>({ queryKey: ['audit-log'], queryFn: () => api.get('/audit?limit=300'), retry: false });
+  const query = useQuery<AuditRow[]>({ queryKey: ['audit-log'], queryFn: () => api.get('/audit?limit=300') });
   const all = query.data ?? [];
   const entities = [...new Set(all.map((row) => row.entityType))].sort();
   const rows = all.filter((row) => (!entity || row.entityType === entity) && matchesSearch(search, [row.actorName, row.actorEmail, row.entityType, row.action, row.entityId]));

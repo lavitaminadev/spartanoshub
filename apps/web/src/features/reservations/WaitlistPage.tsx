@@ -54,7 +54,7 @@ export function WaitlistPage() {
     pageSize: '50',
     ...(clientFilter ? { clientId: clientFilter } : {}),
     ...(search ? { search } : {}),
-    ...(dateRange as Record<string, string>),
+    ...dateRange,
   });
   const { data: waitlistPage, isFetching, error, refetch } = useQuery<ReservationPage>({
     queryKey: ['reservations-waitlist', clientFilter, dateFilter, search],

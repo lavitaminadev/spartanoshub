@@ -2,22 +2,22 @@ import { registerFeature } from '../../core/navigation.registry';
 
 registerFeature({
   id: 'reservations',
-  name: 'Reservas y captación',
+  name: 'Reservas y captacion',
   navigation: [
     {
-      label: 'Reservas y captación',
+      label: 'Reservas',
       path: '/reservations',
       icon: '🗓️',
       roles: ['admin', 'operations_director', 'commercial_director', 'community_manager'],
     },
     {
-      label: 'Agenda del servicio',
+      label: 'Agenda del día',
       path: '/reservations/agenda',
       icon: '📆',
       roles: ['admin', 'operations_director', 'commercial_director', 'community_manager'],
     },
     {
-      label: 'Calendario de disponibilidad',
+      label: 'Disponibilidad',
       path: '/reservations/calendar',
       icon: '🗓️',
       roles: ['admin', 'operations_director', 'commercial_director', 'community_manager'],
@@ -29,7 +29,7 @@ registerFeature({
       roles: ['admin', 'operations_director', 'commercial_director', 'community_manager'],
     },
     {
-      label: 'Analíticas',
+      label: 'Resultados de reservas',
       path: '/reservations/analytics',
       icon: '📊',
       roles: ['admin', 'operations_director', 'commercial_director', 'community_manager'],

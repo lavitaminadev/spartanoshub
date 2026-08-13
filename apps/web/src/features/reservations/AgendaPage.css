@@ -59,7 +59,7 @@
   padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: var(--blanco, #fff);
+  background: var(--blanco, var(--white));
   color: var(--txt);
   white-space: nowrap;
   font-size: 13px;
@@ -110,7 +110,7 @@
 .agenda-column-head span {
   font-size: 12px;
   color: var(--txt-secondary);
-  background: var(--blanco, #fff);
+  background: var(--blanco, var(--white));
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -136,7 +136,7 @@
   text-align: left;
   padding: 10px 12px;
   border-radius: var(--card-radius-sm);
-  background: var(--blanco, #fff);
+  background: var(--blanco, var(--white));
   border: 1px solid var(--line);
   border-left: 4px solid var(--card-color, var(--cian));
   box-shadow: var(--card-shadow);

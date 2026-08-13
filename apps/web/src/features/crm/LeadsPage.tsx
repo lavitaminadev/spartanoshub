@@ -53,7 +53,16 @@ const SOURCE_LABELS: Record<string, string> = {
   reservation: 'Reservas',
   ...Object.fromEntries(RESERVATION_LEAD_SOURCES.map((source) => [source, 'Reservas'])),
   website: 'Sitio web', referral: 'Referido', manual: 'Ingreso manual',
+  event: 'Evento', other: 'Otro',
 };
+
+/**
+ * Etapas que el equipo puede elegir desde la tarjeta.
+ *
+ * `won` no está: el cierre como ganado crea la ficha del cliente y se hace desde la ficha
+ * del lead con «Convertir en cliente». `lost` sí, porque descartar no crea nada.
+ */
+const SELECTABLE_STATUSES: string[] = [...ACTIVE_STATUSES, 'lost'];
 
 /** `externalLeadId` llega como `reservation:<uuid>` cuando el contacto nacio de una reserva. */
 function cameFromReservation(lead: Lead): boolean {
@@ -377,7 +386,7 @@ export function LeadsPage() {
           <div className="portal-list">
             <div className="crm-related-item">
               <strong>Consentimiento y origen</strong>
-              <span>Cada lead debe conservar trazabilidad de formulario, página y fecha de captura.</span>
+              <span>Cada lead debe conservar trazabilidad de formulario, pagina y fecha de captura.</span>
             </div>
             <div className="crm-related-item">
               <strong>Eliminacion y anonimizado</strong>
@@ -414,7 +423,7 @@ export function LeadsPage() {
                 <span className="crm-legend-chip"><span className="crm-legend-dot is-review" /> Revision manual</span>
                 <span className="crm-legend-chip"><span className="crm-legend-dot is-discarded" /> Descartado</span>
               </div>
-              <span className="crm-selection-hint">{selectedVisibleIds.length > 0 ? `${selectedVisibleIds.length} seleccionados` : pipelineView === 'board' ? 'Arrastra para cambiar de etapa' : 'Selecciona filas para editar en lote'}</span>
+              <span className="crm-selection-hint">{selectedVisibleIds.length > 0 ? `${selectedVisibleIds.length} seleccionados` : pipelineView === 'board' ? 'Cambia la etapa desde la tarjeta o arrastra entre columnas' : 'Selecciona filas para editar en lote'}</span>
             </div>
           {pipelineView === 'board' ? (
           <div className="kanban crm-pipeline-board" aria-label="Pipeline comercial por etapas">
@@ -490,12 +499,23 @@ export function LeadsPage() {
                       {lead.discardReason && <div className="lead-discard-reason">{lead.discardReason}</div>}
                       {lead.notes && <div className="lead-note-preview">{lead.notes.split('\n')[0]}</div>}
                       <div className="kanban-card-actions" style={{marginTop:'10px', flexDirection:'column', gap:'4px'}}>
-                        {ACTIVE_STATUSES.includes(status) && status !== 'negotiation' && (
-                          <button type="button" className="btn btn-sm btn-primary btn-block"
-                            onClick={(event) => { event.stopPropagation(); updateMutation.mutate({ id: lead.id, status: ACTIVE_STATUSES[ACTIVE_STATUSES.indexOf(status) + 1] }); }}>
-                            Avanzar etapa
-                          </button>
-                        )}
+                        {/*
+                          Cambio de etapa desde la tarjeta. Es un selector y no un par de flechas
+                          porque permite saltar varias etapas de una vez y porque funciona con
+                          teclado y en pantallas táctiles, donde arrastrar no es una opción.
+                        */}
+                        <select
+                          className="input crm-card-stage-select"
+                          draggable={false}
+                          aria-label={`Etapa de ${lead.name}`}
+                          value={lead.status}
+                          disabled={lead.status === 'won' || updateMutation.isPending}
+                          onChange={(event) => updateMutation.mutate({ id: lead.id, status: event.target.value })}
+                        >
+                          {lead.status === 'won'
+                            ? <option value="won">{statusLabel('won')}</option>
+                            : SELECTABLE_STATUSES.map((option) => <option key={option} value={option}>{statusLabel(option)}</option>)}
+                        </select>
                         {status === 'negotiation' && <button type="button" className="btn btn-sm btn-primary btn-block" onClick={() => setSelectedLeadId(lead.id)}>Cerrar venta</button>}
                         <div style={{display:'flex', gap:'4px'}}>
                           <button type="button" className="btn btn-sm btn-outline" onClick={() => setSelectedLeadId(lead.id)} style={{flex:1}}>Ficha</button>

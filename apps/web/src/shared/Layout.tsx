@@ -6,8 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../core/auth';
-import { parsePreviewRole, useRolePreview } from '../core/role-preview-context';
-import { ROLE_LABELS, roleLabel } from '../core/role-labels';
+import { roleLabel } from '../core/role-labels';
 import { getNavigation, getNavigationSections } from '../core/navigation.registry';
 import { NavGlyph } from './NavGlyph';
 import { openCommandPalette } from './command-events';
@@ -84,17 +83,18 @@ export function Layout(): JSX.Element {
   }, [sidebarTrapActive]);
 
   // Calcula la navegación una vez por cambio de rol para evitar filtrar en cada render.
-  const { previewRole, setPreviewRole, effectivePermissions, canPreview } = useRolePreview();
-  const viewRole = previewRole ?? user?.role;
+  //
+  // El menú se arma con el cargo y los permisos de quien mira, sin intermediarios: lo que se
+  // dibuja y lo que se autoriza describen a la misma persona.
   const navItems = useMemo(
-    () => getNavigation(viewRole, user?.features, effectivePermissions, user?.moduleLifecycle),
-    [viewRole, user?.features, effectivePermissions, user?.moduleLifecycle],
+    () => getNavigation(user?.role, user?.features, user?.permissions, user?.moduleLifecycle),
+    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle],
   );
   // Las secciones viven en el registro junto al orden del sidebar: mantenerlas acá hacía
   // que una ruta no listada desapareciera del menú sin aviso.
   const groupedNavItems = useMemo(
-    () => getNavigationSections(viewRole, user?.features, effectivePermissions, user?.moduleLifecycle),
-    [viewRole, user?.features, effectivePermissions, user?.moduleLifecycle],
+    () => getNavigationSections(user?.role, user?.features, user?.permissions, user?.moduleLifecycle),
+    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle],
   );
 
   const toggleSidebar = useCallback(() => setSidebarOpen((open) => !open), []);
@@ -116,33 +116,14 @@ export function Layout(): JSX.Element {
           <div><h2>Espartanos</h2><span>{roleLabel(user?.role)}</span></div>
         </div>
 
-        {canPreview && (
-          <div className="role-preview">
-            <label htmlFor="role-preview-select">Viendo como</label>
-            <select
-              id="role-preview-select"
-              value={previewRole ?? ''}
-              // El valor del `select` es texto; `parsePreviewRole` lo devuelve al dominio de
-              // los cargos o a `null`, que es «mi propio cargo».
-              onChange={(event) => setPreviewRole(parsePreviewRole(event.target.value))}
-            >
-              <option value="">Mi propio cargo</option>
-              {Object.entries(ROLE_LABELS).map(([role, label]) => (
-                <option key={role} value={role}>{label}</option>
-              ))}
-            </select>
-            {previewRole && (
-              <p className="role-preview-note" role="status">
-                Solo cambia lo que se muestra. Tus permisos reales siguen aplicándose.
-              </p>
-            )}
-          </div>
-        )}
-
         <nav className="sidebar-nav">
           {groupedNavItems.map((group) => (
             <section className="sidebar-nav-section" key={group.label} aria-label={group.label}>
-              <span className="sidebar-nav-section-title">{group.label}</span>
+              {/* Un encabezado que repite el nombre de su único ítem no agrupa nada: solo hace
+                  leer la misma palabra dos veces. El `aria-label` de la sección lo conserva
+                  para quien navega con lector de pantalla. */}
+              {!(group.items.length === 1 && group.items[0].label === group.label)
+                && <span className="sidebar-nav-section-title">{group.label}</span>}
               {group.items.map((item) => {
                 const active = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                 return (

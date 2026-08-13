@@ -1,16 +1,16 @@
 /* ─── PUBLIC RESERVATION PAGE — PREMIUM UI ─── */
 
 :root {
-  --brand-primary: #2563eb;
-  --brand-success: #16a34a;
-  --brand-warning: #f59e0b;
-  --brand-error: #dc2626;
-  --surface-light: #f9fafb;
-  --surface-lighter: #f3f4f6;
+  --brand-primary: var(--info);
+  --brand-success: var(--success);
+  --brand-warning: var(--amber);
+  --brand-error: var(--danger);
+  --surface-light: var(--soft);
+  --surface-lighter: var(--soft);
   --text-primary: #1f2937;
-  --text-secondary: #6b7280;
+  --text-secondary: var(--muted);
   --text-muted: #9ca3af;
-  --border-color: #e5e7eb;
+  --border-color: var(--line);
 }
 
 /* Encuesta / experiencia post-visita */
@@ -108,7 +108,7 @@
   width: 100%;
   padding: 12px 14px;
   border: 2px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
   font-family: inherit;
   transition: all 0.2s ease;
@@ -212,7 +212,7 @@
 .success-code {
   background: var(--surface-lighter);
   padding: 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   margin: 24px 0;
   font-family: 'Courier New', monospace;
   font-size: 14px;
@@ -229,7 +229,7 @@
 .success-actions a,
 .success-actions button {
   padding: 12px 24px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   text-decoration: none;
   font-weight: 600;
   transition: all 0.2s ease;
@@ -251,7 +251,7 @@
   text-align: center;
   padding: 60px 24px;
   background: white;
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   max-width: 600px;
   margin: 24px auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
@@ -286,7 +286,7 @@
   :root {
     --surface-light: #0f172a;
     --surface-lighter: #1e293b;
-    --text-primary: #f1f5f9;
+    --text-primary: var(--soft);
     --text-secondary: #cbd5e1;
     --text-muted: #94a3b8;
     --border-color: #334155;
