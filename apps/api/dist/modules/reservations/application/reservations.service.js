@@ -1442,6 +1442,21 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         });
         return rubros;
     }
+    async resetReservationCatalog(organizationId, actorId) {
+        const row = await this.reservationCatalog.findOne({ where: { organizationId } });
+        if (row) {
+            await this.reservationCatalog.remove(row);
+            await this.audit.log({
+                organizationId,
+                actorId,
+                entityType: 'ReservationCatalog',
+                entityId: organizationId,
+                action: 'deleted',
+                reason: 'Restauración de rubros y tipos de captación al catálogo por defecto',
+            });
+        }
+        return this.defaultReservationCatalog();
+    }
 };
 exports.ReservationsService = ReservationsService;
 exports.ReservationsService = ReservationsService = ReservationsService_1 = __decorate([

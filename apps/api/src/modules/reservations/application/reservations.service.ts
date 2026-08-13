@@ -1511,4 +1511,21 @@ export class ReservationsService {
     });
     return rubros;
   }
+
+  /** Elimina el catálogo personalizado y vuelve al por defecto del sistema. */
+  async resetReservationCatalog(organizationId: string, actorId: string): Promise<Array<Record<string, unknown>>> {
+    const row = await this.reservationCatalog.findOne({ where: { organizationId } });
+    if (row) {
+      await this.reservationCatalog.remove(row);
+      await this.audit.log({
+        organizationId,
+        actorId,
+        entityType: 'ReservationCatalog',
+        entityId: organizationId,
+        action: 'deleted',
+        reason: 'Restauración de rubros y tipos de captación al catálogo por defecto',
+      });
+    }
+    return this.defaultReservationCatalog();
+  }
 }

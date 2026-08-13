@@ -220,6 +220,9 @@ let ReservationsController = class ReservationsController {
     saveCatalog(req, body) {
         return this.service.saveReservationCatalog(req.organizationId, req.user.id, body.rubros);
     }
+    resetCatalog(req) {
+        return this.service.resetReservationCatalog(req.organizationId, req.user.id);
+    }
 };
 exports.ReservationsController = ReservationsController;
 __decorate([
@@ -464,6 +467,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], ReservationsController.prototype, "saveCatalog", null);
+__decorate([
+    (0, common_1.Delete)('catalog'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], ReservationsController.prototype, "resetCatalog", null);
 exports.ReservationsController = ReservationsController = __decorate([
     (0, swagger_1.ApiTags)('Reservas'),
     (0, swagger_1.ApiBearerAuth)(),

@@ -23,6 +23,7 @@ import { useAuth } from '../../core/auth';
 import { ExportModal } from './ExportModal';
 import { ReservationResults } from '../dashboard/ReservationResults';
 import { safeUrl } from '../../core/safe-url';
+import { ReservationCatalogPanel } from './ReservationCatalogPanel';
 import './ReservationsPage.css';
 
 interface Client { id: string; name: string }
@@ -119,7 +120,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const navigate = useNavigate();
   const qc = useQueryClient();
   const requestedTab = searchParams.get('tab');
-  const [tab, setTab] = useState<'forms' | 'bookings' | 'metrics' | 'coupons'>(requestedTab === 'bookings' || requestedTab === 'metrics' || requestedTab === 'coupons' ? requestedTab : 'forms');
+  const [tab, setTab] = useState<'forms' | 'bookings' | 'metrics' | 'coupons' | 'catalog'>(requestedTab === 'bookings' || requestedTab === 'metrics' || requestedTab === 'coupons' || requestedTab === 'catalog' ? requestedTab : 'forms');
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [createStep, setCreateStep] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState<Reservation | null>(null);
@@ -385,7 +386,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       <nav className="reservation-tabs" aria-label="Secciones de reservas">
         {(clientView
           ? ([['forms', 'Mi agenda'], ['bookings', 'Mis reservas'], ['metrics', 'Resultados']] as const)
-          : ([['forms', 'Captación'], ['bookings', 'Reservas recibidas'], ['metrics', 'Resultados'], ['coupons', 'Cupones']] as const)
+          : ([['forms', 'Captación'], ['bookings', 'Reservas recibidas'], ['metrics', 'Resultados'], ['coupons', 'Cupones'], ...((user?.role === 'admin' || user?.role === 'operations_director' || user?.role === 'dev') ? [['catalog', 'Rubros y captación'] as const] : [])] as const)
         ).map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{key === 'bookings' && bookingPage?.total ? <span>{bookingPage.total}</span> : null}</button>)}
       </nav>
 
@@ -472,6 +473,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       {filteredCoupons.length === 0 ? <div className="reservation-empty"><strong>Sin cupones todavía</strong><p>Crea tu primer cupón promocional.</p></div> : <Fragment><div className="coupon-stats"><div className="reservation-metric-grid reservation-metric-grid-four"><div><span>Total cupones</span><strong>{coupons.length}</strong></div><div><span>Activos</span><strong>{coupons.filter((c) => c.active).length}</strong></div><div><span>Usos totales</span><strong>{coupons.reduce((sum, c) => sum + c.usageCount, 0)}</strong></div><div><span>Tasa de uso</span><strong>{(() => { const activeCoupons = coupons.filter((c) => c.active).length; if (activeCoupons === 0) return 'Sin cupones activos'; const usedActiveCoupons = coupons.filter((c) => c.active && c.usageCount > 0).length; return `${Math.round((usedActiveCoupons / activeCoupons) * 100)}% activos usados`; })()}</strong></div></div></div><div className="crm-table-container"><table className="data-table"><thead><tr><th>Código</th><th>Descuento</th><th>Usos</th><th>Vigencia</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{filteredCoupons.map((coupon) => <tr key={coupon.id}><td><strong>{coupon.code}</strong><small>Creado {new Date(coupon.createdAt).toLocaleDateString('es-CL')}</small></td><td>{coupon.discountType === 'percentage' ? `${coupon.value}%` : `$${coupon.value.toLocaleString('es-CL')}`}</td><td>{coupon.usageCount}/{coupon.maxUses || '∞'}</td><td>{coupon.validFrom ? `${new Date(coupon.validFrom).toLocaleDateString('es-CL')} - ${coupon.validUntil ? new Date(coupon.validUntil).toLocaleDateString('es-CL') : '∞'}` : 'Sin fecha'}</td><td><span className={`crm-stage is-${coupon.active ? 'attended' : 'cancelled_business'}`}>{coupon.active ? 'Activo' : 'Inactivo'}</span></td><td><div className="actions-cell">               <button className="btn btn-outline btn-sm" onClick={() => coupon.active ? setConfirmCoupon({ id: coupon.id, active: false }) : couponToggle.mutate({ id: coupon.id, active: true })} disabled={couponToggle.isPending}>{coupon.active ? 'Desactivar' : 'Activar'}</button><button className="btn btn-outline btn-sm" onClick={() => setViewingCouponCode(coupon.code)}>Ver usos</button></div></td></tr>)}</tbody></table></div></Fragment>}
       {viewingCouponCode && <div className="coupon-usages"><div className="reservation-section-head"><div><span className="page-eyebrow">USOS DE {viewingCouponCode}</span><h2>Reservas que usaron este cupón</h2></div><button className="btn btn-outline btn-sm" onClick={() => setViewingCouponCode('')}>Cerrar</button></div>{couponUsages.length === 0 ? <EmptyState icon="ticket" title="Sin usos" description="Este cupón aún no ha sido utilizado en ninguna reserva." /> : <div className="booking-list">{couponUsages.map((item) => <article className="booking-row" key={item.id}><div className="booking-date"><strong>{new Date(item.startsAt).getDate()}</strong><span>{new Date(item.startsAt).toLocaleDateString('es-CL', { month: 'short' })}</span></div><div className="booking-guest"><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || '-'}</span><small>#{item.referenceCode}</small></div><StatusBadge status={item.status} /></article>)}</div>}</div>}
     </section>}
+
+    {tab === 'catalog' && <ReservationCatalogPanel />}
 
     <Modal open={createOpen} onClose={closeCreateFlow} title={isSurveyMode(formData.mode) ? 'Nueva encuesta post-visita' : 'Nuevo formulario de reserva'}>
       <form className="modal-form reservation-create-wizard" onSubmit={(event) => { event.preventDefault(); if (createStep < 2) { if (createStepReady[createStep]) setCreateStep((current) => Math.min(2, current + 1)); return; } createMutation.mutate(); }}>

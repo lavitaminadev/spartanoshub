@@ -122,6 +122,39 @@ function emptyPayload(depth = 0): unknown {
 /** Bandeja de solicitudes en memoria para el modo visual. */
 const visualRequests: any[] = [];
 
+/** Catálogo de rubros en memoria (modo visual). Misma forma que el por defecto del backend. */
+function defaultCatalog(): any[] {
+  return [
+    {
+      key: 'gastronomico', nombre: 'Gastronómico',
+      tipos: [
+        { key: 'mesa', nombre: 'Reserva de mesa', cta: 'Reserva tu mesa', confirmacion: 'Tu mesa está confirmada. ¡Te esperamos!', duracionMin: 90, capacidad: 4, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'guests', tipo: 'number', label: 'Comensales', required: true, locked: true }] },
+        { key: 'pedido', nombre: 'Pedido / delivery', cta: 'Haz tu pedido', confirmacion: 'Recibimos tu pedido.', duracionMin: 15, capacidad: 1, agenda: 'none', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }] },
+      ],
+    },
+    {
+      key: 'salud', nombre: 'Salud y Estética',
+      tipos: [
+        { key: 'hora', nombre: 'Reserva de hora', cta: 'Reserva tu hora', confirmacion: 'Tu hora quedó agendada.', duracionMin: 45, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }] },
+        { key: 'consulta', nombre: 'Consulta', cta: 'Agenda tu consulta', confirmacion: 'Tu consulta está agendada.', duracionMin: 30, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'reason', tipo: 'textarea', label: 'Motivo de consulta', required: false, locked: true }] },
+      ],
+    },
+    {
+      key: 'legal', nombre: 'Legal',
+      tipos: [
+        { key: 'consulta_inicial', nombre: 'Consulta inicial', cta: 'Agenda tu consulta', confirmacion: 'Tu consulta inicial está agendada.', duracionMin: 30, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'area', tipo: 'select', label: 'Área legal', required: true, locked: true }] },
+        { key: 'revision', nombre: 'Revisión de contrato', cta: 'Agenda tu revisión', confirmacion: 'Tu revisión está agendada.', duracionMin: 45, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'detalle', tipo: 'textarea', label: 'Detalle del contrato', required: false, locked: true }] },
+      ],
+    },
+  ];
+}
+
+function cloneCatalog(rubros: any[]): any[] {
+  return JSON.parse(JSON.stringify(rubros));
+}
+
+let visualCatalog: any[] = defaultCatalog();
+
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/auth\/session$/, () => ({ authenticated: true, accessToken: syntheticJwt() })],
   [/\/auth\/refresh$/, () => ({ accessToken: syntheticJwt() })],
@@ -260,6 +293,16 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return lifecycleSettings;
   }],
   // Solicitudes (modo visual): simula la bandeja en memoria para probar el flujo completo.
+  [/\/reservations\/catalog$/i, (config) => {
+    const method = (config?.method ?? 'get').toLowerCase();
+    if (method === 'put') {
+      const body = typeof config?.data === 'string' ? JSON.parse(config.data) : config?.data;
+      if (Array.isArray(body?.rubros)) visualCatalog = cloneCatalog(body.rubros);
+    } else if (method === 'delete') {
+      visualCatalog = cloneCatalog(defaultCatalog());
+    }
+    return visualCatalog;
+  }],
   [/\/service-requests(\?[^/]*)?$/i, (config) => {
     const method = (config?.method ?? 'get').toLowerCase();
     const body = typeof config?.data === 'string' ? JSON.parse(config.data) : config?.data;
