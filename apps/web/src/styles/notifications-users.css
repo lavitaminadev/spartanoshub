@@ -72,6 +72,7 @@
 .governance-tabs { display:grid; grid-template-columns:repeat(3,1fr); padding:6px; border:1px solid var(--surface-sage); border-radius: var(--radius-lg); background:var(--white); }
 .governance-tabs button { display:grid; grid-template-columns:auto 1fr; column-gap:12px; padding:16px 18px; border:0; border-radius: var(--radius-md); background:transparent; color:var(--muted); text-align:left; cursor:pointer; }
 .governance-tabs button.active { background: var(--primary); color: var(--white); }
+.module-maintenance-note { margin: 10px 0 0; padding: 9px 12px; border: 1px solid #e7b577; border-radius: var(--radius-sm); background: #fff6e7; color: #9a5a00; font-size: 10px; font-weight: 800; }
 .governance-tabs button.active > span { color: var(--white); }
 .governance-tabs button > span { grid-row:1/3; color:var(--lime); font-family:var(--font-display); font-size:22px; }
 .governance-tabs strong { font-size:14px; }

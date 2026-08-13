@@ -4,6 +4,7 @@ import { useAuth } from '../../core/auth';
 import { BrandLockup } from '../../shared/Brand';
 import { buildSessionHostWarning } from './session-host-warning';
 import { readStoredText, storageKey, writeStoredText } from '../../core/browser-storage';
+import { VitaIcons } from '../../shared/Icons';
 
 const REMEMBERED_LOGIN_KEY = storageKey('remembered-login');
 
@@ -107,7 +108,7 @@ export function LoginPage() {
               disabled={loading}
             />
             <button type="button" className="btn btn-icon" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
-              {showPassword ? '🙈' : '👁'}
+              {showPassword ? <VitaIcons.eyeSlash /> : <VitaIcons.eye />}
             </button>
           </div>
         </div>

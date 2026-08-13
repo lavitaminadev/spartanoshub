@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { DataTable } from '../../shared/DataTable';
@@ -37,22 +37,22 @@ export function BillingPage() {
   const chargeNotes = Array.isArray(chargeData) ? chargeData : [];
   return (
     <div className="page">
-      <h1>Facturación</h1>
+      <h1>FacturaciÃ³n</h1>
       <DataTable
         keyExtractor={(r) => r.id as string}
         columns={[
-          { key: 'number', label: 'N° Factura', sortable: true },
+          { key: 'number', label: 'NÂ° Factura', sortable: true },
           { key: 'clientId', label: 'Cliente' },
           { key: 'total', label: 'Monto', render: (r) => `$${Number(r.total).toLocaleString('es-CL')}` },
           { key: 'status', label: 'Estado', render: (r) => <StatusBadge status={r.status as string} /> },
-          { key: 'issuedAt', label: 'Emisión', render: (r) => new Date(r.issuedAt as string).toLocaleDateString() },
+          { key: 'issuedAt', label: 'EmisiÃ³n', render: (r) => new Date(r.issuedAt as string).toLocaleDateString() },
         ]}
         data={invoices}
       />
       <div className="section">
         <h2>Extras por valorizar</h2>
         <p className="page-subtitle">Cobros extra por correcciones.</p>
-        {chargeNotes.length === 0 ? <EmptyState icon="💰" title="Sin cobros pendientes" description="No hay cobros adicionales por valorizar en este momento." /> : (
+        {chargeNotes.length === 0 ? <EmptyState icon="money" title="Sin cobros pendientes" description="No hay cobros adicionales por valorizar en este momento." /> : (
           <div className="table-wrapper"><table className="data-table"><thead><tr><th>Motivo</th><th>Estado</th><th>Monto CLP</th><th>Accion</th></tr></thead><tbody>
             {chargeNotes.map((note) => <tr key={note.id}>
               <td>{note.reason}</td><td><StatusBadge status={note.status} /></td>

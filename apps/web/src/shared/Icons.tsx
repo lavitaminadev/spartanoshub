@@ -46,6 +46,11 @@ import {
   FaListCheck,
   FaTicket,
   FaArrowLeft,
+  FaSackDollar,
+  FaClapperboard,
+  FaBolt,
+  FaBullseye,
+  FaUsers,
 } from 'react-icons/fa6';
 
 export const VitaIcons = {
@@ -100,6 +105,11 @@ export const VitaIcons = {
   checklist: FaListCheck,
   ticket: FaTicket,
   back: FaArrowLeft,
+  money: FaSackDollar,
+  film: FaClapperboard,
+  bolt: FaBolt,
+  target: FaBullseye,
+  team: FaUsers,
 };
 
 export type VitaIconName = keyof typeof VitaIcons;
