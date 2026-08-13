@@ -1,7 +1,7 @@
 export interface FormField { id: string; type: string; label: string; required: boolean; placeholder?: string; options?: string[]; system?: boolean; display?: string }
 export interface DesignConfig {
   primaryColor?: string; accentColor?: string; backgroundColor?: string; textColor?: string;
-  title?: string; welcome?: string; confirmationMessage?: string;
+  title?: string; welcome?: string; confirmationMessage?: string; submitLabel?: string;
   logoUrl?: string; backgroundImage?: string; backgroundMode?: string; backgroundGradient?: string;
   backgroundOpacity?: string; backgroundPosition?: string; backgroundAnchor?: string; backgroundSize?: string;
   layoutPosition?: string; logoPosition?: string; logoSize?: string; showLogo?: string;
