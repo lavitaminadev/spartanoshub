@@ -144,9 +144,6 @@ export function DashboardPage() {
         subtitle="Visión general de la operación."
         actions={<><span className="date-chip">{new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</span><button className="btn btn-outline btn-sm" onClick={() => setConfigureOpen(true)}>Configurar widgets</button></>}
       />
-      <div className="process-line">
-        <span><b>1</b>Cliente</span><span><b>2</b>Brief</span><span><b>3</b>Solicitud</span><span><b>4</b>Trabajo</span><span><b>5</b>Aprobación</span><span><b>6</b>Entrega</span>
-      </div>
 
       {/*
         Va primero: es lo que el equipo mira a primera hora. Un tablero de indicadores del mes
