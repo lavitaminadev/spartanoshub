@@ -119,7 +119,10 @@ function emptyPayload(depth = 0): unknown {
  * Todo lo demas cae en `emptyPayload()`. Cuando una vista necesite datos con forma propia,
  * se agrega su patron aca y no hay que tocar nada mas.
  */
-const ROUTES: Array<[RegExp, () => unknown]> = [
+/** Bandeja de solicitudes en memoria para el modo visual. */
+const visualRequests: any[] = [];
+
+const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/auth\/session$/, () => ({ authenticated: true, accessToken: syntheticJwt() })],
   [/\/auth\/refresh$/, () => ({ accessToken: syntheticJwt() })],
   [/\/auth\/login$/, () => ({ accessToken: syntheticJwt(), user: VISUAL_USER })],
@@ -256,6 +259,55 @@ const ROUTES: Array<[RegExp, () => unknown]> = [
     }
     return lifecycleSettings;
   }],
+  // Solicitudes (modo visual): simula la bandeja en memoria para probar el flujo completo.
+  [/\/service-requests(\?[^/]*)?$/i, (config) => {
+    const method = (config?.method ?? 'get').toLowerCase();
+    const body = typeof config?.data === 'string' ? JSON.parse(config.data) : config?.data;
+    if (method === 'post') {
+      const row: any = {
+        id: `visual-request-${visualRequests.length + 1}`,
+        type: body?.type ?? 'support',
+        status: 'received',
+        requesterName: body?.requesterName ?? 'Modo Visual',
+        requesterEmail: (body?.requesterEmail ?? 'visual@espartanos.local').toLowerCase(),
+        requesterRut: body?.requesterRut ?? '11111111-1',
+        requesterPhone: body?.requesterPhone ?? null,
+        message: body?.message ?? null,
+        resolutionNote: null,
+        resolvedBy: null,
+        resolvedAt: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      visualRequests.unshift(row);
+      return { id: row.id, status: row.status };
+    }
+    return visualRequests;
+  }],
+  [/\/service-requests\/status/i, (config) => {
+    const url = config?.url ?? '';
+    const email = new URLSearchParams((url.split('?')[1] ?? '')).get('email')?.toLowerCase() ?? '';
+    const rut = new URLSearchParams((url.split('?')[1] ?? '')).get('rut') ?? '';
+    return visualRequests
+      .filter((r) => r.requesterEmail === email && r.requesterRut === rut)
+      .map((r) => ({ id: r.id, type: r.type, status: r.status, message: r.message, resolutionNote: r.resolutionNote, createdAt: r.createdAt, resolvedAt: r.resolvedAt }));
+  }],
+  [/\/service-requests\/([^/?]+)\/anonymize$/i, (config) => {
+    const id = config.url.split('/').filter(Boolean).pop();
+    const row = visualRequests.find((r) => r.id === id);
+    if (row) { row.status = 'resolved'; row.resolutionNote = 'Datos anonimizados (modo visual)'; row.resolvedBy = 'visual-user'; row.resolvedAt = new Date().toISOString(); }
+    return row ?? { id, status: 'resolved' };
+  }],
+  [/\/service-requests\/([^/?]+)$/i, (config) => {
+    const id = (config.url.match(/\/service-requests\/([^/?]+)$/) ?? [])[1];
+    if (config.method?.toLowerCase() === 'put') {
+      const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+      const row = visualRequests.find((r) => r.id === id);
+      if (row) { row.status = body?.status ?? row.status; row.resolutionNote = body?.resolutionNote ?? row.resolutionNote; row.resolvedBy = 'visual-user'; row.resolvedAt = new Date().toISOString(); }
+      return row ?? { id, status: 'resolved', resolutionNote: body?.resolutionNote };
+    }
+    return visualRequests.find((r) => r.id === id) ?? { id, status: 'received' };
+  }],
 ];
 
 /** Adaptador de axios que resuelve toda peticion en memoria, siempre con 200. */
@@ -263,7 +315,7 @@ const visualAdapter: AxiosAdapter = async (config) => {
   const url = config.url ?? '';
   const route = ROUTES.find(([pattern]) => pattern.test(url));
   return {
-    data: route ? route[1]() : emptyPayload(),
+    data: route ? route[1](config) : emptyPayload(),
     status: 200,
     statusText: 'OK',
     headers: {},

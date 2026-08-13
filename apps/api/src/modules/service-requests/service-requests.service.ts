@@ -76,17 +76,19 @@ export class ServiceRequestsService {
   }
 
   /**
-   * Consulta pública del historial del solicitante. Requiere correo y RUT para que nadie
-   * pueda ver solicitudes ajenas; se devuelve solo el estado y la resolución, sin datos
-   * personales adicionales.
+   * Consulta pública del historial del solicitante. Basta un identificador —correo o RUT—
+   * y al menos uno es obligatorio. Si hay correo se prioriza el correo (es el identificador
+   * de la persona); con solo RUT se busca por RUT. Se devuelve solo el estado y la
+   * resolución, sin datos personales adicionales.
    */
   async findByStatus(email: string, rut?: string): Promise<Array<Record<string, unknown>>> {
-    const normalized = email.trim().toLowerCase();
-    if (!rut?.trim()) throw new BadRequestException('Para consultar el estado necesitas tu correo y tu RUT');
-    const rows = await this.requests.find({
-      where: { requesterEmail: normalized, requesterRut: rut.trim() },
-      order: { createdAt: 'DESC' },
-    });
+    const normalizedEmail = (email ?? '').trim().toLowerCase();
+    const normalizedRut = (rut ?? '').trim();
+    if (!normalizedEmail && !normalizedRut) {
+      throw new BadRequestException('Ingresa tu correo o tu RUT para consultar el estado');
+    }
+    const where = normalizedEmail ? { requesterEmail: normalizedEmail } : { requesterRut: normalizedRut };
+    const rows = await this.requests.find({ where, order: { createdAt: 'DESC' } });
     return rows.map((row) => ({
       id: row.id,
       type: row.type,
