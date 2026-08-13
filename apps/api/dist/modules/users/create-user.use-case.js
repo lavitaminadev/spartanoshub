@@ -66,6 +66,13 @@ let CreateUserUseCase = class CreateUserUseCase {
         if (data.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR && [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(normalizedRole)) {
             throw new common_1.ForbiddenException('Operations directors cannot create administrators or operations directors');
         }
+        if (normalizedRole === user_role_enum_1.UserRole.DEV) {
+            if (data.actorRole !== user_role_enum_1.UserRole.ADMIN)
+                throw new common_1.ForbiddenException('Solo administración puede asignar el cargo de desarrollo');
+            const existingDev = await this.repo.findOne({ where: { organizationId: data.organizationId, role: user_role_enum_1.UserRole.DEV, isActive: true } });
+            if (existingDev)
+                throw new common_1.ConflictException('Ya existe una cuenta con el cargo de desarrollo');
+        }
         const existing = await this.repo.findOne({ where: { email: normalizedEmail } });
         if (existing)
             throw new common_1.ConflictException('Ya existe una cuenta con este email');

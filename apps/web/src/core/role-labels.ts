@@ -7,6 +7,7 @@
  */
 export const ROLE_LABELS: Record<string, string> = {
   admin: 'Administración',
+  dev: 'Desarrollo',
   commercial_director: 'Dirección comercial',
   creative_director: 'Dirección creativa',
   operations_director: 'Dirección de operaciones',

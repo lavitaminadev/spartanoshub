@@ -26,6 +26,15 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
   ) as RoleModuleMap,
 
   /**
+   * Cargo de desarrollo: una sola persona por organización. Es la única que ve y opera los
+   * módulos en desarrollo, para poder levantarlos, probarlos y pasarlos a producción sin
+   * abrirle la fase a todo el equipo. Maneja todos los módulos.
+   */
+  [UserRole.DEV]: Object.fromEntries(
+    ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage' as PermissionLevel]),
+  ) as RoleModuleMap,
+
+  /**
    * Pipeline, precios, contratos y visión global del negocio.
    *
    * Su tablero pide ocupación del equipo, capacidad frente a demanda, UD consumidas y

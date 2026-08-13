@@ -232,7 +232,7 @@ export function PublicReservationPage() {
     submit.reset();
   };
 
-  // `mutate` es estable en react-query, asi que se depende de el y no del objeto de la
+  // `mutate` es estable en react-query, así que se depende de el y no del objeto de la
   // mutacion completo: incluir `submit` reejecutaria el efecto en cada cambio de estado.
   // El reintento lo gobierna retryRef, que se limpia antes de disparar.
   const submitMutate = submit.mutate;

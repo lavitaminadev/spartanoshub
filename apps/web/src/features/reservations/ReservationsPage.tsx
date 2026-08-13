@@ -89,7 +89,7 @@ const ATTENDANCE_PENDING = ['pending', 'confirmed', 'rescheduled', 'waitlist'];
  *
  * Lo que importa del brief es doble: que el evento haya llegado y que lleve datos de
  * coincidencia. Una reserva enviada sin identificadores cuenta como conversion perdida,
- * asi que se marca en ambar aunque el envio haya sido correcto.
+ * así que se marca en ambar aunque el envio haya sido correcto.
  */
 function metaConversionChip(conversion?: MetaConversionStatus): { tone: 'ok' | 'warn' | 'off' | 'error'; label: string; title: string } | null {
   if (!conversion) return null;

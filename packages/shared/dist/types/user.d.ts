@@ -9,7 +9,7 @@ export type UserWorkMode = 'presential' | 'hybrid' | 'remote';
  * Available roles in the platform. The role drives navigation visibility,
  * route guards, and authorization decisions.
  */
-export type UserRole = 'admin' | 'commercial_director' | 'creative_director' | 'operations_director' | 'art_director' | 'av_director' | 'ai_lead' | 'community_manager' | 'designer' | 'audiovisual' | 'client';
+export type UserRole = 'admin' | 'dev' | 'commercial_director' | 'creative_director' | 'operations_director' | 'art_director' | 'av_director' | 'ai_lead' | 'community_manager' | 'designer' | 'audiovisual' | 'client';
 /**
  * Minimal user representation returned by auth endpoints.
  */

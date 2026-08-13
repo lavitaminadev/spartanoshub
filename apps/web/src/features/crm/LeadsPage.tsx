@@ -70,7 +70,7 @@ function cameFromReservation(lead: Lead): boolean {
 }
 
 /**
- * La bandeja de reservas filtra por `search` y `clientId`, no por id de reserva, asi que
+ * La bandeja de reservas filtra por `search` y `clientId`, no por id de reserva, así que
  * el enlace la abre buscando el contacto y acotada al cliente correspondiente.
  */
 function reservationsLink(lead: Lead): string | null {
@@ -457,7 +457,7 @@ export function LeadsPage() {
                 </div>
 
                 <div className="kanban-cards">
-                  {(grouped[status]?.length ?? 0) === 0 && <div className="kanban-empty">Suelta un lead aqui</div>}
+                  {(grouped[status]?.length ?? 0) === 0 && <div className="kanban-empty">Suelta un lead aquí</div>}
                   {(grouped[status] ?? []).map((lead) => (
                     <article
                       key={lead.id}
@@ -550,7 +550,7 @@ export function LeadsPage() {
                         aria-label="Seleccionar todos los leads visibles"
                       />
                     </th>
-                    <th>Lead</th><th>Cliente</th><th>Origen</th><th>Etapa</th><th>Calidad</th><th>Ingreso</th><th>Accion</th>
+                    <th>Lead</th><th>Cliente</th><th>Origen</th><th>Etapa</th><th>Calidad</th><th>Ingreso</th><th>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -563,7 +563,7 @@ export function LeadsPage() {
                       <td data-label="Etapa"><div className="crm-table-stack"><StatusBadge status={lead.status} />{cameFromReservation(lead) && reservationsLink(lead) && <Link to={reservationsLink(lead)!}>Ver reserva</Link>}</div></td>
                       <td data-label="Calidad"><div className="crm-quality-cell"><StatusBadge status={lead.fitStatus} /><span className="crm-score-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, lead.qualityScore))}%` }} /></span><small>{lead.qualityScore}/100</small></div></td>
                       <td data-label="Ingreso">{leadDate(lead.createdAt)}</td>
-                      <td data-label="Accion"><button type="button" className="btn btn-sm btn-outline" onClick={() => setSelectedLeadId(lead.id)}>Ver ficha</button></td>
+                      <td data-label="Acción"><button type="button" className="btn btn-sm btn-outline" onClick={() => setSelectedLeadId(lead.id)}>Ver ficha</button></td>
                     </tr>
                   ))}
                 </tbody>

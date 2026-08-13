@@ -1,5 +1,6 @@
 export enum UserRole {
   ADMIN = 'admin',
+  DEV = 'dev',
   COMMERCIAL_DIRECTOR = 'commercial_director',
   CREATIVE_DIRECTOR = 'creative_director',
   OPERATIONS_DIRECTOR = 'operations_director',
