@@ -14,7 +14,13 @@ export class CreateServiceRequestDto {
   @IsOptional() @IsString() website?: string;
 }
 
-export class ResolveServiceRequestDto {
-  @IsIn(SERVICE_REQUEST_STATUSES) status: string;
+export class UpdateServiceRequestDto {
+  @IsOptional() @IsIn(SERVICE_REQUEST_TYPES) type?: string;
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(180) requesterName?: string;
+  @IsOptional() @IsEmail() @MaxLength(190) requesterEmail?: string;
+  @IsOptional() @IsString() @MaxLength(20) requesterRut?: string;
+  @IsOptional() @IsString() @MaxLength(50) requesterPhone?: string;
+  @IsOptional() @IsString() @MaxLength(2000) message?: string;
+  @IsOptional() @IsIn(SERVICE_REQUEST_STATUSES) status?: string;
   @IsOptional() @IsString() @MaxLength(3000) resolutionNote?: string;
 }

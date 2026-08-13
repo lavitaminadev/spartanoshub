@@ -115,6 +115,89 @@ export class ServiceRequestsService {
   }
 
   /**
+   * Edición completa de una solicitud desde administración: permite corregir los datos del
+   * solicitante, el tipo y el mensaje, además de cambiar el estado y la nota de resolución
+   * (incluida la reapertura). Todo cambio queda auditado con el estado anterior y el nuevo.
+   */
+  async update(
+    organizationId: string,
+    id: string,
+    actor: { id: string; name?: string },
+    body: {
+      type?: string;
+      requesterName?: string;
+      requesterEmail?: string;
+      requesterRut?: string;
+      requesterPhone?: string;
+      message?: string;
+      status?: string;
+      resolutionNote?: string;
+    },
+  ): Promise<ServiceRequest> {
+    const row = await this.getOne(organizationId, id);
+    const before: Record<string, unknown> = {
+      type: row.type,
+      status: row.status,
+      requesterName: row.requesterName,
+      requesterEmail: row.requesterEmail,
+      requesterRut: row.requesterRut,
+      requesterPhone: row.requesterPhone,
+      message: row.message,
+      resolutionNote: row.resolutionNote,
+    };
+    if (body.type !== undefined) {
+      if (!SERVICE_REQUEST_TYPES.includes(body.type as ServiceRequestType)) throw new BadRequestException('Tipo de solicitud no válido');
+      row.type = body.type;
+    }
+    if (body.requesterName !== undefined) {
+      if (!body.requesterName.trim()) throw new BadRequestException('El nombre es obligatorio');
+      row.requesterName = body.requesterName.trim();
+    }
+    if (body.requesterEmail !== undefined) {
+      const email = body.requesterEmail.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException('El correo no es válido');
+      row.requesterEmail = email;
+    }
+    if (body.requesterRut !== undefined) row.requesterRut = body.requesterRut.trim() || null;
+    if (body.requesterPhone !== undefined) row.requesterPhone = body.requesterPhone.trim() || null;
+    if (body.message !== undefined) row.message = body.message.trim() || null;
+    if (body.status !== undefined) {
+      if (!SERVICE_REQUEST_STATUSES.includes(body.status as ServiceRequestStatus)) throw new BadRequestException('Estado de resolución no válido');
+      row.status = body.status;
+      // Reabrir deja la resolución anterior como histórico; el nuevo cierre se registrará al resolver.
+      if (body.status === 'received' || body.status === 'in_review') {
+        row.resolvedAt = null;
+        row.resolvedBy = null;
+      } else {
+        row.resolvedBy = actor.id;
+        row.resolvedAt = new Date();
+      }
+    }
+    if (body.resolutionNote !== undefined) row.resolutionNote = body.resolutionNote.trim() || null;
+    const saved = await this.requests.save(row);
+    const after: Record<string, unknown> = {
+      type: saved.type,
+      status: saved.status,
+      requesterName: saved.requesterName,
+      requesterEmail: saved.requesterEmail,
+      requesterRut: saved.requesterRut,
+      requesterPhone: saved.requesterPhone,
+      message: saved.message,
+      resolutionNote: saved.resolutionNote,
+    };
+    await this.audit.log({
+      organizationId,
+      actorId: actor.id,
+      entityType: 'ServiceRequest',
+      entityId: id,
+      action: 'updated',
+      before,
+      after,
+    });
+    return saved;
+  }
+
+  /**
    * Resuelve una solicitud desde administración: cambia el estado, deja la nota de
    * resolución y audita quién la resolvió y cuándo.
    */

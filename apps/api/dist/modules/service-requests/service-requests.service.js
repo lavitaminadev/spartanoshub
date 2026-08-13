@@ -105,6 +105,77 @@ let ServiceRequestsService = class ServiceRequestsService {
             throw new common_1.NotFoundException('La solicitud no existe');
         return row;
     }
+    async update(organizationId, id, actor, body) {
+        const row = await this.getOne(organizationId, id);
+        const before = {
+            type: row.type,
+            status: row.status,
+            requesterName: row.requesterName,
+            requesterEmail: row.requesterEmail,
+            requesterRut: row.requesterRut,
+            requesterPhone: row.requesterPhone,
+            message: row.message,
+            resolutionNote: row.resolutionNote,
+        };
+        if (body.type !== undefined) {
+            if (!exports.SERVICE_REQUEST_TYPES.includes(body.type))
+                throw new common_1.BadRequestException('Tipo de solicitud no válido');
+            row.type = body.type;
+        }
+        if (body.requesterName !== undefined) {
+            if (!body.requesterName.trim())
+                throw new common_1.BadRequestException('El nombre es obligatorio');
+            row.requesterName = body.requesterName.trim();
+        }
+        if (body.requesterEmail !== undefined) {
+            const email = body.requesterEmail.trim().toLowerCase();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+                throw new common_1.BadRequestException('El correo no es válido');
+            row.requesterEmail = email;
+        }
+        if (body.requesterRut !== undefined)
+            row.requesterRut = body.requesterRut.trim() || null;
+        if (body.requesterPhone !== undefined)
+            row.requesterPhone = body.requesterPhone.trim() || null;
+        if (body.message !== undefined)
+            row.message = body.message.trim() || null;
+        if (body.status !== undefined) {
+            if (!exports.SERVICE_REQUEST_STATUSES.includes(body.status))
+                throw new common_1.BadRequestException('Estado de resolución no válido');
+            row.status = body.status;
+            if (body.status === 'received' || body.status === 'in_review') {
+                row.resolvedAt = null;
+                row.resolvedBy = null;
+            }
+            else {
+                row.resolvedBy = actor.id;
+                row.resolvedAt = new Date();
+            }
+        }
+        if (body.resolutionNote !== undefined)
+            row.resolutionNote = body.resolutionNote.trim() || null;
+        const saved = await this.requests.save(row);
+        const after = {
+            type: saved.type,
+            status: saved.status,
+            requesterName: saved.requesterName,
+            requesterEmail: saved.requesterEmail,
+            requesterRut: saved.requesterRut,
+            requesterPhone: saved.requesterPhone,
+            message: saved.message,
+            resolutionNote: saved.resolutionNote,
+        };
+        await this.audit.log({
+            organizationId,
+            actorId: actor.id,
+            entityType: 'ServiceRequest',
+            entityId: id,
+            action: 'updated',
+            before,
+            after,
+        });
+        return saved;
+    }
     async resolve(organizationId, id, actor, body) {
         if (!exports.SERVICE_REQUEST_STATUSES.includes(body.status)) {
             throw new common_1.BadRequestException('Estado de resolución no válido');
