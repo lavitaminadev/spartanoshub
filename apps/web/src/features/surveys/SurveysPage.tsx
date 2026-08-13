@@ -8,6 +8,7 @@
 
 import { useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DataTable, type Column } from '../../shared/DataTable';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { EmptyState } from '../../shared/EmptyState';
@@ -17,6 +18,8 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { PageHero } from '../../shared/PageHero';
 import { triggerToast } from '../../shared/toast-events';
 import { useDeleteSurvey, useSurveys } from './useSurveys';
+import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
 import type { Survey, SurveyType } from '@espartanos/shared';
 import './surveys.css';
 
@@ -27,11 +30,46 @@ const TYPE_FILTERS: Array<{ value: 'all' | SurveyType; label: string }> = [
   { value: 'customer', label: 'Clientes' },
 ];
 
+interface PostVisitaForm { id: string; name: string; mode: string; status: string; publicSlug?: string }
+interface SurveyContactRequest { id: string; guestName?: string | null; email?: string | null; phone?: string | null; message?: string | null; rating?: number | null; status: string; createdAt: string }
+
+function isSurveyMode(mode?: string): boolean {
+  return mode === 'survey' || mode === 'request';
+}
+
+const CONTACT_STATUS_LABELS: Record<string, string> = {
+  pending: 'Pendiente de contactar',
+  contacted: 'Contactada',
+  resolved: 'Resuelta',
+};
+
 export function SurveysPage(): JSX.Element {
   const { data: surveys = [], isLoading, error, refetch, isFetching } = useSurveys();
   const deleteMutation = useDeleteSurvey();
   const [confirmDelete, setConfirmDelete] = useState<Survey | null>(null);
   const [typeFilter, setTypeFilter] = useState<'all' | SurveyType>('all');
+  const [section, setSection] = useState<'list' | 'postvisita'>('list');
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const canPostVisita = Boolean(user && (user.role === 'admin' || user.role === 'dev' || user.role === 'operations_director' || user.role === 'community_manager'));
+
+  const { data: formsArray = [], isLoading: formsLoading } = useQuery<PostVisitaForm[]>({
+    queryKey: ['reservation-forms-postvisita'],
+    queryFn: () => api.get('/reservations/forms'),
+    enabled: section === 'postvisita' && canPostVisita,
+  });
+  const postVisitaForms = formsArray.filter((form) => isSurveyMode(form.mode));
+
+  const { data: contactRequests = [], isLoading: contactsLoading } = useQuery<SurveyContactRequest[]>({
+    queryKey: ['survey-contact-requests'],
+    queryFn: () => api.get('/reservations/survey-contact-requests'),
+    enabled: section === 'postvisita' && canPostVisita,
+  });
+  const contactMutation = useMutation({
+    mutationFn: ({ id, status, notes }: { id: string; status: string; notes?: string }) => api.put(`/reservations/survey-contact-requests/${id}`, { status, notes }),
+    onSuccess: async () => { await Promise.all([qc.invalidateQueries({ queryKey: ['survey-contact-requests'] }), qc.invalidateQueries({ queryKey: ['notifications'] })]); triggerToast('Solicitud de contacto actualizada'); },
+    onError: (error: Error) => triggerToast(`No se pudo actualizar: ${error.message}`, 'error'),
+  });
 
   if (isLoading) return <LoadingSpinner text="Cargando encuestas..." />;
   if (error) {
@@ -95,10 +133,25 @@ export function SurveysPage(): JSX.Element {
       <PageHero
         eyebrow="MEDICIÓN"
         title="Encuestas"
-        subtitle="Encuestas al equipo y a clientes: preguntas, distribución y resultados en un solo lugar."
+        subtitle="Encuestas al equipo, a clientes y post-visita: preguntas, respuestas y seguimiento en un solo lugar."
         actions={<Link className="btn btn-primary" to="/surveys/create">+ Nueva encuesta</Link>}
       />
 
+      <nav className="survey-tabs" aria-label="Secciones de encuestas">
+        <button className={section === 'list' ? 'active' : ''} onClick={() => setSection('list')}><span>01</span><strong>Encuestas</strong><small>Equipo y clientes</small></button>
+        {canPostVisita && <button className={section === 'postvisita' ? 'active' : ''} onClick={() => setSection('postvisita')}><span>02</span><strong>Post-visita y revisión</strong><small>Encuestas de reserva y seguimiento</small></button>}
+      </nav>
+
+      {section === 'postvisita' ? (
+        <section className="postvisita-module">
+          <div className="section-toolbar"><div><span className="page-eyebrow">ENCUESTAS DE RESERVA</span><h2>Encuestas post-visita</h2><p className="page-subtitle">Se envían por el enlace público de una reserva y se gestionan desde aquí, no desde reservas.</p></div><Link className="btn btn-primary" to="/reservations?create=1">+ Nueva encuesta post-visita</Link></div>
+          {formsLoading ? <LoadingSpinner text="Cargando encuestas post-visita..." /> : postVisitaForms.length === 0 ? <EmptyState icon="survey" title="Todavía no hay encuestas post-visita" description="Crea una encuesta de reserva desde este flujo y aparecerá aquí para editarla." /> : <div className="postvisita-grid">{postVisitaForms.map((form) => <article className="postvisita-card" key={form.id}><div><span className="postvisita-mode">POST-VISITA</span><h3>{form.name}</h3><small>{form.status === 'published' ? 'Publicada' : form.status === 'paused' ? 'Pausada' : 'Borrador'}</small></div><Link className="btn btn-outline btn-sm" to={`/reservations/forms/${form.id}`}>Editar</Link></article>)}</div>}
+
+          <div className="section-toolbar postvisita-review-head"><div><span className="page-eyebrow">SEGUIMIENTO</span><h2>Revisión de encuestas</h2><p className="page-subtitle">Cuando alguien califica bajo 4 estrellas se abre una solicitud de contacto y el equipo recibe una notificación.</p></div></div>
+          {contactsLoading ? <LoadingSpinner text="Cargando revisiones..." /> : contactRequests.length === 0 ? <EmptyState icon="inbox" title="Sin calificaciones bajas" description="Las encuestas con calificación bajo 4 estrellas aparecerán aquí para contactar a la persona." /> : <div className="postvisita-review-list">{contactRequests.map((row) => <article className={`postvisita-review-card is-${row.status}`} key={row.id}><header><span className="postvisita-rating">{row.rating ?? '–'}<small>/5</small></span><div><strong>{row.guestName || 'Anónimo'}</strong><small>{row.email || row.phone || 'Sin contacto'}</small></div><StatusBadge status={row.status} /></header>{row.message ? <p>{row.message}</p> : <p className="postvisita-no-message">Sin comentario adicional.</p>}<footer><span>{CONTACT_STATUS_LABELS[row.status] ?? row.status} · {new Date(row.createdAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</span><div className="actions-cell">{row.status === 'pending' && <button className="btn btn-outline btn-sm" disabled={contactMutation.isPending} onClick={() => contactMutation.mutate({ id: row.id, status: 'contacted' })}>Marcar contactada</button>}{(row.status === 'pending' || row.status === 'contacted') && <button className="btn btn-primary btn-sm" disabled={contactMutation.isPending} onClick={() => contactMutation.mutate({ id: row.id, status: 'resolved' })}>Resolver</button>}</div></footer></article>)}</div>}
+        </section>
+      ) : (
+      <>
       <div className="survey-type-switch" role="group" aria-label="Filtrar por tipo de encuesta">
         {TYPE_FILTERS.map((filter) => (
           <button
@@ -131,6 +184,9 @@ export function SurveysPage(): JSX.Element {
             exportFileName="encuestas"
           />
         </div>
+      )}
+
+      </>
       )}
 
       <ConfirmDialog

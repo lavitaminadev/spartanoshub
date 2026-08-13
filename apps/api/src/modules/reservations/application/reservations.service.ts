@@ -9,6 +9,7 @@ import { AvailabilityBlock } from '../domain/availability-block.entity';
 import { ReservationEvent } from '../domain/reservation-event.entity';
 import { ReservationFormEvent } from '../domain/reservation-form-event.entity';
 import { ReservationCoupon } from '../domain/reservation-coupon.entity';
+import { SurveyContactRequest } from '../domain/survey-contact-request.entity';
 import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLocalToUtc, zonedParts } from '../domain/timezone';
 import { normalizePhone } from '../../../shared/phone';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
@@ -88,6 +89,7 @@ export class ReservationsService {
     // argumentos posicionales, así que insertarlo en medio desplazaría las
     // dependencias existentes.
     private readonly googleOutbox: GoogleConversionOutboxService,
+    @InjectRepository(SurveyContactRequest) private readonly surveyContacts: Repository<SurveyContactRequest>,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -595,7 +597,87 @@ export class ReservationsService {
         this.logger.warn(`Meta CAPI survey enqueue failed for response ${response.id}: ${err instanceof Error ? err.message : err}`);
       }
     }
+    await this.flagLowRatingSurvey(form, response, dto);
     return response;
+  }
+
+  /**
+   * Detecta una encuesta post-visita con calificación baja y abre una solicitud de contacto
+   * para que el equipo la siga, además de notificar a quien corresponde.
+   *
+   * El rating bajo no rechaza ni altera la respuesta: se guarda y se gestiona aparte, porque
+   * quien respondió mal ya entregó su opinión y esa fila debe quedar intacta.
+   */
+  private async flagLowRatingSurvey(form: ReservationForm, response: ReservationFormEvent, dto: PublicSurveyResponseDto): Promise<void> {
+    const fields = (form.fieldSchema ?? []) as FieldConfig[];
+    const ratingField = fields.find((field) => field.type === 'rating');
+    const rawRating = ratingField ? dto.answers[ratingField.id] : undefined;
+    const rating = typeof rawRating === 'string' && rawRating !== '' ? Number(rawRating) : typeof rawRating === 'number' ? rawRating : Number.NaN;
+    if (!Number.isFinite(rating) || rating >= 4) return;
+    const commentField = fields.find((field) => field.type === 'textarea' || field.type === 'text' || /comment|mensaje|message|opinion/i.test(field.id));
+    const message = commentField ? String(dto.answers[commentField.id] ?? '').trim() : undefined;
+    try {
+      await this.surveyContacts.save(this.surveyContacts.create({
+        organizationId: form.organizationId,
+        clientId: form.clientId,
+        formId: form.id,
+        responseId: response.id,
+        guestName: dto.guestName.trim(),
+        email: dto.guestEmail?.trim().toLowerCase(),
+        phone: dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined,
+        message,
+        rating: Math.round(rating),
+        status: 'pending',
+      }));
+      await this.notifySurveyContact(form, dto.guestName.trim(), rating, message);
+    } catch (err) {
+      this.logger.warn(`Survey contact request failed for response ${response.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /**
+   * Notifica al equipo (community manager de la cuenta y administración) que una encuesta
+   * llegó con calificación baja y hay una persona por contactar.
+   */
+  private async notifySurveyContact(form: ReservationForm, guestName: string, rating: number, message?: string): Promise<void> {
+    try {
+      const rows = await this.dataSource.query(
+        `SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR role IN ('admin', 'community_manager'))`,
+        [form.organizationId, form.clientId],
+      );
+      const userIds = (rows as Array<{ id: string }>).map((row) => row.id).filter(Boolean);
+      if (userIds.length > 0) {
+        await this.notifications.notifyMultiple(
+          form.organizationId,
+          userIds,
+          'survey_low_rating',
+          'Encuesta con calificación baja',
+          `${guestName} calificó con ${rating}/5 en ${form.name}. Revisa la respuesta y contacta a la persona.${message ? ` Mensaje: ${message}` : ''}`,
+          { formId: form.id, clientId: form.clientId, responseId: undefined, rating },
+        );
+      }
+    } catch (err) {
+      this.logger.warn(`Survey low rating notification failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  async listSurveyContactRequests(organizationId: string, clientId?: string): Promise<SurveyContactRequest[]> {
+    return this.surveyContacts.find({
+      where: { organizationId, ...(clientId ? { clientId } : {}) },
+      order: { createdAt: 'DESC' },
+      take: 200,
+    });
+  }
+
+  async updateSurveyContactRequest(organizationId: string, id: string, body: { status?: string; notes?: string }): Promise<SurveyContactRequest> {
+    const row = await this.surveyContacts.findOne({ where: { id, organizationId } });
+    if (!row) throw new NotFoundException('La solicitud de contacto no existe');
+    if (body.status) row.status = body.status;
+    if (body.notes !== undefined) row.notes = body.notes;
+    if (body.status === 'resolved') {
+      row.resolvedAt = new Date();
+    }
+    return this.surveyContacts.save(row);
   }
 
   /**

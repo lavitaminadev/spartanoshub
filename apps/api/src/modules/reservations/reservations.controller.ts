@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -299,5 +299,22 @@ export class ReservationsController {
   async occupancy(@Req() req: AuthenticatedRequest, @Query() query: OccupancyQueryDto) {
     const scope = await this.requestedScope(req, query.clientId);
     return this.service.occupancyCalendar(req.organizationId, query.month, scope.clientId, scope.clientIds);
+  }
+
+  /** Revisión de encuestas post-visita con calificación baja. */
+  @Get('survey-contact-requests')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  surveyContacts(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    return this.service.listSurveyContactRequests(req.organizationId, clientId);
+  }
+
+  @Put('survey-contact-requests/:id')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  updateSurveyContact(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: { status?: string; notes?: string },
+  ) {
+    return this.service.updateSurveyContactRequest(req.organizationId, id, body);
   }
 }

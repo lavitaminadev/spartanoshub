@@ -1,7 +1,7 @@
-/*
- * Estilos de la feature de Encuestas: listado, asistente de creación/edición y dashboard de
- * resultados. Todo lo genérico (botones, inputs, tabla, tarjetas de gráfico) viene de
- * `ui-kit.css` y `dataviz.css`, ya importados de forma global; aquí solo va lo propio de esta
+﻿/*
+ * Estilos de la feature de Encuestas: listado, asistente de creaciÃ³n/ediciÃ³n y dashboard de
+ * resultados. Todo lo genÃ©rico (botones, inputs, tabla, tarjetas de grÃ¡fico) viene de
+ * `ui-kit.css` y `dataviz.css`, ya importados de forma global; aquÃ­ solo va lo propio de esta
  * pantalla.
  */
 
@@ -175,3 +175,30 @@
   .survey-type-options { grid-template-columns: 1fr; }
   .review-summary { grid-template-columns: 1fr; }
 }
+
+.survey-tabs { display: inline-flex; gap: 6px; padding: 5px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); }
+.survey-tabs button { display: grid; gap: 2px; padding: 9px 14px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 10px; font-weight: 800; text-align: left; cursor: pointer; }
+.survey-tabs button.active { background: var(--primary); color: var(--white); }
+.survey-tabs button span { font-size: 8px; opacity: .7; }
+.survey-tabs button small { display: block; font-size: 9px; opacity: .8; font-weight: 600; }
+.postvisita-module { display: grid; gap: 18px; }
+.postvisita-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.postvisita-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); }
+.postvisita-card h3 { margin: 4px 0 2px; }
+.postvisita-card small { color: var(--muted); font-size: 11px; }
+.postvisita-mode { color: var(--pink); font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.postvisita-review-head { margin-top: 6px; }
+.postvisita-review-list { display: grid; gap: 10px; }
+.postvisita-review-card { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-left: 4px solid var(--danger); border-radius: var(--radius-md); background: var(--white); }
+.postvisita-review-card.is-contactada { border-left-color: var(--amber); }
+.postvisita-review-card.is-resolved { border-left-color: var(--success); opacity: .8; }
+.postvisita-review-card header { display: flex; align-items: center; gap: 12px; }
+.postvisita-review-card header > div { display: grid; gap: 2px; }
+.postvisita-review-card header strong { font-size: 13px; }
+.postvisita-review-card header small { color: var(--muted); font-size: 11px; }
+.postvisita-review-card p { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--soft); font-size: 12px; line-height: 1.5; }
+.postvisita-review-card footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.postvisita-review-card footer > span { color: var(--muted); font-size: 10px; }
+.postvisita-rating { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #fde7ee; color: #b90749; font-size: 18px; font-weight: 900; }
+.postvisita-rating small { font-size: 10px; }
+.postvisita-no-message { color: var(--muted); }

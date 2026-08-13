@@ -25,6 +25,7 @@ const availability_block_entity_1 = require("../domain/availability-block.entity
 const reservation_event_entity_1 = require("../domain/reservation-event.entity");
 const reservation_form_event_entity_1 = require("../domain/reservation-form-event.entity");
 const reservation_coupon_entity_1 = require("../domain/reservation-coupon.entity");
+const survey_contact_request_entity_1 = require("../domain/survey-contact-request.entity");
 const timezone_1 = require("../domain/timezone");
 const phone_1 = require("../../../shared/phone");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
@@ -51,7 +52,7 @@ const STATUS_TRANSITIONS = {
     attended: [], no_show: [], cancelled_client: [], cancelled_business: [],
 };
 let ReservationsService = ReservationsService_1 = class ReservationsService {
-    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, leadIntake, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox) {
+    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, leadIntake, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts) {
         this.forms = forms;
         this.reservations = reservations;
         this.blocks = blocks;
@@ -67,6 +68,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.emails = emails;
         this.audit = audit;
         this.googleOutbox = googleOutbox;
+        this.surveyContacts = surveyContacts;
         this.logger = new common_1.Logger(ReservationsService_1.name);
     }
     slug(value) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 140); }
@@ -613,7 +615,68 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 this.logger.warn(`Meta CAPI survey enqueue failed for response ${response.id}: ${err instanceof Error ? err.message : err}`);
             }
         }
+        await this.flagLowRatingSurvey(form, response, dto);
         return response;
+    }
+    async flagLowRatingSurvey(form, response, dto) {
+        const fields = (form.fieldSchema ?? []);
+        const ratingField = fields.find((field) => field.type === 'rating');
+        const rawRating = ratingField ? dto.answers[ratingField.id] : undefined;
+        const rating = typeof rawRating === 'string' && rawRating !== '' ? Number(rawRating) : typeof rawRating === 'number' ? rawRating : Number.NaN;
+        if (!Number.isFinite(rating) || rating >= 4)
+            return;
+        const commentField = fields.find((field) => field.type === 'textarea' || field.type === 'text' || /comment|mensaje|message|opinion/i.test(field.id));
+        const message = commentField ? String(dto.answers[commentField.id] ?? '').trim() : undefined;
+        try {
+            await this.surveyContacts.save(this.surveyContacts.create({
+                organizationId: form.organizationId,
+                clientId: form.clientId,
+                formId: form.id,
+                responseId: response.id,
+                guestName: dto.guestName.trim(),
+                email: dto.guestEmail?.trim().toLowerCase(),
+                phone: dto.guestPhone ? (0, phone_1.normalizePhone)(dto.guestPhone) : undefined,
+                message,
+                rating: Math.round(rating),
+                status: 'pending',
+            }));
+            await this.notifySurveyContact(form, dto.guestName.trim(), rating, message);
+        }
+        catch (err) {
+            this.logger.warn(`Survey contact request failed for response ${response.id}: ${err instanceof Error ? err.message : err}`);
+        }
+    }
+    async notifySurveyContact(form, guestName, rating, message) {
+        try {
+            const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR role IN ('admin', 'community_manager'))`, [form.organizationId, form.clientId]);
+            const userIds = rows.map((row) => row.id).filter(Boolean);
+            if (userIds.length > 0) {
+                await this.notifications.notifyMultiple(form.organizationId, userIds, 'survey_low_rating', 'Encuesta con calificación baja', `${guestName} calificó con ${rating}/5 en ${form.name}. Revisa la respuesta y contacta a la persona.${message ? ` Mensaje: ${message}` : ''}`, { formId: form.id, clientId: form.clientId, responseId: undefined, rating });
+            }
+        }
+        catch (err) {
+            this.logger.warn(`Survey low rating notification failed: ${err instanceof Error ? err.message : err}`);
+        }
+    }
+    async listSurveyContactRequests(organizationId, clientId) {
+        return this.surveyContacts.find({
+            where: { organizationId, ...(clientId ? { clientId } : {}) },
+            order: { createdAt: 'DESC' },
+            take: 200,
+        });
+    }
+    async updateSurveyContactRequest(organizationId, id, body) {
+        const row = await this.surveyContacts.findOne({ where: { id, organizationId } });
+        if (!row)
+            throw new common_1.NotFoundException('La solicitud de contacto no existe');
+        if (body.status)
+            row.status = body.status;
+        if (body.notes !== undefined)
+            row.notes = body.notes;
+        if (body.status === 'resolved') {
+            row.resolvedAt = new Date();
+        }
+        return this.surveyContacts.save(row);
     }
     validateEmailDomain(email) {
         if (!email)
@@ -1317,6 +1380,7 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
     __param(3, (0, typeorm_1.InjectRepository)(reservation_event_entity_1.ReservationEvent)),
     __param(4, (0, typeorm_1.InjectRepository)(reservation_form_event_entity_1.ReservationFormEvent)),
     __param(5, (0, typeorm_1.InjectRepository)(reservation_coupon_entity_1.ReservationCoupon)),
+    __param(15, (0, typeorm_1.InjectRepository)(survey_contact_request_entity_1.SurveyContactRequest)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -1331,5 +1395,6 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         notification_service_1.NotificationService,
         email_service_1.EmailService,
         audit_service_1.AuditService,
-        google_conversion_outbox_service_1.GoogleConversionOutboxService])
+        google_conversion_outbox_service_1.GoogleConversionOutboxService,
+        typeorm_2.Repository])
 ], ReservationsService);
