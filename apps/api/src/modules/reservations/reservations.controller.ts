@@ -329,4 +329,10 @@ export class ReservationsController {
   saveCatalog(@Req() req: AuthenticatedRequest, @Body() body: { rubros: Array<Record<string, unknown>> }) {
     return this.service.saveReservationCatalog(req.organizationId!, req.user.id, body.rubros);
   }
+
+  @Delete('catalog')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
+  resetCatalog(@Req() req: AuthenticatedRequest) {
+    return this.service.resetReservationCatalog(req.organizationId!, req.user.id);
+  }
 }
