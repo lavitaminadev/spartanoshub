@@ -74,13 +74,13 @@ let ServiceRequestsService = class ServiceRequestsService {
         return { id: saved.id, status: saved.status };
     }
     async findByStatus(email, rut) {
-        const normalized = email.trim().toLowerCase();
-        if (!rut?.trim())
-            throw new common_1.BadRequestException('Para consultar el estado necesitas tu correo y tu RUT');
-        const rows = await this.requests.find({
-            where: { requesterEmail: normalized, requesterRut: rut.trim() },
-            order: { createdAt: 'DESC' },
-        });
+        const normalizedEmail = (email ?? '').trim().toLowerCase();
+        const normalizedRut = (rut ?? '').trim();
+        if (!normalizedEmail && !normalizedRut) {
+            throw new common_1.BadRequestException('Ingresa tu correo o tu RUT para consultar el estado');
+        }
+        const where = normalizedEmail ? { requesterEmail: normalizedEmail } : { requesterRut: normalizedRut };
+        const rows = await this.requests.find({ where, order: { createdAt: 'DESC' } });
         return rows.map((row) => ({
             id: row.id,
             type: row.type,

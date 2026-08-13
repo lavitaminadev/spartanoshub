@@ -46,6 +46,7 @@ export function SolicitudesPage(): JSX.Element {
   const [created, setCreated] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [privacyRead, setPrivacyRead] = useState(false);
 
   const [queryEmail, setQueryEmail] = useState('');
   const [queryRut, setQueryRut] = useState('');
@@ -73,12 +74,16 @@ export function SolicitudesPage(): JSX.Element {
   const consult = async (event: React.FormEvent) => {
     event.preventDefault();
     setQueryError('');
+    if (!queryEmail.trim() && !queryRut.trim()) {
+      setQueryError('Ingresa tu correo o tu RUT para consultar el estado');
+      return;
+    }
     setSearching(true);
     try {
-      const rows = await api.get<HistoryRow[]>(`/service-requests/status?email=${encodeURIComponent(queryEmail)}&rut=${encodeURIComponent(queryRut)}`);
+      const rows = await api.get<HistoryRow[]>(`/service-requests/status?email=${encodeURIComponent(queryEmail.trim())}&rut=${encodeURIComponent(queryRut.trim())}`);
       setHistory(rows);
     } catch (error) {
-      setQueryError(error instanceof Error ? error.message : 'No se pudo consultar. Verifica tu correo y RUT.');
+      setQueryError(error instanceof Error ? error.message : 'No se pudo consultar. Verifica tu correo o RUT.');
       setHistory(null);
     } finally {
       setSearching(false);
@@ -116,7 +121,7 @@ export function SolicitudesPage(): JSX.Element {
               <label>Detalle de la solicitud<textarea className="input" rows={4} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="Cuéntanos qué necesitas…" /></label>
               <input className="input honeypot" tabIndex={-1} autoComplete="off" value={website} onChange={(event) => setWebsite(event.target.value)} aria-hidden="true" />
               <div className="privacy-block">
-                <button type="button" className="btn btn-outline btn-sm" onClick={() => setPrivacyOpen((open) => !open)}>{privacyOpen ? 'Ocultar aviso de privacidad' : 'Leer aviso de privacidad'}</button>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => { setPrivacyOpen((open) => !open); setPrivacyRead(true); }}>{privacyOpen ? 'Ocultar aviso de privacidad' : 'Leer aviso de privacidad'}</button>
                 {privacyOpen && (
                   <div className="privacy-notice">
                     <p><strong>Tratamiento de datos personales</strong></p>
@@ -124,7 +129,8 @@ export function SolicitudesPage(): JSX.Element {
                     <p>Puedes ejercer tus derechos de acceso, rectificación, anonimización, portabilidad y baja a través de este mismo canal. Tus datos no se usarán para otros fines ni se compartirán con terceros, salvo obligación legal.</p>
                   </div>
                 )}
-                <label className="toggle-row privacy-check"><input type="checkbox" checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> He leído y acepto el aviso de privacidad y el tratamiento de mis datos para esta solicitud</label>
+                <label className={`toggle-row privacy-check ${privacyRead ? '' : 'is-locked'}`}><input type="checkbox" checked={privacyAccepted} disabled={!privacyRead} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> He leído y acepto el aviso de privacidad y el tratamiento de mis datos para esta solicitud</label>
+                {!privacyRead && <small className="privacy-hint">Abre el aviso de privacidad para poder aceptarlo.</small>}
               </div>
               <div className="modal-actions">
                 <button className="btn btn-outline" type="button" onClick={() => setTab('status')}>Consultar estado de una solicitud</button>
@@ -138,10 +144,10 @@ export function SolicitudesPage(): JSX.Element {
       {tab === 'status' && (
         <div className="solicitudes-card">
           <form className="modal-form" onSubmit={consult}>
-            <p className="page-subtitle">Ingresa el correo y el RUT con los que enviaste la solicitud para ver su estado y resolución.</p>
+            <p className="page-subtitle">Ingresa tu <strong>correo</strong> o tu <strong>RUT</strong> (al menos uno) para ver el estado y la resolución de tus solicitudes.</p>
             <div className="form-row">
-              <label>Correo<input className="input" type="email" required value={queryEmail} onChange={(event) => setQueryEmail(event.target.value)} /></label>
-              <label>RUT<input className="input" required value={queryRut} onChange={(event) => setQueryRut(event.target.value)} placeholder="12.345.678-9" /></label>
+              <label>Correo<input className="input" type="email" value={queryEmail} onChange={(event) => setQueryEmail(event.target.value)} /></label>
+              <label>RUT<input className="input" value={queryRut} onChange={(event) => setQueryRut(event.target.value)} placeholder="12.345.678-9" /></label>
             </div>
             {queryError && <div className="alert alert-error" role="alert">{queryError}</div>}
             <div className="modal-actions"><button className="btn btn-primary" type="submit" disabled={searching}>{searching ? 'Consultando…' : 'Consultar estado'}</button></div>
