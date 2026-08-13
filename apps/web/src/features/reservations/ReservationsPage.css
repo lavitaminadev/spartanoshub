@@ -49,9 +49,14 @@
 }
 
 .reservation-module .reservation-flow-switch button.active {
-  border-color: var(--cian);
-  box-shadow: inset 0 0 0 1px var(--cian);
-  background: color-mix(in srgb, var(--cian) 7%, var(--blanco));
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+  background: var(--primary);
+}
+
+.reservation-module .reservation-flow-switch button.active strong,
+.reservation-module .reservation-flow-switch button.active span {
+  color: var(--white);
 }
 
 .reservation-module .reservation-flow-switch strong {
@@ -129,7 +134,7 @@
 }
 
 .reservation-module .reservation-tabs button.active {
-  background: var(--cian);
+  background: var(--primary);
   color: var(--blanco);
 }
 

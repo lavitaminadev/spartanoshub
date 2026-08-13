@@ -4,6 +4,7 @@ import { api } from '../core/api';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { LoadingSpinner } from './LoadingSpinner';
+import { VitaIcons } from './Icons';
 
 interface CloudinaryResource {
   publicId: string;
@@ -65,7 +66,7 @@ export function MediaLibraryModal({ open, onClose, onSelect }: MediaLibraryProps
         {isError && <div className="alert alert-error">{error instanceof Error ? error.message : 'Error al cargar imágenes'}</div>}
         {!isLoading && !isError && resources.length === 0 && (
           <div className="media-library-empty">
-            <span>🖼</span>
+            <span><VitaIcons.image /></span>
             <strong>No hay imágenes subidas</strong>
             <small>Usa el botón "Subir imagen" para agregar la primera.</small>
           </div>
@@ -88,7 +89,7 @@ export function MediaLibraryModal({ open, onClose, onSelect }: MediaLibraryProps
                 <button type="button" className="btn btn-sm btn-outline" onClick={() => handleCopy(resource.url, resource.publicId)} title="Copiar URL">
                   {copiedId === resource.publicId ? '✓ Copiado' : 'Copiar'}
                 </button>
-                <button type="button" className="btn btn-sm btn-outline btn-danger" onClick={() => setDeleteTarget(resource)} title="Eliminar">🗑</button>
+                <button type="button" className="btn btn-sm btn-outline btn-danger" onClick={() => setDeleteTarget(resource)} title="Eliminar"><VitaIcons.delete /></button>
               </div>
             </div>
           ))}

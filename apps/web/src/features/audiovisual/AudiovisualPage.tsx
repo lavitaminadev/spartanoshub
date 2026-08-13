@@ -175,7 +175,7 @@ export function AudiovisualPage() {
               {item.status !== 'approved' && <button className="btn btn-sm btn-primary" onClick={() => setConfirmDialog({ type: 'moodboard-approve', id: item.id })}>Aprobar</button>}
             </div>}
           </article>
-        ))}</div> : <EmptyState icon="🎨" title="Sin moodboards" description="No se encontraron moodboards con los filtros aplicados." action={canManageMoodboards ? <button className="btn btn-outline" type="button" onClick={() => setMoodboardOpen(true)}>+ Moodboard</button> : undefined} />
+        ))}</div> : <EmptyState icon="palette" title="Sin moodboards" description="No se encontraron moodboards con los filtros aplicados." action={canManageMoodboards ? <button className="btn btn-outline" type="button" onClick={() => setMoodboardOpen(true)}>+ Moodboard</button> : undefined} />
       )}
       {(updateMoodboard.error || updateSession.error) && <div className="alert alert-error">No fue posible actualizar el estado. Intenta nuevamente.</div>}
 

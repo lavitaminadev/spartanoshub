@@ -151,9 +151,9 @@ export function AgendaPage() {
     </div>
 
     {!clientId
-      ? <EmptyState icon="📅" title="Elige un cliente" description="Selecciona un cliente y un formulario para ver la agenda del día." />
+      ? <EmptyState icon="calendar" title="Elige un cliente" description="Selecciona un cliente y un formulario para ver la agenda del día." />
       : forms.length === 0 && !loadingForms
-        ? <EmptyState icon="📋" title="Sin formularios de reserva" description="Este cliente todavía no tiene un formulario de reservas configurado." />
+        ? <EmptyState icon="survey" title="Sin formularios de reserva" description="Este cliente todavía no tiene un formulario de reservas configurado." />
         : <>
           <div className="agenda-summary" aria-label="Resumen del día">
             <div className="agenda-summary-badge"><strong>{fetchingReservations ? '—' : summary.total}</strong><span>Reservas hoy</span></div>

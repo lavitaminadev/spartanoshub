@@ -341,7 +341,7 @@ export function IntakePage() {
 
       {requests.length === 0 ? (
         <EmptyState
-          icon="📝"
+          icon="document"
           title="Sin solicitudes"
           description="Cuando alguien pida trabajo aparece acá, con su cuenta, su plazo y quién lo pidió."
           action={<button className="btn btn-primary" onClick={() => setCreateOpen(true)}>Nueva solicitud</button>}

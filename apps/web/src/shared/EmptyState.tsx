@@ -3,12 +3,13 @@
  */
 
 import { memo, type JSX, type ReactNode } from 'react';
+import { VitaIcons, type VitaIconName } from './Icons';
 
 /**
  * Props del componente de estado vacío.
  */
 export interface EmptyStateProps {
-  /** Icono o símbolo en texto plano mostrado sobre el mensaje. */
+  /** Nombre de icono de `VitaIcons` o símbolo en texto plano mostrado sobre el mensaje. */
   icon?: string;
   /** Título breve. */
   title?: string;
@@ -22,15 +23,16 @@ export interface EmptyStateProps {
  * Renderiza un mensaje de estado vacío amigable.
  */
 export const EmptyState = memo(function EmptyState({
-  icon = '[]',
+  icon = 'inbox',
   title = 'Sin datos',
   description = 'No hay información disponible aún.',
   action,
 }: EmptyStateProps): JSX.Element {
+  const Icon = icon && (icon as VitaIconName) in VitaIcons ? VitaIcons[icon as VitaIconName] : undefined;
   return (
     <div className="empty-state">
       <div className="empty-state-icon" aria-hidden="true">
-        {icon}
+        {Icon ? <Icon /> : icon}
       </div>
       <h3>{title}</h3>
       <p>{description}</p>

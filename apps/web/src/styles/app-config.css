@@ -21,9 +21,9 @@
 .settings-tabs { display: grid; grid-template-columns: repeat(5, 1fr); margin: 0 0 25px; border: 1px solid var(--surface-sage); border-radius: var(--radius-lg); background: var(--soft); padding: 5px; }
 .settings-tabs button { min-width: 0; display: grid; grid-template-columns: 27px 1fr; grid-template-rows: auto auto; column-gap: 8px; padding: 13px 14px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--muted); text-align: left; cursor: pointer; transition: background .2s, color .2s, box-shadow .2s, transform .2s; }
 .settings-tabs button:hover { color: var(--text-dark); transform: translateY(-1px); }
-.settings-tabs button.active { background: var(--white); color: var(--text-dark); box-shadow: 0 8px 24px rgba(34,22,29,.1); }
+.settings-tabs button.active { background: var(--primary); color: var(--white); box-shadow: none; }
 .settings-tabs button > span { grid-row: 1 / 3; width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: #f1ecef; color: var(--muted); font-size: 11px; font-weight: 900; }
-.settings-tabs button.active > span { background: var(--surface-dark); color: var(--lime); }
+.settings-tabs button.active > span { background: rgba(255, 255, 255, .22); color: var(--white); }
 .settings-tabs strong { font-size: 11px; }
 .settings-tabs small { overflow: hidden; color: var(--muted); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 .settings-feedback { margin-bottom: 18px; }

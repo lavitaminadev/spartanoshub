@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './FieldLabel.css';
+import { VitaIcons } from './Icons';
 
 interface FieldLabelProps {
   label: string;
@@ -62,7 +63,7 @@ export function FieldLabel({
   return (
     <label htmlFor={htmlFor} className="field-label">
       <span className="field-label-content">
-        {fundamental && <span className="field-label-lock" title="Campo fundamental">🔒</span>}
+        {fundamental && <span className="field-label-lock" title="Campo fundamental"><VitaIcons.lock /></span>}
         <span className="field-label-text">{label}</span>
         {required && <span className="field-label-required" aria-label="requerido">*</span>}
       </span>
@@ -74,7 +75,7 @@ export function FieldLabel({
           title="Editar nombre del campo"
           aria-label={`Editar "${label}"`}
         >
-          ✏️
+          <VitaIcons.edit />
         </button>
       )}
     </label>

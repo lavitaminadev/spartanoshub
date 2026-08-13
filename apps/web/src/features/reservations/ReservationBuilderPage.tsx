@@ -10,6 +10,7 @@ import { ImageUpload } from '../../shared/ImageUpload';
 import type { DesignConfig, FormField, ReservationForm } from './types';
 import { localInputToUtc, plainDateInZone } from './local-time';
 import { contrastText, normalizeHexColor } from '../../shared/color-contrast';
+import { VitaIcons } from '../../shared/Icons';
 import { APP_PUBLIC_URL_IS_HTTPS, publicReservationUrl } from '../../core/public-url';
 import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
@@ -36,6 +37,9 @@ const DESIGN_TEMPLATES: Array<{ name: string; config: Record<string, string> }> 
   { name: 'Espartano', config: { primaryColor: '#0ec6b8', accentColor: '#ea0f63', backgroundColor: '#f4f5f7', textColor: '#0b0b0c', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
   { name: 'Editorial', config: { primaryColor: '#222222', accentColor: '#c56d3d', backgroundColor: '#f4eee5', textColor: '#37332f', fontFamily: 'Georgia, serif', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(145deg, #f4eee5 0%, #e5d3bf 100%)', backgroundOpacity: '84', backgroundPosition: 'center', buttonRadius: '4', fieldRadius: '4' } },
   { name: 'Energía', config: { primaryColor: '#40205f', accentColor: '#ff4f87', backgroundColor: '#f8f2ff', textColor: '#332541', fontFamily: 'Inter, sans-serif', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #fff0f6 0%, #eee5ff 100%)', backgroundOpacity: '82', backgroundPosition: 'center', buttonRadius: '999', fieldRadius: '16' } },
+  { name: 'Minimal', config: { primaryColor: '#151317', accentColor: '#ec0b61', backgroundColor: '#f6f4f5', textColor: '#151317', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f6f4f5 0%, #ffffff 100%)', backgroundOpacity: '90', backgroundPosition: 'center', buttonRadius: '8', fieldRadius: '8' } },
+  { name: 'Cuartel', config: { primaryColor: '#087e79', accentColor: '#b90749', backgroundColor: '#f6f4f5', textColor: '#151317', fontFamily: "'Espartano Sans', system-ui, sans-serif", backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #e9fbf9 0%, #fff0f6 100%)', backgroundOpacity: '86', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '12' } },
+  { name: 'Noche', config: { primaryColor: '#0fb9b1', accentColor: '#ec0b61', backgroundColor: '#171417', textColor: '#ffffff', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(145deg, #151317 0%, #30272c 100%)', backgroundOpacity: '92', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
 ];
 const RECOMMENDED_FIELDS = new Set(['text', 'phone', 'email', 'number', 'consent', 'rating']);
 const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)';
@@ -328,8 +332,8 @@ export function ReservationBuilderPage() {
           </div>}
           {fields.map((field, index) => <article tabIndex={0} draggable onDragStart={(event) => event.dataTransfer.setData('field-id', field.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.stopPropagation(); const from = event.dataTransfer.getData('field-id'); if (from) reorder(from, field.id); }} className={`canvas-field ${selected === field.id ? 'selected' : ''}`} key={field.id} onClick={() => setSelected(field.id)} onFocus={() => setSelected(field.id)}>
             <span className="drag-handle" aria-label="Arrastrar para ordenar">⠿</span><div><label>{field.label}{field.required && ' *'}{field.system && <em> Protegido</em>}</label><div className="field-preview-input">{field.placeholder || (['select', 'multi_select'].includes(field.type) ? 'Selecciona una opcion' : 'Respuesta del visitante')}</div></div><div className="field-actions">
-              <button type="button" className="btn btn-sm btn-outline" aria-label={`Editar ${field.label}`} onClick={(e) => { e.stopPropagation(); openEditor(field); }} title="Editar campo">✏️</button>
-              {!field.system && <button type="button" className="btn btn-sm btn-outline btn-danger" aria-label={`Eliminar ${field.label}`} onClick={(e) => { e.stopPropagation(); setConfirmDeleteField(field.id); }} title="Eliminar campo">🗑</button>}
+              <button type="button" className="btn btn-sm btn-outline" aria-label={`Editar ${field.label}`} onClick={(e) => { e.stopPropagation(); openEditor(field); }} title="Editar campo"><VitaIcons.edit /></button>
+              {!field.system && <button type="button" className="btn btn-sm btn-outline btn-danger" aria-label={`Eliminar ${field.label}`} onClick={(e) => { e.stopPropagation(); setConfirmDeleteField(field.id); }} title="Eliminar campo"><VitaIcons.delete /></button>}
               <button type="button" className="btn btn-sm btn-outline" aria-label={`Subir ${field.label}`} disabled={index === 0} onClick={(e) => { e.stopPropagation(); moveField(field.id, -1); }} title="Subir">↑</button>
               <button type="button" className="btn btn-sm btn-outline" aria-label={`Bajar ${field.label}`} disabled={index === fields.length - 1} onClick={(e) => { e.stopPropagation(); moveField(field.id, 1); }} title="Bajar">↓</button>
             </div>

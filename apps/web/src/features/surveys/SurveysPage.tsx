@@ -116,7 +116,7 @@ export function SurveysPage(): JSX.Element {
 
       {visible.length === 0 ? (
         <EmptyState
-          icon="📋"
+          icon="survey"
           title="Todavía no hay encuestas"
           description="Crea la primera encuesta para el equipo o para tus clientes."
           action={<Link className="btn btn-primary" to="/surveys/create">Crear encuesta</Link>}

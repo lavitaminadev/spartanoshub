@@ -18,6 +18,7 @@ import { PwaInstallButton } from './PwaInstallButton';
 import { NotificationBell } from '../features/notifications/NotificationBell';
 import { ContextHelpDrawer } from './help/ContextHelpDrawer';
 import { useFocusTrap } from './useFocusTrap';
+import { VitaIcons } from './Icons';
 
 /**
  * Breakpoint en el que el sidebar pasa de fijo (desktop) a drawer superpuesto
@@ -108,7 +109,7 @@ export function Layout(): JSX.Element {
       <CommandPalette />
       {!online && <div className="offline-banner" role="alert"><strong>Sin conexión</strong><span>Puedes revisar la pantalla actual, pero los cambios no se enviarán hasta recuperar internet.</span></div>}
       <button className="sidebar-toggle" onClick={toggleSidebar} aria-label="Abrir navegación" aria-expanded={sidebarOpen}>
-        ☰
+        <VitaIcons.menu />
       </button>
       <aside ref={sidebarRef} className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
@@ -173,7 +174,7 @@ export function Layout(): JSX.Element {
               onClick={openCommandPalette}
               aria-label="Buscar o ejecutar una acción"
             >
-              <span aria-hidden="true">🔍</span>
+              <span aria-hidden="true"><VitaIcons.search /></span>
               <span>Buscar o ejecutar</span>
               <kbd>Ctrl K</kbd>
             </button>

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../core/api';
 import { MediaLibraryModal } from './MediaLibraryModal';
+import { VitaIcons } from './Icons';
 
 interface ImageUploadProps {
   label: string;
@@ -184,7 +185,7 @@ export function ImageUpload({
           </div>
         ) : (
           <div className="image-upload-placeholder">
-            <span>📷</span>
+            <span><VitaIcons.image /></span>
             <strong>{upload.isPending ? 'Subiendo imagen...' : 'Arrastra una imagen o haz clic'}</strong>
             <small>{helperText}</small>
           </div>
@@ -202,7 +203,7 @@ export function ImageUpload({
             placeholder={placeholder}
           />
           <button type="button" className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setMediaLibraryOpen(true); }} title="Elegir de la biblioteca">
-            📁
+            <VitaIcons.folder />
           </button>
         </div>
       </div>
