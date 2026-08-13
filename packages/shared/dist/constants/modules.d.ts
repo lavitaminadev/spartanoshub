@@ -10,6 +10,8 @@
  */
 export declare const MODULE_LIFECYCLE_STATUSES: readonly ["development", "pilot", "active", "maintenance", "disabled"];
 export type ModuleLifecycleStatus = (typeof MODULE_LIFECYCLE_STATUSES)[number];
+/** Etiqueta en español de cada estado de ciclo de vida, para mostrarla al usuario. */
+export declare const MODULE_LIFECYCLE_LABELS: Record<ModuleLifecycleStatus, string>;
 export interface ProductModuleDefinition<Key extends string = string> {
     key: Key;
     lifecycle: ModuleLifecycleStatus;

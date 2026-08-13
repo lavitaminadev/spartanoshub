@@ -10,7 +10,7 @@
  * El frontend lo usa para decidir si un modulo puede mostrarse siquiera.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PRODUCT_VISIBLE_LIFECYCLES = exports.WEB_ONLY_MODULE_CATALOG = exports.AGENCY_CORE_MODULE_KEYS = exports.ORGANIZATION_MODULE_CATALOG = exports.MODULE_LIFECYCLE_STATUSES = void 0;
+exports.PRODUCT_VISIBLE_LIFECYCLES = exports.WEB_ONLY_MODULE_CATALOG = exports.AGENCY_CORE_MODULE_KEYS = exports.ORGANIZATION_MODULE_CATALOG = exports.MODULE_LIFECYCLE_LABELS = exports.MODULE_LIFECYCLE_STATUSES = void 0;
 exports.buildAgencyCoreOrganizationFeatures = buildAgencyCoreOrganizationFeatures;
 exports.isModuleLifecycleVisible = isModuleLifecycleVisible;
 exports.getOrganizationModuleLifecycle = getOrganizationModuleLifecycle;
@@ -18,6 +18,14 @@ exports.isOrganizationModuleVisible = isOrganizationModuleVisible;
 exports.buildDefaultOrganizationModuleLifecycleMap = buildDefaultOrganizationModuleLifecycleMap;
 exports.moduleLifecycleSettingKey = moduleLifecycleSettingKey;
 exports.MODULE_LIFECYCLE_STATUSES = ['development', 'pilot', 'active', 'maintenance', 'disabled'];
+/** Etiqueta en español de cada estado de ciclo de vida, para mostrarla al usuario. */
+exports.MODULE_LIFECYCLE_LABELS = {
+    development: 'En desarrollo',
+    pilot: 'Piloto',
+    active: 'Activo',
+    maintenance: 'En mantenimiento',
+    disabled: 'Deshabilitado',
+};
 /**
  * Modulos gobernados por la organizacion.
  *
