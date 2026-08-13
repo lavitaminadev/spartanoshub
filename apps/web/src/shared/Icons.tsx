@@ -38,6 +38,14 @@ import {
   FaInbox,
   FaChartLine,
   FaBuilding,
+  FaClipboardList,
+  FaPalette,
+  FaMagnifyingGlass,
+  FaFilePen,
+  FaFolderOpen,
+  FaListCheck,
+  FaTicket,
+  FaArrowLeft,
 } from 'react-icons/fa6';
 
 export const VitaIcons = {
@@ -84,6 +92,14 @@ export const VitaIcons = {
   close: FaXmark,
   cog: FaGear,
   users: FaUser,
+  survey: FaClipboardList,
+  palette: FaPalette,
+  search: FaMagnifyingGlass,
+  document: FaFilePen,
+  folder: FaFolderOpen,
+  checklist: FaListCheck,
+  ticket: FaTicket,
+  back: FaArrowLeft,
 };
 
 export type VitaIconName = keyof typeof VitaIcons;

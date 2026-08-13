@@ -8,6 +8,7 @@
 
 import { Link } from 'react-router-dom';
 import { memo, type JSX } from 'react';
+import { VitaIcons } from './Icons';
 
 /**
  * Props del componente de estado sin permisos.
@@ -30,7 +31,7 @@ export const ForbiddenState = memo(function ForbiddenState({
   return (
     <div className="empty-state" role="alert">
       <div className="empty-state-icon" aria-hidden="true">
-        🔒
+        <VitaIcons.lock />
       </div>
       <h3>{title}</h3>
       <p>{description}</p>

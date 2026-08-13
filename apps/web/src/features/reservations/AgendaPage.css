@@ -74,9 +74,9 @@
 }
 
 .agenda-zone-tabs button.active {
-  border-color: var(--cian);
-  color: var(--cian-dark);
-  background: var(--nav-active-bg);
+  border-color: var(--primary);
+  color: var(--white);
+  background: var(--primary);
 }
 
 .agenda-board {

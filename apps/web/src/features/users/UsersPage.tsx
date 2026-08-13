@@ -309,7 +309,7 @@ export function UsersPage() {
               <span>CLAVE TEMPORAL · 24 HORAS · SE MUESTRA UNA VEZ</span>
               <strong>{createdPassword}</strong>
               <small>Usuario: {createdName}</small>
-              <button className="btn btn-outline btn-sm" type="button" onClick={() => { navigator.clipboard.writeText(createdPassword); setFeedback({ tone: 'success', text: 'Clave copiada al portapapeles.' }); }}>📋 Copiar clave</button>
+              <button className="btn btn-outline btn-sm" type="button" onClick={() => { navigator.clipboard.writeText(createdPassword); setFeedback({ tone: 'success', text: 'Clave copiada al portapapeles.' }); }}>Copiar clave</button>
             </div>
             <div className="alert alert-info">Comparte esta clave por un canal seguro (correo, WhatsApp, Slack). Al primer ingreso debera aceptar los terminos y crear su propia contraseña.</div>
             {feedback?.tone === 'success' && <div className="alert alert-success">{feedback.text}</div>}

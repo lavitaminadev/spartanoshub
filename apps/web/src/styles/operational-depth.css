@@ -65,7 +65,7 @@
 /* Visual approval review and evidence drawer. */
 .approval-tabs { display: inline-flex; padding: 4px; border: 1px solid var(--surface-sage); border-radius: var(--radius-md); background: var(--soft); }
 .approval-tabs button { display: flex; gap: 7px; padding: 8px 11px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; font-size: 9px; font-weight: 900; }
-.approval-tabs button.active { background: var(--surface-dark); color: var(--white); }
+.approval-tabs button.active { background: var(--primary); color: var(--white); }
 .approval-tabs span { opacity: .7; }
 .approval-grid-visual .approval-card { overflow: hidden; }
 .approval-grid-visual .approval-card.is-overdue { border-color: var(--amber); }

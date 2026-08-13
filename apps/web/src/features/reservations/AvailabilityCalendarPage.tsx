@@ -95,7 +95,7 @@ export function AvailabilityCalendarPage() {
     </div>
 
     {!clientId ? (
-      <EmptyState icon="📅" title="Elige un cliente" description="Selecciona un cliente para ver la ocupación diaria de su calendario." />
+      <EmptyState icon="calendar" title="Elige un cliente" description="Selecciona un cliente para ver la ocupación diaria de su calendario." />
     ) : isLoading ? (
       <LoadingSpinner text="Calculando ocupación..." />
     ) : error ? (

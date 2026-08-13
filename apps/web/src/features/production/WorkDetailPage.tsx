@@ -171,7 +171,7 @@ export function WorkDetailPage() {
 
   if (isLoading) return <LoadingSpinner text="Abriendo detalle del trabajo..." />;
   if (loadError && !found) return <div className="page"><div className="alert alert-error">No se pudo cargar el detalle: {loadError.message}</div><Link to="/production" className="back-link">Volver a producción</Link></div>;
-  if (!piece) return <EmptyState icon="🔍" title="Trabajo no encontrado" description="La pieza que buscas no existe o fue eliminada." action={<Link to="/production" className="btn btn-outline">Volver a producción</Link>} />;
+  if (!piece) return <EmptyState icon="search" title="Trabajo no encontrado" description="La pieza que buscas no existe o fue eliminada." action={<Link to="/production" className="btn btn-outline">Volver a producción</Link>} />;
 
   const advance = () => { if (transition) transitionMutation.mutate(transition.action); };
 
@@ -243,12 +243,12 @@ function SummaryTab({ piece, requirements, readiness }: { piece: Piece; requirem
       </div>
     </section>}
 
-    {requirements.length === 0 && <EmptyState icon="📋" title="Sin requerimientos" description="No hay checklist de control previo para este trabajo." />}
+    {requirements.length === 0 && <EmptyState icon="checklist" title="Sin requerimientos" description="No hay checklist de control previo para este trabajo." />}
   </>;
 }
 
 function FilesTab({ versions }: { versions: Array<{ id: string; kind: string; name: string; metadata: string; status: string; fileUrl?: string; createdAt: string }> }) {
-  if (!versions.length) return <EmptyState icon="📁" title="Sin archivos" description="No hay versiones de archivo para este trabajo todavía." />;
+  if (!versions.length) return <EmptyState icon="folder" title="Sin archivos" description="No hay versiones de archivo para este trabajo todavía." />;
   return <div className="file-list">
     {versions.map((v) => (
       <article key={v.id}>

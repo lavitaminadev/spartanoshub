@@ -188,11 +188,11 @@ export function SurveyResultsPage(): JSX.Element {
 
   if (loadingSurvey || (survey && loadingResults)) return <LoadingSpinner text="Cargando resultados..." />;
   if (surveyError) return <QueryErrorState title="No pudimos cargar la encuesta" message={surveyError.message} />;
-  if (!survey) return <EmptyState icon="📋" title="Encuesta no encontrada" description="Puede haber sido eliminada." />;
+  if (!survey) return <EmptyState icon="survey" title="Encuesta no encontrada" description="Puede haber sido eliminada." />;
   if (resultsError) {
     return <QueryErrorState title="No pudimos cargar los resultados" message={resultsError.message} onRetry={() => void refetch()} retrying={isFetching} />;
   }
-  if (!summary) return <EmptyState icon="📊" title="Sin resultados todavía" description="Los resultados aparecerán en cuanto lleguen respuestas." />;
+  if (!summary) return <EmptyState icon="chart" title="Sin resultados todavía" description="Los resultados aparecerán en cuanto lleguen respuestas." />;
 
   return (
     <div className="page survey-module">
@@ -210,7 +210,7 @@ export function SurveyResultsPage(): JSX.Element {
       </div>}
 
       {summary.totalResponses === 0 ? (
-        <EmptyState icon="📊" title="Todavía no hay respuestas" description="Cuando alguien responda, los resultados de cada pregunta aparecerán aquí." />
+        <EmptyState icon="chart" title="Todavía no hay respuestas" description="Cuando alguien responda, los resultados de cada pregunta aparecerán aquí." />
       ) : (
         <div className="results-grid">
           {summary.questions.map((result) => <QuestionResultCard key={result.questionId} result={result} />)}

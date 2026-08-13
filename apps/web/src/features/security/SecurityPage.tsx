@@ -147,7 +147,7 @@ export function SecurityPage() {
       </div>
       {anonymizationsQuery.isLoading ? <LoadingSpinner text="Cargando bitácora de anonimizaciones..." /> :
         anonymizationsQuery.error ? <QueryErrorState title="No pudimos cargar la bitácora" message={anonymizationsQuery.error.message} onRetry={() => anonymizationsQuery.refetch()} retrying={anonymizationsQuery.isFetching} /> :
-        !anonymizationsQuery.data?.length ? <EmptyState icon="🔒" title="Sin anonimizaciones registradas" description="Todavía no se ha anonimizado ningún dato personal en esta organización." /> :
+        !anonymizationsQuery.data?.length ? <EmptyState icon="lock" title="Sin anonimizaciones registradas" description="Todavía no se ha anonimizado ningún dato personal en esta organización." /> :
         <table className="table security-anonymization-table">
           <thead><tr><th>Fecha</th><th>Responsable</th><th>Entidad</th><th>Registro</th><th>Motivo</th></tr></thead>
           <tbody>{anonymizationsQuery.data.map((row) => <tr key={row.id}>
