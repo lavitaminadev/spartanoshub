@@ -208,6 +208,12 @@ let ReservationsController = class ReservationsController {
         const scope = await this.requestedScope(req, query.clientId);
         return this.service.occupancyCalendar(req.organizationId, query.month, scope.clientId, scope.clientIds);
     }
+    surveyContacts(req, clientId) {
+        return this.service.listSurveyContactRequests(req.organizationId, clientId);
+    }
+    updateSurveyContact(req, id, body) {
+        return this.service.updateSurveyContactRequest(req.organizationId, id, body);
+    }
 };
 exports.ReservationsController = ReservationsController;
 __decorate([
@@ -417,6 +423,25 @@ __decorate([
     __metadata("design:paramtypes", [Object, reservation_dto_1.OccupancyQueryDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "occupancy", null);
+__decorate([
+    (0, common_1.Get)('survey-contact-requests'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ReservationsController.prototype, "surveyContacts", null);
+__decorate([
+    (0, common_1.Put)('survey-contact-requests/:id'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], ReservationsController.prototype, "updateSurveyContact", null);
 exports.ReservationsController = ReservationsController = __decorate([
     (0, swagger_1.ApiTags)('Reservas'),
     (0, swagger_1.ApiBearerAuth)(),
