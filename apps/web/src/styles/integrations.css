@@ -216,7 +216,7 @@
 @media (max-width: 700px) { .cycle-editor { grid-template-columns: 1fr; } }
 
 .data-health { padding: 7px 11px; border-radius: 999px; background: #fff1e6; color: #a44a1f; font-size: 12px; font-weight: 700; }
-.data-health.is-live { background: #e4f5ef; color: #176b50; }
+.data-health.is-live { background: #f1ecef; color: #087e79; }
 .empty-insight { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding: 22px; border: 1px dashed var(--border); border-radius: var(--radius-md); background: linear-gradient(135deg, #fffaf4, var(--soft)); }
 .empty-insight span { color: var(--text-light); font-size: 13px; }
 .flow-caption { font-size: 12px; color: var(--text-light); }

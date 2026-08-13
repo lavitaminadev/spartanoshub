@@ -17,7 +17,7 @@ import { safeUrl } from '../../core/safe-url';
 
 interface Slot { startsAt: string; available: number }
 interface Created { id: string; referenceCode?: string; status?: string; startsAt?: string; couponCode?: string; createdAt?: string }
-const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f6f4f5 0%, #dce9df 100%)';
+const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f6f4f5 0%, #var(--surface-sage) 100%)';
 
 /** Clave de `sessionStorage` donde vive la clave de idempotencia de la reserva en curso. */
 const BOOKING_KEY_STORAGE = 'vh-booking-key';

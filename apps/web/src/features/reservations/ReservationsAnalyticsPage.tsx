@@ -22,7 +22,7 @@ import { EmptyState } from '../../shared/EmptyState';
  */
 
 const SERIES_TOTAL = 'var(--cian)';
-const SOURCE_RAMP = ['#0EC6B8', '#2a78d6', '#1baf7a', '#f2a93b', '#8a63d2', '#d64545', '#706a73'];
+const SOURCE_RAMP = ['#0EC6B8', '#2a78d6', '#0e8c82', '#f2a93b', '#8a63d2', '#d64545', '#706a73'];
 const AXIS_INK = '#706a73';
 const GRID_INK = '#e7e1e5';
 

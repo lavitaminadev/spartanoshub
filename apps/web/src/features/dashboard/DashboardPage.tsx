@@ -162,7 +162,7 @@ export function DashboardPage() {
         {/* Ciclo de reserva: es lo que el producto promete en esta fase, así que va primero. */}
         {moduleAllowed('reservations') && <>
           <Card title="Reservas (30 días)" value={reservationKpis.reservations} color="#2a78d6" />
-          <Card title="Asistieron" value={reservationKpis.attended} color="#1baf7a" />
+          <Card title="Asistieron" value={reservationKpis.attended} color="#0e8c82" />
           <Card title="No asistieron" value={reservationKpis.noShow} color="#EA0F63" />
           <Card title="Tasa de asistencia" value={reservationKpis.attendanceRate === null ? '—' : `${reservationKpis.attendanceRate}%`} color="#0EC6B8" />
         </>}
@@ -207,7 +207,7 @@ export function DashboardPage() {
             <ResponsiveContainer width="100%" height={200}><BarChart data={[{ name: 'Contratadas', value: data.ud.contracted, fill: '#e67e22' }, { name: 'Consumidas', value: data.ud.consumed, fill: '#087e79' }, { name: 'Reservadas', value: data.ud.reserved, fill: '#3498db' }]} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}><Cell fill="#e67e22" /><Cell fill="#087e79" /><Cell fill="#3498db" /></Bar></BarChart></ResponsiveContainer>
           </div>
           <div className="dashboard-chart-card"><h3>% Consumo</h3>
-            <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={[{ name: 'Consumido', value: data.ud.consumed }, { name: 'Disponible', value: Math.max(0, data.ud.contracted - data.ud.consumed) }]} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}><Cell fill="#087e79" /><Cell fill="#e8ece8" /></Pie><Tooltip /></PieChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={[{ name: 'Consumido', value: data.ud.consumed }, { name: 'Disponible', value: Math.max(0, data.ud.contracted - data.ud.consumed) }]} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}><Cell fill="#087e79" /><Cell fill="#f1ecef" /></Pie><Tooltip /></PieChart></ResponsiveContainer>
           </div>
         </div>
       </div>}
