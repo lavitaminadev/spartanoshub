@@ -50,6 +50,10 @@ __decorate([
     __metadata("design:type", String)
 ], CreateServiceRequestDto.prototype, "message", void 0);
 __decorate([
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateServiceRequestDto.prototype, "privacyAccepted", void 0);
+__decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)

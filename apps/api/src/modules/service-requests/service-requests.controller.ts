@@ -23,6 +23,7 @@ export class ServiceRequestsController {
       requesterRut: dto.requesterRut,
       requesterPhone: dto.requesterPhone,
       message: dto.message,
+      privacyAccepted: dto.privacyAccepted,
     });
   }
 
