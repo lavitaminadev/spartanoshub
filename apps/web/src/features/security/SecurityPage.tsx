@@ -15,6 +15,7 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
 import { PageHero } from '../../shared/PageHero';
 import { AuditPanel } from '../governance/AuditPanel';
+import { ServiceRequestsPanel } from './ServiceRequestsPanel';
 
 interface HealthCheckResult {
   status: string;
@@ -211,6 +212,8 @@ export function SecurityPage() {
           </article>
         </div> : <EmptyState icon="contract" title="Sin consentimiento publicado" description="Publica la primera versión desde el panel de control de acceso para activar el registro de aceptaciones." />}
     </section>
+
+    <ServiceRequestsPanel />
 
     <section>
       <div className="section-toolbar"><div><span className="page-eyebrow">AUDITORÍA</span><h2>Bitácora de cambios</h2></div></div>

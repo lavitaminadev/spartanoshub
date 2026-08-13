@@ -50,6 +50,7 @@ import { AccountCyclesModule } from './modules/account-cycles/account-cycles.mod
 import { ObjectivesModule } from './modules/objectives/objectives.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { SurveysModule } from './modules/surveys/surveys.module';
+import { ServiceRequestsModule } from './modules/service-requests/service-requests.module';
 import { AccountAccessModule } from './core/client-scope/account-access.module';
 import { CronModule } from './core/cron/cron.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
@@ -149,6 +150,7 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
     ObjectivesModule,
     ReservationsModule,
     SurveysModule,
+    ServiceRequestsModule,
     WorkflowsModule,
     PodsModule,
     IntakeModule,

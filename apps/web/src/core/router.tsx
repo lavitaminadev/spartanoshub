@@ -62,6 +62,7 @@ const AdminPage = lazy(() => import('../features/admin/AdminPage').then(m => ({ 
 const SurveysPage = lazy(() => import('../features/surveys/SurveysPage').then(m => ({ default: m.SurveysPage })));
 const CreateSurveyWizard = lazy(() => import('../features/surveys/CreateSurveyWizard').then(m => ({ default: m.CreateSurveyWizard })));
 const SurveyResultsPage = lazy(() => import('../features/surveys/SurveyResultsPage').then(m => ({ default: m.SurveyResultsPage })));
+const SolicitudesPage = lazy(() => import('../features/service-requests/SolicitudesPage').then(m => ({ default: m.SolicitudesPage })));
 
 function SafeSuspense({ children }: { children: React.ReactNode }) {
   return <ErrorBoundary><Suspense fallback={<LoadingSpinner text="Preparando tu espacio..." />}>{children}</Suspense></ErrorBoundary>;
@@ -91,6 +92,7 @@ export function AppRouter() {
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/forgot-password" element={<SafeSuspense><ForgotPasswordPage /></SafeSuspense>} />
         <Route path="/reset-password" element={<SafeSuspense><ResetPasswordPage /></SafeSuspense>} />
+        <Route path="/solicitudes" element={<SafeSuspense><SolicitudesPage /></SafeSuspense>} />
         <Route path="/first-access" element={<ProtectedRoute path="/first-access"><SafeSuspense><FirstAccessPage /></SafeSuspense></ProtectedRoute>} />
         <Route path="/change-password" element={<ProtectedRoute path="/change-password"><SafeSuspense><ChangePasswordPage /></SafeSuspense></ProtectedRoute>} />
         <Route path="/book/:slug" element={<SafeSuspense><PublicReservationPage /></SafeSuspense>} />

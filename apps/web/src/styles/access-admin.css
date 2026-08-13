@@ -72,3 +72,32 @@
 .permission-role-module strong { color: var(--text-dark); font-size: 13px; }
 .permission-role-module small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .permission-role-controls { display: flex; align-items: center; gap: 10px; }
+.solicitudes-card { display: grid; gap: 18px; max-width: 640px; }
+.solicitudes-card .modal-form { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); padding: 22px; }
+.solicitudes-card .honeypot { position: absolute; left: -9999px; opacity: 0; height: 0; }
+.solicitudes-history { display: grid; gap: 10px; }
+.solicitud-row { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--line); border-left: 4px solid var(--cyan); border-radius: var(--radius-md); background: var(--white); }
+.solicitud-row header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.solicitud-row header strong { font-size: 13px; }
+.solicitud-row header small { margin-left: auto; color: var(--muted); font-size: 10px; }
+.solicitud-row p { margin: 0; color: var(--text-light); font-size: 12px; line-height: 1.5; }
+.solicitud-status { padding: 3px 9px; border-radius: 999px; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
+.solicitud-status.is-received { background: var(--cyan-soft); color: var(--cyan-deep); }
+.solicitud-status.is-in_review { background: var(--amber-soft); color: var(--amber-deep); }
+.solicitud-status.is-resolved { background: var(--success-bg); color: var(--success-deep); }
+.solicitud-status.is-rejected { background: #fde7ee; color: var(--pink-dark); }
+.solicitud-status.is-more_info { background: var(--amber-soft); color: var(--amber-deep); }
+.solicitud-resolution { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--soft); }
+.solicitud-resolution strong { font-size: 10px; color: var(--muted); }
+.solicitud-resolution small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+.solicitud-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-solicitudes { display: grid; gap: 12px; }
+.admin-solicitud-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); }
+.admin-solicitud-card header { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.admin-solicitud-card header strong { font-size: 13px; }
+.admin-solicitud-card header small { color: var(--muted); font-size: 11px; }
+.admin-solicitud-card p { margin: 0; font-size: 12px; line-height: 1.5; }
+.admin-solicitud-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.admin-solicitud-facts span { display: grid; gap: 2px; }
+.admin-solicitud-facts small { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+.admin-solicitud-facts strong { font-size: 12px; }
