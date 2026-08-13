@@ -109,7 +109,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }.sidebar-header{
   padding: 22px 20px;border-bottom: 1px solid rgba(255,255,255,0.1);display: flex;align-items: center;gap: 12px;
 }
-.sidebar-header > div:last-child { min-width: 0; }.sidebar-header h2{
+.sidebar-header > div:last-child { min-width: 0; }
+.role-preview { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin: 0 10px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: var(--radius-md); background: rgba(255,255,255,.06); }
+.role-preview > span { color: rgba(255,255,255,.6); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
+.role-preview-select { flex: 1; min-width: 0; padding: 6px 8px; border: 0; border-radius: var(--radius-sm); background: var(--surface-dark); color: var(--white); font-size: 11px; font-weight: 800; }.sidebar-header h2{
   color: var(--white);font-size: 20px;margin: 0;letter-spacing: 1px;line-height: 1.05;
 }
 .sidebar-header span { display: block; margin-top: 4px; font-size: 9px; color: rgba(255,255,255,.56); text-transform: uppercase; letter-spacing: .16em; }

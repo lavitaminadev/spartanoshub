@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { UserRoles, type UserRole } from '@espartanos/shared';
 import { useAuth } from '../core/auth';
 import { roleLabel } from '../core/role-labels';
 import { getNavigation, getNavigationSections } from '../core/navigation.registry';
@@ -50,8 +51,12 @@ export function Layout(): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT_QUERY).matches);
+  // Previsualización de navegación por cargo. Solo la usa el cargo de desarrollo para
+  // revisar qué ve cada rol antes de promocionar un módulo; nadie más lo ve.
+  const [previewRole, setPreviewRole] = useState<UserRole | undefined>(undefined);
   const sidebarRef = useRef<HTMLElement>(null);
   useEffect(() => { const updateConnection = () => setOnline(navigator.onLine); window.addEventListener('online', updateConnection); window.addEventListener('offline', updateConnection); return () => { window.removeEventListener('online', updateConnection); window.removeEventListener('offline', updateConnection); }; }, []);
+  useEffect(() => { if (user?.role !== 'dev') setPreviewRole(undefined); }, [user?.role]);
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_BREAKPOINT_QUERY);
     const updateIsMobile = () => setIsMobile(mediaQuery.matches);
@@ -86,16 +91,18 @@ export function Layout(): JSX.Element {
   // Calcula la navegación una vez por cambio de rol para evitar filtrar en cada render.
   //
   // El menú se arma con el cargo y los permisos de quien mira, sin intermediarios: lo que se
-  // dibuja y lo que se autoriza describen a la misma persona.
+  // dibuja y lo que se autoriza describen a la misma persona. El cargo de desarrollo puede
+  // previsualizar la navegación de otro cargo sin cambiar su sesión.
+  const effectiveRole = previewRole ?? user?.role;
   const navItems = useMemo(
-    () => getNavigation(user?.role, user?.features, user?.permissions, user?.moduleLifecycle),
-    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle],
+    () => getNavigation(effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle),
+    [effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle],
   );
   // Las secciones viven en el registro junto al orden del sidebar: mantenerlas acá hacía
   // que una ruta no listada desapareciera del menú sin aviso.
   const groupedNavItems = useMemo(
-    () => getNavigationSections(user?.role, user?.features, user?.permissions, user?.moduleLifecycle),
-    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle],
+    () => getNavigationSections(effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle),
+    [effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle],
   );
 
   const toggleSidebar = useCallback(() => setSidebarOpen((open) => !open), []);
@@ -116,6 +123,18 @@ export function Layout(): JSX.Element {
           <BrandMark decorative />
           <div><h2>Espartanos</h2><span>{roleLabel(user?.role)}</span></div>
         </div>
+
+        {user?.role === 'dev' && (
+          <label className="role-preview">
+            <span>Vista como</span>
+            <select className="input role-preview-select" value={effectiveRole} onChange={(event) => {
+              const next = event.target.value as UserRole;
+              setPreviewRole(next === user?.role ? undefined : next);
+            }}>
+              {UserRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
+            </select>
+          </label>
+        )}
 
         <nav className="sidebar-nav">
           {groupedNavItems.map((group) => (
