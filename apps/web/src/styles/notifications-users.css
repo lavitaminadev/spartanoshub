@@ -34,7 +34,18 @@
 
 /* Users and access */
 .users-filter-bar { align-items: center; }
-.users-filter-bar .input:first-child { flex: 1 1 260px; }
+
+/*
+ * El buscador ocupa el espacio sobrante de la fila, con un ancho de partida propio.
+ *
+ * La regla se acota a la disposición en fila a propósito: por debajo de 768px `.filters` pasa
+ * a `flex-direction: column` (drawer.css), y en columna `flex-basis` gobierna el alto y no el
+ * ancho. Sin acotarla, ese ancho de partida se leía como altura y el campo de búsqueda se
+ * estiraba a 260px de alto.
+ */
+@media (min-width: 769px) {
+  .users-filter-bar .input:first-child { flex: 1 1 260px; }
+}
 .access-scope, .access-state-cell { display:grid; gap:3px; }
 .access-scope small, .access-state-cell small { color:var(--muted); font-size:11px; }
 .password-generator { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; }
@@ -160,7 +171,10 @@
 @media(max-width:1000px){.workflow-command-bar,.workflow-grid{grid-template-columns:1fr}.pod-governance-grid{grid-template-columns:repeat(2,1fr)}.workflow-step-fields{grid-template-columns:1fr 1fr}.workflow-step-fields input:last-child{grid-column:1/3}}
 @media(max-width:700px){.governance-tabs{grid-template-columns:1fr}.pod-governance-grid{grid-template-columns:1fr}.pod-assignment-grid{grid-template-columns:1fr}.workflow-step-editor article{grid-template-columns:24px 1fr}.workflow-step-actions{grid-column:2}.workflow-step-fields{grid-template-columns:1fr}.workflow-step-fields input:last-child{grid-column:auto}.section-toolbar{align-items:start;flex-direction:column}}
 .crm-filter-bar { align-items: center; }
-.crm-filter-bar .input:first-child { flex: 1 1 320px; }
+/* Mismo motivo que en `.users-filter-bar`: el ancho de partida solo vale en fila. */
+@media (min-width: 769px) {
+  .crm-filter-bar .input:first-child { flex: 1 1 320px; }
+}
 .filter-result-count { margin-left: auto; color: var(--text-light); font-family: var(--font-mono); font-size: 10px; }
 .user-cell { display: flex; flex-direction: column; min-width: 170px; }
 .user-cell strong { color: var(--text-dark); font-size: 13px; }
