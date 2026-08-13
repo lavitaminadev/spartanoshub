@@ -1,4 +1,4 @@
-.permission-matrix-section { margin-top: 0; }
+﻿.permission-matrix-section { margin-top: 0; }
 .permission-matrix-wrapper { overflow-x: auto; border: 1px solid var(--surface-sage); border-radius: var(--radius-md); background: var(--white); }
 .permission-matrix { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
 .permission-matrix th,
@@ -58,3 +58,17 @@
   .permission-matrix .sticky-col { min-width: 110px; }
   .level-select { min-width: 80px; }
 }
+
+.permission-view-toggle { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--soft); }
+.permission-view-toggle button { padding: 6px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 800; cursor: pointer; }
+.permission-view-toggle button.active { background: var(--primary); color: var(--white); }
+.permission-role-view { display: grid; gap: 14px; }
+.permission-role-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.permission-role-picker button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); color: var(--muted); font-size: 11px; font-weight: 800; cursor: pointer; }
+.permission-role-picker button.active { border-color: var(--primary); background: var(--primary); color: var(--white); }
+.permission-role-modules { display: grid; gap: 8px; }
+.permission-role-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); }
+.permission-role-module { display: grid; gap: 2px; }
+.permission-role-module strong { color: var(--text-dark); font-size: 13px; }
+.permission-role-module small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.permission-role-controls { display: flex; align-items: center; gap: 10px; }

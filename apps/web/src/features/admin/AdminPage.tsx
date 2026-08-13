@@ -46,6 +46,8 @@ export function AdminPage() {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [dirty, setDirty] = useState(false);
   const [matrixDraft, setMatrixDraft] = useState<Record<string, Record<string, PermissionLevel>>>({});
+  const [permView, setPermView] = useState<'matrix' | 'role'>('role');
+  const [roleFocus, setRoleFocus] = useState<string>(ROLE_KEYS[0]);
   const [exceptionOpen, setExceptionOpen] = useState(false);
   const [exceptionDraft, setExceptionDraft] = useState({ userId: '', userRole: '', module: '', level: 'view' as PermissionLevel, reason: '', expiresAt: '' });
   const [revokeTarget, setRevokeTarget] = useState<{ userId: string; module: string } | null>(null);
@@ -221,6 +223,7 @@ export function AdminPage() {
 
     {tab === 'permisos' && <section className="permission-matrix-section">
       <div className="section-toolbar"><div><span className="page-eyebrow">MATRIZ DE ACCESO</span><h2>Permisos por cargo y mÃ³dulo</h2><p className="page-subtitle">Cada celda define quÃ© puede hacer un cargo en un mÃ³dulo. Los cambios se guardan al confirmar.</p></div>
+        <div className="permission-view-toggle" role="group" aria-label="Forma de ver los permisos"><button className={permView === 'role' ? 'active' : ''} onClick={() => setPermView('role')}>Por cargo</button><button className={permView === 'matrix' ? 'active' : ''} onClick={() => setPermView('matrix')}>Matriz completa</button></div>
         {dirty && <div className="toolbar-actions"><button className="btn btn-outline btn-sm" onClick={() => { setMatrixDraft({}); setDirty(false); qc.invalidateQueries({ queryKey: ['role-permissions'] }); }}>Descartar cambios</button><button className="btn btn-primary btn-sm" disabled={permMutation.isPending} onClick={() => permMutation.mutate(currentMatrix)}>{permMutation.isPending ? 'Guardando...' : 'Guardar matriz'}</button></div>}
       </div>
       <div className="permission-help">
@@ -229,12 +232,19 @@ export function AdminPage() {
         </div>
         <p>Sin acceso = el mÃ³dulo no aparece en el menÃº. Ver = navegable pero sin editar. Editar = modificar datos propios del mÃ³dulo. Administrar = cambiar configuraciÃ³n del mÃ³dulo.</p>
       </div>
+      {permView === 'role' ? (
+        <div className="permission-role-view">
+          <div className="permission-role-picker" role="group" aria-label="Elegir cargo">{ROLE_KEYS.map((role) => <button key={role} className={roleFocus === role ? 'active' : ''} onClick={() => setRoleFocus(role)}>{ROLE_LABELS[role]}</button>)}</div>
+          <div className="permission-role-modules">{MODULE_CATALOG.map((mod) => { const level = currentMatrix[mod.key]?.[roleFocus] ?? 'none'; const enabled = level !== 'none'; return <div className="permission-role-row" key={mod.key}><div className="permission-role-module"><strong>{mod.key}</strong><small>{mod.lifecycle}</small></div><div className="permission-role-controls"><label className="central-switch"><input type="checkbox" checked={enabled} onChange={(e) => setCell(mod.key, roleFocus, e.target.checked ? (currentMatrix[mod.key]?.[roleFocus] !== 'none' ? currentMatrix[mod.key]?.[roleFocus] as PermissionLevel : 'view') : 'none')} /><span></span><strong>{enabled ? 'Con acceso' : 'Sin acceso'}</strong></label>{enabled && <select className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, roleFocus, e.target.value as PermissionLevel)}>{LEVELS.filter((l) => l !== 'none').map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select>}</div></div>; })}</div>
+        </div>
+      ) : (
       <div className="permission-matrix-wrapper">
         <table className="permission-matrix">
           <thead><tr><th className="sticky-col">MÃ³dulo</th>{ROLE_KEYS.map((role) => <th key={role} className="matrix-role-col" title={ROLE_LABELS[role]}><span>{ROLE_LABELS[role]}</span></th>)}</tr></thead>
           <tbody>{MODULE_CATALOG.map((mod) => <tr key={mod.key}><td className="sticky-col module-label"><strong>{mod.key}</strong><small>{mod.lifecycle}</small></td>{ROLE_KEYS.map((role) => { const level = currentMatrix[mod.key]?.[role] ?? 'none'; return <td key={role} className="matrix-cell"><select className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, role, e.target.value as PermissionLevel)}>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select></td>; })}</tr>)}</tbody>
         </table>
       </div>
+      )}
     </section>}
 
     {tab === 'modulos' && <section className="modules-center">
