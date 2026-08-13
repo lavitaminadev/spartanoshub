@@ -357,7 +357,7 @@ export function ProductionPage() {
             <small>La vista deja claro donde nace la pieza y cual es el siguiente paso esperado.</small>
           </article>
           <article className="production-command-card production-command-card-emphasis">
-            <span>Siguiente accion</span>
+            <span>Siguiente acción</span>
             <strong>{spotlightPiece?.title ?? 'Sin piezas prioritarias'}</strong>
             <p>{spotlightPiece ? `${getProductionActionLabel(spotlightPiece.status)} para ${spotlightPiece.clientName}.` : 'Cuando entren piezas nuevas, esta tarjeta destacara la que requiere movimiento inmediato.'}</p>
             {spotlightPiece && (
@@ -634,7 +634,7 @@ export function ProductionPage() {
       <ConfirmDialog
         open={Boolean(deliverPieceId)}
         title="Entregar pieza"
-        description="Se cerrara el ciclo. Esta accion no se puede deshacer."
+        description="Se cerrara el ciclo. Esta acción no se puede deshacer."
         confirmLabel="Entregar"
         pending={transitionMutation.isPending}
         onClose={() => setDeliverPieceId(null)}

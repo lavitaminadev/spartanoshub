@@ -50,9 +50,13 @@ export const OUT_OF_SCOPE_MODULES: Readonly<Record<string, ModuleLifecycleStatus
 export function isModuleInPhaseScope(
   module?: string,
   organizationLifecycle?: Partial<Record<string, ModuleLifecycleStatus>>,
+  userRole?: string,
 ): boolean {
   if (!PHASE_SCOPE_ENABLED) return true;
   if (!module) return true;
+  // El cargo de desarrollo (único por organización) es quien levanta los módulos en
+  // desarrollo: para él la fase no oculta nada.
+  if (userRole === 'dev') return true;
   const lifecycle = (organizationLifecycle?.[module]
     ?? buildDefaultOrganizationModuleLifecycleMap()[module as keyof ReturnType<typeof buildDefaultOrganizationModuleLifecycleMap>]
     ?? MODULE_LIFECYCLE[module as ProductModuleKey]) as ModuleLifecycleStatus | undefined;

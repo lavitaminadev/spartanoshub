@@ -10,6 +10,7 @@ const TEAM_BASELINE = {
 };
 exports.ROLE_PERMISSIONS = {
     [user_role_enum_1.UserRole.ADMIN]: Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage'])),
+    [user_role_enum_1.UserRole.DEV]: Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage'])),
     [user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR]: {
         ...TEAM_BASELINE,
         clients: 'manage',

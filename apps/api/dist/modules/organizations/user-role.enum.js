@@ -4,6 +4,7 @@ exports.UserRole = void 0;
 var UserRole;
 (function (UserRole) {
     UserRole["ADMIN"] = "admin";
+    UserRole["DEV"] = "dev";
     UserRole["COMMERCIAL_DIRECTOR"] = "commercial_director";
     UserRole["CREATIVE_DIRECTOR"] = "creative_director";
     UserRole["OPERATIONS_DIRECTOR"] = "operations_director";

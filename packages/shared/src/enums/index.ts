@@ -92,4 +92,4 @@ export const IntegrationStatuses = ['pending', 'connected', 'disconnected', 'err
 export const UserWorkModes = ['presential', 'hybrid', 'remote'] as const satisfies readonly UserWorkMode[]
 
 /** All allowed user roles. */
-export const UserRoles = ['admin', 'commercial_director', 'creative_director', 'operations_director', 'art_director', 'av_director', 'ai_lead', 'community_manager', 'designer', 'audiovisual', 'client'] as const satisfies readonly UserRole[]
+export const UserRoles = ['admin', 'dev', 'commercial_director', 'creative_director', 'operations_director', 'art_director', 'av_director', 'ai_lead', 'community_manager', 'designer', 'audiovisual', 'client'] as const satisfies readonly UserRole[]

@@ -322,7 +322,7 @@ export function LeadDetailDrawer({ leadId, onClose }: LeadDetailDrawerProps) {
             <label>Tipo<select className="input" value={activityForm.type} onChange={(event) => setActivityForm({ ...activityForm, type: event.target.value })}><option value="call">Llamada</option><option value="email">Correo</option><option value="meeting">Reunion</option><option value="whatsapp">WhatsApp</option><option value="note">Nota</option></select></label>
             <label>Fecha y hora<input className="input" type="datetime-local" value={activityForm.date} onChange={(event) => setActivityForm({ ...activityForm, date: event.target.value })} /><small>Deja vacio para registrar la hora actual o elige una fecha futura para seguimiento.</small></label>
           </div>
-          <label>Detalle<textarea className="input" rows={5} required maxLength={10000} value={activityForm.description} onChange={(event) => setActivityForm({ ...activityForm, description: event.target.value })} placeholder="Acuerdo, proximo paso o contexto relevante..." /></label>
+          <label>Detalle<textarea className="input" rows={5} required maxLength={10000} value={activityForm.description} onChange={(event) => setActivityForm({ ...activityForm, description: event.target.value })} placeholder="Acuerdo, próximo paso o contexto relevante..." /></label>
           <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setActivityOpen(false)}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={createActivityMutation.isPending || !activityForm.description.trim()}>{createActivityMutation.isPending ? 'Guardando...' : 'Guardar actividad'}</button></div>
         </form>
       </Modal>

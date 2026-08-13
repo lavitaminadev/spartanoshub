@@ -60,5 +60,5 @@ exports.IntegrationStatuses = ['pending', 'connected', 'disconnected', 'error'];
 /** All allowed user work modes. */
 exports.UserWorkModes = ['presential', 'hybrid', 'remote'];
 /** All allowed user roles. */
-exports.UserRoles = ['admin', 'commercial_director', 'creative_director', 'operations_director', 'art_director', 'av_director', 'ai_lead', 'community_manager', 'designer', 'audiovisual', 'client'];
+exports.UserRoles = ['admin', 'dev', 'commercial_director', 'creative_director', 'operations_director', 'art_director', 'av_director', 'ai_lead', 'community_manager', 'designer', 'audiovisual', 'client'];
 //# sourceMappingURL=index.js.map

@@ -143,7 +143,7 @@ export function UsersPage() {
   const users = Array.isArray(data) ? data : [];
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const availableRoles = currentUser?.role === 'operations_director'
-    ? USER_ROLES.filter((role) => !['admin', 'operations_director'].includes(role))
+    ? USER_ROLES.filter((role) => !['admin', 'operations_director', 'dev'].includes(role))
     : [...USER_ROLES];
 
   const canManage = (row: UserRow) => currentUser?.role === 'admin' || !['admin', 'operations_director'].includes(row.role);

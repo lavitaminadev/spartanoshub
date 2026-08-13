@@ -127,7 +127,7 @@ export function getNavigation(
   const roleAwareItems = getFeatures(userRole)
     .flatMap((f) => f.navigation)
     .filter((item) => !item.roles || !userRole || item.roles.includes(userRole))
-    .filter((item) => isPathEnabled(item.path, features, permissions, moduleLifecycle));
+    .filter((item) => isPathEnabled(item.path, features, permissions, moduleLifecycle, userRole));
 
   const orderMap = new Map(NAVIGATION_ORDER.map((p, i) => [p, i]));
   return roleAwareItems
@@ -261,11 +261,13 @@ export function isPathEnabled(
   features?: Record<string, boolean>,
   permissions?: Record<string, string>,
   moduleLifecycle?: Record<string, ModuleLifecycleStatus>,
+  userRole?: string,
 ): boolean {
   const required = getFeatureForPath(path);
   // El alcance de fase se evalúa antes que permisos y capacidades: un módulo que el producto
   // todavía no ofrece no debe aparecer para nadie, por más permisos que tenga el usuario.
-  if (!isModuleInPhaseScope(required, moduleLifecycle)) return false;
+  // La excepción es el cargo de desarrollo, único por organización, que es quien los levanta.
+  if (!isModuleInPhaseScope(required, moduleLifecycle, userRole)) return false;
   if (!required) return true;
   if (permissions) return permissions[required] !== undefined && permissions[required] !== 'none';
   if (features) return features[required] !== false;

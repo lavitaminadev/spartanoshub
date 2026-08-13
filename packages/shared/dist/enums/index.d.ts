@@ -56,5 +56,5 @@ export declare const IntegrationStatuses: readonly ["pending", "connected", "dis
 /** All allowed user work modes. */
 export declare const UserWorkModes: readonly ["presential", "hybrid", "remote"];
 /** All allowed user roles. */
-export declare const UserRoles: readonly ["admin", "commercial_director", "creative_director", "operations_director", "art_director", "av_director", "ai_lead", "community_manager", "designer", "audiovisual", "client"];
+export declare const UserRoles: readonly ["admin", "dev", "commercial_director", "creative_director", "operations_director", "art_director", "av_director", "ai_lead", "community_manager", "designer", "audiovisual", "client"];
 //# sourceMappingURL=index.d.ts.map

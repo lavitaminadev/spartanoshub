@@ -13,6 +13,7 @@ export type UserWorkMode = 'presential' | 'hybrid' | 'remote'
  */
 export type UserRole =
   | 'admin'
+  | 'dev'
   | 'commercial_director'
   | 'creative_director'
   | 'operations_director'

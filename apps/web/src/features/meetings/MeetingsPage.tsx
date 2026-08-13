@@ -187,7 +187,7 @@ export function MeetingsPage() {
                     {!meeting.meetingLink && <button className="btn btn-sm btn-outline" onClick={() => calendarMutation.mutate(meeting.id)} disabled={calendarMutation.isPending}>Publicar en Google Calendar</button>}
                     <input
                       className="input"
-                      placeholder="Nuevo compromiso o accion"
+                      placeholder="Nuevo compromiso o acción"
                       value={actionItemDrafts[meeting.id] || ''}
                       onChange={(e) => setActionItemDrafts((current) => ({ ...current, [meeting.id]: e.target.value }))}
                     />

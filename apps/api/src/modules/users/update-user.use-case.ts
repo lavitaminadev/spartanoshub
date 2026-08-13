@@ -44,6 +44,16 @@ export class UpdateUserUseCase {
     if (data.actorId === user.id && (data.isActive === false || (data.role && data.role !== user.role))) {
       throw new BadRequestException('No puedes desactivar ni cambiar el rol de tu propia cuenta');
     }
+    if (data.role === UserRole.DEV || user.role === UserRole.DEV) {
+      if (data.actorRole !== UserRole.ADMIN) throw new ForbiddenException('Solo administración puede asignar o gestionar el cargo de desarrollo');
+      if (data.role === UserRole.DEV && user.role !== UserRole.DEV) {
+        const existingDev = await this.usersRepo.findOne({ where: { organizationId: data.organizationId, role: UserRole.DEV, isActive: true } });
+        if (existingDev) throw new ConflictException('Ya existe una cuenta con el cargo de desarrollo');
+      }
+      if (data.isActive === false && user.role === UserRole.DEV) {
+        throw new BadRequestException('La cuenta de desarrollo no puede desactivarse sin asignar antes otra a un cargo de desarrollo');
+      }
+    }
 
     if (typeof data.name === 'string') user.name = data.name.trim();
     if (typeof data.email === 'string') {

@@ -53,7 +53,7 @@ export function BillingPage() {
         <h2>Extras por valorizar</h2>
         <p className="page-subtitle">Cobros extra por correcciones.</p>
         {chargeNotes.length === 0 ? <EmptyState icon="money" title="Sin cobros pendientes" description="No hay cobros adicionales por valorizar en este momento." /> : (
-          <div className="table-wrapper"><table className="data-table"><thead><tr><th>Motivo</th><th>Estado</th><th>Monto CLP</th><th>Accion</th></tr></thead><tbody>
+          <div className="table-wrapper"><table className="data-table"><thead><tr><th>Motivo</th><th>Estado</th><th>Monto CLP</th><th>Acción</th></tr></thead><tbody>
             {chargeNotes.map((note) => <tr key={note.id}>
               <td>{note.reason}</td><td><StatusBadge status={note.status} /></td>
               <td>{note.amount ? `$${Number(note.amount).toLocaleString('es-CL')}` : <input className="input input-compact" aria-label={`Monto para ${note.reason}`} type="number" min="1" value={prices[note.id] ?? ''} onChange={(event) => setPrices({ ...prices, [note.id]: event.target.value })} />}</td>
