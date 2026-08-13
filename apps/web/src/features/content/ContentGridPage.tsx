@@ -123,7 +123,7 @@ export function ContentGridPage() {
         <div><span>Parrillas</span><strong>{metrics.grids}</strong></div><div><span>Publicaciones</span><strong>{metrics.items}</strong></div><div><span>Aprobadas</span><strong>{metrics.approved}</strong></div><div><span>Publicadas</span><strong>{metrics.published}</strong></div>
       </div>
 
-      {grids.length === 0 ? <EmptyState icon="[]" title="Sin parrillas para este periodo" description="Crea una parrilla semanal y agrega las publicaciones planificadas." /> : (
+      {grids.length === 0 ? <EmptyState icon="calendar" title="Sin parrillas para este periodo" description="Crea una parrilla semanal y agrega las publicaciones planificadas." /> : (
         <div className="content-plan-list">
           {grids.map((grid) => (
             <section className="content-plan-card" key={grid.id}>

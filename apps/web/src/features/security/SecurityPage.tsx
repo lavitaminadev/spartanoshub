@@ -209,7 +209,7 @@ export function SecurityPage() {
             <h3>Derechos ARCO</h3>
             <p>Acceso, Rectificación, Cancelación y Oposición. Cualquier usuario puede solicitar la exportación o anonimización de sus datos desde su perfil.</p>
           </article>
-        </div> : <EmptyState icon="📜" title="Sin consentimiento publicado" description="Publica la primera versión desde el panel de control de acceso para activar el registro de aceptaciones." />}
+        </div> : <EmptyState icon="contract" title="Sin consentimiento publicado" description="Publica la primera versión desde el panel de control de acceso para activar el registro de aceptaciones." />}
     </section>
 
     <section>

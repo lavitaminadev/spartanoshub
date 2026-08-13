@@ -45,7 +45,7 @@ export function ClientMeetings() {
 
       {meetings.length === 0 ? (
         <EmptyState
-          icon="[]"
+          icon="calendar"
           title="Sin reuniones agendadas"
           description="No hay reuniones publicadas para este cliente en este momento."
         />

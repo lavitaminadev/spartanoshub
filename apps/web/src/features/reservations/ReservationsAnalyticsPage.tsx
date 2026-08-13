@@ -160,7 +160,7 @@ export function ReservationsAnalyticsPage({ clientId }: { clientId?: string } = 
 
       {isEmpty ? (
         <EmptyState
-          icon="[]"
+          icon="chart"
           title="Todavía no hay reservas en este rango"
           description="Cuando entren reservas en este período, acá aparecen los KPIs y los gráficos de evolución, áreas y fuentes."
         />

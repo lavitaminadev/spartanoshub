@@ -19,6 +19,6 @@ export function ClientReports() {
       subtitle="Resultados con métricas verificables."
       actions={<button className="btn btn-outline" disabled={!reports.length} onClick={() => window.print()}>Imprimir / guardar PDF</button>}
     />
-    {reports.length ? <div className="client-monthly-reports">{reports.map((report) => <MonthlyReportCard key={report.id} report={report} detailed />)}</div> : <EmptyState icon="[]" title="Sin informes publicados" description="Cuando el equipo termine y apruebe un informe mensual, aparecerá aquí automáticamente." />}
+    {reports.length ? <div className="client-monthly-reports">{reports.map((report) => <MonthlyReportCard key={report.id} report={report} detailed />)}</div> : <EmptyState icon="document" title="Sin informes publicados" description="Cuando el equipo termine y apruebe un informe mensual, aparecerá aquí automáticamente." />}
   </div>;
 }

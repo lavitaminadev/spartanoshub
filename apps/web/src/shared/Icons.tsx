@@ -51,6 +51,9 @@ import {
   FaBolt,
   FaBullseye,
   FaUsers,
+  FaTrophy,
+  FaClock,
+  FaFileContract,
 } from 'react-icons/fa6';
 
 export const VitaIcons = {
@@ -110,6 +113,9 @@ export const VitaIcons = {
   bolt: FaBolt,
   target: FaBullseye,
   team: FaUsers,
+  trophy: FaTrophy,
+  clock: FaClock,
+  contract: FaFileContract,
 };
 
 export type VitaIconName = keyof typeof VitaIcons;
