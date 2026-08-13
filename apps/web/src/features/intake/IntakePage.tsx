@@ -331,10 +331,7 @@ export function IntakePage() {
           </button>
         </div>
       </div>
-      <div className="process-line" style={{ marginBottom: 16 }}>
-        <span><b>1</b>Solicitud</span><span><b>2</b>Revisión</span><span><b>3</b>Asignación</span><span><b>4</b>Producción</span><span><b>5</b>Entrega</span>
-      </div>
-
+      
       {feedback && (
         <div className={`alert ${feedback.startsWith('Error:') ? 'alert-error' : 'alert-success'}`} role="alert">{feedback}</div>
       )}
