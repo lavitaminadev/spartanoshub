@@ -180,7 +180,7 @@ apiClient.interceptors.request.use((config) => {
 function extractErrorMessage(error: AxiosError<ApiErrorPayload>): string {
   if (!error.response) {
     if (error.code === 'ECONNABORTED') return 'El servidor está tardando más de lo esperado. Intenta nuevamente en unos segundos.';
-    return 'No pudimos conectar con Espartanos. Revisa la conexión y confirma que el servicio local esté iniciado.';
+    return 'No pudimos conectar con Espartanos. Revisa tu conexión a internet e inténtalo nuevamente en unos segundos.';
   }
   if (error.response.status === 429) return 'Se realizaron muchas solicitudes seguidas. Espera unos segundos antes de volver a intentar.';
   if (error.response.status >= 500) return 'El servidor encontró un problema y la acción no se completó. Tus datos no se guardaron parcialmente.';
@@ -188,7 +188,8 @@ function extractErrorMessage(error: AxiosError<ApiErrorPayload>): string {
   if (data?.errors?.length) {
     return data.errors.slice(0, 3).map((item) => item.message).join('. ');
   }
-  return data?.message || error.message || 'Error de servidor';
+  if (data?.message) return data.message;
+  return 'El servidor no pudo completar la solicitud. Inténtalo nuevamente en unos segundos.';
 }
 
 function describeApiError(error: AxiosError<ApiErrorPayload>, message: string): ApiErrorEventDetail {

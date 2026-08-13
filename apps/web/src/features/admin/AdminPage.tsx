@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { ROLE_LABELS } from '../../core/role-labels';
 import {
+  MODULE_LIFECYCLE_LABELS,
   MODULE_LIFECYCLE_STATUSES,
   ORGANIZATION_MODULE_CATALOG,
   buildAgencyCoreOrganizationFeatures,
@@ -215,7 +216,7 @@ export function AdminPage() {
     </div>
     <nav className="governance-tabs">
       <button className={tab === 'permisos' ? 'active' : ''} onClick={() => { setTab('permisos'); setFeedback(null); }}><span>01</span><strong>Permisos por cargo</strong><small>Matriz de acceso por rol y módulo</small></button>
-      <button className={tab === 'modulos' ? 'active' : ''} onClick={() => { setTab('modulos'); setFeedback(null); }}><span>02</span><strong>Módulos</strong><small>Lifecycle y acceso por organización</small></button>
+      <button className={tab === 'modulos' ? 'active' : ''} onClick={() => { setTab('modulos'); setFeedback(null); }}><span>02</span><strong>Módulos</strong><small>Ciclo de vida y acceso por organización</small></button>
       <button className={tab === 'excepciones' ? 'active' : ''} onClick={() => { setTab('excepciones'); setFeedback(null); }}><span>03</span><strong>Accesos por persona</strong><small>Excepciones y accesos temporales</small></button>
       <button className={tab === 'consentimiento' ? 'active' : ''} onClick={() => { setTab('consentimiento'); setFeedback(null); }}><span>04</span><strong>Consentimiento</strong><small>Versiones, aceptación y acceso</small></button>
     </nav>
@@ -235,13 +236,13 @@ export function AdminPage() {
       {permView === 'role' ? (
         <div className="permission-role-view">
           <div className="permission-role-picker" role="group" aria-label="Elegir cargo">{ROLE_KEYS.map((role) => <button key={role} className={roleFocus === role ? 'active' : ''} onClick={() => setRoleFocus(role)}>{ROLE_LABELS[role]}</button>)}</div>
-          <div className="permission-role-modules">{MODULE_CATALOG.map((mod) => { const level = currentMatrix[mod.key]?.[roleFocus] ?? 'none'; const enabled = level !== 'none'; return <div className="permission-role-row" key={mod.key}><div className="permission-role-module"><strong>{mod.key}</strong><small>{mod.lifecycle}</small></div><div className="permission-role-controls"><label className="central-switch"><input type="checkbox" checked={enabled} onChange={(e) => setCell(mod.key, roleFocus, e.target.checked ? (currentMatrix[mod.key]?.[roleFocus] !== 'none' ? currentMatrix[mod.key]?.[roleFocus] as PermissionLevel : 'view') : 'none')} /><span></span><strong>{enabled ? 'Con acceso' : 'Sin acceso'}</strong></label>{enabled && <select className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, roleFocus, e.target.value as PermissionLevel)}>{LEVELS.filter((l) => l !== 'none').map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select>}</div></div>; })}</div>
+          <div className="permission-role-modules">{MODULE_CATALOG.map((mod) => { const level = currentMatrix[mod.key]?.[roleFocus] ?? 'none'; const enabled = level !== 'none'; return <div className="permission-role-row" key={mod.key}><div className="permission-role-module"><strong>{mod.key}</strong><small>{MODULE_LIFECYCLE_LABELS[mod.lifecycle]}</small></div><div className="permission-role-controls"><label className="central-switch"><input type="checkbox" checked={enabled} onChange={(e) => setCell(mod.key, roleFocus, e.target.checked ? (currentMatrix[mod.key]?.[roleFocus] !== 'none' ? currentMatrix[mod.key]?.[roleFocus] as PermissionLevel : 'view') : 'none')} /><span></span><strong>{enabled ? 'Con acceso' : 'Sin acceso'}</strong></label>{enabled && <select className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, roleFocus, e.target.value as PermissionLevel)}>{LEVELS.filter((l) => l !== 'none').map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select>}</div></div>; })}</div>
         </div>
       ) : (
       <div className="permission-matrix-wrapper">
         <table className="permission-matrix">
           <thead><tr><th className="sticky-col">Módulo</th>{ROLE_KEYS.map((role) => <th key={role} className="matrix-role-col" title={ROLE_LABELS[role]}><span>{ROLE_LABELS[role]}</span></th>)}</tr></thead>
-          <tbody>{MODULE_CATALOG.map((mod) => <tr key={mod.key}><td className="sticky-col module-label"><strong>{mod.key}</strong><small>{mod.lifecycle}</small></td>{ROLE_KEYS.map((role) => { const level = currentMatrix[mod.key]?.[role] ?? 'none'; return <td key={role} className="matrix-cell"><select className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, role, e.target.value as PermissionLevel)}>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select></td>; })}</tr>)}</tbody>
+          <tbody>{MODULE_CATALOG.map((mod) => <tr key={mod.key}><td className="sticky-col module-label"><strong>{mod.key}</strong><small>{MODULE_LIFECYCLE_LABELS[mod.lifecycle]}</small></td>{ROLE_KEYS.map((role) => { const level = currentMatrix[mod.key]?.[role] ?? 'none'; return <td key={role} className="matrix-cell"><select className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, role, e.target.value as PermissionLevel)}>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select></td>; })}</tr>)}</tbody>
         </table>
       </div>
       )}
@@ -256,10 +257,10 @@ export function AdminPage() {
         </div>
         <button className="btn btn-primary" type="button" disabled={featuresMutation.isPending} onClick={applyAgencyCorePreset}>Usar solo operación base</button>
       </div>
-      <div className="reservation-flow-switch module-lifecycle-summary" role="group" aria-label="Resumen por lifecycle">
+      <div className="reservation-flow-switch module-lifecycle-summary" role="group" aria-label="Resumen por ciclo de vida">
         <button className="active" type="button"><strong>{lifecycleSummary.active ?? 0}</strong><span>Activos</span></button>
         <button type="button"><strong>{lifecycleSummary.development ?? 0}</strong><span>En desarrollo</span></button>
-        <button type="button"><strong>{lifecycleSummary.pilot ?? 0}</strong><span>Pilot</span></button>
+        <button type="button"><strong>{lifecycleSummary.pilot ?? 0}</strong><span>Piloto</span></button>
         <button type="button"><strong>{lifecycleSummary.maintenance ?? 0}</strong><span>Mantenimiento</span></button>
         <button type="button"><strong>{lifecycleSummary.disabled ?? 0}</strong><span>Deshabilitados</span></button>
       </div>
@@ -270,25 +271,25 @@ export function AdminPage() {
           const orgEnabled = features?.[module.key] ?? module.defaultEnabled;
           return <article key={module.key} className="module-governance-card">
             <header>
-              <div><span className={`status-dot ${productVisible && orgEnabled ? 'active' : 'paused'}`} /><div><h3>{module.key}</h3><small>{productVisible ? 'Visible en producto' : 'Oculto por lifecycle'}</small></div></div>
+              <div><span className={`status-dot ${productVisible && orgEnabled ? 'active' : 'paused'}`} /><div><h3>{module.key}</h3><small>{productVisible ? 'Visible en producto' : 'Oculto por ciclo de vida'}</small></div></div>
               <strong>{orgEnabled ? 'Activo' : 'Apagado'}</strong>
             </header>
             <div className="pod-facts">
-              <span><small>Lifecycle</small><strong>{lifecycle}</strong></span>
+              <span><small>Ciclo de vida</small><strong>{MODULE_LIFECYCLE_LABELS[lifecycle]}</strong></span>
               <span><small>Producto</small><strong>{productVisible ? 'Visible' : 'Oculto'}</strong></span>
               <span><small>Defecto</small><strong>{module.defaultEnabled ? 'Encendido' : 'Apagado'}</strong></span>
             </div>
             <div className="context-line">
               <span>Estado del producto</span>
               <select className="input" value={lifecycle} disabled={lifecycleMutation.isPending} onChange={(event) => updateLifecycle(module.key, event.target.value as ModuleLifecycleStatus)}>
-                {MODULE_LIFECYCLE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                {MODULE_LIFECYCLE_STATUSES.map((status) => <option key={status} value={status}>{MODULE_LIFECYCLE_LABELS[status]}</option>)}
               </select>
             </div>
             <div className="context-line">
               <span>Acceso organización</span>
               <label className="toggle-row"><input type="checkbox" checked={orgEnabled} disabled={featuresMutation.isPending} onChange={(event) => toggleFeature(module.key, event.target.checked)} /> {orgEnabled ? 'Módulo activo' : 'Módulo apagado'}</label>
             </div>
-            <p className="page-subtitle">{productVisible ? 'El menú lo mostrará solo si el rol también tiene permiso.' : 'No aparece al usuario final hasta cambiar su lifecycle.'}</p>
+            <p className="page-subtitle">{productVisible ? 'El menú lo mostrará solo si el rol también tiene permiso.' : 'No aparece al usuario final hasta cambiar su ciclo de vida.'}</p>
           </article>;
         })}
       </div>

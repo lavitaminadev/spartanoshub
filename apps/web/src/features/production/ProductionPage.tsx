@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -65,7 +65,7 @@ const EMPTY_FORM: PieceFormState = {
 };
 
 function getErrorMessage(error: Error): string {
-  return error.message || 'No se pudo completar la operacion.';
+  return error.message || 'No se pudo completar la operación.';
 }
 
 function getProductionActionLabel(status: string): string {
@@ -357,13 +357,13 @@ export function ProductionPage() {
             <small>La vista deja claro donde nace la pieza y cual es el siguiente paso esperado.</small>
           </article>
           <article className="production-command-card production-command-card-emphasis">
-            <span>Siguiente acción</span>
+            <span>Siguiente acciÃ³n</span>
             <strong>{spotlightPiece?.title ?? 'Sin piezas prioritarias'}</strong>
             <p>{spotlightPiece ? `${getProductionActionLabel(spotlightPiece.status)} para ${spotlightPiece.clientName}.` : 'Cuando entren piezas nuevas, esta tarjeta destacara la que requiere movimiento inmediato.'}</p>
             {spotlightPiece && (
               <small>
                 {spotlightPiece.assignedTo ? `Responsable: ${userMap.get(spotlightPiece.assignedTo) ?? 'Equipo asignado'}` : 'Todavia sin responsable asignado'}
-                {spotlightPiece.dueDate ? ` · vence ${new Date(spotlightPiece.dueDate).toLocaleDateString('es-CL')}` : ''}
+                {spotlightPiece.dueDate ? ` Â· vence ${new Date(spotlightPiece.dueDate).toLocaleDateString('es-CL')}` : ''}
               </small>
             )}
           </article>
@@ -405,7 +405,7 @@ export function ProductionPage() {
                   <div className="capacity-track"><i style={{ width: `${Math.min(usage, 100)}%` }} /></div>
                   <footer>
                     <span>{member.ud} / {member.capacity} UD</span>
-                    <strong>{usage}%{usage > 100 ? ' · Sobrecapacidad' : ''}</strong>
+                    <strong>{usage}%{usage > 100 ? ' Â· Sobrecapacidad' : ''}</strong>
                   </footer>
                 </article>
               );
@@ -477,7 +477,7 @@ export function ProductionPage() {
                   <div className={`gantt-row ${blocked ? 'is-blocked' : ''}`} key={piece.id}>
                     <div className="gantt-row-label">
                       <strong>{piece.title}</strong>
-                      <small>{userMap.get(piece.assignedTo || '') || 'Sin asignar'} · {piece.udAmount} UD</small>
+                      <small>{userMap.get(piece.assignedTo || '') || 'Sin asignar'} Â· {piece.udAmount} UD</small>
                       {blockers.length > 0 && <em>{blocked ? 'Bloqueada por' : 'Dependia de'}: {blockers.map((dependency) => dependency?.title).join(', ')}</em>}
                     </div>
                     <div className="gantt-lane">
@@ -538,7 +538,7 @@ export function ProductionPage() {
             </select>
           </label>
           <button className="btn btn-primary btn-block" type="submit" disabled={assignMutation.isPending || !assigneeId}>
-            {assignMutation.isPending ? 'Asignando...' : 'Confirmar asignacion'}
+            {assignMutation.isPending ? 'Asignando...' : 'Confirmar asignación'}
           </button>
         </form>
       </Modal>
@@ -600,7 +600,7 @@ export function ProductionPage() {
           <label>
             Dependencias previas
             <select className="input production-dependency-select" multiple value={form.dependencyIds} onChange={(event) => setForm({ ...form, dependencyIds: Array.from(event.currentTarget.selectedOptions, (option) => option.value) })}>
-              {(pieces ?? []).filter((piece) => piece.status !== 'delivered').map((piece) => <option value={piece.id} key={piece.id}>{piece.title} · {piece.clientName}</option>)}
+              {(pieces ?? []).filter((piece) => piece.status !== 'delivered').map((piece) => <option value={piece.id} key={piece.id}>{piece.title} Â· {piece.clientName}</option>)}
             </select>
             <small>Usa Ctrl o Cmd para seleccionar varias. El Gantt mostrara los bloqueos pendientes.</small>
           </label>
@@ -634,7 +634,7 @@ export function ProductionPage() {
       <ConfirmDialog
         open={Boolean(deliverPieceId)}
         title="Entregar pieza"
-        description="Se cerrara el ciclo. Esta acción no se puede deshacer."
+        description="Se cerrara el ciclo. Esta acciÃ³n no se puede deshacer."
         confirmLabel="Entregar"
         pending={transitionMutation.isPending}
         onClose={() => setDeliverPieceId(null)}
