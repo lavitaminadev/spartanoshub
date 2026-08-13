@@ -61,18 +61,22 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
     label: 'Reservas',
     paths: ['/reservations', '/reservations/agenda', '/reservations/calendar', '/reservations/waitlist', '/reservations/analytics'],
   },
-  { id: 'requests', label: 'Solicitudes', paths: ['/intake'] },
   {
     id: 'production',
     label: 'Trabajos',
-    // El flujo del trabajo: se pide (Solicitudes), se produce (Producción/Audiovisual) y el
-    // resultado se reconoce (Gamificación). El orden del menú cuenta el orden del proceso.
-    paths: ['/production', '/audiovisual', '/gamification'],
+    // El flujo completo del trabajo, en su orden real: se pide, se produce, se aprueba y se
+    // publica. Antes cada etapa era su propia sección de un solo ítem, de modo que el menú
+    // repetía la palabra dos veces seguidas —«Solicitudes / Solicitudes»— y separaba pasos
+    // que pertenecen al mismo recorrido.
+    paths: ['/intake', '/production', '/audiovisual', '/approvals', '/content', '/gamification'],
   },
-  { id: 'approvals', label: 'Aprobaciones', paths: ['/approvals'] },
-  { id: 'content', label: 'Contenido', paths: ['/content'] },
-  { id: 'surveys', label: 'Encuestas', paths: ['/surveys'] },
-  { id: 'results', label: 'Resultados', paths: ['/reports', '/direction'] },
+  {
+    id: 'results',
+    label: 'Medición',
+    // Encuestas vive acá y no en su propia sección: lo que se pregunta y lo que se reporta
+    // responden la misma pregunta —cómo fue— y se consultan juntos.
+    paths: ['/surveys', '/reports', '/direction'],
+  },
   {
     id: 'admin',
     label: 'Administración',

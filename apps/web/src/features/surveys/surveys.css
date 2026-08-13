@@ -149,12 +149,12 @@
   align-items: center;
   gap: 0;
 }
-.nps-gauge-value strong { font-size: 26px; color: var(--ink); font-family: Georgia, serif; }
+.nps-gauge-value strong { font-size: 26px; color: var(--ink); font-family: var(--font-display); }
 .nps-gauge-value span { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 
 .results-rating { display: flex; flex-direction: column; gap: 12px; }
 .rating-average { display: flex; align-items: baseline; gap: 6px; }
-.rating-average strong { font-size: 24px; color: var(--ink); font-family: Georgia, serif; }
+.rating-average strong { font-size: 24px; color: var(--ink); font-family: var(--font-display); }
 .rating-average span { font-size: 11px; color: var(--muted); }
 
 .results-text { display: flex; flex-direction: column; gap: 12px; }

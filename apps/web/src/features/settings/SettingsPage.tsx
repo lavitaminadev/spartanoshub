@@ -282,11 +282,12 @@ export function SettingsPage() {
 
   return (
     <div className="page settings-central">
+      {/* El sello del encabezado nombra al sistema, no a la agencia que lo opera. */}
       <PageHero
         eyebrow="CONFIGURACIÓN CENTRAL"
         title="Configuración de reservas y Meta."
         subtitle="Identidad, accesos y configuraciones."
-        aside={<div className="settings-hero-mark" aria-hidden="true"><span>LV</span><small>control</small></div>}
+        aside={<div className="settings-hero-mark" aria-hidden="true"><span>ESP</span><small>control</small></div>}
       />
 
       <section className="settings-health-grid" aria-label="Resumen de configuración">

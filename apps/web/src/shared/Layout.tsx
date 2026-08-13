@@ -119,7 +119,11 @@ export function Layout(): JSX.Element {
         <nav className="sidebar-nav">
           {groupedNavItems.map((group) => (
             <section className="sidebar-nav-section" key={group.label} aria-label={group.label}>
-              <span className="sidebar-nav-section-title">{group.label}</span>
+              {/* Un encabezado que repite el nombre de su único ítem no agrupa nada: solo hace
+                  leer la misma palabra dos veces. El `aria-label` de la sección lo conserva
+                  para quien navega con lector de pantalla. */}
+              {!(group.items.length === 1 && group.items[0].label === group.label)
+                && <span className="sidebar-nav-section-title">{group.label}</span>}
               {group.items.map((item) => {
                 const active = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                 return (

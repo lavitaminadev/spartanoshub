@@ -81,7 +81,20 @@
   --radius-lg: 20px;
   --sidebar-width: 240px;
   --font: 'Espartano Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  /*
+   * Familia de los títulos. Es la misma que el texto corrido: la jerarquía la dan el tamaño,
+   * el peso ligero y el interletrado cerrado, no una segunda tipografía.
+   *
+   * Hasta ahora los títulos declaraban `Georgia, serif` a mano en 57 reglas de 7 archivos,
+   * mientras este token —que existía— se usaba una sola vez. La identidad de la aplicación
+   * quedaba escrita en hojas de componente y no se podía cambiar desde acá, que es
+   * precisamente para lo que sirve.
+   */
   --font-display: 'Espartano Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  /* Peso e interletrado que acompañan a `--font-display`: un título grande en peso normal se
+     lee más limpio que uno seminegrita, y el interletrado negativo lo compacta. */
+  --font-display-weight: 400;
+  --font-display-tracking: -.05em;
   --font-mono: 'SF Mono', Monaco, Consolas, monospace;
   /* Barras de progreso y fondos tonales (extensión prototipo) */
   --progress-xs: 4px;

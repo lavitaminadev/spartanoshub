@@ -23,11 +23,11 @@
 .page-hero-title h1,
 .page-hero-title h2 {
   margin: 8px 0 0;
-  font-family: Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(30px, 4vw, 52px);
-  font-weight: 500;
+  font-weight: var(--font-display-weight);
   line-height: 1.02;
-  letter-spacing: -.045em;
+  letter-spacing: var(--font-display-tracking);
 }
 .page-hero-subtitle { max-width: 660px; margin: 10px 0 0; font-size: 13px; line-height: 1.65; }
 .page-hero-actions { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
@@ -117,7 +117,7 @@
 }
 .page-hero-stats > span:last-child { border-right: 0; }
 .page-hero-stats small { color: rgba(255,255,255,.55); font-size: 9px; font-weight: 800; line-height: 1.25; }
-.page-hero-stats strong { color: #fff; font-family: Georgia, serif; font-size: 28px; font-weight: 500; }
+.page-hero-stats strong { color: #fff; font-family: var(--font-display); font-size: 28px; font-weight: 500; }
 
 @media (max-width: 860px) {
   .page-hero { grid-template-columns: minmax(0, 1fr); }

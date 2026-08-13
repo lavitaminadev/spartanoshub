@@ -13,7 +13,7 @@
 .viz-stat-row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
 .viz-stat-row article { display: grid; gap: 3px; padding: 15px 17px; border: 1px solid var(--viz-line); border-radius: 14px; background: #fff; }
 .viz-stat-row span { color: var(--viz-ink-soft); font-size: 9px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
-.viz-stat-row strong { color: var(--viz-ink); font-family: Georgia,serif; font-size: 27px; font-weight: 500; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.viz-stat-row strong { color: var(--viz-ink); font-family: var(--font-display); font-size: 27px; font-weight: 500; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .viz-stat-row small { color: var(--viz-ink-soft); font-size: 10px; }
 
 .viz-note { margin: -8px 0 12px; color: var(--viz-ink-soft); font-size: 10px; line-height: 1.45; }
