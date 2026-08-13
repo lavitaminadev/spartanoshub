@@ -94,7 +94,7 @@
 
 /* Reservations is intentionally its own product surface. */
 .reservation-module { --reservation-ink:#151317; --reservation-lime:var(--lime); }
-.reservation-cta { border-color:var(--reservation-lime); background:var(--reservation-lime); color:var(--reservation-ink); box-shadow:0 10px 30px rgba(15,185,177,.18); }
+.reservation-cta { border-color: var(--primary); background: var(--primary); color: var(--white); box-shadow: 0 10px 30px rgba(236,11,97,.18); }
 .reservation-tabs { display:flex; gap:5px; margin-bottom:28px; padding:8px; border:1px solid var(--surface-sage); border-radius: var(--radius-lg); background:var(--white); }
 .reservation-tabs button { min-height:42px; padding:0 18px; border:0; border-radius: var(--radius-md); background:transparent; color:var(--text); font-weight:800; cursor:pointer; }
 .reservation-tabs button.active { background:#f1ecef; color:var(--reservation-ink); }

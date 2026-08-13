@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { Card } from '../../shared/Card';
@@ -108,7 +108,7 @@ export function OperationsPage() {
 
   if (isLoading) return <LoadingSpinner text="Cargando operaciones..." />;
   if (error) return <div className="alert alert-error">Error al cargar operaciones</div>;
-  if (!data) return <EmptyState icon="📊" title="Sin datos" description="No hay información de operaciones disponible en este momento." />;
+  if (!data) return <EmptyState icon="ðŸ“Š" title="Sin datos" description="No hay informaciÃ³n de operaciones disponible en este momento." />;
 
   const utilizationPct = data.totalCapacity > 0 ? Math.round((data.usedCapacity / data.totalCapacity) * 100) : 0;
 
@@ -116,15 +116,15 @@ export function OperationsPage() {
     <div className="page">
       <h1>Operaciones</h1>
       <div className="card-grid">
-        <Card title="Capacidad Total" value={data.totalCapacity > 0 ? `${data.totalCapacity} UD` : 'Sin definir'} icon="📊" color="var(--info)" />
-        <Card title="Demanda Actual" value={`${data.usedCapacity} UD`} icon="⚡" color="var(--amber)" />
-        <Card title="Utilización" value={data.totalCapacity > 0 ? `${utilizationPct}%` : 'Sin definir'} icon="📈" color={utilizationPct > 80 ? 'var(--danger)' : 'var(--success)'} />
+        <Card title="Capacidad Total" value={data.totalCapacity > 0 ? `${data.totalCapacity} UD` : 'Sin definir'} icon="ðŸ“Š" color="var(--info)" />
+        <Card title="Demanda Actual" value={`${data.usedCapacity} UD`} icon="bolt" color="var(--amber)" />
+        <Card title="UtilizaciÃ³n" value={data.totalCapacity > 0 ? `${utilizationPct}%` : 'Sin definir'} icon="chart" color={utilizationPct > 80 ? 'var(--danger)' : 'var(--success)'} />
       </div>
       <div className="section">
         <div className="section-title-row">
           <div>
             <h2>Ciclos mensuales</h2>
-            <p className="page-subtitle">Control de grilla, producción y reportes.</p>
+            <p className="page-subtitle">Control de grilla, producciÃ³n y reportes.</p>
           </div>
           <span className="cycle-period">{now.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}</span>
         </div>
@@ -147,7 +147,7 @@ export function OperationsPage() {
                 <div className="cycle-editor" aria-label={`Actualizar ciclo de ${cycle.client?.name ?? 'cliente'}`}>
                   {([
                     ['gridStatus', 'Grilla'],
-                    ['productionStatus', 'Producción'],
+                    ['productionStatus', 'ProducciÃ³n'],
                     ['strategyMeetingStatus', 'Estrategia'],
                     ['reportStatus', 'Reporte'],
                   ] as const).map(([field, label]) => (
@@ -188,9 +188,9 @@ export function OperationsPage() {
         )}
       </div>
       <div className="section">
-        <div className="section-title-row"><div><h2>Pods y capacidad</h2><p className="page-subtitle">Estructura operativa con carga actual.</p></div><span className="page-eyebrow">{data?.pods?.length ?? 0} pods · {data?.usedCapacity ?? 0}/{data?.totalCapacity ?? 0} UD</span></div>
+        <div className="section-title-row"><div><h2>Pods y capacidad</h2><p className="page-subtitle">Estructura operativa con carga actual.</p></div><span className="page-eyebrow">{data?.pods?.length ?? 0} pods Â· {data?.usedCapacity ?? 0}/{data?.totalCapacity ?? 0} UD</span></div>
         {data.pods.length === 0 ? (
-          <div className="alert alert-info">La asignación por pods está pendiente de definición operativa. El equipo y la demanda real siguen visibles abajo.</div>
+          <div className="alert alert-info">La asignaciÃ³n por pods estÃ¡ pendiente de definiciÃ³n operativa. El equipo y la demanda real siguen visibles abajo.</div>
         ) : (
           <div className="pod-grid">
             {data.pods.map((pod) => {
@@ -218,7 +218,7 @@ export function OperationsPage() {
       <div className="section">
         <div className="section-title-row"><div><h2>Equipo y carga</h2><p className="page-subtitle">Capacidad asignada y carga actual por persona.</p></div><span className="page-eyebrow">{data.team.length} personas</span></div>
         {data.team.length === 0 ? (
-          <EmptyState icon="👥" title="Equipo vacío" description="No hay miembros registrados en el equipo todavía." />
+          <EmptyState icon="team" title="Equipo vacÃ­o" description="No hay miembros registrados en el equipo todavÃ­a." />
         ) : (
           <div className="workload-grid">
             {data.team.map((m) => {
@@ -228,7 +228,7 @@ export function OperationsPage() {
                 <span className="workload-avatar">{m.name.trim().charAt(0).toUpperCase()}</span>
                 <div className="workload-info">
                   <strong>{m.name}</strong>
-                  <small>{roleLabel(m.role)} · {m.currentPieces} piezas</small>
+                  <small>{roleLabel(m.role)} Â· {m.currentPieces} piezas</small>
                   <div className="load-bar"><i style={{ width: `${load}%`, background: load > 90 ? 'var(--danger)' : load > 70 ? 'var(--amber)' : 'var(--success)' }} /></div>
                 </div>
                 <b className={`workload-pct ${isOverloaded ? 'amber-text' : ''}`}>{m.capacity > 0 ? `${m.currentPieces}/${m.capacity} UD` : 'Pendiente'}</b>
@@ -245,7 +245,7 @@ export function OperationsPage() {
             {canManageObjectives && <button className="btn btn-primary" type="button" onClick={() => setObjectiveOpen(true)}>+ Nuevo objetivo</button>}
           </div>
         </div>
-        {objectives.length === 0 ? <EmptyState icon="🎯" title="Sin objetivos" description="No se han definido objetivos operativos para el equipo." action={canManageObjectives ? <button className="btn btn-primary" type="button" onClick={() => setObjectiveOpen(true)}>+ Nuevo objetivo</button> : undefined} /> : <div className="objective-grid">
+        {objectives.length === 0 ? <EmptyState icon="target" title="Sin objetivos" description="No se han definido objetivos operativos para el equipo." action={canManageObjectives ? <button className="btn btn-primary" type="button" onClick={() => setObjectiveOpen(true)}>+ Nuevo objetivo</button> : undefined} /> : <div className="objective-grid">
           {objectives.map((objective) => <article className="objective-card" key={objective.id}>
             <div className="cycle-card-head"><span className="objective-category">{statusLabel(objective.category)}</span><StatusBadge status={objective.status} /></div>
             <h3>{objective.title}</h3>
@@ -257,15 +257,15 @@ export function OperationsPage() {
       </div>
       <Modal open={objectiveOpen} onClose={() => setObjectiveOpen(false)} title="Nuevo objetivo del equipo">
         <form className="modal-form" onSubmit={(event) => { event.preventDefault(); createObjective.mutate(); }}>
-          <label>Título<input className="input" value={objectiveForm.title} onChange={(event) => setObjectiveForm({ ...objectiveForm, title: event.target.value })} minLength={2} maxLength={255} required /></label>
+          <label>TÃ­tulo<input className="input" value={objectiveForm.title} onChange={(event) => setObjectiveForm({ ...objectiveForm, title: event.target.value })} minLength={2} maxLength={255} required /></label>
           <div className="form-row">
-            <label>Categoría<input className="input" value={objectiveForm.category} onChange={(event) => setObjectiveForm({ ...objectiveForm, category: event.target.value })} pattern="[A-Za-z0-9 _-]{2,30}" required /></label>
+            <label>CategorÃ­a<input className="input" value={objectiveForm.category} onChange={(event) => setObjectiveForm({ ...objectiveForm, category: event.target.value })} pattern="[A-Za-z0-9 _-]{2,30}" required /></label>
             <label>Fecha objetivo<input className="input" type="date" value={objectiveForm.dueAt} onChange={(event) => setObjectiveForm({ ...objectiveForm, dueAt: event.target.value })} /></label>
           </div>
-          <label>Descripción<textarea className="input" rows={4} maxLength={5000} value={objectiveForm.description} onChange={(event) => setObjectiveForm({ ...objectiveForm, description: event.target.value })} /></label>
+          <label>DescripciÃ³n<textarea className="input" rows={4} maxLength={5000} value={objectiveForm.description} onChange={(event) => setObjectiveForm({ ...objectiveForm, description: event.target.value })} /></label>
           <div className="form-row">
-            <label>Responsable<select className="input" value={objectiveForm.ownerId} onChange={(event) => setObjectiveForm({ ...objectiveForm, ownerId: event.target.value })}><option value="">Objetivo general</option>{users.map((member) => <option key={member.id} value={member.id}>{member.name} · {roleLabel(member.role)}</option>)}</select></label>
-            <label>Cuenta asociada<select className="input" value={objectiveForm.clientId} onChange={(event) => setObjectiveForm({ ...objectiveForm, clientId: event.target.value })}><option value="">Sin cuenta específica</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+            <label>Responsable<select className="input" value={objectiveForm.ownerId} onChange={(event) => setObjectiveForm({ ...objectiveForm, ownerId: event.target.value })}><option value="">Objetivo general</option>{users.map((member) => <option key={member.id} value={member.id}>{member.name} Â· {roleLabel(member.role)}</option>)}</select></label>
+            <label>Cuenta asociada<select className="input" value={objectiveForm.clientId} onChange={(event) => setObjectiveForm({ ...objectiveForm, clientId: event.target.value })}><option value="">Sin cuenta especÃ­fica</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
           </div>
           <label>Progreso inicial: {objectiveForm.progress}%<input type="range" min="0" max="100" step="5" value={objectiveForm.progress} onChange={(event) => setObjectiveForm({ ...objectiveForm, progress: Number(event.target.value) })} /></label>
           {createObjective.error && <div className="alert alert-error">No fue posible crear el objetivo. Revisa los campos y responsables.</div>}

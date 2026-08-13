@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import './LogoUpload.css';
+import { VitaIcons } from '../../shared/Icons';
 
 interface LogoUploadProps {
   currentLogoUrl?: string;
@@ -108,7 +109,7 @@ export function LogoUpload({ currentLogoUrl, clientId, onSuccess, onError }: Log
           </div>
         ) : (
           <div className="logo-empty-state">
-            <span className="logo-icon">🏢</span>
+            <span className="logo-icon"><VitaIcons.building /></span>
             <strong>{uploadMutation.isPending ? 'Subiendo logo...' : 'Arrastra o haz clic'}</strong>
             <small>PNG, JPG, GIF, WebP o AVIF. Max 2MB</small>
           </div>

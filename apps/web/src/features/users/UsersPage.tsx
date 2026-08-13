@@ -41,7 +41,7 @@ interface UserFormState {
   newClientName: string;
 }
 
-const EMPTY_FORM: UserFormState = { name: '', email: '', password: '', phone: '', accountType: 'internal', role: 'designer', clientId: '', newClientName: '' };
+const EMPTY_FORM: UserFormState = { name: '', email: '', password: '', phone: '', accountType: 'client', role: 'client', clientId: '', newClientName: '' };
 
 const USER_ROLES = [
   'admin', 'commercial_director', 'creative_director', 'operations_director', 'art_director',
