@@ -90,6 +90,18 @@ __decorate([
     (0, class_validator_1.IsIn)(['appointment', 'group', 'request', 'survey']),
     __metadata("design:type", String)
 ], CreateReservationFormDto.prototype, "mode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    __metadata("design:type", String)
+], CreateReservationFormDto.prototype, "rubro", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    __metadata("design:type", String)
+], CreateReservationFormDto.prototype, "tipo", void 0);
 class UpdateReservationFormDto {
 }
 exports.UpdateReservationFormDto = UpdateReservationFormDto;
@@ -218,6 +230,18 @@ __decorate([
     (0, class_validator_1.IsEmail)({}, { each: true }),
     __metadata("design:type", Array)
 ], UpdateReservationFormDto.prototype, "teamNotifications", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    __metadata("design:type", String)
+], UpdateReservationFormDto.prototype, "rubro", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    __metadata("design:type", String)
+], UpdateReservationFormDto.prototype, "tipo", void 0);
 class CreateBlockDto {
 }
 exports.CreateBlockDto = CreateBlockDto;

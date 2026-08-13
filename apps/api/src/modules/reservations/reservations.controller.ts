@@ -317,4 +317,16 @@ export class ReservationsController {
   ) {
     return this.service.updateSurveyContactRequest(req.organizationId, id, body);
   }
+
+  /** Catálogo de rubros y tipos de captación (recomendaciones editables por organización). */
+  @Get('catalog')
+  catalog(@Req() req: AuthenticatedRequest) {
+    return this.service.getReservationCatalog(req.organizationId!);
+  }
+
+  @Put('catalog')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
+  saveCatalog(@Req() req: AuthenticatedRequest, @Body() body: { rubros: Array<Record<string, unknown>> }) {
+    return this.service.saveReservationCatalog(req.organizationId!, req.user.id, body.rubros);
+  }
 }

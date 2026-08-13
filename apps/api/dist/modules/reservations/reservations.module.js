@@ -20,6 +20,7 @@ const reservation_event_entity_1 = require("./domain/reservation-event.entity");
 const reservation_form_event_entity_1 = require("./domain/reservation-form-event.entity");
 const reservation_coupon_entity_1 = require("./domain/reservation-coupon.entity");
 const survey_contact_request_entity_1 = require("./domain/survey-contact-request.entity");
+const reservation_catalog_entity_1 = require("./domain/reservation-catalog.entity");
 const crm_module_1 = require("../crm/crm.module");
 const google_module_1 = require("../integrations/google/google.module");
 const meta_module_1 = require("../integrations/meta/meta.module");
@@ -29,5 +30,5 @@ let ReservationsModule = class ReservationsModule {
 };
 exports.ReservationsModule = ReservationsModule;
 exports.ReservationsModule = ReservationsModule = __decorate([
-    (0, common_1.Module)({ imports: [typeorm_1.TypeOrmModule.forFeature([reservation_form_entity_1.ReservationForm, reservation_entity_1.Reservation, availability_block_entity_1.AvailabilityBlock, reservation_event_entity_1.ReservationEvent, reservation_form_event_entity_1.ReservationFormEvent, reservation_coupon_entity_1.ReservationCoupon, survey_contact_request_entity_1.SurveyContactRequest]), crm_module_1.CrmModule, google_module_1.GoogleModule, meta_module_1.MetaModule, notifications_module_1.NotificationsModule, audit_module_1.AuditModule], providers: [reservations_service_1.ReservationsService, bulk_import_service_1.ReservationsBulkImportService], controllers: [reservations_controller_1.ReservationsController, public_reservations_controller_1.PublicReservationsController], exports: [reservations_service_1.ReservationsService] })
+    (0, common_1.Module)({ imports: [typeorm_1.TypeOrmModule.forFeature([reservation_form_entity_1.ReservationForm, reservation_entity_1.Reservation, availability_block_entity_1.AvailabilityBlock, reservation_event_entity_1.ReservationEvent, reservation_form_event_entity_1.ReservationFormEvent, reservation_coupon_entity_1.ReservationCoupon, survey_contact_request_entity_1.SurveyContactRequest, reservation_catalog_entity_1.ReservationCatalog]), crm_module_1.CrmModule, google_module_1.GoogleModule, meta_module_1.MetaModule, notifications_module_1.NotificationsModule, audit_module_1.AuditModule], providers: [reservations_service_1.ReservationsService, bulk_import_service_1.ReservationsBulkImportService], controllers: [reservations_controller_1.ReservationsController, public_reservations_controller_1.PublicReservationsController], exports: [reservations_service_1.ReservationsService] })
 ], ReservationsModule);
