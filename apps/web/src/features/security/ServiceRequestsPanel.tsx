@@ -45,16 +45,17 @@ export function ServiceRequestsPanel(): JSX.Element {
   const [statusFilter, setStatusFilter] = useState('');
   const [pendingAction, setPendingAction] = useState<{ id: string; status: string; label: string } | null>(null);
   const [note, setNote] = useState('');
+  const [editing, setEditing] = useState<ServiceRequestRow | null>(null);
+  const [draft, setDraft] = useState({ type: '', requesterName: '', requesterEmail: '', requesterRut: '', requesterPhone: '', message: '', status: '', resolutionNote: '' });
 
   const { data: rows = [], isLoading, error, refetch, isFetching } = useQuery<ServiceRequestRow[]>({
     queryKey: ['service-requests', statusFilter],
     queryFn: () => api.get(`/service-requests${statusFilter ? `?status=${statusFilter}` : ''}`),
   });
 
-  const resolveMutation = useMutation({
-    mutationFn: ({ id, status, resolutionNote }: { id: string; status: string; resolutionNote?: string }) =>
-      api.put(`/service-requests/${id}`, { status, resolutionNote }),
-    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['service-requests'] }); setPendingAction(null); setNote(''); triggerToast('Solicitud actualizada'); },
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) => api.put(`/service-requests/${id}`, payload),
+    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['service-requests'] }); setPendingAction(null); setEditing(null); setNote(''); triggerToast('Solicitud actualizada'); },
     onError: (err: Error) => triggerToast(err.message, 'error'),
   });
 
@@ -64,12 +65,17 @@ export function ServiceRequestsPanel(): JSX.Element {
     onError: (err: Error) => triggerToast(err.message, 'error'),
   });
 
+  const openEdit = (row: ServiceRequestRow) => {
+    setEditing(row);
+    setDraft({ type: row.type, requesterName: row.requesterName, requesterEmail: row.requesterEmail, requesterRut: row.requesterRut ?? '', requesterPhone: row.requesterPhone ?? '', message: row.message ?? '', status: row.status, resolutionNote: row.resolutionNote ?? '' });
+  };
+
   const visible = rows.filter((row) => !statusFilter || row.status === statusFilter);
 
   return (
     <section>
       <div className="section-toolbar">
-        <div><span className="page-eyebrow">SOLICITUDES</span><h2>Bandeja de solicitudes</h2><p className="page-subtitle">Llegan desde la página pública (login → "Solicitudes"). Cada resolución queda auditada.</p></div>
+        <div><span className="page-eyebrow">SOLICITUDES</span><h2>Bandeja de solicitudes</h2><p className="page-subtitle">Llegan desde la página pública (login → "Solicitudes y consulta"). Puedes editar datos, cambiar el estado y reabrir; cada cambio queda auditado.</p></div>
         <button className="btn btn-outline" onClick={() => refetch()} disabled={isFetching}>{isFetching ? 'Actualizando...' : 'Actualizar'}</button>
       </div>
       <div className="reservation-flow-switch admin-solicitudes-filters" role="group" aria-label="Filtrar por estado">
@@ -100,26 +106,49 @@ export function ServiceRequestsPanel(): JSX.Element {
               </div>
               {row.message ? <p>{row.message}</p> : null}
               {row.resolutionNote ? <div className="solicitud-resolution"><strong>Resolución</strong><p>{row.resolutionNote}</p>{row.resolvedAt ? <small>{new Date(row.resolvedAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</small> : null}</div> : null}
-              {row.status !== 'resolved' && row.status !== 'rejected' && (
-                <footer className="solicitud-actions">
-                  {(row.type === 'anonymization' || row.type === 'removal') && (
-                    <button className="btn btn-primary btn-sm" disabled={anonymizeMutation.isPending} onClick={() => anonymizeMutation.mutate(row.id)}>{anonymizeMutation.isPending ? 'Anonimizando...' : 'Anonimizar datos'}</button>
-                  )}
-                  <button className="btn btn-primary btn-sm" disabled={resolveMutation.isPending} onClick={() => setPendingAction({ id: row.id, status: 'resolved', label: row.type === 'account' ? 'Aprobar y crear cuenta' : row.type === 'support' ? 'Resolver' : 'Aprobar' })}>{row.type === 'account' ? 'Aprobar' : row.type === 'support' ? 'Resolver' : 'Aprobar'}</button>
-                  <button className="btn btn-outline btn-sm" disabled={resolveMutation.isPending} onClick={() => setPendingAction({ id: row.id, status: 'more_info', label: 'Solicitar más información' })}>Más información</button>
-                  <button className="btn btn-outline btn-danger btn-sm" disabled={resolveMutation.isPending} onClick={() => setPendingAction({ id: row.id, status: 'rejected', label: 'Rechazar' })}>Rechazar</button>
-                </footer>
-              )}
-              {row.type === 'account' && row.status === 'resolved' && <footer className="solicitud-actions"><small className="page-subtitle">Crea la cuenta desde Usuarios con el correo del solicitante para completar el acceso.</small></footer>}
+              <footer className="solicitud-actions">
+                {(row.type === 'anonymization' || row.type === 'removal') && row.status !== 'resolved' && (
+                  <button className="btn btn-primary btn-sm" disabled={anonymizeMutation.isPending} onClick={() => anonymizeMutation.mutate(row.id)}>{anonymizeMutation.isPending ? 'Anonimizando...' : 'Anonimizar datos'}</button>
+                )}
+                {row.status !== 'resolved' && row.status !== 'rejected' && (
+                  <>
+                    <button className="btn btn-primary btn-sm" disabled={updateMutation.isPending} onClick={() => setPendingAction({ id: row.id, status: 'resolved', label: row.type === 'account' ? 'Aprobar' : row.type === 'support' ? 'Resolver' : 'Aprobar' })}>{row.type === 'account' ? 'Aprobar' : row.type === 'support' ? 'Resolver' : 'Aprobar'}</button>
+                    <button className="btn btn-outline btn-sm" disabled={updateMutation.isPending} onClick={() => setPendingAction({ id: row.id, status: 'more_info', label: 'Solicitar más información' })}>Más información</button>
+                    <button className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending} onClick={() => setPendingAction({ id: row.id, status: 'rejected', label: 'Rechazar' })}>Rechazar</button>
+                  </>
+                )}
+                {(row.status === 'resolved' || row.status === 'rejected') && (
+                  <button className="btn btn-outline btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: row.id, payload: { status: 'received' } })}>Reabrir</button>
+                )}
+                <button className="btn btn-outline btn-sm" onClick={() => openEdit(row)}>Editar</button>
+              </footer>
+              {row.type === 'account' && row.status === 'resolved' && <small className="page-subtitle">Crea la cuenta desde Usuarios con el correo del solicitante para completar el acceso.</small>}
             </article>
           ))}
         </div>}
 
       <Modal open={Boolean(pendingAction)} onClose={() => { setPendingAction(null); setNote(''); }} title={pendingAction?.label ?? 'Acción'}>
-        <form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (pendingAction) resolveMutation.mutate({ id: pendingAction.id, status: pendingAction.status, resolutionNote: note.trim() || undefined }); }}>
+        <form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (pendingAction) updateMutation.mutate({ id: pendingAction.id, payload: { status: pendingAction.status, resolutionNote: note.trim() || undefined } }); }}>
           <label>Nota de resolución<textarea className="input" rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder={pendingAction?.status === 'more_info' ? 'Indica qué información falta…' : 'Registra qué se hizo para dejar constancia…'} /></label>
           {pendingAction?.status === 'rejected' && <div className="alert alert-error">Rechazará la solicitud. La persona verá el motivo en su consulta de estado.</div>}
-          <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setPendingAction(null)}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={resolveMutation.isPending}>{resolveMutation.isPending ? 'Guardando...' : 'Confirmar'}</button></div>
+          <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setPendingAction(null)}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Guardando...' : 'Confirmar'}</button></div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(editing)} onClose={() => { setEditing(null); setNote(''); }} title="Editar solicitud">
+        <form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (!editing) return; updateMutation.mutate({ id: editing.id, payload: { type: draft.type, requesterName: draft.requesterName, requesterEmail: draft.requesterEmail, requesterRut: draft.requesterRut || undefined, requesterPhone: draft.requesterPhone || undefined, message: draft.message || undefined, status: draft.status, resolutionNote: draft.resolutionNote || undefined } }); }}>
+          <label>Tipo de solicitud<select className="input" value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })}>{Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>Nombre del solicitante<input className="input" value={draft.requesterName} onChange={(event) => setDraft({ ...draft, requesterName: event.target.value })} /></label>
+          <div className="form-row">
+            <label>Correo<input className="input" type="email" value={draft.requesterEmail} onChange={(event) => setDraft({ ...draft, requesterEmail: event.target.value })} /></label>
+            <label>RUT<input className="input" value={draft.requesterRut} onChange={(event) => setDraft({ ...draft, requesterRut: event.target.value })} /></label>
+          </div>
+          <label>Teléfono<input className="input" value={draft.requesterPhone} onChange={(event) => setDraft({ ...draft, requesterPhone: event.target.value })} /></label>
+          <label>Mensaje<textarea className="input" rows={3} value={draft.message} onChange={(event) => setDraft({ ...draft, message: event.target.value })} /></label>
+          <label>Estado<select className="input" value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>Nota de resolución<textarea className="input" rows={3} value={draft.resolutionNote} onChange={(event) => setDraft({ ...draft, resolutionNote: event.target.value })} /></label>
+          <div className="alert alert-info">Cada cambio queda registrado en la bitácora de auditoría con el responsable, la fecha y el antes/después.</div>
+          <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setEditing(null)}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button></div>
         </form>
       </Modal>
     </section>

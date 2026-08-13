@@ -33,6 +33,7 @@ export function FirstAccessPage() {
   const [step, setStep] = useState<FirstAccessStep>(isTermsRenewal ? 'terms' : 'welcome');
   const [profile, setProfile] = useState({ name: user?.name ?? '', phone: '' });
   const [accepted, setAccepted] = useState<Record<string, boolean>>({});
+  const [readTerms, setReadTerms] = useState<Record<string, boolean>>({});
   const [password, setPassword] = useState({ next: '', confirmation: '' });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -153,14 +154,25 @@ export function FirstAccessPage() {
       {!isTermsRenewal && <StepProgress current={2} />}
       <span className="page-eyebrow">{isTermsRenewal ? 'CONDICIONES ACTUALIZADAS' : 'PASO 2 DE 3'}</span>
       <h1>Revisa y acepta las condiciones</h1>
-      <p>Los cinco consentimientos son obligatorios. Lee cada punto antes de marcarlo.</p>
+      <p>Los cinco consentimientos son obligatorios. Abre cada punto y léelo antes de marcarlo.</p>
       <div className="terms-list">
-        {TERMS.map((term) => (
-          <label key={term.key} className={`terms-item ${accepted[term.key] ? 'accepted' : ''}`}>
-            <input type="checkbox" required checked={Boolean(accepted[term.key])} onChange={(event) => setAccepted({ ...accepted, [term.key]: event.target.checked })} />
-            <span className="terms-copy"><strong>{term.title}</strong><small>{term.detail}</small><em>Obligatorio</em></span>
-          </label>
-        ))}
+        {TERMS.map((term) => {
+          const opened = Boolean(readTerms[term.key]);
+          return (
+            <div key={term.key} className={`terms-item terms-collapsible ${accepted[term.key] ? 'accepted' : ''} ${opened ? 'is-open' : ''}`}>
+              <div className="terms-collapsible-head">
+                <span className="terms-copy"><strong>{term.title}</strong>{opened ? <small>{term.detail}</small> : <em>Obligatorio</em>}</span>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => setReadTerms({ ...readTerms, [term.key]: !opened })}>{opened ? 'Ocultar' : 'Leer contenido'}</button>
+              </div>
+              {opened && (
+                <div className="terms-collapsible-body">
+                  <p>{term.detail}</p>
+                  <label className={`toggle-row terms-accept ${readTerms[term.key] ? '' : 'is-locked'}`}><input type="checkbox" checked={Boolean(accepted[term.key])} disabled={!opened} onChange={(event) => setAccepted({ ...accepted, [term.key]: event.target.checked })} /> He leído y acepto este punto</label>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       {feedback && <div className="alert alert-error" role="alert">{feedback}</div>}
       <div className="first-access-actions">

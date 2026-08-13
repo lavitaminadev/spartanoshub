@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import { ServiceRequestsService } from './service-requests.service';
-import { CreateServiceRequestDto, ResolveServiceRequestDto } from './dto/service-request.dto';
+import { CreateServiceRequestDto, UpdateServiceRequestDto } from './dto/service-request.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 
 @ApiTags('Solicitudes')
@@ -54,8 +54,8 @@ export class ServiceRequestsController {
   @UseGuards(AuthGuard('jwt'))
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
   @Put(':id')
-  resolve(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveServiceRequestDto) {
-    return this.service.resolve(req.organizationId!, id, { id: req.user.id, name: req.user.name }, dto);
+  update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateServiceRequestDto) {
+    return this.service.update(req.organizationId!, id, { id: req.user.id, name: req.user.name }, dto);
   }
 
   @ApiBearerAuth()
