@@ -63,7 +63,7 @@ export function ClientApprovals() {
 
       {approvals.length === 0 ? (
         <EmptyState
-          icon="OK"
+          icon="success"
           title="Sin piezas pendientes"
           description="No tienes aprobaciones activas por revisar en este momento."
         />

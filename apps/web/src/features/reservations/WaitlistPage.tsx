@@ -86,7 +86,7 @@ export function WaitlistPage() {
 
     {error ? (isForbiddenError(error) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar la lista de espera" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />)
       : isFetching && !waitlistPage ? <LoadingSpinner text="Buscando reservas en espera..." />
-      : items.length === 0 ? <EmptyState icon="⏳" title="Sin reservas en espera" description="Las solicitudes que queden en lista de espera aparecerán aquí." />
+      : items.length === 0 ? <EmptyState icon="clock" title="Sin reservas en espera" description="Las solicitudes que queden en lista de espera aparecerán aquí." />
       : <div className="crm-table-container">
         <table className="data-table">
           <thead>

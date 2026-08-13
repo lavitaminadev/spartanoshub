@@ -403,7 +403,7 @@ export function LeadsPage() {
 
       {visibleLeads.length === 0 ? (
         <EmptyState
-          icon="[]"
+          icon="user"
           title="Sin leads en este filtro"
           description="Conecta Meta Lead Ads o ajusta el filtro."
         />

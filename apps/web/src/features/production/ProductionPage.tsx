@@ -416,7 +416,7 @@ export function ProductionPage() {
 
       {(pieces?.length ?? 0) === 0 ? (
         <EmptyState
-          icon="P"
+          icon="palette"
           title="Sin piezas en produccion"
           description="Todavia no hay piezas activas para este filtro."
           action={canCreate ? <button className="btn btn-primary" onClick={() => { setFeedbackMessage(null); setForm((current) => ({ ...current, clientId: clientFilter })); setCreateModalOpen(true); }}>Nueva pieza</button> : undefined}

@@ -35,7 +35,7 @@ export function ClientGrid() {
 
       {grids.length === 0 ? (
         <EmptyState
-          icon="[]"
+          icon="calendar"
           title="Sin contenido planificado"
           description="Aún no hay publicaciones cargadas en la parrilla de este cliente."
         />
