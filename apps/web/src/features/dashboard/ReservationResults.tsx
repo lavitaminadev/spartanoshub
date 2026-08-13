@@ -13,14 +13,14 @@ import { reservationTotals, useReservationMetrics } from './use-reservation-metr
  * Responde tres preguntas en orden: cuanta gente completa el recorrido, como se
  * mueve dia a dia, y que campana trae a quienes de verdad asisten.
  *
- * Paleta: dos series categoricas (#2a78d6 / #1baf7a) validadas para daltonismo
+ * Paleta: dos series categoricas (#2a78d6 / #0e8c82) validadas para daltonismo
  * sobre superficie blanca. El embudo usa una sola rampa verde de claro a oscuro
  * porque sus barras son magnitudes de un mismo flujo, no identidades distintas.
  */
 
 const SERIES_RESERVAS = '#2a78d6';
-const SERIES_ASISTENCIAS = '#1baf7a';
-const FUNNEL_RAMP = ['#8fd0b8', '#55b995', '#2a9d78', '#17795c'];
+const SERIES_ASISTENCIAS = '#0e8c82';
+const FUNNEL_RAMP = ['#9fd7d2', '#0e8c82', '#096f6b', '#0b6b60'];
 const AXIS_INK = '#706a73';
 const GRID_INK = '#e7e1e5';
 

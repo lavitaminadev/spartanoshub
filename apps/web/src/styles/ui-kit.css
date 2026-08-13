@@ -164,7 +164,7 @@ select.input {
 .alert-success {
   background: var(--success-bg);
   color: var(--success);
-  border: 1px solid #c8e6c9;
+  border: 1px solid #f1ecef;
 }
 
 .alert-info {
