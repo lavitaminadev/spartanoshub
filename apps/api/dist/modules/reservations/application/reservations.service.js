@@ -26,6 +26,7 @@ const reservation_event_entity_1 = require("../domain/reservation-event.entity")
 const reservation_form_event_entity_1 = require("../domain/reservation-form-event.entity");
 const reservation_coupon_entity_1 = require("../domain/reservation-coupon.entity");
 const survey_contact_request_entity_1 = require("../domain/survey-contact-request.entity");
+const reservation_catalog_entity_1 = require("../domain/reservation-catalog.entity");
 const timezone_1 = require("../domain/timezone");
 const phone_1 = require("../../../shared/phone");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
@@ -52,7 +53,7 @@ const STATUS_TRANSITIONS = {
     attended: [], no_show: [], cancelled_client: [], cancelled_business: [],
 };
 let ReservationsService = ReservationsService_1 = class ReservationsService {
-    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, leadIntake, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts) {
+    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, leadIntake, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, reservationCatalog) {
         this.forms = forms;
         this.reservations = reservations;
         this.blocks = blocks;
@@ -69,6 +70,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.audit = audit;
         this.googleOutbox = googleOutbox;
         this.surveyContacts = surveyContacts;
+        this.reservationCatalog = reservationCatalog;
         this.logger = new common_1.Logger(ReservationsService_1.name);
     }
     slug(value) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 140); }
@@ -256,7 +258,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             ]
             : [{ id: 'name', type: 'text', label: 'Nombre completo', required: true, system: true }, { id: 'email', type: 'email', label: 'Correo', required: false, system: true }, { id: 'phone', type: 'phone', label: 'Teléfono', required: true, system: true }, { id: 'consent', type: 'consent', label: 'Acepto el tratamiento de mis datos para gestionar esta reserva.', required: true }];
         const form = this.forms.create({
-            organizationId, clientId: dto.clientId, createdBy: userId, name: dto.name.trim(), publicSlug: await this.uniqueSlug(dto.publicSlug || dto.name), mode: dto.mode || 'appointment',
+            organizationId, clientId: dto.clientId, createdBy: userId, name: dto.name.trim(), publicSlug: await this.uniqueSlug(dto.publicSlug || dto.name), mode: dto.mode || 'appointment', rubro: dto.rubro ?? null, tipo: dto.tipo ?? null,
             fieldSchema,
             designConfig: isSurvey
                 ? { primaryColor: '#1f5b2d', accentColor: '#d79b3a', backgroundColor: '#f5eedf', textColor: '#263241', title: dto.name, welcome: 'Gracias por ser parte de nuestra experiencia. Tu opinión es fundamental para seguir mejorando.', confirmationMessage: 'Gracias por tu tiempo. Tu respuesta fue registrada.', backgroundMode: 'image', backgroundOpacity: '82', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'center', buttonRadius: '6', fieldRadius: '6', fontFamily: 'Inter, sans-serif', showFacts: 'false', showSecureBadge: 'false', showPoweredBy: 'false', googleReviewUrl: '', googleReviewMinRating: '4' }
@@ -1370,6 +1372,76 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             }
         }
     }
+    defaultReservationCatalog() {
+        return [
+            {
+                key: 'gastronomico', nombre: 'Gastronómico',
+                tipos: [
+                    { key: 'mesa', nombre: 'Reserva de mesa', cta: 'Reserva tu mesa', confirmacion: 'Tu mesa está confirmada. ¡Te esperamos!', duracionMin: 90, capacidad: 4, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'guests', tipo: 'number', label: 'Comensales', required: true, locked: true }, { id: 'occasion', tipo: 'text', label: 'Ocasión (opcional)', required: false, locked: true }] },
+                    { key: 'terraza', nombre: 'Terraza / exterior', cta: 'Reserva tu terraza', confirmacion: 'Tu espacio en terraza está confirmado.', duracionMin: 120, capacidad: 4, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'guests', tipo: 'number', label: 'Comensales', required: true, locked: true }] },
+                    { key: 'pedido', nombre: 'Pedido / delivery', cta: 'Haz tu pedido', confirmacion: 'Recibimos tu pedido.', duracionMin: 15, capacidad: 1, agenda: 'none', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'pickup', tipo: 'select', label: 'Tipo de retiro', required: true, locked: true }] },
+                ],
+            },
+            {
+                key: 'salud', nombre: 'Salud y Estética',
+                tipos: [
+                    { key: 'hora', nombre: 'Reserva de hora', cta: 'Reserva tu hora', confirmacion: 'Tu hora quedó agendada.', duracionMin: 45, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }] },
+                    { key: 'consulta', nombre: 'Consulta', cta: 'Agenda tu consulta', confirmacion: 'Tu consulta está agendada.', duracionMin: 30, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'reason', tipo: 'textarea', label: 'Motivo de consulta', required: false, locked: true }] },
+                    { key: 'procedimiento', nombre: 'Procedimiento / tratamiento', cta: 'Agenda tu procedimiento', confirmacion: 'Tu procedimiento está agendado.', duracionMin: 60, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'consent', tipo: 'consent', label: 'Consentimiento informado', required: true, locked: true }] },
+                ],
+            },
+            {
+                key: 'legal', nombre: 'Legal',
+                tipos: [
+                    { key: 'consulta_inicial', nombre: 'Consulta inicial', cta: 'Agenda tu consulta', confirmacion: 'Tu consulta inicial está agendada.', duracionMin: 30, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'area', tipo: 'select', label: 'Área legal', required: true, locked: true }] },
+                    { key: 'revision', nombre: 'Revisión de contrato', cta: 'Agenda tu revisión', confirmacion: 'Tu revisión está agendada.', duracionMin: 45, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'detalle', tipo: 'textarea', label: 'Detalle del contrato', required: false, locked: true }] },
+                ],
+            },
+            {
+                key: 'inmobiliario', nombre: 'Inmobiliario',
+                tipos: [
+                    { key: 'visita', nombre: 'Visita a proyecto', cta: 'Agenda tu visita', confirmacion: 'Tu visita está agendada.', duracionMin: 60, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'phone', tipo: 'phone', label: 'Teléfono', required: true, locked: true }, { id: 'ticket', tipo: 'number', label: 'Presupuesto aprox.', required: false, locked: true }] },
+                    { key: 'info', nombre: 'Solicitud de información', cta: 'Solicita información', confirmacion: 'Te enviamos la información.', duracionMin: 0, capacidad: 0, agenda: 'none', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'proyecto', tipo: 'select', label: 'Proyecto de interés', required: true, locked: true }] },
+                ],
+            },
+            {
+                key: 'startups', nombre: 'Startups / Servicios',
+                tipos: [
+                    { key: 'demo', nombre: 'Demo', cta: 'Agenda una demo', confirmacion: 'Tu demo está agendada.', duracionMin: 30, capacidad: 1, agenda: 'slot', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }] },
+                    { key: 'info', nombre: 'Solicitud de información', cta: 'Solicita información', confirmacion: 'Te contactaremos.', duracionMin: 0, capacidad: 0, agenda: 'none', campos: [{ id: 'name', tipo: 'text', label: 'Nombre', required: true, locked: true }, { id: 'email', tipo: 'email', label: 'Correo', required: true, locked: true }, { id: 'mensaje', tipo: 'textarea', label: 'Cuéntanos tu caso', required: false, locked: true }] },
+                ],
+            },
+        ];
+    }
+    async getReservationCatalog(organizationId) {
+        const row = await this.reservationCatalog.findOne({ where: { organizationId } });
+        if (row?.payload && Array.isArray(row.payload.rubros))
+            return row.payload.rubros;
+        return this.defaultReservationCatalog();
+    }
+    async saveReservationCatalog(organizationId, actorId, rubros) {
+        if (!Array.isArray(rubros))
+            throw new common_1.BadRequestException('El catálogo debe ser una lista de rubros');
+        const row = await this.reservationCatalog.findOne({ where: { organizationId } });
+        const payload = { rubros };
+        if (row) {
+            row.payload = payload;
+            await this.reservationCatalog.save(row);
+        }
+        else {
+            await this.reservationCatalog.save(this.reservationCatalog.create({ organizationId, payload }));
+        }
+        await this.audit.log({
+            organizationId,
+            actorId,
+            entityType: 'ReservationCatalog',
+            entityId: organizationId,
+            action: 'updated',
+            reason: 'Actualización de rubros y tipos de captación',
+            after: { rubrosCount: rubros.length },
+        });
+        return rubros;
+    }
 };
 exports.ReservationsService = ReservationsService;
 exports.ReservationsService = ReservationsService = ReservationsService_1 = __decorate([
@@ -1381,6 +1453,7 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
     __param(4, (0, typeorm_1.InjectRepository)(reservation_form_event_entity_1.ReservationFormEvent)),
     __param(5, (0, typeorm_1.InjectRepository)(reservation_coupon_entity_1.ReservationCoupon)),
     __param(15, (0, typeorm_1.InjectRepository)(survey_contact_request_entity_1.SurveyContactRequest)),
+    __param(16, (0, typeorm_1.InjectRepository)(reservation_catalog_entity_1.ReservationCatalog)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -1396,5 +1469,6 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         email_service_1.EmailService,
         audit_service_1.AuditService,
         google_conversion_outbox_service_1.GoogleConversionOutboxService,
+        typeorm_2.Repository,
         typeorm_2.Repository])
 ], ReservationsService);

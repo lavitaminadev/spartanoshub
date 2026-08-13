@@ -40,6 +40,8 @@ export class CreateReservationFormDto {
   @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) name: string;
   @IsOptional() @IsString() @MaxLength(190) publicSlug?: string;
   @IsOptional() @IsIn(['appointment', 'group', 'request', 'survey']) mode?: string;
+  @IsOptional() @IsString() @MaxLength(60) rubro?: string;
+  @IsOptional() @IsString() @MaxLength(60) tipo?: string;
 }
 export class UpdateReservationFormDto {
   @IsOptional() @IsString() @MaxLength(180) name?: string;
@@ -63,6 +65,8 @@ export class UpdateReservationFormDto {
   @IsOptional() @IsBoolean() metaCapiEnabled?: boolean;
   @IsOptional() @Matches(/^(G-[A-Z0-9]{4,20})?$/i, { message: 'El ID de medición GA4 debe tener el formato G-XXXXXXXXXX' }) ga4MeasurementId?: string;
   @IsOptional() @IsArray() @IsEmail({}, { each: true }) teamNotifications?: string[];
+  @IsOptional() @IsString() @MaxLength(60) rubro?: string;
+  @IsOptional() @IsString() @MaxLength(60) tipo?: string;
 }
 export class CreateBlockDto { @IsDateString() startsAt: string; @IsDateString() endsAt: string; @IsOptional() @IsString() @MaxLength(180) reason?: string; }
 export class CouponValidateDto { @IsString() @MaxLength(80) code: string; @IsOptional() @IsDateString() startsAt?: string; }
