@@ -53,9 +53,9 @@ function exportResultsCsv(surveyTitle: string, summary: SurveyResultsSummary): v
 function NpsGauge({ result }: { result: NpsQuestionResult & { totalAnswers: number } }) {
   const score = result.score ?? 0;
   const normalized = Math.max(0, Math.min(100, (score + 100) / 2));
-  const color = score >= 50 ? '#1f7a46' : score >= 0 ? '#c67912' : '#b5332d';
+  const color = score >= 50 ? '#087e79' : score >= 0 ? '#c67912' : '#b5332d';
   const breakdown: Array<{ label: string; value: number; color: string }> = [
-    { label: 'Promotores (9-10)', value: result.promoters, color: '#1f7a46' },
+    { label: 'Promotores (9-10)', value: result.promoters, color: '#087e79' },
     { label: 'Pasivos (7-8)', value: result.passives, color: '#c67912' },
     { label: 'Detractores (0-6)', value: result.detractors, color: '#b5332d' },
   ];
@@ -65,7 +65,7 @@ function NpsGauge({ result }: { result: NpsQuestionResult & { totalAnswers: numb
         <ResponsiveContainer width="100%" height={130}>
           <RadialBarChart cx="50%" cy="95%" innerRadius="72%" outerRadius="100%" barSize={16} startAngle={180} endAngle={0} data={[{ value: normalized }]}>
             <PolarAngleAxis type="number" domain={[0, 100]} tick={false} axisLine={false} />
-            <RadialBar dataKey="value" cornerRadius={8} fill={color} background={{ fill: '#eef2ef' }} isAnimationActive={false} />
+            <RadialBar dataKey="value" cornerRadius={8} fill={color} background={{ fill: '#eee8ec' }} isAnimationActive={false} />
           </RadialBarChart>
         </ResponsiveContainer>
         <div className="nps-gauge-value"><strong>{result.score ?? '—'}</strong><span>NPS</span></div>

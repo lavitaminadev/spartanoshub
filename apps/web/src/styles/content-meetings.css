@@ -28,7 +28,7 @@
   min-width: 50px;
   padding: 8px;
   background: var(--primary);
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-sm);
 }
 

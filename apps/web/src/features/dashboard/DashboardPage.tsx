@@ -68,7 +68,7 @@ const WIDGET_MODULE: Partial<Record<DashboardWidget, string>> = {
 
 const PIECE_COLORS: Record<string, string> = {
   backlog: '#95a5a6', assigned: '#3498db', in_progress: '#f39c12', internal_review: '#9b59b6',
-  client_validation: '#e67e22', corrections: '#e74c3c', approved: '#2ecc71', delivered: '#27ae60',
+  client_validation: '#e67e22', corrections: '#e74c3c', approved: '#087e79', delivered: '#087e79',
 };
 /**
  * Serie categórica de los gráficos.
@@ -77,7 +77,7 @@ const PIECE_COLORS: Record<string, string> = {
  * en escala de grises y para quien no diferencia rojo y verde, que es donde una paleta
  * elegida solo por gusto deja de comunicar.
  */
-const CHART_COLORS = ['#0ec6b8', '#ea0f63', '#1f6fb2', '#d98a1f', '#7040a0', '#2fae6b', '#3f7883', '#0b8c82'];
+const CHART_COLORS = ['#0ec6b8', '#ea0f63', '#1f6fb2', '#d98a1f', '#7040a0', '#087e79', '#3f7883', '#0b8c82'];
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -169,7 +169,7 @@ export function DashboardPage() {
         {!personalView && moduleAllowed('clients') && <Card title="Clientes Activos" value={data.activeClients ?? 0} color="#1a1a2e" />}
         {moduleAllowed('production') && <Card title="Piezas Pendientes" value={data.pendingPieces ?? 0} color="#f39c12" />}
         {moduleAllowed('gamification') && <Card title="XP del Equipo" value={data.teamXp ?? 0} color="#9b59b6" />}
-        {!personalView && moduleAllowed('udBudget') && <Card title="UD este Mes" value={data.monthUd ?? 0} color="#27ae60" />}
+        {!personalView && moduleAllowed('udBudget') && <Card title="UD este Mes" value={data.monthUd ?? 0} color="#087e79" />}
       </div>}
 
       {!personalView && widgetVisible('reservations') && <ReservationResults />}
@@ -204,10 +204,10 @@ export function DashboardPage() {
         <h2>Unidades de Dedicacion</h2>
         <div className="dashboard-charts-row">
           <div className="dashboard-chart-card"><h3>Consumo UD</h3>
-            <ResponsiveContainer width="100%" height={200}><BarChart data={[{ name: 'Contratadas', value: data.ud.contracted, fill: '#e67e22' }, { name: 'Consumidas', value: data.ud.consumed, fill: '#27ae60' }, { name: 'Reservadas', value: data.ud.reserved, fill: '#3498db' }]} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}><Cell fill="#e67e22" /><Cell fill="#27ae60" /><Cell fill="#3498db" /></Bar></BarChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={200}><BarChart data={[{ name: 'Contratadas', value: data.ud.contracted, fill: '#e67e22' }, { name: 'Consumidas', value: data.ud.consumed, fill: '#087e79' }, { name: 'Reservadas', value: data.ud.reserved, fill: '#3498db' }]} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}><Cell fill="#e67e22" /><Cell fill="#087e79" /><Cell fill="#3498db" /></Bar></BarChart></ResponsiveContainer>
           </div>
           <div className="dashboard-chart-card"><h3>% Consumo</h3>
-            <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={[{ name: 'Consumido', value: data.ud.consumed }, { name: 'Disponible', value: Math.max(0, data.ud.contracted - data.ud.consumed) }]} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}><Cell fill="#27ae60" /><Cell fill="#e8ece8" /></Pie><Tooltip /></PieChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={[{ name: 'Consumido', value: data.ud.consumed }, { name: 'Disponible', value: Math.max(0, data.ud.contracted - data.ud.consumed) }]} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}><Cell fill="#087e79" /><Cell fill="#e8ece8" /></Pie><Tooltip /></PieChart></ResponsiveContainer>
           </div>
         </div>
       </div>}

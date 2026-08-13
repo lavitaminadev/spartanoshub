@@ -73,8 +73,5 @@
 }
 
 @media (max-width: 480px) {
-  .card-grid {
-    grid-template-columns: 1fr;
-  }
 }
 

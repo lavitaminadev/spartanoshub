@@ -59,7 +59,7 @@ interface WizardState {
 }
 
 function blankState(): WizardState {
-  return { title: '', type: 'customer', questions: [blankQuestion()], distribution: [], recipients: '', primaryColor: '#0fb9b1', backgroundColor: '#f3f5ef', fontFamily: 'system-ui', logoUrl: '', welcome: '', googleReviewUrl: '', googleReviewMinRating: 4, googleReviewLowMsg: '' };
+  return { title: '', type: 'customer', questions: [blankQuestion()], distribution: [], recipients: '', primaryColor: '#0fb9b1', backgroundColor: '#f6f4f5', fontFamily: 'system-ui', logoUrl: '', welcome: '', googleReviewUrl: '', googleReviewMinRating: 4, googleReviewLowMsg: '' };
 }
 
 function stateFromSurvey(survey: Survey): WizardState {
@@ -70,7 +70,7 @@ function stateFromSurvey(survey: Survey): WizardState {
     distribution: survey.distribution ?? [],
     recipients: (survey.recipients ?? []).join(', '),
     primaryColor: survey.designConfig?.primaryColor ?? '#0fb9b1',
-    backgroundColor: survey.designConfig?.backgroundColor ?? '#f3f5ef',
+    backgroundColor: survey.designConfig?.backgroundColor ?? '#f6f4f5',
     fontFamily: survey.designConfig?.fontFamily ?? 'system-ui',
     logoUrl: survey.designConfig?.logoUrl ?? '',
     welcome: survey.designConfig?.welcome ?? '',

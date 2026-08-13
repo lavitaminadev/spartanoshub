@@ -10,8 +10,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: var(--blanco, #ffffff);
-  border-radius: 12px;
+  background: var(--blanco, var(--white));
+  border-radius: var(--radius-md);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   z-index: 1001;
   max-width: 500px;
@@ -27,13 +27,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid var(--line, #E5E7EB);
+  border-bottom: 1px solid var(--line, var(--line));
   flex-shrink: 0;
 }
 
 .modal-header h2 {
   margin: 0;
-  color: var(--txt, #0B0B0C);
+  color: var(--txt, var(--ink));
   font-size: 18px;
 }
 
@@ -41,7 +41,7 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--txt-muted, #999);
+  color: var(--txt-muted, var(--muted));
   font-size: 20px;
   padding: 0;
   display: flex;
@@ -49,13 +49,13 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.2s;
 }
 
 .close-btn:hover {
-  background: var(--gray, #F4F5F7);
-  color: var(--txt, #0B0B0C);
+  background: var(--gray, var(--soft));
+  color: var(--txt, var(--ink));
 }
 
 .modal-content {
@@ -71,7 +71,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: var(--txt, #0B0B0C);
+  color: var(--txt, var(--ink));
   font-weight: 500;
   font-size: 14px;
 }
@@ -90,10 +90,10 @@
 .date-range input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid var(--line, #E5E7EB);
-  border-radius: 4px;
+  border: 1px solid var(--line, var(--line));
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  color: var(--txt, #0B0B0C);
+  color: var(--txt, var(--ink));
 }
 
 .date-range input:focus {
@@ -104,11 +104,11 @@
 
 .modal-content select {
   padding: 8px 12px;
-  border: 1px solid var(--line, #E5E7EB);
-  border-radius: 4px;
+  border: 1px solid var(--line, var(--line));
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  color: var(--txt, #0B0B0C);
-  background: var(--blanco, #ffffff);
+  color: var(--txt, var(--ink));
+  background: var(--blanco, var(--white));
   cursor: pointer;
 }
 
@@ -119,14 +119,14 @@
 }
 
 fieldset {
-  border: 1px solid var(--line, #E5E7EB);
-  border-radius: 6px;
+  border: 1px solid var(--line, var(--line));
+  border-radius: var(--radius-sm);
   padding: 12px;
   margin: 0;
 }
 
 legend {
-  color: var(--txt, #0B0B0C);
+  color: var(--txt, var(--ink));
   font-weight: 600;
   font-size: 13px;
   padding: 0 4px;
@@ -146,7 +146,7 @@ legend {
   cursor: pointer;
   font-weight: normal;
   font-size: 13px;
-  color: var(--txt, #0B0B0C);
+  color: var(--txt, var(--ink));
 }
 
 .field-checkbox input {
@@ -160,7 +160,7 @@ legend {
   display: flex;
   gap: 12px;
   padding: 20px;
-  border-top: 1px solid var(--line, #E5E7EB);
+  border-top: 1px solid var(--line, var(--line));
   flex-shrink: 0;
 }
 
@@ -168,7 +168,7 @@ legend {
   flex: 1;
   padding: 10px 16px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -177,18 +177,18 @@ legend {
 
 .modal-overlay .btn-primary {
   background: var(--cian, var(--primary));
-  color: var(--blanco, #ffffff);
+  color: var(--blanco, var(--white));
 }
 
 .modal-overlay .btn-primary:hover:not(:disabled) {
-  background: #0ab3a5;
+  background: var(--cyan);
   transform: translateY(-2px);
 }
 
 .modal-overlay .btn-outline {
-  border: 1px solid var(--line, #E5E7EB);
+  border: 1px solid var(--line, var(--line));
   background: transparent;
-  color: var(--txt, #0B0B0C);
+  color: var(--txt, var(--ink));
 }
 
 .modal-overlay .btn-outline:hover {

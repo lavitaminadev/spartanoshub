@@ -15,7 +15,7 @@ interface StatusTrafficLightProps {
   label?: string;
 }
 
-const UNKNOWN: StatusOption = { value: '', color: '#596562', icon: '●', label: 'Sin estado' };
+const UNKNOWN: StatusOption = { value: '', color: '#706a73', icon: '●', label: 'Sin estado' };
 
 /**
  * Control de estado en un clic: muestra el estado actual y despliega el resto del ciclo.

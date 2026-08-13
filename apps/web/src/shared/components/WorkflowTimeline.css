@@ -25,7 +25,7 @@
   gap: 3px;
   padding: 7px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   background: var(--white);
   text-align: center;
 }
@@ -35,7 +35,7 @@
   height: 21px;
   display: grid;
   place-items: center;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: var(--soft);
   color: var(--muted);
   font-size: 10px;

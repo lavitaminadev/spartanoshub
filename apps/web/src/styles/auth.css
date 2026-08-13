@@ -9,29 +9,6 @@
   background: var(--primary);
 }
 
-.login-form {
-  background: var(--bg-white);
-  padding: 40px;
-  border-radius: var(--radius-lg);
-  width: 380px;
-  max-width: 95vw;
-}
-
-.login-title {
-  font-size: 28px;
-  text-align: center;
-  color: var(--primary);
-  margin-bottom: 4px;
-  letter-spacing: 1px;
-}
-
-.login-subtitle {
-  text-align: center;
-  color: var(--text-light);
-  font-size: 14px;
-  margin-bottom: 24px;
-}
-
 
 .first-access-page {
   min-height: 100dvh;
@@ -46,7 +23,7 @@
   width: min(100%, 610px);
   padding: clamp(26px, 5vw, 44px);
   border: 1px solid rgba(21, 19, 23, .08);
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   box-shadow: 0 24px 70px rgba(21, 19, 23, .08);
 }
 
@@ -57,8 +34,8 @@
 .welcome-card .brand-lockup { margin-bottom: 28px; }
 
 .onboarding-features { display: grid; gap: 10px; margin: 22px 0 26px; }
-.onboarding-features > div { display: grid; grid-template-columns: 42px 1fr; gap: 3px 12px; align-items: center; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); }
-.onboarding-features > div b { grid-row: 1 / 3; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: var(--cyan-soft); color: var(--cyan); font-size: 12px; }
+.onboarding-features > div { display: grid; grid-template-columns: 42px 1fr; gap: 3px 12px; align-items: center; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--soft); }
+.onboarding-features > div b { grid-row: 1 / 3; display: grid; place-items: center; width: 38px; height: 38px; border-radius: var(--radius-md); background: var(--cyan-soft); color: var(--cyan); font-size: 12px; }
 .onboarding-features > div strong { color: var(--ink); font-size: 14px; }
 .onboarding-features > div small { color: var(--muted); line-height: 1.4; }
 
@@ -69,15 +46,13 @@
 .required-mark, .optional-mark { float: right; padding: 3px 7px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 .optional-mark { background: var(--soft); color: var(--muted); }
 .password-input-group { align-items: stretch; }
-.password-visibility-button { min-width: 78px; border: 1px solid var(--line); border-left: 0; border-radius: 0 10px 10px 0; background: var(--soft); color: var(--cyan); font-size: 11px; font-weight: 800; cursor: pointer; }
-.password-input-group .input { border-radius: 10px 0 0 10px; }
-.password-rules { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin: 10px 0 0; padding: 0; list-style: none; }
-.password-rules li { padding: 7px 9px; border-radius: 8px; background: var(--soft); color: var(--muted); font-size: 10px; }
+.password-visibility-button { min-width: 78px; border: 1px solid var(--line); border-left: 0; border-radius: 0 var(--radius-md) var(--radius-md) 0; background: var(--soft); color: var(--cyan); font-size: 11px; font-weight: 800; cursor: pointer; }
+.password-input-group .input { border-radius: var(--radius-md) 0 0 var(--radius-md); }
 .password-rules li.passed { background: var(--cyan-soft); color: var(--cyan); }
 
 .terms-card { width: min(100%, 720px); }
 .terms-list { display: grid; gap: 10px; margin: 18px 0 22px; }
-.terms-item { display: grid; grid-template-columns: 22px 1fr; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.terms-item { display: grid; grid-template-columns: 22px 1fr; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--soft); cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 .terms-item:hover { transform: translateY(-1px); border-color: var(--cyan); }
 .terms-item.accepted { border-color: var(--cyan); background: var(--cyan-soft); }
 .terms-item input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--cyan); }

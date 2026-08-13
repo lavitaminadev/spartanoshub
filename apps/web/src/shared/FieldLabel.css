@@ -4,7 +4,7 @@
   gap: 6px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--txt, #0B0B0C);
+  color: var(--txt, var(--ink));
   cursor: text;
   padding: 4px 0;
 }
@@ -25,7 +25,7 @@
 }
 
 .field-label-required {
-  color: var(--rosa, #EA0F63);
+  color: var(--rosa, var(--pink));
   font-weight: 600;
   margin-left: 2px;
 }
@@ -37,10 +37,10 @@
 .field-label-input {
   padding: 6px 8px;
   border: 1.5px solid var(--cian, var(--primary));
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 500;
-  color: var(--txt, #0B0B0C);
+  color: var(--txt, var(--ink));
   background: rgba(14, 198, 184, 0.02);
   outline: none;
   transition: all 0.2s;
@@ -65,7 +65,7 @@
   font-size: 12px;
   opacity: 0.5;
   transition: all 0.2s;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .field-label:hover .field-label-edit-btn {

@@ -7,7 +7,7 @@
 .wizard-progress-track {
   height: 5px;
   border-radius: 99px;
-  background: var(--soft, #ece7ea);
+  background: var(--soft, var(--line));
   overflow: hidden;
 }
 

@@ -17,7 +17,7 @@ import { safeUrl } from '../../core/safe-url';
 
 interface Slot { startsAt: string; available: number }
 interface Created { id: string; referenceCode?: string; status?: string; startsAt?: string; couponCode?: string; createdAt?: string }
-const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)';
+const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f6f4f5 0%, #dce9df 100%)';
 
 /** Clave de `sessionStorage` donde vive la clave de idempotencia de la reserva en curso. */
 const BOOKING_KEY_STORAGE = 'vh-booking-key';
@@ -313,7 +313,7 @@ export function PublicReservationPage() {
   const design = form.designConfig || {};
   const primary = normalizeHexColor(design.primaryColor, '#0ec6b8');
   const accent = normalizeHexColor(design.accentColor, '#ea0f63');
-  const background = normalizeHexColor(design.backgroundColor, '#f3f5ef');
+  const background = normalizeHexColor(design.backgroundColor, '#f6f4f5');
   const textColor = design.textColor || '#3f4e49';
   const fontFamily = design.fontFamily || 'system-ui';
   const backgroundOpacity = imageOverlayAlpha(design.backgroundOpacity);

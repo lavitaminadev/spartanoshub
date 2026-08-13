@@ -27,15 +27,15 @@ export interface StatusOption {
 export const CYCLE_COLORS = {
   new: '#1f6fb2',
   pending: '#9a5a00',
-  confirmed: '#176f63',
-  reserved: '#176f63',
+  confirmed: '#087e79',
+  reserved: '#087e79',
   rescheduled: '#1f6fb2',
   waitlist: '#7040a0',
-  attended: '#1f7a46',
+  attended: '#087e79',
   no_show: '#b5332d',
-  cancelled: '#596562',
-  cancelled_client: '#596562',
-  cancelled_business: '#596562',
+  cancelled: '#706a73',
+  cancelled_client: '#706a73',
+  cancelled_business: '#706a73',
 } as const;
 
 /** Estados que puede tomar una reserva en la bandeja del equipo. */
