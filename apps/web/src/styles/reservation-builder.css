@@ -125,7 +125,7 @@
 /* Reservation builder usability pass: whole canvas drop zone + clearer weekly agenda */
 .builder-canvas { position:relative; overflow:hidden; border:2px dashed var(--surface-sage); background:linear-gradient(180deg,var(--white) 0%,var(--soft) 100%); }
 .builder-canvas::before { content:'Puedes soltar campos en cualquier lugar de esta zona'; position:absolute; top:14px; right:18px; padding:7px 11px; border-radius:999px; background:var(--success-bg); color:var(--ink); font-size:10px; font-weight:900; letter-spacing:.02em; pointer-events:none; }.builder-canvas.drag-over{
-  border-color: var(--cian);background: var(--soft);box-shadow: 0 0 0 4px rgba(111,165,143,.16),0 18px 45px rgba(34,22,29,.1);
+  border-color: var(--cian);background: var(--soft);box-shadow: 0 0 0 4px rgba(8,126,121,.16),0 18px 45px rgba(34,22,29,.1);
 }
 .builder-canvas.drag-over::after { content:'Suelta aquÃ­ para agregar u ordenar'; position:absolute; inset:18px; display:grid; place-items:center; border:2px dashed var(--cian); border-radius: var(--radius-lg); background:rgba(245,251,239,.78); color:#4a4247; font-size:22px; font-weight:900; z-index:6; pointer-events:none; }
 .builder-canvas.drag-over .canvas-field,
@@ -161,7 +161,7 @@
 }
 .day-windows input[type=time] { min-height:42px; border-radius: var(--radius-md); font-weight:900; color:var(--cian-dark); }
 .day-windows button:not(.add-window) { border-color:#f0c7c1; background:#fff8f7; color:var(--terracotta); }.day-windows .add-window{
-  width: max-content;padding: 8px 11px;margin-top: 8px;border-radius: var(--radius-md);color: var(--cian-dark);font-weight: 800;border-color: var(--surface-sage);background: var(--white);box-shadow: 0 5px 16px rgba(31,106,84,.08);
+  width: max-content;padding: 8px 11px;margin-top: 8px;border-radius: var(--radius-md);color: var(--cian-dark);font-weight: 800;border-color: var(--surface-sage);background: var(--white);box-shadow: 0 5px 16px rgba(34,22,29,.08);
 }
 .day-windows em { display:inline-flex; align-items:center; width:max-content; min-height:38px; padding:0 12px; border-radius:999px; background:var(--soft); color:var(--muted); font-size:12px; font-weight:800; }.schedule-card:nth-child(2){
   position: sticky;top: 92px;border-color: var(--surface-sage);

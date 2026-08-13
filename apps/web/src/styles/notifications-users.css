@@ -7,7 +7,7 @@
 .notification-trigger:hover { background: rgba(255,255,255,.14); }
 .notification-trigger svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .notification-count { position: absolute; top: -6px; right: -7px; min-width: 19px; height: 19px; display: grid; place-items: center; padding: 0 5px; border: 2px solid var(--surface-dark); border-radius: 99px; background: var(--accent); color: var(--white); font-size: 9px; font-weight: 900; }
-.notification-popover { position: absolute; bottom: calc(100% + 12px); left: 0; width: min(370px, calc(100vw - 28px)); overflow: hidden; border: 1px solid rgba(34, 22, 29,.12); border-radius: var(--radius-lg); background: var(--white); color: var(--text); box-shadow: 0 24px 65px rgba(11,42,34,.28); z-index: 1200; }
+.notification-popover { position: absolute; bottom: calc(100% + 12px); left: 0; width: min(370px, calc(100vw - 28px)); overflow: hidden; border: 1px solid rgba(34, 22, 29,.12); border-radius: var(--radius-lg); background: var(--white); color: var(--text); box-shadow: 0 24px 65px rgba(34,22,29,.28); z-index: 1200; }
 .notification-popover header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 17px 18px 14px; border-bottom: 1px solid var(--border-light); background: linear-gradient(135deg,var(--soft),var(--soft)); }
 .notification-popover header span { color: var(--accent); font-family: var(--font-mono); font-size: 11px; font-weight: 900; letter-spacing: .15em; }
 .notification-popover header h3 { margin: 2px 0 0; font-size: 18px; }
@@ -167,7 +167,7 @@
 .access-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid var(--surface-sage); border-radius: 99px; background: var(--soft); color: var(--muted); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
 .access-toggle i { width: 8px; height: 8px; border-radius: 50%; background: #a4aca8; }
 .access-toggle.active { border-color: var(--surface-sage); background: var(--soft); color: #096f6b; }
-.access-toggle.active i { background: var(--success); box-shadow: 0 0 0 3px rgba(47,154,106,.12); }
+.access-toggle.active i { background: var(--success); box-shadow: 0 0 0 3px rgba(8,126,121,.12); }
 .access-toggle:disabled { opacity: .55; cursor: not-allowed; }
 .account-form-intro { padding: 12px 14px; border-radius: var(--radius-md); background: var(--soft); }
 .account-form-intro strong { color: var(--text-dark); font-size: 12px; }

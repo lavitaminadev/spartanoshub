@@ -232,13 +232,13 @@
 }
 
 .reservation-module .btn-attended {
-  border-color: var(--cian-dark);
-  background: var(--cian);
+  border-color: var(--success-deep);
+  background: var(--success-deep);
   color: var(--blanco);
 }
 
 .reservation-module .btn-attended:hover:not(:disabled) {
-  background: var(--cian-dark);
+  background: var(--success-deep);
 }
 
 .reservation-module .btn-attended:focus-visible,

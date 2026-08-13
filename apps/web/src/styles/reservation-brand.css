@@ -126,7 +126,7 @@
 
 .toast-success { background: #e9fbf9; color: #087e79; border-left: 4px solid var(--success); }
 .toast-success .toast-icon { background: var(--success); }
-.toast-info { background: var(--info); color: var(--info); border-left: 4px solid var(--info); }
+.toast-info { background: #e3f2fd; color: #1f6fb2; border-left: 4px solid var(--info); }
 .toast-info .toast-icon { background: var(--info); }
 .toast-error { background: #fff9f5; color: #51291f; border-left: 4px solid var(--brand-pink); }
 .toast-error .toast-icon { background: var(--brand-pink); }

@@ -1,4 +1,4 @@
-.form-builder-dnd {
+﻿.form-builder-dnd {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -142,12 +142,12 @@
 }
 
 .form-builder-dnd .btn-primary {
-  background: var(--cian, var(--primary));
+  background: var(--primary);
   color: var(--blanco, var(--white));
 }
 
 .form-builder-dnd .btn-primary:hover {
-  background: var(--cyan);
+  background: var(--primary-hover);
   transform: translateY(-2px);
 }
 
