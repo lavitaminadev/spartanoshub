@@ -128,6 +128,7 @@ export function LoginPage() {
           {loading ? 'Ingresando...' : 'Ingresar'}
         </button>
         <Link className="auth-secondary-link" to="/forgot-password">¿Olvidaste tu contraseña?</Link>
+        <Link className="btn btn-outline btn-block" to="/solicitudes">Solicitudes</Link>
       </form>
     </div>
   );
