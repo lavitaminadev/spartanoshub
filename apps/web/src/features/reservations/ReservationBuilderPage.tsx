@@ -14,6 +14,7 @@ import { VitaIcons } from '../../shared/Icons';
 import { APP_PUBLIC_URL_IS_HTTPS, publicReservationUrl } from '../../core/public-url';
 import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
+import { type CatalogRubro, type CatalogTipo } from './ReservationCatalogPanel';
 
 const FIELD_LIBRARY = [
   ['text', 'Texto corto'], ['textarea', 'Texto largo'], ['email', 'Correo'],
@@ -152,6 +153,7 @@ export function ReservationBuilderPage() {
 
   const { data, isLoading } = useQuery<ReservationForm>({ queryKey: ['reservation-form', id], queryFn: () => api.get(`/reservations/forms/${id}`) });
   const { data: blocks = [] } = useQuery<Array<{ id: string; startsAt: string; endsAt: string; reason?: string }>>({ queryKey: ['reservation-blocks', id], queryFn: () => api.get(`/reservations/forms/${id}/blocks`) });
+  const { data: catalogRubros = [] } = useQuery<CatalogRubro[]>({ queryKey: ['reservation-catalog'], queryFn: () => api.get('/reservations/catalog') });
   useEffect(() => { if (data) setDraft(data); }, [data]);
   useEffect(() => {
     if (saved) return undefined;
@@ -167,6 +169,63 @@ export function ReservationBuilderPage() {
   const campaignUrl = useMemo(() => draft ? campaignReservationUrl(draft, publicUrl) : '', [draft, publicUrl]);
   const safeCampaignUrl = safeUrl(campaignUrl);
   const designPreviewStyle = useMemo(() => reservationDesignStyle(draft?.designConfig || {}), [draft?.designConfig]);
+
+  /*
+   * Rubro y tipo de captación: precarga un preset del catálogo cuando se elige. Los campos
+   * marcados con candado en el catálogo llegan como `system` (protegidos): el creador no los
+   * puede borrar ni volver opcionales. "Empezar en blanco" deja el formulario libre.
+   */
+  const [presetConfirm, setPresetConfirm] = useState<{ type: 'preset'; rubro: CatalogRubro; tipo: CatalogTipo } | { type: 'blank' } | null>(null);
+  const presetAppliedRef = useRef<string | null>(null);
+  const rubro = draft ? catalogRubros.find((item) => item.key === draft.rubro) : undefined;
+  const tipo = rubro?.tipos.find((item) => item.key === draft?.tipo);
+
+  const applyPreset = useCallback((nextRubro: CatalogRubro, nextTipo: CatalogTipo) => {
+    if (!draft) return;
+    const presetFields: FormField[] = (nextTipo.campos || []).map((campo) => ({
+      id: campo.id, type: campo.tipo, label: campo.label, required: campo.required, system: campo.locked,
+    }));
+    const designConfig = {
+      ...draft.designConfig,
+      ...(nextTipo.confirmacion ? { confirmationMessage: nextTipo.confirmacion } : {}),
+      ...(nextTipo.cta ? { submitLabel: nextTipo.cta } : {}),
+    };
+    change({
+      rubro: nextRubro.key,
+      tipo: nextTipo.key,
+      fieldSchema: presetFields,
+      ...(nextTipo.duracionMin ? { durationMinutes: nextTipo.duracionMin } : {}),
+      ...(nextTipo.capacidad ? { capacityPerSlot: nextTipo.capacidad } : {}),
+      designConfig,
+    });
+  }, [change, draft]);
+
+  const requestPreset = (nextRubro: CatalogRubro, nextTipo: CatalogTipo) => {
+    const same = draft?.rubro === nextRubro.key && draft?.tipo === nextTipo.key;
+    if ((draft?.fieldSchema?.length ?? 0) > 0 && !same) { setPresetConfirm({ type: 'preset', rubro: nextRubro, tipo: nextTipo }); return; }
+    applyPreset(nextRubro, nextTipo);
+  };
+
+  const startBlank = () => {
+    if ((draft?.fieldSchema?.length ?? 0) > 0) { setPresetConfirm({ type: 'blank' }); return; }
+    change({ rubro: null, tipo: null, fieldSchema: [] });
+  };
+
+  // Un formulario recién creado con rubro/tipo (desde el asistente) precarga el preset sin
+  // preguntar, porque todavía no tiene campos propios que se puedan perder.
+  useEffect(() => {
+    if (!draft || catalogRubros.length === 0) return;
+    const rubroKey = draft.rubro ?? '';
+    const tipoKey = draft.tipo ?? '';
+    if (!rubroKey || !tipoKey || (draft.fieldSchema?.length ?? 0) > 0) return;
+    const presetKey = `${rubroKey}/${tipoKey}`;
+    if (presetAppliedRef.current === presetKey) return;
+    const nextRubro = catalogRubros.find((item) => item.key === rubroKey);
+    const nextTipo = nextRubro?.tipos.find((item) => item.key === tipoKey);
+    if (!nextRubro || !nextTipo) return;
+    presetAppliedRef.current = presetKey;
+    applyPreset(nextRubro, nextTipo);
+  }, [draft, catalogRubros, applyPreset]);
 
   const saveMutation = useMutation({
     mutationFn: (body: Partial<ReservationForm>) => api.patch<ReservationForm>(`/reservations/forms/${id}`, updatePayload(body)),
@@ -321,6 +380,18 @@ export function ReservationBuilderPage() {
     {!clientMode && <div className="builder-progress">{STEPS.map((label, index) => <button className={step === index ? 'active' : step > index ? 'done' : ''} key={label} onClick={() => setStep(index)}><span>{step > index ? '✓' : index + 1}</span>{label}</button>)}</div>}
 
     {step === 0 && <Fragment>
+      <div className="builder-rubro-bar">
+        <div className="builder-rubro-text">
+          <span className="page-eyebrow">RUBRO Y TIPO</span>
+          <h3>Base de captación</h3>
+          <p>Elige un rubro y tipo para precargar campos, duración, cupos y mensaje de confirmación. O empieza en blanco y arma el formulario a mano.</p>
+        </div>
+        <div className="builder-rubro-controls">
+          <label>Rubro<select className="input" value={draft.rubro ?? ''} onChange={(event) => change({ rubro: event.target.value || null, tipo: null })}><option value="">Empezar en blanco (formato libre)</option>{catalogRubros.map((item) => <option key={item.key} value={item.key}>{item.nombre}</option>)}</select></label>
+          <label>Tipo<select className="input" value={draft.tipo ?? ''} disabled={!rubro} onChange={(event) => { const nextTipo = rubro?.tipos.find((item) => item.key === event.target.value); if (rubro && nextTipo) requestPreset(rubro, nextTipo); else change({ tipo: event.target.value || null }); }}><option value="">Elige un tipo</option>{rubro?.tipos.map((item) => <option key={item.key} value={item.key}>{item.nombre}</option>)}</select></label>
+          {rubro && tipo && <button type="button" className="btn btn-outline btn-sm" onClick={startBlank}>Empezar en blanco</button>}
+        </div>
+      </div>
       <div className="builder-grid">
         <aside className="field-library"><span className="page-eyebrow">BIBLIOTECA DE CAMPOS</span><h3>Agrega campos</h3><p>Arrastra al formulario o usa los botones.</p>
           <div className="field-library-help field-library-meta"><strong>Campos que mejoran CAPI</strong><small>Nombre, teléfono, correo y consentimiento aumentan la calidad de coincidencia en Meta (EMQ). Cada campo que agregues sin estos reduce la tasa de match.</small></div>{FIELD_LIBRARY.map(([type, label]) => <button draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('new-field', type); }} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span>{label.slice(0, 2).toUpperCase()}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Recomendado para reservas' : 'Campo opcional'}</small></div><em>Agregar</em></button>)}</aside>
@@ -486,6 +557,7 @@ export function ReservationBuilderPage() {
     <footer className="builder-footer"><span>Paso {step + 1} de {STEPS.length}</span>{!clientMode && step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(step - 1)}>Anterior</button>}{!clientMode && step < STEPS.length - 1 && <button className="btn btn-primary btn-sm" onClick={() => setStep(step + 1)}>Continuar</button>}<button className="btn btn-outline btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>Guardar</button></footer>
     <ConfirmDialog open={Boolean(confirmDeleteField)} title="Eliminar campo" description="¿Estás seguro de eliminar este campo? Los datos recopilados previamente no se perderán." confirmLabel="Eliminar" onClose={() => setConfirmDeleteField(null)} onConfirm={() => { if (confirmDeleteField) { change({ fieldSchema: fields.filter((field) => field.id !== confirmDeleteField) }); setSelected(null); } setConfirmDeleteField(null); }} />
     <ConfirmDialog open={Boolean(confirmDeleteBlock)} title="Quitar bloqueo" description="¿Eliminar este bloqueo? La agenda volverá a mostrar disponibilidad en ese horario." confirmLabel="Quitar" onClose={() => setConfirmDeleteBlock(null)} onConfirm={() => { if (confirmDeleteBlock) { deleteBlock.mutate(confirmDeleteBlock); } setConfirmDeleteBlock(null); }} />
+    <ConfirmDialog open={Boolean(presetConfirm)} title={presetConfirm?.type === 'blank' ? 'Empezar en blanco' : 'Aplicar preset'} description={presetConfirm?.type === 'blank' ? 'Se quitarán los campos cargados y el formulario quedará sin rubro ni tipo, para armarlo desde cero.' : `Se reemplazarán los ${fields.length} campos actuales por los de ${presetConfirm?.rubro.nombre} / ${presetConfirm?.tipo.nombre}. Los campos con candado del preset no se podrán quitar desde el constructor.`} confirmLabel={presetConfirm?.type === 'blank' ? 'Empezar en blanco' : 'Aplicar preset'} onClose={() => setPresetConfirm(null)} onConfirm={() => { if (presetConfirm?.type === 'preset') { applyPreset(presetConfirm.rubro, presetConfirm.tipo); } else if (presetConfirm?.type === 'blank') { change({ rubro: null, tipo: null, fieldSchema: [] }); } setPresetConfirm(null); }} />
   </div>;
 }
 
@@ -661,7 +733,7 @@ function ReservationLivePreview({
             <PreviewField label="Número de personas" />
             {customFields.map((field) => <PreviewField key={field.id} label={field.label} required={field.required} type={field.type} />)}
           </div>
-          <span className="preview-submit">Confirmar reserva</span>
+          <span className="preview-submit">{design.submitLabel || 'Confirmar reserva'}</span>
           <p className="privacy-note">Tus datos no son públicos y quedan asociados exclusivamente a esta empresa.</p>
         </section>
       </div>

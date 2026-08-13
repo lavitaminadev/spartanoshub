@@ -349,3 +349,14 @@
 .publish-meta-state small { color:var(--muted); font-size:11px; line-height:1.45; }
 
 .publish-link .publish-blocker { color:#ffd9d6; font-weight:700; }
+
+/* ===== Rubro y tipo de captación (constructor) ===== */
+.builder-rubro-bar { display:flex; gap:18px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; max-width:1400px; margin:0 auto 18px; padding:16px 18px; border:1px solid var(--surface-sage); border-radius: var(--radius-md); background:var(--white); box-shadow:0 1px 2px rgba(11,11,12,.04); }
+.builder-rubro-text { max-width:460px; }
+.builder-rubro-text .page-eyebrow { color:var(--cian-dark); font-weight:800; letter-spacing:.08em; }
+.builder-rubro-text h3 { margin:4px 0 4px; color:#171417; font-size:17px; letter-spacing:-.02em; }
+.builder-rubro-text p { margin:0; color:var(--muted); font-size:12px; line-height:1.45; }
+.builder-rubro-controls { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+.builder-rubro-controls label { display:flex; flex-direction:column; gap:6px; color:var(--ink); font-size:12px; font-weight:800; }
+.builder-rubro-controls .input { min-width:220px; min-height:42px; font-size:13px; }
+@media (max-width: 760px) { .builder-rubro-bar { align-items:stretch; } .builder-rubro-controls { width:100%; } .builder-rubro-controls label { flex:1; min-width:160px; } }
