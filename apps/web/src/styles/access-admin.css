@@ -101,3 +101,15 @@
 .admin-solicitud-facts span { display: grid; gap: 2px; }
 .admin-solicitud-facts small { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .admin-solicitud-facts strong { font-size: 12px; }
+.solicitudes-tabs { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 999px; background: var(--soft); }
+.solicitudes-tabs button { padding: 8px 16px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 800; cursor: pointer; }
+.solicitudes-tabs button.active { background: var(--primary); color: var(--white); }
+.solicitudes-tabs button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.privacy-block { display: grid; gap: 10px; margin-top: 8px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--soft); }
+.privacy-notice { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--white); color: var(--text-light); font-size: 12px; line-height: 1.55; }
+.privacy-notice p { margin: 0; }
+.privacy-notice strong { color: var(--text-dark); }
+.privacy-check { align-items: flex-start; gap: 10px; color: var(--text-dark); font-size: 12px; font-weight: 700; line-height: 1.45; }
+.privacy-check input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--primary); }
+.solicitudes-crosslink { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.solicitudes-crosslink span { color: var(--muted); font-size: 12px; }

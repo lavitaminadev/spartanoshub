@@ -46,6 +46,7 @@ export class ServiceRequestsService {
     requesterRut?: string;
     requesterPhone?: string;
     message?: string;
+    privacyAccepted: boolean;
     organizationId?: string;
   }): Promise<{ id: string; status: string }> {
     const type = input.type.trim().toLowerCase() as ServiceRequestType;
@@ -53,6 +54,9 @@ export class ServiceRequestsService {
     const email = input.requesterEmail.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException('El correo no es válido');
     if (!input.requesterName.trim()) throw new BadRequestException('El nombre es obligatorio');
+    if (input.privacyAccepted !== true) {
+      throw new BadRequestException('Debes aceptar el aviso de privacidad para enviar la solicitud');
+    }
     const rut = input.requesterRut?.trim();
     if (SENSITIVE_TYPES.includes(type) && !rut) {
       throw new BadRequestException('Para este tipo de solicitud es obligatorio indicar tu RUT');
@@ -66,6 +70,7 @@ export class ServiceRequestsService {
       requesterRut: rut || null,
       requesterPhone: input.requesterPhone?.trim() || null,
       message: input.message?.trim() || null,
+      extra: { privacyAccepted: true, privacyAcceptedAt: new Date().toISOString() },
     }));
     return { id: saved.id, status: saved.status };
   }

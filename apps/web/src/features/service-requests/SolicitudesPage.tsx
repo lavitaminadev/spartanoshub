@@ -44,6 +44,8 @@ export function SolicitudesPage(): JSX.Element {
   const [website, setWebsite] = useState('');
   const [sending, setSending] = useState(false);
   const [created, setCreated] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const [queryEmail, setQueryEmail] = useState('');
   const [queryRut, setQueryRut] = useState('');
@@ -59,7 +61,7 @@ export function SolicitudesPage(): JSX.Element {
     if (website) return;
     setSending(true);
     try {
-      await api.post('/service-requests', { type, requesterName: name, requesterEmail: email, requesterRut: requiresRut ? rut : rut || undefined, requesterPhone: phone || undefined, message: message || undefined, website });
+      await api.post('/service-requests', { type, requesterName: name, requesterEmail: email, requesterRut: requiresRut ? rut : rut || undefined, requesterPhone: phone || undefined, message: message || undefined, privacyAccepted, website });
       setCreated(true);
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : 'No se pudo enviar la solicitud.', 'error');
@@ -92,9 +94,9 @@ export function SolicitudesPage(): JSX.Element {
         actions={<Link className="btn btn-outline" to="/login">Volver al inicio de sesión</Link>}
       />
 
-      <nav className="survey-tabs" aria-label="Secciones de solicitudes">
-        <button className={tab === 'create' ? 'active' : ''} onClick={() => setTab('create')}><span>01</span><strong>Nueva solicitud</strong><small>Envía tu petición</small></button>
-        <button className={tab === 'status' ? 'active' : ''} onClick={() => setTab('status')}><span>02</span><strong>Consultar estado</strong><small>Correo y RUT</small></button>
+      <nav className="solicitudes-tabs" role="group" aria-label="Secciones de solicitudes">
+        <button className={tab === 'create' ? 'active' : ''} onClick={() => setTab('create')}>Nueva solicitud</button>
+        <button className={tab === 'status' ? 'active' : ''} onClick={() => setTab('status')}>Consultar estado</button>
       </nav>
 
       {tab === 'create' && (
@@ -113,8 +115,21 @@ export function SolicitudesPage(): JSX.Element {
               <label>Teléfono (opcional)<input className="input" value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
               <label>Detalle de la solicitud<textarea className="input" rows={4} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="Cuéntanos qué necesitas…" /></label>
               <input className="input honeypot" tabIndex={-1} autoComplete="off" value={website} onChange={(event) => setWebsite(event.target.value)} aria-hidden="true" />
-              <div className="modal-actions"><button className="btn btn-primary" type="submit" disabled={sending}>{sending ? 'Enviando…' : 'Enviar solicitud'}</button></div>
-              <small className="page-subtitle">Al enviar aceptas que tus datos se utilicen para gestionar esta solicitud y responder a ella.</small>
+              <div className="privacy-block">
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => setPrivacyOpen((open) => !open)}>{privacyOpen ? 'Ocultar aviso de privacidad' : 'Leer aviso de privacidad'}</button>
+                {privacyOpen && (
+                  <div className="privacy-notice">
+                    <p><strong>Tratamiento de datos personales</strong></p>
+                    <p>Al enviar esta solicitud, Espartanos tratará los datos que entregas (nombre, correo, RUT y teléfono) únicamente para gestionar, responder y dar seguimiento a tu solicitud, dejando un registro auditable de qué se pidió, quién lo resolvió y cuándo, conforme a la normativa de protección de datos personales vigente (Ley 19.628 y su actualización, Ley 21.719).</p>
+                    <p>Puedes ejercer tus derechos de acceso, rectificación, anonimización, portabilidad y baja a través de este mismo canal. Tus datos no se usarán para otros fines ni se compartirán con terceros, salvo obligación legal.</p>
+                  </div>
+                )}
+                <label className="toggle-row privacy-check"><input type="checkbox" checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> He leído y acepto el aviso de privacidad y el tratamiento de mis datos para esta solicitud</label>
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-outline" type="button" onClick={() => setTab('status')}>Consultar estado de una solicitud</button>
+                <button className="btn btn-primary" type="submit" disabled={sending || !privacyAccepted}>{sending ? 'Enviando…' : 'Enviar solicitud'}</button>
+              </div>
             </form>
           )}
         </div>
@@ -131,6 +146,7 @@ export function SolicitudesPage(): JSX.Element {
             {queryError && <div className="alert alert-error" role="alert">{queryError}</div>}
             <div className="modal-actions"><button className="btn btn-primary" type="submit" disabled={searching}>{searching ? 'Consultando…' : 'Consultar estado'}</button></div>
           </form>
+          <div className="solicitudes-crosslink"><span>¿Aún no envías tu solicitud?</span><button className="btn btn-outline btn-sm" onClick={() => setTab('create')}>Enviar una solicitud</button></div>
           {history && (
             <div className="solicitudes-history">
               {history.length === 0 ? <EmptyState icon="inbox" title="Sin solicitudes" description="No encontramos solicitudes para ese correo y RUT." /> : history.map((row) => (

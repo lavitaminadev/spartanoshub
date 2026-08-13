@@ -1,4 +1,4 @@
-import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { SERVICE_REQUEST_STATUSES, SERVICE_REQUEST_TYPES } from '../service-requests.service';
 
 export class CreateServiceRequestDto {
@@ -8,6 +8,8 @@ export class CreateServiceRequestDto {
   @IsOptional() @IsString() @MaxLength(20) requesterRut?: string;
   @IsOptional() @IsString() @MaxLength(50) requesterPhone?: string;
   @IsOptional() @IsString() @MaxLength(2000) message?: string;
+  /** Aceptación del aviso de privacidad, requerida y guardada para la trazabilidad. */
+  @IsBoolean() privacyAccepted: boolean;
   /** Honeypot anti-spam: un robot rellena este campo y la solicitud se descarta. */
   @IsOptional() @IsString() website?: string;
 }

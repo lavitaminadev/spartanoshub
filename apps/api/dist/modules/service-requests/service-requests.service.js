@@ -53,6 +53,9 @@ let ServiceRequestsService = class ServiceRequestsService {
             throw new common_1.BadRequestException('El correo no es válido');
         if (!input.requesterName.trim())
             throw new common_1.BadRequestException('El nombre es obligatorio');
+        if (input.privacyAccepted !== true) {
+            throw new common_1.BadRequestException('Debes aceptar el aviso de privacidad para enviar la solicitud');
+        }
         const rut = input.requesterRut?.trim();
         if (SENSITIVE_TYPES.includes(type) && !rut) {
             throw new common_1.BadRequestException('Para este tipo de solicitud es obligatorio indicar tu RUT');
@@ -66,6 +69,7 @@ let ServiceRequestsService = class ServiceRequestsService {
             requesterRut: rut || null,
             requesterPhone: input.requesterPhone?.trim() || null,
             message: input.message?.trim() || null,
+            extra: { privacyAccepted: true, privacyAcceptedAt: new Date().toISOString() },
         }));
         return { id: saved.id, status: saved.status };
     }
