@@ -47,7 +47,7 @@
 .btn-outline {
   background: transparent;
   border-color: var(--border);
-  color: var(--text);
+  color: var(--primary);
 }
 .btn-outline:hover:not(:disabled) {
   border-color: var(--primary);

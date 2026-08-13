@@ -1,4 +1,4 @@
-.modal-overlay {
+﻿.modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
@@ -176,12 +176,12 @@ legend {
 }
 
 .modal-overlay .btn-primary {
-  background: var(--cian, var(--primary));
+  background: var(--primary);
   color: var(--blanco, var(--white));
 }
 
 .modal-overlay .btn-primary:hover:not(:disabled) {
-  background: var(--cyan);
+  background: var(--primary-hover);
   transform: translateY(-2px);
 }
 
@@ -192,9 +192,9 @@ legend {
 }
 
 .modal-overlay .btn-outline:hover {
-  border-color: var(--cian, var(--primary));
-  color: var(--cian, var(--primary));
-  background: rgba(14, 198, 184, 0.05);
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(236, 11, 97, 0.05);
 }
 
 .modal-overlay .btn:disabled {
