@@ -12,7 +12,9 @@ import { StatusBadge } from '../../shared/StatusBadge';
 import { Tooltip } from '../../shared/Tooltip';
 import { statusLabel } from '../../shared/status-labels';
 import { roleLabel } from '../../core/role-labels';
-import { PIECE_TYPE_OPTIONS, PRODUCTION_WORKFLOW, pieceTypeLabel } from './production-labels';
+import { PRODUCTION_WORKFLOW } from './production-labels';
+// Los tipos ya no son una lista fija: se consultan al catalogo, que el area amplia sin desplegar.
+import { usePieceTypes } from './use-piece-types';
 
 interface Piece {
   id: string;
@@ -115,6 +117,9 @@ export function ProductionPage() {
   const [versionForm, setVersionForm] = useState({ fileName: '', driveFileId: '' });
   const [deliverPieceId, setDeliverPieceId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  // `labelFor` reemplaza a `pieceTypeLabel`: aquel solo conocia los nueve tipos compilados y
+  // mostraba la clave cruda de cualquier tipo aprobado despues.
+  const { options: pieceTypeOptions, labelFor: pieceTypeLabel } = usePieceTypes();
   const role = currentUser?.role ?? '';
   const canAssign = ['admin', 'art_director', 'operations_director'].includes(role);
   const canCreate = canAssign;
@@ -574,7 +579,7 @@ export function ProductionPage() {
           <label>
             Tipo
             <select className="input" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}>
-              {PIECE_TYPE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              {pieceTypeOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
             </select>
           </label>
           {form.type === 'carousel' && (
