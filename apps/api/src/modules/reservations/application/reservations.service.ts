@@ -774,6 +774,27 @@ export class ReservationsService {
       return { booking, form, created: true };
     });
 
+    /*
+     * Desde acá el bloqueo del formulario ya está liberado, y todo lo que sigue debe quedarse
+     * afuera.
+     *
+     * La transacción de arriba toma un bloqueo sobre la fila del formulario para impedir el
+     * sobrecupo: mientras dura, **ninguna otra reserva de ese formulario avanza**. Por eso
+     * adentro solo hay lecturas y escrituras de base, que tardan milisegundos.
+     *
+     * Meta y Google no llaman a nadie desde acá: `enqueue` solo escribe en su bandeja de salida
+     * y un trabajo aparte hace el envío. Esa bandeja es lo que impide que una caída de Facebook
+     * afecte a quien reserva, y es protección estructural, no una convención que respetar.
+     *
+     * **El correo sí sale a la red en el acto** — `sendMail` abre una conexión SMTP y espera
+     * respuesta. Es la única operación de este bloque que puede tardar segundos o agotar su
+     * tiempo de espera, y por eso importa que esté acá afuera: adentro dejaría el formulario
+     * bloqueado mientras un servidor de correo ajeno decide contestar.
+     *
+     * Si hay que agregar un efecto nuevo al crear una reserva, va acá abajo. Y si ese efecto
+     * habla con un tercero, lo correcto es darle su propia bandeja de salida en vez de
+     * llamarlo directo, como ya se hizo con Meta y con Google.
+     */
     const capabilities = await this.clientCapabilities(result.form.organizationId, result.form.clientId);
 
     if (result.created && result.form.crmEnabled && capabilities.crm) {
