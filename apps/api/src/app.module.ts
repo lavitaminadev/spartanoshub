@@ -28,6 +28,7 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { ProductionModule } from './modules/production/production.module';
+import { CollaborationModule } from './modules/collaboration/collaboration.module';
 import { DesignBudgetModule } from './modules/design-budget/design-budget.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
@@ -128,6 +129,7 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
     ContractsModule,
     CatalogModule,
     ProductionModule,
+    CollaborationModule,
     DesignBudgetModule,
     GamificationModule,
     IntegrationsModule,

@@ -131,6 +131,18 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     masterStatus: 'direction_required',
   },
   {
+    key: 'compliance.work_comment_retention_days',
+    category: 'compliance',
+    label: 'Retención de comentarios de trabajo',
+    description: 'Días que se conserva el texto de los comentarios y correcciones de un trabajo ya cerrado. Cumplido el plazo se despersonaliza: se borra el texto y el autor, y se conserva la fila con su fecha y el área. Las métricas del trabajo —cuántas observaciones, de qué área, en qué momento— sobreviven porque nunca fueron dato personal. **El plazo debe confirmarlo asesoría jurídica** y conviene que coincida con lo que declara el aviso de privacidad aceptado por el cliente.',
+    valueType: 'number',
+    defaultValue: 730,
+    masterStatus: 'direction_required',
+    min: 30,
+    max: 3650,
+    unit: 'días',
+  },
+  {
     key: 'compliance.terms_enforced',
     category: 'compliance',
     label: 'Exigir aceptación de condiciones',
