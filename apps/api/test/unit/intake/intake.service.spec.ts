@@ -49,7 +49,8 @@ function transactionalDataSource(saved: unknown[]) {
 
 function build(saved: unknown[] = []) {
   const { dataSource, manager, lockedQueryBuilder } = transactionalDataSource(saved);
-  const service = new IntakeService(requests as any, clients as any, users as any, dataSource as any);
+  const udValues = { udFor: async () => 1 };
+  const service = new IntakeService(requests as any, clients as any, users as any, dataSource as any, udValues as any);
   return { service, manager, lockedQueryBuilder };
 }
 

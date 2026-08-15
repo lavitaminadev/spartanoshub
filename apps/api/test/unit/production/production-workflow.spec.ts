@@ -19,7 +19,7 @@ const mockCorrectionRepo = {
 };
 
 const mockDesignBudget = {
-  calculateForPiece: vi.fn(),
+  calculateForPiece: vi.fn().mockResolvedValue(1),
   reserveForPiece: vi.fn(),
   confirmConsumption: vi.fn(),
 };

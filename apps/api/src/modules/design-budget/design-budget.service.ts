@@ -7,7 +7,7 @@ import { UDMovementType } from './ud-movement-type.enum';
 import { Piece } from '../production/piece.entity';
 import { Client } from '../clients/client.entity';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
-import { calculatePieceUd } from './ud-calculator';
+import { UdValuesService } from './ud-values.service';
 import { BudgetAlertDto } from './dto/budget-alert.dto';
 
 @Injectable()
@@ -17,6 +17,7 @@ export class DesignBudgetService {
     @InjectRepository(UDMovement) private movementRepo: Repository<UDMovement>,
     @InjectRepository(Client) private clientRepo: Repository<Client>,
     private parameterResolver: ParameterResolver,
+    private udValues: UdValuesService,
   ) {}
 
   async ensureMonthlyBudget(clientId: string, year: number, month: number, manager?: EntityManager): Promise<UDBudget> {
@@ -35,8 +36,9 @@ export class DesignBudgetService {
     return repo.save(budget);
   }
 
-  calculateForPiece(pieceType: string, carouselSlides = 0): number {
-    return calculatePieceUd(pieceType, carouselSlides);
+  /** Unidades que consume una pieza según los valores que configuró la organización. */
+  async calculateForPiece(pieceType: string, carouselSlides = 0, organizationId?: string | null): Promise<number> {
+    return this.udValues.udFor(pieceType, carouselSlides, organizationId);
   }
 
   async reserveForPiece(piece: Piece, actorId?: string, transactionManager?: EntityManager): Promise<UDMovement> {

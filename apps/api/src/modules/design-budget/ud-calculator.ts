@@ -15,6 +15,26 @@ export const CAROUSEL_BASE_UD = 1.0;
 export const CAROUSEL_EXTRA_PER_SLIDE = 0.4;
 
 /**
+ * Valor por defecto de cada tipo, incluido el carrusel.
+ *
+ * `UD_MATRIX` deja al carrusel fuera porque su cobro no es un número fijo sino base más extra por
+ * lámina. Para configurarlo hace falta igual que su base sea un valor como cualquier otro, así que
+ * acá se une con el resto: es la lista completa de lo que el catálogo ofrece configurar.
+ */
+export const UD_DEFAULTS: Record<string, number> = {
+  ...UD_MATRIX,
+  [PieceType.CAROUSEL]: CAROUSEL_BASE_UD,
+};
+
+/** Parámetro donde vive el valor configurable de un tipo de pieza. */
+export function udValueKey(pieceType: string): string {
+  return `ud.value.${pieceType}`;
+}
+
+/** Parámetro del extra por lámina adicional del carrusel. */
+export const UD_CAROUSEL_EXTRA_KEY = 'ud.carousel_extra_per_slide';
+
+/**
  * Unidades que consume una pieza, o `0` si su tipo todavía no tiene valor asignado.
  *
  * La matriz del Documento Maestro 6.1 cubre nueve tipos. La Dirección de Arte enumeró trece más

@@ -21,7 +21,7 @@ import type { AuthenticatedRequest } from '@shared/types/request';
 import { ApprovalRequest } from '../approvals/approval-request.entity';
 import { ApprovalRequestStatus } from '../approvals/approval-request-status.enum';
 import { PieceVersion } from './piece-version.entity';
-import { calculatePieceUd } from '../design-budget/ud-calculator';
+import { UdValuesService } from '../design-budget/ud-values.service';
 import { Client } from '../clients/client.entity';
 import { User } from '../users/user.entity';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
@@ -43,6 +43,7 @@ export class ProductionController {
     @InjectRepository(User) private userRepo: Repository<User>,
     private readonly accountAccess: AccountAccessService,
     private readonly parameters: ParameterResolver,
+    private readonly udValues: UdValuesService,
     private assignPiece: AssignPieceUseCase,
     private submitVer: SubmitVersionUseCase,
     private rejectPiece: RejectPieceUseCase,
@@ -67,7 +68,7 @@ export class ProductionController {
       status: PieceStatus.BACKLOG,
       title: dto.title.trim(),
       deadlineAt: deadlineAt ? new Date(deadlineAt) : undefined,
-      udAmount: calculatePieceUd(dto.type, carouselSlides),
+      udAmount: await this.udValues.udFor(dto.type, carouselSlides, req.organizationId),
     });
     return this.pieceRepo.save(piece);
   }

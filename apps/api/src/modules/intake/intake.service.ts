@@ -8,7 +8,7 @@ import { User } from '../users/user.entity';
 import { Piece } from '../production/piece.entity';
 import { Session } from '../audiovisual/session.entity';
 import { PieceStatus } from '../production/piece-status.enum';
-import { calculatePieceUd } from '../design-budget/ud-calculator';
+import { UdValuesService } from '../design-budget/ud-values.service';
 import { CreateWorkRequestDto, ResolveWorkRequestDto, UpdateWorkRequestDto } from './dto/work-request.dto';
 import { UserRole } from '../organizations/user-role.enum';
 import { retryOnDeadlock } from '../../shared/retry-on-deadlock';
@@ -100,6 +100,7 @@ export class IntakeService {
     @InjectRepository(Client) private readonly clients: Repository<Client>,
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly dataSource: DataSource,
+    private readonly udValues: UdValuesService,
   ) {}
 
   /**
@@ -295,15 +296,19 @@ export class IntakeService {
     if (!dto.pieces?.length) throw new BadRequestException('Indica al menos una pieza');
     const pieces = dto.pieces;
 
+    // Los valores en unidades se resuelven antes de abrir la transacción: son una lectura de
+    // configuración, no del trabajo que se está creando, y no tienen por qué alargar el bloqueo.
+    const ud = await Promise.all(pieces.map((piece) => this.udValues.udFor(piece.type, piece.carouselSlides, organizationId)));
+
     return retryOnDeadlock('convertir solicitud en piezas', () => this.dataSource.transaction(async (manager) => {
-      const created = await manager.save(Piece, pieces.map((piece) => manager.create(Piece, {
+      const created = await manager.save(Piece, pieces.map((piece, index) => manager.create(Piece, {
         organizationId,
         clientId: request.clientId,
         title: piece.title.trim(),
         type: piece.type,
         status: PieceStatus.BACKLOG,
         difficultyLevel: piece.difficultyLevel ?? 1,
-        udAmount: calculatePieceUd(piece.type, piece.carouselSlides),
+        udAmount: ud[index],
         description: request.description ?? undefined,
         assignedTo: request.assignedTo ?? undefined,
         deadlineAt: request.neededBy ?? undefined,

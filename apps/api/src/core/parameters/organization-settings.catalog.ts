@@ -3,6 +3,10 @@ import {
   ORGANIZATION_MODULE_CATALOG,
   moduleLifecycleSettingKey,
 } from '@espartanos/shared';
+// Ambos son archivos de constantes sin dependencias: el catálogo describe qué se puede
+// configurar, y los tipos de pieza con su matriz son justamente lo que se configura.
+import { PieceType, PIECE_TYPE_LABELS } from '../../modules/production/piece-type.enum';
+import { CAROUSEL_EXTRA_PER_SLIDE, UD_CAROUSEL_EXTRA_KEY, UD_DEFAULTS, udValueKey } from '../../modules/design-budget/ud-calculator';
 
 export type OrganizationSettingCategory =
   | 'operation'
@@ -48,7 +52,46 @@ const MODULE_LIFECYCLE_SETTINGS: OrganizationSettingDefinition[] = ORGANIZATION_
   options: MODULE_LIFECYCLE_STATUSES.map((status) => ({ value: status, label: status })),
 }));
 
+/**
+ * Un parámetro por cada tipo de pieza, con su valor en unidades.
+ *
+ * La matriz del Documento Maestro 6.1 sigue siendo el valor por defecto, pero deja de estar
+ * clavada en el código: Dirección puede corregir un valor o asignárselo a los tipos que todavía
+ * no lo tienen —logotipos, gigantografías, brochures— desde la pantalla de configuración, sin
+ * esperar un despliegue. El cambio queda auditado como cualquier otro parámetro.
+ *
+ * Los que nacen en `null` son los que la Dirección de Arte enumeró y el maestro no cubre: su
+ * precio es una decisión económica, no técnica. Mientras siga en `null` la pieza consume cero y
+ * queda listada para valorar.
+ */
+const UD_VALUE_SETTINGS: OrganizationSettingDefinition[] = Object.values(PieceType).map((pieceType) => ({
+  key: udValueKey(pieceType),
+  category: 'design_budget',
+  label: `Unidades de ${PIECE_TYPE_LABELS[pieceType]}`,
+  description: `Cuántas unidades del presupuesto consume una pieza de tipo «${PIECE_TYPE_LABELS[pieceType]}». Sin valor, la pieza se registra pero no descuenta.`,
+  valueType: 'number',
+  defaultValue: UD_DEFAULTS[pieceType] ?? null,
+  masterStatus: UD_DEFAULTS[pieceType] === undefined ? 'direction_required' : 'master_defined',
+  min: 0,
+  max: 100,
+  unit: 'UD',
+  nullable: true,
+}));
+
 export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
+  ...UD_VALUE_SETTINGS,
+  {
+    key: UD_CAROUSEL_EXTRA_KEY,
+    category: 'design_budget',
+    label: 'Unidades por lámina adicional del carrusel',
+    description: 'El carrusel cobra su valor base más este extra por cada lámina después de la primera, porque su esfuerzo crece con el número de láminas.',
+    valueType: 'number',
+    defaultValue: CAROUSEL_EXTRA_PER_SLIDE,
+    masterStatus: 'master_defined',
+    min: 0,
+    max: 100,
+    unit: 'UD',
+  },
   {
     key: 'compliance.terms_enforced',
     category: 'compliance',
