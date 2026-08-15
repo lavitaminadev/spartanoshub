@@ -19,7 +19,8 @@ function crear(filas: any[] = [], config: Record<string, unknown> = {}) {
     save: vi.fn(async (row: any) => { store.push(row); return row; }),
   } as any;
   const parameters = { get: vi.fn(async (key: string) => config[key] ?? null) } as any;
-  return { service: new PieceTypesService(types, parameters), store };
+  const audit = { log: vi.fn(async () => undefined) } as any;
+  return { service: new PieceTypesService(types, parameters, audit), store, audit };
 }
 
 describe('PieceTypesService', () => {

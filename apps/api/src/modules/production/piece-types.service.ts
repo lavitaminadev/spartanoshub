@@ -5,6 +5,7 @@ import { PieceTypeArea, PieceTypeDefinition, PieceTypeStatus } from './piece-typ
 import { UserRole } from '../organizations/user-role.enum';
 import { PieceType } from './piece-type.enum';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
+import { AuditService } from '../../core/audit/audit.service';
 import { CreatePieceTypeDto, UpdatePieceTypeDto } from './dto/piece-type.dto';
 
 /** Cargos que siempre pueden aprobar, además del que se configure. */
@@ -47,6 +48,7 @@ export class PieceTypesService {
   constructor(
     @InjectRepository(PieceTypeDefinition) private readonly types: Repository<PieceTypeDefinition>,
     private readonly parameters: ParameterResolver,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -104,7 +106,7 @@ export class PieceTypesService {
       throw new BadRequestException(`Ya existe un tipo con el identificador «${key}» (${existing.label}, ${existing.status})`);
     }
 
-    return this.types.save(this.types.create({
+    const propuesto = await this.types.save(this.types.create({
       organizationId,
       key,
       label: dto.label.trim(),
@@ -117,6 +119,12 @@ export class PieceTypesService {
       requestedBy,
       notes: dto.notes?.trim(),
     }));
+
+    await this.audit.log({
+      organizationId, actorId: requestedBy, entityType: 'piece_type', entityId: propuesto.id,
+      action: 'propose', after: this.snapshot(propuesto), reason: dto.notes?.trim(),
+    });
+    return propuesto;
   }
 
   /**
@@ -132,11 +140,19 @@ export class PieceTypesService {
     const type = await this.find(organizationId, id);
     if (type.status === PieceTypeStatus.ACTIVE) return type;
 
+    const before = this.snapshot(type);
     if (ajustes) this.applyEdits(type, ajustes);
     type.status = PieceTypeStatus.ACTIVE;
     type.approvedBy = approvedBy;
     type.approvedAt = new Date();
-    return this.types.save(type);
+    const saved = await this.types.save(type);
+
+    await this.audit.log({
+      organizationId, actorId: approvedBy, entityType: 'piece_type', entityId: type.id,
+      action: 'approve', before, after: this.snapshot(saved),
+      reason: `Aprobado por ${role}`,
+    });
+    return saved;
   }
 
   /**
@@ -151,8 +167,15 @@ export class PieceTypesService {
       throw new ForbiddenException('Tu cargo no tiene la atribución de editar el catálogo de tipos');
     }
     const type = await this.find(organizationId, id);
+    const before = this.snapshot(type);
     this.applyEdits(type, dto);
-    return this.types.save(type);
+    const saved = await this.types.save(type);
+
+    await this.audit.log({
+      organizationId, entityType: 'piece_type', entityId: type.id,
+      action: 'update', before, after: this.snapshot(saved), reason: `Editado por ${role}`,
+    });
+    return saved;
   }
 
   /**
@@ -166,9 +189,16 @@ export class PieceTypesService {
       throw new ForbiddenException('Tu cargo no tiene la atribución de retirar tipos de pieza');
     }
     const type = await this.find(organizationId, id);
+    const before = this.snapshot(type);
     type.status = PieceTypeStatus.RETIRED;
     if (reason) type.notes = reason.slice(0, 500);
-    return this.types.save(type);
+    const saved = await this.types.save(type);
+
+    await this.audit.log({
+      organizationId, entityType: 'piece_type', entityId: type.id,
+      action: 'retire', before, after: this.snapshot(saved), reason,
+    });
+    return saved;
   }
 
   /**
@@ -202,6 +232,14 @@ export class PieceTypesService {
     if (ALWAYS_APPROVE.has(role)) return true;
     const configurado = await this.parameters.get('production.piece_type_approver_role', null, null, organizationId);
     return typeof configurado === 'string' && configurado === role;
+  }
+
+  /** Lo que importa reconstruir despues: que se ofrecia, cuanto valia y en que estado estaba. */
+  private snapshot(type: PieceTypeDefinition) {
+    return {
+      key: type.key, label: type.label, area: type.area, status: type.status,
+      udAmount: type.udAmount, extraPerUnit: type.extraPerUnit, xpWeight: type.xpWeight, isPrint: type.isPrint,
+    };
   }
 
   private applyEdits(type: PieceTypeDefinition, dto: UpdatePieceTypeDto): void {
