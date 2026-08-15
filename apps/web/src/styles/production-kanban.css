@@ -237,3 +237,117 @@
   color: var(--text);
 }
 
+
+/* ---------------------------------------------------------------------------
+   Tablero de producción por área.
+
+   Se apoya en las clases de arriba en vez de traer una rejilla propia: el
+   tablero comercial ya resolvió el comportamiento en pantallas chicas, y dos
+   rejillas distintas terminarían viéndose distinto sin que nadie lo decidiera.
+   --------------------------------------------------------------------------- */
+
+.board-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.board-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Las vistas rápidas son filtros, no navegación: se ven como etiquetas que se
+   encienden y no como pestañas, que prometerían cambiar de pantalla. */
+.chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: var(--radius-md);
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.board-selects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.kanban-header small {
+  display: block;
+  font-weight: 400;
+  opacity: 0.65;
+  font-size: 11px;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+.production-card {
+  cursor: pointer;
+}
+
+.production-card h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.production-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.production-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* El borde lateral marca lo detenido sin depender del color: quien no distinga
+   el tono igual ve el grosor, y la tarjeta lleva además su texto. */
+.production-card.is-stalled {
+  border-left: 3px solid var(--warning, #d98324);
+}
+
+.production-card.is-highlighted {
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+.badge-warning {
+  color: var(--warning, #d98324);
+  font-weight: 600;
+}
+
+/* En pantallas chicas el tablero pasa a una columna: cinco columnas de 220px
+   obligarían a un desplazamiento horizontal que esconde la mitad del trabajo. */
+@media (max-width: 640px) {
+  .kanban.production-kanban {
+    grid-template-columns: 1fr;
+  }
+
+  .board-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
