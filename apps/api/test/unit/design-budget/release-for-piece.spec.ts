@@ -99,3 +99,35 @@ describe('DesignBudgetService.releaseForPiece', () => {
     expect(budget.reserved).toBe(0);
   });
 });
+
+describe('CancelPieceUseCase', () => {
+  it('exige declarar de quién fue la decisión y la deja en la pieza', async () => {
+    const { CancelPieceUseCase } = await import('../../../src/modules/production/cancel-piece.use-case');
+    const { CancelOrigin } = await import('../../../src/modules/production/cancel-origin.enum');
+    const { PieceStatus } = await import('../../../src/modules/production/piece-status.enum');
+
+    const guardada = { id: 'piece-1', clientId: 'c1', organizationId: 'org-1', status: PieceStatus.ASSIGNED } as any;
+    const manager = { findOne: async () => guardada, save: async (_e: unknown, row: any) => row };
+    const pieces = { manager: { transaction: (cb: any) => cb(manager) } } as any;
+    const budget = { releaseForPiece: vi.fn(async () => null) } as any;
+
+    const useCase = new CancelPieceUseCase(pieces, budget);
+    const resultado = await useCase.execute('piece-1', 'org-1', 'El cliente bajó la campaña', CancelOrigin.CLIENT, 'cm-1');
+
+    expect(resultado.status).toBe(PieceStatus.CANCELLED);
+    expect(resultado.cancelOrigin).toBe(CancelOrigin.CLIENT);
+    expect(resultado.cancelReason).toBe('El cliente bajó la campaña');
+    expect(resultado.cancelledBy).toBe('cm-1');
+    expect(resultado.cancelledAt).toBeInstanceOf(Date);
+    // El motivo viaja al movimiento con la responsabilidad ya nombrada, para que la bitácora
+    // del presupuesto se lea sin tener que cruzarla con la pieza.
+    expect(budget.releaseForPiece.mock.calls[0][1]).toContain('Lo pidió el cliente');
+  });
+
+  it('no cancela sin motivo', async () => {
+    const { CancelPieceUseCase } = await import('../../../src/modules/production/cancel-piece.use-case');
+    const { CancelOrigin } = await import('../../../src/modules/production/cancel-origin.enum');
+    const useCase = new CancelPieceUseCase({ manager: {} } as any, {} as any);
+    await expect(useCase.execute('p', 'org-1', '   ', CancelOrigin.CLIENT, 'u')).rejects.toBeInstanceOf(BadRequestException);
+  });
+});

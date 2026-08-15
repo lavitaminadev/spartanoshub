@@ -165,12 +165,14 @@ export class ProductionController {
   }
 
   @Post(':id/cancel')
-  // Cancelar mueve el saldo del cliente, así que queda en dirección y administración: no es una
-  // decisión de producción sino económica, aunque el trabajo cancelado sea de producción.
-  @Roles(UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
+  // La cancela quien lleva la cuenta, no el cliente. El cliente pide bajar un trabajo y la
+  // community manager lo registra declarando de quién fue la decisión. Dejar el botón en el
+  // portal convertiría un pedido en un movimiento de presupuesto que nadie revisó, y sin nadie
+  // que responda por si el motivo declarado es el real.
+  @Roles(UserRole.COMMUNITY_MANAGER, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Cancelar pieza y devolver sus unidades segun la regla configurada' })
   cancel(@Param('id') id: string, @Body() dto: CancelPieceDto, @Req() req: AuthenticatedRequest) {
-    return this.cancelPiece.execute(id, req.organizationId, dto.reason, req.user.id);
+    return this.cancelPiece.execute(id, req.organizationId, dto.reason, dto.origin, req.user.id);
   }
 
   @Post(':id/deliver')

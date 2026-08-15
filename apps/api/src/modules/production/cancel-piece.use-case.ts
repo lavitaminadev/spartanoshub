@@ -4,6 +4,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { Piece } from './piece.entity';
 import { PieceStatus } from './piece-status.enum';
 import { DesignBudgetService } from '../design-budget/design-budget.service';
+import { CancelOrigin, CANCEL_ORIGIN_LABELS } from './cancel-origin.enum';
 
 /**
  * Cancela una pieza y devuelve sus unidades según la regla configurada.
@@ -22,7 +23,7 @@ export class CancelPieceUseCase {
     private readonly designBudget: DesignBudgetService,
   ) {}
 
-  async execute(pieceId: string, organizationId: string, reason: string, actorId?: string): Promise<Piece> {
+  async execute(pieceId: string, organizationId: string, reason: string, origin: CancelOrigin, actorId?: string): Promise<Piece> {
     const motivo = reason?.trim();
     if (!motivo) throw new BadRequestException('Indica por qué se cancela la pieza');
 
@@ -37,9 +38,13 @@ export class CancelPieceUseCase {
       // La devolución va primero: si la configuración la rechaza —un mes cerrado, o un modo que
       // exige ajuste autorizado— la transacción se deshace y la pieza no queda cancelada con sus
       // unidades retenidas, que es el estado que nadie sabría corregir después.
-      await this.designBudget.releaseForPiece(piece, `Cancelación: ${motivo}`, actorId, manager);
+      await this.designBudget.releaseForPiece(piece, `Cancelación (${CANCEL_ORIGIN_LABELS[origin]}): ${motivo}`, actorId, manager);
 
       piece.status = PieceStatus.CANCELLED;
+      piece.cancelOrigin = origin;
+      piece.cancelReason = motivo.slice(0, 500);
+      piece.cancelledAt = new Date();
+      piece.cancelledBy = actorId;
       return manager.save(Piece, piece);
     });
   }
