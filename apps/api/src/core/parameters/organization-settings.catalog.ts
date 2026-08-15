@@ -21,6 +21,42 @@ export type OrganizationSettingCategory =
 export type OrganizationSettingValueType = 'boolean' | 'number' | 'select' | 'text';
 export type MasterSettingStatus = 'master_defined' | 'direction_required';
 
+/**
+ * Cuánto hay que saber para tocar un ajuste sin romper nada.
+ *
+ * Es distinto de `masterStatus`, que dice quién decide. Esto dice cuánto contexto hace falta:
+ * un director puede tener la atribución de cambiar el modo de devolución de unidades y aun así
+ * no ser quien deba encontrárselo junto al horario de la reunión semanal.
+ *
+ * La pantalla muestra lo básico y guarda lo avanzado detrás de un paso más. No es un permiso
+ * —quien entra a avanzada ve todo lo que su cargo permite— sino una defensa contra el ruido:
+ * una pantalla con sesenta ajustes hace que nadie toque ninguno.
+ */
+export type SettingLevel = 'basic' | 'advanced';
+
+/**
+ * Ajustes de operación diaria.
+ *
+ * Son los que alguien cambia porque cambió la forma de trabajar, y cuyo peor caso es una alerta
+ * mal calibrada. Todo lo demás —lo que mueve dinero, define quién aprueba, o toca cumplimiento—
+ * queda en avanzada, donde equivocarse cuesta caro y conviene que el paso sea deliberado.
+ */
+const BASIC_SETTINGS = new Set<string>([
+  'production.stale_hours',
+  'production.max_client_corrections',
+  'meetings.weekly_duration_minutes',
+  'alerts.deadline_notice_hours',
+  'ud.display_name',
+  'ud.client_visibility',
+  'ud.warning_threshold_percent',
+  'documents.naming_pattern',
+]);
+
+/** Nivel de un ajuste; avanzado por defecto, porque lo seguro es no exponer de más. */
+export function settingLevel(key: string): SettingLevel {
+  return BASIC_SETTINGS.has(key) ? 'basic' : 'advanced';
+}
+
 export interface OrganizationSettingOption {
   value: string;
   label: string;
@@ -39,6 +75,11 @@ export interface OrganizationSettingDefinition {
   max?: number;
   unit?: string;
   nullable?: boolean;
+}
+
+/** Definición con su nivel ya resuelto, que es lo que consume la pantalla. */
+export interface OrganizationSettingWithLevel extends OrganizationSettingDefinition {
+  level: SettingLevel;
 }
 
 const MODULE_LIFECYCLE_SETTINGS: OrganizationSettingDefinition[] = ORGANIZATION_MODULE_CATALOG.map((module) => ({

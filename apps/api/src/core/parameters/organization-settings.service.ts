@@ -7,6 +7,7 @@ import { ParameterResolver } from './parameter-resolver.service';
 import { ParameterValue } from './parameter-value.entity';
 import {
   ORGANIZATION_SETTINGS,
+  settingLevel,
   validateOrganizationSettingValue,
 } from './organization-settings.catalog';
 
@@ -38,6 +39,9 @@ export class OrganizationSettingsService {
       const override = valueByDefinition.get(definition.id);
       return {
         ...setting,
+        // La pantalla usa esto para mostrar lo diario y replegar el resto. No es un permiso:
+        // quien entra a avanzada ve todo lo que su cargo ya le permitía.
+        level: settingLevel(setting.key),
         value: override?.valueJson?.value ?? setting.defaultValue,
         source: override ? 'organization' : 'master_default',
         version: override?.version ?? 0,

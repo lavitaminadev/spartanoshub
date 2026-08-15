@@ -1,10 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ORGANIZATION_SETTINGS = void 0;
+exports.settingLevel = settingLevel;
 exports.validateOrganizationSettingValue = validateOrganizationSettingValue;
 const shared_1 = require("@espartanos/shared");
 const piece_type_enum_1 = require("../../modules/production/piece-type.enum");
 const ud_calculator_1 = require("../../modules/design-budget/ud-calculator");
+const BASIC_SETTINGS = new Set([
+    'production.stale_hours',
+    'production.max_client_corrections',
+    'meetings.weekly_duration_minutes',
+    'alerts.deadline_notice_hours',
+    'ud.display_name',
+    'ud.client_visibility',
+    'ud.warning_threshold_percent',
+    'documents.naming_pattern',
+]);
+function settingLevel(key) {
+    return BASIC_SETTINGS.has(key) ? 'basic' : 'advanced';
+}
 const MODULE_LIFECYCLE_SETTINGS = shared_1.ORGANIZATION_MODULE_CATALOG.map((module) => ({
     key: (0, shared_1.moduleLifecycleSettingKey)(module.key),
     category: 'modules',

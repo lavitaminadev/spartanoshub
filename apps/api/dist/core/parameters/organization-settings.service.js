@@ -46,6 +46,7 @@ let OrganizationSettingsService = class OrganizationSettingsService {
             const override = valueByDefinition.get(definition.id);
             return {
                 ...setting,
+                level: (0, organization_settings_catalog_1.settingLevel)(setting.key),
                 value: override?.valueJson?.value ?? setting.defaultValue,
                 source: override ? 'organization' : 'master_default',
                 version: override?.version ?? 0,
