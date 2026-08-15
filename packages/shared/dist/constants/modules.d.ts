@@ -129,7 +129,7 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly defaultEnabled: false;
 }, {
     readonly key: "governance";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "direction";

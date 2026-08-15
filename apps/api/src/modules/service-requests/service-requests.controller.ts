@@ -2,10 +2,9 @@ import { Body, Controller, Get, Param, Post, Put, Query, Req, ServiceUnavailable
 import { isOrganizationModuleVisible } from '@espartanos/shared';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../../core/authorization/roles.decorator';
+import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { Public } from '../../core/auth/decorators/public.decorator';
-import { UserRole } from '../organizations/user-role.enum';
 import { ServiceRequestsService } from './service-requests.service';
 import { CreateServiceRequestDto, UpdateServiceRequestDto } from './dto/service-request.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
@@ -114,7 +113,7 @@ export class ServiceRequestsController {
   /** Panel de administración: lista de solicitudes. */
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
+  @RequiresPermission('governance', 'view')
   @Get()
   list(@Req() req: AuthenticatedRequest, @Query('status') status?: string, @Query('type') type?: string) {
     return this.service.list(req.organizationId!, { status, type });
@@ -122,7 +121,7 @@ export class ServiceRequestsController {
 
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
+  @RequiresPermission('governance', 'view')
   @Get(':id')
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.getOne(req.organizationId!, id);
@@ -130,7 +129,7 @@ export class ServiceRequestsController {
 
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
+  @RequiresPermission('governance', 'edit')
   @Put(':id')
   update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateServiceRequestDto) {
     return this.service.update(req.organizationId!, id, { id: req.user.id, name: req.user.name }, dto);
@@ -138,7 +137,7 @@ export class ServiceRequestsController {
 
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
+  @RequiresPermission('governance', 'manage')
   @Post(':id/anonymize')
   anonymize(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.anonymizeByIdentity(req.organizationId!, id, { id: req.user.id, name: req.user.name });
