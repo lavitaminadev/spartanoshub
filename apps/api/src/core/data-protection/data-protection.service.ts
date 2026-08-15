@@ -7,6 +7,43 @@ import { DataConsent } from './consent.entity';
 import { Lead } from '../../modules/crm/leads/lead.entity';
 import { Contact } from '../../modules/crm/contacts/contact.entity';
 import { Reservation } from '../../modules/reservations/domain/reservation.entity';
+import { ConsentVersion } from './consent-version.entity';
+
+/** Aviso de privacidad que se muestra donde se pide un consentimiento. */
+export interface AvisoPrivacidad {
+  /** Identificador de la versión publicada, o `null` si el texto es provisional. */
+  versionId: string | null;
+  /** Correlativo de la versión. `0` significa que nadie ha publicado todavía. */
+  version: number;
+  title: string;
+  text: string;
+  provisional: boolean;
+}
+
+/**
+ * Texto de reemplazo mientras la agencia no publique el suyo.
+ *
+ * **No es un aviso de privacidad válido y no pretende serlo.** Describe en términos generales
+ * qué se hace con los datos para que el formulario no pida aceptar en blanco, y dice
+ * explícitamente que es provisional para que nadie lo confunda con el definitivo.
+ *
+ * Se publica el real desde Configuración; al hacerlo, este deja de usarse solo.
+ */
+const AVISO_PROVISIONAL = {
+  title: 'Aviso de privacidad (texto provisional)',
+  text: [
+    'Este es un texto provisional mientras la agencia publica su aviso de privacidad definitivo.',
+    '',
+    'Los datos que entregas —nombre, correo, y el RUT o teléfono cuando corresponda— se usan',
+    'únicamente para gestionar, responder y dar seguimiento a tu solicitud, y para dejar',
+    'registro de qué se pidió, quién lo resolvió y cuándo.',
+    '',
+    'No se utilizan para otros fines ni se comparten con terceros, salvo obligación legal.',
+    '',
+    'Puedes ejercer tus derechos de acceso, rectificación, anonimización, portabilidad y baja',
+    'por este mismo canal, conforme a la Ley 19.628 y a la Ley 21.719 que la actualiza.',
+  ].join('\n'),
+};
 
 @Injectable()
 export class DataProtectionService {
@@ -17,7 +54,38 @@ export class DataProtectionService {
     @InjectRepository(DataConsent) private consentRepo: Repository<DataConsent>,
     @InjectRepository(Contact) private contactRepo: Repository<Contact>,
     @InjectRepository(Reservation) private reservationRepo: Repository<Reservation>,
+    @InjectRepository(ConsentVersion) private consentVersionRepo: Repository<ConsentVersion>,
   ) {}
+
+  /**
+   * Aviso de privacidad vigente, para mostrarlo donde se pide un consentimiento.
+   *
+   * Devuelve siempre algo: si la organización todavía no publicó ninguna versión entrega un
+   * texto **provisional** marcado como tal. Se prefiere eso a no mostrar nada porque un
+   * formulario que pide aceptar sin decir qué es peor que uno con un texto genérico, y peor
+   * aún es un literal escondido en el código, que cambia sin dejar rastro.
+   *
+   * El texto provisional no se guarda como versión publicada: nadie lo redactó ni lo aprobó, y
+   * fabricar ese registro sería inventar una traza. Queda identificado con versión `0` para
+   * que la pantalla lo advierta y para que las aceptaciones registradas bajo él se distingan
+   * de las que aceptaron un texto real.
+   */
+  async avisoPrivacidadVigente(organizationId: string): Promise<AvisoPrivacidad> {
+    const publicada = await this.consentVersionRepo.findOne({
+      where: { organizationId, active: true },
+      order: { version: 'DESC' },
+    });
+    if (publicada) {
+      return {
+        versionId: publicada.id,
+        version: publicada.version,
+        title: publicada.title,
+        text: publicada.text,
+        provisional: false,
+      };
+    }
+    return { versionId: null, version: 0, ...AVISO_PROVISIONAL, provisional: true };
+  }
 
   /**
    * Deja constancia de una anonimizacion en la bitacora.

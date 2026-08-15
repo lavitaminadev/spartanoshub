@@ -134,6 +134,14 @@ export class WorkRequest {
   @Column({ name: 'reviewed_at', type: 'timestamp', nullable: true })
   reviewedAt?: Date | null;
 
+  /**
+   * Cuándo se aceptó. Separa el tiempo que tarda Operaciones en decidir del que tarda el área
+   * en convertirla: sin esta marca ambos quedan sumados en un solo tramo y no se distingue
+   * cuál de los dos hay que corregir.
+   */
+  @Column({ name: 'accepted_at', type: 'timestamp', nullable: true })
+  acceptedAt?: Date | null;
+
   @Column({ name: 'resolved_at', type: 'timestamp', nullable: true })
   resolvedAt?: Date | null;
 

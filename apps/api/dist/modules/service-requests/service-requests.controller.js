@@ -14,9 +14,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ServiceRequestsController = void 0;
 const common_1 = require("@nestjs/common");
+const shared_1 = require("@espartanos/shared");
 const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
+const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const public_decorator_1 = require("../../core/auth/decorators/public.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const service_requests_service_1 = require("./service-requests.service");
 const service_request_dto_1 = require("./dto/service-request.dto");
@@ -24,7 +27,24 @@ let ServiceRequestsController = class ServiceRequestsController {
     constructor(service) {
         this.service = service;
     }
+    assertCanalDisponible() {
+        if ((0, shared_1.isOrganizationModuleVisible)('governance'))
+            return;
+        throw new common_1.ServiceUnavailableException('El canal de solicitudes no está disponible por ahora. Escribe a la agencia para ejercer tus derechos sobre datos personales.');
+    }
+    agencyOrganizationId() {
+        const id = process.env.AGENCY_ORGANIZATION_ID;
+        if (!id) {
+            throw new common_1.ServiceUnavailableException('El canal de solicitudes no está configurado. Escribe a la agencia para ejercer tus derechos sobre datos personales.');
+        }
+        return id;
+    }
+    async privacy() {
+        this.assertCanalDisponible();
+        return this.service.avisoPrivacidad(this.agencyOrganizationId());
+    }
     async create(dto) {
+        this.assertCanalDisponible();
         if (dto.website)
             return { id: 'spam', status: 'ignored' };
         return this.service.createPublic({
@@ -35,10 +55,12 @@ let ServiceRequestsController = class ServiceRequestsController {
             requesterPhone: dto.requesterPhone,
             message: dto.message,
             privacyAccepted: dto.privacyAccepted,
+            organizationId: this.agencyOrganizationId(),
         });
     }
-    status(email, rut) {
-        return this.service.findByStatus(email ?? '', rut);
+    status(ref) {
+        this.assertCanalDisponible();
+        return this.service.findByReference(ref ?? '');
     }
     list(req, status, type) {
         return this.service.list(req.organizationId, { status, type });
@@ -55,6 +77,14 @@ let ServiceRequestsController = class ServiceRequestsController {
 };
 exports.ServiceRequestsController = ServiceRequestsController;
 __decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('privacy'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], ServiceRequestsController.prototype, "privacy", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -62,11 +92,11 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ServiceRequestsController.prototype, "create", null);
 __decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Get)('status'),
-    __param(0, (0, common_1.Query)('email')),
-    __param(1, (0, common_1.Query)('rut')),
+    __param(0, (0, common_1.Query)('ref')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ServiceRequestsController.prototype, "status", null);
 __decorate([
@@ -118,5 +148,6 @@ __decorate([
 exports.ServiceRequestsController = ServiceRequestsController = __decorate([
     (0, swagger_1.ApiTags)('Solicitudes'),
     (0, common_1.Controller)('service-requests'),
+    (0, module_scope_decorator_1.ModuleScope)('governance'),
     __metadata("design:paramtypes", [service_requests_service_1.ServiceRequestsService])
 ], ServiceRequestsController);

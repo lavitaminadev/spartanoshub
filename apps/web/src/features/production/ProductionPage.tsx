@@ -309,7 +309,7 @@ export function ProductionPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Produccion</h1>
+          <h1>Producción</h1>
           <p className="page-subtitle">Gestion visual del flujo de piezas.</p>
         </div>
         <div className="portal-item-actions">
@@ -349,7 +349,7 @@ export function ProductionPage() {
             <div className="production-source-chain">
               <strong>Solicitud</strong>
               <strong>Asignacion</strong>
-              <strong>Produccion</strong>
+              <strong>Producción</strong>
               <strong>Revision</strong>
               <strong>Cliente</strong>
               <strong>Cierre</strong>

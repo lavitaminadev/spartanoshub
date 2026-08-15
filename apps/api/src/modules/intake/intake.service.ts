@@ -34,6 +34,50 @@ const ROLES_BY_AREA: Record<WorkRequestArea, UserRole[]> = {
   [WorkRequestArea.COMMUNITY]: [UserRole.COMMUNITY_MANAGER],
 };
 
+/**
+ * Áreas que alcanza cada cargo en la bandeja.
+ *
+ * El plan lo fija así: **cada área ve lo suyo, dirección ve todo**. Las direcciones de arte y
+ * audiovisual quedan acotadas a su propia área porque dirigirla no implica necesitar el
+ * trabajo de las otras, y acotarlo limita lo que queda expuesto si una sesión se compromete.
+ *
+ * Un cargo que no aparece acá no ve nada por área; sigue viendo lo que pidió y lo que tiene
+ * asignado, que es la salvedad de `visibleAreas`.
+ */
+const AREAS_BY_ROLE: Partial<Record<UserRole, WorkRequestArea[]>> = {
+  [UserRole.DESIGNER]: [WorkRequestArea.DESIGN],
+  [UserRole.ART_DIRECTOR]: [WorkRequestArea.DESIGN],
+  [UserRole.AUDIOVISUAL]: [WorkRequestArea.AUDIOVISUAL],
+  [UserRole.AV_DIRECTOR]: [WorkRequestArea.AUDIOVISUAL],
+  [UserRole.COMMUNITY_MANAGER]: [WorkRequestArea.COMMUNITY],
+};
+
+/**
+ * Cargos que reciben trabajo en vez de administrar cuentas.
+ *
+ * Un diseñador o un editor no tiene cartera: el trabajo le llega asignado y puede ser de
+ * cualquier cliente. Acotarlos por cuenta —como se acota a una community manager, que sí tiene
+ * cartera— les deja la bandeja vacía aunque tengan trabajo esperando, porque el alcance por
+ * cuenta se evalúa antes que el de área y no alcanza ninguna.
+ *
+ * Su límite no es la cuenta: es el área y lo que tienen asignado. Ver el nombre del cliente en
+ * una solicitud de su área no es un acceso extra, es parte de poder hacer el trabajo.
+ */
+export const AREA_SCOPED_ROLES = new Set<UserRole>([
+  UserRole.DESIGNER,
+  UserRole.AUDIOVISUAL,
+  UserRole.ART_DIRECTOR,
+  UserRole.AV_DIRECTOR,
+]);
+
+/** Cargos que ven las tres áreas: administración y las direcciones transversales. */
+const UNRESTRICTED_AREA_ROLES = new Set<UserRole>([
+  UserRole.ADMIN,
+  UserRole.OPERATIONS_DIRECTOR,
+  UserRole.COMMERCIAL_DIRECTOR,
+  UserRole.CREATIVE_DIRECTOR,
+]);
+
 /** Nombre del área en los mensajes de error, para que digan algo accionable. */
 const AREA_LABELS: Record<WorkRequestArea, string> = {
   [WorkRequestArea.DESIGN]: 'diseño',
@@ -110,23 +154,58 @@ export class IntakeService {
     organizationId: string,
     filters: { status?: WorkRequestStatus; area?: string; clientId?: string; mine?: string },
     allowedClientIds?: string[],
+    viewer?: { id: string; role: UserRole },
   ): Promise<{ data: WorkRequest[]; total: number }> {
     const scope = this.clientScope(filters.clientId, allowedClientIds);
     if (scope === EMPTY_SCOPE) return { data: [], total: 0 };
 
-    const where: FindOptionsWhere<WorkRequest> = { organizationId };
-    if (scope !== undefined) where.clientId = scope;
-    if (filters.status) where.status = filters.status;
-    if (filters.area) where.area = filters.area as WorkRequest['area'];
-    if (filters.mine) where.assignedTo = filters.mine;
+    const base: FindOptionsWhere<WorkRequest> = { organizationId };
+    if (scope !== undefined) base.clientId = scope;
+    if (filters.status) base.status = filters.status;
+    if (filters.mine) base.assignedTo = filters.mine;
 
     const [data, total] = await this.requests.findAndCount({
-      where,
+      where: this.areaScope(base, filters.area, viewer),
       relations: ['client', 'requester', 'assignee'],
       order: { createdAt: 'DESC' },
       take: 200,
     });
     return { data, total };
+  }
+
+  /**
+   * Acota la bandeja a las áreas que alcanza el cargo de quien consulta.
+   *
+   * El área que llega por parámetro **filtra dentro de lo permitido y nunca lo amplía**: pedir
+   * un área ajena no la abre, igual que ocurre con las cuentas. Un filtro que puede mostrar más
+   * de lo que el cargo ve deja de ser un filtro y pasa a ser un agujero.
+   *
+   * Con `mine` no se acota por área: algo asignado a la persona se ve siempre, porque tiene que
+   * hacerlo. Y en cualquier caso se ve lo que uno mismo pidió, aunque haya quedado en otra área:
+   * quien abre una solicitud no siempre acierta, y que desaparezca al equivocarse convierte un
+   * error de clasificación en una solicitud perdida.
+   *
+   * @param viewer - Sin valor no se acota; lo usan las llamadas internas que ya validaron acceso.
+   */
+  private areaScope(
+    base: FindOptionsWhere<WorkRequest>,
+    requestedArea?: string,
+    viewer?: { id: string; role: UserRole },
+  ): FindOptionsWhere<WorkRequest> | FindOptionsWhere<WorkRequest>[] {
+    const asked = requestedArea as WorkRequestArea | undefined;
+    const withArea = (area?: WorkRequestArea) => (area ? { ...base, area } : base);
+
+    if (!viewer || UNRESTRICTED_AREA_ROLES.has(viewer.role)) return withArea(asked);
+    if (base.assignedTo !== undefined) return withArea(asked);
+
+    const visible = AREAS_BY_ROLE[viewer.role] ?? [];
+    const areas = asked ? visible.filter((area) => area === asked) : visible;
+
+    return [
+      ...(areas.length ? [{ ...base, area: In(areas) }] : []),
+      { ...base, requestedBy: viewer.id, ...(asked ? { area: asked } : {}) },
+      { ...base, assignedTo: viewer.id, ...(asked ? { area: asked } : {}) },
+    ];
   }
 
   async findOne(organizationId: string, id: string, allowedClientIds?: string[]): Promise<WorkRequest> {
@@ -153,6 +232,7 @@ export class IntakeService {
       }
       request.status = dto.status;
       if (dto.status === WorkRequestStatus.IN_REVIEW) request.reviewedAt = new Date();
+      if (dto.status === WorkRequestStatus.ACCEPTED) request.acceptedAt = new Date();
       if (dto.status === WorkRequestStatus.REJECTED) request.resolvedAt = new Date();
     }
 
@@ -293,15 +373,24 @@ export class IntakeService {
     });
   }
 
-  /** Conteo por estado, para las columnas de la bandeja. */
-  async counts(organizationId: string, allowedClientIds?: string[]): Promise<Record<string, number>> {
+  /**
+   * Conteo por estado, para las columnas de la bandeja.
+   *
+   * Usa el mismo alcance que `list`: si contara sobre un universo distinto, las columnas
+   * mostrarían un número y la lista otro, y el usuario creería que le falta trabajo por ver.
+   */
+  async counts(
+    organizationId: string,
+    allowedClientIds?: string[],
+    viewer?: { id: string; role: UserRole },
+  ): Promise<Record<string, number>> {
     if (allowedClientIds?.length === 0) return {};
-    const where: FindOptionsWhere<WorkRequest> = { organizationId };
-    if (allowedClientIds) where.clientId = In(allowedClientIds);
+    const base: FindOptionsWhere<WorkRequest> = { organizationId };
+    if (allowedClientIds) base.clientId = In(allowedClientIds);
 
     const rows = await this.requests.createQueryBuilder('r')
       .select('r.status', 'status').addSelect('COUNT(*)', 'total')
-      .where(where)
+      .where(this.areaScope(base, undefined, viewer))
       .groupBy('r.status')
       .getRawMany<{ status: string; total: string }>();
     return Object.fromEntries(rows.map((row) => [row.status, Number(row.total)]));

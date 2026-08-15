@@ -95,7 +95,7 @@ export function OperationalHome({ clientId }: { clientId?: string }) {
   return (
     <section className="op-home">
       <header className="op-home-head">
-        <h1>Inicio Operativo</h1>
+        <h2>Inicio Operativo</h2>
         <p>Cómo viene el día, y si la señal a Meta está llegando bien.</p>
       </header>
 

@@ -1,4 +1,4 @@
-import { useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
 import { PageHero } from '../../shared/PageHero';
@@ -48,8 +48,15 @@ export function SolicitudesPage(): JSX.Element {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [privacyRead, setPrivacyRead] = useState(false);
 
-  const [queryEmail, setQueryEmail] = useState('');
-  const [queryRut, setQueryRut] = useState('');
+  /**
+   * Aviso de privacidad vigente. Llega del servidor y no se escribe en esta página: el texto
+   * es un documento con versión, y la solicitud registra cuál aceptó cada persona.
+   */
+  const [aviso, setAviso] = useState<{ title: string; text: string; version: number; provisional: boolean } | null>(null);
+
+  /** Código de seguimiento devuelto al enviar. Es lo único con que se consulta después. */
+  const [tracking, setTracking] = useState('');
+  const [queryRef, setQueryRef] = useState('');
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
   const [queryError, setQueryError] = useState('');
   const [searching, setSearching] = useState(false);
@@ -57,12 +64,21 @@ export function SolicitudesPage(): JSX.Element {
   const selectedType = REQUEST_TYPES.find((t) => t.value === type);
   const requiresRut = Boolean(selectedType?.sensitive);
 
+  useEffect(() => {
+    let vigente = true;
+    api.get<{ title: string; text: string; version: number; provisional: boolean }>('/service-requests/privacy')
+      .then((data) => { if (vigente) setAviso(data); })
+      .catch(() => { if (vigente) setAviso(null); });
+    return () => { vigente = false; };
+  }, []);
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (website) return;
     setSending(true);
     try {
-      await api.post('/service-requests', { type, requesterName: name, requesterEmail: email, requesterRut: requiresRut ? rut : rut || undefined, requesterPhone: phone || undefined, message: message || undefined, privacyAccepted, website });
+      const respuesta = await api.post<{ id: string }>('/service-requests', { type, requesterName: name, requesterEmail: email, requesterRut: requiresRut ? rut : rut || undefined, requesterPhone: phone || undefined, message: message || undefined, privacyAccepted, website });
+      setTracking(respuesta?.id ?? '');
       setCreated(true);
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : 'No se pudo enviar la solicitud.', 'error');
@@ -74,16 +90,16 @@ export function SolicitudesPage(): JSX.Element {
   const consult = async (event: React.FormEvent) => {
     event.preventDefault();
     setQueryError('');
-    if (!queryEmail.trim() && !queryRut.trim()) {
-      setQueryError('Ingresa tu correo o tu RUT para consultar el estado');
+    if (!queryRef.trim()) {
+      setQueryError('Ingresa el código de seguimiento que recibiste al enviar tu solicitud');
       return;
     }
     setSearching(true);
     try {
-      const rows = await api.get<HistoryRow[]>(`/service-requests/status?email=${encodeURIComponent(queryEmail.trim())}&rut=${encodeURIComponent(queryRut.trim())}`);
+      const rows = await api.get<HistoryRow[]>(`/service-requests/status?ref=${encodeURIComponent(queryRef.trim())}`);
       setHistory(rows);
     } catch (error) {
-      setQueryError(error instanceof Error ? error.message : 'No se pudo consultar. Verifica tu correo o RUT.');
+      setQueryError(error instanceof Error ? error.message : 'No encontramos una solicitud con ese código.');
       setHistory(null);
     } finally {
       setSearching(false);
@@ -107,7 +123,29 @@ export function SolicitudesPage(): JSX.Element {
       {tab === 'create' && (
         <div className="solicitudes-card">
           {created ? (
-            <EmptyState icon="check" title="Solicitud enviada" description={`Recibimos tu solicitud. Podrás consultar su estado desde "Consultar estado" con tu correo y RUT.`} action={<button className="btn btn-primary" onClick={() => { setCreated(false); setType('account'); setName(''); setEmail(''); setRut(''); setPhone(''); setMessage(''); }}>Enviar otra solicitud</button>} />
+            /*
+             * El código es la única forma de consultar después, así que se muestra grande, se
+             * puede copiar de un clic y se advierte que hay que guardarlo. Si el titular cierra
+             * esta pantalla sin anotarlo, pierde el seguimiento de su propia solicitud.
+             */
+            <div className="solicitud-enviada">
+              <EmptyState icon="check" title="Solicitud enviada" description="Guarda este código: es lo único con lo que podrás consultar el estado de tu solicitud." />
+              <div className="tracking-code">
+                <span className="tracking-label">Código de seguimiento</span>
+                <code>{tracking}</code>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() => { navigator.clipboard?.writeText(tracking); triggerToast('Código copiado', 'success'); }}
+                >
+                  Copiar código
+                </button>
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-outline" type="button" onClick={() => { setQueryRef(tracking); setTab('status'); }}>Consultar su estado</button>
+                <button className="btn btn-primary" type="button" onClick={() => { setCreated(false); setTracking(''); setType('account'); setName(''); setEmail(''); setRut(''); setPhone(''); setMessage(''); }}>Enviar otra solicitud</button>
+              </div>
+            </div>
           ) : (
             <form className="modal-form" onSubmit={submit}>
               <p className="page-subtitle">Indica el tipo de solicitud y tus datos de contacto. Para rectificación, anonimización, portabilidad o baja es obligatorio el RUT.</p>
@@ -124,9 +162,16 @@ export function SolicitudesPage(): JSX.Element {
                 <button type="button" className="btn btn-outline btn-sm" onClick={() => { setPrivacyOpen((open) => !open); setPrivacyRead(true); }}>{privacyOpen ? 'Ocultar aviso de privacidad' : 'Leer aviso de privacidad'}</button>
                 {privacyOpen && (
                   <div className="privacy-notice">
-                    <p><strong>Tratamiento de datos personales</strong></p>
-                    <p>Al enviar esta solicitud, Espartanos tratará los datos que entregas (nombre, correo, RUT y teléfono) únicamente para gestionar, responder y dar seguimiento a tu solicitud, dejando un registro auditable de qué se pidió, quién lo resolvió y cuándo, conforme a la normativa de protección de datos personales vigente (Ley 19.628 y su actualización, Ley 21.719).</p>
-                    <p>Puedes ejercer tus derechos de acceso, rectificación, anonimización, portabilidad y baja a través de este mismo canal. Tus datos no se usarán para otros fines ni se compartirán con terceros, salvo obligación legal.</p>
+                    <p><strong>{aviso?.title ?? 'Tratamiento de datos personales'}</strong></p>
+                    {aviso
+                      ? <p className="privacy-text">{aviso.text}</p>
+                      : <p>No fue posible cargar el aviso de privacidad. Vuelve a intentarlo antes de enviar tu solicitud.</p>}
+                    {aviso && !aviso.provisional && <small className="privacy-version">Versión {aviso.version}</small>}
+                    {aviso?.provisional && (
+                      <small className="privacy-version is-provisional">
+                        Texto provisional. La agencia aún no publica su aviso definitivo.
+                      </small>
+                    )}
                   </div>
                 )}
                 <label className={`toggle-row privacy-check ${privacyRead ? '' : 'is-locked'}`}><input type="checkbox" checked={privacyAccepted} disabled={!privacyRead} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> He leído y acepto el aviso de privacidad y el tratamiento de mis datos para esta solicitud</label>
@@ -144,10 +189,9 @@ export function SolicitudesPage(): JSX.Element {
       {tab === 'status' && (
         <div className="solicitudes-card">
           <form className="modal-form" onSubmit={consult}>
-            <p className="page-subtitle">Ingresa tu <strong>correo</strong> o tu <strong>RUT</strong> (al menos uno) para ver el estado y la resolución de tus solicitudes.</p>
+            <p className="page-subtitle">Ingresa el <strong>código de seguimiento</strong> que recibiste al enviar tu solicitud para ver su estado y resolución.</p>
             <div className="form-row">
-              <label>Correo<input className="input" type="email" value={queryEmail} onChange={(event) => setQueryEmail(event.target.value)} /></label>
-              <label>RUT<input className="input" value={queryRut} onChange={(event) => setQueryRut(event.target.value)} placeholder="12.345.678-9" /></label>
+              <label>Código de seguimiento<input className="input" value={queryRef} onChange={(event) => setQueryRef(event.target.value)} placeholder="0000aaaa-0000-0000-0000-000000000000" autoComplete="off" /></label>
             </div>
             {queryError && <div className="alert alert-error" role="alert">{queryError}</div>}
             <div className="modal-actions"><button className="btn btn-primary" type="submit" disabled={searching}>{searching ? 'Consultando…' : 'Consultar estado'}</button></div>

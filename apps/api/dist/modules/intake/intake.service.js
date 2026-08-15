@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.IntakeService = void 0;
+exports.IntakeService = exports.AREA_SCOPED_ROLES = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -32,6 +32,25 @@ const ROLES_BY_AREA = {
     [work_request_entity_1.WorkRequestArea.AUDIOVISUAL]: [user_role_enum_1.UserRole.AUDIOVISUAL, user_role_enum_1.UserRole.AV_DIRECTOR],
     [work_request_entity_1.WorkRequestArea.COMMUNITY]: [user_role_enum_1.UserRole.COMMUNITY_MANAGER],
 };
+const AREAS_BY_ROLE = {
+    [user_role_enum_1.UserRole.DESIGNER]: [work_request_entity_1.WorkRequestArea.DESIGN],
+    [user_role_enum_1.UserRole.ART_DIRECTOR]: [work_request_entity_1.WorkRequestArea.DESIGN],
+    [user_role_enum_1.UserRole.AUDIOVISUAL]: [work_request_entity_1.WorkRequestArea.AUDIOVISUAL],
+    [user_role_enum_1.UserRole.AV_DIRECTOR]: [work_request_entity_1.WorkRequestArea.AUDIOVISUAL],
+    [user_role_enum_1.UserRole.COMMUNITY_MANAGER]: [work_request_entity_1.WorkRequestArea.COMMUNITY],
+};
+exports.AREA_SCOPED_ROLES = new Set([
+    user_role_enum_1.UserRole.DESIGNER,
+    user_role_enum_1.UserRole.AUDIOVISUAL,
+    user_role_enum_1.UserRole.ART_DIRECTOR,
+    user_role_enum_1.UserRole.AV_DIRECTOR,
+]);
+const UNRESTRICTED_AREA_ROLES = new Set([
+    user_role_enum_1.UserRole.ADMIN,
+    user_role_enum_1.UserRole.OPERATIONS_DIRECTOR,
+    user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR,
+    user_role_enum_1.UserRole.CREATIVE_DIRECTOR,
+]);
 const AREA_LABELS = {
     [work_request_entity_1.WorkRequestArea.DESIGN]: 'diseño',
     [work_request_entity_1.WorkRequestArea.AUDIOVISUAL]: 'audiovisual',
@@ -77,26 +96,39 @@ let IntakeService = class IntakeService {
             return manager.save(work_request_entity_1.WorkRequest, request);
         }));
     }
-    async list(organizationId, filters, allowedClientIds) {
+    async list(organizationId, filters, allowedClientIds, viewer) {
         const scope = this.clientScope(filters.clientId, allowedClientIds);
         if (scope === EMPTY_SCOPE)
             return { data: [], total: 0 };
-        const where = { organizationId };
+        const base = { organizationId };
         if (scope !== undefined)
-            where.clientId = scope;
+            base.clientId = scope;
         if (filters.status)
-            where.status = filters.status;
-        if (filters.area)
-            where.area = filters.area;
+            base.status = filters.status;
         if (filters.mine)
-            where.assignedTo = filters.mine;
+            base.assignedTo = filters.mine;
         const [data, total] = await this.requests.findAndCount({
-            where,
+            where: this.areaScope(base, filters.area, viewer),
             relations: ['client', 'requester', 'assignee'],
             order: { createdAt: 'DESC' },
             take: 200,
         });
         return { data, total };
+    }
+    areaScope(base, requestedArea, viewer) {
+        const asked = requestedArea;
+        const withArea = (area) => (area ? { ...base, area } : base);
+        if (!viewer || UNRESTRICTED_AREA_ROLES.has(viewer.role))
+            return withArea(asked);
+        if (base.assignedTo !== undefined)
+            return withArea(asked);
+        const visible = AREAS_BY_ROLE[viewer.role] ?? [];
+        const areas = asked ? visible.filter((area) => area === asked) : visible;
+        return [
+            ...(areas.length ? [{ ...base, area: (0, typeorm_2.In)(areas) }] : []),
+            { ...base, requestedBy: viewer.id, ...(asked ? { area: asked } : {}) },
+            { ...base, assignedTo: viewer.id, ...(asked ? { area: asked } : {}) },
+        ];
     }
     async findOne(organizationId, id, allowedClientIds) {
         const request = await this.requests.findOne({ where: { id, organizationId }, relations: ['client', 'requester', 'assignee'] });
@@ -120,6 +152,8 @@ let IntakeService = class IntakeService {
             request.status = dto.status;
             if (dto.status === work_request_entity_1.WorkRequestStatus.IN_REVIEW)
                 request.reviewedAt = new Date();
+            if (dto.status === work_request_entity_1.WorkRequestStatus.ACCEPTED)
+                request.acceptedAt = new Date();
             if (dto.status === work_request_entity_1.WorkRequestStatus.REJECTED)
                 request.resolvedAt = new Date();
         }
@@ -217,15 +251,15 @@ let IntakeService = class IntakeService {
             order: { name: 'ASC' },
         });
     }
-    async counts(organizationId, allowedClientIds) {
+    async counts(organizationId, allowedClientIds, viewer) {
         if (allowedClientIds?.length === 0)
             return {};
-        const where = { organizationId };
+        const base = { organizationId };
         if (allowedClientIds)
-            where.clientId = (0, typeorm_2.In)(allowedClientIds);
+            base.clientId = (0, typeorm_2.In)(allowedClientIds);
         const rows = await this.requests.createQueryBuilder('r')
             .select('r.status', 'status').addSelect('COUNT(*)', 'total')
-            .where(where)
+            .where(this.areaScope(base, undefined, viewer))
             .groupBy('r.status')
             .getRawMany();
         return Object.fromEntries(rows.map((row) => [row.status, Number(row.total)]));

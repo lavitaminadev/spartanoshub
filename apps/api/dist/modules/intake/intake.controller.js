@@ -29,17 +29,22 @@ let IntakeController = class IntakeController {
         this.intake = intake;
         this.accountAccess = accountAccess;
     }
+    async clientScope(req) {
+        if (intake_service_1.AREA_SCOPED_ROLES.has(req.user.role))
+            return undefined;
+        return this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    }
     async create(req, dto) {
-        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const allowed = await this.clientScope(req);
         return this.intake.create(req.organizationId, req.user.id, dto, allowed);
     }
     async list(req, status, area, clientId, mine) {
-        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.intake.list(req.organizationId, { status, area, clientId, mine: mine === 'true' ? req.user.id : undefined }, allowed);
+        const allowed = await this.clientScope(req);
+        return this.intake.list(req.organizationId, { status, area, clientId, mine: mine === 'true' ? req.user.id : undefined }, allowed, { id: req.user.id, role: req.user.role });
     }
     async counts(req) {
-        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.intake.counts(req.organizationId, allowed);
+        const allowed = await this.clientScope(req);
+        return this.intake.counts(req.organizationId, allowed, { id: req.user.id, role: req.user.role });
     }
     async assignees(req, area) {
         if (!Object.values(work_request_entity_1.WorkRequestArea).includes(area)) {
@@ -48,15 +53,15 @@ let IntakeController = class IntakeController {
         return this.intake.assigneeOptions(req.organizationId, area);
     }
     async findOne(req, id) {
-        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const allowed = await this.clientScope(req);
         return this.intake.findOne(req.organizationId, id, allowed);
     }
     async update(req, id, dto) {
-        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const allowed = await this.clientScope(req);
         return this.intake.update(req.organizationId, id, dto, allowed);
     }
     async convert(req, id, dto) {
-        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const allowed = await this.clientScope(req);
         return this.intake.convert(req.organizationId, id, dto, allowed);
     }
 };
