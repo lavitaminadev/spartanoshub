@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const config_1 = require("@nestjs/config");
 const throttler_1 = require("@nestjs/throttler");
+const resource_throttler_guard_1 = require("./core/resource-throttler.guard");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const core_1 = require("@nestjs/core");
 const audit_interceptor_1 = require("./core/audit/audit.interceptor");
@@ -148,7 +149,7 @@ exports.AppModule = AppModule = __decorate([
             authorization_module_1.AuthorizationModule,
         ],
         providers: [
-            { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },
+            { provide: core_1.APP_GUARD, useClass: resource_throttler_guard_1.ResourceThrottlerGuard },
             { provide: core_1.APP_INTERCEPTOR, useClass: error_logging_interceptor_1.ErrorLoggingInterceptor },
             { provide: core_1.APP_INTERCEPTOR, useClass: audit_interceptor_1.AuditInterceptor },
         ],

@@ -12,6 +12,7 @@ import { ReservationCoupon } from '../domain/reservation-coupon.entity';
 import { SurveyContactRequest } from '../domain/survey-contact-request.entity';
 import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLocalToUtc, zonedParts } from '../domain/timezone';
 import { normalizePhone } from '../../../shared/phone';
+import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicReservationDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
@@ -313,6 +314,29 @@ export class ReservationsService {
     return rules;
   }
 
+  /**
+   * Toma el turno para crear reservas de un cliente en un día concreto.
+   *
+   * Serializa las reservas que compiten de verdad y deja avanzar en paralelo las que no. El
+   * alcance es `(cliente, día)` porque el tope diario del cliente suma todos sus formularios:
+   * bloquear solo el formulario dejaba que dos formularios de la misma cuenta contaran cero a la
+   * vez y ambos insertaran, excediendo ese tope.
+   *
+   * Primero se asegura la fila y después se bloquea. La inserción puede perder la carrera contra
+   * otra petición —de ahí el `IGNORE`—, pero entonces la fila ya existe y ambas terminan
+   * bloqueando la misma. El bloqueo se libera al cerrar la transacción.
+   */
+  private async lockClientDay(manager: EntityManager, clientId: string, day: string): Promise<void> {
+    await manager.query(
+      'INSERT IGNORE INTO reservation_day_locks (id, client_id, day, created_at) VALUES (?, ?, ?, NOW())',
+      [randomUUID(), clientId, day],
+    );
+    await manager.query(
+      'SELECT id FROM reservation_day_locks WHERE client_id = ? AND day = ? FOR UPDATE',
+      [clientId, day],
+    );
+  }
+
   private localDateKey(date: Date, timeZone: string) {
     const { year, month, day } = zonedParts(date, timeZone);
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -358,13 +382,40 @@ export class ReservationsService {
     return result.booking;
   }
 
+  /**
+   * Cuenta reservas del día leyendo el estado **actual**, no la instantánea de la transacción.
+   *
+   * MariaDB trabaja en `REPEATABLE READ`: una consulta normal devuelve lo que había cuando la
+   * transacción empezó. Dos reservas simultáneas tomaban el turno una tras otra, pero la segunda
+   * seguía contando cero porque su instantánea era anterior a que la primera confirmara, y el
+   * tope diario se excedía igual.
+   *
+   * `FOR UPDATE` obliga a leer lo que hay ahora. Es lo que convierte el turno en una garantía:
+   * sin esto, el bloqueo ordena las transacciones pero cada una decide sobre datos viejos.
+   *
+   * @param excludeId - Reserva que no se cuenta, al reprogramar una existente.
+   */
   private async dailyReservationsCount(manager: EntityManager, formId: string, dateKey: string, timeZone: string, excludeId?: string) {
     const start = startOfLocalDayUtc(dateKey, timeZone);
     const end = startOfLocalDayUtc(addPlainDays(dateKey, 1), timeZone);
-    const qb = manager.getRepository(Reservation).createQueryBuilder('r')
-      .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId, start, end, statuses: ACTIVE_STATUSES });
-    if (excludeId) qb.andWhere('r.id != :excludeId', { excludeId });
-    return qb.getCount();
+    return this.currentReservationCount(manager, 'form_id', formId, start, end, excludeId);
+  }
+
+  /** Igual que el anterior, pero sobre el cliente: su tope suma todos sus formularios. */
+  private async currentReservationCount(
+    manager: EntityManager,
+    column: 'form_id' | 'client_id',
+    id: string,
+    start: Date,
+    end: Date,
+    excludeId?: string,
+  ): Promise<number> {
+    const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
+    const params: unknown[] = [id, start, end, ...ACTIVE_STATUSES];
+    let sql = `SELECT id FROM reservations WHERE ${column} = ? AND starts_at >= ? AND starts_at < ? AND status IN (${placeholders})`;
+    if (excludeId) { sql += ' AND id != ?'; params.push(excludeId); }
+    const rows = await manager.query(`${sql} FOR UPDATE`, params);
+    return Array.isArray(rows) ? rows.length : 0;
   }
 
   /**
@@ -376,10 +427,7 @@ export class ReservationsService {
   private async clientDailyReservationsCount(manager: EntityManager, clientId: string, dateKey: string, timeZone: string, excludeId?: string) {
     const start = startOfLocalDayUtc(dateKey, timeZone);
     const end = startOfLocalDayUtc(addPlainDays(dateKey, 1), timeZone);
-    const qb = manager.getRepository(Reservation).createQueryBuilder('r')
-      .where('r.client_id = :clientId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { clientId, start, end, statuses: ACTIVE_STATUSES });
-    if (excludeId) qb.andWhere('r.id != :excludeId', { excludeId });
-    return qb.getCount();
+    return this.currentReservationCount(manager, 'client_id', clientId, start, end, excludeId);
   }
 
   /**
@@ -709,11 +757,18 @@ export class ReservationsService {
     this.validateEmailDomain(dto.guestEmail);
 
     const result = await this.transaction('crear reserva publica', async (manager) => {
-      const form = await this.publishedForm(slug, manager, true);
+      // El formulario se lee sin bloquear: lo que hay que serializar no es el formulario sino el
+      // día del cliente, y para saber cuál es hace falta primero su zona horaria.
+      const form = await this.publishedForm(slug, manager);
       const existingIdempotent = await manager.getRepository(Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
       if (existingIdempotent) return { booking: existingIdempotent, form, created: false };
 
       const startsAt = new Date(dto.startsAt);
+      if (!Number.isNaN(startsAt.getTime())) {
+        // Desde acá y hasta cerrar la transacción, ninguna otra reserva de este cliente para
+        // este día avanza. Las de otros días y las de otros clientes no se ven afectadas.
+        await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+      }
       if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
       const partySize = dto.partySize || 1;
       const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId);

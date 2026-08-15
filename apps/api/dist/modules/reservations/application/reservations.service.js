@@ -28,6 +28,7 @@ const reservation_coupon_entity_1 = require("../domain/reservation-coupon.entity
 const survey_contact_request_entity_1 = require("../domain/survey-contact-request.entity");
 const timezone_1 = require("../domain/timezone");
 const phone_1 = require("../../../shared/phone");
+const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
 const lead_intake_service_1 = require("../../crm/leads/lead-intake.service");
 const shared_1 = require("@espartanos/shared");
@@ -350,6 +351,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('El horario está fuera del rango permitido');
         return rules;
     }
+    async lockClientDay(manager, clientId, day) {
+        await manager.query('INSERT IGNORE INTO reservation_day_locks (id, client_id, day, created_at) VALUES (?, ?, ?, NOW())', [(0, node_crypto_1.randomUUID)(), clientId, day]);
+        await manager.query('SELECT id FROM reservation_day_locks WHERE client_id = ? AND day = ? FOR UPDATE', [clientId, day]);
+    }
     localDateKey(date, timeZone) {
         const { year, month, day } = (0, timezone_1.zonedParts)(date, timeZone);
         return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -394,20 +399,23 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async dailyReservationsCount(manager, formId, dateKey, timeZone, excludeId) {
         const start = (0, timezone_1.startOfLocalDayUtc)(dateKey, timeZone);
         const end = (0, timezone_1.startOfLocalDayUtc)((0, timezone_1.addPlainDays)(dateKey, 1), timeZone);
-        const qb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r')
-            .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId, start, end, statuses: ACTIVE_STATUSES });
-        if (excludeId)
-            qb.andWhere('r.id != :excludeId', { excludeId });
-        return qb.getCount();
+        return this.currentReservationCount(manager, 'form_id', formId, start, end, excludeId);
+    }
+    async currentReservationCount(manager, column, id, start, end, excludeId) {
+        const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
+        const params = [id, start, end, ...ACTIVE_STATUSES];
+        let sql = `SELECT id FROM reservations WHERE ${column} = ? AND starts_at >= ? AND starts_at < ? AND status IN (${placeholders})`;
+        if (excludeId) {
+            sql += ' AND id != ?';
+            params.push(excludeId);
+        }
+        const rows = await manager.query(`${sql} FOR UPDATE`, params);
+        return Array.isArray(rows) ? rows.length : 0;
     }
     async clientDailyReservationsCount(manager, clientId, dateKey, timeZone, excludeId) {
         const start = (0, timezone_1.startOfLocalDayUtc)(dateKey, timeZone);
         const end = (0, timezone_1.startOfLocalDayUtc)((0, timezone_1.addPlainDays)(dateKey, 1), timeZone);
-        const qb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r')
-            .where('r.client_id = :clientId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { clientId, start, end, statuses: ACTIVE_STATUSES });
-        if (excludeId)
-            qb.andWhere('r.id != :excludeId', { excludeId });
-        return qb.getCount();
+        return this.currentReservationCount(manager, 'client_id', clientId, start, end, excludeId);
     }
     async clientTimezone(clientId, organizationId) {
         const form = await this.forms.findOne({
@@ -699,11 +707,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Completa el formulario antes de enviarlo');
         this.validateEmailDomain(dto.guestEmail);
         const result = await this.transaction('crear reserva publica', async (manager) => {
-            const form = await this.publishedForm(slug, manager, true);
+            const form = await this.publishedForm(slug, manager);
             const existingIdempotent = await manager.getRepository(reservation_entity_1.Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
             if (existingIdempotent)
                 return { booking: existingIdempotent, form, created: false };
             const startsAt = new Date(dto.startsAt);
+            if (!Number.isNaN(startsAt.getTime())) {
+                await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+            }
             if (Number.isNaN(startsAt.getTime()))
                 throw new common_1.BadRequestException('Fecha inválida');
             const partySize = dto.partySize || 1;
