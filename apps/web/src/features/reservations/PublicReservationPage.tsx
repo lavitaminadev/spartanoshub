@@ -441,7 +441,7 @@ export function PublicReservationPage() {
             {customFields.map((field) => <Fragment key={field.id}>{renderField(field, answers[field.id] as string | undefined, (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
             {form.designConfig?.couponEnabled && <div className="public-field"><label>Cupón de descuento<div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código opcional" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
           </div>
-          <button className="public-submit" type="submit" disabled={submit.isPending}><span>{isSurvey ? (submit.isPending ? 'Enviando...' : (design.submitLabel || 'Enviar')) : 'Continuar →'}</span></button>
+          <button className="public-submit" type="submit" disabled={submit.isPending}><span>{isSurvey ? (submit.isPending ? 'Enviando...' : 'Enviar') : 'Continuar →'}</span></button>
           {isSurvey && submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : 'Error al enviar la respuesta'}</p></div>}
         </div>}
 
@@ -455,7 +455,7 @@ export function PublicReservationPage() {
             {guest.guestEmail && <div className="confirm-row"><span>Correo</span><strong>{guest.guestEmail}</strong></div>}
             {customFields.filter((f) => f.type !== 'consent' && answers[f.id]).map((f) => <div className="confirm-row" key={f.id}><span>{f.label}</span><strong>{String(answers[f.id])}</strong></div>)}
           </div>
-          <button className="public-submit" type="submit" disabled={submit.isPending}>{submit.isPending ? 'Enviando...' : (design.submitLabel || 'Confirmar reserva')}</button>
+          <button className="public-submit" type="submit" disabled={submit.isPending}>{submit.isPending ? 'Enviando...' : 'Confirmar reserva'}</button>
           {submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : 'Error al crear la reserva'}</p><button type="button" className="btn btn-outline btn-sm" onClick={retrySubmit}>Intentar de nuevo</button></div>}
           <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => setStep(2)}>← Volver</button>
         </div>}

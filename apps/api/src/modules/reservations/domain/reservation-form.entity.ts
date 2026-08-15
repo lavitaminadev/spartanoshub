@@ -10,8 +10,6 @@ export class ReservationForm {
   @Column({ name: 'public_slug', type: 'varchar', length: 190 }) publicSlug: string;
   @Column({ type: 'varchar', length: 24, default: 'draft' }) status: string;
   @Column({ type: 'varchar', length: 30, default: 'appointment' }) mode: string;
-  @Column({ type: 'varchar', length: 60, nullable: true }) rubro?: string | null;
-  @Column({ type: 'varchar', length: 60, nullable: true }) tipo?: string | null;
   @Column({ type: 'varchar', length: 80, default: 'America/Santiago' }) timezone: string;
   @Column({ name: 'duration_minutes', type: 'smallint', default: 60 }) durationMinutes: number;
   @Column({ name: 'buffer_minutes', type: 'smallint', default: 0 }) bufferMinutes: number;

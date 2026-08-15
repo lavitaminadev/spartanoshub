@@ -3,12 +3,9 @@ import {
   Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { reservationTotals, useReservationMetrics } from './use-reservation-metrics';
-import type { CatalogRubro } from '../reservations/ReservationCatalogPanel';
 
 /**
  * Resultados del ciclo de reserva — el foco de la Fase 1.
@@ -64,27 +61,8 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
   const [days, setDays] = useState(30);
   const [showTable, setShowTable] = useState(false);
   const { data, isLoading, error, refetch, isFetching } = useReservationMetrics(days, clientId);
-  const { data: catalogRubros = [] } = useQuery<CatalogRubro[]>({ queryKey: ['reservation-catalog'], queryFn: () => api.get('/reservations/catalog') });
 
   const { attended, noShow, reservations, attendanceRate } = reservationTotals(data);
-
-  const rubroBreakdown = useMemo(() => {
-    const rubros = Array.isArray(data?.byRubro) ? data.byRubro! : [];
-    return rubros
-      .map((row) => {
-        const total = Number(row.total ?? 0);
-        const attendedCount = Number(row.attended ?? 0);
-        const name = catalogRubros.find((item) => item.key === row.rubro)?.nombre || (row.rubro ? row.rubro : 'Sin rubro');
-        return {
-          rubro: name,
-          rubroKey: row.rubro || 'sin_rubro',
-          total,
-          attended: attendedCount,
-          rate: total > 0 ? Math.round((attendedCount / total) * 100) : 0,
-        };
-      })
-      .sort((a, b) => b.total - a.total);
-  }, [catalogRubros, data]);
 
   const funnel = useMemo(() => {
     if (!data) return [];
@@ -269,32 +247,9 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
                         style={{ fill: '#706a73', fontSize: 10, fontWeight: 700 }}
                       />
                     </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-              {rubroBreakdown.length > 0 && <div className="dashboard-chart-card viz-full">
-                <h3>Reservas por rubro de captación</h3>
-                <p className="viz-note">Cómo se reparten las reservas entre los rubros configurados. El porcentaje es cuántas de esas reservas asistieron.</p>
-                <ResponsiveContainer width="100%" height={Math.max(180, rubroBreakdown.length * 42)}>
-                  <BarChart data={rubroBreakdown} layout="vertical" margin={{ top: 4, right: 88, bottom: 4, left: 4 }}>
-                    <CartesianGrid horizontal={false} stroke={GRID_INK} />
-                    <XAxis type="number" tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
-                    <YAxis dataKey="rubro" type="category" width={168} tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(23,63,53,.05)' }} />
-                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
-                    <Bar dataKey="total" name="Reservas" fill={SERIES_RESERVAS} radius={[0, 4, 4, 0]} barSize={11} isAnimationActive={false} />
-                    <Bar dataKey="attended" name="Asistencias" fill={SERIES_ASISTENCIAS} radius={[0, 4, 4, 0]} barSize={11} isAnimationActive={false}>
-                      <LabelList
-                        dataKey="rate"
-                        position="right"
-                        formatter={(value: number) => `${value}% asistió`}
-                        style={{ fill: '#706a73', fontSize: 10, fontWeight: 700 }}
-                      />
-                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              </div>}
+              </div>
             </>
           )}
         </>

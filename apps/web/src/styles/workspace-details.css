@@ -168,7 +168,6 @@
 .reservation-form-filters { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 18px; }
 .reservation-form-filters .input:first-child { flex: 1 1 320px; min-width: 0; }
 .form-client-name { display: inline-flex; margin: 0 0 12px; padding: 5px 8px; border-radius: 99px; background: var(--soft); color: var(--muted); font-size: 9px; font-weight: 800; }
-.form-card-rubro { display: inline-flex; margin: 0 0 12px; padding: 5px 8px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--cian) 10%, var(--white)); color: var(--cian-dark); border: 1px solid color-mix(in srgb, var(--cian) 35%, var(--white)); font-size: 9px; font-weight: 800; letter-spacing: .02em; }
 .booking-answers { margin: 18px 0; padding: 16px; border: 1px solid var(--surface-sage); border-radius: var(--radius-md); background: var(--soft); }
 .booking-answers h4 { margin-top: 0; }
 .booking-answers > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

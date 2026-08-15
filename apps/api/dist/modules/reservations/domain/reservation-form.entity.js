@@ -43,14 +43,6 @@ __decorate([
     __metadata("design:type", String)
 ], ReservationForm.prototype, "mode", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'varchar', length: 60, nullable: true }),
-    __metadata("design:type", Object)
-], ReservationForm.prototype, "rubro", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: 'varchar', length: 60, nullable: true }),
-    __metadata("design:type", Object)
-], ReservationForm.prototype, "tipo", void 0);
-__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 80, default: 'America/Santiago' }),
     __metadata("design:type", String)
 ], ReservationForm.prototype, "timezone", void 0);

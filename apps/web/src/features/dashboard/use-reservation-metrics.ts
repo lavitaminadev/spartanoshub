@@ -8,7 +8,6 @@ export interface ReservationMetrics {
   totals: { total?: number; attended?: number; no_show?: number; pending?: number; confirmed?: number; cancelled?: number };
   daily: Array<{ day: string; total: number; attended: number; no_show: number }>;
   sources: Array<{ source: string; campaign: string; total: number; attended: number }>;
-  byRubro?: Array<{ rubro: string; total: number; attended: number }>;
   funnel: { views: number; starts: number; completed: number; conversionRate: number | null };
   days: number;
 }
