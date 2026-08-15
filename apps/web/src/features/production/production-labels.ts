@@ -39,6 +39,24 @@ export function productionStageIndex(status?: string | null): number {
 }
 
 /**
+ * Nombre visible de cada etapa.
+ *
+ * Incluye `cancelled`, que no pertenece al flujo de avance pero sí es un estado que una pieza
+ * puede tener: sin etiqueta, la ficha de una pieza cancelada mostraría el valor crudo.
+ */
+export const PIECE_STATUS_LABELS: Record<string, string> = {
+  backlog: 'Por asignar',
+  assigned: 'Asignada',
+  in_progress: 'En trabajo',
+  internal_review: 'Revisión interna',
+  client_validation: 'Con el cliente',
+  correction: 'En corrección',
+  approved: 'Aprobada',
+  delivered: 'Entregada',
+  cancelled: 'Cancelada',
+};
+
+/**
  * Nombre visible de cada tipo de pieza.
  *
  * Los valores son los que acepta el backend al crear una pieza; las etiquetas son lo único
