@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const config_1 = require("@nestjs/config");
 const throttler_1 = require("@nestjs/throttler");
+const resource_throttler_guard_1 = require("./core/resource-throttler.guard");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const core_1 = require("@nestjs/core");
 const audit_interceptor_1 = require("./core/audit/audit.interceptor");
@@ -34,6 +35,7 @@ const clients_module_1 = require("./modules/clients/clients.module");
 const contracts_module_1 = require("./modules/contracts/contracts.module");
 const catalog_module_1 = require("./modules/catalog/catalog.module");
 const production_module_1 = require("./modules/production/production.module");
+const collaboration_module_1 = require("./modules/collaboration/collaboration.module");
 const design_budget_module_1 = require("./modules/design-budget/design-budget.module");
 const gamification_module_1 = require("./modules/gamification/gamification.module");
 const integrations_module_1 = require("./modules/integrations/integrations.module");
@@ -117,6 +119,7 @@ exports.AppModule = AppModule = __decorate([
             contracts_module_1.ContractsModule,
             catalog_module_1.CatalogModule,
             production_module_1.ProductionModule,
+            collaboration_module_1.CollaborationModule,
             design_budget_module_1.DesignBudgetModule,
             gamification_module_1.GamificationModule,
             integrations_module_1.IntegrationsModule,
@@ -148,7 +151,7 @@ exports.AppModule = AppModule = __decorate([
             authorization_module_1.AuthorizationModule,
         ],
         providers: [
-            { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },
+            { provide: core_1.APP_GUARD, useClass: resource_throttler_guard_1.ResourceThrottlerGuard },
             { provide: core_1.APP_INTERCEPTOR, useClass: error_logging_interceptor_1.ErrorLoggingInterceptor },
             { provide: core_1.APP_INTERCEPTOR, useClass: audit_interceptor_1.AuditInterceptor },
         ],

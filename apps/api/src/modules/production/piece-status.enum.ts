@@ -7,4 +7,6 @@ export enum PieceStatus {
   CORRECTION = 'correction',
   APPROVED = 'approved',
   DELIVERED = 'delivered',
+  /** Trabajo que no se va a hacer. Devuelve las unidades reservadas según la regla configurada. */
+  CANCELLED = 'cancelled',
 }

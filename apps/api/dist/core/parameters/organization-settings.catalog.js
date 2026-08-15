@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ORGANIZATION_SETTINGS = void 0;
 exports.validateOrganizationSettingValue = validateOrganizationSettingValue;
 const shared_1 = require("@espartanos/shared");
+const piece_type_enum_1 = require("../../modules/production/piece-type.enum");
+const ud_calculator_1 = require("../../modules/design-budget/ud-calculator");
 const MODULE_LIFECYCLE_SETTINGS = shared_1.ORGANIZATION_MODULE_CATALOG.map((module) => ({
     key: (0, shared_1.moduleLifecycleSettingKey)(module.key),
     category: 'modules',
@@ -13,7 +15,83 @@ const MODULE_LIFECYCLE_SETTINGS = shared_1.ORGANIZATION_MODULE_CATALOG.map((modu
     masterStatus: 'direction_required',
     options: shared_1.MODULE_LIFECYCLE_STATUSES.map((status) => ({ value: status, label: status })),
 }));
+const UD_VALUE_SETTINGS = Object.values(piece_type_enum_1.PieceType).map((pieceType) => ({
+    key: (0, ud_calculator_1.udValueKey)(pieceType),
+    category: 'design_budget',
+    label: `Unidades de ${piece_type_enum_1.PIECE_TYPE_LABELS[pieceType]}`,
+    description: `Cuántas unidades del presupuesto consume una pieza de tipo «${piece_type_enum_1.PIECE_TYPE_LABELS[pieceType]}». Sin valor, la pieza se registra pero no descuenta.`,
+    valueType: 'number',
+    defaultValue: ud_calculator_1.UD_DEFAULTS[pieceType] ?? null,
+    masterStatus: ud_calculator_1.UD_DEFAULTS[pieceType] === undefined ? 'direction_required' : 'master_defined',
+    min: 0,
+    max: 100,
+    unit: 'UD',
+    nullable: true,
+}));
 exports.ORGANIZATION_SETTINGS = [
+    ...UD_VALUE_SETTINGS,
+    {
+        key: ud_calculator_1.UD_CAROUSEL_EXTRA_KEY,
+        category: 'design_budget',
+        label: 'Unidades por lámina adicional del carrusel',
+        description: 'El carrusel cobra su valor base más este extra por cada lámina después de la primera, porque su esfuerzo crece con el número de láminas.',
+        valueType: 'number',
+        defaultValue: ud_calculator_1.CAROUSEL_EXTRA_PER_SLIDE,
+        masterStatus: 'master_defined',
+        min: 0,
+        max: 100,
+        unit: 'UD',
+    },
+    {
+        key: 'production.piece_type_approver_role',
+        category: 'production',
+        label: 'Cargo que aprueba tipos de pieza nuevos',
+        description: 'Quién puede aprobar un tipo de pieza propuesto y fijar cuántas unidades descuenta. Administración y Dirección de Operaciones pueden siempre, para que la atribución nunca quede sin titular. Acá se agrega un cargo más.',
+        valueType: 'select',
+        defaultValue: 'art_director',
+        masterStatus: 'direction_required',
+        options: [
+            { value: 'art_director', label: 'Dirección de Arte' },
+            { value: 'av_director', label: 'Dirección Audiovisual' },
+            { value: 'creative_director', label: 'Dirección Creativa' },
+            { value: 'commercial_director', label: 'Dirección Comercial' },
+        ],
+    },
+    {
+        key: 'ud.reversal_mode',
+        category: 'design_budget',
+        label: 'Devolución de unidades al cancelar',
+        description: 'Qué pasa con las unidades ya descontadas cuando un trabajo se cancela. **Automática** las devuelve al saldo del mes sin trámite. **Manual** exige que alguien con permiso haga el ajuste, dejando constancia de quién lo autorizó. **No devolver** las mantiene descontadas. En los tres casos queda registrado el movimiento.',
+        valueType: 'select',
+        defaultValue: 'automatic',
+        masterStatus: 'direction_required',
+        options: [
+            { value: 'automatic', label: 'Automática al cancelar' },
+            { value: 'manual', label: 'Requiere ajuste autorizado' },
+            { value: 'none', label: 'No se devuelve' },
+        ],
+    },
+    {
+        key: 'ud.reversal_allows_closed_budget',
+        category: 'design_budget',
+        label: 'Permitir devolver sobre un mes cerrado',
+        description: 'Si una cancelación puede mover el saldo de un mes que ya se cerró. Desactivado, un mes cerrado queda firme y la cancelación se rechaza indicando el motivo: lo que ya se facturó no cambia porque alguien anule algo después.',
+        valueType: 'boolean',
+        defaultValue: false,
+        masterStatus: 'direction_required',
+    },
+    {
+        key: 'compliance.work_comment_retention_days',
+        category: 'compliance',
+        label: 'Retención de comentarios de trabajo',
+        description: 'Días que se conserva el texto de los comentarios y correcciones de un trabajo ya cerrado. Cumplido el plazo se despersonaliza: se borra el texto y el autor, y se conserva la fila con su fecha y el área. Las métricas del trabajo —cuántas observaciones, de qué área, en qué momento— sobreviven porque nunca fueron dato personal. **El plazo debe confirmarlo asesoría jurídica** y conviene que coincida con lo que declara el aviso de privacidad aceptado por el cliente.',
+        valueType: 'number',
+        defaultValue: 730,
+        masterStatus: 'direction_required',
+        min: 30,
+        max: 3650,
+        unit: 'días',
+    },
     {
         key: 'compliance.terms_enforced',
         category: 'compliance',
@@ -30,6 +108,27 @@ exports.ORGANIZATION_SETTINGS = [
         description: 'Identificador del texto en vigor. Al cambiarlo, todo el equipo debe volver a aceptar la próxima vez que entre. Es la forma de publicar una actualización.',
         valueType: 'text',
         defaultValue: 'v1',
+        masterStatus: 'direction_required',
+    },
+    {
+        key: 'compliance.rights_response_days',
+        category: 'compliance',
+        label: 'Plazo para responder una solicitud de derechos',
+        description: 'Días hábiles comprometidos para responder una solicitud sobre datos personales. **El valor legal debe confirmarlo asesoría jurídica**: la Ley 21.719 fija plazos que rigen desde su entrada en vigencia y este parámetro solo los registra, no los interpreta. Se usa para alertar antes de vencer, nunca para cerrar una solicitud sola.',
+        valueType: 'number',
+        defaultValue: 15,
+        masterStatus: 'direction_required',
+        min: 1,
+        max: 90,
+        unit: 'días hábiles',
+    },
+    {
+        key: 'compliance.rights_channel_procedure',
+        category: 'compliance',
+        label: 'Procedimiento del canal de derechos',
+        description: 'Cómo se recibe, verifica, resuelve y responde una solicitud sobre datos personales, y quién responde por cada paso. Queda versionado: cambiarlo deja registro de quién y cuándo.',
+        valueType: 'text',
+        defaultValue: 'Pendiente de redacción por la agencia.',
         masterStatus: 'direction_required',
     },
     {

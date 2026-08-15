@@ -16,7 +16,7 @@ const mockVersionRepo = {
 const mockCorrectionRepo = {};
 
 const mockDesignBudget = {
-  calculateForPiece: vi.fn().mockReturnValue(1.5),
+  calculateForPiece: vi.fn().mockResolvedValue(1.5),
   reserveForPiece: vi.fn(),
   confirmConsumption: vi.fn(),
 };
@@ -68,7 +68,7 @@ describe('Production Flow Integration', () => {
 
     await workflow.assign(piece as any, 'designer-1', 'post_simple', 3, 0);
 
-    expect(mockDesignBudget.calculateForPiece).toHaveBeenCalledWith('post_simple', 0);
+    expect(mockDesignBudget.calculateForPiece).toHaveBeenCalledWith('post_simple', 0, piece.organizationId);
     expect(piece.assignedTo).toBe('designer-1');
     expect(piece.status).toBe(PieceStatus.ASSIGNED);
 

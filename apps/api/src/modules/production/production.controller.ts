@@ -14,6 +14,9 @@ import { AssignPieceDto } from './dto/assign-piece.dto';
 import { SubmitVersionDto } from './dto/submit-version.dto';
 import { RejectPieceDto } from './dto/reject-piece.dto';
 import { CreatePieceDto } from './dto/create-piece.dto';
+import { CancelPieceDto } from './dto/cancel-piece.dto';
+import { CancelPieceUseCase } from './cancel-piece.use-case';
+import { PieceTypesService } from './piece-types.service';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { UserRole } from '../organizations/user-role.enum';
@@ -21,7 +24,7 @@ import type { AuthenticatedRequest } from '@shared/types/request';
 import { ApprovalRequest } from '../approvals/approval-request.entity';
 import { ApprovalRequestStatus } from '../approvals/approval-request-status.enum';
 import { PieceVersion } from './piece-version.entity';
-import { calculatePieceUd } from '../design-budget/ud-calculator';
+import { UdValuesService } from '../design-budget/ud-values.service';
 import { Client } from '../clients/client.entity';
 import { User } from '../users/user.entity';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
@@ -43,7 +46,10 @@ export class ProductionController {
     @InjectRepository(User) private userRepo: Repository<User>,
     private readonly accountAccess: AccountAccessService,
     private readonly parameters: ParameterResolver,
+    private readonly udValues: UdValuesService,
+    private readonly pieceTypes: PieceTypesService,
     private assignPiece: AssignPieceUseCase,
+    private cancelPiece: CancelPieceUseCase,
     private submitVer: SubmitVersionUseCase,
     private rejectPiece: RejectPieceUseCase,
     private deliverPiece: DeliverPieceUseCase,
@@ -56,6 +62,7 @@ export class ProductionController {
   async create(@Body() dto: CreatePieceDto, @Req() req: AuthenticatedRequest) {
     const client = await this.clientRepo.findOne({ where: { id: dto.clientId, organizationId: req.organizationId } });
     if (!client) throw new BadRequestException('El cliente no pertenece a esta organización');
+    await this.pieceTypes.assertUsable(req.organizationId, [dto.type]);
     if (dto.dependencyIds?.length) {
       const dependencyCount = await this.pieceRepo.count({ where: { id: In(dto.dependencyIds), organizationId: req.organizationId } });
       if (dependencyCount !== new Set(dto.dependencyIds).size) throw new BadRequestException('Una o más dependencias no pertenecen a esta organización');
@@ -67,7 +74,7 @@ export class ProductionController {
       status: PieceStatus.BACKLOG,
       title: dto.title.trim(),
       deadlineAt: deadlineAt ? new Date(deadlineAt) : undefined,
-      udAmount: calculatePieceUd(dto.type, carouselSlides),
+      udAmount: await this.udValues.udFor(dto.type, carouselSlides, req.organizationId),
     });
     return this.pieceRepo.save(piece);
   }
@@ -155,6 +162,17 @@ export class ProductionController {
       role: req.user.role as UserRole,
       clientId: req.user.clientId,
     });
+  }
+
+  @Post(':id/cancel')
+  // La cancela quien lleva la cuenta, no el cliente. El cliente pide bajar un trabajo y la
+  // community manager lo registra declarando de quién fue la decisión. Dejar el botón en el
+  // portal convertiría un pedido en un movimiento de presupuesto que nadie revisó, y sin nadie
+  // que responda por si el motivo declarado es el real.
+  @Roles(UserRole.COMMUNITY_MANAGER, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Cancelar pieza y devolver sus unidades segun la regla configurada' })
+  cancel(@Param('id') id: string, @Body() dto: CancelPieceDto, @Req() req: AuthenticatedRequest) {
+    return this.cancelPiece.execute(id, req.organizationId, dto.reason, dto.origin, req.user.id);
   }
 
   @Post(':id/deliver')

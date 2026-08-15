@@ -1,7 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CAROUSEL_EXTRA_PER_SLIDE = exports.CAROUSEL_BASE_UD = exports.UD_MATRIX = void 0;
+exports.UD_CAROUSEL_EXTRA_KEY = exports.UD_DEFAULTS = exports.CAROUSEL_EXTRA_PER_SLIDE = exports.CAROUSEL_BASE_UD = exports.UD_MATRIX = void 0;
+exports.udValueKey = udValueKey;
 exports.calculatePieceUd = calculatePieceUd;
+exports.necesitaValorUd = necesitaValorUd;
+exports.tiposConValorUd = tiposConValorUd;
 const piece_type_enum_1 = require("../production/piece-type.enum");
 exports.UD_MATRIX = {
     [piece_type_enum_1.PieceType.POST_SIMPLE]: 1.0,
@@ -15,9 +18,23 @@ exports.UD_MATRIX = {
 };
 exports.CAROUSEL_BASE_UD = 1.0;
 exports.CAROUSEL_EXTRA_PER_SLIDE = 0.4;
+exports.UD_DEFAULTS = {
+    ...exports.UD_MATRIX,
+    [piece_type_enum_1.PieceType.CAROUSEL]: exports.CAROUSEL_BASE_UD,
+};
+function udValueKey(pieceType) {
+    return `ud.value.${pieceType}`;
+}
+exports.UD_CAROUSEL_EXTRA_KEY = 'ud.carousel_extra_per_slide';
 function calculatePieceUd(pieceType, carouselSlides = 0) {
     if (pieceType === piece_type_enum_1.PieceType.CAROUSEL) {
         return exports.CAROUSEL_BASE_UD + Math.max(0, carouselSlides - 1) * exports.CAROUSEL_EXTRA_PER_SLIDE;
     }
-    return exports.UD_MATRIX[pieceType] ?? 1.0;
+    return exports.UD_MATRIX[pieceType] ?? 0;
+}
+function necesitaValorUd(pieceType) {
+    return pieceType !== piece_type_enum_1.PieceType.CAROUSEL && exports.UD_MATRIX[pieceType] === undefined;
+}
+function tiposConValorUd() {
+    return [piece_type_enum_1.PieceType.CAROUSEL, ...Object.keys(exports.UD_MATRIX)];
 }

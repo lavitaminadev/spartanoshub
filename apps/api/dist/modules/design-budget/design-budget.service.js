@@ -22,13 +22,14 @@ const ud_movement_type_enum_1 = require("./ud-movement-type.enum");
 const piece_entity_1 = require("../production/piece.entity");
 const client_entity_1 = require("../clients/client.entity");
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
-const ud_calculator_1 = require("./ud-calculator");
+const ud_values_service_1 = require("./ud-values.service");
 let DesignBudgetService = class DesignBudgetService {
-    constructor(budgetRepo, movementRepo, clientRepo, parameterResolver) {
+    constructor(budgetRepo, movementRepo, clientRepo, parameterResolver, udValues) {
         this.budgetRepo = budgetRepo;
         this.movementRepo = movementRepo;
         this.clientRepo = clientRepo;
         this.parameterResolver = parameterResolver;
+        this.udValues = udValues;
     }
     async ensureMonthlyBudget(clientId, year, month, manager) {
         const repo = manager?.getRepository(ud_budget_entity_1.UDBudget) ?? this.budgetRepo;
@@ -45,8 +46,8 @@ let DesignBudgetService = class DesignBudgetService {
         });
         return repo.save(budget);
     }
-    calculateForPiece(pieceType, carouselSlides = 0) {
-        return (0, ud_calculator_1.calculatePieceUd)(pieceType, carouselSlides);
+    async calculateForPiece(pieceType, carouselSlides = 0, organizationId) {
+        return this.udValues.udFor(pieceType, carouselSlides, organizationId);
     }
     async reserveForPiece(piece, actorId, transactionManager) {
         const execute = async (manager) => {
@@ -127,6 +128,58 @@ let DesignBudgetService = class DesignBudgetService {
         };
         return transactionManager ? execute(transactionManager) : this.budgetRepo.manager.transaction(execute);
     }
+    async releaseForPiece(piece, reason, actorId, transactionManager) {
+        const mode = (await this.parameterResolver.get('ud.reversal_mode', piece.clientId, null, piece.organizationId)) ?? 'automatic';
+        if (mode === 'none')
+            return null;
+        if (mode === 'manual') {
+            throw new common_1.BadRequestException('La devolución de unidades requiere un ajuste manual: la configuración no la hace sola.');
+        }
+        const execute = async (manager) => {
+            const movementRepo = manager.getRepository(ud_movement_entity_1.UDMovement);
+            const alreadyReleased = await movementRepo.findOne({
+                where: { pieceId: piece.id, type: ud_movement_type_enum_1.UDMovementType.RELEASE },
+            });
+            if (alreadyReleased)
+                return alreadyReleased;
+            const reservation = await movementRepo.findOne({
+                where: { pieceId: piece.id, type: ud_movement_type_enum_1.UDMovementType.RESERVATION },
+            });
+            if (!reservation)
+                return null;
+            const budget = await manager.findOne(ud_budget_entity_1.UDBudget, {
+                where: { id: reservation.udBudgetId },
+                lock: { mode: 'pessimistic_write' },
+            });
+            if (!budget)
+                return null;
+            if (budget.status !== 'open') {
+                const permiteCerrado = await this.parameterResolver.get('ud.reversal_allows_closed_budget', piece.clientId, null, piece.organizationId);
+                if (!permiteCerrado) {
+                    throw new common_1.BadRequestException(`El presupuesto de ${budget.month}/${budget.year} está cerrado y la configuración no permite devolver unidades sobre un mes cerrado.`);
+                }
+            }
+            const amount = Number(reservation.amount);
+            const consumed = await movementRepo.findOne({
+                where: { pieceId: piece.id, type: ud_movement_type_enum_1.UDMovementType.CONSUMPTION },
+            });
+            if (consumed)
+                budget.consumed = Number(budget.consumed) - amount;
+            else
+                budget.reserved = Number(budget.reserved) - amount;
+            await manager.save(ud_budget_entity_1.UDBudget, budget);
+            const movement = manager.create(ud_movement_entity_1.UDMovement, {
+                udBudgetId: budget.id,
+                pieceId: piece.id,
+                type: ud_movement_type_enum_1.UDMovementType.RELEASE,
+                amount,
+                reason: reason.slice(0, 255),
+                actorId,
+            });
+            return manager.save(ud_movement_entity_1.UDMovement, movement);
+        };
+        return transactionManager ? execute(transactionManager) : this.budgetRepo.manager.transaction(execute);
+    }
     async isNearLimit(budget, thresholdPercent) {
         const organizationId = await this.resolveOrganizationId(budget.clientId);
         const threshold = thresholdPercent ?? (await this.parameterResolver.get('ud.warning_threshold_percent', budget.clientId, null, organizationId)) ?? 80;
@@ -173,5 +226,6 @@ exports.DesignBudgetService = DesignBudgetService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        ud_values_service_1.UdValuesService])
 ], DesignBudgetService);

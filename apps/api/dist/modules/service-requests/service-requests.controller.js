@@ -17,10 +17,9 @@ const common_1 = require("@nestjs/common");
 const shared_1 = require("@espartanos/shared");
 const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
-const roles_decorator_1 = require("../../core/authorization/roles.decorator");
+const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const public_decorator_1 = require("../../core/auth/decorators/public.decorator");
-const user_role_enum_1 = require("../organizations/user-role.enum");
 const service_requests_service_1 = require("./service-requests.service");
 const service_request_dto_1 = require("./dto/service-request.dto");
 let ServiceRequestsController = class ServiceRequestsController {
@@ -102,7 +101,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, requires_permission_decorator_1.RequiresPermission)('governance', 'view'),
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('status')),
@@ -114,7 +113,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, requires_permission_decorator_1.RequiresPermission)('governance', 'view'),
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -125,7 +124,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, requires_permission_decorator_1.RequiresPermission)('governance', 'edit'),
     (0, common_1.Put)(':id'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -137,7 +136,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, requires_permission_decorator_1.RequiresPermission)('governance', 'manage'),
     (0, common_1.Post)(':id/anonymize'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),

@@ -14,7 +14,7 @@ const typeorm_1 = require("typeorm");
 const organization_entity_1 = require("../organizations/organization.entity");
 const client_entity_1 = require("../clients/client.entity");
 const piece_status_enum_1 = require("./piece-status.enum");
-const piece_type_enum_1 = require("./piece-type.enum");
+const cancel_origin_enum_1 = require("./cancel-origin.enum");
 let Piece = class Piece {
 };
 exports.Piece = Piece;
@@ -64,6 +64,22 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 50, default: piece_status_enum_1.PieceStatus.BACKLOG }),
     __metadata("design:type", String)
 ], Piece.prototype, "status", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'cancel_origin', type: 'varchar', length: 20, nullable: true }),
+    __metadata("design:type", String)
+], Piece.prototype, "cancelOrigin", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'cancel_reason', type: 'varchar', length: 500, nullable: true }),
+    __metadata("design:type", String)
+], Piece.prototype, "cancelReason", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'cancelled_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Date)
+], Piece.prototype, "cancelledAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'cancelled_by', type: 'varchar', length: 36, nullable: true }),
+    __metadata("design:type", String)
+], Piece.prototype, "cancelledBy", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'difficulty_level', type: 'tinyint', default: 1 }),
     __metadata("design:type", Number)

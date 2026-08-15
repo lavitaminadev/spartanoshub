@@ -45,6 +45,46 @@ let ParameterResolver = class ParameterResolver {
     cacheKey(key, clientId, planId, organizationId) {
         return `param:${key}:${clientId ?? 'null'}:${planId ?? 'null'}:${organizationId ?? 'null'}`;
     }
+    async getManyForOrganization(keys, organizationId) {
+        const resolved = new Map();
+        const pendientes = [];
+        for (const key of keys) {
+            const cached = this.cache.get(this.cacheKey(key, null, null, organizationId));
+            if (cached && cached.expiresAt > Date.now())
+                resolved.set(key, cached.value);
+            else
+                pendientes.push(key);
+        }
+        if (pendientes.length === 0)
+            return resolved;
+        const definitions = await this.definitionRepo.find({ where: { key: (0, typeorm_2.In)(pendientes) } });
+        const byId = new Map(definitions.map((definition) => [definition.id, definition]));
+        let values = [];
+        if (organizationId && definitions.length) {
+            const now = new Date();
+            values = await this.valueRepo.find({
+                where: [
+                    { definitionId: (0, typeorm_2.In)([...byId.keys()]), scopeType: 'organization', scopeId: organizationId, validFrom: (0, typeorm_2.LessThanOrEqual)(now), validTo: (0, typeorm_2.IsNull)() },
+                    { definitionId: (0, typeorm_2.In)([...byId.keys()]), scopeType: 'organization', scopeId: organizationId, validFrom: (0, typeorm_2.LessThanOrEqual)(now), validTo: (0, typeorm_2.MoreThanOrEqual)(now) },
+                ],
+                order: { version: 'DESC' },
+            });
+        }
+        const vigente = new Map();
+        for (const value of values) {
+            if (!vigente.has(value.definitionId))
+                vigente.set(value.definitionId, value.valueJson?.value ?? null);
+        }
+        for (const key of pendientes) {
+            const definition = definitions.find((item) => item.key === key);
+            const valor = definition
+                ? vigente.get(definition.id) ?? definition.defaultValue?.value ?? null
+                : null;
+            resolved.set(key, valor);
+            this.cache.set(this.cacheKey(key, null, null, organizationId), { value: valor, expiresAt: Date.now() + this.ttlMs });
+        }
+        return resolved;
+    }
     async resolveFromDb(key, clientId, planId, organizationId) {
         const definition = await this.definitionRepo.findOne({ where: { key } });
         if (!definition)

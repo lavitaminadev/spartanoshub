@@ -11,7 +11,6 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreatePieceDto = void 0;
 const class_validator_1 = require("class-validator");
-const piece_type_enum_1 = require("../piece-type.enum");
 class CreatePieceDto {
 }
 exports.CreatePieceDto = CreatePieceDto;
@@ -25,7 +24,8 @@ __decorate([
     __metadata("design:type", String)
 ], CreatePieceDto.prototype, "title", void 0);
 __decorate([
-    (0, class_validator_1.IsEnum)(piece_type_enum_1.PieceType),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(50),
     __metadata("design:type", String)
 ], CreatePieceDto.prototype, "type", void 0);
 __decorate([

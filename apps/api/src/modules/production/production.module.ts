@@ -5,6 +5,11 @@ import { PieceVersion } from './piece-version.entity';
 import { Correction } from './correction.entity';
 import { ProductionController } from './production.controller';
 import { AssignPieceUseCase } from './assign-piece.use-case';
+import { CancelPieceUseCase } from './cancel-piece.use-case';
+import { PieceTypeDefinition } from './piece-type-definition.entity';
+import { PieceTypesService } from './piece-types.service';
+import { AuditModule } from '../../core/audit/audit.module';
+import { PieceTypesController } from './piece-types.controller';
 import { SubmitVersionUseCase } from './submit-version.use-case';
 import { RejectPieceUseCase } from './reject-piece.use-case';
 import { DeliverPieceUseCase } from './deliver-piece.use-case';
@@ -20,9 +25,9 @@ import { Client } from '../clients/client.entity';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Piece, PieceVersion, Correction, ApprovalRequest, User, Client]), DesignBudgetModule, GamificationModule, BillingModule, ParametersModule],
-  controllers: [ProductionController],
-  providers: [AssignPieceUseCase, SubmitVersionUseCase, RejectPieceUseCase, DeliverPieceUseCase, ListPiecesUseCase, ProductionWorkflowService, PieceRulesService],
-  exports: [TypeOrmModule],
+  imports: [TypeOrmModule.forFeature([Piece, PieceVersion, Correction, ApprovalRequest, User, Client, PieceTypeDefinition]), DesignBudgetModule, GamificationModule, BillingModule, ParametersModule, AuditModule],
+  controllers: [ProductionController, PieceTypesController],
+  providers: [PieceTypesService, AssignPieceUseCase, CancelPieceUseCase, SubmitVersionUseCase, RejectPieceUseCase, DeliverPieceUseCase, ListPiecesUseCase, ProductionWorkflowService, PieceRulesService],
+  exports: [TypeOrmModule, PieceTypesService],
 })
 export class ProductionModule {}

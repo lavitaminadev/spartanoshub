@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { Piece } from './piece.entity';
 import { PieceStatus } from './piece-status.enum';
-import { calculatePieceUd } from '../design-budget/ud-calculator';
+import { UdValuesService } from '../design-budget/ud-values.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DesignBudgetService } from '../design-budget/design-budget.service';
 import { User } from '../users/user.entity';
@@ -14,6 +14,7 @@ export class AssignPieceUseCase {
     @InjectRepository(Piece) private repo: Repository<Piece>,
     @InjectRepository(User) private users: Repository<User>,
     private designBudget: DesignBudgetService,
+    private udValues: UdValuesService,
     private eventEmitter: EventEmitter2,
   ) {}
 
@@ -34,7 +35,7 @@ export class AssignPieceUseCase {
       piece.assignedAt = new Date();
       piece.startedAt = undefined;
       piece.status = PieceStatus.ASSIGNED;
-      if (Number(piece.udAmount) <= 0) piece.udAmount = calculatePieceUd(piece.type);
+      if (Number(piece.udAmount) <= 0) piece.udAmount = await this.udValues.udFor(piece.type, 0, organizationId);
 
       const assignedPiece = await manager.save(Piece, piece);
       await this.designBudget.reserveForPiece(assignedPiece, actorId, manager);

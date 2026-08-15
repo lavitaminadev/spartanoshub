@@ -23,7 +23,8 @@ const user_entity_1 = require("../users/user.entity");
 const piece_entity_1 = require("../production/piece.entity");
 const session_entity_1 = require("../audiovisual/session.entity");
 const piece_status_enum_1 = require("../production/piece-status.enum");
-const ud_calculator_1 = require("../design-budget/ud-calculator");
+const ud_values_service_1 = require("../design-budget/ud-values.service");
+const piece_types_service_1 = require("../production/piece-types.service");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const retry_on_deadlock_1 = require("../../shared/retry-on-deadlock");
 const EMPTY_SCOPE = Symbol('empty-client-scope');
@@ -64,11 +65,13 @@ const TRANSITIONS = {
     [work_request_entity_1.WorkRequestStatus.REJECTED]: [],
 };
 let IntakeService = class IntakeService {
-    constructor(requests, clients, users, dataSource) {
+    constructor(requests, clients, users, dataSource, udValues, pieceTypes) {
         this.requests = requests;
         this.clients = clients;
         this.users = users;
         this.dataSource = dataSource;
+        this.udValues = udValues;
+        this.pieceTypes = pieceTypes;
     }
     async create(organizationId, requestedBy, dto, allowedClientIds) {
         await this.assertClient(organizationId, dto.clientId, allowedClientIds);
@@ -193,15 +196,17 @@ let IntakeService = class IntakeService {
         if (!dto.pieces?.length)
             throw new common_1.BadRequestException('Indica al menos una pieza');
         const pieces = dto.pieces;
+        await this.pieceTypes.assertUsable(organizationId, pieces.map((piece) => piece.type));
+        const ud = await Promise.all(pieces.map((piece) => this.udValues.udFor(piece.type, piece.carouselSlides, organizationId)));
         return (0, retry_on_deadlock_1.retryOnDeadlock)('convertir solicitud en piezas', () => this.dataSource.transaction(async (manager) => {
-            const created = await manager.save(piece_entity_1.Piece, pieces.map((piece) => manager.create(piece_entity_1.Piece, {
+            const created = await manager.save(piece_entity_1.Piece, pieces.map((piece, index) => manager.create(piece_entity_1.Piece, {
                 organizationId,
                 clientId: request.clientId,
                 title: piece.title.trim(),
                 type: piece.type,
                 status: piece_status_enum_1.PieceStatus.BACKLOG,
                 difficultyLevel: piece.difficultyLevel ?? 1,
-                udAmount: (0, ud_calculator_1.calculatePieceUd)(piece.type, piece.carouselSlides),
+                udAmount: ud[index],
                 description: request.description ?? undefined,
                 assignedTo: request.assignedTo ?? undefined,
                 deadlineAt: request.neededBy ?? undefined,
@@ -291,5 +296,7 @@ exports.IntakeService = IntakeService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.DataSource])
+        typeorm_2.DataSource,
+        ud_values_service_1.UdValuesService,
+        piece_types_service_1.PieceTypesService])
 ], IntakeService);

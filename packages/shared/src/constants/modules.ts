@@ -78,7 +78,7 @@ export const ORGANIZATION_MODULE_CATALOG = [
   { key: 'knowledge', lifecycle: 'development', defaultEnabled: false },
   { key: 'onboarding', lifecycle: 'development', defaultEnabled: false },
   { key: 'operations', lifecycle: 'development', defaultEnabled: false },
-  { key: 'governance', lifecycle: 'development', defaultEnabled: false },
+  { key: 'governance', lifecycle: 'active', defaultEnabled: false },
   { key: 'direction', lifecycle: 'development', defaultEnabled: false },
   // Encuestas propias, distintas de la encuesta post-visita que ya vive dentro de reservas.
   // Su API existe (`SurveysController`), asi que el producto ya la ofrece; nace apagada

@@ -7,10 +7,12 @@ import { Piece } from '../production/piece.entity';
 import { Session } from '../audiovisual/session.entity';
 import { IntakeController } from './intake.controller';
 import { IntakeService } from './intake.service';
+import { DesignBudgetModule } from '../design-budget/design-budget.module';
+import { ProductionModule } from '../production/production.module';
 import { AccountAccessModule } from '../../core/client-scope/account-access.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([WorkRequest, Client, User, Piece, Session]), AccountAccessModule],
+  imports: [TypeOrmModule.forFeature([WorkRequest, Client, User, Piece, Session]), AccountAccessModule, DesignBudgetModule, ProductionModule],
   controllers: [IntakeController],
   providers: [IntakeService],
   exports: [IntakeService],

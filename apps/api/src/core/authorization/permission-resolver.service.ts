@@ -263,14 +263,16 @@ export class PermissionResolverService {
     // que las consultas en paralelo trabajen sobre una referencia ya verificada.
     const parameters = this.parameters;
     if (!parameters) return defaults;
-    const configured = await Promise.all(
-      ORGANIZATION_FEATURE_KEYS.map(async (module) => {
-        const value = await parameters.get(moduleLifecycleSettingKey(module), null, null, organizationId);
-        return [module, value] as const;
-      }),
+    // En lote y no una por módulo: son 31, y `get` cuesta dos consultas cada vez —definición y
+    // valor—, así que resolverlas de a una eran 62 viajes a la base en cada petición con la
+    // caché fría. El lote las deja en dos.
+    const configured = await parameters.getManyForOrganization(
+      ORGANIZATION_FEATURE_KEYS.map((module) => moduleLifecycleSettingKey(module)),
+      organizationId,
     );
 
-    for (const [module, value] of configured) {
+    for (const module of ORGANIZATION_FEATURE_KEYS) {
+      const value = configured.get(moduleLifecycleSettingKey(module));
       if (typeof value === 'string') defaults[module] = value as ModuleLifecycleStatus;
     }
     return defaults;

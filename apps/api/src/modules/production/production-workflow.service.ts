@@ -31,7 +31,7 @@ export class ProductionWorkflowService {
     actorId?: string,
   ): Promise<void> {
     await this.pieceRepo.manager.transaction(async (manager) => {
-      const udAmount = this.designBudget.calculateForPiece(pieceType, carouselSlides);
+      const udAmount = await this.designBudget.calculateForPiece(pieceType, carouselSlides, piece.organizationId);
 
       piece.assignedTo = designerId;
       piece.type = pieceType;

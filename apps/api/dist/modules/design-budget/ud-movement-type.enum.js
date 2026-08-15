@@ -8,5 +8,6 @@ var UDMovementType;
     UDMovementType["CONSUMPTION"] = "consumption";
     UDMovementType["ADJUSTMENT"] = "adjustment";
     UDMovementType["EXTRA"] = "extra";
+    UDMovementType["RELEASE"] = "release";
     UDMovementType["ROLLOVER"] = "rollover";
 })(UDMovementType || (exports.UDMovementType = UDMovementType = {}));

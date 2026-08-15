@@ -29,20 +29,23 @@ const assign_piece_dto_1 = require("./dto/assign-piece.dto");
 const submit_version_dto_1 = require("./dto/submit-version.dto");
 const reject_piece_dto_1 = require("./dto/reject-piece.dto");
 const create_piece_dto_1 = require("./dto/create-piece.dto");
+const cancel_piece_dto_1 = require("./dto/cancel-piece.dto");
+const cancel_piece_use_case_1 = require("./cancel-piece.use-case");
+const piece_types_service_1 = require("./piece-types.service");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const approval_request_entity_1 = require("../approvals/approval-request.entity");
 const approval_request_status_enum_1 = require("../approvals/approval-request-status.enum");
 const piece_version_entity_1 = require("./piece-version.entity");
-const ud_calculator_1 = require("../design-budget/ud-calculator");
+const ud_values_service_1 = require("../design-budget/ud-values.service");
 const client_entity_1 = require("../clients/client.entity");
 const user_entity_1 = require("../users/user.entity");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
 const requires_feature_decorator_1 = require("../../core/authorization/requires-feature.decorator");
 let ProductionController = class ProductionController {
-    constructor(pieceRepo, approvalRepo, versionRepo, clientRepo, userRepo, accountAccess, parameters, assignPiece, submitVer, rejectPiece, deliverPiece, listPieces) {
+    constructor(pieceRepo, approvalRepo, versionRepo, clientRepo, userRepo, accountAccess, parameters, udValues, pieceTypes, assignPiece, cancelPiece, submitVer, rejectPiece, deliverPiece, listPieces) {
         this.pieceRepo = pieceRepo;
         this.approvalRepo = approvalRepo;
         this.versionRepo = versionRepo;
@@ -50,7 +53,10 @@ let ProductionController = class ProductionController {
         this.userRepo = userRepo;
         this.accountAccess = accountAccess;
         this.parameters = parameters;
+        this.udValues = udValues;
+        this.pieceTypes = pieceTypes;
         this.assignPiece = assignPiece;
+        this.cancelPiece = cancelPiece;
         this.submitVer = submitVer;
         this.rejectPiece = rejectPiece;
         this.deliverPiece = deliverPiece;
@@ -60,6 +66,7 @@ let ProductionController = class ProductionController {
         const client = await this.clientRepo.findOne({ where: { id: dto.clientId, organizationId: req.organizationId } });
         if (!client)
             throw new common_1.BadRequestException('El cliente no pertenece a esta organización');
+        await this.pieceTypes.assertUsable(req.organizationId, [dto.type]);
         if (dto.dependencyIds?.length) {
             const dependencyCount = await this.pieceRepo.count({ where: { id: (0, typeorm_2.In)(dto.dependencyIds), organizationId: req.organizationId } });
             if (dependencyCount !== new Set(dto.dependencyIds).size)
@@ -72,7 +79,7 @@ let ProductionController = class ProductionController {
             status: piece_status_enum_1.PieceStatus.BACKLOG,
             title: dto.title.trim(),
             deadlineAt: deadlineAt ? new Date(deadlineAt) : undefined,
-            udAmount: (0, ud_calculator_1.calculatePieceUd)(dto.type, carouselSlides),
+            udAmount: await this.udValues.udFor(dto.type, carouselSlides, req.organizationId),
         });
         return this.pieceRepo.save(piece);
     }
@@ -129,6 +136,9 @@ let ProductionController = class ProductionController {
             role: req.user.role,
             clientId: req.user.clientId,
         });
+    }
+    cancel(id, dto, req) {
+        return this.cancelPiece.execute(id, req.organizationId, dto.reason, dto.origin, req.user.id);
     }
     deliver(id, req) {
         return this.deliverPiece.execute(id, req.organizationId, req.user.id);
@@ -277,6 +287,17 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ProductionController.prototype, "reject", null);
 __decorate([
+    (0, common_1.Post)(':id/cancel'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
+    (0, swagger_1.ApiOperation)({ summary: 'Cancelar pieza y devolver sus unidades segun la regla configurada' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, cancel_piece_dto_1.CancelPieceDto, Object]),
+    __metadata("design:returntype", void 0)
+], ProductionController.prototype, "cancel", null);
+__decorate([
     (0, common_1.Post)(':id/deliver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Entregar pieza al cliente' }),
@@ -336,7 +357,10 @@ exports.ProductionController = ProductionController = __decorate([
         typeorm_2.Repository,
         account_access_service_1.AccountAccessService,
         parameter_resolver_service_1.ParameterResolver,
+        ud_values_service_1.UdValuesService,
+        piece_types_service_1.PieceTypesService,
         assign_piece_use_case_1.AssignPieceUseCase,
+        cancel_piece_use_case_1.CancelPieceUseCase,
         submit_version_use_case_1.SubmitVersionUseCase,
         reject_piece_use_case_1.RejectPieceUseCase,
         deliver_piece_use_case_1.DeliverPieceUseCase,

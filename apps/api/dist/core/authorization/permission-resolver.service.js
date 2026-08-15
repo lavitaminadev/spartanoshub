@@ -154,11 +154,9 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
         const parameters = this.parameters;
         if (!parameters)
             return defaults;
-        const configured = await Promise.all(organization_features_1.ORGANIZATION_FEATURE_KEYS.map(async (module) => {
-            const value = await parameters.get((0, shared_1.moduleLifecycleSettingKey)(module), null, null, organizationId);
-            return [module, value];
-        }));
-        for (const [module, value] of configured) {
+        const configured = await parameters.getManyForOrganization(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((module) => (0, shared_1.moduleLifecycleSettingKey)(module)), organizationId);
+        for (const module of organization_features_1.ORGANIZATION_FEATURE_KEYS) {
+            const value = configured.get((0, shared_1.moduleLifecycleSettingKey)(module));
             if (typeof value === 'string')
                 defaults[module] = value;
         }
