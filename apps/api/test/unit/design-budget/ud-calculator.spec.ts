@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculatePieceUd } from '../../../src/modules/design-budget/ud-calculator';
+import { calculatePieceUd, necesitaValorUd } from '../../../src/modules/design-budget/ud-calculator';
 
 describe('UdBudgetCalculator', () => {
   describe('standard piece types', () => {
@@ -35,8 +35,19 @@ describe('UdBudgetCalculator', () => {
       expect(calculatePieceUd('flyer_print')).toBeCloseTo(2.0);
     });
 
-    it('should return default 1.0 for unknown piece type', () => {
-      expect(calculatePieceUd('unknown_type')).toBeCloseTo(1.0);
+    // Un tipo sin valor asignado no descuenta nada. Antes devolvia 1.0, con lo que un logotipo
+    // le cobraba al cliente lo mismo que un post simple, con una cifra que nadie decidio.
+    it('no descuenta nada cuando el tipo todavia no tiene valor asignado', () => {
+      expect(calculatePieceUd('logo')).toBe(0);
+      expect(calculatePieceUd('billboard')).toBe(0);
+      expect(calculatePieceUd('tipo_inexistente')).toBe(0);
+    });
+
+    it('senala que esos tipos esperan una decision de Direccion', () => {
+      expect(necesitaValorUd('logo')).toBe(true);
+      expect(necesitaValorUd('brochure')).toBe(true);
+      expect(necesitaValorUd('post_simple')).toBe(false);
+      expect(necesitaValorUd('carousel')).toBe(false);
     });
   });
 
