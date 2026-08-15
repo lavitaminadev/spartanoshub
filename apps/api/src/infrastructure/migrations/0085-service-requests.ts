@@ -4,8 +4,8 @@ import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
  * Solicitudes públicas (login → "Solicitudes"): creación de cuenta, alta de empresa,
  * rectificación, anonimización, portabilidad, baja y soporte.
  */
-export class CreateServiceRequests0085 implements MigrationInterface {
-  name = 'CreateServiceRequests0085';
+export class CreateServiceRequests1726400400000 implements MigrationInterface {
+  name = 'CreateServiceRequests1726400400000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (await queryRunner.hasTable('service_requests')) return;

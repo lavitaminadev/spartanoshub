@@ -119,6 +119,10 @@ __decorate([
     __metadata("design:type", Object)
 ], WorkRequest.prototype, "reviewedAt", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'accepted_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], WorkRequest.prototype, "acceptedAt", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'resolved_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], WorkRequest.prototype, "resolvedAt", void 0);

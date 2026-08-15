@@ -22,14 +22,47 @@ const consent_entity_1 = require("./consent.entity");
 const lead_entity_1 = require("../../modules/crm/leads/lead.entity");
 const contact_entity_1 = require("../../modules/crm/contacts/contact.entity");
 const reservation_entity_1 = require("../../modules/reservations/domain/reservation.entity");
+const consent_version_entity_1 = require("./consent-version.entity");
+const AVISO_PROVISIONAL = {
+    title: 'Aviso de privacidad (texto provisional)',
+    text: [
+        'Este es un texto provisional mientras la agencia publica su aviso de privacidad definitivo.',
+        '',
+        'Los datos que entregas —nombre, correo, y el RUT o teléfono cuando corresponda— se usan',
+        'únicamente para gestionar, responder y dar seguimiento a tu solicitud, y para dejar',
+        'registro de qué se pidió, quién lo resolvió y cuándo.',
+        '',
+        'No se utilizan para otros fines ni se comparten con terceros, salvo obligación legal.',
+        '',
+        'Puedes ejercer tus derechos de acceso, rectificación, anonimización, portabilidad y baja',
+        'por este mismo canal, conforme a la Ley 19.628 y a la Ley 21.719 que la actualiza.',
+    ].join('\n'),
+};
 let DataProtectionService = class DataProtectionService {
-    constructor(userRepo, leadRepo, auditRepo, consentRepo, contactRepo, reservationRepo) {
+    constructor(userRepo, leadRepo, auditRepo, consentRepo, contactRepo, reservationRepo, consentVersionRepo) {
         this.userRepo = userRepo;
         this.leadRepo = leadRepo;
         this.auditRepo = auditRepo;
         this.consentRepo = consentRepo;
         this.contactRepo = contactRepo;
         this.reservationRepo = reservationRepo;
+        this.consentVersionRepo = consentVersionRepo;
+    }
+    async avisoPrivacidadVigente(organizationId) {
+        const publicada = await this.consentVersionRepo.findOne({
+            where: { organizationId, active: true },
+            order: { version: 'DESC' },
+        });
+        if (publicada) {
+            return {
+                versionId: publicada.id,
+                version: publicada.version,
+                title: publicada.title,
+                text: publicada.text,
+                provisional: false,
+            };
+        }
+        return { versionId: null, version: 0, ...AVISO_PROVISIONAL, provisional: true };
     }
     async recordAnonymization(organizationId, entityType, entityId, reason) {
         await this.auditRepo.save(this.auditRepo.create({
@@ -170,7 +203,9 @@ exports.DataProtectionService = DataProtectionService = __decorate([
     __param(3, (0, typeorm_1.InjectRepository)(consent_entity_1.DataConsent)),
     __param(4, (0, typeorm_1.InjectRepository)(contact_entity_1.Contact)),
     __param(5, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
+    __param(6, (0, typeorm_1.InjectRepository)(consent_version_entity_1.ConsentVersion)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,

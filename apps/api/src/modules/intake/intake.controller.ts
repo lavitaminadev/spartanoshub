@@ -7,7 +7,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { UserRole } from '../organizations/user-role.enum';
-import { IntakeService } from './intake.service';
+import { AREA_SCOPED_ROLES, IntakeService } from './intake.service';
 import { CreateWorkRequestDto, ResolveWorkRequestDto, UpdateWorkRequestDto } from './dto/work-request.dto';
 import { WorkRequestArea, WorkRequestStatus } from './work-request.entity';
 
@@ -30,6 +30,18 @@ export class IntakeController {
   ) {}
 
   /**
+   * Cuentas que acota a quien consulta, o `undefined` si su cargo no se acota por cuenta.
+   *
+   * Diseño y audiovisual reciben trabajo, no administran cartera: su bandeja se limita por área
+   * y por lo que tienen asignado, no por cliente. Pasarles el alcance por cuenta les vaciaba la
+   * bandeja, porque ese filtro se evalúa primero y ellos no alcanzan ninguna cuenta.
+   */
+  private async clientScope(req: AuthenticatedRequest): Promise<string[] | undefined> {
+    if (AREA_SCOPED_ROLES.has(req.user.role as UserRole)) return undefined;
+    return this.accountAccess.allowedClientIds(req.organizationId, req.user);
+  }
+
+  /**
    * Abre una solicitud.
    *
    * Cualquiera del equipo puede pedir trabajo —es el punto de tener una puerta única—, así que
@@ -44,7 +56,7 @@ export class IntakeController {
   )
   @ApiOperation({ summary: 'Abrir una solicitud de trabajo' })
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateWorkRequestDto) {
-    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    const allowed = await this.clientScope(req);
     return this.intake.create(req.organizationId, req.user.id, dto, allowed);
   }
 
@@ -58,16 +70,21 @@ export class IntakeController {
     @Query('clientId') clientId?: string,
     @Query('mine') mine?: string,
   ) {
-    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.intake.list(req.organizationId, { status, area, clientId, mine: mine === 'true' ? req.user.id : undefined }, allowed);
+    const allowed = await this.clientScope(req);
+    return this.intake.list(
+      req.organizationId,
+      { status, area, clientId, mine: mine === 'true' ? req.user.id : undefined },
+      allowed,
+      { id: req.user.id, role: req.user.role as UserRole },
+    );
   }
 
   @Get('counts')
   @RequiresPermission('production', 'view')
   @ApiOperation({ summary: 'Conteo de solicitudes por estado' })
   async counts(@Req() req: AuthenticatedRequest) {
-    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.intake.counts(req.organizationId, allowed);
+    const allowed = await this.clientScope(req);
+    return this.intake.counts(req.organizationId, allowed, { id: req.user.id, role: req.user.role as UserRole });
   }
 
   /**
@@ -89,7 +106,7 @@ export class IntakeController {
   @Get(':id')
   @RequiresPermission('production', 'view')
   async findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    const allowed = await this.clientScope(req);
     return this.intake.findOne(req.organizationId, id, allowed);
   }
 
@@ -105,7 +122,7 @@ export class IntakeController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR)
   @ApiOperation({ summary: 'Asignar responsable, prioridad o estado' })
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateWorkRequestDto) {
-    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    const allowed = await this.clientScope(req);
     return this.intake.update(req.organizationId, id, dto, allowed);
   }
 
@@ -114,7 +131,7 @@ export class IntakeController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR)
   @ApiOperation({ summary: 'Convertir la solicitud en piezas de produccion' })
   async convert(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveWorkRequestDto) {
-    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    const allowed = await this.clientScope(req);
     return this.intake.convert(req.organizationId, id, dto, allowed);
   }
 }

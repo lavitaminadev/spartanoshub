@@ -23,6 +23,7 @@ const user_entity_1 = require("../users/user.entity");
 const lead_entity_1 = require("../crm/leads/lead.entity");
 const contact_entity_1 = require("../crm/contacts/contact.entity");
 const reservation_entity_1 = require("../reservations/domain/reservation.entity");
+const phone_1 = require("../../shared/phone");
 exports.SERVICE_REQUEST_TYPES = [
     'account',
     'company',
@@ -44,6 +45,9 @@ let ServiceRequestsService = class ServiceRequestsService {
         this.audit = audit;
         this.dataProtection = dataProtection;
     }
+    async avisoPrivacidad(organizationId) {
+        return this.dataProtection.avisoPrivacidadVigente(organizationId);
+    }
     async createPublic(input) {
         const type = input.type.trim().toLowerCase();
         if (!exports.SERVICE_REQUEST_TYPES.includes(type))
@@ -60,6 +64,7 @@ let ServiceRequestsService = class ServiceRequestsService {
         if (SENSITIVE_TYPES.includes(type) && !rut) {
             throw new common_1.BadRequestException('Para este tipo de solicitud es obligatorio indicar tu RUT');
         }
+        const aviso = await this.dataProtection.avisoPrivacidadVigente(input.organizationId || '');
         const saved = await this.requests.save(this.requests.create({
             organizationId: input.organizationId || null,
             type,
@@ -69,27 +74,33 @@ let ServiceRequestsService = class ServiceRequestsService {
             requesterRut: rut || null,
             requesterPhone: input.requesterPhone?.trim() || null,
             message: input.message?.trim() || null,
-            extra: { privacyAccepted: true, privacyAcceptedAt: new Date().toISOString() },
+            extra: {
+                privacyAccepted: true,
+                privacyAcceptedAt: new Date().toISOString(),
+                privacyVersion: aviso.version,
+                privacyVersionId: aviso.versionId,
+                privacyProvisional: aviso.provisional,
+            },
         }));
         return { id: saved.id, status: saved.status };
     }
-    async findByStatus(email, rut) {
-        const normalizedEmail = (email ?? '').trim().toLowerCase();
-        const normalizedRut = (rut ?? '').trim();
-        if (!normalizedEmail && !normalizedRut) {
-            throw new common_1.BadRequestException('Ingresa tu correo o tu RUT para consultar el estado');
+    async findByReference(reference) {
+        const ref = (reference ?? '').trim();
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref)) {
+            throw new common_1.BadRequestException('Ingresa el código de seguimiento que recibiste al enviar tu solicitud');
         }
-        const where = normalizedEmail ? { requesterEmail: normalizedEmail } : { requesterRut: normalizedRut };
-        const rows = await this.requests.find({ where, order: { createdAt: 'DESC' } });
-        return rows.map((row) => ({
-            id: row.id,
-            type: row.type,
-            status: row.status,
-            message: row.message,
-            resolutionNote: row.resolutionNote,
-            createdAt: row.createdAt,
-            resolvedAt: row.resolvedAt,
-        }));
+        const row = await this.requests.findOne({ where: { id: ref } });
+        if (!row)
+            throw new common_1.NotFoundException('No encontramos una solicitud con ese código');
+        return [{
+                id: row.id,
+                type: row.type,
+                status: row.status,
+                message: row.message,
+                resolutionNote: row.resolutionNote,
+                createdAt: row.createdAt,
+                resolvedAt: row.resolvedAt,
+            }];
     }
     async list(organizationId, filter) {
         const where = { organizationId };
@@ -181,6 +192,7 @@ let ServiceRequestsService = class ServiceRequestsService {
             throw new common_1.BadRequestException('Estado de resolución no válido');
         }
         const row = await this.getOne(organizationId, id);
+        const before = { status: row.status, resolutionNote: row.resolutionNote };
         row.status = body.status;
         if (body.resolutionNote !== undefined)
             row.resolutionNote = body.resolutionNote.trim() || null;
@@ -193,8 +205,8 @@ let ServiceRequestsService = class ServiceRequestsService {
             entityType: 'ServiceRequest',
             entityId: id,
             action: 'resolved',
-            before: { status: saved.status === body.status ? 'received' : undefined },
-            after: { status: body.status, resolutionNote: body.resolutionNote },
+            before,
+            after: { status: saved.status, resolutionNote: saved.resolutionNote },
         });
         return saved;
     }
@@ -204,35 +216,51 @@ let ServiceRequestsService = class ServiceRequestsService {
             throw new common_1.BadRequestException('Esta solicitud no es de anonimización');
         }
         const email = row.requesterEmail.toLowerCase();
-        const rut = row.requesterRut?.toLowerCase() || null;
+        const phone = (0, phone_1.normalizePhone)(row.requesterPhone || '') || null;
+        const previous = { status: row.status, resolutionNote: row.resolutionNote };
         const reason = `Solicitud ${row.id}`;
         const matched = [];
-        const users = await this.users.find({ where: { organizationId, email: (0, typeorm_2.In)([email]) } });
+        const by = (emailField, phoneField) => {
+            const criteria = [{ organizationId, [emailField]: (0, typeorm_2.In)([email]) }];
+            if (phone)
+                criteria.push({ organizationId, [phoneField]: (0, typeorm_2.In)([phone]) });
+            return criteria;
+        };
+        const users = await this.users.find({ where: by('email', 'phone') });
         for (const user of users) {
             await this.dataProtection.anonymizeUser(user.id);
             matched.push(`User:${user.id}`);
         }
-        const leads = await this.leads.find({ where: { organizationId, email: (0, typeorm_2.In)([email]) } });
+        const leads = await this.leads.find({ where: by('email', 'phone') });
         for (const lead of leads) {
             await this.dataProtection.anonymizeLead(lead.id, organizationId, reason);
             matched.push(`Lead:${lead.id}`);
         }
-        const contacts = await this.contacts.find({ where: { organizationId, email: (0, typeorm_2.In)([email]) } });
+        const contacts = await this.contacts.find({ where: by('email', 'phone') });
         for (const contact of contacts) {
             await this.dataProtection.anonymizeContact(contact.id, organizationId, reason);
             matched.push(`Contact:${contact.id}`);
         }
-        const reservations = await this.reservations.find({ where: { organizationId, guestEmail: (0, typeorm_2.In)([email]) } });
+        const reservations = await this.reservations.find({ where: by('guestEmail', 'guestPhone') });
         for (const reservation of reservations) {
             await this.dataProtection.anonymizeReservation(reservation.id, organizationId, reason);
             matched.push(`Reservation:${reservation.id}`);
         }
-        row.status = 'resolved';
-        row.resolutionNote = matched.length
-            ? `Datos anonimizados (${matched.length} registros): ${matched.join(', ')}`
-            : 'No se encontraron datos personales asociados a este correo.';
-        row.resolvedBy = actor.id;
-        row.resolvedAt = new Date();
+        const criterios = phone ? 'el correo y el teléfono declarados' : 'el correo declarado';
+        if (matched.length === 0) {
+            row.status = 'in_review';
+            row.resolutionNote = `No se encontraron registros que coincidan con ${criterios}. `
+                + 'Requiere revisión manual antes de responder: la persona puede haber entregado sus datos con otro contacto.';
+            row.resolvedBy = null;
+            row.resolvedAt = null;
+        }
+        else {
+            row.status = 'resolved';
+            row.resolutionNote = `Se anonimizaron ${matched.length} registros que coinciden con ${criterios}. `
+                + 'Los registros asociados a otro correo o teléfono no quedan alcanzados por esta búsqueda.';
+            row.resolvedBy = actor.id;
+            row.resolvedAt = new Date();
+        }
         const saved = await this.requests.save(row);
         await this.audit.log({
             organizationId,
@@ -240,8 +268,8 @@ let ServiceRequestsService = class ServiceRequestsService {
             entityType: 'ServiceRequest',
             entityId: id,
             action: 'anonymized',
-            before: { status: 'received' },
-            after: { status: 'resolved', records: matched },
+            before: previous,
+            after: { status: saved.status, resolutionNote: saved.resolutionNote, records: matched },
         });
         return saved;
     }

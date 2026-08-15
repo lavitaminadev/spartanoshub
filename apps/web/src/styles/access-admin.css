@@ -116,3 +116,27 @@
 .privacy-check.is-locked { opacity: .55; }
 .privacy-check input:disabled { cursor: not-allowed; }
 .privacy-hint { color: var(--amber-deep); font-size: 11px; font-weight: 700; }
+/* Codigo de seguimiento de una solicitud de datos personales.
+   Es lo unico con lo que el titular puede consultar despues, asi que se muestra
+   monoespaciado, seleccionable y con contraste alto: se lee para copiarlo a mano. */
+.solicitud-enviada { display: grid; gap: 18px; }
+.tracking-code {
+  display: grid; gap: 8px; justify-items: center;
+  border: 1px dashed var(--line); border-radius: var(--radius-md);
+  background: var(--surface-muted, var(--white)); padding: 18px 20px;
+}
+.tracking-code .tracking-label {
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--txt-muted);
+}
+.tracking-code code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 15px; font-weight: 600; color: var(--txt-strong, inherit);
+  word-break: break-all; text-align: center; user-select: all;
+}
+/* El aviso llega del servidor con saltos de linea: se respetan para que el texto
+   publicado se lea como fue redactado y no como un parrafo continuo. */
+.privacy-notice .privacy-text { white-space: pre-line; }
+.privacy-notice .privacy-version {
+  display: block; margin-top: 10px; color: var(--txt-muted); font-size: 12px;
+}
+.privacy-notice .privacy-version.is-provisional { color: var(--warn, #9a6a12); font-weight: 600; }

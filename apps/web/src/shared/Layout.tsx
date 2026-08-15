@@ -121,7 +121,7 @@ export function Layout(): JSX.Element {
       <aside ref={sidebarRef} className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <BrandMark decorative />
-          <div><h2>Espartanos</h2><span>{roleLabel(user?.role)}</span></div>
+          <div><span className="brand-name">Espartanos</span><span>{roleLabel(user?.role)}</span></div>
         </div>
 
         {user?.role === 'dev' && (

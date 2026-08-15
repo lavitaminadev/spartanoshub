@@ -8,6 +8,7 @@ import { User } from '../users/user.entity';
 import { Lead } from '../crm/leads/lead.entity';
 import { Contact } from '../crm/contacts/contact.entity';
 import { Reservation } from '../reservations/domain/reservation.entity';
+import { normalizePhone } from '../../shared/phone';
 
 export const SERVICE_REQUEST_TYPES = [
   'account',
@@ -38,6 +39,17 @@ export class ServiceRequestsService {
     private readonly dataProtection: DataProtectionService,
   ) {}
 
+  /**
+   * Aviso de privacidad vigente para el formulario público.
+   *
+   * Se sirve desde acá y no se escribe en la página porque el texto es un documento con
+   * versión: cambiarlo debe dejar rastro de quién y cuándo, y las aceptaciones anteriores
+   * deben seguir apuntando al texto que su titular leyó.
+   */
+  async avisoPrivacidad(organizationId: string) {
+    return this.dataProtection.avisoPrivacidadVigente(organizationId);
+  }
+
   /** Crea una solicitud desde la página pública. */
   async createPublic(input: {
     type: string;
@@ -61,6 +73,12 @@ export class ServiceRequestsService {
     if (SENSITIVE_TYPES.includes(type) && !rut) {
       throw new BadRequestException('Para este tipo de solicitud es obligatorio indicar tu RUT');
     }
+
+    // Qué aviso estaba vigente al aceptar. Registrar solo que aceptó deja una constancia que no
+    // se puede exhibir: ante una consulta del titular hay que poder mostrar el texto exacto que
+    // leyó, y ese texto cambia con el tiempo.
+    const aviso = await this.dataProtection.avisoPrivacidadVigente(input.organizationId || '');
+
     const saved = await this.requests.save(this.requests.create({
       organizationId: input.organizationId || null,
       type,
@@ -70,26 +88,35 @@ export class ServiceRequestsService {
       requesterRut: rut || null,
       requesterPhone: input.requesterPhone?.trim() || null,
       message: input.message?.trim() || null,
-      extra: { privacyAccepted: true, privacyAcceptedAt: new Date().toISOString() },
+      extra: {
+        privacyAccepted: true,
+        privacyAcceptedAt: new Date().toISOString(),
+        privacyVersion: aviso.version,
+        privacyVersionId: aviso.versionId,
+        privacyProvisional: aviso.provisional,
+      },
     }));
     return { id: saved.id, status: saved.status };
   }
 
   /**
-   * Consulta pública del historial del solicitante. Basta un identificador —correo o RUT—
-   * y al menos uno es obligatorio. Si hay correo se prioriza el correo (es el identificador
-   * de la persona); con solo RUT se busca por RUT. Se devuelve solo el estado y la
-   * resolución, sin datos personales adicionales.
+   * Consulta pública del estado, por el código de seguimiento de la solicitud.
+   *
+   * El código es el identificador de la solicitud, que se entrega al enviarla. Sirve de secreto
+   * porque no se puede adivinar y solo lo tiene quien la creó; y no es un dato personal, así
+   * que puede viajar en la dirección sin dejar rastro identificable en los registros.
+   *
+   * Devuelve el estado y la resolución, nunca los datos del solicitante: quien consulta ya sabe
+   * quién es, y repetírselos solo agrega superficie para que los lea otro.
    */
-  async findByStatus(email: string, rut?: string): Promise<Array<Record<string, unknown>>> {
-    const normalizedEmail = (email ?? '').trim().toLowerCase();
-    const normalizedRut = (rut ?? '').trim();
-    if (!normalizedEmail && !normalizedRut) {
-      throw new BadRequestException('Ingresa tu correo o tu RUT para consultar el estado');
+  async findByReference(reference: string): Promise<Array<Record<string, unknown>>> {
+    const ref = (reference ?? '').trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref)) {
+      throw new BadRequestException('Ingresa el código de seguimiento que recibiste al enviar tu solicitud');
     }
-    const where = normalizedEmail ? { requesterEmail: normalizedEmail } : { requesterRut: normalizedRut };
-    const rows = await this.requests.find({ where, order: { createdAt: 'DESC' } });
-    return rows.map((row) => ({
+    const row = await this.requests.findOne({ where: { id: ref } });
+    if (!row) throw new NotFoundException('No encontramos una solicitud con ese código');
+    return [{
       id: row.id,
       type: row.type,
       status: row.status,
@@ -97,7 +124,7 @@ export class ServiceRequestsService {
       resolutionNote: row.resolutionNote,
       createdAt: row.createdAt,
       resolvedAt: row.resolvedAt,
-    }));
+    }];
   }
 
   /** Lista de solicitudes para el panel de administración. */
@@ -211,6 +238,9 @@ export class ServiceRequestsService {
       throw new BadRequestException('Estado de resolución no válido');
     }
     const row = await this.getOne(organizationId, id);
+    // El estado anterior se toma antes de mutar la fila: leerlo después devuelve el nuevo y
+    // la traza deja de servir como prueba de qué se cambió.
+    const before = { status: row.status, resolutionNote: row.resolutionNote };
     row.status = body.status;
     if (body.resolutionNote !== undefined) row.resolutionNote = body.resolutionNote.trim() || null;
     row.resolvedBy = actor.id;
@@ -222,15 +252,27 @@ export class ServiceRequestsService {
       entityType: 'ServiceRequest',
       entityId: id,
       action: 'resolved',
-      before: { status: saved.status === body.status ? 'received' : undefined },
-      after: { status: body.status, resolutionNote: body.resolutionNote },
+      before,
+      after: { status: saved.status, resolutionNote: saved.resolutionNote },
     });
     return saved;
   }
 
   /**
-   * Ejecuta la anonimización de datos del solicitante (busca por correo y RUT en usuarios,
-   * leads, contactos y reservas) y deja la solicitud como resuelta. Cada registro se audita.
+   * Ejecuta la anonimización de datos del solicitante y deja la solicitud como resuelta.
+   *
+   * **Coincide por correo y por teléfono.** Ninguna de las cuatro entidades guarda RUT, así que
+   * el que declara el titular sirve para identificarlo ante Seguridad pero no para buscar sus
+   * registros. El teléfono sí está en las cuatro y se normaliza antes de comparar.
+   *
+   * Aun así la búsqueda es incompleta por definición: si la persona dejó datos con otro contacto
+   * —una reserva a nombre de un familiar, un lead capturado con su correo de trabajo— esos
+   * registros no aparecen. Por eso **sin coincidencias la solicitud no se cierra**: queda en
+   * revisión para que alguien la busque a mano, y la nota de resolución dice sobre qué se buscó.
+   *
+   * Declarar cumplido un derecho de supresión sobre una búsqueda parcial es peor que no
+   * ofrecer la función: compromete a la agencia con algo que no verificó. Cada registro tocado
+   * se audita.
    */
   async anonymizeByIdentity(organizationId: string, id: string, actor: { id: string; name?: string }): Promise<ServiceRequest> {
     const row = await this.getOne(organizationId, id);
@@ -238,37 +280,59 @@ export class ServiceRequestsService {
       throw new BadRequestException('Esta solicitud no es de anonimización');
     }
     const email = row.requesterEmail.toLowerCase();
-    const rut = row.requesterRut?.toLowerCase() || null;
+    const phone = normalizePhone(row.requesterPhone || '') || null;
+    const previous = { status: row.status, resolutionNote: row.resolutionNote };
     const reason = `Solicitud ${row.id}`;
     const matched: string[] = [];
 
-    const users = await this.users.find({ where: { organizationId, email: In([email]) } });
+    /** Criterios de búsqueda: correo siempre, teléfono cuando el titular lo declaró. */
+    const by = (emailField: 'email' | 'guestEmail', phoneField: 'phone' | 'guestPhone') => {
+      const criteria: Record<string, unknown>[] = [{ organizationId, [emailField]: In([email]) }];
+      if (phone) criteria.push({ organizationId, [phoneField]: In([phone]) });
+      return criteria;
+    };
+
+    const users = await this.users.find({ where: by('email', 'phone') as never });
     for (const user of users) {
       await this.dataProtection.anonymizeUser(user.id);
       matched.push(`User:${user.id}`);
     }
-    const leads = await this.leads.find({ where: { organizationId, email: In([email]) } });
+    const leads = await this.leads.find({ where: by('email', 'phone') as never });
     for (const lead of leads) {
       await this.dataProtection.anonymizeLead(lead.id, organizationId, reason);
       matched.push(`Lead:${lead.id}`);
     }
-    const contacts = await this.contacts.find({ where: { organizationId, email: In([email]) } });
+    const contacts = await this.contacts.find({ where: by('email', 'phone') as never });
     for (const contact of contacts) {
       await this.dataProtection.anonymizeContact(contact.id, organizationId, reason);
       matched.push(`Contact:${contact.id}`);
     }
-    const reservations = await this.reservations.find({ where: { organizationId, guestEmail: In([email]) } });
+    const reservations = await this.reservations.find({ where: by('guestEmail', 'guestPhone') as never });
     for (const reservation of reservations) {
       await this.dataProtection.anonymizeReservation(reservation.id, organizationId, reason);
       matched.push(`Reservation:${reservation.id}`);
     }
 
-    row.status = 'resolved';
-    row.resolutionNote = matched.length
-      ? `Datos anonimizados (${matched.length} registros): ${matched.join(', ')}`
-      : 'No se encontraron datos personales asociados a este correo.';
-    row.resolvedBy = actor.id;
-    row.resolvedAt = new Date();
+    // Qué se buscó, dicho al titular. Una resolución que afirma más de lo que hizo es peor que
+    // no tenerla: compromete el cumplimiento de un derecho sobre una búsqueda parcial.
+    const criterios = phone ? 'el correo y el teléfono declarados' : 'el correo declarado';
+
+    if (matched.length === 0) {
+      // Sin coincidencias no se cierra. Puede que la persona haya entregado sus datos con otro
+      // correo o teléfono, y marcarla resuelta afirmaría que no queda nada suyo sin haberlo
+      // comprobado. Queda en revisión para que alguien la busque a mano.
+      row.status = 'in_review';
+      row.resolutionNote = `No se encontraron registros que coincidan con ${criterios}. `
+        + 'Requiere revisión manual antes de responder: la persona puede haber entregado sus datos con otro contacto.';
+      row.resolvedBy = null;
+      row.resolvedAt = null;
+    } else {
+      row.status = 'resolved';
+      row.resolutionNote = `Se anonimizaron ${matched.length} registros que coinciden con ${criterios}. `
+        + 'Los registros asociados a otro correo o teléfono no quedan alcanzados por esta búsqueda.';
+      row.resolvedBy = actor.id;
+      row.resolvedAt = new Date();
+    }
     const saved = await this.requests.save(row);
     await this.audit.log({
       organizationId,
@@ -276,8 +340,8 @@ export class ServiceRequestsService {
       entityType: 'ServiceRequest',
       entityId: id,
       action: 'anonymized',
-      before: { status: 'received' },
-      after: { status: 'resolved', records: matched },
+      before: previous,
+      after: { status: saved.status, resolutionNote: saved.resolutionNote, records: matched },
     });
     return saved;
   }

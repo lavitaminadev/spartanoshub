@@ -198,7 +198,7 @@ export function DashboardPage() {
       </div>}
 
       {!personalView && widgetVisible('ud') && data.ud && <div className="section">
-        <h2>Unidades de Dedicacion</h2>
+        <h2>Unidades de Diseño</h2>
         <div className="dashboard-charts-row">
           <div className="dashboard-chart-card"><h3>Consumo UD</h3>
             <ResponsiveContainer width="100%" height={200}><BarChart data={[{ name: 'Contratadas', value: data.ud.contracted, fill: '#e67e22' }, { name: 'Consumidas', value: data.ud.consumed, fill: '#087e79' }, { name: 'Reservadas', value: data.ud.reserved, fill: '#3498db' }]} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}><Cell fill="#e67e22" /><Cell fill="#087e79" /><Cell fill="#3498db" /></Bar></BarChart></ResponsiveContainer>
