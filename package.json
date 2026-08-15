@@ -32,7 +32,8 @@
     "deploy:web:cpanel": "powershell -NoProfile -Command \"$dest = Join-Path $HOME 'public_html/cuartel.espartanos.cl'; New-Item -ItemType Directory -Force -Path $dest | Out-Null; if (Test-Path (Join-Path $dest 'assets')) { Remove-Item -Recurse -Force (Join-Path $dest 'assets') }; Copy-Item -Recurse -Force apps/web/dist/* $dest\"",
     "migration:run": "cd apps/api && npx typeorm-ts-node-commonjs migration:run -d src/infrastructure/database-data-source.ts",
     "migration:run:prod": "cd apps/api && node ../../node_modules/typeorm/cli.js migration:run -d dist/infrastructure/database-data-source.js",
-    "migration:revert": "cd apps/api && npx typeorm-ts-node-commonjs migration:revert -d src/infrastructure/database-data-source.ts"
+    "migration:revert": "cd apps/api && npx typeorm-ts-node-commonjs migration:revert -d src/infrastructure/database-data-source.ts",
+    "smoke:reservas": "node scripts/smoke/reservas-simultaneas.cjs"
   },
   "workspaces": [
     "apps/api",
