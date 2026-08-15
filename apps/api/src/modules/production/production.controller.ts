@@ -14,6 +14,8 @@ import { AssignPieceDto } from './dto/assign-piece.dto';
 import { SubmitVersionDto } from './dto/submit-version.dto';
 import { RejectPieceDto } from './dto/reject-piece.dto';
 import { CreatePieceDto } from './dto/create-piece.dto';
+import { CancelPieceDto } from './dto/cancel-piece.dto';
+import { CancelPieceUseCase } from './cancel-piece.use-case';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { UserRole } from '../organizations/user-role.enum';
@@ -45,6 +47,7 @@ export class ProductionController {
     private readonly parameters: ParameterResolver,
     private readonly udValues: UdValuesService,
     private assignPiece: AssignPieceUseCase,
+    private cancelPiece: CancelPieceUseCase,
     private submitVer: SubmitVersionUseCase,
     private rejectPiece: RejectPieceUseCase,
     private deliverPiece: DeliverPieceUseCase,
@@ -156,6 +159,15 @@ export class ProductionController {
       role: req.user.role as UserRole,
       clientId: req.user.clientId,
     });
+  }
+
+  @Post(':id/cancel')
+  // Cancelar mueve el saldo del cliente, así que queda en dirección y administración: no es una
+  // decisión de producción sino económica, aunque el trabajo cancelado sea de producción.
+  @Roles(UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Cancelar pieza y devolver sus unidades segun la regla configurada' })
+  cancel(@Param('id') id: string, @Body() dto: CancelPieceDto, @Req() req: AuthenticatedRequest) {
+    return this.cancelPiece.execute(id, req.organizationId, dto.reason, req.user.id);
   }
 
   @Post(':id/deliver')

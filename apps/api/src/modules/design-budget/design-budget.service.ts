@@ -127,6 +127,88 @@ export class DesignBudgetService {
     return transactionManager ? execute(transactionManager) : this.budgetRepo.manager.transaction(execute);
   }
 
+  /**
+   * Devuelve al presupuesto las unidades de un trabajo que no se va a hacer.
+   *
+   * Sin esto, asignar una pieza y después cancelarla dejaba las unidades retenidas para siempre:
+   * el cliente había pagado por trabajo que nadie hizo y su saldo del mes no lo reflejaba.
+   *
+   * La devolución se rige por `ud.reversal_mode`, que Dirección configura:
+   *
+   * - `automatic` — cancelar devuelve las unidades sin trámite.
+   * - `manual` — cancelar no devuelve nada; hace falta un ajuste explícito de alguien con permiso.
+   * - `none` — lo reservado no se devuelve nunca.
+   *
+   * Devuelve tanto lo reservado como lo ya consumido, porque una pieza entregada que se anula
+   * también deja de corresponder a trabajo hecho. Es la razón de que se descuente de ambos
+   * saldos y no solo del reservado.
+   *
+   * Un mes cerrado no se toca salvo que `ud.reversal_allows_closed_budget` lo permita: el saldo
+   * de un mes ya facturado no debería moverse porque alguien canceló algo en el mes siguiente.
+   * La devolución se rechaza con un mensaje que dice qué falta, en vez de alterar el cierre.
+   *
+   * Es idempotente: repetir la cancelación no devuelve dos veces.
+   */
+  async releaseForPiece(piece: Piece, reason: string, actorId?: string, transactionManager?: EntityManager): Promise<UDMovement | null> {
+    const mode = (await this.parameterResolver.get('ud.reversal_mode', piece.clientId, null, piece.organizationId)) ?? 'automatic';
+    if (mode === 'none') return null;
+    if (mode === 'manual') {
+      throw new BadRequestException('La devolución de unidades requiere un ajuste manual: la configuración no la hace sola.');
+    }
+
+    const execute = async (manager: EntityManager) => {
+      const movementRepo = manager.getRepository(UDMovement);
+      const alreadyReleased = await movementRepo.findOne({
+        where: { pieceId: piece.id, type: UDMovementType.RELEASE },
+      });
+      if (alreadyReleased) return alreadyReleased;
+
+      const reservation = await movementRepo.findOne({
+        where: { pieceId: piece.id, type: UDMovementType.RESERVATION },
+      });
+      // Sin reserva no hay nada que devolver: la pieza nunca llegó a descontar del presupuesto.
+      if (!reservation) return null;
+
+      const budget = await manager.findOne(UDBudget, {
+        where: { id: reservation.udBudgetId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!budget) return null;
+
+      if (budget.status !== 'open') {
+        const permiteCerrado = await this.parameterResolver.get('ud.reversal_allows_closed_budget', piece.clientId, null, piece.organizationId);
+        if (!permiteCerrado) {
+          throw new BadRequestException(
+            `El presupuesto de ${budget.month}/${budget.year} está cerrado y la configuración no permite devolver unidades sobre un mes cerrado.`,
+          );
+        }
+      }
+
+      // Se devuelve lo que la pieza movió realmente, no su valor actual: si alguien cambió el
+      // valor del tipo de pieza después de reservarla, devolver el valor nuevo descuadraría el
+      // presupuesto. El movimiento de reserva es el registro de lo que efectivamente se cobró.
+      const amount = Number(reservation.amount);
+      const consumed = await movementRepo.findOne({
+        where: { pieceId: piece.id, type: UDMovementType.CONSUMPTION },
+      });
+
+      if (consumed) budget.consumed = Number(budget.consumed) - amount;
+      else budget.reserved = Number(budget.reserved) - amount;
+      await manager.save(UDBudget, budget);
+
+      const movement = manager.create(UDMovement, {
+        udBudgetId: budget.id,
+        pieceId: piece.id,
+        type: UDMovementType.RELEASE,
+        amount,
+        reason: reason.slice(0, 255),
+        actorId,
+      });
+      return manager.save(UDMovement, movement);
+    };
+    return transactionManager ? execute(transactionManager) : this.budgetRepo.manager.transaction(execute);
+  }
+
   async isNearLimit(budget: UDBudget, thresholdPercent?: number): Promise<boolean> {
     const organizationId = await this.resolveOrganizationId(budget.clientId);
     const threshold = thresholdPercent ?? (await this.parameterResolver.get('ud.warning_threshold_percent', budget.clientId, null, organizationId)) ?? 80;

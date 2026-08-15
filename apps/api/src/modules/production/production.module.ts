@@ -5,6 +5,7 @@ import { PieceVersion } from './piece-version.entity';
 import { Correction } from './correction.entity';
 import { ProductionController } from './production.controller';
 import { AssignPieceUseCase } from './assign-piece.use-case';
+import { CancelPieceUseCase } from './cancel-piece.use-case';
 import { SubmitVersionUseCase } from './submit-version.use-case';
 import { RejectPieceUseCase } from './reject-piece.use-case';
 import { DeliverPieceUseCase } from './deliver-piece.use-case';
@@ -22,7 +23,7 @@ import { ParametersModule } from '../../core/parameters/parameters.module';
 @Module({
   imports: [TypeOrmModule.forFeature([Piece, PieceVersion, Correction, ApprovalRequest, User, Client]), DesignBudgetModule, GamificationModule, BillingModule, ParametersModule],
   controllers: [ProductionController],
-  providers: [AssignPieceUseCase, SubmitVersionUseCase, RejectPieceUseCase, DeliverPieceUseCase, ListPiecesUseCase, ProductionWorkflowService, PieceRulesService],
+  providers: [AssignPieceUseCase, CancelPieceUseCase, SubmitVersionUseCase, RejectPieceUseCase, DeliverPieceUseCase, ListPiecesUseCase, ProductionWorkflowService, PieceRulesService],
   exports: [TypeOrmModule],
 })
 export class ProductionModule {}

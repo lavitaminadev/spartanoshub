@@ -4,5 +4,7 @@ export enum UDMovementType {
   CONSUMPTION = 'consumption',
   ADJUSTMENT = 'adjustment',
   EXTRA = 'extra',
+  /** Devolución al presupuesto de unidades reservadas para un trabajo que no se va a hacer. */
+  RELEASE = 'release',
   ROLLOVER = 'rollover',
 }
