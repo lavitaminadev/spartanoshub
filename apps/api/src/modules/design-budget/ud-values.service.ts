@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { In, Repository } from 'typeorm';
+import { PieceTypeDefinition, PieceTypeStatus } from '../production/piece-type-definition.entity';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 import { PieceType } from '../production/piece-type.enum';
 import {
@@ -28,9 +31,18 @@ export type UdMatrix = Record<string, number | null>;
  */
 @Injectable()
 export class UdValuesService {
-  constructor(private readonly parameters: ParameterResolver) {}
+  constructor(
+    private readonly parameters: ParameterResolver,
+    @InjectRepository(PieceTypeDefinition) private readonly definitions: Repository<PieceTypeDefinition>,
+  ) {}
 
-  /** Matriz vigente de la organización: los parámetros configurados sobre los valores del maestro. */
+  /**
+   * Matriz vigente de la organización.
+   *
+   * El catálogo en base de datos manda: es lo que el área propuso y Dirección aprobó, y es lo
+   * único que puede cubrir un tipo creado después de compilar. Los parámetros `ud.value.*` y la
+   * matriz del maestro quedan detrás, para una organización cuyo catálogo todavía no se sembró.
+   */
   async matrixFor(organizationId?: string | null): Promise<UdMatrix> {
     const keys = Object.values(PieceType).map(udValueKey);
     const configured = await this.parameters.getManyForOrganization(keys, organizationId);
@@ -39,6 +51,18 @@ export class UdValuesService {
     for (const type of Object.values(PieceType)) {
       const value = configured.get(udValueKey(type));
       matrix[type] = value === null || value === undefined ? UD_DEFAULTS[type] ?? null : Number(value);
+    }
+
+    if (!organizationId) return matrix;
+    const definiciones = await this.definitions.find({
+      where: { organizationId, status: In([PieceTypeStatus.ACTIVE, PieceTypeStatus.RETIRED]) },
+    });
+    // Se incluyen los retirados a propósito: un tipo que dejó de ofrecerse sigue teniendo piezas
+    // vivas que hay que poder cobrar y devolver mientras terminan su ciclo.
+    for (const definicion of definiciones) {
+      matrix[definicion.key] = definicion.udAmount === null || definicion.udAmount === undefined
+        ? null
+        : Number(definicion.udAmount);
     }
     return matrix;
   }
@@ -54,6 +78,17 @@ export class UdValuesService {
     const base = matrix[pieceType];
     if (base === null || base === undefined) return 0;
 
+    if (carouselSlides <= 0) return base;
+
+    // El extra por elemento adicional lo define el propio tipo. El carrusel es el caso conocido
+    // del maestro, pero cualquier tipo nuevo puede cobrarse igual sin que el código lo sepa.
+    const definicion = organizationId
+      ? await this.definitions.findOne({ where: { organizationId, key: pieceType } })
+      : null;
+    const extraDelTipo = definicion?.extraPerUnit;
+    if (extraDelTipo !== null && extraDelTipo !== undefined) {
+      return base + Math.max(0, carouselSlides - 1) * Number(extraDelTipo);
+    }
     if (pieceType !== PieceType.CAROUSEL) return base;
 
     const extra = await this.parameters.get(UD_CAROUSEL_EXTRA_KEY, null, null, organizationId);

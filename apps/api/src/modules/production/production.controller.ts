@@ -16,6 +16,7 @@ import { RejectPieceDto } from './dto/reject-piece.dto';
 import { CreatePieceDto } from './dto/create-piece.dto';
 import { CancelPieceDto } from './dto/cancel-piece.dto';
 import { CancelPieceUseCase } from './cancel-piece.use-case';
+import { PieceTypesService } from './piece-types.service';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { UserRole } from '../organizations/user-role.enum';
@@ -46,6 +47,7 @@ export class ProductionController {
     private readonly accountAccess: AccountAccessService,
     private readonly parameters: ParameterResolver,
     private readonly udValues: UdValuesService,
+    private readonly pieceTypes: PieceTypesService,
     private assignPiece: AssignPieceUseCase,
     private cancelPiece: CancelPieceUseCase,
     private submitVer: SubmitVersionUseCase,
@@ -60,6 +62,7 @@ export class ProductionController {
   async create(@Body() dto: CreatePieceDto, @Req() req: AuthenticatedRequest) {
     const client = await this.clientRepo.findOne({ where: { id: dto.clientId, organizationId: req.organizationId } });
     if (!client) throw new BadRequestException('El cliente no pertenece a esta organización');
+    await this.pieceTypes.assertUsable(req.organizationId, [dto.type]);
     if (dto.dependencyIds?.length) {
       const dependencyCount = await this.pieceRepo.count({ where: { id: In(dto.dependencyIds), organizationId: req.organizationId } });
       if (dependencyCount !== new Set(dto.dependencyIds).size) throw new BadRequestException('Una o más dependencias no pertenecen a esta organización');

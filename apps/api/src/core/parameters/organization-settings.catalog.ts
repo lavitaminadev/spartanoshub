@@ -93,6 +93,21 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     unit: 'UD',
   },
   {
+    key: 'production.piece_type_approver_role',
+    category: 'production',
+    label: 'Cargo que aprueba tipos de pieza nuevos',
+    description: 'Quién puede aprobar un tipo de pieza propuesto y fijar cuántas unidades descuenta. Administración y Dirección de Operaciones pueden siempre, para que la atribución nunca quede sin titular. Acá se agrega un cargo más.',
+    valueType: 'select',
+    defaultValue: 'art_director',
+    masterStatus: 'direction_required',
+    options: [
+      { value: 'art_director', label: 'Dirección de Arte' },
+      { value: 'av_director', label: 'Dirección Audiovisual' },
+      { value: 'creative_director', label: 'Dirección Creativa' },
+      { value: 'commercial_director', label: 'Dirección Comercial' },
+    ],
+  },
+  {
     key: 'ud.reversal_mode',
     category: 'design_budget',
     label: 'Devolución de unidades al cancelar',

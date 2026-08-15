@@ -40,7 +40,9 @@ export class UpdateWorkRequestDto {
  */
 export class ConvertPieceDto {
   @IsString() @MinLength(3) @MaxLength(200) title: string;
-  @IsEnum(PieceType) type: PieceType;
+  /** Clave del tipo en el catalogo de la organizacion. Se valida contra los tipos activos, no
+   * contra el enum: un tipo aprobado despues de compilar tambien debe poder pedirse. */
+  @IsString() @MaxLength(50) type: string;
   @IsOptional() @IsInt() @Min(1) @Max(5) difficultyLevel?: number;
   @IsOptional() @IsInt() @Min(2) @Max(20) carouselSlides?: number;
 }

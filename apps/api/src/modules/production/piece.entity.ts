@@ -14,7 +14,14 @@ export class Piece {
   @Column({ name: 'assigned_to', type: 'uuid', nullable: true }) assignedTo?: string;
   @Column({ name: 'assigned_at', type: 'timestamp', nullable: true }) assignedAt?: Date;
   @Column({ name: 'started_at', type: 'timestamp', nullable: true }) startedAt?: Date;
-  @Column({ type: 'varchar', length: 50 }) type: PieceType;
+  /**
+   * Clave del tipo en el catálogo de la organización.
+   *
+   * Es texto y no el `enum` porque el catálogo se amplía en caliente: un tipo aprobado después de
+   * compilar no existe como valor del `enum` y la pieza igual tiene que poder guardarlo. La
+   * validación de que el tipo esté activo se hace contra el catálogo, que es donde vive el dato.
+   */
+  @Column({ type: 'varchar', length: 50 }) type: string;
   @Column({ type: 'varchar', length: 255 }) title: string;
   @Column({ type: 'varchar', length: 50, default: PieceStatus.BACKLOG }) status: PieceStatus;
   @Column({ name: 'difficulty_level', type: 'tinyint', default: 1 }) difficultyLevel: number;
