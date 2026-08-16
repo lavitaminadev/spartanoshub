@@ -1,0 +1,1 @@
+function e(e,t){return e===`dev`||typeof e==`string`&&t.includes(e)}export{e as t};

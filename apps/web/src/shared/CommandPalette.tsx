@@ -40,8 +40,8 @@ export function CommandPalette() {
    * peor que no ofrecer el resultado.
    */
   const canOpen = useCallback(
-    (path: string) => isPathEnabled(path, user?.features, user?.permissions, user?.moduleLifecycle),
-    [user?.features, user?.permissions, user?.moduleLifecycle],
+    (path: string) => isPathEnabled(path, user?.features, user?.permissions, user?.moduleLifecycle, user?.role),
+    [user?.features, user?.permissions, user?.moduleLifecycle, user?.role],
   );
 
   useEffect(() => {

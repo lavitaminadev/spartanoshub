@@ -10,6 +10,7 @@ import { matchesSearch } from '../../shared/search';
 import { useAuth } from '../../core/auth';
 import { useSearchParams } from 'react-router-dom';
 import { safeUrl } from '../../core/safe-url';
+import { hasRoleAccess } from '../../core/role-access';
 
 interface DocumentRecord {
   [key: string]: unknown;
@@ -72,7 +73,7 @@ export function DocumentsPage() {
   const [pendingBulkStatus, setPendingBulkStatus] = useState<{ rows: DocumentRecord[]; status: 'draft' | 'approved' } | null>(null);
   const [bulkStatusPending, setBulkStatusPending] = useState(false);
   const user = useAuth((state) => state.user);
-  const canManage = ['admin', 'operations_director'].includes(user?.role ?? '');
+  const canManage = hasRoleAccess(user?.role, ['admin', 'operations_director']);
   const canDelete = user?.role === 'admin';
 
   const { data, isLoading, error } = useQuery({

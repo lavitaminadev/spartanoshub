@@ -74,8 +74,8 @@ let UpdateUserUseCase = class UpdateUserUseCase {
             throw new common_1.BadRequestException('No puedes desactivar ni cambiar el rol de tu propia cuenta');
         }
         if (data.role === user_role_enum_1.UserRole.DEV || user.role === user_role_enum_1.UserRole.DEV) {
-            if (data.actorRole !== user_role_enum_1.UserRole.ADMIN)
-                throw new common_1.ForbiddenException('Solo administración puede asignar o gestionar el cargo de desarrollo');
+            if (![user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV].includes(data.actorRole))
+                throw new common_1.ForbiddenException('Solo administración o desarrollo puede asignar o gestionar el cargo de desarrollo');
             if (data.role === user_role_enum_1.UserRole.DEV && user.role !== user_role_enum_1.UserRole.DEV) {
                 const existingDev = await this.usersRepo.findOne({ where: { organizationId: data.organizationId, role: user_role_enum_1.UserRole.DEV, isActive: true } });
                 if (existingDev)

@@ -4,6 +4,6 @@ registerFeature({
   id: 'governance',
   name: 'Operación y cuentas',
   enabled: true,
-  navigation: [{ label: 'Operación y cuentas', path: '/governance', icon: '🏛️', roles: ['admin', 'operations_director', 'dev'] }],
+  navigation: [{ label: 'Gobierno del producto', path: '/governance', icon: '🏛️', roles: ['dev'] }],
   routes: [],
 });

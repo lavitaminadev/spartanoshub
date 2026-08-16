@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { PulsoEspartano } from '../pulse/PulsoEspartano';
 import { statusLabel } from '../../shared/status-labels';
 import { useAuth } from '../../core/auth';
+import { hasRoleAccess } from '../../core/role-access';
 import { isModuleInPhaseScope } from '../../core/phase-scope';
 import { readStoredJson, storageKey, writeStoredJson } from '../../core/browser-storage';
 import { QueryErrorState } from '../../shared/QueryErrorState';
@@ -84,7 +85,7 @@ export function DashboardPage() {
   const personalView = ['designer', 'audiovisual'].includes(user?.role ?? '');
   const canViewPerformance = !personalView;
   // La cola de conversiones la expone un endpoint restringido a estos tres roles.
-  const canManageConversions = ['admin', 'operations_director', 'commercial_director'].includes(user?.role ?? '');
+  const canManageConversions = hasRoleAccess(user?.role, ['admin', 'operations_director', 'commercial_director']);
   const role = user?.role || 'admin';
   const dashboardKey = storageKey('dashboard', role);
   const rolePreset = ROLE_PRESETS[role] || ROLE_PRESETS.admin;

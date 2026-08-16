@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { EmptyState } from '../../shared/EmptyState';
 import { Modal } from '../../shared/Modal';
 import { useAuth } from '../../core/auth';
+import { hasRoleAccess } from '../../core/role-access';
 import { PageHero } from '../../shared/PageHero';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 
@@ -39,7 +40,7 @@ export function GamificationPage() {
   const totalXp = users.reduce((sum, user) => sum + Number(user.totalXp || 0), 0);
   const topXp = users[0]?.totalXp || 0;
   const ownPeriod = users.find((entry) => entry.userId === user?.id);
-  const canResolve = ['admin', 'art_director', 'av_director', 'operations_director'].includes(user?.role ?? '');
+  const canResolve = hasRoleAccess(user?.role, ['admin', 'art_director', 'av_director', 'operations_director']);
   const disputes = disputesQuery.data ?? [];
 
   return <div className="page gamification-page">

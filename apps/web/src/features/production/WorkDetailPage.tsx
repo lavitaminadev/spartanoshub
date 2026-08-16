@@ -16,6 +16,7 @@
  */
 
 import { useState } from 'react';
+import { hasRoleAccess } from '../../core/role-access';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -80,8 +81,8 @@ const STATUS_STAGE: Record<string, number> = {
  * mantiene el botón fuera de la pantalla cuando no hay nada que avanzar.
  */
 function nextTransition(status: string, role: string): { action: 'start' | 'send-to-client' | 'approve' | 'deliver'; label: string } | null {
-  const canStart = ['admin', 'art_director', 'operations_director', 'designer', 'audiovisual'].includes(role);
-  const canReview = ['admin', 'art_director', 'operations_director'].includes(role);
+  const canStart = hasRoleAccess(role, ['admin', 'art_director', 'operations_director', 'designer', 'audiovisual']);
+  const canReview = hasRoleAccess(role, ['admin', 'art_director', 'operations_director']);
   if (canStart && status === 'assigned') return { action: 'start', label: 'Iniciar' };
   if (canStart && status === 'correction') return { action: 'start', label: 'Retomar' };
   if (canReview && status === 'internal_review') return { action: 'send-to-client', label: 'Enviar a cliente' };

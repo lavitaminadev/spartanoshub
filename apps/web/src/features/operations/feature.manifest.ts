@@ -4,6 +4,6 @@ registerFeature({
   id: 'operations',
   name: 'Operaciones',
   enabled: true,
-  navigation: [{ label: 'Estado del sistema', path: '/operations', icon: '⚙️', roles: ['admin', 'operations_director'] }],
+  navigation: [{ label: 'Estado del sistema', path: '/operations', icon: '⚙️', roles: ['dev'] }],
   routes: [],
 });

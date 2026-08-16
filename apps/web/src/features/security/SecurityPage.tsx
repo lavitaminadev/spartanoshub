@@ -10,6 +10,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { refetchWhenIdle } from '../../core/refetch-policy';
 import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
 import { useOrganizationSettings } from '../../core/organization-settings';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
@@ -78,10 +79,13 @@ function formatUptime(seconds: number): string {
 }
 
 export function SecurityPage() {
+  const { user } = useAuth();
+  const canSeeSystemHealth = user?.role === 'dev';
   const healthQuery = useQuery<HealthDetails>({
     queryKey: ['security-health'],
     queryFn: () => api.get('/health/details'),
     refetchInterval: refetchWhenIdle(60_000),
+    enabled: canSeeSystemHealth,
   });
   const anonymizationsQuery = useQuery<AnonymizationRow[]>({
     queryKey: ['security-anonymizations'],
@@ -101,10 +105,10 @@ export function SecurityPage() {
     <PageHero
       eyebrow="SEGURIDAD Y PRIVACIDAD"
       title="Qué se protege y qué queda registrado."
-      subtitle="Estado del sistema, retención de datos personales y bitácora de auditoría."
+      subtitle={canSeeSystemHealth ? 'Estado del sistema, privacidad y bitácora de auditoría.' : 'Privacidad, consentimientos y bitácora de auditoría.'}
     />
 
-    <section>
+    {canSeeSystemHealth && <section>
       <div className="section-toolbar">
         <div><span className="page-eyebrow">RESUMEN</span><h2>Estado del sistema</h2><p>Base de datos, memoria, disco e integraciones, verificados en tiempo real.</p></div>
         <button className="btn btn-outline" onClick={() => healthQuery.refetch()} disabled={healthQuery.isFetching}>{healthQuery.isFetching ? 'Actualizando...' : 'Actualizar'}</button>
@@ -118,7 +122,7 @@ export function SecurityPage() {
           <article><span className="page-eyebrow">DISCO</span><StatusPill status={healthQuery.data.disk.status} /><p>{healthQuery.data.disk.writable ? 'Escritura verificada' : (healthQuery.data.disk.message ?? 'No verificable')}</p></article>
           <article><span className="page-eyebrow">REDIS</span><StatusPill status={healthQuery.data.redis.status} /><p>{healthQuery.data.redis.status === 'not_configured' ? 'No configurado en este entorno' : 'Configurado; sin verificación de ping activa'}</p></article>
         </div>}
-    </section>
+    </section>}
 
     <section>
       <div className="section-toolbar">

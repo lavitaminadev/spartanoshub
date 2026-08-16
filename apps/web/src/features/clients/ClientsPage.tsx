@@ -11,6 +11,7 @@ import { LogoUpload } from './LogoUpload';
 import { triggerToast } from '../../shared/toast-events';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
+import { hasRoleAccess } from '../../core/role-access';
 import { CLIENT_INDUSTRIES, industryLabel } from '@espartanos/shared';
 
 interface ClientRecord {
@@ -111,7 +112,7 @@ const CAPABILITY_OPTIONS: Array<{ key: keyof ClientCapabilities; label: string; 
 export function ClientsPage() {
   const [searchParams] = useSearchParams();
   const user = useAuth((state) => state.user);
-  const canManage = ['admin', 'commercial_director', 'operations_director'].includes(user?.role ?? '');
+  const canManage = hasRoleAccess(user?.role, ['admin', 'commercial_director', 'operations_director']);
   const canViewManagers = [...(canManage ? [user?.role] : []), 'community_manager'].includes(user?.role);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');

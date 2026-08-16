@@ -4,6 +4,7 @@ import { refetchWhenIdle } from '../../core/refetch-policy';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
+import { hasRoleAccess } from '../../core/role-access';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -136,11 +137,11 @@ export function ProductionPage() {
   // mostraba la clave cruda de cualquier tipo aprobado despues.
   const { options: pieceTypeOptions, labelFor: pieceTypeLabel } = usePieceTypes();
   const role = currentUser?.role ?? '';
-  const canAssign = ['admin', 'art_director', 'operations_director'].includes(role);
+  const canAssign = hasRoleAccess(role, ['admin', 'art_director', 'operations_director']);
   const canCreate = canAssign;
-  const canStart = ['admin', 'art_director', 'operations_director', 'designer', 'audiovisual'].includes(role);
-  const canSubmitVersion = ['admin', 'art_director', 'designer', 'audiovisual'].includes(role);
-  const canSendToClient = ['admin', 'art_director', 'operations_director'].includes(role);
+  const canStart = hasRoleAccess(role, ['admin', 'art_director', 'operations_director', 'designer', 'audiovisual']);
+  const canSubmitVersion = hasRoleAccess(role, ['admin', 'art_director', 'designer', 'audiovisual']);
+  const canSendToClient = hasRoleAccess(role, ['admin', 'art_director', 'operations_director']);
   const canDeliver = canSendToClient;
 
   const pieceQuery = new URLSearchParams();
