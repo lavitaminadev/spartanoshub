@@ -56,7 +56,8 @@ function cellKey(role: string, module: string): string {
  * El nivel efectivo surge de estas condiciones evaluadas en cadena:
  *
  * 1. El módulo debe estar visible en el catálogo de producto. Si sigue en desarrollo, el
- *    nivel es `none` para todos.
+ *    nivel es `none` para todos salvo el cargo de desarrollo, que es quien valida una
+ *    funcionalidad desplegada antes de liberarla al equipo.
  * 2. El módulo debe estar habilitado en la organización. Si no lo está, el nivel es `none`
  *    para todos, incluida la administración.
  * 3. El cargo define el nivel base: `role-permissions.ts`, salvo que la organización haya
@@ -107,7 +108,7 @@ export class PermissionResolverService {
     const permissions = Object.fromEntries(
       ORGANIZATION_FEATURE_KEYS.map((module) => [
         module,
-        isModuleLifecycleVisible(lifecycleMap[module]) && features[module]
+        this.alcanzaElModulo(role, lifecycleMap[module], features[module])
           ? overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? roleLevel(role, module)
           : 'none',
       ]),
@@ -115,6 +116,33 @@ export class PermissionResolverService {
 
     this.cache.set(cacheKey, { permissions, expiresAt: Date.now() + PermissionResolverService.CACHE_TTL_MS });
     return permissions;
+  }
+
+  /**
+   * Si el estado del módulo deja que alguien de este cargo llegue a él.
+   *
+   * Es la primera de las cuatro preguntas de la autorización, y va antes que el permiso a
+   * propósito: preguntar el permiso primero haría que un administrador viera los módulos en
+   * desarrollo por ser administrador, que es justo lo que se quiere evitar. El estado del módulo
+   * no es un permiso —es si la funcionalidad está liberada— y por eso manda.
+   *
+   * El cargo de desarrollo es la única excepción, y existe para separar dos cosas que hasta ahora
+   * eran la misma: **desplegar el código** y **liberarlo al uso**. Sin esta excepción, validar una
+   * funcionalidad en la infraestructura real obligaba a ponerla visible para todo el equipo, que
+   * es exactamente lo que no se quiere después de un despliegue con diferencias entre entornos.
+   *
+   * La excepción alcanza solo a `development`. Un módulo **apagado** para la agencia sigue
+   * apagado también para desarrollo: apagarlo es una decisión de negocio, no un estado de
+   * liberación, y saltársela convertiría el cargo en un superusuario invisible.
+   *
+   * `maintenance` y `disabled` tampoco se saltan: si una funcionalidad está detenida por una
+   * corrección, que desarrollo pueda operarla igual es cómo se corrompen los datos que se estaban
+   * arreglando.
+   */
+  private alcanzaElModulo(role: UserRole, lifecycle: ModuleLifecycleStatus, moduleEnabled: boolean): boolean {
+    if (!moduleEnabled) return false;
+    if (isModuleLifecycleVisible(lifecycle)) return true;
+    return role === UserRole.DEV && lifecycle === 'development';
   }
 
   /**
@@ -134,7 +162,9 @@ export class PermissionResolverService {
       const override = overrideByModule.get(module);
       const adjusted = roleLevels.get(cellKey(role, module));
       const moduleDisabled = !features[module];
-      const productHidden = !isModuleLifecycleVisible(lifecycleMap[module]);
+      // Se usa la misma funcion que decide de verdad: si la pantalla de permisos calculara
+      // aparte, mostraria un nivel distinto del que el servidor aplica.
+      const productHidden = !this.alcanzaElModulo(role, lifecycleMap[module], features[module]) && features[module];
       const base = adjusted ?? roleLevel(role, module);
       return {
         module,

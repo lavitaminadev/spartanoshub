@@ -103,3 +103,25 @@ describe('navegación bajo el alcance de fase', () => {
     }
   });
 });
+
+describe('el cargo de desarrollo frente al alcance de fase', () => {
+  it('ve un módulo en desarrollo, que es como valida antes de liberar', () => {
+    expect(isModuleInPhaseScope('production', { production: 'development' }, 'dev')).toBe(true);
+  });
+
+  it('no ve lo apagado ni lo detenido, igual que el servidor', () => {
+    // Antes bastaba el cargo y el menú mostraba módulos cuyas rutas el backend rechazaba: el
+    // desarrollo terminaba persiguiendo 403 de funcionalidades que nunca debió ver.
+    expect(isModuleInPhaseScope('production', { production: 'disabled' }, 'dev')).toBe(false);
+  });
+
+  it('ningún otro cargo ve lo que está en desarrollo', () => {
+    expect(isModuleInPhaseScope('production', { production: 'development' }, 'admin')).toBe(false);
+    expect(isModuleInPhaseScope('production', { production: 'development' }, 'designer')).toBe(false);
+  });
+
+  it('lo liberado se ve igual para todos', () => {
+    expect(isModuleInPhaseScope('reservations', { reservations: 'active' }, 'designer')).toBe(true);
+    expect(isModuleInPhaseScope('reservations', { reservations: 'active' }, 'dev')).toBe(true);
+  });
+});
