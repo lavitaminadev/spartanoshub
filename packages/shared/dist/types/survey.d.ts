@@ -50,16 +50,27 @@ export interface Survey {
     recipients?: string[];
     /** Canales de distribución habilitados. Vacío o ausente mientras la encuesta es `draft`. */
     distribution?: SurveyDistributionChannel[];
+    publicUrl?: string;
+    ga4MeasurementId?: string | null;
     /** Conteo de respuestas recibidas. Se mantiene desnormalizado para listar sin agregar. */
     responses: number;
     /** Configuración visual de la página pública de la encuesta (colores, logo, fuente). */
     designConfig?: {
         primaryColor?: string;
+        accentColor?: string;
         backgroundColor?: string;
+        backgroundImage?: string;
+        backgroundMode?: string;
+        backgroundGradient?: string;
+        backgroundOpacity?: string;
+        backgroundSize?: string;
+        backgroundPosition?: string;
         textColor?: string;
         fontFamily?: string;
         logoUrl?: string;
         welcome?: string;
+        buttonRadius?: string;
+        fieldRadius?: string;
     };
     /** Configuración de Google Reviews integrada al finalizar la encuesta. */
     googleReview?: {

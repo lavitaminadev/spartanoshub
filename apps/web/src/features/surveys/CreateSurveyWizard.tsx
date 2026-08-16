@@ -11,6 +11,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { WizardProgress, type WizardStepDescriptor } from '../../shared/WizardProgress';
 import { PageHero } from '../../shared/PageHero';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { ImageUpload } from '../../shared/ImageUpload';
 import { useAuth } from '../../core/auth';
 import { triggerToast } from '../../shared/toast-events';
 import { useCreateSurvey, useSurvey, useUpdateSurvey } from './useSurveys';
@@ -49,17 +50,45 @@ interface WizardState {
   distribution: SurveyDistributionChannel[];
   recipients: string;
   primaryColor: string;
+  accentColor: string;
   backgroundColor: string;
+  backgroundMode: string;
+  backgroundGradient: string;
+  backgroundImage: string;
+  backgroundOpacity: string;
+  textColor: string;
   fontFamily: string;
   logoUrl: string;
   welcome: string;
+  ga4MeasurementId: string;
   googleReviewUrl: string;
   googleReviewMinRating: number;
   googleReviewLowMsg: string;
 }
 
 function blankState(): WizardState {
-  return { title: '', type: 'customer', questions: [blankQuestion()], distribution: [], recipients: '', primaryColor: '#0fb9b1', backgroundColor: '#f6f4f5', fontFamily: 'system-ui', logoUrl: '', welcome: '', googleReviewUrl: '', googleReviewMinRating: 4, googleReviewLowMsg: '' };
+  return {
+    title: '',
+    type: 'customer',
+    questions: [blankQuestion()],
+    distribution: [],
+    recipients: '',
+    primaryColor: '#0fb9b1',
+    accentColor: '#ec0b61',
+    backgroundColor: '#f6f4f5',
+    backgroundMode: 'color',
+    backgroundGradient: 'linear-gradient(135deg, #f6f4f5 0%, #e7f8f6 100%)',
+    backgroundImage: '',
+    backgroundOpacity: '88',
+    textColor: '#151317',
+    fontFamily: 'system-ui',
+    logoUrl: '',
+    welcome: '',
+    ga4MeasurementId: '',
+    googleReviewUrl: '',
+    googleReviewMinRating: 4,
+    googleReviewLowMsg: '',
+  };
 }
 
 function stateFromSurvey(survey: Survey): WizardState {
@@ -70,10 +99,17 @@ function stateFromSurvey(survey: Survey): WizardState {
     distribution: survey.distribution ?? [],
     recipients: (survey.recipients ?? []).join(', '),
     primaryColor: survey.designConfig?.primaryColor ?? '#0fb9b1',
+    accentColor: survey.designConfig?.accentColor ?? '#ec0b61',
     backgroundColor: survey.designConfig?.backgroundColor ?? '#f6f4f5',
+    backgroundMode: survey.designConfig?.backgroundMode ?? (survey.designConfig?.backgroundImage ? 'image' : 'color'),
+    backgroundGradient: survey.designConfig?.backgroundGradient ?? 'linear-gradient(135deg, #f6f4f5 0%, #e7f8f6 100%)',
+    backgroundImage: survey.designConfig?.backgroundImage ?? '',
+    backgroundOpacity: survey.designConfig?.backgroundOpacity ?? '88',
+    textColor: survey.designConfig?.textColor ?? '#151317',
     fontFamily: survey.designConfig?.fontFamily ?? 'system-ui',
     logoUrl: survey.designConfig?.logoUrl ?? '',
     welcome: survey.designConfig?.welcome ?? '',
+    ga4MeasurementId: survey.ga4MeasurementId ?? '',
     googleReviewUrl: survey.googleReview?.url ?? '',
     googleReviewMinRating: survey.googleReview?.minRating ?? 4,
     googleReviewLowMsg: survey.googleReview?.lowRatingMessage ?? '',
@@ -92,7 +128,7 @@ function SurveyTypesSelector({ value, onChange }: { value: SurveyType; onChange:
         </button>
         <button type="button" role="radio" aria-checked={value === 'customer'} className={value === 'customer' ? 'active' : ''} onClick={() => onChange('customer')}>
           <strong>Clientes</strong>
-          <span>Encuesta a clientes finales de una empresa, p. ej. post-visita.</span>
+          <span>Encuesta pública para clientes o asistentes, independiente de las reservas.</span>
         </button>
       </div>
     </div>
@@ -235,6 +271,7 @@ function ReviewAndSubmit({ state, isEdit }: { state: WizardState; isEdit: boolea
         <div><span>Nombre</span><strong>{state.title || 'Sin nombre aún'}</strong></div>
         <div><span>Público</span><strong>{state.type === 'internal' ? 'Equipo' : 'Clientes'}</strong></div>
         <div><span>Preguntas</span><strong>{state.questions.length}</strong></div>
+        <div><span>Medición</span><strong>{state.ga4MeasurementId ? 'GA4 configurado' : 'Sin GA4'}</strong></div>
         <div>
           <span>Distribución</span>
           <strong>{state.distribution.length ? state.distribution.map((channel) => DISTRIBUTION_LABELS[channel].label).join(', ') : 'Sin definir todavía'}</strong>
@@ -292,12 +329,24 @@ export function CreateSurveyWizard(): JSX.Element {
     }));
     const recipients = state.recipients.split(',').map((value) => value.trim()).filter(Boolean);
     const distribution = state.distribution;
-    const designConfig = { primaryColor: state.primaryColor, backgroundColor: state.backgroundColor, fontFamily: state.fontFamily, logoUrl: state.logoUrl || undefined, welcome: state.welcome || undefined };
+    const designConfig = {
+      primaryColor: state.primaryColor,
+      accentColor: state.accentColor,
+      backgroundColor: state.backgroundColor,
+      backgroundMode: state.backgroundMode,
+      backgroundGradient: state.backgroundMode === 'gradient' ? state.backgroundGradient : undefined,
+      backgroundImage: state.backgroundMode === 'image' ? state.backgroundImage || undefined : undefined,
+      backgroundOpacity: state.backgroundOpacity,
+      textColor: state.textColor,
+      fontFamily: state.fontFamily,
+      logoUrl: state.logoUrl || undefined,
+      welcome: state.welcome || undefined,
+    };
     const googleReview = state.googleReviewUrl ? { url: state.googleReviewUrl, minRating: state.googleReviewMinRating, lowRatingMessage: state.googleReviewLowMsg || undefined } : undefined;
 
     if (editId) {
       updateMutation.mutate(
-        { id: editId, patch: { title: state.title.trim(), type: state.type, questions, distribution, recipients: recipients.length ? recipients : undefined, designConfig, googleReview } },
+        { id: editId, patch: { title: state.title.trim(), type: state.type, questions, distribution, recipients: recipients.length ? recipients : undefined, ga4MeasurementId: state.ga4MeasurementId.trim() || null, designConfig, googleReview } },
         { onSuccess: () => { triggerToast('Encuesta actualizada'); navigate('/surveys'); } },
       );
       return;
@@ -309,6 +358,7 @@ export function CreateSurveyWizard(): JSX.Element {
         questions,
         distribution,
         recipients: recipients.length ? recipients : undefined,
+        ga4MeasurementId: state.ga4MeasurementId.trim() || null,
         designConfig,
         googleReview,
         createdBy: currentUser?.name ?? currentUser?.email ?? 'Desconocido',
@@ -345,22 +395,36 @@ export function CreateSurveyWizard(): JSX.Element {
         {step === 0 && <SurveyTypesSelector value={state.type} onChange={(type) => setState((current) => ({ ...current, type }))} />}
         {step === 0 && (
           <label>Nombre de la encuesta
-            <input className="input" required value={state.title} onChange={(event) => setState((current) => ({ ...current, title: event.target.value }))} placeholder="Ej. Satisfacción post-visita terraza" />
+            <input className="input" required value={state.title} onChange={(event) => setState((current) => ({ ...current, title: event.target.value }))} placeholder="Ej. Satisfacción clientes agosto" />
           </label>
         )}
         {step === 1 && <QuestionsEditor questions={state.questions} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
         {step === 2 && <div className="wizard-step-body">
-          <p className="page-subtitle">Personaliza la apariencia de la página de respuesta. Colores, logo y mensaje de bienvenida.</p>
-          <div className="design-mini-grid">
+          <p className="page-subtitle">Ajusta la página pública de respuesta sin mezclarla con Reservas.</p>
+          <div className="survey-design-grid">
             <label>Color principal<input type="color" value={state.primaryColor} onChange={e => setState(c => ({...c, primaryColor: e.target.value}))} /></label>
+            <label>Acento<input type="color" value={state.accentColor} onChange={e => setState(c => ({...c, accentColor: e.target.value}))} /></label>
             <label>Fondo<input type="color" value={state.backgroundColor} onChange={e => setState(c => ({...c, backgroundColor: e.target.value}))} /></label>
+            <label>Texto<input type="color" value={state.textColor} onChange={e => setState(c => ({...c, textColor: e.target.value}))} /></label>
           </div>
-          <label>Tipo de letra<select className="input" value={state.fontFamily} onChange={e => setState(c => ({...c, fontFamily: e.target.value}))}><option value="system-ui">Sistema</option><option value="Inter, sans-serif">Inter</option><option value="Georgia, serif">Georgia</option></select></label>
-          <label>URL del logo<input className="input" value={state.logoUrl} onChange={e => setState(c => ({...c, logoUrl: e.target.value}))} placeholder="https://..." /></label>
-          <label>Mensaje de bienvenida<textarea className="input" rows={3} value={state.welcome} onChange={e => setState(c => ({...c, welcome: e.target.value}))} placeholder="¡Queremos saber tu opinión!" /></label>
-          <div className="permission-help"><strong>Google Reviews</strong><p>Al finalizar la encuesta, según la calificación, se redirige a Google. Si la calificación es baja, primero se pregunta si quiere contacto.</p></div>
-          <label>URL de Google Reviews<input className="input" value={state.googleReviewUrl} onChange={e => setState(c => ({...c, googleReviewUrl: e.target.value}))} placeholder="https://g.page/r/..." /></label>
-          <div className="form-row"><label>Estrellas mínimas para redirigir directo<input className="input" type="number" min={1} max={5} value={state.googleReviewMinRating} onChange={e => setState(c => ({...c, googleReviewMinRating: Number(e.target.value)}))} /><small style={{color:'var(--muted)'}}>Si califica con menos, se le pregunta si quiere contacto antes de ir a Google.</small></label></div>
+          <div className="form-row">
+            <label>Tipo de letra<select className="input" value={state.fontFamily} onChange={e => setState(c => ({...c, fontFamily: e.target.value}))}><option value="system-ui">Sistema</option><option value="Inter, sans-serif">Inter</option><option value="Georgia, serif">Georgia</option></select></label>
+            <label>Tipo de fondo<select className="input" value={state.backgroundMode} onChange={e => setState(c => ({...c, backgroundMode: e.target.value}))}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
+          </div>
+          {state.backgroundMode === 'gradient' && <label>Degradado<input className="input" value={state.backgroundGradient} onChange={e => setState(c => ({...c, backgroundGradient: e.target.value}))} placeholder="linear-gradient(...)" /></label>}
+          {state.backgroundMode === 'image' && <>
+            <ImageUpload label="Imagen de fondo" value={state.backgroundImage} onChange={(url) => setState(c => ({...c, backgroundImage: url}))} placeholder="https://..." maxSizeMB={5} />
+            <label>Claridad del fondo ({state.backgroundOpacity}%)<input type="range" min="0" max="100" value={state.backgroundOpacity} onChange={e => setState(c => ({...c, backgroundOpacity: e.target.value}))} /></label>
+          </>}
+          <ImageUpload label="Logo de la encuesta" value={state.logoUrl} onChange={(url) => setState(c => ({...c, logoUrl: url}))} placeholder="https://..." maxSizeMB={3} />
+          <label>Mensaje de bienvenida<textarea className="input" rows={3} value={state.welcome} onChange={e => setState(c => ({...c, welcome: e.target.value}))} placeholder="Queremos saber tu opinión." /></label>
+          <label>ID de medición Google Analytics 4<input className="input" value={state.ga4MeasurementId} onChange={e => setState(c => ({...c, ga4MeasurementId: e.target.value.trim()}))} placeholder="G-XXXXXXXXXX" /><small>Encuestas usa GA4 para medir respuestas; no activa Meta CAPI.</small></label>
+          <details className="survey-optional-box">
+            <summary>Google Reviews</summary>
+            <label>URL de Google Reviews<input className="input" value={state.googleReviewUrl} onChange={e => setState(c => ({...c, googleReviewUrl: e.target.value}))} placeholder="https://g.page/r/..." /></label>
+            <div className="form-row"><label>Estrellas mínimas para redirigir directo<input className="input" type="number" min={1} max={5} value={state.googleReviewMinRating} onChange={e => setState(c => ({...c, googleReviewMinRating: Number(e.target.value)}))} /></label></div>
+            <label>Mensaje si la calificación es baja<textarea className="input" rows={2} value={state.googleReviewLowMsg} onChange={e => setState(c => ({...c, googleReviewLowMsg: e.target.value}))} placeholder="Gracias por avisarnos. Revisaremos tu caso." /></label>
+          </details>
         </div>}
         {step === 3 && (
           <DistributionSelector

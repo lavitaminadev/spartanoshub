@@ -55,6 +55,7 @@ const ClientLayout = lazy(() => import('../features/client-portal/ClientLayout')
 const ReservationsPage = lazy(() => import('../features/reservations/ReservationsPage').then(m => ({ default: m.ReservationsPage })));
 const ReservationBuilderPage = lazy(() => import('../features/reservations/ReservationBuilderPage').then(m => ({ default: m.ReservationBuilderPage })));
 const PublicReservationPage = lazy(() => import('../features/reservations/PublicReservationPage').then(m => ({ default: m.PublicReservationPage })));
+const PublicSurveyPage = lazy(() => import('../features/surveys/PublicSurveyPage').then(m => ({ default: m.PublicSurveyPage })));
 const AudiovisualPage = lazy(() => import('../features/audiovisual/AudiovisualPage').then(m => ({ default: m.AudiovisualPage })));
 const GovernancePage = lazy(() => import('../features/governance/GovernancePage').then(m => ({ default: m.GovernancePage })));
 const SecurityPage = lazy(() => import('../features/security/SecurityPage').then(m => ({ default: m.SecurityPage })));
@@ -96,6 +97,7 @@ export function AppRouter() {
         <Route path="/first-access" element={<ProtectedRoute path="/first-access"><SafeSuspense><FirstAccessPage /></SafeSuspense></ProtectedRoute>} />
         <Route path="/change-password" element={<ProtectedRoute path="/change-password"><SafeSuspense><ChangePasswordPage /></SafeSuspense></ProtectedRoute>} />
         <Route path="/book/:slug" element={<SafeSuspense><PublicReservationPage /></SafeSuspense>} />
+        <Route path="/survey/:id" element={<SafeSuspense><PublicSurveyPage /></SafeSuspense>} />
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<ProtectedRoute path="/dashboard"><SafeSuspense><DashboardPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/clients" element={<ProtectedRoute path="/clients"><SafeSuspense><ClientsPage /></SafeSuspense></ProtectedRoute>} />

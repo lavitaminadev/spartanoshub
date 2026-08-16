@@ -20,3 +20,12 @@ export function publicReservationUrl(publicSlug: string, apiPublicUrl?: string):
   if (apiPublicUrl?.startsWith('https://')) return apiPublicUrl;
   return publicAppUrl(`/book/${publicSlug}`);
 }
+
+export function publicSurveyUrl(id: string, apiPublicUrl?: string, source?: string): string {
+  const baseUrl = apiPublicUrl?.startsWith('https://') ? apiPublicUrl : publicAppUrl(`/survey/${id}`);
+  if (!source) return baseUrl;
+  const url = new URL(baseUrl);
+  url.searchParams.set('source', source);
+  url.searchParams.set('utm_source', source);
+  return url.toString();
+}

@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsObject, IsOptional, IsString, MaxLength, MinLength, ValidateNested,
+  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsObject, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested,
 } from 'class-validator';
 import type { QuestionType, SurveyDistributionChannel, SurveyStatus, SurveyType } from '@espartanos/shared';
 
@@ -43,6 +43,9 @@ export class CreateSurveyDto {
   @IsOptional() @IsArray() @IsIn(CHANNELS, { each: true })
   distribution?: SurveyDistributionChannel[];
 
+  @IsOptional() @Matches(/^(G-[A-Z0-9]{4,20})?$/i, { message: 'El ID de medición GA4 debe tener el formato G-XXXXXXXXXX' })
+  ga4MeasurementId?: string;
+
   @IsOptional() @IsObject()
   designConfig?: Record<string, string>;
 
@@ -75,6 +78,9 @@ export class UpdateSurveyDto {
 
   @IsOptional() @IsArray() @IsIn(CHANNELS, { each: true })
   distribution?: SurveyDistributionChannel[];
+
+  @IsOptional() @Matches(/^(G-[A-Z0-9]{4,20})?$/i, { message: 'El ID de medición GA4 debe tener el formato G-XXXXXXXXXX' })
+  ga4MeasurementId?: string;
 
   @IsOptional() @IsObject()
   designConfig?: Record<string, string>;

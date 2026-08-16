@@ -7,6 +7,7 @@ function guessModule(pathname: string): string {
   if (pathname.includes('/crm') || pathname.includes('/leads')) return 'crm';
   if (pathname.includes('/integrations')) return 'integrations';
   if (pathname.includes('/production')) return 'production';
+  if (pathname.includes('/surveys')) return 'surveys';
   if (pathname.includes('/reservations')) return 'reservations';
   if (pathname.includes('/settings')) return 'settings';
   return 'dashboard';

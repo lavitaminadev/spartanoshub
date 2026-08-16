@@ -266,6 +266,7 @@ export function ReservationBuilderPage() {
   const diasHabilitados = new Set(windows.map((window) => window.day)).size;
   const surveyMode = isSurveyMode(draft.mode);
   const flowLabel = surveyMode ? 'encuesta post-visita' : 'formulario de reserva';
+  const fieldLibrary = surveyMode ? FIELD_LIBRARY : FIELD_LIBRARY.filter(([type]) => type !== 'rating');
 
   const addField = (type: string) => {
     const field: FormField = { id: `field_${uuid().slice(0, 8)}`, type, label: FIELD_LIBRARY.find(([key]) => key === type)?.[1] || 'Campo', required: false, ...(['select', 'multi_select'].includes(type) ? { options: ['Opción 1', 'Opción 2'] } : {}) };
@@ -323,7 +324,7 @@ export function ReservationBuilderPage() {
     {step === 0 && <Fragment>
       <div className="builder-grid">
         <aside className="field-library"><span className="page-eyebrow">BIBLIOTECA DE CAMPOS</span><h3>Agrega campos</h3><p>Arrastra al formulario o usa los botones.</p>
-          <div className="field-library-help field-library-meta"><strong>Campos que mejoran CAPI</strong><small>Nombre, teléfono, correo y consentimiento aumentan la calidad de coincidencia en Meta (EMQ). Cada campo que agregues sin estos reduce la tasa de match.</small></div>{FIELD_LIBRARY.map(([type, label]) => <button draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('new-field', type); }} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span>{label.slice(0, 2).toUpperCase()}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Recomendado para reservas' : 'Campo opcional'}</small></div><em>Agregar</em></button>)}</aside>
+          <div className="field-library-help field-library-meta"><strong>Campos que mejoran CAPI</strong><small>Nombre, teléfono, correo y consentimiento aumentan la calidad de coincidencia en Meta (EMQ). Cada campo que agregues sin estos reduce la tasa de match.</small></div>{fieldLibrary.map(([type, label]) => <button draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('new-field', type); }} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span>{label.slice(0, 2).toUpperCase()}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Recomendado para reservas' : 'Campo opcional'}</small></div><em>Agregar</em></button>)}</aside>
         <main className={`builder-canvas ${canvasDragOver ? 'drag-over' : ''}`} onDragEnter={() => setCanvasDragOver(true)} onDragLeave={(event) => { if (event.currentTarget === event.target) setCanvasDragOver(false); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = event.dataTransfer.types.includes('new-field') ? 'copy' : 'move'; setCanvasDragOver(true); }} onDrop={(event) => { event.preventDefault(); setCanvasDragOver(false); const type = event.dataTransfer.getData('new-field'); if (type) { addField(type); return; } const from = event.dataTransfer.getData('field-id'); if (from && fields.length > 1) { const current = fields.find((field) => field.id === from); if (current && fields[fields.length - 1]?.id !== from) change({ fieldSchema: [...fields.filter((field) => field.id !== from), current] }); } }}>
           <div className="canvas-intro"><span>FORMULARIO</span><h2>{design.title || draft.name}</h2><p>{design.welcome}</p><small>Arrastra campos o usa los botones de cada fila.</small></div>
           {fields.length > RECOMMENDED_FIELD_COUNT && <div className="canvas-scope-hint" role="status">
@@ -403,7 +404,7 @@ export function ReservationBuilderPage() {
     {step === 2 && <div className="builder-stage">
       <div className="stage-heading"><span className="page-eyebrow">ENTORNO VISUAL</span><h2>Haz que {surveyMode ? 'la encuesta' : 'la reserva'} se sienta propia.</h2><p>Elige una plantilla y ajusta solo lo que quieras cambiar. Cada bloque cerrado ya trae un valor que funciona.</p></div>
       <div className="design-studio">
-        <DesignStudioControls design={design} onChange={(designConfig) => change({ designConfig })} onAsset={saveDesignAsset} />
+        <DesignStudioControls design={design} surveyMode={surveyMode} onChange={(designConfig) => change({ designConfig })} onAsset={saveDesignAsset} />
         <div className="design-preview-column">
           <div className="preview-device-toggle"><button type="button" className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>Vista móvil</button><button type="button" className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>Vista escritorio</button></div>
           <ReservationLivePreview draft={draft} fields={fields} previewDevice={previewDevice} style={designPreviewStyle} />
@@ -502,10 +503,12 @@ export function ReservationBuilderPage() {
  */
 function DesignStudioControls({
   design,
+  surveyMode,
   onChange,
   onAsset,
 }: {
   design: DesignConfig;
+  surveyMode: boolean;
   onChange: (design: DesignConfig) => void;
   onAsset: (key: 'logoUrl' | 'backgroundImage', url: string) => void;
 }) {
@@ -602,7 +605,7 @@ function DesignStudioControls({
         </div>
       </details>
 
-      <details className="design-section">
+      {surveyMode && <details className="design-section">
         <summary>Encuesta y reseñas</summary>
         <div className="design-section-body">
           <label>Título de encuesta<input className="input" value={design.surveyTitle || ''} onChange={(event) => update({ surveyTitle: event.target.value })} placeholder="Cuéntanos cómo fue tu experiencia" /></label>
@@ -610,7 +613,7 @@ function DesignStudioControls({
           <label>URL de reseña en Google<input className="input" value={design.googleReviewUrl || ''} onChange={(event) => update({ googleReviewUrl: event.target.value })} placeholder="https://g.page/r/..." /></label>
           <label>Destacar Google desde ({design.googleReviewMinRating || '4'} estrellas)<input type="range" min="1" max="5" value={design.googleReviewMinRating || '4'} onChange={(event) => update({ googleReviewMinRating: event.target.value })} /></label>
         </div>
-      </details>
+      </details>}
 
       <button type="button" className="btn btn-outline btn-sm design-reset" onClick={() => update({ showPoweredBy: 'true', poweredByText: 'Gestionado con\nEspartanos Reservas', showSecureBadge: 'true', secureBadgeText: 'Reserva segura', showLogo: 'true', showEyebrow: 'true', eyebrowText: 'AGENDA EN LÍNEA', showWelcome: 'true', showFacts: 'true', logoSize: '64', titleSize: '72', welcomeSize: '16', durationLabel: 'minutos', confirmationLabel: 'confirmación', timezoneLabel: 'zona horaria', automaticLabel: 'Directa', manualLabel: 'Manual', timezoneValue: '', backgroundOpacity: '88', backgroundAnchor: 'center center', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'right', logoPosition: 'left' })}>Restablecer diseño público</button>
     </div>
