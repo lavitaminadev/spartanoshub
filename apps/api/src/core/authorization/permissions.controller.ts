@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PermissionResolverService } from './permission-resolver.service';
 import { UserPermissionOverride } from './user-permission-override.entity';
 import { RolePermissionOverride } from './role-permission-override.entity';
@@ -53,7 +53,7 @@ export class PermissionsController {
    * es justo lo que hay que saber para decidir si tocarlo.
    */
   @Get('roles/permissions')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.DEV)
   @ApiOperation({ summary: 'Matriz de permisos por cargo y módulo' })
   async roleMatrix(@Req() req: AuthenticatedRequest) {
     return this.permissions.roleMatrix(req.organizationId);
@@ -70,7 +70,7 @@ export class PermissionsController {
    * de ignorarse, para que un panel desactualizado no guarde en silencio una matriz parcial.
    */
   @Put('roles/permissions')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.DEV)
   @RequiresRecentAuth('cambiar los permisos de un cargo')
   @ApiOperation({ summary: 'Guardar la matriz de permisos por cargo' })
   async updateRoleMatrix(@Body() dto: UpdateRoleMatrixDto, @Req() req: AuthenticatedRequest) {
@@ -168,7 +168,10 @@ export class PermissionsController {
     const now = Date.now();
 
     return {
-      items: rows.map((row) => ({
+      items: rows.filter((row) => {
+        if (req.user.role === UserRole.DEV) return true;
+        return ownerById.get(row.userId)?.role !== UserRole.DEV;
+      }).map((row) => ({
         id: row.id,
         userId: row.userId,
         userName: ownerById.get(row.userId)?.name ?? 'Usuario no disponible',
@@ -213,7 +216,7 @@ export class PermissionsController {
    * mostraría el acceso real de alguien identificable, que es otra cosa y más sensible.
    */
   @Get('roles/:role/permissions')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.DEV)
   @ApiOperation({ summary: 'Permisos de un cargo, para previsualizacion' })
   async ofRole(@Param('role') role: string, @Req() req: AuthenticatedRequest) {
     if (!Object.values(UserRole).includes(role as UserRole)) throw new NotFoundException('Cargo no encontrado');
@@ -267,6 +270,7 @@ export class PermissionsController {
   ) {
     if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
     const user = await this.findUser(id, req.organizationId);
+    this.assertCanManageUserPermissionException(req.user.role as UserRole, user);
     const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
     const saved = await this.overrides.save({
       ...(existing ?? {}),
@@ -295,7 +299,9 @@ export class PermissionsController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Quitar una excepción de permiso' })
   async remove(@Param('id') id: string, @Param('module') module: string, @Req() req: AuthenticatedRequest) {
+    if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
     const user = await this.findUser(id, req.organizationId);
+    this.assertCanManageUserPermissionException(req.user.role as UserRole, user);
     const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
     if (!existing) throw new NotFoundException('No existe una excepción para ese módulo');
     await this.overrides.remove(existing);
@@ -428,5 +434,17 @@ export class PermissionsController {
     const user = await this.users.findOne({ where: { id, organizationId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     return user;
+  }
+
+  /**
+   * Las excepciones puntuales son operación diaria de administración; tocar cuentas dev ya es
+   * gobierno de plataforma. Eso queda reservado al mismo rol que maneja matriz, módulos y
+   * ciclo de vida para que admin no pueda degradar o elevar al usuario técnico por accidente.
+   */
+  private assertCanManageUserPermissionException(actorRole: UserRole, target: User): void {
+    if (actorRole === UserRole.DEV) return;
+    if (target.role === UserRole.DEV) {
+      throw new ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
+    }
   }
 }

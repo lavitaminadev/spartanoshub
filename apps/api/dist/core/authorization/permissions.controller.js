@@ -129,7 +129,11 @@ let PermissionsController = class PermissionsController {
         const ownerById = new Map(owners.map((owner) => [owner.id, owner]));
         const now = Date.now();
         return {
-            items: rows.map((row) => ({
+            items: rows.filter((row) => {
+                if (req.user.role === user_role_enum_1.UserRole.DEV)
+                    return true;
+                return ownerById.get(row.userId)?.role !== user_role_enum_1.UserRole.DEV;
+            }).map((row) => ({
                 id: row.id,
                 userId: row.userId,
                 userName: ownerById.get(row.userId)?.name ?? 'Usuario no disponible',
@@ -173,6 +177,7 @@ let PermissionsController = class PermissionsController {
         if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
             throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
+        this.assertCanManageUserPermissionException(req.user.role, user);
         const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
         const saved = await this.overrides.save({
             ...(existing ?? {}),
@@ -196,7 +201,10 @@ let PermissionsController = class PermissionsController {
         return saved;
     }
     async remove(id, module, req) {
+        if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
+            throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
+        this.assertCanManageUserPermissionException(req.user.role, user);
         const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una excepción para ese módulo');
@@ -290,11 +298,18 @@ let PermissionsController = class PermissionsController {
             throw new common_2.NotFoundException('Usuario no encontrado');
         return user;
     }
+    assertCanManageUserPermissionException(actorRole, target) {
+        if (actorRole === user_role_enum_1.UserRole.DEV)
+            return;
+        if (target.role === user_role_enum_1.UserRole.DEV) {
+            throw new common_2.ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
+        }
+    }
 };
 exports.PermissionsController = PermissionsController;
 __decorate([
     (0, common_1.Get)('roles/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Matriz de permisos por cargo y módulo' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -303,7 +318,7 @@ __decorate([
 ], PermissionsController.prototype, "roleMatrix", null);
 __decorate([
     (0, common_1.Put)('roles/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('cambiar los permisos de un cargo'),
     (0, swagger_1.ApiOperation)({ summary: 'Guardar la matriz de permisos por cargo' }),
     __param(0, (0, common_1.Body)()),
@@ -332,7 +347,7 @@ __decorate([
 ], PermissionsController.prototype, "mine", null);
 __decorate([
     (0, common_1.Get)('roles/:role/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Permisos de un cargo, para previsualizacion' }),
     __param(0, (0, common_1.Param)('role')),
     __param(1, (0, common_1.Req)()),
