@@ -52,10 +52,10 @@ const GLYPHS: Record<string, string> = {
   'Dirección': 'DI',
 
   // Administración
-  'Permisos del equipo': 'PE',
+  'Accesos y seguridad': 'AS',
   Usuarios: 'US',
-  'Políticas internas': 'PI',
-  'Configuración': 'CF',
+  'Operación y cuentas': 'OC',
+  'Mi configuración': 'MC',
   'Estado del sistema': 'ES',
   'Base de conocimiento': 'BC',
   Conexiones: 'CX',

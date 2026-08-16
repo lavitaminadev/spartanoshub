@@ -234,11 +234,11 @@ function SummaryTab({ piece, requirements, readiness }: { piece: Piece; requirem
       </div>
       <div className="checklist">
         {requirements.map((r, i) => (
-          <button key={i} className={`check-row ${r.completed ? 'checked' : 'pending'}`} onClick={() => {}}>
+          <article key={i} className={`check-row ${r.completed ? 'checked' : 'pending'}`}>
             <span className="check-box">{r.completed ? '✓' : '!'}</span>
             <span><b>{r.label}</b><small>{r.detail}</small></span>
             <em>{r.completed ? 'Completo' : 'Pendiente'}</em>
-          </button>
+          </article>
         ))}
       </div>
     </section>}

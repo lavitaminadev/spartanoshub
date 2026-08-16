@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../../shared/Modal';
+import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { api } from '../../core/api';
 
 interface CloudinaryConfigModalProps {
@@ -56,6 +57,7 @@ export function CloudinaryConfigModal({ open, onClose }: CloudinaryConfigModalPr
   const [apiSecret, setApiSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const statusQuery = useQuery<CloudinaryStatus>({
     queryKey: ['cloudinary-config'],
@@ -206,9 +208,9 @@ export function CloudinaryConfigModal({ open, onClose }: CloudinaryConfigModalPr
                 type="button"
                 className="btn btn-outline btn-danger"
                 disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate()}
+                onClick={() => setDeleteConfirmOpen(true)}
               >
-                {deleteMutation.isPending ? 'Eliminando...' : 'Desconectar'}
+                Desconectar
               </button>
             )}
             <button type="submit" className="btn btn-primary" disabled={saveMutation.isPending}>
@@ -216,6 +218,16 @@ export function CloudinaryConfigModal({ open, onClose }: CloudinaryConfigModalPr
             </button>
           </div>
         </form>
+        <ConfirmDialog
+          open={deleteConfirmOpen}
+          title="Desconectar Cloudinary"
+          description="Se eliminarán las credenciales guardadas en Espartanos. Las imágenes ya subidas no se borran de Cloudinary."
+          confirmLabel="Desconectar"
+          pending={deleteMutation.isPending}
+          error={deleteMutation.error?.message}
+          onClose={() => setDeleteConfirmOpen(false)}
+          onConfirm={() => deleteMutation.mutate(undefined, { onSuccess: () => setDeleteConfirmOpen(false) })}
+        />
       </div>
     </Modal>
   );
