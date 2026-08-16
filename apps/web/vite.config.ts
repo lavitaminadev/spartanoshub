@@ -68,7 +68,7 @@ export default defineConfig(({ command }) => {
             src: '/screenshots/pwa-mobile.png',
             sizes: '390x844',
             type: 'image/png',
-            label: 'Espartanos en movil',
+            label: 'Espartanos en móvil',
           },
         ],
       },

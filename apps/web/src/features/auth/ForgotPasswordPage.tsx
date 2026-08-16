@@ -23,7 +23,7 @@ export function ForgotPasswordPage() {
     {status === 'sent' ? <div className="alert alert-success">Solicitud recibida. Revisa tu correo y la carpeta de spam.</div> : <form onSubmit={submit}>
       <label>Correo de acceso<input className="input" type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
       {status === 'error' && <div className="alert alert-error">No pudimos procesar la solicitud. Intenta nuevamente.</div>}
-      <button className="btn btn-primary btn-block" disabled={status === 'sending'}>{status === 'sending' ? 'Enviando...' : 'Enviar enlace seguro'}</button>
+      <button className="btn btn-primary btn-block" disabled={status === 'sending' || !email.trim()}>{status === 'sending' ? 'Enviando...' : 'Enviar enlace seguro'}</button>
     </form>}
     <Link className="auth-secondary-link" to="/login">Volver al inicio de sesión</Link>
   </section></main>;

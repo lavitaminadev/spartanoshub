@@ -417,8 +417,8 @@ select.input {
 .timeline > article small { font-size:11px; color:var(--muted); }
 
 .checklist { display:grid; gap:2px; }
-.check-row { display:grid; grid-template-columns:28px 1fr auto; align-items:center; gap:var(--space-sm); padding:10px 12px; border:none; border-radius:var(--radius-sm); background:var(--white); cursor:pointer; text-align:left; font-family:var(--font); width:100%; }
-.check-row:hover { background:var(--soft); }
+.check-row { display:grid; grid-template-columns:28px 1fr auto; align-items:center; gap:var(--space-sm); padding:10px 12px; border:none; border-radius:var(--radius-sm); background:var(--white); cursor:default; text-align:left; font-family:var(--font); width:100%; }
+.check-row:hover { background:var(--white); }
 .check-row.checked { background:var(--check-done-bg); }
 .check-row.pending { background:var(--check-pending-bg); }
 .check-box { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; font-size:14px; font-weight:700; }
