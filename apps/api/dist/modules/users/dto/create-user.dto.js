@@ -50,6 +50,13 @@ __decorate([
 ], CreateUserDto.prototype, "clientId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(2),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], CreateUserDto.prototype, "newClientName", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(['presential', 'hybrid', 'remote']),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "workMode", void 0);

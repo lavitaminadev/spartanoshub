@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
+import { isPathEnabled } from '../../core/navigation.registry';
 import type { CSSProperties } from 'react';
 
 interface PulseDimension { key: string; label: string; score: number | null; weight: number; evidence: string; status: string }
@@ -30,6 +32,7 @@ const STAGES: Record<string, { label: string; detail: string }> = {
 };
 
 export function PulsoEspartano({ compact = false }: { compact?: boolean }) {
+  const user = useAuth((state) => state.user);
   const { data: response, isLoading, error } = useQuery<PulseResponse>({ queryKey: ['vitamina-pulse'], queryFn: () => api.get('/reporting/pulse') });
   if (isLoading) return <section className="pulse-shell pulse-loading" aria-label="Cargando Pulso Espartano"><div className="skeleton-line wide" /><div className="skeleton-line" /><div className="skeleton-line short" /></section>;
   if (error || !response) return <section className="pulse-shell"><span className="page-eyebrow">PULSO VITAMINA</span><h2>Pulso temporalmente no disponible</h2><p className="page-subtitle">Intenta de nuevo en unos minutos.</p></section>;
@@ -51,7 +54,12 @@ export function PulsoEspartano({ compact = false }: { compact?: boolean }) {
   const statusLabel = data.status === 'healthy' ? 'Saludable' : data.status === 'attention' ? 'Requiere atención' : data.status === 'blocked' ? 'Con bloqueos' : 'Sin evidencia';
   // En modo compacto el componente se muestra en el portal del cliente, donde solo
   // corresponden las acciones a su cargo: las del equipo apuntan a pantallas internas.
-  const visibleActions = compact ? data.actions.filter((action) => action.owner === 'client') : data.actions;
+  // El pulso no debe ofrecer enlaces a módulos apagados o fuera de fase: la
+  // navegación los oculta y ProtectedRoute los redirige, por lo que mostrarlos
+  // aquí producía acciones que terminaban en 404.
+  const visibleActions = data.actions
+    .filter((action) => !compact || action.owner === 'client')
+    .filter((action) => !user || isPathEnabled(action.route, user.features, user.permissions, user.moduleLifecycle, user.role));
 
   return <section className={`pulse-shell ${compact ? 'is-compact' : ''}`}>
     <header className="pulse-header"><div><span className="page-eyebrow">METODOLOGÍA PROPIA · PULSO VITAMINA</span><h2>El pulso de {compact ? 'tu marca' : 'la operación'}</h2><p>Avances, bloqueos y próximos pasos.</p></div><span className={`pulse-status is-${data.status}`}>{statusLabel}</span></header>

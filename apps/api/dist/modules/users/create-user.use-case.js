@@ -54,9 +54,10 @@ const user_entity_1 = require("./user.entity");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const client_entity_1 = require("../clients/client.entity");
 let CreateUserUseCase = class CreateUserUseCase {
-    constructor(repo, clientsRepo) {
+    constructor(repo, clientsRepo, dataSource) {
         this.repo = repo;
         this.clientsRepo = clientsRepo;
+        this.dataSource = dataSource;
     }
     async execute(data) {
         const normalizedRole = data.role || user_role_enum_1.UserRole.DESIGNER;
@@ -76,23 +77,36 @@ let CreateUserUseCase = class CreateUserUseCase {
         const existing = await this.repo.findOne({ where: { email: normalizedEmail } });
         if (existing)
             throw new common_1.ConflictException('Ya existe una cuenta con este email');
-        const clientId = await this.resolveClientId(data.organizationId, normalizedRole, data.clientId);
+        const newClientName = data.newClientName?.trim().replace(/\s+/g, ' ');
+        if (normalizedRole === user_role_enum_1.UserRole.CLIENT && !data.clientId && (!newClientName || newClientName.length < 2)) {
+            throw new common_1.BadRequestException('Las cuentas cliente requieren una empresa asignada');
+        }
         const hashed = await bcrypt.hash(data.password, Number(process.env.BCRYPT_ROUNDS || 10));
-        const user = this.repo.create({
-            email: normalizedEmail,
-            password: hashed,
-            name: normalizedName,
-            organizationId: data.organizationId,
-            role: normalizedRole,
-            phone: normalizedPhone,
-            clientId,
-            workMode: data.workMode,
-            weeklyCapacityUd: data.weeklyCapacityUd ?? 20,
-            invitedAt: new Date(),
-            mustChangePassword: true,
-            mustCompleteProfile: true,
+        return this.dataSource.transaction(async (manager) => {
+            let clientId = data.clientId
+                ? await this.resolveClientId(data.organizationId, normalizedRole, data.clientId)
+                : undefined;
+            if (normalizedRole === user_role_enum_1.UserRole.CLIENT && !clientId && newClientName) {
+                const client = manager.create(client_entity_1.Client, { organizationId: data.organizationId, name: newClientName });
+                const savedClient = await manager.save(client_entity_1.Client, client);
+                clientId = savedClient.id;
+            }
+            const user = manager.create(user_entity_1.User, {
+                email: normalizedEmail,
+                password: hashed,
+                name: normalizedName,
+                organizationId: data.organizationId,
+                role: normalizedRole,
+                phone: normalizedPhone,
+                clientId,
+                workMode: data.workMode,
+                weeklyCapacityUd: data.weeklyCapacityUd ?? 20,
+                invitedAt: new Date(),
+                mustChangePassword: true,
+                mustCompleteProfile: true,
+            });
+            return manager.save(user_entity_1.User, user);
         });
-        return this.repo.save(user);
     }
     async resolveClientId(organizationId, role, clientId) {
         if (role !== user_role_enum_1.UserRole.CLIENT)
@@ -111,5 +125,6 @@ exports.CreateUserUseCase = CreateUserUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        typeorm_2.DataSource])
 ], CreateUserUseCase);

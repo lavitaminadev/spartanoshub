@@ -318,7 +318,11 @@ export const api = {
   upload<T = unknown>(path: string, file: File): Promise<T> {
     const body = new FormData();
     body.append('file', file);
-    return apiClient.post<T>(path, body).then((r) => r.data);
+    // La instancia global usa JSON por defecto. En algunos navegadores ese
+    // header impedía que Multer recibiera el boundary multipart y el backend
+    // respondía "Debes seleccionar una imagen" aunque el archivo sí estuviera
+    // seleccionado. Dejar que Axios genere el boundary evita ese fallo.
+    return apiClient.post<T>(path, body, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
   },
 
   /**

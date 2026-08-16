@@ -23,6 +23,9 @@ export class CreateUserDto {
   /** Cuenta de cliente vinculada cuando este es un usuario de portal/cliente. */
   @IsOptional() @IsUUID() clientId?: string;
 
+  /** Nombre de una empresa nueva; se crea junto con la cuenta cliente en una transacción. */
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(255) newClientName?: string;
+
   /** Modalidad de trabajo usada por operaciones y planificación de capacidad. */
   @IsOptional() @IsIn(['presential', 'hybrid', 'remote']) workMode?: 'presential' | 'hybrid' | 'remote';
 

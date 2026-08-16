@@ -53,6 +53,21 @@
 .admin-quick-card:hover { border-color: var(--cyan); box-shadow: var(--shadow); text-decoration: none; }
 .admin-quick-card strong { font-size: 13px; color: var(--ink); }
 .admin-quick-card small { font-size: 11px; color: var(--muted); }
+
+/* El panel es una herramienta diaria: prioriza densidad y lectura rápida por
+   sobre el tratamiento de portada de las vistas operativas. */
+.governance-page .page-hero h1,
+.governance-page .page-header h1 { font-size: clamp(32px, 4vw, 54px); line-height: .98; }
+.governance-page .page-hero,
+.governance-page .page-header { margin-bottom: 18px; }
+.admin-quick-grid { grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); }
+.admin-quick-card { min-height: 64px; }
+
+@media (max-width: 760px) {
+  .admin-quick-grid { grid-template-columns: 1fr 1fr; }
+  .governance-page .page-hero h1,
+  .governance-page .page-header h1 { font-size: 36px; }
+}
 @media (max-width: 700px) {
   .permission-matrix-wrapper { border-radius: var(--radius-md); }
   .permission-matrix .sticky-col { min-width: 110px; }

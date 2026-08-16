@@ -154,7 +154,12 @@ export function ImageUpload({
           type="file"
           accept={accept}
           hidden
-          onChange={(event) => handleFile(event.target.files?.[0])}
+          onChange={(event) => {
+            handleFile(event.target.files?.[0]);
+            // Permite volver a elegir el mismo archivo después de un error o
+            // de quitarlo, algo habitual al probar fondos.
+            event.currentTarget.value = '';
+          }}
         />
         {value ? (
           <div className="image-upload-preview">
