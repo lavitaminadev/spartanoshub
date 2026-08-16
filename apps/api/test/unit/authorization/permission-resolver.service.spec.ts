@@ -166,3 +166,81 @@ describe('PermissionResolverService', () => {
     expect(organizations.findOne).toHaveBeenCalledTimes(4);
   });
 });
+
+/**
+ * Resolutor con un estado de liberación puesto a mano para un módulo.
+ *
+ * `lifecycleOf` consulta los parámetros de la agencia; acá se simula ese resolutor para poder
+ * fijar el estado sin base de datos.
+ */
+function makeResolverConEstado(module: string, lifecycle: string, features?: Record<string, boolean>) {
+  // El modulo se enciende salvo que la prueba diga lo contrario: varios nacen apagados en el
+  // catalogo, y con esos la prueba pasaria por el motivo equivocado.
+  const efectivas = features ?? { [module]: true };
+  const organizations = { findOne: vi.fn().mockResolvedValue({ id: 'org-1', features: efectivas }) };
+  const overrideRepo = { find: vi.fn().mockResolvedValue([]) };
+  const roleOverrideRepo = { find: vi.fn().mockResolvedValue([]) };
+  const parameters = {
+    getManyForOrganization: vi.fn(async (keys: string[]) =>
+      new Map(keys.map((key) => [key, key.endsWith(`.${module}`) ? lifecycle : null]))),
+    get: vi.fn(async () => null),
+  };
+  const resolver = new PermissionResolverService(
+    organizations as never, overrideRepo as never, roleOverrideRepo as never, parameters as never,
+  );
+  return resolver;
+}
+
+describe('control de liberación', () => {
+  it('un cargo normal no alcanza un módulo en desarrollo', async () => {
+    const resolver = makeResolverConEstado('production', 'development');
+    const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.ART_DIRECTOR);
+    expect(permisos.production).toBe('none');
+  });
+
+  it('la administración tampoco: el estado manda sobre el cargo', async () => {
+    // Es la razón de que la pregunta por el estado vaya antes que la del permiso. Si fuera al
+    // revés, administración vería todo lo que está a medio construir.
+    const resolver = makeResolverConEstado('production', 'development');
+    const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.ADMIN);
+    expect(permisos.production).toBe('none');
+  });
+
+  it('el cargo de desarrollo sí alcanza lo que está en desarrollo', async () => {
+    const resolver = makeResolverConEstado('production', 'development');
+    const permisos = await resolver.permissionsFor('org-1', 'dev-1', UserRole.DEV);
+    expect(permisos.production).not.toBe('none');
+  });
+
+  it('desarrollo no salta un módulo apagado para la agencia', async () => {
+    // Apagar un módulo es una decisión de negocio, no un estado de liberación. Saltárselo
+    // convertiría el cargo en un superusuario invisible.
+    const resolver = makeResolverConEstado('production', 'development', { production: false });
+    const permisos = await resolver.permissionsFor('org-1', 'dev-1', UserRole.DEV);
+    expect(permisos.production).toBe('none');
+  });
+
+  it('desarrollo no salta mantenimiento ni deshabilitado', async () => {
+    // Si algo está detenido por una corrección, operarlo igual es como se corrompen los datos
+    // que se estaban arreglando.
+    const enPausa = makeResolverConEstado('production', 'disabled');
+    expect((await enPausa.permissionsFor('org-1', 'dev-1', UserRole.DEV)).production).toBe('none');
+  });
+
+  it('un módulo activo se comporta igual para todos, sin trato especial de desarrollo', async () => {
+    const resolver = makeResolverConEstado('production', 'active');
+    const dev = await resolver.permissionsFor('org-1', 'dev-1', UserRole.DEV);
+    const director = await resolver.permissionsFor('org-1', 'u1', UserRole.ART_DIRECTOR);
+    expect(dev.production).not.toBe('none');
+    expect(director.production).not.toBe('none');
+  });
+
+  it('la pantalla de permisos muestra lo mismo que aplica el servidor', async () => {
+    // Si `explain` calculara aparte, administración vería un nivel distinto del que rige.
+    const resolver = makeResolverConEstado('production', 'development');
+    const detalle = await resolver.explain('org-1', 'dev-1', UserRole.DEV);
+    const production = detalle.find((row) => row.module === 'production');
+    expect(production?.productHidden).toBe(false);
+    expect(production?.level).not.toBe('none');
+  });
+});

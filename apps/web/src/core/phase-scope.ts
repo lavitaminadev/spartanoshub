@@ -54,12 +54,16 @@ export function isModuleInPhaseScope(
 ): boolean {
   if (!PHASE_SCOPE_ENABLED) return true;
   if (!module) return true;
-  // El cargo de desarrollo (único por organización) es quien levanta los módulos en
-  // desarrollo: para él la fase no oculta nada.
-  if (userRole === 'dev') return true;
   const lifecycle = (organizationLifecycle?.[module]
     ?? buildDefaultOrganizationModuleLifecycleMap()[module as keyof ReturnType<typeof buildDefaultOrganizationModuleLifecycleMap>]
     ?? MODULE_LIFECYCLE[module as ProductModuleKey]) as ModuleLifecycleStatus | undefined;
   if (!lifecycle) return true;
-  return isModuleLifecycleVisible(lifecycle);
+  if (isModuleLifecycleVisible(lifecycle)) return true;
+
+  // El cargo de desarrollo ve lo que está en desarrollo, que es como valida una funcionalidad
+  // desplegada antes de liberarla al equipo. La excepción se acota a ese estado para que
+  // coincida con la del servidor: antes bastaba el cargo y el menú mostraba módulos apagados o
+  // en mantenimiento cuyas rutas el backend rechazaba igual, dejando al desarrollo persiguiendo
+  // errores 403 de funcionalidades que nunca debió ver.
+  return userRole === 'dev' && lifecycle === 'development';
 }
