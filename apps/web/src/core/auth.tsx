@@ -22,6 +22,10 @@ type BrowserAuthResponse = Pick<AuthResponse, 'accessToken' | 'user'>;
  * un falso "no autenticado". Se comparte esta promesa para serializar el bootstrap.
  */
 let checkAuthPromise: Promise<void> | null = null;
+// Invalida restauraciones de cookies iniciadas antes de un nuevo login/logout. Sin esta
+// versión, el bootstrap podía terminar después del login y reemplazar el perfil nuevo
+// con la cuenta que estaba en la cookie anterior.
+let authGeneration = 0;
 
 /**
  * Perfil del usuario autenticado expuesto a la UI.
@@ -123,13 +127,16 @@ export const useAuth = create<AuthState>((set) => ({
   error: null,
 
   login: async (email: string, password: string): Promise<void> => {
+    const generation = ++authGeneration;
     set({ error: null });
     const res = await api.post<BrowserAuthResponse>('/auth/login', { email, password });
     setApiToken(res.accessToken);
     try {
       const user = await loadProfile();
+      if (generation !== authGeneration) return;
       set({ user, token: res.accessToken });
     } catch (error) {
+      if (generation !== authGeneration) return;
       setApiToken(null);
       set({ user: null, token: null });
       throw error;
@@ -137,6 +144,7 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   register: async (data: RegisterData): Promise<void> => {
+    ++authGeneration;
     set({ error: null });
     const res = await api.post<BrowserAuthResponse>('/auth/register', data);
     setApiToken(res.accessToken);
@@ -144,6 +152,7 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   logout: async (): Promise<void> => {
+    ++authGeneration;
     try {
       await api.post('/auth/logout');
     } catch {
@@ -159,8 +168,10 @@ export const useAuth = create<AuthState>((set) => ({
   checkAuth: async (): Promise<void> => {
     if (!checkAuthPromise) {
       checkAuthPromise = (async () => {
+        const generation = authGeneration;
         try {
           const session = await api.post<{ authenticated: boolean; accessToken?: string }>('/auth/session', {});
+          if (generation !== authGeneration) return;
           if (!session.authenticated || !session.accessToken) {
             setApiToken(null);
             set({ user: null, token: null, loading: false });
@@ -168,8 +179,10 @@ export const useAuth = create<AuthState>((set) => ({
           }
           setApiToken(session.accessToken);
           const user = await loadProfile();
+          if (generation !== authGeneration) return;
           set({ user, token: session.accessToken, loading: false });
         } catch {
+          if (generation !== authGeneration) return;
           setApiToken(null);
           set({ user: null, token: null, loading: false });
         } finally {
@@ -186,6 +199,7 @@ export const useAuth = create<AuthState>((set) => ({
 
   clearError: (): void => set({ error: null }),
   clearLocalSession: (): void => {
+    ++authGeneration;
     setApiToken(null);
     set({ user: null, token: null, error: null });
     // La caché sobrevivía al cambio de cuenta: quien entraba después veía los datos de la
