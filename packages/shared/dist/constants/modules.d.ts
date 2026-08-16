@@ -134,7 +134,7 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "governance";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "direction";
     readonly lifecycle: "development";
@@ -145,7 +145,7 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly defaultEnabled: false;
 }];
 export type OrganizationModuleKey = (typeof ORGANIZATION_MODULE_CATALOG)[number]['key'];
-export declare const AGENCY_CORE_MODULE_KEYS: readonly ["dashboard", "settings", "users", "clients", "reports", "integrations", "reservations", "crm", "surveys"];
+export declare const AGENCY_CORE_MODULE_KEYS: readonly ["dashboard", "settings", "users", "clients", "reports", "integrations", "reservations", "governance", "crm", "surveys"];
 export type OrganizationFeaturesMap = Record<OrganizationModuleKey, boolean>;
 export declare function buildAgencyCoreOrganizationFeatures(): OrganizationFeaturesMap;
 /**
