@@ -234,6 +234,11 @@ export function FirstAccessPage() {
     <h1>Crea tu contraseña personal</h1>
     <p>Ya ingresaste con la clave temporal, por eso no necesitas escribirla nuevamente.</p>
     <form onSubmit={completeFirstAccess}>
+      {/* Se advierte antes de escribir, no después del rechazo. La pantalla no conoce la clave
+          temporal —no se guarda en ninguna parte— así que no puede compararla; lo único que puede
+          hacer es decirlo a tiempo. Sin este aviso, la persona escribe la que acaba de recibir,
+          que es la única que recuerda, y queda dando vueltas sin entender por qué la rechazan. */}
+      <p className="auth-hint">Elige una contraseña <strong>distinta</strong> de la temporal que recibiste.</p>
       <PasswordField id="first-access-password" label="Nueva contraseña" autoComplete="new-password" value={password.next} onChange={(next) => setPassword({ ...password, next })} showRules />
       <PasswordField id="first-access-confirmation" label="Confirmar contraseña" autoComplete="new-password" value={password.confirmation} onChange={(confirmation) => setPassword({ ...password, confirmation })} />
       {feedback && <div className="alert alert-error" role="alert">{feedback}</div>}
