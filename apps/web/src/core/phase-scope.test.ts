@@ -83,7 +83,10 @@ describe('navegación bajo el alcance de fase', () => {
     for (const path of ['/intake', '/production']) {
       expect(visible(path), path).toBe(true);
     }
-    expect(getFeatureForPath('/intake')).toBe('production');
+    // `/intake` pasó a su propio módulo: recibir y coordinar solicitudes se libera antes que el
+    // tablero de piezas, y mientras compartían clave no se podía liberar lo uno sin lo otro.
+    expect(getFeatureForPath('/intake')).toBe('intake');
+    expect(getFeatureForPath('/production')).toBe('production');
   });
 
   it('Encuestas depende del interruptor de la organización, no de la fase', () => {

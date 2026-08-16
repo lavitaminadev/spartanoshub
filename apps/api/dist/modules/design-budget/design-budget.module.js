@@ -16,17 +16,19 @@ const get_or_create_budget_use_case_1 = require("./get-or-create-budget.use-case
 const reserve_ud_use_case_1 = require("./reserve-ud.use-case");
 const confirm_ud_consumption_use_case_1 = require("./confirm-ud-consumption.use-case");
 const design_budget_service_1 = require("./design-budget.service");
+const ud_values_service_1 = require("./ud-values.service");
 const parameters_module_1 = require("../../core/parameters/parameters.module");
 const piece_entity_1 = require("../production/piece.entity");
+const piece_type_definition_entity_1 = require("../production/piece-type-definition.entity");
 const client_entity_1 = require("../clients/client.entity");
 let DesignBudgetModule = class DesignBudgetModule {
 };
 exports.DesignBudgetModule = DesignBudgetModule;
 exports.DesignBudgetModule = DesignBudgetModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([ud_budget_entity_1.UDBudget, ud_movement_entity_1.UDMovement, piece_entity_1.Piece, client_entity_1.Client]), parameters_module_1.ParametersModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([ud_budget_entity_1.UDBudget, ud_movement_entity_1.UDMovement, piece_entity_1.Piece, client_entity_1.Client, piece_type_definition_entity_1.PieceTypeDefinition]), parameters_module_1.ParametersModule],
         controllers: [design_budget_controller_1.DesignBudgetController],
-        providers: [get_or_create_budget_use_case_1.GetOrCreateBudgetUseCase, reserve_ud_use_case_1.ReserveUdUseCase, confirm_ud_consumption_use_case_1.ConfirmUdConsumptionUseCase, design_budget_service_1.DesignBudgetService],
-        exports: [design_budget_service_1.DesignBudgetService],
+        providers: [get_or_create_budget_use_case_1.GetOrCreateBudgetUseCase, reserve_ud_use_case_1.ReserveUdUseCase, confirm_ud_consumption_use_case_1.ConfirmUdConsumptionUseCase, design_budget_service_1.DesignBudgetService, ud_values_service_1.UdValuesService],
+        exports: [design_budget_service_1.DesignBudgetService, ud_values_service_1.UdValuesService],
     })
 ], DesignBudgetModule);

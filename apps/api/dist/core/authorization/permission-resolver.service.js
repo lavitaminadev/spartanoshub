@@ -52,12 +52,19 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
         const overrideByModule = this.activeOverrides(overrides);
         const permissions = Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((module) => [
             module,
-            (0, shared_1.isModuleLifecycleVisible)(lifecycleMap[module]) && features[module]
+            this.alcanzaElModulo(role, lifecycleMap[module], features[module])
                 ? overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? (0, role_permissions_1.roleLevel)(role, module)
                 : 'none',
         ]));
         this.cache.set(cacheKey, { permissions, expiresAt: Date.now() + PermissionResolverService_1.CACHE_TTL_MS });
         return permissions;
+    }
+    alcanzaElModulo(role, lifecycle, moduleEnabled) {
+        if (!moduleEnabled)
+            return false;
+        if ((0, shared_1.isModuleLifecycleVisible)(lifecycle))
+            return true;
+        return role === user_role_enum_1.UserRole.DEV && lifecycle === 'development';
     }
     async explain(organizationId, userId, role) {
         const [features, lifecycleMap, overrides, roleLevels] = await Promise.all([
@@ -71,7 +78,7 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
             const override = overrideByModule.get(module);
             const adjusted = roleLevels.get(cellKey(role, module));
             const moduleDisabled = !features[module];
-            const productHidden = !(0, shared_1.isModuleLifecycleVisible)(lifecycleMap[module]);
+            const productHidden = !this.alcanzaElModulo(role, lifecycleMap[module], features[module]) && features[module];
             const base = adjusted ?? (0, role_permissions_1.roleLevel)(role, module);
             return {
                 module,

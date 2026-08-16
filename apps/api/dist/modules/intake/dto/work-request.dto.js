@@ -12,7 +12,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ResolveWorkRequestDto = exports.ConvertSessionDto = exports.ConvertPieceDto = exports.UpdateWorkRequestDto = exports.CreateWorkRequestDto = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
-const piece_type_enum_1 = require("../../production/piece-type.enum");
 const work_request_entity_1 = require("../work-request.entity");
 class CreateWorkRequestDto {
 }
@@ -96,7 +95,8 @@ __decorate([
     __metadata("design:type", String)
 ], ConvertPieceDto.prototype, "title", void 0);
 __decorate([
-    (0, class_validator_1.IsEnum)(piece_type_enum_1.PieceType),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(50),
     __metadata("design:type", String)
 ], ConvertPieceDto.prototype, "type", void 0);
 __decorate([

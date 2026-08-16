@@ -35,6 +35,7 @@ const clients_module_1 = require("./modules/clients/clients.module");
 const contracts_module_1 = require("./modules/contracts/contracts.module");
 const catalog_module_1 = require("./modules/catalog/catalog.module");
 const production_module_1 = require("./modules/production/production.module");
+const collaboration_module_1 = require("./modules/collaboration/collaboration.module");
 const design_budget_module_1 = require("./modules/design-budget/design-budget.module");
 const gamification_module_1 = require("./modules/gamification/gamification.module");
 const integrations_module_1 = require("./modules/integrations/integrations.module");
@@ -118,6 +119,7 @@ exports.AppModule = AppModule = __decorate([
             contracts_module_1.ContractsModule,
             catalog_module_1.CatalogModule,
             production_module_1.ProductionModule,
+            collaboration_module_1.CollaborationModule,
             design_budget_module_1.DesignBudgetModule,
             gamification_module_1.GamificationModule,
             integrations_module_1.IntegrationsModule,

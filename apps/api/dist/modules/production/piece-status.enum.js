@@ -11,4 +11,5 @@ var PieceStatus;
     PieceStatus["CORRECTION"] = "correction";
     PieceStatus["APPROVED"] = "approved";
     PieceStatus["DELIVERED"] = "delivered";
+    PieceStatus["CANCELLED"] = "cancelled";
 })(PieceStatus || (exports.PieceStatus = PieceStatus = {}));

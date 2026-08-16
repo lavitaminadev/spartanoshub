@@ -22,7 +22,9 @@ import { WorkRequestArea, WorkRequestStatus } from './work-request.entity';
 @ApiBearerAuth()
 @Controller('intake/requests')
 @UseGuards(AuthGuard('jwt'))
-@ModuleScope('production')
+// Modulo propio y no 'production': recibir y coordinar solicitudes se libera antes que el
+// tablero de piezas, y con una sola clave no se podia liberar lo uno sin lo otro.
+@ModuleScope('intake')
 export class IntakeController {
   constructor(
     private readonly intake: IntakeService,
@@ -48,7 +50,7 @@ export class IntakeController {
    * se declara `view` sobre producción en vez de `edit`: pedir no es producir.
    */
   @Post()
-  @RequiresPermission('production', 'view')
+  @RequiresPermission('intake', 'view')
   @Roles(
     UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR,
     UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR,
@@ -61,7 +63,7 @@ export class IntakeController {
   }
 
   @Get()
-  @RequiresPermission('production', 'view')
+  @RequiresPermission('intake', 'view')
   @ApiOperation({ summary: 'Bandeja de solicitudes' })
   async list(
     @Req() req: AuthenticatedRequest,
@@ -80,7 +82,7 @@ export class IntakeController {
   }
 
   @Get('counts')
-  @RequiresPermission('production', 'view')
+  @RequiresPermission('intake', 'view')
   @ApiOperation({ summary: 'Conteo de solicitudes por estado' })
   async counts(@Req() req: AuthenticatedRequest) {
     const allowed = await this.clientScope(req);
@@ -94,7 +96,7 @@ export class IntakeController {
    * una solicitud audiovisual no debe ofrecer diseñadores.
    */
   @Get('options/assignees')
-  @RequiresPermission('production', 'view')
+  @RequiresPermission('intake', 'view')
   @ApiOperation({ summary: 'Responsables activos del área indicada' })
   async assignees(@Req() req: AuthenticatedRequest, @Query('area') area: WorkRequestArea) {
     if (!Object.values(WorkRequestArea).includes(area)) {
@@ -104,7 +106,7 @@ export class IntakeController {
   }
 
   @Get(':id')
-  @RequiresPermission('production', 'view')
+  @RequiresPermission('intake', 'view')
   async findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const allowed = await this.clientScope(req);
     return this.intake.findOne(req.organizationId, id, allowed);
@@ -118,7 +120,7 @@ export class IntakeController {
    * podía tomar trabajo.
    */
   @Patch(':id')
-  @RequiresPermission('production', 'manage')
+  @RequiresPermission('intake', 'manage')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR)
   @ApiOperation({ summary: 'Asignar responsable, prioridad o estado' })
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateWorkRequestDto) {
@@ -127,7 +129,7 @@ export class IntakeController {
   }
 
   @Post(':id/convert')
-  @RequiresPermission('production', 'manage')
+  @RequiresPermission('intake', 'manage')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR)
   @ApiOperation({ summary: 'Convertir la solicitud en piezas de produccion' })
   async convert(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveWorkRequestDto) {

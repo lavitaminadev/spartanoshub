@@ -18,15 +18,16 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const piece_entity_1 = require("./piece.entity");
 const piece_status_enum_1 = require("./piece-status.enum");
-const ud_calculator_1 = require("../design-budget/ud-calculator");
+const ud_values_service_1 = require("../design-budget/ud-values.service");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const design_budget_service_1 = require("../design-budget/design-budget.service");
 const user_entity_1 = require("../users/user.entity");
 let AssignPieceUseCase = class AssignPieceUseCase {
-    constructor(repo, users, designBudget, eventEmitter) {
+    constructor(repo, users, designBudget, udValues, eventEmitter) {
         this.repo = repo;
         this.users = users;
         this.designBudget = designBudget;
+        this.udValues = udValues;
         this.eventEmitter = eventEmitter;
     }
     async execute(pieceId, designerId, organizationId, actorId) {
@@ -48,7 +49,7 @@ let AssignPieceUseCase = class AssignPieceUseCase {
             piece.startedAt = undefined;
             piece.status = piece_status_enum_1.PieceStatus.ASSIGNED;
             if (Number(piece.udAmount) <= 0)
-                piece.udAmount = (0, ud_calculator_1.calculatePieceUd)(piece.type);
+                piece.udAmount = await this.udValues.udFor(piece.type, 0, organizationId);
             const assignedPiece = await manager.save(piece_entity_1.Piece, piece);
             await this.designBudget.reserveForPiece(assignedPiece, actorId, manager);
             return assignedPiece;
@@ -65,5 +66,6 @@ exports.AssignPieceUseCase = AssignPieceUseCase = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         design_budget_service_1.DesignBudgetService,
+        ud_values_service_1.UdValuesService,
         event_emitter_1.EventEmitter2])
 ], AssignPieceUseCase);

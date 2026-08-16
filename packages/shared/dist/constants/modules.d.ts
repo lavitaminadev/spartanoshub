@@ -64,6 +64,10 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
+    readonly key: "intake";
+    readonly lifecycle: "active";
+    readonly defaultEnabled: false;
+}, {
     readonly key: "clientMetricsPanel";
     readonly lifecycle: "development";
     readonly defaultEnabled: false;
