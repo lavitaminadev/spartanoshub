@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OrganizationsController } from '../../../src/modules/organizations/organizations.controller';
+import { ROLES_KEY } from '../../../src/core/authorization/roles.decorator';
+import { UserRole } from '../../../src/modules/organizations/user-role.enum';
 
 describe('OrganizationsController: módulos esenciales', () => {
   const createOrg = { execute: vi.fn(), executeUpdate: vi.fn() };
@@ -19,6 +21,10 @@ describe('OrganizationsController: módulos esenciales', () => {
       createOrg as any, listOrgs as any, organizations as any, featureGuard as any,
       permissionResolver as any, audit as any,
     );
+  });
+
+  it('reserva el cambio de módulos al rol dev, no al admin', () => {
+    expect(Reflect.getMetadata(ROLES_KEY, controller.updateFeatures)).toEqual([UserRole.DEV]);
   });
 
   it('rechaza apagar dashboard: es la ruta de entrada de los cargos internos', async () => {

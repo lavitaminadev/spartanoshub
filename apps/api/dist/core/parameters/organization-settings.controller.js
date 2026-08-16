@@ -28,6 +28,10 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         return this.settings.list(request.organizationId || request.user.organizationId);
     }
     update(request, dto) {
+        const touchesModuleLifecycle = Object.keys(dto.values ?? {}).some((key) => key.startsWith('modules.lifecycle.'));
+        if (touchesModuleLifecycle && request.user.role !== user_role_enum_1.UserRole.DEV) {
+            throw new common_1.ForbiddenException('Solo desarrollo puede cambiar el ciclo de vida de módulos.');
+        }
         return this.settings.update(request.organizationId || request.user.organizationId, request.user.id, dto.values);
     }
 };

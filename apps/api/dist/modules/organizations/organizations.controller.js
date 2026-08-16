@@ -130,7 +130,7 @@ __decorate([
     (0, common_1.Put)('features'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Habilitar o deshabilitar módulos de la organización' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
