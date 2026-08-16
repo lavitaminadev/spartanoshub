@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { BrandLockup } from '../../shared/Brand';
 import { PasswordField } from './PasswordField';
 import { passwordRulesPassed } from './password-rules';
+import { clearProgress, loadProgress, saveProgress } from './first-access-progress';
 
 /**
  * Version del texto que esta pantalla muestra.
@@ -44,13 +45,31 @@ export function FirstAccessPage() {
   const refreshProfile = useAuth((state) => state.refreshProfile);
   const clearLocalSession = useAuth((state) => state.clearLocalSession);
   const isTermsRenewal = Boolean(user?.mustAcceptTerms) && !user?.mustChangePassword && !user?.mustCompleteProfile;
-  const [step, setStep] = useState<FirstAccessStep>(isTermsRenewal ? 'terms' : 'welcome');
-  const [profile, setProfile] = useState({ name: user?.name ?? '', phone: '' });
-  const [accepted, setAccepted] = useState<Record<string, boolean>>({});
-  const [readTerms, setReadTerms] = useState<Record<string, boolean>>({});
+  // Avance guardado de esta pestana. Se lee una sola vez al montar: releerlo en cada render
+  // pisaria lo que la persona esta escribiendo justo ahora.
+  const guardado = useMemo(() => loadProgress(user?.id, TERMS_VERSION), [user?.id]);
+  const [step, setStep] = useState<FirstAccessStep>(
+    (guardado?.step as FirstAccessStep) ?? (isTermsRenewal ? 'terms' : 'welcome'),
+  );
+  const [profile, setProfile] = useState({ name: guardado?.name ?? user?.name ?? '', phone: guardado?.phone ?? '' });
+  const [accepted, setAccepted] = useState<Record<string, boolean>>(guardado?.accepted ?? {});
+  const [readTerms, setReadTerms] = useState<Record<string, boolean>>(guardado?.readTerms ?? {});
   const [password, setPassword] = useState({ next: '', confirmation: '' });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Se guarda en cada cambio y no al avanzar de paso: lo que se pierde al recargar es justo lo
+  // que se acaba de escribir, y guardar solo en las transiciones dejaria fuera ese caso.
+  useEffect(() => {
+    saveProgress(user?.id, {
+      step,
+      name: profile.name,
+      phone: profile.phone,
+      readTerms,
+      accepted,
+      termsVersion: TERMS_VERSION,
+    });
+  }, [user?.id, step, profile.name, profile.phone, readTerms, accepted]);
+
   const allTermsAccepted = TERMS.every((term) => accepted[term.key]);
   const securePassword = useMemo(() => passwordRulesPassed(password.next), [password.next]);
 
@@ -101,10 +120,12 @@ export function FirstAccessPage() {
         termsVersion: TERMS_VERSION,
         profile: { name: profile.name.trim(), phone: profile.phone.trim() || undefined },
       });
+      clearProgress(user?.id);
       clearLocalSession();
       navigate('/login?reason=first-access-complete', { replace: true });
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
+        clearProgress(user?.id);
         clearLocalSession();
         navigate('/login?reason=activation-expired', { replace: true });
         return;
