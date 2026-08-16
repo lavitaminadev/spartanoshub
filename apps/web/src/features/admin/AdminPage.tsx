@@ -289,15 +289,20 @@ export function AdminPage() {
           const lifecycle = lifecycleOf(module.key, module.lifecycle);
           const productVisible = isModuleLifecycleVisible(lifecycle);
           const orgEnabled = features?.[module.key] ?? module.defaultEnabled;
+          const availability = !orgEnabled
+            ? { label: 'Apagado en organización', detail: 'Actívalo para esta organización; después revisa su ciclo de vida.', tone: 'paused' }
+            : !productVisible
+              ? { label: 'Bloqueado por ciclo de vida', detail: 'Está encendido para la organización, pero seguirá oculto hasta promocionarlo a piloto, activo o mantenimiento.', tone: 'paused' }
+              : { label: 'Disponible por configuración', detail: 'Aparecerá sólo para los cargos que tengan permiso sobre este módulo.', tone: 'active' };
           return <article key={module.key} className="module-governance-card">
             <header>
-              <div><span className={`status-dot ${productVisible && orgEnabled ? 'active' : 'paused'}`} /><div><h3>{module.key}</h3><small>{productVisible ? 'Visible en producto' : 'Oculto por ciclo de vida'}</small></div></div>
-              <strong>{orgEnabled ? 'Activo' : 'Apagado'}</strong>
+              <div><span className={`status-dot ${availability.tone}`} /><div><h3>{module.key}</h3><small>{availability.label}</small></div></div>
+              <strong>{availability.tone === 'active' ? 'Disponible' : 'Bloqueado'}</strong>
             </header>
             <div className="pod-facts">
               <span><small>Ciclo de vida</small><strong>{MODULE_LIFECYCLE_LABELS[lifecycle]}</strong></span>
-              <span><small>Producto</small><strong>{productVisible ? 'Visible' : 'Oculto'}</strong></span>
-              <span><small>Defecto</small><strong>{module.defaultEnabled ? 'Encendido' : 'Apagado'}</strong></span>
+              <span><small>Organización</small><strong>{orgEnabled ? 'Encendido' : 'Apagado'}</strong></span>
+              <span><small>Resultado</small><strong>{availability.tone === 'active' ? 'Disponible' : 'Bloqueado'}</strong></span>
             </div>
             <div className="context-line">
               <span>Estado del producto</span>
@@ -309,7 +314,7 @@ export function AdminPage() {
               <span>Acceso organización</span>
               <label className="toggle-row"><input type="checkbox" checked={orgEnabled} disabled={featuresMutation.isPending} onChange={(event) => toggleFeature(module.key, event.target.checked)} /> {orgEnabled ? 'Módulo activo' : 'Módulo apagado'}</label>
             </div>
-            <p className="page-subtitle">{productVisible ? 'El menú lo mostrará solo si el rol también tiene permiso.' : 'No aparece al usuario final hasta cambiar su ciclo de vida.'}</p>
+            <p className="page-subtitle">{availability.detail}</p>
           </article>;
         })}
       </div>
