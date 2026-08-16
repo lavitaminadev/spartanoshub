@@ -146,6 +146,9 @@ export function PublicSurveyPage(): JSX.Element {
   const reviewMinRating = Number(survey.googleReview?.minRating ?? 4);
   const reviewUrl = safeUrl(survey.googleReview?.url || '');
   const canShowReview = submitted && reviewUrl && rating !== null && rating >= reviewMinRating;
+  const successMessage = rating !== null && rating < reviewMinRating && survey.googleReview?.lowRatingMessage
+    ? survey.googleReview.lowRatingMessage
+    : 'Tu respuesta fue registrada correctamente.';
 
   if (submitted) {
     return (
@@ -154,7 +157,7 @@ export function PublicSurveyPage(): JSX.Element {
         <section className="public-survey-card public-survey-success">
           <span>✓</span>
           <h1>Gracias por responder</h1>
-          <p>Tu respuesta fue registrada correctamente.</p>
+          <p>{successMessage}</p>
           {canShowReview ? <a className="btn btn-primary" href={reviewUrl} target="_blank" rel="noopener noreferrer">Dejar reseña en Google</a> : null}
           <Link className="btn btn-outline" to={`/survey/${id}?src=${encodeURIComponent(source)}`}>Enviar otra respuesta</Link>
         </section>
