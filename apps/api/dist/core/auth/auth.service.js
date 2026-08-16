@@ -67,7 +67,7 @@ const parameter_resolver_service_1 = require("../parameters/parameter-resolver.s
 const sessions_service_1 = require("./sessions.service");
 const REFRESH_TOKEN_EXPIRES_IN = config_1.config.jwt.refreshExpiresIn;
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_MINUTES = 15;
+const LOCKOUT_MINUTES = 5;
 const ABSENT_USER_HASH = '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
 function toSharedRole(role) {
     return role;

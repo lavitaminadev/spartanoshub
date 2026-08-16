@@ -119,6 +119,37 @@ function scheduleProactiveRefresh(accessToken: string | null): void {
 }
 
 /**
+ * Renueva al volver a la pestaña, si el token venció mientras no se miraba.
+ *
+ * La renovación programada se apoya en `setTimeout`, y los navegadores suspenden los temporizadores
+ * de las pestañas en segundo plano y de los equipos que se duermen. Al volver después de un rato,
+ * el temporizador no llegó a dispararse, el token ya venció, y la primera petición encuentra un
+ * 401: es la razón de que la sesión pareciera caerse sola cada tanto sin que nadie cerrara nada.
+ *
+ * Volver a la pestaña es la señal que no depende de temporizadores, y por eso sirve justo en el
+ * caso donde estos fallan. Se renueva un minuto antes del vencimiento —no al vencer— para que la
+ * primera acción de la persona ya encuentre un token válido.
+ *
+ * La renovación reactiva ante un 401 sigue existiendo: esto la adelanta, no la reemplaza.
+ */
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !token) return;
+    const expiresAt = decodeJwtExpiryMs(token);
+    if (!expiresAt) return;
+    if (expiresAt - Date.now() > 60_000) {
+      // Todavía queda margen: se reprograma porque el temporizador pudo quedar desfasado
+      // mientras la pestaña estuvo suspendida.
+      scheduleProactiveRefresh(token);
+      return;
+    }
+    renewAccessToken().catch(() => {
+      // Si falla, la siguiente petición real seguirá el camino reactivo de siempre.
+    });
+  });
+}
+
+/**
  * @param t - Access token JWT, o `null` para limpiar la sesión.
  */
 export function setApiToken(t: string | null): void {
