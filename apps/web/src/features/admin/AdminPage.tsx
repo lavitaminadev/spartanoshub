@@ -212,7 +212,7 @@ export function AdminPage() {
   return <div className="page governance-page">
     <PageHero
       eyebrow="CONTROL DE ACCESO"
-      title="Panel de Administración"
+      title="Accesos y seguridad"
       subtitle={canManageProductAccess ? 'Matriz base, excepciones, consentimiento y estado de módulos.' : 'Personas, accesos puntuales, consentimiento y seguridad operativa.'}
       variant="feature"
       aside={<div className="page-hero-stats">
@@ -227,8 +227,8 @@ export function AdminPage() {
       <span className="page-eyebrow">ACCESO RÁPIDO</span>
       <div className="admin-quick-grid">
         <Link to="/users" className="admin-quick-card"><strong>Usuarios</strong><small>Gestionar personas y cargos</small></Link>
-        <Link to="/governance" className="admin-quick-card"><strong>Gobernanza</strong><small>{canManageProductAccess ? 'Flujos, pods y módulos' : 'Flujos y pods'}</small></Link>
-        <Link to="/settings" className="admin-quick-card"><strong>Configuración</strong><small>Organización y sistema</small></Link>
+        <Link to="/governance" className="admin-quick-card"><strong>Operación y cuentas</strong><small>{canManageProductAccess ? 'Flujos, pods y estructura' : 'Flujos y pods'}</small></Link>
+        <Link to="/settings" className="admin-quick-card"><strong>Mi configuración</strong><small>Perfil, agencia y accesos rápidos</small></Link>
         <Link to="/security" className="admin-quick-card"><strong>Seguridad</strong><small>Salud y auditoría</small></Link>
         <Link to="/integrations" className="admin-quick-card"><strong>Integraciones</strong><small>Meta, Cloudinary, GA4</small></Link>
         <Link to="/operations" className="admin-quick-card"><strong>Operaciones</strong><small>Pods y capacidad</small></Link>

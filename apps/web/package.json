@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "dev:visual": "vite --mode visual --port 5176 --strictPort",
-    "build": "tsc -b && vite build && node ../../scripts/build/copy-frontend-htaccess.cjs",
+    "build": "node ../../scripts/build/clean-web-assets.cjs && tsc -b && vite build && node ../../scripts/build/copy-frontend-htaccess.cjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",

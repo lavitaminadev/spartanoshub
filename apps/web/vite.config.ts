@@ -82,8 +82,8 @@ export default defineConfig(({ command }) => {
     } : undefined,
     oxc: isBuild ? PRODUCTION_OXC : undefined,
     build: {
-      // Keep hashed chunks from previous releases so open tabs and service workers
-      // do not request deleted files during a cPanel deployment.
+      // The build script cleans `dist/assets` before Vite runs. Keep `emptyOutDir`
+      // disabled so root deployment files such as `.htaccess` survive the build.
       emptyOutDir: false,
       rollupOptions: {
         output: {
