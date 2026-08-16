@@ -52,11 +52,11 @@
 
 .terms-card { width: min(100%, 720px); }
 .terms-list { display: grid; gap: 10px; margin: 18px 0 22px; }
-.terms-item { display: grid; grid-template-columns: 22px 1fr; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--soft); cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.terms-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--soft); cursor: default; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 .terms-item:hover { transform: translateY(-1px); border-color: var(--cyan); }
 .terms-item.accepted { border-color: var(--cyan); background: var(--cyan-soft); }
 .terms-item input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--cyan); }
-.terms-copy { display: grid; gap: 4px; }
+.terms-copy { display: grid; gap: 4px; min-width: 0; }
 .terms-copy strong { color: var(--ink); font-size: 13px; }
 .terms-copy small { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .terms-copy em { width: max-content; color: var(--amber); font-size: 9px; font-style: normal; font-weight: 800; text-transform: uppercase; }
@@ -73,12 +73,17 @@
   .first-access-actions .btn { width: 100%; }
 }
 
-.terms-collapsible { display: grid; gap: 10px; }
-.terms-collapsible-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.terms-collapsible-head .terms-copy { display: grid; gap: 3px; }
-.terms-collapsible-body { display: grid; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--white); }
+.terms-collapsible { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.terms-collapsible-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; }
+.terms-collapsible-head .terms-copy { display: grid; gap: 3px; min-width: 0; }
+.terms-collapsible-body { display: grid; gap: 10px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--white); }
 .terms-collapsible-body p { margin: 0; color: var(--text-light); font-size: 12px; line-height: 1.55; }
-.terms-accept { align-items: flex-start; gap: 10px; color: var(--text-dark); font-size: 12px; font-weight: 700; line-height: 1.45; }
-.terms-accept input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--primary); }
+.terms-accept { display: flex; align-items: flex-start; gap: 10px; color: var(--text-dark); font-size: 12px; font-weight: 700; line-height: 1.45; }
+.terms-accept input { flex: 0 0 auto; margin-top: 2px; width: 16px; height: 16px; accent-color: var(--primary); }
 .terms-accept.is-locked { opacity: .55; }
 .terms-accept input:disabled { cursor: not-allowed; }
+
+@media (max-width: 620px) {
+  .terms-collapsible-head { grid-template-columns: 1fr; }
+  .terms-collapsible-head .btn { width: 100%; }
+}
