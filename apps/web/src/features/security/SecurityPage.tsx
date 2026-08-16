@@ -135,15 +135,15 @@ export function SecurityPage() {
         </article>
         <article>
           <h3>Leads (pipeline propio)</h3>
-          <p>Los leads descartados se revisan según <code>retentionReviewAt</code> (configurable por <code>CRM_LEAD_RETENTION_DAYS</code>) y se anonimizan automáticamente al vencer: se borra nombre, email, teléfono, empresa y origen detallado.</p>
+          <p>Los leads descartados se revisan según la política de retención vigente y se anonimizan al vencer. Se eliminan los datos de contacto, empresa y origen detallado.</p>
         </article>
         <article>
           <h3>Contactos de campaña</h3>
-          <p>No hay job automático hoy. La anonimización de un contacto (nombre, email, teléfono) es manual, a petición del titular, vía <code>DELETE /data-protection/contacts/:id/anonymize</code>.</p>
+          <p>Las solicitudes de anonimización se atienden de forma manual. Se eliminan nombre, correo y teléfono del contacto.</p>
         </article>
         <article>
           <h3>Cuenta de usuario</h3>
-          <p>Cualquier usuario puede exportar (<code>GET /data-protection/export</code>) o anonimizar (<code>DELETE /data-protection/anonymize</code>) sus propios datos en cualquier momento, conforme a la Ley 19.628.</p>
+          <p>Cada persona puede solicitar la exportación o anonimización de sus propios datos, conforme a la Ley 19.628.</p>
         </article>
       </div>
 
@@ -185,7 +185,7 @@ export function SecurityPage() {
             <p>No se puede reutilizar ninguna de las últimas <strong>{pwdPolicyQuery.data?.['security.password.preventReuse'] ?? 5} contraseñas</strong>.</p>
           </article>
           <article>
-            <h3>Validación mensual</h3>
+            <h3>Control de vencimiento</h3>
             <p>Cada {pwdPolicyQuery.data?.['security.password.expiryDays'] ?? 90} días el sistema solicita el cambio. El administrador recibe una notificación si hay usuarios con contraseña vencida.</p>
           </article>
         </div>}
@@ -220,9 +220,6 @@ export function SecurityPage() {
 
     <ServiceRequestsPanel />
 
-    <section>
-      <div className="section-toolbar"><div><span className="page-eyebrow">AUDITORÍA</span><h2>Bitácora de cambios</h2></div></div>
-      <AuditPanel />
-    </section>
+    <AuditPanel />
   </div>;
 }
