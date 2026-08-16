@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '../../core/auth';
+import { useAuth, type User } from '../../core/auth';
 import { isModuleInPhaseScope } from '../../core/phase-scope';
 import { NavGlyph } from '../../shared/NavGlyph';
 import { BrandMark } from '../../shared/Brand';
@@ -11,9 +11,9 @@ import { PwaInstallButton } from '../../shared/PwaInstallButton';
  * Navegación del portal del cliente.
  *
  * El portal tiene su propio menú porque no comparte layout con la aplicación interna, pero el
- * alcance de fase se aplica igual: `module` declara de qué módulo depende cada entrada, y las
- * que quedan fuera del alcance vigente no se muestran. Sin `module`, la entrada es siempre
- * visible porque pertenece al núcleo del producto.
+ * alcance de fase y el switch por organización se aplican igual: `module` declara de qué módulo
+ * depende cada entrada, y las que quedan fuera del alcance vigente o apagadas por dev no se
+ * muestran. Sin `module`, la entrada es siempre visible porque pertenece al núcleo del producto.
  *
  * Grilla, Aprobaciones y Reuniones son servicios de agencia, no del producto de reservas: un
  * restaurante que solo contrató Espartanos no debe encontrarse con tres secciones de algo que no
@@ -28,6 +28,12 @@ const CLIENT_NAV: Array<{ label: string; path: string; icon: string; module?: st
   { label: 'Informes', path: '/portal/reports', icon: 'RP', module: 'reports' },
 ];
 
+function isClientNavItemVisible(item: { module?: string }, user: User | null): boolean {
+  if (!item.module) return true;
+  if (!isModuleInPhaseScope(item.module, user?.moduleLifecycle, user?.role)) return false;
+  return user?.features?.[item.module] ?? true;
+}
+
 export function ClientLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -38,7 +44,7 @@ export function ClientLayout() {
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-header"><BrandMark decorative /><div><h2>Mi cuenta</h2><span>Espartanos</span></div></div>
         <nav className="sidebar-nav">
-          {CLIENT_NAV.filter((item) => isModuleInPhaseScope(item.module, user?.moduleLifecycle)).map((item) => {
+          {CLIENT_NAV.filter((item) => isClientNavItemVisible(item, user)).map((item) => {
             const active = location.pathname === item.path || (item.path !== '/portal' && location.pathname.startsWith(`${item.path}/`));
             return (
               <Link key={item.path} to={item.path} className={`nav-item ${active ? 'active' : ''}`} onClick={() => setOpen(false)}>

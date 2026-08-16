@@ -2,8 +2,8 @@
  * @fileoverview Listado de encuestas: creación, edición, resultados y borrado.
  *
  * El acceso a la ruta ya filtra por rol (`SURVEY_MANAGE_ROLES` en `feature.manifest.ts`, vía
- * `ProtectedRoute`), así que esta vista no repite esa validación: cualquiera que la ve, puede
- * gestionar encuestas.
+ * `ProtectedRoute`). Las acciones destructivas se restringen adicionalmente para que el botón
+ * visible coincida con lo que acepta el backend.
  */
 
 import { useState, type JSX } from 'react';
@@ -17,7 +17,7 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { PageHero } from '../../shared/PageHero';
 import { triggerToast } from '../../shared/toast-events';
-import { useDeleteSurvey, useSurveys } from './useSurveys';
+import { useDeleteSurvey, useSurveys, useUpdateSurvey } from './useSurveys';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import type { Survey, SurveyType } from '@espartanos/shared';
@@ -43,15 +43,23 @@ const CONTACT_STATUS_LABELS: Record<string, string> = {
   resolved: 'Resuelta',
 };
 
+function nextSurveyStatus(status: Survey['status']): { status: Survey['status']; label: string; toast: string } {
+  if (status === 'draft') return { status: 'active', label: 'Publicar', toast: 'Encuesta publicada' };
+  if (status === 'active') return { status: 'closed', label: 'Cerrar', toast: 'Encuesta cerrada' };
+  return { status: 'active', label: 'Reabrir', toast: 'Encuesta reabierta' };
+}
+
 export function SurveysPage(): JSX.Element {
   const { data: surveys = [], isLoading, error, refetch, isFetching } = useSurveys();
   const deleteMutation = useDeleteSurvey();
+  const statusMutation = useUpdateSurvey();
   const [confirmDelete, setConfirmDelete] = useState<Survey | null>(null);
   const [typeFilter, setTypeFilter] = useState<'all' | SurveyType>('all');
   const [section, setSection] = useState<'list' | 'postvisita'>('list');
   const qc = useQueryClient();
   const { user } = useAuth();
   const canPostVisita = Boolean(user && (user.role === 'admin' || user.role === 'dev' || user.role === 'operations_director' || user.role === 'community_manager'));
+  const canDeleteSurvey = Boolean(user && (user.role === 'admin' || user.role === 'dev' || user.role === 'operations_director'));
 
   const { data: formsArray = [], isLoading: formsLoading } = useQuery<PostVisitaForm[]>({
     queryKey: ['reservation-forms-postvisita'],
@@ -112,19 +120,35 @@ export function SurveysPage(): JSX.Element {
       key: 'actions',
       label: 'Acciones',
       exportable: false,
-      render: (survey) => (
-        <div className="actions-cell">
-          <Link className="btn btn-outline btn-sm" to={`/surveys/create?id=${survey.id}`}>Editar</Link>
-          <Link className="btn btn-outline btn-sm" to={`/surveys/${survey.id}/results`}>Ver resultados</Link>
-          <button
-            type="button"
-            className="btn btn-outline btn-danger btn-sm"
-            onClick={() => setConfirmDelete(survey)}
-          >
-            Eliminar
-          </button>
-        </div>
-      ),
+      render: (survey) => {
+        const next = nextSurveyStatus(survey.status);
+        return (
+          <div className="actions-cell">
+            <Link className="btn btn-outline btn-sm" to={`/surveys/create?id=${survey.id}`}>Editar</Link>
+            <Link className="btn btn-outline btn-sm" to={`/surveys/${survey.id}/results`}>Ver resultados</Link>
+            <button
+              type="button"
+              className={survey.status === 'active' ? 'btn btn-outline btn-sm' : 'btn btn-primary btn-sm'}
+              disabled={statusMutation.isPending}
+              onClick={() => statusMutation.mutate(
+                { id: survey.id, patch: { status: next.status } },
+                { onSuccess: () => triggerToast(next.toast), onError: (error) => triggerToast(`No se pudo cambiar estado: ${error.message}`, 'error') },
+              )}
+            >
+              {next.label}
+            </button>
+            {canDeleteSurvey && (
+              <button
+                type="button"
+                className="btn btn-outline btn-danger btn-sm"
+                onClick={() => setConfirmDelete(survey)}
+              >
+                Eliminar
+              </button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 

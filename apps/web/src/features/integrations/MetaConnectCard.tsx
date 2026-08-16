@@ -77,11 +77,16 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['meta-client-pixel-catalog'] });
       await queryClient.invalidateQueries({ queryKey: ['clients'] });
+      const successText = form.mode === 'none'
+        ? 'La empresa quedó sin Pixel para Fase 1.'
+        : form.mode === 'manual' && !form.accessToken.trim()
+          ? 'Pixel guardado. Falta token CAPI para enviar conversiones por servidor.'
+          : form.mode === 'existing'
+            ? 'Pixel asignado. Revisa abajo si ese Pixel tiene token CAPI disponible.'
+            : 'Pixel y token CAPI guardados para las conversiones de esta empresa.';
       setFeedback({
         tone: 'success',
-        text: form.mode === 'none'
-          ? 'La empresa quedó sin Pixel para Fase 1.'
-          : 'Pixel y token CAPI guardados para las conversiones de esta empresa.',
+        text: successText,
       });
       setForm(EMPTY_FORM);
     },
@@ -201,7 +206,7 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
           <div className="modal-actions">
             <button type="button" className="btn btn-outline" onClick={() => { setForm(EMPTY_FORM); setFeedback(null); }}>Limpiar</button>
             <button type="button" className="btn btn-primary" disabled={!canSubmit || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-              {saveMutation.isPending ? 'Validando...' : form.mode === 'none' ? 'Guardar sin Pixel' : 'Validar y guardar Pixel'}
+              {saveMutation.isPending ? 'Validando...' : form.mode === 'none' ? 'Guardar sin Pixel' : form.mode === 'manual' && !form.accessToken.trim() ? 'Guardar Pixel sin CAPI' : 'Validar y guardar Pixel + CAPI'}
             </button>
           </div>
         </div>
