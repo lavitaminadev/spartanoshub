@@ -31,7 +31,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
  * pero no se bloquea: hay clientes con una necesidad puntual que lo justifica.
  */
 const RECOMMENDED_FIELD_COUNT = 5;
-const STEPS = ['Estructura', 'Disponibilidad', 'Diseño', 'Publicación'];
+const STEPS = ['Campos', 'Disponibilidad', 'Diseño', 'Medición', 'Publicación'];
 const TIMEZONES = (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') ? Intl.supportedValuesOf('timeZone').filter((tz: string) => tz.includes('America') || tz.includes('Europe/Madrid') || tz.includes('Atlantic')) : ['America/Santiago', 'America/Argentina/Buenos_Aires', 'America/Lima', 'America/Bogota', 'America/Mexico_City', 'America/New_York', 'Europe/Madrid'];
 const DESIGN_TEMPLATES: Array<{ name: string; config: Record<string, string> }> = [
   { name: 'Espartano', config: { primaryColor: '#0ec6b8', accentColor: '#ea0f63', backgroundColor: '#f4f5f7', textColor: '#0b0b0c', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
@@ -315,7 +315,7 @@ export function ReservationBuilderPage() {
       <div><Link to={clientMode ? '/portal/reservations' : '/reservations'}>← Reservas</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
       <div className="builder-top-actions">
         {draft.metaCapiEnabled && <span className="meta-conversion is-ok" title="Meta CAPI activo: las conversiones se envían a Events Manager">CAPI activo</span>}
-        {!draft.metaCapiEnabled && <span className="meta-conversion is-warn" title="Activa CAPI en Publicación para medir conversiones en Meta">CAPI pendiente</span>}
+        {!draft.metaCapiEnabled && <span className="meta-conversion is-warn" title="Activa CAPI en Medición para medir conversiones en Meta">CAPI pendiente</span>}
         <button type="button" className="btn btn-outline btn-sm" onClick={openPreview}>{previewLabel}</button><button className="btn btn-primary btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>{saveMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button></div>
     </header>
     {saveMutation.error && <div className="builder-error alert alert-error">{saveMutation.error.message}</div>}
@@ -413,6 +413,60 @@ export function ReservationBuilderPage() {
     </div>}
 
     {step === 3 && <div className="builder-stage">
+      <div className="stage-heading"><span className="page-eyebrow">MEDICIÓN</span><h2>Conecta el origen y las conversiones.</h2><p>Esta parte es opcional para compartir el enlace, pero clave si el formulario se usará en campañas pagadas.</p></div>
+      <div className="publish-grid">
+        <div className="publish-summary">
+          <h3>Qué se mide</h3>
+          <ul className="publish-checklist">
+            <li className={draft.metaCapiEnabled ? 'is-ok' : draft.capabilities?.metaConversions ? 'is-warning' : 'is-blocking'}>
+              <strong>{draft.metaCapiEnabled ? 'Meta CAPI activo' : draft.capabilities?.metaConversions ? 'Meta CAPI disponible' : 'Meta no configurado'}</strong>
+              <small>{draft.metaCapiEnabled
+                ? 'Cuando alguien reserve, el evento se enviará a Meta para optimizar campañas.'
+                : draft.capabilities?.metaConversions
+                  ? 'Puedes activarlo si este formulario recibirá tráfico desde anuncios.'
+                  : 'Se puede publicar igual, pero primero Administración/Dev debe conectar el Pixel y token.'}</small>
+            </li>
+            <li className={draft.campaignId?.trim() ? 'is-ok' : 'is-warning'}>
+              <strong>{draft.campaignId?.trim() ? `Campaña: ${draft.campaignId}` : 'Campaña sin etiqueta'}</strong>
+              <small>La etiqueta ayuda a identificar de dónde viene cada reserva sin cambiar el enlace base del formulario.</small>
+            </li>
+            <li className={draft.ga4MeasurementId?.trim() ? 'is-ok' : 'is-warning'}>
+              <strong>{draft.ga4MeasurementId?.trim() ? 'GA4 configurado' : 'GA4 opcional'}</strong>
+              <small>Sirve para contar visitas y reservas en Google Analytics. No reemplaza Meta CAPI.</small>
+            </li>
+          </ul>
+        </div>
+
+        <div className="publish-summary">
+          <h3>Configuración de medición</h3>
+          <div className="publish-tracking-body">
+            {!clientMode && <label className={`meta-publication-toggle ${draft.metaCapiEnabled ? 'active' : ''}`}>
+              <input type="checkbox" checked={Boolean(draft.metaCapiEnabled)} disabled={!draft.capabilities?.metaConversions} onChange={(event) => change({ metaCapiEnabled: event.target.checked })} />
+              <span><strong>Avisarle a Meta cuando alguien reserva</strong><small>Permite que Facebook e Instagram sepan qué anuncio trajo cada reserva y muestren el anuncio a gente parecida.</small></span>
+            </label>}
+
+            {draft.capabilities?.metaConversions && <div className={`publish-meta-state ${draft.metaReady ? 'is-ok' : 'is-warning'}`}>
+              <strong>{draft.metaReady ? 'Meta está listo' : 'Falta configurar Meta'}</strong>
+              <small>{draft.metaReady
+                ? `Cuenta conectada${draft.pixelName ? `: ${draft.pixelName}` : ''}. Las reservas se informarán automáticamente.`
+                : 'Se puede publicar igual, pero las reservas no llegarán a Meta hasta completar la integración.'}</small>
+            </div>}
+
+            <label>Nombre de esta campaña
+              <input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" />
+              <small>Etiqueta simple para resultados y UTM. No cambia el enlace base del formulario.</small>
+            </label>
+
+            <label>Google Analytics
+              <input className="input" value={draft.ga4MeasurementId || ''} onChange={(event) => change({ ga4MeasurementId: event.target.value.trim() })} placeholder="G-XXXXXXXXXX" />
+              <small>Si tu empresa usa GA4, pega su identificador. Déjalo vacío si no lo usas.</small>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>}
+
+    {step === 4 && <div className="builder-stage">
       <div className="stage-heading"><span className="page-eyebrow">PUBLICACIÓN</span><h2>Revisa, publica y comparte.</h2><p>Comprueba que esté todo listo, publícalo y copia el enlace que vas a repartir.</p></div>
       <div className="publish-grid">
         <div className="publish-summary">
@@ -424,42 +478,17 @@ export function ReservationBuilderPage() {
             </li>
             <li className="is-ok">
               <strong>{fields.length} campo{fields.length !== 1 ? 's' : ''} que se piden</strong>
-              <small>Es lo que la persona completa al reservar. Puedes cambiarlo en el paso «Estructura».</small>
+              <small>Es lo que la persona completa al reservar. Puedes cambiarlo en el paso «Campos».</small>
             </li>
             <li className={publicUrlReady ? 'is-ok' : 'is-warning'}>
               <strong>{publicUrlReady ? 'Enlace seguro (https)' : 'El enlace todavía no es seguro'}</strong>
               <small>{publicUrlReady ? 'Se puede compartir en cualquier parte, incluidos anuncios.' : 'Sirve para probar, pero no lo uses en anuncios hasta que el dominio esté configurado.'}</small>
             </li>
+            <li className={draft.metaCapiEnabled || draft.ga4MeasurementId?.trim() ? 'is-ok' : 'is-warning'}>
+              <strong>{draft.metaCapiEnabled ? 'Meta CAPI activo' : draft.ga4MeasurementId?.trim() ? 'GA4 configurado' : 'Sin medición avanzada'}</strong>
+              <small>La medición se configura en el paso «Medición». Puedes publicar sin esto si el enlace se compartirá orgánicamente.</small>
+            </li>
           </ul>
-
-          <details className="publish-tracking">
-            <summary>Medir de dónde vienen las reservas <em>(opcional)</em></summary>
-            <div className="publish-tracking-body">
-              <p className="page-subtitle">Solo hace falta si vas a promocionar este {flowLabel} con anuncios pagados. Si lo compartes por redes o WhatsApp, puedes saltarte esta parte.</p>
-
-              {!clientMode && <label className={`meta-publication-toggle ${draft.metaCapiEnabled ? 'active' : ''}`}>
-                <input type="checkbox" checked={Boolean(draft.metaCapiEnabled)} disabled={!draft.capabilities?.metaConversions} onChange={(event) => change({ metaCapiEnabled: event.target.checked })} />
-                <span><strong>Avisarle a Meta cuando alguien reserva</strong><small>Permite que Facebook e Instagram sepan qué anuncio trajo cada reserva y muestren el anuncio a gente parecida.</small></span>
-              </label>}
-
-              {draft.capabilities?.metaConversions && <div className={`publish-meta-state ${draft.metaReady ? 'is-ok' : 'is-warning'}`}>
-                <strong>{draft.metaReady ? 'Meta está listo' : 'Falta configurar Meta'}</strong>
-                <small>{draft.metaReady
-                  ? `Cuenta conectada${draft.pixelName ? `: ${draft.pixelName}` : ''}. Las reservas se le informarán automáticamente.`
-                  : 'Se puede publicar igual, pero las reservas no llegarán a Meta hasta que Administración conecte la cuenta.'}</small>
-              </div>}
-
-              <label>Nombre de esta campaña
-                <input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" />
-                <small>Una etiqueta tuya para distinguir de qué campaña vino cada reserva. Se agrega al enlace y aparece después en los resultados.</small>
-              </label>
-
-              <label>Google Analytics
-                <input className="input" value={draft.ga4MeasurementId || ''} onChange={(event) => change({ ga4MeasurementId: event.target.value.trim() })} placeholder="G-XXXXXXXXXX" />
-                <small>Si tu empresa usa Google Analytics, pega acá su identificador para que las reservas también se cuenten ahí. Déjalo vacío si no lo usas.</small>
-              </label>
-            </div>
-          </details>
         </div>
 
         <div className="publish-link">
