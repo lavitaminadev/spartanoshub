@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
 import { ROLE_LABELS } from '../../core/role-labels';
 import {
   MODULE_LIFECYCLE_LABELS,
@@ -43,6 +44,8 @@ type Feedback = { tone: 'success' | 'error'; text: string } | null;
 
 export function AdminPage() {
   const qc = useQueryClient();
+  const user = useAuth((state) => state.user);
+  const canManageModules = user?.role === 'dev';
   const [tab, setTab] = useState<'permisos' | 'modulos' | 'excepciones' | 'consentimiento'>('permisos');
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [dirty, setDirty] = useState(false);
@@ -72,6 +75,10 @@ export function AdminPage() {
   const users = Array.isArray(rawUsers) ? rawUsers : (rawUsers as { data?: UserOption[] } | undefined)?.data ?? [];
   const features = featuresQuery.data?.features;
   const lifecycleSettings = new Map((settingsQuery.data ?? []).filter((s) => s.key.startsWith('modules.lifecycle.')).map((s) => [s.key, s.value]));
+
+  useEffect(() => {
+    if (!canManageModules && tab === 'modulos') setTab('permisos');
+  }, [canManageModules, tab]);
 
   const exceptionUsers = users.filter((u) => u.id && u.name);
   const visibleExceptions = exceptions.filter((e) => matchesSearch(exceptionSearch, [e.userName, e.module, e.level, e.reason]) && (!exceptionClient || e.userId === exceptionClient));
@@ -216,7 +223,7 @@ export function AdminPage() {
     </div>
     <nav className="governance-tabs">
       <button className={tab === 'permisos' ? 'active' : ''} onClick={() => { setTab('permisos'); setFeedback(null); }}><span>01</span><strong>Permisos por cargo</strong><small>Matriz de acceso por rol y módulo</small></button>
-      <button className={tab === 'modulos' ? 'active' : ''} onClick={() => { setTab('modulos'); setFeedback(null); }}><span>02</span><strong>Módulos</strong><small>Ciclo de vida y acceso por organización</small></button>
+      {canManageModules && <button className={tab === 'modulos' ? 'active' : ''} onClick={() => { setTab('modulos'); setFeedback(null); }}><span>02</span><strong>Módulos</strong><small>Ciclo de vida y acceso por organización</small></button>}
       <button className={tab === 'excepciones' ? 'active' : ''} onClick={() => { setTab('excepciones'); setFeedback(null); }}><span>03</span><strong>Accesos por persona</strong><small>Excepciones y accesos temporales</small></button>
       <button className={tab === 'consentimiento' ? 'active' : ''} onClick={() => { setTab('consentimiento'); setFeedback(null); }}><span>04</span><strong>Consentimiento</strong><small>Versiones, aceptación y acceso</small></button>
     </nav>
@@ -248,7 +255,7 @@ export function AdminPage() {
       )}
     </section>}
 
-    {tab === 'modulos' && <section className="modules-center">
+    {canManageModules && tab === 'modulos' && <section className="modules-center">
       <div className="section-toolbar">
         <div>
           <span className="page-eyebrow">OFERTA Y ACCESO</span>

@@ -85,12 +85,12 @@ export class OrganizationsController {
   /**
    * Enciende o apaga modulos. Es la palanca para activar una fase completa sin desplegar.
    *
-   * Solo admin: habilitar un modulo cambia lo que ve toda la organizacion.
+   * Solo desarrollo: habilitar un modulo cambia lo que puede probar o ver toda la organizacion.
    */
   @Put('features')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.DEV)
   @ApiOperation({ summary: 'Habilitar o deshabilitar módulos de la organización' })
   async updateFeatures(@Req() req: AuthenticatedRequest, @Body() dto: UpdateOrganizationFeaturesDto) {
     const organizationId = req.organizationId || req.user.organizationId;
