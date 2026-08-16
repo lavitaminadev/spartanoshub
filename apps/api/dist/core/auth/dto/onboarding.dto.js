@@ -42,6 +42,12 @@ class CompleteOnboardingDto {
 }
 exports.CompleteOnboardingDto = CompleteOnboardingDto;
 __decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(20),
+    __metadata("design:type", String)
+], CompleteOnboardingDto.prototype, "termsVersion", void 0);
+__decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MinLength)(8),
     (0, class_validator_1.MaxLength)(128),
@@ -68,3 +74,9 @@ __decorate([
     (0, class_validator_1.IsIn)(exports.REQUIRED_CONSENTS, { each: true }),
     __metadata("design:type", Array)
 ], AcceptTermsDto.prototype, "acceptedConsents", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(20),
+    __metadata("design:type", String)
+], AcceptTermsDto.prototype, "termsVersion", void 0);

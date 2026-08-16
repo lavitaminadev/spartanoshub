@@ -13,7 +13,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 var SessionsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SessionsService = exports.REAUTH_WINDOW_MINUTES = exports.REVOKE_REASONS = void 0;
+exports.SessionsService = exports.ONBOARDING_AUTH_WINDOW_MINUTES = exports.REAUTH_WINDOW_MINUTES = exports.REVOKE_REASONS = void 0;
 exports.hashRefreshToken = hashRefreshToken;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
@@ -27,6 +27,7 @@ exports.REVOKE_REASONS = {
     ROTATION_REUSE: 'refresh_token_reutilizado',
 };
 exports.REAUTH_WINDOW_MINUTES = 15;
+exports.ONBOARDING_AUTH_WINDOW_MINUTES = 60;
 function hashRefreshToken(token) {
     return (0, crypto_1.createHash)('sha256').update(token).digest('hex');
 }
