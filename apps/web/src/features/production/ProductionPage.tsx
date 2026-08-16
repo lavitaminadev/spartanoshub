@@ -15,6 +15,17 @@ import { roleLabel } from '../../core/role-labels';
 import { PRODUCTION_WORKFLOW } from './production-labels';
 // Los tipos ya no son una lista fija: se consultan al catalogo, que el area amplia sin desplegar.
 import { usePieceTypes } from './use-piece-types';
+import { DESIGN_COLUMNS, groupByColumn, isStalled } from './board-columns';
+import { applyBoardFilters, BOARD_VIEW_LABELS, hasActiveFilters, type BoardFilters, type BoardView } from './board-filters';
+
+/**
+ * Horas sin movimiento tras las que una pieza se considera detenida.
+ *
+ * Espeja el valor por defecto de `production.stale_hours`. Queda como constante mientras la
+ * pantalla no lea la configuracion de la agencia: preferible un umbral visible y unico a que
+ * cada vista invente el suyo. Cuando se conecte el parametro, se reemplaza aca y en un solo lugar.
+ */
+const STALE_HOURS = 48;
 
 interface Piece {
   id: string;
@@ -116,6 +127,9 @@ export function ProductionPage() {
   const [form, setForm] = useState<PieceFormState>(EMPTY_FORM);
   const [versionForm, setVersionForm] = useState({ fileName: '', driveFileId: '' });
   const [deliverPieceId, setDeliverPieceId] = useState<string | null>(null);
+  // Los filtros del tablero van juntos y no como estados sueltos: se limpian de una sola vez
+  // y se pueden leer completos para saber si hay alguno puesto.
+  const [boardFilters, setBoardFilters] = useState<BoardFilters>({});
   const queryClient = useQueryClient();
   // `labelFor` reemplaza a `pieceTypeLabel`: aquel solo conocia los nueve tipos compilados y
   // mostraba la clave cruda de cualquier tipo aprobado despues.
@@ -208,6 +222,21 @@ export function ProductionPage() {
   const piecesByStatus = useMemo(
     () => new Map(PRODUCTION_WORKFLOW.map((status) => [status, (pieces ?? []).filter((piece) => piece.status === status)])),
     [pieces],
+  );
+
+  /**
+   * Trabajo del tablero: primero se filtra, después se reparte en columnas.
+   *
+   * En ese orden y no al revés: agrupar antes obligaría a filtrar cinco listas y a recalcular la
+   * cuenta de cada cabecera aparte, que es donde se desincronizan el número y las tarjetas.
+   *
+   * El filtrado ocurre acá y no en el servidor porque la consulta ya trae el trabajo del área
+   * completo: probar filtros es como se usa un tablero, y una petición por cada intento haría
+   * que la pantalla parpadeara sin ganar nada.
+   */
+  const groupedBoard = useMemo(
+    () => groupByColumn(applyBoardFilters(pieces ?? [], boardFilters, { staleHours: STALE_HOURS }), DESIGN_COLUMNS),
+    [pieces, boardFilters],
   );
 
   const spotlightPiece = useMemo(
@@ -427,34 +456,83 @@ export function ProductionPage() {
           action={canCreate ? <button className="btn btn-primary" onClick={() => { setFeedbackMessage(null); setForm((current) => ({ ...current, clientId: clientFilter })); setCreateModalOpen(true); }}>Nueva pieza</button> : undefined}
         />
       ) : viewMode === 'board' ? (
-        <div className="production-board">
-          {PRODUCTION_WORKFLOW.map((status) => {
-            const columnPieces = piecesByStatus.get(status) ?? [];
-            return (
-              <section className="kanban-column" key={status}>
-                <div className="kanban-header">
-                  <strong>{statusLabel(status)}</strong>
-                  <span className="kanban-count">{columnPieces.length}</span>
-                </div>
-                <div className="kanban-cards">
-                  {columnPieces.length === 0 ? (
-                    <div className="kanban-empty">Sin piezas</div>
-                  ) : (
-                    columnPieces.map((piece) => (
-                      <article className="kanban-card" key={piece.id}>
-                        <Link to={`/production/${piece.id}`} className="kanban-card-title">{piece.title}</Link>
-                        <div className="kanban-card-client">{piece.clientName}</div>
-                        <div className="kanban-card-metrics"><span>N{piece.difficultyLevel ?? 1}</span><span>{piece.udAmount} UD</span><span>{piece.correctionCount} corr.</span></div>
-                        {piece.dueDate && <div className="kanban-card-info">Vence {new Date(piece.dueDate).toLocaleDateString('es-CL')}</div>}
-                        {renderActions(piece)}
-                      </article>
-                    ))
-                  )}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+        <>
+          {/* Las vistas rapidas son filtros y no pestanas: responden preguntas que alguien se
+              hace frente al tablero. `Estancados` es la unica que no se ve mirando las columnas,
+              porque el trabajo detenido esta repartido entre todas. */}
+          <div className="board-filters">
+            <div className="board-views" role="group" aria-label="Vistas rapidas">
+              {(Object.keys(BOARD_VIEW_LABELS) as BoardView[]).map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  className={`chip ${(boardFilters.view ?? 'all') === view ? 'is-active' : ''}`}
+                  aria-pressed={(boardFilters.view ?? 'all') === view}
+                  onClick={() => setBoardFilters({ ...boardFilters, view })}
+                >
+                  {BOARD_VIEW_LABELS[view]}
+                </button>
+              ))}
+            </div>
+            <div className="board-selects">
+              <select
+                className="input"
+                value={boardFilters.type ?? ''}
+                aria-label="Tipo de pieza"
+                onChange={(event) => setBoardFilters({ ...boardFilters, type: event.target.value || undefined })}
+              >
+                <option value="">Todos los tipos</option>
+                {pieceTypeOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+              </select>
+              {hasActiveFilters(boardFilters) && (
+                <button type="button" className="link-button" onClick={() => setBoardFilters({})}>Limpiar filtros</button>
+              )}
+            </div>
+          </div>
+
+          <div className="kanban production-kanban">
+            {DESIGN_COLUMNS.map((column) => {
+              const columnPieces = groupedBoard[column.key] ?? [];
+              return (
+                <section className="kanban-column" key={column.key}>
+                  <div className="kanban-header">
+                    <div>
+                      <strong>{column.title}</strong>
+                      <small>{column.hint}</small>
+                    </div>
+                    <span className="kanban-count">{columnPieces.length}</span>
+                  </div>
+                  <div className="kanban-cards">
+                    {columnPieces.length === 0 ? (
+                      <div className="kanban-empty">Sin piezas</div>
+                    ) : (
+                      columnPieces.map((piece) => {
+                        const detenida = isStalled(piece, STALE_HOURS);
+                        return (
+                          <article className={`kanban-card production-card ${detenida ? 'is-stalled' : ''}`} key={piece.id}>
+                            <Link to={`/production/${piece.id}`} className="kanban-card-title">{piece.title}</Link>
+                            <div className="kanban-card-client">{piece.clientName}</div>
+                            {/* La etapa exacta va en la tarjeta porque la columna agrupa varias:
+                                sin esto no se distingue una pieza asignada de una ya empezada. */}
+                            <div className="kanban-card-metrics">
+                              <span>{statusLabel(piece.status)}</span>
+                              <span>N{piece.difficultyLevel ?? 1}</span>
+                              <span>{piece.udAmount} UD</span>
+                              <span>{piece.correctionCount} corr.</span>
+                            </div>
+                            {detenida && <div className="kanban-card-info badge-warning">Sin movimiento</div>}
+                            {piece.dueDate && <div className="kanban-card-info">Vence {new Date(piece.dueDate).toLocaleDateString('es-CL')}</div>}
+                            {renderActions(piece)}
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </>
       ) : viewMode === 'gantt' ? (
         <section className="production-gantt">
           <header>

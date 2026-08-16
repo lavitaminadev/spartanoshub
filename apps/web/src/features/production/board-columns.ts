@@ -56,12 +56,29 @@ export const BOARD_COLUMNS: Record<BoardArea, readonly BoardColumn[]> = {
   audiovisual: AUDIOVISUAL_COLUMNS,
 };
 
-/** Trabajo que el tablero puede colocar; es lo mínimo que necesita, no la pieza completa. */
+/**
+ * Trabajo que el tablero puede colocar.
+ *
+ * Declara los campos que mira, en vez de aceptar cualquier cosa con un índice abierto. Con el
+ * índice, una pieza que llegara sin `status` compilaba igual y desaparecía del tablero en
+ * ejecución; y todo lo que se leía salía como `unknown`, obligando a convertir en cada uso.
+ *
+ * Los campos van opcionales porque el tablero sirve a piezas y a sesiones, que no comparten
+ * todos. Lo obligatorio es lo único sin lo cual no se puede colocar una tarjeta: qué es y en
+ * qué etapa está.
+ */
 export interface BoardItem {
   id: string;
   status: string;
+  title?: string;
+  clientId?: string;
+  clientName?: string;
+  type?: string;
+  typeLabel?: string;
+  assignedTo?: string;
+  udAmount?: number;
+  /** Última modificación, que es como se detecta el trabajo detenido. */
   updatedAt?: string;
-  [key: string]: unknown;
 }
 
 /**
