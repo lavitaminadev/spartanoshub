@@ -6,6 +6,20 @@ import { BrandLockup } from '../../shared/Brand';
 import { PasswordField } from './PasswordField';
 import { passwordRulesPassed } from './password-rules';
 
+/**
+ * Version del texto que esta pantalla muestra.
+ *
+ * Viaja con cada aceptacion para que el servidor pueda comprobar que lo que registra es lo que
+ * la persona tuvo a la vista. Si la version vigente cambia mientras alguien tiene el formulario
+ * abierto, el servidor responde 409 en vez de guardar un consentimiento que dice algo que nunca
+ * se mostro.
+ *
+ * Al editar los textos de abajo hay que subir esta versión y también el parámetro
+ * `compliance.terms_version`. Si solo se cambia una, nadie puede aceptar hasta que coincidan:
+ * es preferible a registrar aceptaciones de un texto equivocado.
+ */
+const TERMS_VERSION = 'v1';
+
 const TERMS = [
   { key: 'terms', title: 'Términos y condiciones de uso', detail: 'Usaré Espartanos únicamente para las tareas y responsabilidades autorizadas de mi cuenta.' },
   { key: 'dataTreatment', title: 'Tratamiento de datos personales', detail: 'Autorizo el tratamiento de mis datos para operar la plataforma y recibir comunicaciones de trabajo.' },
@@ -58,7 +72,7 @@ export function FirstAccessPage() {
     setSaving(true);
     setFeedback(null);
     try {
-      await api.post('/auth/terms/accept', { acceptedConsents: TERMS.map((term) => term.key) });
+      await api.post('/auth/terms/accept', { acceptedConsents: TERMS.map((term) => term.key), termsVersion: TERMS_VERSION });
       await refreshProfile();
       navigate(user?.role === 'client' ? '/portal' : '/dashboard', { replace: true });
     } catch (error) {
@@ -84,6 +98,7 @@ export function FirstAccessPage() {
       await api.post('/auth/onboarding', {
         newPassword: password.next,
         acceptedConsents: TERMS.map((term) => term.key),
+        termsVersion: TERMS_VERSION,
         profile: { name: profile.name.trim(), phone: profile.phone.trim() || undefined },
       });
       clearLocalSession();
@@ -92,6 +107,16 @@ export function FirstAccessPage() {
       if (error instanceof ApiError && error.status === 403) {
         clearLocalSession();
         navigate('/login?reason=activation-expired', { replace: true });
+        return;
+      }
+      // Las condiciones cambiaron mientras esta pantalla estaba abierta. Su texto viene compilado
+      // en el paquete, así que mostrar el aviso no basta: sin recargar se vuelve a enviar la
+      // misma versión y el rechazo se repite. Se limpian las aceptaciones para que nadie confirme
+      // sin haber leído lo que quedó vigente, y no se toca la contraseña escrita.
+      if (error instanceof ApiError && error.status === 409) {
+        setAccepted({});
+        setFeedback(`${error.message} Se recargará la página para mostrarte el texto vigente.`);
+        setTimeout(() => window.location.reload(), 2500);
         return;
       }
       setFeedback(error instanceof Error ? error.message : 'No se pudo completar el primer acceso.');

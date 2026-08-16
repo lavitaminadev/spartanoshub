@@ -321,4 +321,48 @@ describe('AuthService', () => {
       expect(mockSessions.revokeAll).toHaveBeenCalledWith('user-1', expect.any(String));
     });
   });
+
+    describe('acceptCurrentTerms', () => {
+    it('tampoco registra una re-aceptación de un texto que no es el vigente', async () => {
+      // Re-aceptar ocurre justo cuando el texto acaba de cambiar, así que es donde el desajuste
+      // entre lo mostrado y lo vigente es más probable.
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1' });
+      mockParameters.get.mockResolvedValue('v2');
+
+      await expect(service.acceptCurrentTerms(
+        'user-1',
+        ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        '1.2.3.4',
+        'v1',
+      )).rejects.toThrow(ConflictException);
+
+      expect(transactionManager.save).not.toHaveBeenCalled();
+    });
+
+    it('registra cuando la versión mostrada es la vigente', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1' });
+      mockParameters.get.mockResolvedValue('v1');
+
+      const result = await service.acceptCurrentTerms(
+        'user-1',
+        ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        '1.2.3.4',
+        'v1',
+      );
+      expect(result).toEqual({ accepted: true });
+    });
+
+    it('sigue aceptando a un cliente que no declara versión, para no romperlo', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1' });
+      mockParameters.get.mockResolvedValue('v2');
+
+      const result = await service.acceptCurrentTerms(
+        'user-1',
+        ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        '1.2.3.4',
+      );
+      expect(result).toEqual({ accepted: true });
+    });
+  });
+
 });

@@ -60,4 +60,12 @@ export class AcceptTermsDto {
   @IsArray() @ArrayMinSize(REQUIRED_CONSENTS.length)
   @IsIn(REQUIRED_CONSENTS as unknown as string[], { each: true })
   acceptedConsents: string[];
+
+  /**
+   * Versión del texto que la persona tuvo a la vista.
+   *
+   * Opcional para no romper a un cliente que todavía no la envía. Cuando llega, el servidor
+   * rechaza registrar el consentimiento si no coincide con la vigente.
+   */
+  @IsOptional() @IsString() @MaxLength(20) termsVersion?: string;
 }

@@ -441,7 +441,7 @@ export class AuthService {
    * texto vigente porque dirección publicó una versión nueva o venció el plazo. Pedirle la
    * contraseña temporal aquí no tendría sentido, porque hace tiempo que no la usa.
    */
-  async acceptCurrentTerms(userId: string, acceptedConsents: string[], ipAddress?: string): Promise<{ accepted: true }> {
+  async acceptCurrentTerms(userId: string, acceptedConsents: string[], ipAddress?: string, shownVersion?: string): Promise<{ accepted: true }> {
     const user = await this.userRepo.findOne({ where: { id: userId, isActive: true }, select: ['id', 'organizationId'] });
     if (!user) throw new BadRequestException('Usuario no disponible');
 
@@ -449,6 +449,14 @@ export class AuthService {
     if (missing.length > 0) throw new BadRequestException('Debes aceptar todas las condiciones para continuar');
 
     const version = String(await this.parameters.get('compliance.terms_version', null, null, user.organizationId) ?? TERMS_VERSION);
+
+    // Misma protección que en el primer acceso: no se registra que alguien aceptó una versión
+    // distinta de la que tuvo a la vista. Re-aceptar ocurre justo cuando el texto acaba de
+    // cambiar, así que es donde el desajuste es más probable.
+    if (shownVersion && shownVersion !== version) {
+      throw new ConflictException('Las condiciones fueron actualizadas. Recarga la página para revisar la versión vigente.');
+    }
+
     const now = new Date();
     await this.userRepo.manager.transaction(async (manager) => {
       await manager.update(User, userId, { termsAcceptedAt: now, termsVersion: String(version) });
