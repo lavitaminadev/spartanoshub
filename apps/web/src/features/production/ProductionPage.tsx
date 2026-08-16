@@ -1,5 +1,6 @@
 ﻿import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { refetchWhenIdle } from '../../core/refetch-policy';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
@@ -150,7 +151,7 @@ export function ProductionPage() {
   const { data: pieces, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery<Piece[]>({
     queryKey: ['pieces', statusFilter, clientFilter],
     queryFn: () => api.get(`/production/pieces${querySuffix}`),
-    refetchInterval: 60_000,
+    refetchInterval: refetchWhenIdle(60_000),
   });
 
   const { data: users } = useQuery<UserOption[]>({

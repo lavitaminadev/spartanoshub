@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
+import { refetchWhenIdle } from '../../core/refetch-policy';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 
@@ -69,7 +70,7 @@ export function OperationalHome({ clientId }: { clientId?: string }) {
     queryFn: () => api.get(`/reservations/analytics/operational-home${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ''}`),
     // La jornada cambia sola: se refresca para que quien deja la pantalla abierta no mire
     // cifras de hace una hora sin saberlo.
-    refetchInterval: 120_000,
+    refetchInterval: refetchWhenIdle(120_000),
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando el día..." />;

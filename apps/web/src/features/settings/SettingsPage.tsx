@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { refetchWhenIdle } from '../../core/refetch-policy';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -207,7 +208,7 @@ export function SettingsPage() {
   const healthQuery = useQuery<SystemHealth>({
     queryKey: ['system-health'],
     queryFn: () => api.get('/health/details'),
-    refetchInterval: 60_000,
+    refetchInterval: refetchWhenIdle(60_000),
   });
 
   useEffect(() => {
