@@ -53,4 +53,21 @@ describe('PermissionsController: separación admin/dev', () => {
 
     expect(overrides.save).not.toHaveBeenCalled();
   });
+
+  it('persiste el vencimiento de una excepción temporal', async () => {
+    users.findOne.mockResolvedValue({ id: 'designer-1', organizationId: 'org-1', role: UserRole.DESIGNER });
+    overrides.findOne.mockResolvedValue(undefined);
+    overrides.save.mockImplementation(async (value) => ({ id: 'override-1', ...value }));
+
+    await controller.upsert(
+      'designer-1',
+      'reservations',
+      { level: 'edit', reason: 'Cobertura', expiresAt: '2026-09-01T12:30:00.000Z' },
+      { organizationId: 'org-1', user: { id: 'admin-1', role: UserRole.ADMIN } } as any,
+    );
+
+    expect(overrides.save).toHaveBeenCalledWith(expect.objectContaining({
+      expiresAt: new Date('2026-09-01T12:30:00.000Z'),
+    }));
+  });
 });

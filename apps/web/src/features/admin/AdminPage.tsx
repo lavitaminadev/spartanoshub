@@ -135,13 +135,27 @@ export function AdminPage() {
 
   const featuresMutation = useMutation({
     mutationFn: (f: Partial<OrganizationFeatures>) => api.put('/organizations/features', { features: f }),
-    onSuccess: async () => { await Promise.all([qc.invalidateQueries({ queryKey: ['organization-features'] }), qc.invalidateQueries({ queryKey: ['auth'] })]); setFeedback({ tone: 'success', text: 'Acceso por módulo actualizado.' }); },
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['organization-features'] }),
+        // `user.features` vive en Zustand, no en React Query. Sin recargar este perfil el
+        // interruptor se guardaba, pero el menú seguía representando el estado anterior.
+        useAuth.getState().refreshProfile().catch(() => undefined),
+      ]);
+      setFeedback({ tone: 'success', text: 'Acceso por módulo actualizado.' });
+    },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
 
   const lifecycleMutation = useMutation({
     mutationFn: (values: Record<string, string>) => api.put('/settings', { values }),
-    onSuccess: async () => { await Promise.all([qc.invalidateQueries({ queryKey: ['organization-settings'] }), qc.invalidateQueries({ queryKey: ['auth'] })]); setFeedback({ tone: 'success', text: 'Ciclo de vida del módulo actualizado.' }); },
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['organization-settings'] }),
+        useAuth.getState().refreshProfile().catch(() => undefined),
+      ]);
+      setFeedback({ tone: 'success', text: 'Ciclo de vida del módulo actualizado.' });
+    },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
   const consentPublishMutation = useMutation({
@@ -373,7 +387,7 @@ export function AdminPage() {
         <label>Nivel de acceso<select className="input" value={exceptionDraft.level} onChange={(e) => setExceptionDraft({ ...exceptionDraft, level: e.target.value as PermissionLevel })}>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select></label>
         <label>Vencimiento (opcional)<input className="input" type="datetime-local" value={exceptionDraft.expiresAt} onChange={(e) => setExceptionDraft({ ...exceptionDraft, expiresAt: e.target.value })} /><small>Al vencer, el acceso vuelve al nivel de su cargo automáticamente.</small></label>
         <label>Motivo<textarea className="input" rows={2} value={exceptionDraft.reason} onChange={(e) => setExceptionDraft({ ...exceptionDraft, reason: e.target.value })} placeholder="Reemplazo por vacaciones, proyecto especial..." /></label>
-        <div className="permission-help-inline"><strong>Cada excepción queda registrada en auditoría.</strong><p>El permiso efectivo es el mayor entre el cargo y las excepciones activas. Si el cargo ya tiene Administrar, la excepción no suma nada; si tiene Sin acceso, la excepción abre la puerta.</p></div>
+        <div className="permission-help-inline"><strong>Cada excepción queda registrada en auditoría.</strong><p>La excepción reemplaza el nivel que define el cargo para este módulo. Usa “Sin acceso” para bloquear temporalmente y una fecha de vencimiento para devolver el acceso al nivel del cargo.</p></div>
         {excCreateMutation.error && <div className="alert alert-error">{excCreateMutation.error.message}</div>}
         <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setExceptionOpen(false)}>Cancelar</button><button className="btn btn-primary" disabled={excCreateMutation.isPending}>{excCreateMutation.isPending ? 'Creando...' : 'Crear excepción'}</button></div>
       </form>
