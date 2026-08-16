@@ -351,3 +351,41 @@
     align-items: stretch;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Resumen de la reserva confirmada.
+
+   Va en dos columnas para que etiqueta y valor se lean de corrido, y pasa a
+   una sola en pantallas chicas: un telefono largo comprimido en media columna
+   se corta justo donde importa comprobarlo.
+   --------------------------------------------------------------------------- */
+
+.success-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 16px 0;
+  text-align: left;
+  font-size: 14px;
+}
+
+.success-summary dt {
+  opacity: 0.7;
+}
+
+.success-summary dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 420px) {
+  .success-summary {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .success-summary dd {
+    margin-bottom: 8px;
+  }
+}

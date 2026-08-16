@@ -371,11 +371,22 @@ export function PublicReservationPage() {
     const icsBlob = new Blob([icsBody], { type: 'text/calendar;charset=utf-8' });
     const icsUrl = URL.createObjectURL(icsBlob);
     const calendarSaveEnabled = design.calendarSaveEnabled !== 'false';
-    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{submit.data.status === 'pending' ? 'Solicitud recibida' : 'Reserva confirmada'}</h1><p>{design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.'}</p><p className="success-datetime">{new Date(submit.data.startsAt!).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {submit.data.referenceCode}</strong></div>{submit.data.couponCode && <p className="success-coupon"><VitaIcons.ticket /> Cupón <strong>{submit.data.couponCode}</strong> aplicado a esta reserva</p>}<small className="success-note">Guarda este código para cualquier cambio o consulta.</small><div className="success-actions">
+    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{submit.data.status === 'pending' ? 'Solicitud recibida' : 'Reserva confirmada'}</h1><p>{design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.'}</p><p className="success-datetime">{new Date(submit.data.startsAt!).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p>{/* Resumen de lo que quedó registrado. Antes la pantalla confirmaba sin mostrar con qué datos:
+    quien se equivocaba en el nombre o en la cantidad de personas no tenía cómo darse cuenta, y el
+    error aparecía recién al llegar al local. */}
+<dl className="success-summary">
+  {guest.guestName.trim() && <><dt>A nombre de</dt><dd>{guest.guestName.trim()}</dd></>}
+  {guest.guestPhone.trim() && <><dt>Teléfono</dt><dd>{guest.guestPhone.trim()}</dd></>}
+  <dt>Personas</dt><dd>{guest.partySize}</dd>
+</dl><div className="success-code"><strong>Código {submit.data.referenceCode}</strong></div>{submit.data.couponCode && <p className="success-coupon"><VitaIcons.ticket /> Cupón <strong>{submit.data.couponCode}</strong> aplicado a esta reserva</p>}<small className="success-note">Guarda este código para cualquier cambio o consulta.</small><div className="success-actions">
+      {/* Volver siempre, también cuando la reserva queda pendiente. Antes ese caso mostraba solo
+          un aviso y ninguna salida: quien reservaba y quedaba a la espera se encontraba con una
+          pantalla sin ningún botón, y la única forma de salir era cerrar la pestaña. */}
+      <Link className="btn btn-primary" to={`/book/${slug}`}>Volver al inicio</Link>
       {calendarSaveEnabled && gcalUrl ? <a className="btn btn-outline" href={gcalUrl} target="_blank" rel="noopener noreferrer">Android / Google Calendar</a> : null}
       {calendarSaveEnabled ? <a className="btn btn-outline" href={icsUrl} download={`reserva-${submit.data.referenceCode}.ics`}>iPhone / Apple Calendar</a> : null}
-      {submit.data.status === 'pending' ? <small>Recibirás una confirmación pronto.</small> : <Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link>}
-    </div>{calendarSaveEnabled && <small className="success-note">{design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'}</small>}</section></main>;
+    </div>
+    {submit.data.status === 'pending' && <small className="success-note">Recibirás una confirmación pronto.</small>}{calendarSaveEnabled && <small className="success-note">{design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'}</small>}</section></main>;
   }
 
   if (form.status === 'paused') return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><Ga4Tag measurementId={form?.ga4MeasurementId} /><section className="booking-success"><h1>Formulario en mantenimiento</h1><p>Este formulario no acepta reservas en este momento. Vuelve más tarde o contacta al establecimiento.</p></section></main>;
