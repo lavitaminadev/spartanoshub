@@ -85,7 +85,9 @@ exports.ORGANIZATION_MODULE_CATALOG = [
     { key: 'knowledge', lifecycle: 'development', defaultEnabled: false },
     { key: 'onboarding', lifecycle: 'development', defaultEnabled: false },
     { key: 'operations', lifecycle: 'development', defaultEnabled: false },
-    { key: 'governance', lifecycle: 'active', defaultEnabled: false },
+    // Sostiene la auditoría y el acceso técnico de Desarrollo. No se muestra como navegación
+    // para Administración, pero no puede nacer apagado sin dejar la revisión diaria sin datos.
+    { key: 'governance', lifecycle: 'active', defaultEnabled: true },
     { key: 'direction', lifecycle: 'development', defaultEnabled: false },
     // Encuestas propias, distintas de la encuesta post-visita que ya vive dentro de reservas.
     // Su API existe (`SurveysController`), asi que el producto ya la ofrece; nace apagada
@@ -101,6 +103,7 @@ exports.AGENCY_CORE_MODULE_KEYS = [
     'reports',
     'integrations',
     'reservations',
+    'governance',
     'crm',
     'surveys',
 ];
