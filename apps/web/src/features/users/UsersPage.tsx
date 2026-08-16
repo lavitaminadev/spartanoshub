@@ -172,17 +172,9 @@ export function UsersPage() {
         setFeedback({ tone: 'error', text: 'Ingresa el nombre de la empresa.' });
         return;
       }
-      setCreatingClient(true);
-      try {
-        const created = await api.post<ClientOption>('/clients', { name });
-        clientId = created.id;
-        await queryClient.invalidateQueries({ queryKey: ['clients'] });
-      } catch (clientError) {
-        setFeedback({ tone: 'error', text: clientError instanceof Error ? clientError.message : 'No se pudo crear la empresa.' });
-        setCreatingClient(false);
-        return;
-      }
-      setCreatingClient(false);
+      // La empresa nueva viaja junto con la cuenta: el backend las persiste en
+      // una sola transacción y no deja empresas huérfanas si falla el usuario.
+      clientId = '';
     }
     const body: Record<string, unknown> = {
       name: form.name.trim().replace(/\s+/g, ' '),
@@ -190,6 +182,7 @@ export function UsersPage() {
       phone: form.phone.trim() || undefined,
       role: form.accountType === 'client' ? 'client' : form.role,
       clientId: form.accountType === 'client' ? clientId : null,
+      newClientName: form.accountType === 'client' && form.clientId === NEW_CLIENT_VALUE ? form.newClientName.trim() : undefined,
     };
     if (form.password) body.password = form.password;
     if (editing) updateMutation.mutate({ id: editing.id, body });

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from './user.entity';
 import { UserRole } from '../organizations/user-role.enum';
@@ -17,6 +17,7 @@ interface CreateUserInput {
   role?: UserRole;
   phone?: string;
   clientId?: string;
+  newClientName?: string;
   workMode?: 'presential' | 'hybrid' | 'remote';
   weeklyCapacityUd?: number;
   actorRole: UserRole;
@@ -30,6 +31,7 @@ export class CreateUserUseCase {
   constructor(
     @InjectRepository(User) private readonly repo: Repository<User>,
     @InjectRepository(Client) private readonly clientsRepo: Repository<Client>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -53,26 +55,36 @@ export class CreateUserUseCase {
     }
     const existing = await this.repo.findOne({ where: { email: normalizedEmail } });
     if (existing) throw new ConflictException('Ya existe una cuenta con este email');
-    const clientId = await this.resolveClientId(data.organizationId, normalizedRole, data.clientId);
+    const newClientName = data.newClientName?.trim().replace(/\s+/g, ' ');
+    if (normalizedRole === UserRole.CLIENT && !data.clientId && (!newClientName || newClientName.length < 2)) {
+      throw new BadRequestException('Las cuentas cliente requieren una empresa asignada');
+    }
     const hashed = await bcrypt.hash(data.password, Number(process.env.BCRYPT_ROUNDS || 10));
-    const user = this.repo.create({
-      email: normalizedEmail,
-      password: hashed,
-      name: normalizedName,
-      organizationId: data.organizationId,
-      role: normalizedRole,
-      phone: normalizedPhone,
-      clientId,
-      workMode: data.workMode,
-      weeklyCapacityUd: data.weeklyCapacityUd ?? 20,
-      invitedAt: new Date(),
-      // La invitación deja la cuenta a medias a propósito: cada persona pone su propia
-      // contraseña, acepta las condiciones y completa sus datos al entrar. Administración
-      // solo aporta lo que le consta —nombre, correo y cargo—, no datos personales.
-      mustChangePassword: true,
-      mustCompleteProfile: true,
+    return this.dataSource.transaction(async (manager) => {
+      let clientId = data.clientId
+        ? await this.resolveClientId(data.organizationId, normalizedRole, data.clientId)
+        : undefined;
+      if (normalizedRole === UserRole.CLIENT && !clientId && newClientName) {
+        const client = manager.create(Client, { organizationId: data.organizationId, name: newClientName });
+        const savedClient = await manager.save(Client, client);
+        clientId = savedClient.id;
+      }
+      const user = manager.create(User, {
+        email: normalizedEmail,
+        password: hashed,
+        name: normalizedName,
+        organizationId: data.organizationId,
+        role: normalizedRole,
+        phone: normalizedPhone,
+        clientId,
+        workMode: data.workMode,
+        weeklyCapacityUd: data.weeklyCapacityUd ?? 20,
+        invitedAt: new Date(),
+        mustChangePassword: true,
+        mustCompleteProfile: true,
+      });
+      return manager.save(User, user);
     });
-    return this.repo.save(user);
   }
 
   private async resolveClientId(organizationId: string, role: UserRole, clientId?: string): Promise<string | undefined> {
