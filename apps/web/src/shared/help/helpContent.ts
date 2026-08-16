@@ -18,10 +18,7 @@ export const helpRegistry: Record<string, { title: string; description: string; 
     title: 'Dashboard',
     description: 'Centro de control con métricas clave de tu operación.',
     sections: [
-      { id: 'kpis', title: 'Indicadores principales', description: 'Clientes activos, piezas pendientes, XP del equipo y UD del mes. Reflejan la salud operativa actual.', items: [
-        { id: 'xp', label: 'XP del Equipo', description: 'Puntos de experiencia acumulados por entregas a tiempo y calidad. Motiva al equipo con gamificación.', formula: 'XP base + bonus por velocidad + bonus por calidad' },
-        { id: 'ud', label: 'UD (Unidades de Dedicación)', description: 'Unidad que mide el esfuerzo de diseño. Cada pieza consume UD según su tipo.', formula: 'Contratadas - Consumidas = Disponibles' },
-      ]},
+      { id: 'kpis', title: 'Indicadores principales', description: 'Reservas, asistencia, clientes activos y señales operativas visibles según los módulos habilitados.' },
       { id: 'performance', title: 'Rendimiento digital', description: 'Datos de Meta y Google consolidados de los últimos 30 días.', items: [
         { id: 'ctr', label: 'CTR (Click Through Rate)', description: 'Porcentaje de personas que hicieron clic en el anuncio respecto a las que lo vieron.', formula: 'Clics / Impresiones x 100', source: 'Meta Ads y Google Ads' },
         { id: 'cpl', label: 'CPL (Costo por Lead)', description: 'Costo promedio de conseguir un lead. Mide la eficiencia de la inversión.', formula: 'Inversión total / Leads generados', source: 'Meta Ads y Google Ads' },
