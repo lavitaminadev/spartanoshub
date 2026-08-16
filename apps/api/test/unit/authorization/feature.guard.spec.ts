@@ -106,10 +106,10 @@ describe('normalizeOrganizationFeatures', () => {
     expect(normalizeOrganizationFeatures({ production: 'si' } as never).production).toBe(false);
   });
 
-  it('deja encendido solo el alcance de Fase 0 y 1 por defecto', () => {
+  it('deja encendidos los módulos base y de cumplimiento por defecto', () => {
     const enabled = ORGANIZATION_FEATURE_KEYS.filter((key) => DEFAULT_ORGANIZATION_FEATURES[key]);
     expect([...enabled].sort()).toEqual(
-      ['clients', 'dashboard', 'integrations', 'reports', 'reservations', 'settings', 'users'],
+      ['clients', 'dashboard', 'governance', 'integrations', 'reports', 'reservations', 'settings', 'users'],
     );
   });
 });
