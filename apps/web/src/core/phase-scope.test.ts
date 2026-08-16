@@ -112,10 +112,13 @@ describe('el cargo de desarrollo frente al alcance de fase', () => {
     expect(isModuleInPhaseScope('production', { production: 'development' }, 'dev')).toBe(true);
   });
 
-  it('no ve lo apagado ni lo detenido, igual que el servidor', () => {
-    // Antes bastaba el cargo y el menú mostraba módulos cuyas rutas el backend rechazaba: el
-    // desarrollo terminaba persiguiendo 403 de funcionalidades que nunca debió ver.
-    expect(isModuleInPhaseScope('production', { production: 'disabled' }, 'dev')).toBe(false);
+  it('no queda fuera de ninguna ruta por el estado del módulo', () => {
+    // Acotar la excepción a `development` dejaba a desarrollo fuera de rutas que sí podía usar:
+    // `ProtectedRoute` redirige a `/404` cuando el alcance dice que no, así que un módulo en
+    // mantenimiento sacaba de la aplicación a quien tenía que revisarlo. El servidor sigue
+    // acotando lo suyo; esta capa es navegación, no autorización.
+    expect(isModuleInPhaseScope('production', { production: 'disabled' }, 'dev')).toBe(true);
+    expect(isModuleInPhaseScope('production', { production: 'maintenance' }, 'dev')).toBe(true);
   });
 
   it('ningún otro cargo ve lo que está en desarrollo', () => {

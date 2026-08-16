@@ -60,10 +60,21 @@ export function isModuleInPhaseScope(
   if (!lifecycle) return true;
   if (isModuleLifecycleVisible(lifecycle)) return true;
 
-  // El cargo de desarrollo ve lo que está en desarrollo, que es como valida una funcionalidad
-  // desplegada antes de liberarla al equipo. La excepción se acota a ese estado para que
-  // coincida con la del servidor: antes bastaba el cargo y el menú mostraba módulos apagados o
-  // en mantenimiento cuyas rutas el backend rechazaba igual, dejando al desarrollo persiguiendo
-  // errores 403 de funcionalidades que nunca debió ver.
-  return userRole === 'dev' && lifecycle === 'development';
+  /*
+   * El cargo de desarrollo no queda fuera de ninguna ruta por su estado de liberación.
+   *
+   * La intención original era acotar la excepción a `development`, para que el menú dijera lo
+   * mismo que el servidor y no ofreciera módulos cuyas rutas terminarían en 403. Pero acotarla
+   * dejó a desarrollo **fuera de rutas a las que sí podía entrar**: `isPathEnabled` devuelve
+   * `false` y `ProtectedRoute` redirige a `/404`, así que un módulo en mantenimiento —o
+   * simplemente sin estado resuelto— saca a quien tiene que poder revisarlo.
+   *
+   * Dejar pasar de más en el menú es recuperable: si el servidor no lo autoriza, responde 403 y
+   * se ve el error. Dejar pasar de menos no lo es: la ruta desaparece y no hay nada que
+   * diagnosticar desde la pantalla. Por eso vuelve a ser el cargo, y no el estado, lo que decide.
+   *
+   * El enforcement real sigue en el servidor, donde `alcanzaElModulo` sí acota la excepción a
+   * `development`. Esta capa es navegación, no autorización.
+   */
+  return userRole === 'dev';
 }
