@@ -126,7 +126,7 @@ export function getNavigation(
 ): FeatureManifest['navigation'] {
   const roleAwareItems = getFeatures(userRole)
     .flatMap((f) => f.navigation)
-    .filter((item) => !item.roles || !userRole || item.roles.includes(userRole))
+    .filter((item) => isRoleAllowedForPath(item.roles, userRole))
     .filter((item) => isPathEnabled(item.path, features, permissions, moduleLifecycle, userRole));
 
   const orderMap = new Map(NAVIGATION_ORDER.map((p, i) => [p, i]));
@@ -185,6 +185,20 @@ export function getAllowedRolesForPath(path: string): UserRole[] | undefined {
   return getFeatures()
     .flatMap((f) => f.navigation)
     .find((item) => item.path === path)?.roles;
+}
+
+/**
+ * Reglas de rol compartidas por menú y `ProtectedRoute`.
+ *
+ * `dev` no se agrega a todas las listas de manifiestos porque esas listas describen el dueño
+ * operativo normal de cada pantalla. Desarrollo es una excepción transversal: puede entrar a
+ * módulos activos/en desarrollo para diagnosticar, configurar y liberar sin convertir esas
+ * pantallas en opciones normales de admin.
+ */
+export function isRoleAllowedForPath(roles: UserRole[] | undefined, userRole?: UserRole): boolean {
+  if (!roles?.length || !userRole) return true;
+  if (userRole === 'dev') return true;
+  return roles.includes(userRole);
 }
 
 /**

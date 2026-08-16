@@ -5,7 +5,7 @@ import {
   PHASE_SCOPE_ENABLED,
   isModuleInPhaseScope,
 } from './phase-scope';
-import { getFeatureForPath, isPathEnabled } from './navigation.registry';
+import { getFeatureForPath, isPathEnabled, isRoleAllowedForPath } from './navigation.registry';
 
 describe('alcance de fase', () => {
   it('deja pasar los módulos del circuito de reservas y conversiones', () => {
@@ -108,6 +108,12 @@ describe('navegación bajo el alcance de fase', () => {
 });
 
 describe('el cargo de desarrollo frente al alcance de fase', () => {
+  it('puede pasar restricciones de rol del manifiesto sin convertirlas en permisos de admin', () => {
+    expect(isRoleAllowedForPath(['admin'], 'dev')).toBe(true);
+    expect(isRoleAllowedForPath(['admin'], 'operations_director')).toBe(false);
+    expect(isRoleAllowedForPath(['admin', 'operations_director'], 'admin')).toBe(true);
+  });
+
   it('ve un módulo en desarrollo, que es como valida antes de liberar', () => {
     expect(isModuleInPhaseScope('production', { production: 'development' }, 'dev')).toBe(true);
   });

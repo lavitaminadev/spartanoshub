@@ -18,7 +18,7 @@ import { VitaIcons } from '../../shared/Icons';
 
 interface Slot { startsAt: string; available: number }
 interface Created { id: string; referenceCode?: string; status?: string; startsAt?: string; couponCode?: string; createdAt?: string }
-const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f6f4f5 0%, #var(--surface-sage) 100%)';
+const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f6f4f5 0%, var(--surface-sage) 100%)';
 
 /** Clave de `sessionStorage` donde vive la clave de idempotencia de la reserva en curso. */
 const BOOKING_KEY_STORAGE = 'vh-booking-key';
@@ -183,12 +183,13 @@ export function PublicReservationPage() {
 
   useEffect(() => {
     if (!submit.data?.id || !form?.ga4MeasurementId) return;
-    trackGa4Event(form.ga4MeasurementId, 'reservation_created', {
+    trackGa4Event(form.ga4MeasurementId, isSurvey ? 'survey_submitted' : 'reservation_created', {
       transaction_id: submit.data.id,
       form_slug: slug,
       form_name: form.name,
+      form_mode: form.mode,
     });
-  }, [form?.ga4MeasurementId, form?.name, slug, submit.data?.id]);
+  }, [form?.ga4MeasurementId, form?.mode, form?.name, isSurvey, slug, submit.data?.id]);
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -360,7 +361,7 @@ export function PublicReservationPage() {
     const googleReviewUrl = safeUrl(design.googleReviewUrl || '');
     const rating = Number(answers.rating || answers.experience_rating || 0);
     const reviewMinRating = safeNumber(design.googleReviewMinRating, 4, 1, 5);
-    if (isSurvey) return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{design.surveySuccessTitle || 'Gracias por tu opinión'}</h1><p>{design.confirmationMessage || 'Tu respuesta fue registrada correctamente.'}</p>{Number.isFinite(rating) && rating > 0 && <p className="success-datetime">Calificación recibida: {rating}/5</p>}<div className="success-actions">{googleReviewUrl ? <a className="btn btn-primary" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">{rating >= reviewMinRating ? 'Dejar reseña en Google' : 'Ir a Google si quieres opinar públicamente'}</a> : null}<Link className="btn btn-outline" to={`/book/${slug}`}>Enviar otra respuesta</Link></div><small className="success-note">La reseña en Google es opcional y queda a tu criterio.</small></section></main>;
+    if (isSurvey) return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><Ga4Tag measurementId={form?.ga4MeasurementId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{design.surveySuccessTitle || 'Gracias por tu opinión'}</h1><p>{design.confirmationMessage || 'Tu respuesta fue registrada correctamente.'}</p>{Number.isFinite(rating) && rating > 0 && <p className="success-datetime">Calificación recibida: {rating}/5</p>}<div className="success-actions">{googleReviewUrl ? <a className="btn btn-primary" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">{rating >= reviewMinRating ? 'Dejar reseña en Google' : 'Ir a Google si quieres opinar públicamente'}</a> : null}<Link className="btn btn-outline" to={`/book/${slug}`}>Enviar otra respuesta</Link></div><small className="success-note">La reseña en Google es opcional y queda a tu criterio.</small></section></main>;
     const svcDuration = serviceId ? (form.servicesConfig || []).find((s) => s.id === serviceId)?.durationMinutes : null;
     const icsDuration = (svcDuration || form.durationMinutes || 60) * 60000;
     const startDate = new Date(submit.data.startsAt!);
@@ -371,7 +372,7 @@ export function PublicReservationPage() {
     const icsBlob = new Blob([icsBody], { type: 'text/calendar;charset=utf-8' });
     const icsUrl = URL.createObjectURL(icsBlob);
     const calendarSaveEnabled = design.calendarSaveEnabled !== 'false';
-    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{submit.data.status === 'pending' ? 'Solicitud recibida' : 'Reserva confirmada'}</h1><p>{design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.'}</p><p className="success-datetime">{new Date(submit.data.startsAt!).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p>{/* Resumen de lo que quedó registrado. Antes la pantalla confirmaba sin mostrar con qué datos:
+    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} /><Ga4Tag measurementId={form?.ga4MeasurementId} /><section className="booking-success"><span className="success-icon">✓</span><h1>{submit.data.status === 'pending' ? 'Solicitud recibida' : 'Reserva confirmada'}</h1><p>{design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.'}</p><p className="success-datetime">{new Date(submit.data.startsAt!).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p>{/* Resumen de lo que quedó registrado. Antes la pantalla confirmaba sin mostrar con qué datos:
     quien se equivocaba en el nombre o en la cantidad de personas no tenía cómo darse cuenta, y el
     error aparecía recién al llegar al local. */}
 <dl className="success-summary">
@@ -394,7 +395,7 @@ export function PublicReservationPage() {
   return <main className={`public-booking layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style} onFocusCapture={markStarted} onPointerDown={markStarted}>
     <MetaPixel pixelId={form.pixelId} />
     <Ga4Tag measurementId={form.ga4MeasurementId} />
-    {(form.metaCapiEnabled || form.ga4MeasurementId) && <div className="public-cookie-banner"><span>🍪</span><div><strong>Este sitio utiliza cookies de medición</strong><p>Usamos Meta Pixel y Google Analytics para medir conversiones y mejorar el servicio. Al continuar, aceptas esta medición anónima. No se comparten datos personales con terceros.</p></div></div>}
+    {(form.metaCapiEnabled || form.ga4MeasurementId) && <div className="public-cookie-banner"><span>🍪</span><div><strong>Medición del formulario</strong><p>Usamos Meta Pixel y Google Analytics para entender conversiones y mejorar este flujo.</p></div></div>}
     {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}
     <div className="public-booking-layout">
       <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div><div><strong>{design.timezoneValue || form.timezone.split('/').pop()?.replaceAll('_', ' ')}</strong><span>{timezoneLabel}</span></div></div>}</section>

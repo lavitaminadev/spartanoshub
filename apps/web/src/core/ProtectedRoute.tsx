@@ -6,7 +6,7 @@ import { Navigate } from 'react-router-dom';
 import type { JSX } from 'react';
 import { useAuth } from './auth';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
-import { getAllowedRolesForPath, isPathEnabled } from './navigation.registry';
+import { getAllowedRolesForPath, isPathEnabled, isRoleAllowedForPath } from './navigation.registry';
 import type { UserRole } from '@espartanos/shared';
 
 /**
@@ -46,7 +46,7 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
     return <Navigate to="/404" replace />;
   }
   const roles = allowedRoles ?? (path ? getAllowedRolesForPath(path) : undefined);
-  if (roles?.length && !roles.includes(user.role)) {
+  if (!isRoleAllowedForPath(roles, user.role)) {
     return <Navigate to="/404" replace />;
   }
   return <>{children}</>;

@@ -32,9 +32,9 @@ export function IntegrationsPage() {
   return (
     <div className="page">
       <h1>Integraciones de conversiones</h1>
-      <p className="page-subtitle">Conexion Meta y reservas para conversiones.</p>
+      <p className="page-subtitle">Conexión Meta y reservas para conversiones.</p>
 
-      <h2>Centro de medicion</h2>
+      <h2>Centro de medición</h2>
       <MeasurementCenter />
 
       <h2>Meta Pixel y Conversions API</h2>

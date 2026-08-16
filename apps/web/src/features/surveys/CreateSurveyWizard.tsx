@@ -1,5 +1,5 @@
 /**
- * @fileoverview Asistente de 4 pasos para crear o editar una encuesta.
+ * @fileoverview Asistente de 5 pasos para crear o editar una encuesta.
  *
  * Reutiliza la misma pantalla para crear y editar: con `?id=<surveyId>` en la URL, precarga
  * la encuesta existente y guarda con `PUT` en vez de `POST`. Esto evita una quinta ruta que el
@@ -183,7 +183,7 @@ function QuestionsEditor({ questions, onChange }: { questions: SurveyQuestion[];
   );
 }
 
-/** Paso 3: canal de distribución y, si aplica, destinatarios explícitos. */
+/** Paso 4: canal de distribución y, si aplica, destinatarios explícitos. */
 function DistributionSelector({
   selected,
   recipients,
@@ -198,7 +198,7 @@ function DistributionSelector({
   const needsRecipients = selected.includes('email');
   return (
     <div className="wizard-step-body">
-      <p className="page-subtitle">Elige uno o más canales. Puedes combinar correo dirigido con un enlace o QR abiertos.</p>
+      <p className="page-subtitle">Define cómo se compartirá. Correo registra destinatarios; enlace y QR quedan como canales de publicación.</p>
       <div className="distribution-options">
         {(Object.entries(DISTRIBUTION_LABELS) as Array<[SurveyDistributionChannel, { label: string; description: string }]>).map(([channel, meta]) => (
           <label key={channel} className={`distribution-option ${selected.includes(channel) ? 'active' : ''}`}>
@@ -225,7 +225,7 @@ function DistributionSelector({
   );
 }
 
-/** Paso 4: resumen antes de guardar como borrador. */
+/** Paso 5: resumen antes de guardar como borrador. */
 function ReviewAndSubmit({ state, isEdit }: { state: WizardState; isEdit: boolean }) {
   const recipientCount = state.recipients.split(',').map((value) => value.trim()).filter(Boolean).length;
   return (
@@ -322,7 +322,7 @@ export function CreateSurveyWizard(): JSX.Element {
       <PageHero
         eyebrow="MEDICIÓN"
         title={editId ? 'Editar encuesta' : 'Nueva encuesta'}
-        subtitle="Define público, preguntas y distribución en cuatro pasos."
+        subtitle="Define público, preguntas, diseño, distribución y revisión."
       />
       <form
         className="wizard-shell"
@@ -373,7 +373,7 @@ export function CreateSurveyWizard(): JSX.Element {
             onRecipientsChange={(recipients) => setState((current) => ({ ...current, recipients }))}
           />
         )}
-        {step === 3 && <ReviewAndSubmit state={state} isEdit={Boolean(editId)} />}
+        {step === 4 && <ReviewAndSubmit state={state} isEdit={Boolean(editId)} />}
 
         {mutation.error && <div className="alert alert-error">{mutation.error.message}</div>}
 
