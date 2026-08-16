@@ -51,6 +51,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Survey.prototype, "distribution", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'ga4_measurement_id', type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], Survey.prototype, "ga4MeasurementId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'response_count', type: 'int', default: 0 }),
     __metadata("design:type", Number)
 ], Survey.prototype, "responseCount", void 0);

@@ -14,6 +14,11 @@ import { SurveyResponse } from './survey-response.entity';
 import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto } from './dto/survey.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 
+function publicSurveyUrl(id: string): string | undefined {
+  const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
+  return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
+}
+
 /**
  * Encuestas propias del producto.
  *
@@ -44,6 +49,8 @@ export class SurveysController {
       createdBy: survey.createdBy,
       recipients: survey.recipients ?? undefined,
       distribution: survey.distribution ?? undefined,
+      publicUrl: publicSurveyUrl(survey.id),
+      ga4MeasurementId: survey.ga4MeasurementId ?? null,
       responses: survey.responseCount,
       designConfig: survey.designConfig ?? undefined,
       googleReview: survey.googleReview ?? undefined,
@@ -90,6 +97,7 @@ export class SurveysController {
       createdBy: req.user.id,
       recipients: dto.recipients ?? null,
       distribution: dto.distribution ?? null,
+      ga4MeasurementId: dto.ga4MeasurementId?.trim() || null,
       responseCount: 0,
       designConfig: dto.designConfig ?? null,
       googleReview: dto.googleReview ?? null,
@@ -116,6 +124,7 @@ export class SurveysController {
     if (dto.status !== undefined) survey.status = dto.status;
     if (dto.recipients !== undefined) survey.recipients = dto.recipients;
     if (dto.distribution !== undefined) survey.distribution = dto.distribution;
+    if (dto.ga4MeasurementId !== undefined) survey.ga4MeasurementId = dto.ga4MeasurementId?.trim() || null;
     if (dto.designConfig !== undefined) survey.designConfig = dto.designConfig;
     if (dto.googleReview !== undefined) survey.googleReview = dto.googleReview;
     return this.toContract(await this.surveys.save(survey));

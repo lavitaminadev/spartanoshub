@@ -70,14 +70,22 @@ export const helpRegistry: Record<string, { title: string; description: string; 
   },
   reservations: {
     title: 'Reservas',
-    description: 'Captación del local: formularios de reserva, encuestas post-visita y reservas recibidas.',
+    description: 'Captación del local: formularios de reserva, disponibilidad y reservas recibidas.',
     sections: [
       { id: 'forms', title: 'Formularios de reserva', description: 'Crea formularios públicos para captar reservas. Cada uno tiene agenda, disponibilidad y enlace propio.' },
-      { id: 'surveys', title: 'Encuestas post-visita', description: 'Crea encuestas separadas para medir experiencia y, si corresponde, derivar a Google Reviews.' },
       { id: 'bookings', title: 'Reservas recibidas', description: 'Lista operativa de reservas confirmadas o pendientes. Marca asistencia con un clic para enviar la señal a Meta.', items: [
         { id: 'attendance', label: 'Asistencia', description: 'Al marcar Asistió se envía un evento de alto valor a Meta que mejora la optimización de campañas.' },
       ]},
       { id: 'availability', title: 'Disponibilidad', description: 'Configura horarios semanales, bloquea días o franjas, y define el tope diario de reservas.' },
+    ],
+  },
+  surveys: {
+    title: 'Encuestas',
+    description: 'Medición independiente para equipo y clientes, con publicación por enlace, QR o correo.',
+    sections: [
+      { id: 'builder', title: 'Creación guiada', description: 'Define público, preguntas, diseño, distribución y revisión antes de publicar.' },
+      { id: 'public', title: 'Enlace público', description: 'El enlace usa el ID estable de la encuesta, por lo que no cambia al editar nombre, diseño o preguntas.' },
+      { id: 'analytics', title: 'Medición', description: 'Las encuestas normales usan GA4 si se configura. Meta CAPI queda reservado para conversiones de reservas.' },
     ],
   },
   settings: {

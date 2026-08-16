@@ -33,6 +33,9 @@ export class Survey {
 
   @Column({ type: 'json', nullable: true }) distribution?: SurveyDistributionChannel[] | null;
 
+  @Column({ name: 'ga4_measurement_id', type: 'varchar', length: 40, nullable: true })
+  ga4MeasurementId?: string | null;
+
   /**
    * Conteo de respuestas, mantenido al guardar cada una.
    *

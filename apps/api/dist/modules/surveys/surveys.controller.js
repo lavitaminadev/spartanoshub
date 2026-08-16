@@ -25,6 +25,10 @@ const user_role_enum_1 = require("../organizations/user-role.enum");
 const survey_entity_1 = require("./survey.entity");
 const survey_response_entity_1 = require("./survey-response.entity");
 const survey_dto_1 = require("./dto/survey.dto");
+function publicSurveyUrl(id) {
+    const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
+    return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
+}
 let SurveysController = class SurveysController {
     constructor(surveys, responses, dataSource) {
         this.surveys = surveys;
@@ -42,6 +46,8 @@ let SurveysController = class SurveysController {
             createdBy: survey.createdBy,
             recipients: survey.recipients ?? undefined,
             distribution: survey.distribution ?? undefined,
+            publicUrl: publicSurveyUrl(survey.id),
+            ga4MeasurementId: survey.ga4MeasurementId ?? null,
             responses: survey.responseCount,
             designConfig: survey.designConfig ?? undefined,
             googleReview: survey.googleReview ?? undefined,
@@ -74,6 +80,7 @@ let SurveysController = class SurveysController {
             createdBy: req.user.id,
             recipients: dto.recipients ?? null,
             distribution: dto.distribution ?? null,
+            ga4MeasurementId: dto.ga4MeasurementId?.trim() || null,
             responseCount: 0,
             designConfig: dto.designConfig ?? null,
             googleReview: dto.googleReview ?? null,
@@ -99,6 +106,8 @@ let SurveysController = class SurveysController {
             survey.recipients = dto.recipients;
         if (dto.distribution !== undefined)
             survey.distribution = dto.distribution;
+        if (dto.ga4MeasurementId !== undefined)
+            survey.ga4MeasurementId = dto.ga4MeasurementId?.trim() || null;
         if (dto.designConfig !== undefined)
             survey.designConfig = dto.designConfig;
         if (dto.googleReview !== undefined)
