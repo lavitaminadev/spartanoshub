@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
+import { hasRoleAccess } from '../../core/role-access';
 import { Modal } from '../../shared/Modal';
 import { EmptyState } from '../../shared/EmptyState';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -98,7 +99,7 @@ function ageInDays(createdAt: string): number {
 export function IntakePage() {
   const currentUser = useAuth((state) => state.user);
   const role = currentUser?.role ?? '';
-  const canCoordinate = COORDINATOR_ROLES.includes(role);
+  const canCoordinate = hasRoleAccess(role, COORDINATOR_ROLES);
   const queryClient = useQueryClient();
 
   const [createOpen, setCreateOpen] = useState(false);

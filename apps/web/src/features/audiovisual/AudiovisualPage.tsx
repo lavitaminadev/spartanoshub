@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
+import { hasRoleAccess } from '../../core/role-access';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
@@ -37,8 +38,8 @@ export function AudiovisualPage() {
   const [sessionForm, setSessionForm] = useState(EMPTY_SESSION);
   const [confirmDialog, setConfirmDialog] = useState<{ type: 'session-confirm' | 'session-complete' | 'moodboard-approve' | null; id: string | null }>({ type: null, id: null });
 
-  const canManageMoodboards = ['admin', 'creative_director', 'av_director'].includes(user?.role ?? '');
-  const canManageSessions = ['admin', 'operations_director', 'av_director'].includes(user?.role ?? '');
+  const canManageMoodboards = hasRoleAccess(user?.role, ['admin', 'creative_director', 'av_director']);
+  const canManageSessions = hasRoleAccess(user?.role, ['admin', 'operations_director', 'av_director']);
   const canSeeMoodboards = user?.role !== 'audiovisual';
 
   const { data: sessionResult, isLoading: sessionsLoading, error: sessionsError } = useQuery<PageResult<Session>>({

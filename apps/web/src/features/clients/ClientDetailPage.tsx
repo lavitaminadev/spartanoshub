@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
+import { hasRoleAccess } from '../../core/role-access';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { statusLabel } from '../../shared/status-labels';
@@ -78,7 +79,7 @@ export function ClientDetailPage() {
   const managersQuery = useQuery<ManagerOption[]>({
     queryKey: ['client-manager-options'],
     queryFn: () => api.get('/clients/options/managers'),
-    enabled: ['admin', 'commercial_director', 'operations_director', 'community_manager'].includes(user?.role ?? ''),
+    enabled: hasRoleAccess(user?.role, ['admin', 'commercial_director', 'operations_director', 'community_manager']),
   });
   const driveMutation = useMutation<DriveResult>({
     mutationFn: () => api.post(`/documents/drive/clients/${id}/bootstrap`),
@@ -98,14 +99,14 @@ export function ClientDetailPage() {
   const availableUd = Math.max(0, ud.contracted - ud.reserved - ud.consumed);
   const usedUd = ud.reserved + ud.consumed;
   const udPercent = ud.contracted > 0 ? Math.min(100, Math.round((usedUd / ud.contracted) * 100)) : 0;
-  const canPrepareDrive = ['admin', 'operations_director'].includes(user?.role ?? '');
-  const canManageClient = ['admin', 'commercial_director', 'operations_director'].includes(user?.role ?? '');
+  const canPrepareDrive = hasRoleAccess(user?.role, ['admin', 'operations_director']);
+  const canManageClient = hasRoleAccess(user?.role, ['admin', 'commercial_director', 'operations_director']);
   // Un acceso hacia un módulo que el usuario no puede abrir termina en 404. Se filtra por lo
   // mismo que decide el menú —alcance de fase, módulo habilitado y permiso— para que la tarjeta
   // no exista si el destino no existe.
   const visibleQuickLinks = quickLinks.filter((item) => {
     const roles = getAllowedRolesForPath(item.to);
-    const allowedByRole = !roles?.length || Boolean(user && roles.includes(user.role));
+    const allowedByRole = !roles?.length || hasRoleAccess(user?.role, roles);
     return allowedByRole && isPathEnabled(item.to, user?.features, user?.permissions, user?.moduleLifecycle);
   });
   /** Módulos de agencia que alimentan los paneles de esta ficha. */

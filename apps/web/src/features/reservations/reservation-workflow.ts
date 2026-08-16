@@ -9,6 +9,7 @@
 
 import type { UserRole } from '@espartanos/shared';
 import type { Reservation, ReservationState } from './types';
+import { hasRoleAccess } from '../../core/role-access';
 
 /** Quién tiene la pelota en una etapa del flujo. */
 export type WorkflowOwner = 'agency' | 'team' | 'client';
@@ -74,12 +75,12 @@ export function nextWorkflowState(state: ReservationState): ReservationState | n
 
 /** Verdadero si `role` puede iniciar un avance de etapa (con o sin requisitos pendientes). */
 export function canRoleAdvanceWorkflow(role: UserRole): boolean {
-  return ADVANCE_ROLES.includes(role);
+  return hasRoleAccess(role, ADVANCE_ROLES);
 }
 
 /** Verdadero si `role` puede avanzar aun con requisitos pendientes, dejando ambar en la auditoría. */
 export function canRoleForceWorkflow(role: UserRole): boolean {
-  return role === FORCE_ADVANCE_ROLE;
+  return hasRoleAccess(role, [FORCE_ADVANCE_ROLE]);
 }
 
 /**

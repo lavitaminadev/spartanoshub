@@ -5,6 +5,7 @@ import { Card } from '../../shared/Card';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { useAuth } from '../../core/auth';
+import { hasRoleAccess } from '../../core/role-access';
 import { Modal } from '../../shared/Modal';
 import { EmptyState } from '../../shared/EmptyState';
 import { statusLabel } from '../../shared/status-labels';
@@ -59,7 +60,7 @@ const EMPTY_OBJECTIVE = {
 
 export function OperationsPage() {
   const { user } = useAuth();
-  const canManageObjectives = ['admin', 'operations_director'].includes(user?.role ?? '');
+  const canManageObjectives = hasRoleAccess(user?.role, ['admin', 'operations_director']);
   const queryClient = useQueryClient();
   const [objectiveOpen, setObjectiveOpen] = useState(false);
   const [objectiveForm, setObjectiveForm] = useState(EMPTY_OBJECTIVE);

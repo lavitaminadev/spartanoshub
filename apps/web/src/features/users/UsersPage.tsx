@@ -146,7 +146,7 @@ export function UsersPage() {
     ? USER_ROLES.filter((role) => !['admin', 'operations_director', 'dev'].includes(role))
     : [...USER_ROLES];
 
-  const canManage = (row: UserRow) => currentUser?.role === 'admin' || !['admin', 'operations_director'].includes(row.role);
+  const canManage = (row: UserRow) => currentUser?.role === 'admin' || currentUser?.role === 'dev' || !['admin', 'operations_director'].includes(row.role);
 
   const openCreateModal = () => {
     setFeedback(null);
