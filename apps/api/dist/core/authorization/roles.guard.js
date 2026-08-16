@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
 const roles_decorator_1 = require("./roles.decorator");
 const public_decorator_1 = require("../auth/decorators/public.decorator");
+const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 let RolesGuard = class RolesGuard {
     constructor(reflector) {
         this.reflector = reflector;
@@ -27,6 +28,8 @@ let RolesGuard = class RolesGuard {
         ]);
         const { user } = context.switchToHttp().getRequest();
         if (!requiredRoles)
+            return true;
+        if (user.role === user_role_enum_1.UserRole.DEV)
             return true;
         return requiredRoles.includes(user.role);
     }
