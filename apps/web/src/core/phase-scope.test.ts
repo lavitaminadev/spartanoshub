@@ -112,12 +112,10 @@ describe('el cargo de desarrollo frente al alcance de fase', () => {
     expect(isModuleInPhaseScope('production', { production: 'development' }, 'dev')).toBe(true);
   });
 
-  it('no queda fuera de ninguna ruta por el estado del módulo', () => {
-    // Acotar la excepción a `development` dejaba a desarrollo fuera de rutas que sí podía usar:
-    // `ProtectedRoute` redirige a `/404` cuando el alcance dice que no, así que un módulo en
-    // mantenimiento sacaba de la aplicación a quien tenía que revisarlo. El servidor sigue
-    // acotando lo suyo; esta capa es navegación, no autorización.
-    expect(isModuleInPhaseScope('production', { production: 'disabled' }, 'dev')).toBe(true);
+  it('no muestra a desarrollo módulos deshabilitados que el servidor rechaza', () => {
+    expect(isModuleInPhaseScope('production', { production: 'disabled' }, 'dev')).toBe(false);
+    // Maintenance sigue visible para todos: es un estado operativo, no una retirada del
+    // producto. La regla compartida lo incluye entre los lifecycles visibles.
     expect(isModuleInPhaseScope('production', { production: 'maintenance' }, 'dev')).toBe(true);
   });
 
