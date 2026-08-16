@@ -440,7 +440,7 @@ let AuthService = AuthService_1 = class AuthService {
         if (!user)
             throw new common_1.BadRequestException('Usuario no disponible');
         if (await bcrypt.compare(dto.newPassword, user.password)) {
-            throw new common_1.BadRequestException('La nueva contraseña debe ser diferente');
+            throw new common_1.BadRequestException('La nueva contraseña debe ser distinta de la temporal que recibiste. Elige una que no hayas usado antes.');
         }
         const missing = onboarding_dto_1.REQUIRED_CONSENTS.filter((key) => !dto.acceptedConsents.includes(key));
         if (missing.length > 0) {

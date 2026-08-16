@@ -621,7 +621,17 @@ export class AuthService {
     });
     if (!user) throw new BadRequestException('Usuario no disponible');
     if (await bcrypt.compare(dto.newPassword, user.password)) {
-      throw new BadRequestException('La nueva contraseña debe ser diferente');
+      /*
+       * El mensaje nombra la contraseña temporal a propósito.
+       *
+       * «Debe ser diferente» no dice diferente de qué, y en el primer acceso la persona acaba de
+       * recibir una clave por correo: escribe esa, que es la única que recuerda, la ve rechazada
+       * sin entender por qué, y vuelve a intentar lo mismo. La activación nunca se completa y la
+       * pantalla la devuelve al inicio, que es como se produce la sensación de quedar pegado.
+       */
+      throw new BadRequestException(
+        'La nueva contraseña debe ser distinta de la temporal que recibiste. Elige una que no hayas usado antes.',
+      );
     }
 
     const missing = REQUIRED_CONSENTS.filter((key) => !dto.acceptedConsents.includes(key));
