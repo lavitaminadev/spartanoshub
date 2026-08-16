@@ -35,6 +35,14 @@ export class OnboardingProfileDto {
  * justificar más tarde.
  */
 export class CompleteOnboardingDto {
+  /**
+   * Version del texto que la persona tuvo a la vista.
+   *
+   * Opcional para no romper a un cliente que todavia no la envia. Cuando llega, el servidor
+   * rechaza guardar el consentimiento si no coincide con la vigente.
+   */
+  @IsOptional() @IsString() @MaxLength(20) termsVersion?: string;
+
   @IsString() @MinLength(8) @MaxLength(128) @Matches(PASSWORD_REGEX, { message: PASSWORD_MSG })
   newPassword: string;
 
