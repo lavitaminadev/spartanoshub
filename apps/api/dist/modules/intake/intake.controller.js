@@ -54,15 +54,15 @@ let IntakeController = class IntakeController {
     }
     async findOne(req, id) {
         const allowed = await this.clientScope(req);
-        return this.intake.findOne(req.organizationId, id, allowed);
+        return this.intake.findOne(req.organizationId, id, allowed, { id: req.user.id, role: req.user.role });
     }
     async update(req, id, dto) {
         const allowed = await this.clientScope(req);
-        return this.intake.update(req.organizationId, id, dto, allowed);
+        return this.intake.update(req.organizationId, id, dto, allowed, { id: req.user.id, role: req.user.role });
     }
     async convert(req, id, dto) {
         const allowed = await this.clientScope(req);
-        return this.intake.convert(req.organizationId, id, dto, allowed);
+        return this.intake.convert(req.organizationId, id, dto, allowed, { id: req.user.id, role: req.user.role });
     }
 };
 exports.IntakeController = IntakeController;

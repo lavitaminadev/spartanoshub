@@ -47,6 +47,7 @@ exports.AREA_SCOPED_ROLES = new Set([
     user_role_enum_1.UserRole.AV_DIRECTOR,
 ]);
 const UNRESTRICTED_AREA_ROLES = new Set([
+    user_role_enum_1.UserRole.DEV,
     user_role_enum_1.UserRole.ADMIN,
     user_role_enum_1.UserRole.OPERATIONS_DIRECTOR,
     user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR,
@@ -133,17 +134,19 @@ let IntakeService = class IntakeService {
             { ...base, assignedTo: viewer.id, ...(asked ? { area: asked } : {}) },
         ];
     }
-    async findOne(organizationId, id, allowedClientIds) {
+    async findOne(organizationId, id, allowedClientIds, viewer) {
         const request = await this.requests.findOne({ where: { id, organizationId }, relations: ['client', 'requester', 'assignee'] });
         if (!request)
             throw new common_1.NotFoundException('Solicitud no encontrada');
         if (allowedClientIds !== undefined && !allowedClientIds.includes(request.clientId)) {
             throw new common_1.NotFoundException('Solicitud no encontrada');
         }
+        this.assertAreaAccess(request, viewer);
         return request;
     }
-    async update(organizationId, id, dto, allowedClientIds) {
-        const request = await this.findOne(organizationId, id, allowedClientIds);
+    async update(organizationId, id, dto, allowedClientIds, viewer) {
+        const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
+        this.assertCanCoordinate(request, viewer);
         if (dto.status && dto.status !== request.status) {
             const allowed = TRANSITIONS[request.status] ?? [];
             if (!allowed.includes(dto.status)) {
@@ -179,8 +182,9 @@ let IntakeService = class IntakeService {
             request.operationalFields = dto.operationalFields;
         return this.requests.save(request);
     }
-    async convert(organizationId, id, dto, allowedClientIds) {
-        const request = await this.findOne(organizationId, id, allowedClientIds);
+    async convert(organizationId, id, dto, allowedClientIds, viewer) {
+        const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
+        this.assertCanCoordinate(request, viewer);
         if (request.status !== work_request_entity_1.WorkRequestStatus.ACCEPTED) {
             throw new common_1.ConflictException('Solo una solicitud aceptada se puede convertir');
         }
@@ -189,6 +193,24 @@ let IntakeService = class IntakeService {
         if (request.area === work_request_entity_1.WorkRequestArea.AUDIOVISUAL)
             return this.convertToSession(organizationId, request, dto);
         throw new common_1.ConflictException('Una solicitud de community todavía no se convierte: falta definir su destino en la parrilla de contenido');
+    }
+    assertAreaAccess(request, viewer) {
+        if (!viewer || UNRESTRICTED_AREA_ROLES.has(viewer.role))
+            return;
+        if (request.requestedBy === viewer.id || request.assignedTo === viewer.id)
+            return;
+        if ((AREAS_BY_ROLE[viewer.role] ?? []).includes(request.area))
+            return;
+        throw new common_1.NotFoundException('Solicitud no encontrada');
+    }
+    assertCanCoordinate(request, viewer) {
+        if (!viewer || UNRESTRICTED_AREA_ROLES.has(viewer.role))
+            return;
+        if (request.area === work_request_entity_1.WorkRequestArea.DESIGN && viewer.role === user_role_enum_1.UserRole.ART_DIRECTOR)
+            return;
+        if (request.area === work_request_entity_1.WorkRequestArea.AUDIOVISUAL && viewer.role === user_role_enum_1.UserRole.AV_DIRECTOR)
+            return;
+        throw new common_1.NotFoundException('Solicitud no encontrada');
     }
     async convertToPieces(organizationId, request, dto) {
         if (dto.session)
