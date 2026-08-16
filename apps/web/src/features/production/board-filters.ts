@@ -88,7 +88,7 @@ export function applyBoardFilters<T extends BoardItem>(
     }
 
     if (filters.search) {
-      const texto = String(item.title ?? '').toLowerCase();
+      const texto = (item.title ?? '').toLowerCase();
       if (!texto.includes(filters.search.trim().toLowerCase())) return false;
     }
     return true;
