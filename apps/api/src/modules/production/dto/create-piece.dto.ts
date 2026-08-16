@@ -1,5 +1,4 @@
-import { IsString, IsOptional, IsUUID, IsInt, Min, Max, MaxLength, IsEnum, IsDateString, IsArray } from 'class-validator';
-import { PieceType } from '../piece-type.enum';
+import { IsString, IsOptional, IsUUID, IsInt, Min, Max, MaxLength, IsDateString, IsArray } from 'class-validator';
 
 export class CreatePieceDto {
   @IsUUID() clientId: string;
