@@ -18,7 +18,7 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query';
-import { readOffline, writeOffline } from './offline-store';
+import { readOffline, removeOffline, writeOffline } from './offline-store';
 
 /** Clave del almacén donde vive la copia de la caché. */
 const CACHE_KEY = 'query-cache';
@@ -67,6 +67,30 @@ function snapshot(queryClient: QueryClient): PersistedQuery[] {
 }
 
 /**
+ * Descarta lo guardado, y también lo que está en memoria.
+ *
+ * Se llama al cerrar sesión. Sin esto, la caché sobrevivía al cambio de cuenta: la persona
+ * siguiente entraba y la aplicación le restauraba los datos de la anterior —sus clientes, sus
+ * piezas, lo que hubiera quedado guardado— hasta que cada consulta se revalidara. No es solo una
+ * pantalla confusa: es mostrarle a alguien información de otra cuenta.
+ *
+ * Se limpian las dos capas porque cada una sola no alcanza: borrar el disco deja lo que ya está
+ * en memoria, y borrar la memoria deja lo que se restaura en la siguiente carga.
+ */
+export async function clearQueryCache(): Promise<void> {
+  activeClient?.clear();
+  await removeOffline(CACHE_KEY);
+}
+
+/**
+ * Cliente en uso, registrado al arrancar la persistencia.
+ *
+ * Existe para que cerrar sesión pueda vaciar la caché sin que el almacén de autenticación reciba
+ * el cliente por parámetro y haya que arrastrarlo por toda la aplicación.
+ */
+let activeClient: QueryClient | undefined;
+
+/**
  * Vuelca en la caché lo guardado en la visita anterior.
  *
  * Se llama antes del primer render. Los datos entran con su fecha original, de modo que
@@ -88,6 +112,7 @@ export async function restoreQueryCache(queryClient: QueryClient): Promise<void>
  * @returns Función que detiene el guardado y cancela la escritura pendiente.
  */
 export function persistQueryCache(queryClient: QueryClient): () => void {
+  activeClient = queryClient;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const unsubscribe = queryClient.getQueryCache().subscribe(() => {

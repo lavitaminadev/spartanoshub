@@ -96,8 +96,14 @@ let UpdateUserUseCase = class UpdateUserUseCase {
         }
         if (typeof data.phone === 'string')
             user.phone = data.phone.replace(/[^\d+]/g, '') || undefined;
-        if (typeof data.isActive === 'boolean')
+        if (typeof data.isActive === 'boolean') {
+            const desactivando = user.isActive && data.isActive === false;
             user.isActive = data.isActive;
+            if (desactivando) {
+                user.passwordChangedAt = new Date();
+                user.refreshToken = null;
+            }
+        }
         if (data.role)
             user.role = data.role;
         if (data.password) {

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { refetchWhenIdle } from '../../core/refetch-policy';
 import {
   MODULE_LIFECYCLE_LABELS,
   MODULE_LIFECYCLE_STATUSES,
@@ -48,7 +49,7 @@ export function GovernancePage() {
   const [archivePodId, setArchivePodId] = useState<string | null>(null);
   const [moduleFilter, setModuleFilter] = useState<'all' | ModuleLifecycleStatus>('all');
 
-  const workflowsQuery = useQuery<Workflow[]>({ queryKey: ['workflows'], queryFn: () => api.get('/workflows'), refetchInterval: 60_000 });
+  const workflowsQuery = useQuery<Workflow[]>({ queryKey: ['workflows'], queryFn: () => api.get('/workflows'), refetchInterval: refetchWhenIdle(60_000) });
   const podsQuery = useQuery<Pod[]>({ queryKey: ['pods'], queryFn: () => api.get('/pods') });
   const usersQuery = useQuery<UserOption[]>({ queryKey: ['governance-users'], queryFn: () => api.get('/users?isActive=true') });
   const clientsQuery = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });

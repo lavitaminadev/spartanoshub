@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
+import { refetchWhenIdle } from '../../core/refetch-policy';
 
 /**
  * Estado de la cola de conversiones a Meta.
@@ -39,7 +40,7 @@ export function ConversionQueue() {
   const { data, isLoading, error, refetch, isFetching } = useQuery<OutboxState>({
     queryKey: ['meta-conversion-outbox'],
     queryFn: () => api.get('/integrations/meta/conversions/outbox'),
-    refetchInterval: 60_000,
+    refetchInterval: refetchWhenIdle(60_000),
   });
 
   if (isLoading) return null;

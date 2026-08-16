@@ -63,7 +63,27 @@ export class UpdateUserUseCase {
       user.email = email;
     }
     if (typeof data.phone === 'string') user.phone = data.phone.replace(/[^\d+]/g, '') || undefined;
-    if (typeof data.isActive === 'boolean') user.isActive = data.isActive;
+    /*
+     * Desactivar tiene que echar a quien esté dentro, no solo impedir el próximo ingreso.
+     *
+     * `validateUser` filtra por `isActive`, así que la cuenta no puede volver a entrar. Pero el
+     * token que ya tenía en el navegador seguía siendo válido: quien fue desactivado continuaba
+     * trabajando con normalidad hasta que su sesión venciera sola, que es justo lo contrario de
+     * lo que espera quien aprieta «desactivar» —y el caso en que más urge que surta efecto es
+     * cuando alguien deja la agencia.
+     *
+     * `passwordChangedAt` es la marca contra la que `JwtStrategy` compara cada access token, así
+     * que moverla los invalida todos de inmediato. Es el mismo mecanismo que ya usaba el cambio
+     * de contraseña; lo que faltaba era aplicarlo también acá.
+     */
+    if (typeof data.isActive === 'boolean') {
+      const desactivando = user.isActive && data.isActive === false;
+      user.isActive = data.isActive;
+      if (desactivando) {
+        user.passwordChangedAt = new Date();
+        user.refreshToken = null;
+      }
+    }
     if (data.role) user.role = data.role;
     if (data.password) {
       user.password = await bcrypt.hash(data.password, Number(process.env.BCRYPT_ROUNDS || 10));

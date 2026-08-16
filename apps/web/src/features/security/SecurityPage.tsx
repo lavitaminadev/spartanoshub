@@ -8,6 +8,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { refetchWhenIdle } from '../../core/refetch-policy';
 import { api } from '../../core/api';
 import { useOrganizationSettings } from '../../core/organization-settings';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -80,7 +81,7 @@ export function SecurityPage() {
   const healthQuery = useQuery<HealthDetails>({
     queryKey: ['security-health'],
     queryFn: () => api.get('/health/details'),
-    refetchInterval: 60_000,
+    refetchInterval: refetchWhenIdle(60_000),
   });
   const anonymizationsQuery = useQuery<AnonymizationRow[]>({
     queryKey: ['security-anonymizations'],
