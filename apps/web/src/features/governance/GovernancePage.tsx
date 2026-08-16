@@ -56,8 +56,8 @@ export function GovernancePage() {
   const podsQuery = useQuery<Pod[]>({ queryKey: ['pods'], queryFn: () => api.get('/pods') });
   const usersQuery = useQuery<UserOption[]>({ queryKey: ['governance-users'], queryFn: () => api.get('/users?isActive=true') });
   const clientsQuery = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
-  const featuresQuery = useQuery<{ features: OrganizationFeatures }>({ queryKey: ['organization-features'], queryFn: () => api.get('/organizations/features') });
-  const settingsQuery = useQuery<OrganizationSetting[]>({ queryKey: ['organization-settings'], queryFn: () => api.get('/settings') });
+  const featuresQuery = useQuery<{ features: OrganizationFeatures }>({ queryKey: ['organization-features'], queryFn: () => api.get('/organizations/features'), enabled: canManageModules });
+  const settingsQuery = useQuery<OrganizationSetting[]>({ queryKey: ['organization-settings'], queryFn: () => api.get('/settings'), enabled: canManageModules });
   const clients = (clientsQuery.data as { data?: ClientOption[] } | undefined)?.data ?? [];
 
   useEffect(() => {
@@ -180,10 +180,10 @@ export function GovernancePage() {
     };
   }, [workflowsQuery.data]);
 
-  if (workflowsQuery.isLoading || podsQuery.isLoading || usersQuery.isLoading || clientsQuery.isLoading || featuresQuery.isLoading || settingsQuery.isLoading) {
+  if (workflowsQuery.isLoading || podsQuery.isLoading || usersQuery.isLoading || clientsQuery.isLoading || (canManageModules && featuresQuery.isLoading) || (canManageModules && settingsQuery.isLoading)) {
     return <LoadingSpinner text="Preparando gobernanza operativa..." />;
   }
-  const loadError = workflowsQuery.error || podsQuery.error || usersQuery.error || clientsQuery.error || featuresQuery.error || settingsQuery.error;
+  const loadError = workflowsQuery.error || podsQuery.error || usersQuery.error || clientsQuery.error || (canManageModules && featuresQuery.error) || (canManageModules && settingsQuery.error);
   if (loadError) return <QueryErrorState title="No pudimos abrir la gobernanza" message={loadError.message} />;
 
   return <div className="page governance-page">
@@ -191,7 +191,7 @@ export function GovernancePage() {
       eyebrow="CONTROL ADMINISTRATIVO"
       title="La operación se adapta sin perder estructura."
       subtitle="Reglas y estructura del equipo."
-      aside={<div className="page-hero-stats"><span><small>Flujos</small><strong>{workflowsQuery.data?.length ?? 0}</strong></span><span><small>Pods activos</small><strong>{podsQuery.data?.filter((pod) => pod.status === 'active').length ?? 0}</strong></span><span><small>Módulos activos</small><strong>{moduleSummary.active ?? 0}</strong></span></div>}
+      aside={<div className="page-hero-stats"><span><small>Flujos</small><strong>{workflowsQuery.data?.length ?? 0}</strong></span><span><small>Pods activos</small><strong>{podsQuery.data?.filter((pod) => pod.status === 'active').length ?? 0}</strong></span>{canManageModules && <span><small>Módulos activos</small><strong>{moduleSummary.active ?? 0}</strong></span>}</div>}
     />
     <nav className="governance-tabs"><button className={tab === 'workflows' ? 'active' : ''} onClick={() => setTab('workflows')}><span>01</span><strong>Flujos operativos</strong><small>Etapas, responsables y SLA</small></button><button className={tab === 'pods' ? 'active' : ''} onClick={() => setTab('pods')}><span>02</span><strong>Pods y capacidad</strong><small>Equipo y cartera de cuentas</small></button>{canManageModules && <button className={tab === 'modules' ? 'active' : ''} onClick={() => setTab('modules')}><span>03</span><strong>Centro de módulos</strong><small>Ciclo de vida y acceso por organización</small></button>}<button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}><span>04</span><strong>Auditoría</strong><small>Cambios, actores y evidencia</small></button></nav>
     {feedback && <div className={`alert alert-${feedback.tone}`}>{feedback.text}</div>}
