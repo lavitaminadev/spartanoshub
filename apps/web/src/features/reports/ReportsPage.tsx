@@ -4,6 +4,8 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { MonthlyReportsPanel } from './MonthlyReportsPanel';
 import { PageHero } from '../../shared/PageHero';
 import { QueryErrorState } from '../../shared/QueryErrorState';
+import { useAuth } from '../../core/auth';
+import { isModuleInPhaseScope } from '../../core/phase-scope';
 
 interface ReportData {
   totalRevenue: number;
@@ -17,6 +19,7 @@ const money = (value: number) => new Intl.NumberFormat('es-CL', { style: 'curren
 const monthLabel = (value: string) => new Date(`${value}-01T12:00:00`).toLocaleDateString('es-CL', { month: 'short', year: '2-digit' }).replace('.', '');
 
 export function ReportsPage() {
+  const user = useAuth((state) => state.user);
   const reportQuery = useQuery<ReportData>({ queryKey: ['reports'], queryFn: () => api.get('/reporting/reports') });
   if (reportQuery.isLoading) return <LoadingSpinner text="Construyendo reporte operativo..." />;
   if (reportQuery.error) return <QueryErrorState title="No pudimos construir el reporte" message={reportQuery.error.message} onRetry={() => reportQuery.refetch()} />;
@@ -31,6 +34,8 @@ export function ReportsPage() {
   const current = monthly.at(-1);
   const previous = monthly.at(-2);
   const revenueChange = current && previous && previous.revenue > 0 ? Math.round((current.revenue - previous.revenue) * 100 / previous.revenue) : null;
+  const udBudgetVisible = isModuleInPhaseScope('udBudget', user?.moduleLifecycle, user?.role)
+    && (user?.permissions ? user.permissions.udBudget !== undefined && user.permissions.udBudget !== 'none' : user?.features ? user.features.udBudget !== false : true);
 
   return (
     <div className="page reports-page">
@@ -44,20 +49,20 @@ export function ReportsPage() {
       <section className="report-kpis" aria-label="Indicadores principales">
         <article className="report-kpi-primary"><span>Ingresos pagados</span><strong>{money(data.totalRevenue)}</strong><small>{revenueChange == null ? 'Sin base mensual para comparar' : `${revenueChange >= 0 ? '+' : ''}${revenueChange}% respecto al mes anterior`}</small></article>
         <article><span>Piezas activas</span><strong>{data.activeProjects}</strong><small>En producción o revisión</small></article>
-        <article><span>Capacidad promedio</span><strong>{data.avgUdPerClient} <i>UD</i></strong><small>Presupuesto base por cliente</small></article>
+        {udBudgetVisible && <article><span>Capacidad promedio</span><strong>{data.avgUdPerClient} <i>UD</i></strong><small>Presupuesto base por cliente</small></article>}
       </section>
 
       <div className="report-layout">
-        <section className="report-panel report-trend"><header><div><span className="page-eyebrow">EVOLUCIÓN</span><h2>Actividad mensual</h2></div><div className="report-legend"><span><i className="revenue" />Ingresos</span><span><i className="ud" />UD producidas</span></div></header>
-          {monthly.length ? <div className="monthly-tracks">{monthly.map((row) => <article key={row.month}><time>{monthLabel(row.month)}</time><div className="metric-track"><span className="revenue" style={{ width: `${Math.max(row.revenue ? 3 : 0, row.revenue * 100 / maxRevenue)}%` }} /><b>{money(row.revenue)}</b></div><div className="metric-track"><span className="ud" style={{ width: `${Math.max(row.ud ? 3 : 0, row.ud * 100 / maxUd)}%` }} /><b>{row.ud} UD</b></div></article>)}</div> : <div className="panel-empty"><strong>Aún no existe una serie mensual</strong><span>Se formará automáticamente al registrar entregas e ingresos pagados.</span></div>}
-          <p className="data-note">Ingresos y UD usan escalas independientes para evitar comparaciones visuales engañosas.</p>
+        <section className="report-panel report-trend"><header><div><span className="page-eyebrow">EVOLUCIÓN</span><h2>Actividad mensual</h2></div><div className="report-legend"><span><i className="revenue" />Ingresos</span>{udBudgetVisible && <span><i className="ud" />UD producidas</span>}</div></header>
+          {monthly.length ? <div className="monthly-tracks">{monthly.map((row) => <article key={row.month}><time>{monthLabel(row.month)}</time><div className="metric-track"><span className="revenue" style={{ width: `${Math.max(row.revenue ? 3 : 0, row.revenue * 100 / maxRevenue)}%` }} /><b>{money(row.revenue)}</b></div>{udBudgetVisible && <div className="metric-track"><span className="ud" style={{ width: `${Math.max(row.ud ? 3 : 0, row.ud * 100 / maxUd)}%` }} /><b>{row.ud} UD</b></div>}</article>)}</div> : <div className="panel-empty"><strong>Aún no existe una serie mensual</strong><span>Se formará automáticamente al registrar entregas e ingresos pagados.</span></div>}
+          {udBudgetVisible && <p className="data-note">Ingresos y UD usan escalas independientes para evitar comparaciones visuales engañosas.</p>}
         </section>
 
         <section className="report-panel top-clients"><header><div><span className="page-eyebrow">CONCENTRACIÓN</span><h2>Clientes por ingresos</h2></div></header>
           {topClients.length ? <div className="ranked-clients">{topClients.map((client, index) => <article key={`${client.name}-${index}`}><b>{String(index + 1).padStart(2, '0')}</b><div><span><strong>{client.name}</strong><small>{money(client.revenue)}</small></span><i><em style={{ width: `${client.revenue * 100 / maxClientRevenue}%` }} /></i></div></article>)}</div> : <div className="panel-empty"><strong>Sin ingresos atribuidos</strong><span>Los clientes aparecerán al existir registros pagados.</span></div>}
         </section>
       </div>
-      <MonthlyReportsPanel />
+      <MonthlyReportsPanel showUdMetrics={udBudgetVisible} />
     </div>
   );
 }

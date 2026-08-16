@@ -165,7 +165,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const clients = Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
   // El catálogo de Pixels está restringido a administración, operaciones y dirección
   // comercial; el resto de los roles no ve la etiqueta de estado.
-  const canReadPixels = !clientView && ['admin', 'operations_director', 'commercial_director'].includes(user?.role ?? '');
+  const canReadPixels = !clientView && ['admin', 'operations_director', 'commercial_director', 'dev'].includes(user?.role ?? '');
   const { data: pixelCatalog } = useQuery<PixelCatalog>({ queryKey: ['meta-client-pixels'], queryFn: () => api.get('/integrations/meta/client-pixels/catalog'), enabled: canReadPixels });
   const pixelByClient = new Map((pixelCatalog?.bindings ?? []).map((binding) => [binding.clientId, binding]));
   const selectedPixel = pixelByClient.get(formData.clientId);
@@ -348,8 +348,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     mutationFn: ({ id, active }: { id: string; active: boolean }) => api.patch(`/reservations/coupons/${id}`, { active }),
     onSuccess: (_data, vars) => { qc.invalidateQueries({ queryKey: ['coupons'] }); triggerToast(vars.active ? 'Cupón activado' : 'Cupón desactivado'); },
   });
-  const { data: couponUsagesData = [] } = useQuery<Reservation[]>({ queryKey: ['coupon-usages', viewingCouponCode], queryFn: () => api.get(`/reservations?couponCode=${encodeURIComponent(viewingCouponCode)}&pageSize=100`), enabled: Boolean(viewingCouponCode) });
-  const couponUsages = Array.isArray(couponUsagesData) ? couponUsagesData : [];
+  const { data: couponUsagesData } = useQuery<ReservationPage>({ queryKey: ['coupon-usages', viewingCouponCode], queryFn: () => api.get(`/reservations?couponCode=${encodeURIComponent(viewingCouponCode)}&pageSize=100`), enabled: Boolean(viewingCouponCode) });
+  const couponUsages = Array.isArray(couponUsagesData?.items) ? couponUsagesData.items : [];
   const filteredCoupons = coupons.filter((coupon) => {
     const needle = couponSearch.trim().toLocaleLowerCase('es');
     return !needle || coupon.code.toLocaleLowerCase('es').includes(needle);
