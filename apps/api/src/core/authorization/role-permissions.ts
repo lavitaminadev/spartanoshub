@@ -21,9 +21,17 @@ const TEAM_BASELINE: RoleModuleMap = {
 };
 
 export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
-  [UserRole.ADMIN]: Object.fromEntries(
-    ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage' as PermissionLevel]),
-  ) as RoleModuleMap,
+  /**
+   * Administración resuelve el uso cotidiano del sistema, no la configuración del producto.
+   * La matriz base, módulos y lifecycle quedan reservados para Desarrollo.
+   */
+  [UserRole.ADMIN]: {
+    dashboard: 'view',
+    users: 'manage',
+    settings: 'manage',
+    integrations: 'manage',
+    governance: 'view',
+  },
 
   /**
    * Cargo de desarrollo: una sola persona por organización. Es la única que ve y opera los

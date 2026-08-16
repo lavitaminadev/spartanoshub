@@ -227,11 +227,11 @@ export function AdminPage() {
       <span className="page-eyebrow">ACCESO RÁPIDO</span>
       <div className="admin-quick-grid">
         <Link to="/users" className="admin-quick-card"><strong>Usuarios</strong><small>Gestionar personas y cargos</small></Link>
-        <Link to="/governance" className="admin-quick-card"><strong>Operación y cuentas</strong><small>{canManageProductAccess ? 'Flujos, pods y estructura' : 'Flujos y pods'}</small></Link>
-        <Link to="/settings" className="admin-quick-card"><strong>Mi configuración</strong><small>Perfil, agencia y accesos rápidos</small></Link>
         <Link to="/security" className="admin-quick-card"><strong>Seguridad</strong><small>Salud y auditoría</small></Link>
         <Link to="/integrations" className="admin-quick-card"><strong>Integraciones</strong><small>Meta, Cloudinary, GA4</small></Link>
-        <Link to="/operations" className="admin-quick-card"><strong>Operaciones</strong><small>Pods y capacidad</small></Link>
+        {canManageProductAccess && <Link to="/governance" className="admin-quick-card"><strong>Gobierno del producto</strong><small>Flujos, pods y módulos</small></Link>}
+        {canManageProductAccess && <Link to="/settings" className="admin-quick-card"><strong>Configuración técnica</strong><small>Parámetros del producto</small></Link>}
+        {canManageProductAccess && <Link to="/operations" className="admin-quick-card"><strong>Estado del sistema</strong><small>Diagnóstico y capacidad</small></Link>}
       </div>
     </div>
     <nav className="governance-tabs">

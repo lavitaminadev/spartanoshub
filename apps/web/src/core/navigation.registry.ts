@@ -80,9 +80,10 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
   {
     id: 'admin',
     label: 'Administración',
-    // Panel principal + páginas que usan roles no-admin (operations_director necesita Users, Settings, Governance, Operations).
-    // Integraciones, Conocimiento y Seguridad se acceden desde el panel /admin (menos frecuente).
-    paths: ['/admin', '/users', '/governance', '/settings', '/operations'],
+    // Administración reúne el trabajo diario: usuarios, seguridad, privacidad e integraciones.
+    // Gobierno, configuración técnica y estado del sistema aparecen en este mismo grupo solo
+    // para Desarrollo.
+    paths: ['/admin', '/users', '/security', '/integrations', '/governance', '/settings', '/operations'],
   },
 ];
 
