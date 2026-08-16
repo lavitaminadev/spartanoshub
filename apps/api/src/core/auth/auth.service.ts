@@ -29,8 +29,19 @@ const REFRESH_TOKEN_EXPIRES_IN = config.jwt.refreshExpiresIn as JwtSignOptions['
 /** Intentos fallidos consecutivos antes de bloquear la cuenta. */
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 
-/** Duración del bloqueo. Temporal para no convertir el ataque en una denegación de servicio. */
-const LOCKOUT_MINUTES = 15;
+/**
+ * Duración del bloqueo. Temporal para no convertir el ataque en una denegación de servicio.
+ *
+ * Cinco minutos y no quince. El límite existe para frenar a quien prueba contraseñas en serie, y
+ * a esa escala la diferencia es irrelevante: cinco intentos cada cinco minutos son sesenta por
+ * hora, un ritmo con el que nadie adivina una contraseña de ocho caracteres con mayúscula,
+ * minúscula y número.
+ *
+ * A quien sí castigaba quince minutos era a la persona que se equivocó de contraseña cinco veces
+ * seguidas, que es lo que pasa de verdad todos los días. Un cuarto de hora sin poder trabajar por
+ * escribir mal su clave es una penalización que no protege de nada.
+ */
+const LOCKOUT_MINUTES = 5;
 
 /**
  * Hash de descarte con el que se compara cuando el correo no existe.
