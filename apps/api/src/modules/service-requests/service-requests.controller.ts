@@ -5,9 +5,11 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { Public } from '../../core/auth/decorators/public.decorator';
+import { Roles } from '../../core/authorization/roles.decorator';
 import { ServiceRequestsService } from './service-requests.service';
 import { CreateServiceRequestDto, UpdateServiceRequestDto } from './dto/service-request.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
+import { UserRole } from '../organizations/user-role.enum';
 
 /**
  * Canal de ejercicio de derechos sobre datos personales.
@@ -20,7 +22,10 @@ import type { AuthenticatedRequest } from '../../shared/types/request';
  */
 @ApiTags('Solicitudes')
 @Controller('service-requests')
-@ModuleScope('governance')
+// El panel forma parte de Seguridad y privacidad; Gobernanza puede estar apagada sin que
+// Administración pierda la capacidad de responder solicitudes de datos personales.
+@ModuleScope('settings')
+@Roles(UserRole.ADMIN, UserRole.DEV)
 export class ServiceRequestsController {
   constructor(private readonly service: ServiceRequestsService) {}
 
@@ -113,7 +118,7 @@ export class ServiceRequestsController {
   /** Panel de administración: lista de solicitudes. */
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
-  @RequiresPermission('governance', 'view')
+  @RequiresPermission('settings', 'view')
   @Get()
   list(@Req() req: AuthenticatedRequest, @Query('status') status?: string, @Query('type') type?: string) {
     return this.service.list(req.organizationId!, { status, type });
@@ -121,7 +126,7 @@ export class ServiceRequestsController {
 
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
-  @RequiresPermission('governance', 'view')
+  @RequiresPermission('settings', 'view')
   @Get(':id')
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.getOne(req.organizationId!, id);
@@ -129,7 +134,7 @@ export class ServiceRequestsController {
 
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
-  @RequiresPermission('governance', 'edit')
+  @RequiresPermission('settings', 'edit')
   @Put(':id')
   update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateServiceRequestDto) {
     return this.service.update(req.organizationId!, id, { id: req.user.id, name: req.user.name }, dto);
@@ -137,7 +142,7 @@ export class ServiceRequestsController {
 
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
-  @RequiresPermission('governance', 'manage')
+  @RequiresPermission('settings', 'manage')
   @Post(':id/anonymize')
   anonymize(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.anonymizeByIdentity(req.organizationId!, id, { id: req.user.id, name: req.user.name });

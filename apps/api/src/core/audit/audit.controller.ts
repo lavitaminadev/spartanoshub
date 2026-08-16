@@ -11,7 +11,9 @@ import { ModuleScope } from '../authorization/module-scope.decorator';
 // La dirección comercial opera el CRM a diario, así que necesita ver el historial de sus
 // propios registros: sin eso, cada duda sobre quién cambió un lead escala a administración.
 @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
-@ModuleScope('governance')
+// Auditoría alimenta Seguridad y la administración cotidiana. No puede depender de
+// Gobernanza, que es una vista operativa opcional y puede estar apagada por organización.
+@ModuleScope('settings')
 export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
