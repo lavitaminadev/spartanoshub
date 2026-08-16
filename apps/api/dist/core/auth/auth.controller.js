@@ -167,7 +167,7 @@ let AuthController = class AuthController {
         return result;
     }
     acceptTerms(user, dto, ipAddress) {
-        return this.auth.acceptCurrentTerms(user.id, dto.acceptedConsents, ipAddress);
+        return this.auth.acceptCurrentTerms(user.id, dto.acceptedConsents, ipAddress, dto.termsVersion);
     }
 };
 exports.AuthController = AuthController;

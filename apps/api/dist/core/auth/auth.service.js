@@ -312,7 +312,7 @@ let AuthService = AuthService_1 = class AuthService {
         }
         return defaults;
     }
-    async acceptCurrentTerms(userId, acceptedConsents, ipAddress) {
+    async acceptCurrentTerms(userId, acceptedConsents, ipAddress, shownVersion) {
         const user = await this.userRepo.findOne({ where: { id: userId, isActive: true }, select: ['id', 'organizationId'] });
         if (!user)
             throw new common_1.BadRequestException('Usuario no disponible');
@@ -320,6 +320,9 @@ let AuthService = AuthService_1 = class AuthService {
         if (missing.length > 0)
             throw new common_1.BadRequestException('Debes aceptar todas las condiciones para continuar');
         const version = String(await this.parameters.get('compliance.terms_version', null, null, user.organizationId) ?? onboarding_dto_1.TERMS_VERSION);
+        if (shownVersion && shownVersion !== version) {
+            throw new common_1.ConflictException('Las condiciones fueron actualizadas. Recarga la página para revisar la versión vigente.');
+        }
         const now = new Date();
         await this.userRepo.manager.transaction(async (manager) => {
             await manager.update(user_entity_1.User, userId, { termsAcceptedAt: now, termsVersion: String(version) });
@@ -427,7 +430,7 @@ let AuthService = AuthService_1 = class AuthService {
         return { changed: true };
     }
     async completeOnboarding(userId, sessionId, dto, ipAddress) {
-        if (!sessionId || !(await this.sessions.hasRecentAuth(sessionId))) {
+        if (!sessionId || !(await this.sessions.hasRecentAuth(sessionId, sessions_service_1.ONBOARDING_AUTH_WINDOW_MINUTES))) {
             throw new common_1.ForbiddenException('Tu sesión de activación expiró. Vuelve a ingresar con la contraseña temporal.');
         }
         const user = await this.userRepo.findOne({
@@ -446,6 +449,9 @@ let AuthService = AuthService_1 = class AuthService {
         const now = new Date();
         const termsVersion = String(await this.parameters.get('compliance.terms_version', null, null, user.organizationId)
             ?? onboarding_dto_1.TERMS_VERSION);
+        if (dto.termsVersion && dto.termsVersion !== termsVersion) {
+            throw new common_1.ConflictException('Las condiciones fueron actualizadas. Recarga la página para revisar la versión vigente.');
+        }
         await this.userRepo.manager.transaction(async (manager) => {
             await manager.update(user_entity_1.User, userId, {
                 name: dto.profile.name.trim(),

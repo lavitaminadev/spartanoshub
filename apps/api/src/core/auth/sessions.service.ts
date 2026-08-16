@@ -17,6 +17,20 @@ export type RevokeReason = (typeof REVOKE_REASONS)[keyof typeof REVOKE_REASONS];
 /** Ventana dentro de la cual una confirmación de contraseña sigue valiendo. */
 export const REAUTH_WINDOW_MINUTES = 15;
 
+/**
+ * Ventana para completar el primer acceso.
+ *
+ * Es más larga que la de reautenticación y a propósito: activar una cuenta significa leer cinco
+ * condiciones y elegir una contraseña, y quince minutos alcanzan para que alguien que se detiene
+ * a leer —que es exactamente lo que se le pide— llegue a crear su contraseña y reciba un rechazo
+ * por sesión expirada, quedándose fuera de su propia cuenta recién invitada.
+ *
+ * No se amplía `REAUTH_WINDOW_MINUTES` para lograrlo: ese valor protege operaciones sensibles
+ * sobre una cuenta ya activa, donde una ventana corta es la protección y no un estorbo. Son dos
+ * riesgos distintos y por eso son dos números distintos.
+ */
+export const ONBOARDING_AUTH_WINDOW_MINUTES = 60;
+
 /** Vista de una sesión para su dueño. Nunca incluye la huella del token. */
 export interface SessionSummary {
   id: string;

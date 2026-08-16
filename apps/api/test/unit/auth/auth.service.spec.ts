@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { ONBOARDING_AUTH_WINDOW_MINUTES, REAUTH_WINDOW_MINUTES } from '../../../src/core/auth/sessions.service';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 
@@ -190,6 +191,57 @@ describe('AuthService', () => {
       expect(mockSessions.revokeAll).toHaveBeenCalledWith('user-1', 'cambio_de_contrasena');
     });
 
+    it('mide la ventana de activación con su propio plazo, no con el de reautenticación', async () => {
+      // Quince minutos alcanzan para que alguien que se detiene a leer las cinco condiciones
+      // —que es lo que se le pide— llegue a crear su contraseña y quede fuera de su cuenta.
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', password: 'old-hash', organizationId: 'org-1' });
+      (bcrypt.compare as any).mockResolvedValue(false);
+      (bcrypt.hash as any).mockResolvedValue('new-hash');
+
+      await service.completeOnboarding('user-1', 'session-1', {
+        newPassword: 'NuevaClave123!',
+        acceptedConsents: ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        profile: { name: 'Demo Vitalis' },
+      }, '1.2.3.4');
+
+      expect(mockSessions.hasRecentAuth).toHaveBeenCalledWith('session-1', ONBOARDING_AUTH_WINDOW_MINUTES);
+      expect(ONBOARDING_AUTH_WINDOW_MINUTES).toBeGreaterThan(REAUTH_WINDOW_MINUTES);
+    });
+
+    it('no registra el consentimiento si el texto mostrado no es el vigente', async () => {
+      // Guardar que acepto una version que nunca vio es un consentimiento que dice algo que no
+      // se le mostro: ante un reclamo no habria forma de demostrar que leyo.
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', password: 'old-hash', organizationId: 'org-1' });
+      (bcrypt.compare as any).mockResolvedValue(false);
+      mockParameters.get.mockResolvedValue('v2');
+
+      await expect(service.completeOnboarding('user-1', 'session-1', {
+        newPassword: 'NuevaClave123!',
+        acceptedConsents: ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        profile: { name: 'Demo Vitalis' },
+        termsVersion: 'v1',
+      })).rejects.toThrow(ConflictException);
+
+      expect(transactionManager.update).not.toHaveBeenCalled();
+      expect(transactionManager.save).not.toHaveBeenCalled();
+    });
+
+    it('acepta cuando la version mostrada coincide con la vigente', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', password: 'old-hash', organizationId: 'org-1' });
+      (bcrypt.compare as any).mockResolvedValue(false);
+      (bcrypt.hash as any).mockResolvedValue('new-hash');
+      mockParameters.get.mockResolvedValue('v1');
+
+      const result = await service.completeOnboarding('user-1', 'session-1', {
+        newPassword: 'NuevaClave123!',
+        acceptedConsents: ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        profile: { name: 'Demo Vitalis' },
+        termsVersion: 'v1',
+      }, '1.2.3.4');
+
+      expect(result).toEqual({ completed: true });
+    });
+
     it('rechaza una sesión de activación que ya no es reciente', async () => {
       mockSessions.hasRecentAuth.mockResolvedValue(false);
 
@@ -269,4 +321,48 @@ describe('AuthService', () => {
       expect(mockSessions.revokeAll).toHaveBeenCalledWith('user-1', expect.any(String));
     });
   });
+
+    describe('acceptCurrentTerms', () => {
+    it('tampoco registra una re-aceptación de un texto que no es el vigente', async () => {
+      // Re-aceptar ocurre justo cuando el texto acaba de cambiar, así que es donde el desajuste
+      // entre lo mostrado y lo vigente es más probable.
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1' });
+      mockParameters.get.mockResolvedValue('v2');
+
+      await expect(service.acceptCurrentTerms(
+        'user-1',
+        ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        '1.2.3.4',
+        'v1',
+      )).rejects.toThrow(ConflictException);
+
+      expect(transactionManager.save).not.toHaveBeenCalled();
+    });
+
+    it('registra cuando la versión mostrada es la vigente', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1' });
+      mockParameters.get.mockResolvedValue('v1');
+
+      const result = await service.acceptCurrentTerms(
+        'user-1',
+        ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        '1.2.3.4',
+        'v1',
+      );
+      expect(result).toEqual({ accepted: true });
+    });
+
+    it('sigue aceptando a un cliente que no declara versión, para no romperlo', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1' });
+      mockParameters.get.mockResolvedValue('v2');
+
+      const result = await service.acceptCurrentTerms(
+        'user-1',
+        ['terms', 'dataTreatment', 'confidentiality', 'properUse', 'noDisclosure'],
+        '1.2.3.4',
+      );
+      expect(result).toEqual({ accepted: true });
+    });
+  });
+
 });

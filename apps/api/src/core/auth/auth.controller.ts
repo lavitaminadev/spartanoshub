@@ -332,6 +332,6 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Aceptar la versión vigente de las condiciones' })
   acceptTerms(@CurrentUser() user: AuthUser, @Body() dto: AcceptTermsDto, @Ip() ipAddress: string) {
-    return this.auth.acceptCurrentTerms(user.id, dto.acceptedConsents, ipAddress);
+    return this.auth.acceptCurrentTerms(user.id, dto.acceptedConsents, ipAddress, dto.termsVersion);
   }
 }

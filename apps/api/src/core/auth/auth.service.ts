@@ -22,7 +22,7 @@ import { EmailService } from '../notifications/email.service';
 import { DataConsent } from '../data-protection/consent.entity';
 import { CompleteOnboardingDto, REQUIRED_CONSENTS, TERMS_VERSION } from './dto/onboarding.dto';
 import { ParameterResolver } from '../parameters/parameter-resolver.service';
-import { REAUTH_WINDOW_MINUTES, REVOKE_REASONS, SessionsService, type SessionSummary } from './sessions.service';
+import { REAUTH_WINDOW_MINUTES, REVOKE_REASONS, SessionsService, type SessionSummary, ONBOARDING_AUTH_WINDOW_MINUTES } from './sessions.service';
 
 const REFRESH_TOKEN_EXPIRES_IN = config.jwt.refreshExpiresIn as JwtSignOptions['expiresIn'];
 
@@ -441,7 +441,7 @@ export class AuthService {
    * texto vigente porque dirección publicó una versión nueva o venció el plazo. Pedirle la
    * contraseña temporal aquí no tendría sentido, porque hace tiempo que no la usa.
    */
-  async acceptCurrentTerms(userId: string, acceptedConsents: string[], ipAddress?: string): Promise<{ accepted: true }> {
+  async acceptCurrentTerms(userId: string, acceptedConsents: string[], ipAddress?: string, shownVersion?: string): Promise<{ accepted: true }> {
     const user = await this.userRepo.findOne({ where: { id: userId, isActive: true }, select: ['id', 'organizationId'] });
     if (!user) throw new BadRequestException('Usuario no disponible');
 
@@ -449,6 +449,14 @@ export class AuthService {
     if (missing.length > 0) throw new BadRequestException('Debes aceptar todas las condiciones para continuar');
 
     const version = String(await this.parameters.get('compliance.terms_version', null, null, user.organizationId) ?? TERMS_VERSION);
+
+    // Misma protección que en el primer acceso: no se registra que alguien aceptó una versión
+    // distinta de la que tuvo a la vista. Re-aceptar ocurre justo cuando el texto acaba de
+    // cambiar, así que es donde el desajuste es más probable.
+    if (shownVersion && shownVersion !== version) {
+      throw new ConflictException('Las condiciones fueron actualizadas. Recarga la página para revisar la versión vigente.');
+    }
+
     const now = new Date();
     await this.userRepo.manager.transaction(async (manager) => {
       await manager.update(User, userId, { termsAcceptedAt: now, termsVersion: String(version) });
@@ -593,7 +601,7 @@ export class AuthService {
    * @param ipAddress - Origen de la aceptación, parte del registro de consentimiento.
    */
   async completeOnboarding(userId: string, sessionId: string | undefined, dto: CompleteOnboardingDto, ipAddress?: string): Promise<{ completed: true }> {
-    if (!sessionId || !(await this.sessions.hasRecentAuth(sessionId))) {
+    if (!sessionId || !(await this.sessions.hasRecentAuth(sessionId, ONBOARDING_AUTH_WINDOW_MINUTES))) {
       throw new ForbiddenException('Tu sesión de activación expiró. Vuelve a ingresar con la contraseña temporal.');
     }
     const user = await this.userRepo.findOne({
@@ -615,6 +623,21 @@ export class AuthService {
       await this.parameters.get('compliance.terms_version', null, null, user.organizationId)
         ?? TERMS_VERSION,
     );
+
+    /*
+     * El texto que la persona leyó tiene que ser el que se registra que aceptó.
+     *
+     * La versión vigente puede cambiar mientras alguien tiene el formulario abierto: entonces el
+     * navegador muestra un texto y el servidor guarda que aceptó otro. Eso no es un desajuste
+     * cosmético —es un consentimiento que dice algo que nunca se le mostró—, y ante una
+     * reclamación no habría forma de demostrar qué leyó.
+     *
+     * Se compara solo cuando el navegador declara su versión, para no romper a un cliente que
+     * todavía no la envía: si no la declara, se registra la vigente como hasta ahora.
+     */
+    if (dto.termsVersion && dto.termsVersion !== termsVersion) {
+      throw new ConflictException('Las condiciones fueron actualizadas. Recarga la página para revisar la versión vigente.');
+    }
     await this.userRepo.manager.transaction(async (manager) => {
       await manager.update(User, userId, {
         name: dto.profile.name.trim(),
