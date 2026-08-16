@@ -42,6 +42,11 @@ export function normalizeOrganizationFeatures(value?: Partial<OrganizationFeatur
     const provided = value?.[key];
     if (typeof provided === 'boolean') result[key] = provided;
   }
+  // Esta regla debe vivir también al leer configuraciones antiguas. La validación del
+  // endpoint impide apagar estos módulos hacia adelante, pero organizaciones que ya
+  // tenían el valor guardado en falso dejaban a todo el equipo redirigido a /404 al
+  // iniciar sesión. Un requisito de acceso no puede depender de un dato histórico.
+  for (const key of REQUIRED_ORGANIZATION_FEATURE_KEYS) result[key] = true;
   return result;
 }
 
