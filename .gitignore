@@ -39,3 +39,6 @@ logs/
 
 # Credenciales en texto plano — nunca versionar
 docs/ACCESOS.md
+
+# Informe del diagnostico de permisos: contiene el estado de una cuenta concreta.
+diagnostico-permisos.txt
