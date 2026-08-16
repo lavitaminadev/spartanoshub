@@ -73,6 +73,7 @@ export const AREA_SCOPED_ROLES = new Set<UserRole>([
 
 /** Cargos que ven las tres áreas: administración y las direcciones transversales. */
 const UNRESTRICTED_AREA_ROLES = new Set<UserRole>([
+  UserRole.DEV,
   UserRole.ADMIN,
   UserRole.OPERATIONS_DIRECTOR,
   UserRole.COMMERCIAL_DIRECTOR,
@@ -211,18 +212,31 @@ export class IntakeService {
     ];
   }
 
-  async findOne(organizationId: string, id: string, allowedClientIds?: string[]): Promise<WorkRequest> {
+  async findOne(
+    organizationId: string,
+    id: string,
+    allowedClientIds?: string[],
+    viewer?: { id: string; role: UserRole },
+  ): Promise<WorkRequest> {
     const request = await this.requests.findOne({ where: { id, organizationId }, relations: ['client', 'requester', 'assignee'] });
     if (!request) throw new NotFoundException('Solicitud no encontrada');
     if (allowedClientIds !== undefined && !allowedClientIds.includes(request.clientId)) {
       throw new NotFoundException('Solicitud no encontrada');
     }
+    this.assertAreaAccess(request, viewer);
     return request;
   }
 
   /** Asigna responsable y mueve el estado, validando la transición. */
-  async update(organizationId: string, id: string, dto: UpdateWorkRequestDto, allowedClientIds?: string[]): Promise<WorkRequest> {
-    const request = await this.findOne(organizationId, id, allowedClientIds);
+  async update(
+    organizationId: string,
+    id: string,
+    dto: UpdateWorkRequestDto,
+    allowedClientIds?: string[],
+    viewer?: { id: string; role: UserRole },
+  ): Promise<WorkRequest> {
+    const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
+    this.assertCanCoordinate(request, viewer);
 
     if (dto.status && dto.status !== request.status) {
       const allowed = TRANSITIONS[request.status] ?? [];
@@ -275,8 +289,15 @@ export class IntakeService {
    * fotos terminaba en el tablero de diseño como «post simple», ocupando presupuesto de diseño
    * y apareciendo en la carga del diseñador equivocado.
    */
-  async convert(organizationId: string, id: string, dto: ResolveWorkRequestDto, allowedClientIds?: string[]): Promise<WorkRequest> {
-    const request = await this.findOne(organizationId, id, allowedClientIds);
+  async convert(
+    organizationId: string,
+    id: string,
+    dto: ResolveWorkRequestDto,
+    allowedClientIds?: string[],
+    viewer?: { id: string; role: UserRole },
+  ): Promise<WorkRequest> {
+    const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
+    this.assertCanCoordinate(request, viewer);
     if (request.status !== WorkRequestStatus.ACCEPTED) {
       throw new ConflictException('Solo una solicitud aceptada se puede convertir');
     }
@@ -290,6 +311,25 @@ export class IntakeService {
     throw new ConflictException(
       'Una solicitud de community todavía no se convierte: falta definir su destino en la parrilla de contenido',
     );
+  }
+
+  /**
+   * Aplica al detalle la misma barrera de área que ya protege la bandeja. Sin esta comprobación,
+   * conocer un identificador permitía saltarse el filtro enviándolo directamente a la ruta.
+   */
+  private assertAreaAccess(request: WorkRequest, viewer?: { id: string; role: UserRole }): void {
+    if (!viewer || UNRESTRICTED_AREA_ROLES.has(viewer.role)) return;
+    if (request.requestedBy === viewer.id || request.assignedTo === viewer.id) return;
+    if ((AREAS_BY_ROLE[viewer.role] ?? []).includes(request.area)) return;
+    throw new NotFoundException('Solicitud no encontrada');
+  }
+
+  /** Solo coordinación transversal o la dirección responsable del área puede cambiarla. */
+  private assertCanCoordinate(request: WorkRequest, viewer?: { id: string; role: UserRole }): void {
+    if (!viewer || UNRESTRICTED_AREA_ROLES.has(viewer.role)) return;
+    if (request.area === WorkRequestArea.DESIGN && viewer.role === UserRole.ART_DIRECTOR) return;
+    if (request.area === WorkRequestArea.AUDIOVISUAL && viewer.role === UserRole.AV_DIRECTOR) return;
+    throw new NotFoundException('Solicitud no encontrada');
   }
 
   /** Diseño: una solicitud puede dar varias piezas —un carrusel y sus historias—. */

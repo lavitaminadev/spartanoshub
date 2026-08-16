@@ -157,6 +157,25 @@ describe('IntakeService', () => {
 
       await expect(service.findOne('org-1', 'r-1', scoped)).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    it('no permite saltar el filtro de área con un identificador directo', async () => {
+      requests.findOne.mockResolvedValue({
+        id: 'r-1', clientId: 'client-1', area: WorkRequestArea.AUDIOVISUAL,
+        requestedBy: 'otra-persona', assignedTo: 'otra-persona',
+      });
+      const { service } = build();
+
+      await expect(service.findOne('org-1', 'r-1', undefined, { id: 'designer-1', role: 'designer' }))
+        .rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('mantiene desarrollo transversal en el detalle de solicitudes', async () => {
+      const request = { id: 'r-1', clientId: 'client-1', area: WorkRequestArea.AUDIOVISUAL, requestedBy: 'otra-persona' };
+      requests.findOne.mockResolvedValue(request);
+      const { service } = build();
+
+      await expect(service.findOne('org-1', 'r-1', undefined, { id: 'dev-1', role: 'dev' })).resolves.toBe(request);
+    });
   });
 
   describe('update', () => {
@@ -176,6 +195,16 @@ describe('IntakeService', () => {
 
       expect(updated.status).toBe(WorkRequestStatus.IN_REVIEW);
       expect(updated.reviewedAt).toBeInstanceOf(Date);
+    });
+
+    it('impide que una dirección coordine un área ajena', async () => {
+      requests.findOne.mockResolvedValue(existing({ area: WorkRequestArea.DESIGN }));
+      const { service } = build();
+
+      await expect(service.update(
+        'org-1', 'r-1', { status: WorkRequestStatus.IN_REVIEW }, scoped,
+        { id: 'av-director-1', role: 'av_director' },
+      )).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('rechaza saltarse la revisión', async () => {

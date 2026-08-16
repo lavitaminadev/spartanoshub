@@ -109,7 +109,7 @@ export class IntakeController {
   @RequiresPermission('intake', 'view')
   async findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const allowed = await this.clientScope(req);
-    return this.intake.findOne(req.organizationId, id, allowed);
+    return this.intake.findOne(req.organizationId, id, allowed, { id: req.user.id, role: req.user.role as UserRole });
   }
 
   /**
@@ -125,7 +125,7 @@ export class IntakeController {
   @ApiOperation({ summary: 'Asignar responsable, prioridad o estado' })
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateWorkRequestDto) {
     const allowed = await this.clientScope(req);
-    return this.intake.update(req.organizationId, id, dto, allowed);
+    return this.intake.update(req.organizationId, id, dto, allowed, { id: req.user.id, role: req.user.role as UserRole });
   }
 
   @Post(':id/convert')
@@ -134,6 +134,6 @@ export class IntakeController {
   @ApiOperation({ summary: 'Convertir la solicitud en piezas de produccion' })
   async convert(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveWorkRequestDto) {
     const allowed = await this.clientScope(req);
-    return this.intake.convert(req.organizationId, id, dto, allowed);
+    return this.intake.convert(req.organizationId, id, dto, allowed, { id: req.user.id, role: req.user.role as UserRole });
   }
 }

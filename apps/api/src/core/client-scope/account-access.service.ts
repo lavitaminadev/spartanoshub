@@ -19,6 +19,7 @@ import { UserClientAccess } from './user-client-access.entity';
  * ve lo que le asigna su pod más las excepciones registradas.
  */
 const UNRESTRICTED_ROLES = new Set<UserRole>([
+  UserRole.DEV,
   UserRole.ADMIN,
   UserRole.COMMERCIAL_DIRECTOR,
   UserRole.OPERATIONS_DIRECTOR,
