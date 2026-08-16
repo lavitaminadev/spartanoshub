@@ -279,6 +279,9 @@ export class PermissionsController {
       module,
       level: dto.level,
       reason: dto.reason ?? null,
+      // El formulario admite excepciones temporales. Omitir esta asignación hacía que el
+      // botón pareciera aceptar una fecha pero dejaba la excepción permanente en la base.
+      expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
       grantedBy: req.user.id,
     });
     this.permissions.invalidateUser(user.id);
@@ -289,7 +292,7 @@ export class PermissionsController {
       entityId: saved.id,
       action: existing ? 'updated' : 'created',
       before: existing ? { level: existing.level, reason: existing.reason } : undefined,
-      after: { module, level: dto.level, reason: dto.reason ?? null },
+      after: { module, level: dto.level, reason: dto.reason ?? null, expiresAt: dto.expiresAt ?? null },
     });
     return saved;
   }
