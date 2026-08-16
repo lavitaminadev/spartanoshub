@@ -15,6 +15,16 @@ export type OrganizationFeatureKey = OrganizationModuleKey;
 export type OrganizationFeatures = Record<OrganizationFeatureKey, boolean>;
 
 /**
+ * Módulos que sostienen el acceso básico de la aplicación.
+ *
+ * `dashboard` es el destino de todo cargo interno después de autenticarse. Permitir que se
+ * apague desde la configuración convierte un cambio de catálogo en un bloqueo masivo que el
+ * frontend muestra como 404. Los permisos por cargo y por persona siguen siendo la fuente de
+ * verdad de quién puede usarlo; esta lista solo impide desactivar la puerta de entrada común.
+ */
+export const REQUIRED_ORGANIZATION_FEATURE_KEYS = ['dashboard'] as const satisfies readonly OrganizationFeatureKey[];
+
+/**
  * Valor inicial por organizacion.
  *
  * Deriva del catalogo compartido: si el producto muestra un modulo hoy, eso no obliga a

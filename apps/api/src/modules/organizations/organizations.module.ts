@@ -6,11 +6,12 @@ import { CreateOrganizationUseCase } from './create-organization.use-case';
 import { ListOrganizationsUseCase } from './list-organizations.use-case';
 import { AuthModule } from '../../core/auth/auth.module';
 import { AuditModule } from '../../core/audit/audit.module';
+import { AuthorizationModule } from '../../core/authorization/authorization.module';
 
 @Module({
   // AuthModule provee FeatureGuard, y a su vez importa entidades de este modulo: el
   // forwardRef rompe el ciclo de dependencias entre ambos.
-  imports: [TypeOrmModule.forFeature([Organization]), forwardRef(() => AuthModule), AuditModule],
+  imports: [TypeOrmModule.forFeature([Organization]), forwardRef(() => AuthModule), AuthorizationModule, AuditModule],
   controllers: [OrganizationsController],
   providers: [CreateOrganizationUseCase, ListOrganizationsUseCase],
   exports: [TypeOrmModule],

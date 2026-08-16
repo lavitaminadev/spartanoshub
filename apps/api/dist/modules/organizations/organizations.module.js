@@ -15,12 +15,13 @@ const create_organization_use_case_1 = require("./create-organization.use-case")
 const list_organizations_use_case_1 = require("./list-organizations.use-case");
 const auth_module_1 = require("../../core/auth/auth.module");
 const audit_module_1 = require("../../core/audit/audit.module");
+const authorization_module_1 = require("../../core/authorization/authorization.module");
 let OrganizationsModule = class OrganizationsModule {
 };
 exports.OrganizationsModule = OrganizationsModule;
 exports.OrganizationsModule = OrganizationsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization]), (0, common_1.forwardRef)(() => auth_module_1.AuthModule), audit_module_1.AuditModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization]), (0, common_1.forwardRef)(() => auth_module_1.AuthModule), authorization_module_1.AuthorizationModule, audit_module_1.AuditModule],
         controllers: [organizations_controller_1.OrganizationsController],
         providers: [create_organization_use_case_1.CreateOrganizationUseCase, list_organizations_use_case_1.ListOrganizationsUseCase],
         exports: [typeorm_1.TypeOrmModule],

@@ -30,12 +30,14 @@ const feature_guard_1 = require("../../core/authorization/feature.guard");
 const audit_service_1 = require("../../core/audit/audit.service");
 const user_role_enum_1 = require("./user-role.enum");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const permission_resolver_service_1 = require("../../core/authorization/permission-resolver.service");
 let OrganizationsController = class OrganizationsController {
-    constructor(createOrg, listOrgs, organizations, featureGuard, audit) {
+    constructor(createOrg, listOrgs, organizations, featureGuard, permissionResolver, audit) {
         this.createOrg = createOrg;
         this.listOrgs = listOrgs;
         this.organizations = organizations;
         this.featureGuard = featureGuard;
+        this.permissionResolver = permissionResolver;
         this.audit = audit;
     }
     create(dto) {
@@ -59,12 +61,17 @@ let OrganizationsController = class OrganizationsController {
         if (unknownKeys.length > 0) {
             throw new common_1.BadRequestException(`Módulos desconocidos: ${unknownKeys.join(', ')}. Válidos: ${update_organization_features_dto_1.UpdateOrganizationFeaturesDto.allowedKeys.join(', ')}`);
         }
+        const requiredDisabled = organization_features_1.REQUIRED_ORGANIZATION_FEATURE_KEYS.filter((key) => dto.features[key] === false);
+        if (requiredDisabled.length > 0) {
+            throw new common_1.BadRequestException(`No se pueden desactivar módulos esenciales: ${requiredDisabled.join(', ')}`);
+        }
         const organization = await this.organizations.findOne({ where: { id: organizationId } });
         if (!organization)
             throw new common_1.NotFoundException('Organización no encontrada');
         const features = (0, organization_features_1.normalizeOrganizationFeatures)({ ...organization.features, ...dto.features });
         await this.organizations.update(organizationId, { features });
         this.featureGuard.invalidate(organizationId);
+        this.permissionResolver.invalidateOrganization(organizationId);
         await this.audit.log({
             organizationId,
             actorId: req.user?.id,
@@ -141,5 +148,6 @@ exports.OrganizationsController = OrganizationsController = __decorate([
         list_organizations_use_case_1.ListOrganizationsUseCase,
         typeorm_2.Repository,
         feature_guard_1.FeatureGuard,
+        permission_resolver_service_1.PermissionResolverService,
         audit_service_1.AuditService])
 ], OrganizationsController);
