@@ -56,6 +56,17 @@ exports.ORGANIZATION_MODULE_CATALOG = [
     { key: 'crm', lifecycle: 'active', defaultEnabled: false },
     { key: 'commercialPipeline', lifecycle: 'active', defaultEnabled: false },
     { key: 'production', lifecycle: 'active', defaultEnabled: false },
+    /**
+     * Puerta de entrada del trabajo: recibir una solicitud, revisarla y asignarla.
+     *
+     * Se separa de `production` porque son dos decisiones de liberacion distintas. Recibir y
+     * coordinar solicitudes esta listo para usarse; el tablero de piezas con su presupuesto y su
+     * XP todavia no. Con una sola clave, liberar lo primero obligaba a exponer lo segundo.
+     *
+     * No se separa la logica de dominio: una solicitud sigue convirtiendose en piezas. Lo que se
+     * separa es cuando cada parte queda disponible.
+     */
+    { key: 'intake', lifecycle: 'active', defaultEnabled: false },
     // En desarrollo: el producto todavia no los ofrece, asi que encenderlos no los hace
     // visibles. Para abrir uno hay que subir su `lifecycle`, no solo su interruptor.
     { key: 'clientMetricsPanel', lifecycle: 'development', defaultEnabled: false },

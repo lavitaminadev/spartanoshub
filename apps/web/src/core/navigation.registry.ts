@@ -217,7 +217,7 @@ const PATH_FEATURE: Record<string, string> = {
   // Las solicitudes se declaran sobre `production`, igual que su controlador en el backend: es
   // la misma operación vista desde antes. Un módulo aparte obligaría a mantener dos listas de
   // permisos que describen lo mismo.
-  '/intake': 'production',
+  '/intake': 'intake',
   '/production': 'production',
   '/audiovisual': 'audiovisual',
   '/content': 'content',

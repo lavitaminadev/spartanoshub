@@ -244,3 +244,51 @@ describe('control de liberación', () => {
     expect(production?.level).not.toBe('none');
   });
 });
+
+describe('Intake se libera aparte de Producción', () => {
+  /** Resolutor con un estado distinto para cada módulo, que es el caso que motivó separarlos. */
+  function conEstados(estados: Record<string, string>) {
+    const organizations = { findOne: vi.fn().mockResolvedValue({ id: 'org-1', features: { intake: true, production: true } }) };
+    const parameters = {
+      getManyForOrganization: vi.fn(async (keys: string[]) => new Map(keys.map((key) => {
+        const module = key.split('.').pop() as string;
+        return [key, estados[module] ?? null];
+      }))),
+      get: vi.fn(async () => null),
+    };
+    return new PermissionResolverService(
+      organizations as never,
+      { find: vi.fn().mockResolvedValue([]) } as never,
+      { find: vi.fn().mockResolvedValue([]) } as never,
+      parameters as never,
+    );
+  }
+
+  it('Intake activo con Producción en desarrollo: se ve la bandeja y no el tablero', async () => {
+    // Es la razón de existir de la separación: recibir y coordinar solicitudes está listo,
+    // el tablero de piezas con su presupuesto y su XP todavía no.
+    const resolver = conEstados({ intake: 'active', production: 'development' });
+    const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.OPERATIONS_DIRECTOR);
+
+    expect(permisos.intake).not.toBe('none');
+    expect(permisos.production).toBe('none');
+  });
+
+  it('Intake tiene su propio interruptor, independiente del de Producción', async () => {
+    const resolver = conEstados({ intake: 'development', production: 'active' });
+    const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.OPERATIONS_DIRECTOR);
+
+    expect(permisos.intake).toBe('none');
+    expect(permisos.production).not.toBe('none');
+  });
+
+  it('los cargos conservan sobre Intake el nivel que tenían sobre Producción', async () => {
+    // La separación es de liberación, no de autorización: nadie debe ganar ni perder acceso
+    // por haberla hecho.
+    const resolver = conEstados({ intake: 'active', production: 'active' });
+    for (const role of [UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.DESIGNER]) {
+      const permisos = await resolver.permissionsFor('org-1', `u-${role}`, role);
+      expect(permisos.intake, role).toBe(permisos.production);
+    }
+  });
+});

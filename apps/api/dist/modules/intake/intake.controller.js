@@ -68,7 +68,7 @@ let IntakeController = class IntakeController {
 exports.IntakeController = IntakeController;
 __decorate([
     (0, common_1.Post)(),
-    (0, requires_permission_decorator_1.RequiresPermission)('production', 'view'),
+    (0, requires_permission_decorator_1.RequiresPermission)('intake', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL, user_role_enum_1.UserRole.AI_LEAD),
     (0, swagger_1.ApiOperation)({ summary: 'Abrir una solicitud de trabajo' }),
     __param(0, (0, common_1.Req)()),
@@ -79,7 +79,7 @@ __decorate([
 ], IntakeController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
-    (0, requires_permission_decorator_1.RequiresPermission)('production', 'view'),
+    (0, requires_permission_decorator_1.RequiresPermission)('intake', 'view'),
     (0, swagger_1.ApiOperation)({ summary: 'Bandeja de solicitudes' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('status')),
@@ -92,7 +92,7 @@ __decorate([
 ], IntakeController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)('counts'),
-    (0, requires_permission_decorator_1.RequiresPermission)('production', 'view'),
+    (0, requires_permission_decorator_1.RequiresPermission)('intake', 'view'),
     (0, swagger_1.ApiOperation)({ summary: 'Conteo de solicitudes por estado' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -101,7 +101,7 @@ __decorate([
 ], IntakeController.prototype, "counts", null);
 __decorate([
     (0, common_1.Get)('options/assignees'),
-    (0, requires_permission_decorator_1.RequiresPermission)('production', 'view'),
+    (0, requires_permission_decorator_1.RequiresPermission)('intake', 'view'),
     (0, swagger_1.ApiOperation)({ summary: 'Responsables activos del área indicada' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('area')),
@@ -111,7 +111,7 @@ __decorate([
 ], IntakeController.prototype, "assignees", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    (0, requires_permission_decorator_1.RequiresPermission)('production', 'view'),
+    (0, requires_permission_decorator_1.RequiresPermission)('intake', 'view'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -120,7 +120,7 @@ __decorate([
 ], IntakeController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    (0, requires_permission_decorator_1.RequiresPermission)('production', 'manage'),
+    (0, requires_permission_decorator_1.RequiresPermission)('intake', 'manage'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Asignar responsable, prioridad o estado' }),
     __param(0, (0, common_1.Req)()),
@@ -132,7 +132,7 @@ __decorate([
 ], IntakeController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/convert'),
-    (0, requires_permission_decorator_1.RequiresPermission)('production', 'manage'),
+    (0, requires_permission_decorator_1.RequiresPermission)('intake', 'manage'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Convertir la solicitud en piezas de produccion' }),
     __param(0, (0, common_1.Req)()),
@@ -147,7 +147,7 @@ exports.IntakeController = IntakeController = __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Controller)('intake/requests'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, module_scope_decorator_1.ModuleScope)('production'),
+    (0, module_scope_decorator_1.ModuleScope)('intake'),
     __metadata("design:paramtypes", [intake_service_1.IntakeService,
         account_access_service_1.AccountAccessService])
 ], IntakeController);
