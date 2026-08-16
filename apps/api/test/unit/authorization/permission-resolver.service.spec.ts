@@ -30,9 +30,11 @@ describe('satisfies', () => {
 });
 
 describe('roleLevel', () => {
-  it('otorga administración total al rol admin', () => {
-    expect(roleLevel(UserRole.ADMIN, 'billing')).toBe('manage');
-    expect(roleLevel(UserRole.ADMIN, 'clientMetricsPanel')).toBe('manage');
+  it('limita administración al uso diario, sin configuración de producto', () => {
+    expect(roleLevel(UserRole.ADMIN, 'users')).toBe('manage');
+    expect(roleLevel(UserRole.ADMIN, 'integrations')).toBe('manage');
+    expect(roleLevel(UserRole.ADMIN, 'billing')).toBe('none');
+    expect(roleLevel(UserRole.ADMIN, 'clientMetricsPanel')).toBe('none');
   });
 
   it('devuelve none para un módulo ausente en el mapa del rol', () => {
@@ -66,7 +68,7 @@ describe('PermissionResolverService', () => {
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
     expect(permissions.clientMetricsPanel).toBe('none');
     expect(permissions.udBudget).toBe('none');
-    expect(permissions.reservations).toBe('manage');
+    expect(permissions.reservations).toBe('none');
     expect(permissions.production).toBe('none');
   });
 
@@ -76,10 +78,10 @@ describe('PermissionResolverService', () => {
     expect(permissions.production).toBe('none');
   });
 
-  it('un modulo visible y encendido usa el nivel del cargo', async () => {
-    const { resolver } = makeResolver({ production: true });
+  it('un módulo visible y encendido usa el nivel del cargo', async () => {
+    const { resolver } = makeResolver({ users: true });
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
-    expect(permissions.production).toBe('manage');
+    expect(permissions.users).toBe('manage');
   });
 
   it('la excepción del usuario reemplaza el nivel del cargo', async () => {

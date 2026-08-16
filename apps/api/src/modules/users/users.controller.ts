@@ -34,7 +34,7 @@ export class UsersController {
    * Crea un nuevo usuario dentro de la organización del solicitante.
    */
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Crear un nuevo usuario' })
   create(@Body() dto: CreateUserDto, @Req() req: AuthenticatedRequest) {
     return this.createUser.execute({
@@ -48,7 +48,7 @@ export class UsersController {
    * Lista los usuarios acotados a la organización del solicitante.
    */
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Listar usuarios' })
   list(
     @Query('role') role: UserRole | undefined,
@@ -75,7 +75,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
   // Cambiar el cargo de alguien cambia qué cuentas ve y qué puede hacer con ellas. Un
   // computador desbloqueado y desatendido alcanza para hacerlo si solo se pide sesión abierta.
   @RequiresRecentAuth('cambiar los datos o el cargo de una persona')
@@ -91,7 +91,7 @@ export class UsersController {
   }
 
   @Post(':id/reset-password')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
   // Entrega una contraseña temporal de otra cuenta: es tomar el control de esa cuenta.
   @RequiresRecentAuth('restablecer la contraseña de otra persona')
   @ApiOperation({ summary: 'Generar una contraseña temporal y revocar sesiones activas' })
