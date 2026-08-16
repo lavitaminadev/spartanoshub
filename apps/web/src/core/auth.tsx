@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import type { AuthResponse, ModuleLifecycleStatus, UserRole } from '@espartanos/shared';
 import { api, setApiToken } from './api';
 import { clearOfflineStore } from './offline-store';
+import { clearQueryCache } from './query-persistence';
 
 type BrowserAuthResponse = Pick<AuthResponse, 'accessToken' | 'user'>;
 
@@ -187,5 +188,8 @@ export const useAuth = create<AuthState>((set) => ({
   clearLocalSession: (): void => {
     setApiToken(null);
     set({ user: null, token: null, error: null });
+    // La caché sobrevivía al cambio de cuenta: quien entraba después veía los datos de la
+    // persona anterior hasta que cada consulta se revalidara por su cuenta.
+    void clearQueryCache();
   },
 }));
