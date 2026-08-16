@@ -36,7 +36,7 @@ export class UploadsController {
   ) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DESIGNER, UserRole.AUDIOVISUAL)
+  @Roles(UserRole.ADMIN, UserRole.DEV, UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DESIGNER, UserRole.AUDIOVISUAL)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Subir un archivo temporal seguro' })
   @ApiBody({ description: 'Archivo a subir (multipart/form-data)' })
@@ -45,7 +45,7 @@ export class UploadsController {
   }
 
   @Post('images')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DESIGNER, UserRole.AUDIOVISUAL)
+  @Roles(UserRole.ADMIN, UserRole.DEV, UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DESIGNER, UserRole.AUDIOVISUAL)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Subir una imagen a Cloudinary' })
   @ApiBody({ description: 'Imagen a subir (multipart/form-data). Máximo 5 MB. Formatos: jpg, png, gif, webp, avif.' })
