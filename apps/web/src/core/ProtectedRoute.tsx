@@ -43,11 +43,11 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   // del menú.
   const isPersonalRoute = path === '/first-access' || path === '/change-password' || path === '/sesiones';
   if (path && !isPersonalRoute && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle, user.role)) {
-    return <Navigate to="/404" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
   const roles = allowedRoles ?? (path ? getAllowedRolesForPath(path) : undefined);
   if (!isRoleAllowedForPath(roles, user.role)) {
-    return <Navigate to="/404" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
 }
