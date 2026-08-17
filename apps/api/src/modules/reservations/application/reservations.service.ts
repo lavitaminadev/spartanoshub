@@ -56,9 +56,7 @@ type DesignConfig = {
 
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
 /** Tipos cuyas respuestas son una alternativa de una lista cerrada. */
-const CHOICE_FIELD_TYPES = ['select', 'multi_select'];
 /** Estados que puede tomar una solicitud de contacto post-encuesta. */
-const CONTACT_REQUEST_STATUSES = ['pending', 'contacted', 'resolved'];
 // Solo las reservas que aún tienen un turno futuro consumen capacidad.
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 const STATUS_TRANSITIONS: Record<string, string[]> = {
