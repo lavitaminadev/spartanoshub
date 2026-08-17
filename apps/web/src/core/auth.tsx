@@ -25,6 +25,14 @@ let checkAuthPromise: Promise<void> | null = null;
 // versión, el bootstrap podía terminar después del login y reemplazar el perfil nuevo
 // con la cuenta que estaba en la cookie anterior.
 let authGeneration = 0;
+let applyingRemoteAuthEvent = false;
+const authSyncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('espartanos-auth')
+  : null;
+
+function announceAuthChange(type: 'login' | 'logout', userId?: string): void {
+  authSyncChannel?.postMessage({ type, userId, at: Date.now() });
+}
 
 /**
  * Perfil del usuario autenticado expuesto a la UI.
@@ -134,6 +142,7 @@ export const useAuth = create<AuthState>((set) => ({
       const user = await loadProfile();
       if (generation !== authGeneration) return;
       set({ user, token: res.accessToken });
+      announceAuthChange('login', user.id);
     } catch (error) {
       if (generation !== authGeneration) return;
       setApiToken(null);
@@ -148,6 +157,7 @@ export const useAuth = create<AuthState>((set) => ({
     const res = await api.post<BrowserAuthResponse>('/auth/register', data);
     setApiToken(res.accessToken);
     set({ user: res.user as User, token: res.accessToken });
+    announceAuthChange('login', res.user.id);
   },
 
   logout: async (): Promise<void> => {
@@ -158,6 +168,7 @@ export const useAuth = create<AuthState>((set) => ({
       // La limpieza local igual procede si la sesión ya estaba expirada.
     }
     setApiToken(null);
+    announceAuthChange('logout');
     // Lo guardado en el dispositivo es de la cuenta que lo generó: se borra acá para que no
     // siga siendo legible por quien use el mismo equipo después.
     // Vacía también la caché activa de React Query; limpiar sólo IndexedDB dejaba
@@ -206,5 +217,17 @@ export const useAuth = create<AuthState>((set) => ({
     // La caché sobrevivía al cambio de cuenta: quien entraba después veía los datos de la
     // persona anterior hasta que cada consulta se revalidara por su cuenta.
     void clearQueryCache();
+    if (!applyingRemoteAuthEvent) announceAuthChange('logout');
   },
 }));
+
+authSyncChannel?.addEventListener('message', (event) => {
+  const type = event.data?.type;
+  if (type !== 'login' && type !== 'logout') return;
+  applyingRemoteAuthEvent = true;
+  useAuth.getState().clearLocalSession();
+  applyingRemoteAuthEvent = false;
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.href = '/login?reason=session-changed';
+  }
+});
