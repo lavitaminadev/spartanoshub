@@ -21,26 +21,11 @@ const TEAM_BASELINE: RoleModuleMap = {
 };
 
 export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
-  /**
-   * Administración resuelve el uso cotidiano del sistema, no la configuración del producto.
-   * La matriz base, módulos y lifecycle quedan reservados para Desarrollo.
-   */
-  [UserRole.ADMIN]: {
-    dashboard: 'view',
-    users: 'manage',
-    settings: 'manage',
-    integrations: 'manage',
-    governance: 'view',
-  },
-
-  /**
-   * Cargo de desarrollo: una sola persona por organización. Es la única que ve y opera los
-   * módulos en desarrollo, para poder levantarlos, probarlos y pasarlos a producción sin
-   * abrirle la fase a todo el equipo. Maneja todos los módulos.
-   */
-  [UserRole.DEV]: Object.fromEntries(
+  [UserRole.ADMIN]: Object.fromEntries(
     ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage' as PermissionLevel]),
   ) as RoleModuleMap,
+
+  [UserRole.DEV]: { ...TEAM_BASELINE, settings: 'manage' },
 
   /**
    * Pipeline, precios, contratos y visión global del negocio.
@@ -65,10 +50,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
     settings: 'edit',
     reports: 'view',
     reservations: 'edit',
-    surveys: 'manage',
     operations: 'view',
     production: 'view',
-    intake: 'view',
     udBudget: 'view',
     governance: 'manage',
     integrations: 'edit',
@@ -81,9 +64,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
     users: 'manage',
     crm: 'edit',
     reservations: 'manage',
-    surveys: 'manage',
     production: 'manage',
-    intake: 'manage',
     content: 'view',
     briefs: 'manage',
     meetings: 'manage',
@@ -124,7 +105,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
     clients: 'edit',
     documents: 'view',
     production: 'view',
-    intake: 'view',
     udBudget: 'view',
     reports: 'edit',
     direction: 'view',
@@ -134,7 +114,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
   [UserRole.ART_DIRECTOR]: {
     ...TEAM_BASELINE,
     production: 'manage',
-    intake: 'manage',
     approvals: 'manage',
     gamification: 'manage',
     udBudget: 'edit',
@@ -155,7 +134,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
     ...TEAM_BASELINE,
     audiovisual: 'manage',
     production: 'manage',
-    intake: 'manage',
     // Queda listo para el puntaje del área audiovisual, que aún no está definido.
     gamification: 'edit',
     clients: 'view',
@@ -171,7 +149,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
     knowledge: 'manage',
     operations: 'view',
     production: 'view',
-    intake: 'view',
     reports: 'view',
   },
 
@@ -187,7 +164,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
     content: 'manage',
     crm: 'edit',
     reservations: 'edit',
-    surveys: 'edit',
     meetings: 'edit',
     approvals: 'edit',
     audiovisual: 'edit',
@@ -195,7 +171,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
     clients: 'edit',
     documents: 'view',
     production: 'view',
-    intake: 'view',
     udBudget: 'view',
     reports: 'edit',
     direction: 'view',
@@ -208,7 +183,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
   [UserRole.DESIGNER]: {
     ...TEAM_BASELINE,
     production: 'edit',
-    intake: 'edit',
     gamification: 'edit',
     content: 'view',
     udBudget: 'view',
@@ -218,7 +192,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
   [UserRole.AUDIOVISUAL]: {
     ...TEAM_BASELINE,
     production: 'edit',
-    intake: 'edit',
     audiovisual: 'edit',
     gamification: 'edit',
     content: 'view',
