@@ -42,7 +42,12 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   // Las rutas de módulos sin acceso se bloquean también por URL directa, no solo se ocultan
   // del menú.
   const isPersonalRoute = path === '/first-access' || path === '/change-password' || path === '/sesiones';
-  if (path && !isPersonalRoute && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle, user.role)) {
+  // El dashboard es la superficie base de cualquier cuenta interna. Si una respuesta
+  // transitoria de permisos llega incompleta durante el arranque, no debemos redirigirlo
+  // sobre sí mismo (ni convertir el inicio de sesión en un 404). Los módulos secundarios
+  // siguen protegidos por feature, ciclo de vida y permiso efectivo.
+  const isInternalDashboard = path === '/dashboard' && user.role !== 'client';
+  if (path && !isPersonalRoute && !isInternalDashboard && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle, user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
   const roles = allowedRoles ?? (path ? getAllowedRolesForPath(path) : undefined);
