@@ -9,7 +9,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuth } from './core/auth';
 import { AppRouter } from './core/router';
 import { ErrorBoundary } from './core/ErrorBoundary';
-import { persistQueryCache, restoreQueryCache } from './core/query-persistence';
 
 /**
  * Restores the persisted session on mount and renders the router.
@@ -38,14 +37,6 @@ export default function App(): JSX.Element {
       },
     },
   }));
-
-  // La copia local rellena la caché y luego queda escuchando sus cambios. Se restaura sin
-  // bloquear el render: lo que llegue tarde igual aparece, porque `setQueryData` notifica a
-  // los componentes ya montados.
-  useEffect(() => {
-    void restoreQueryCache(queryClient);
-    return persistQueryCache(queryClient);
-  }, [queryClient]);
 
   return (
     <ErrorBoundary>

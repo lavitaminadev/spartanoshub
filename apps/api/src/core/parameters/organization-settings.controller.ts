@@ -10,7 +10,7 @@ import { ModuleScope } from '../authorization/module-scope.decorator';
 @ApiTags('Configuración')
 @ApiBearerAuth()
 @Controller('settings')
-@Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+@Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
 @ModuleScope('settings')
 export class OrganizationSettingsController {
   constructor(private readonly settings: OrganizationSettingsService) {}
