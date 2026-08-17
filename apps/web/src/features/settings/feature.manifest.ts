@@ -2,7 +2,7 @@ import { registerFeature } from '../../core/navigation.registry';
 
 registerFeature({
   id: 'settings',
-  name: 'Configuración',
-  navigation: [{ label: 'Configuración', path: '/settings', icon: '⚙️', roles: ['admin', 'dev', 'operations_director'] }],
+  name: 'Mi configuración',
+  navigation: [{ label: 'Configuración técnica', path: '/settings', icon: '⚙️', roles: ['dev'] }],
   routes: [],
 });
