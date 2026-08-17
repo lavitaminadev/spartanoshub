@@ -9,7 +9,6 @@
 import { create } from 'zustand';
 import type { AuthResponse, ModuleLifecycleStatus, UserRole } from '@espartanos/shared';
 import { api, setApiToken } from './api';
-import { clearOfflineStore } from './offline-store';
 import { clearQueryCache } from './query-persistence';
 
 type BrowserAuthResponse = Pick<AuthResponse, 'accessToken' | 'user'>;
@@ -161,7 +160,9 @@ export const useAuth = create<AuthState>((set) => ({
     setApiToken(null);
     // Lo guardado en el dispositivo es de la cuenta que lo generó: se borra acá para que no
     // siga siendo legible por quien use el mismo equipo después.
-    void clearOfflineStore();
+    // Vacía también la caché activa de React Query; limpiar sólo IndexedDB dejaba
+    // datos de la cuenta anterior visibles hasta la siguiente revalidación.
+    void clearQueryCache();
     set({ user: null, token: null });
   },
 
