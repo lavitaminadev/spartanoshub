@@ -3,7 +3,6 @@ import { Organization } from '../organizations/organization.entity';
 import { Client } from '../clients/client.entity';
 import { PieceStatus } from './piece-status.enum';
 import { CancelOrigin } from './cancel-origin.enum';
-import { PieceType } from './piece-type.enum';
 
 @Entity('pieces')
 export class Piece {

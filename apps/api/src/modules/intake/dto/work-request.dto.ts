@@ -1,6 +1,5 @@
 import { IsArray, IsDateString, IsEnum, IsInt, IsObject, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
-import { PieceType } from '../../production/piece-type.enum';
 import { WorkRequestArea, WorkRequestStatus, WORK_REQUEST_PRIORITIES, type WorkRequestPriority } from '../work-request.entity';
 
 export class CreateWorkRequestDto {
