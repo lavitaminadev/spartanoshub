@@ -75,6 +75,7 @@ export class OrganizationsController {
   @Get('features')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Roles(UserRole.DEV)
   @ApiOperation({ summary: 'Módulos habilitados de la organización' })
   async features(@Req() req: AuthenticatedRequest) {
     const organizationId = req.organizationId || req.user.organizationId;

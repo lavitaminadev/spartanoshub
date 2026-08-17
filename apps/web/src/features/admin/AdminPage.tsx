@@ -216,6 +216,14 @@ export function AdminPage() {
     featuresMutation.mutate(buildAgencyCoreOrganizationFeatures());
   };
 
+  const activateAllForReview = () => {
+    if (!window.confirm('¿Encender todos los módulos y marcarlos como activos para esta organización? Podrás apagarlos individualmente después.')) return;
+    const allFeatures = Object.fromEntries(MODULE_CATALOG.map((module) => [module.key, true])) as Partial<OrganizationFeatures>;
+    const allLifecycle = Object.fromEntries(MODULE_CATALOG.map((module) => [moduleLifecycleSettingKey(module.key), 'active'])) as Record<string, string>;
+    featuresMutation.mutate(allFeatures);
+    lifecycleMutation.mutate(allLifecycle);
+  };
+
   const updateLifecycle = (key: OrganizationModuleKey, lifecycle: ModuleLifecycleStatus) => {
     lifecycleMutation.mutate({ [moduleLifecycleSettingKey(key)]: lifecycle });
   };
@@ -289,7 +297,10 @@ export function AdminPage() {
           <h2>Centro de módulos</h2>
           <p className="page-subtitle">Controla si el producto muestra cada módulo y si esta organización puede usarlo. Un módulo en desarrollo sigue oculto aunque esté encendido para la organización.</p>
         </div>
-        <button className="btn btn-primary" type="button" disabled={featuresMutation.isPending} onClick={applyAgencyCorePreset}>Usar solo operación base</button>
+        <div className="toolbar-actions">
+          <button className="btn btn-outline" type="button" disabled={featuresMutation.isPending || lifecycleMutation.isPending} onClick={activateAllForReview}>Encender todo para revisar</button>
+          <button className="btn btn-primary" type="button" disabled={featuresMutation.isPending} onClick={applyAgencyCorePreset}>Usar solo operación base</button>
+        </div>
       </div>
       <div className="reservation-flow-switch module-lifecycle-summary" role="group" aria-label="Resumen por ciclo de vida">
         <button className="active" type="button"><strong>{lifecycleSummary.active ?? 0}</strong><span>Activos</span></button>
