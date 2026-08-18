@@ -115,7 +115,7 @@ export function AudiovisualPage() {
     && matchesSearch(search, [item.title, item.description, item.client?.name, clientMap.get(item.clientId)]),
   );
 
-  if (sessionsLoading) return <LoadingSpinner text="Cargando operaciÃ³n audiovisual..." />;
+  if (sessionsLoading) return <LoadingSpinner text="Cargando operación audiovisual..." />;
   if (sessionsError) return <div className="alert alert-error">No fue posible cargar las sesiones audiovisuales.</div>;
 
   return (
@@ -124,16 +124,16 @@ export function AudiovisualPage() {
         <div>
           <span className="page-eyebrow">PRODUCCIÃ“N AUDIOVISUAL</span>
           <h1>Sesiones y moodboards</h1>
-          <p className="page-subtitle">PlanificaciÃ³n de sesiones y moodboards.</p>
+          <p className="page-subtitle">Planificación de sesiones y moodboards.</p>
         </div>
         <div className="portal-item-actions">
           {canManageMoodboards && <button className="btn btn-outline" type="button" onClick={() => setMoodboardOpen(true)}>+ Moodboard</button>}
-          {canManageSessions && <button className="btn btn-primary" type="button" onClick={() => setSessionOpen(true)}>+ Nueva sesiÃ³n</button>}
+          {canManageSessions && <button className="btn btn-primary" type="button" onClick={() => setSessionOpen(true)}>+ Nueva sesión</button>}
         </div>
       </div>
 
       <div className="attention-strip">
-        <div><span className="attention-kicker">Agenda AV</span><strong>{sessions.filter((item) => ['scheduled', 'confirmed'].includes(item.status)).length} sesiones prÃ³ximas</strong><small>{sessions.filter((item) => item.status === 'completed').length} completadas en el registro visible.</small></div>
+        <div><span className="attention-kicker">Agenda AV</span><strong>{sessions.filter((item) => ['scheduled', 'confirmed'].includes(item.status)).length} sesiones próximas</strong><small>{sessions.filter((item) => item.status === 'completed').length} completadas en el registro visible.</small></div>
       </div>
 
       <div className="tabs" role="tablist" aria-label="Vista audiovisual">
@@ -141,7 +141,7 @@ export function AudiovisualPage() {
         {canSeeMoodboards && <button className={`tab ${tab === 'moodboards' ? 'active' : ''}`} onClick={() => setTab('moodboards')} role="tab" aria-selected={tab === 'moodboards'}>Moodboards</button>}
       </div>
       <div className="filters">
-        <input className="input" type="search" aria-label={tab === 'sessions' ? 'Buscar sesiÃ³n audiovisual' : 'Buscar moodboard'} placeholder={tab === 'sessions' ? 'Buscar sesiÃ³n, cliente o lugar...' : 'Buscar moodboard o cliente...'} value={search} onChange={(event) => setSearch(event.target.value)} />
+        <input className="input" type="search" aria-label={tab === 'sessions' ? 'Buscar sesión audiovisual' : 'Buscar moodboard'} placeholder={tab === 'sessions' ? 'Buscar sesión, cliente o lugar...' : 'Buscar moodboard o cliente...'} value={search} onChange={(event) => setSearch(event.target.value)} />
         <select className="input" aria-label="Filtrar audiovisual por estado" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="">Todos los estados</option>
           {(tab === 'sessions'
@@ -157,9 +157,9 @@ export function AudiovisualPage() {
             <div>
               <div className="cycle-card-head"><span className="objective-category">{item.type}</span><StatusBadge status={item.status} /></div>
               <h3>{item.client?.name ?? clientMap.get(item.clientId) ?? 'Cuenta asignada'}</h3>
-              <p>{new Date(item.date).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}{item.location ? ` Â· ${item.location}` : ''}</p>
+              <p>{new Date(item.date).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}{item.location ? ` · ${item.location}` : ''}</p>
               {item.moodboardId && <small>Moodboard: {moodboardMap.get(item.moodboardId) ?? 'Referencia vinculada'}</small>}
-              <div className="portal-item-actions">{(item.assignedTeam ?? []).map((id) => <span className="date-chip" key={id}>{userMap.get(id) ?? (id === user?.id ? 'TÃº' : 'Equipo asignado')}</span>)}</div>
+              <div className="portal-item-actions">{(item.assignedTeam ?? []).map((id) => <span className="date-chip" key={id}>{userMap.get(id) ?? (id === user?.id ? 'Tú' : 'Equipo asignado')}</span>)}</div>
             </div>
             <div className="portal-item-actions">
               {/* La bitácora es el mismo hilo que usan producción e intake. No depende de
@@ -170,16 +170,16 @@ export function AudiovisualPage() {
               {canManageSessions && item.status !== 'completed' && <button className="btn btn-sm btn-primary" onClick={() => setConfirmDialog({ type: 'session-complete', id: item.id })}>Completar</button>}
             </div>
           </article>
-        ))}</div> : <EmptyState icon="film" title="Sin sesiones" description="No se encontraron sesiones con los filtros aplicados." action={canManageSessions ? <button className="btn btn-primary" type="button" onClick={() => setSessionOpen(true)}>+ Nueva sesiÃ³n</button> : undefined} />
+        ))}</div> : <EmptyState icon="film" title="Sin sesiones" description="No se encontraron sesiones con los filtros aplicados." action={canManageSessions ? <button className="btn btn-primary" type="button" onClick={() => setSessionOpen(true)}>+ Nueva sesión</button> : undefined} />
       ) : moodboardsLoading ? <LoadingSpinner text="Cargando moodboards..." /> : (
         moodboards.length ? <div className="objective-grid">{moodboards.map((item) => (
           <article className="objective-card" key={item.id}>
             <div className="cycle-card-head"><span className="objective-category">{item.client?.name ?? clientMap.get(item.clientId) ?? 'Cliente'}</span><StatusBadge status={item.status} /></div>
             <h3>{item.title}</h3>
-            <p>{item.description || 'Sin descripciÃ³n adicional.'}</p>
+            <p>{item.description || 'Sin descripción adicional.'}</p>
             <small>{item.images?.length ?? 0} referencias visuales</small>
             {canManageMoodboards && <div className="objective-controls">
-              {item.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => updateMoodboard.mutate({ id: item.id, status: 'review' })}>Enviar a revisiÃ³n</button>}
+              {item.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => updateMoodboard.mutate({ id: item.id, status: 'review' })}>Enviar a revisión</button>}
               {item.status !== 'approved' && <button className="btn btn-sm btn-primary" onClick={() => setConfirmDialog({ type: 'moodboard-approve', id: item.id })}>Aprobar</button>}
             </div>}
           </article>
@@ -194,15 +194,15 @@ export function AudiovisualPage() {
       <Modal open={moodboardOpen} onClose={() => setMoodboardOpen(false)} title="Nuevo moodboard">
         <form className="modal-form" onSubmit={(event) => { event.preventDefault(); createMoodboard.mutate(); }}>
           <label>Cliente<select className="input" value={moodboardForm.clientId} onChange={(event) => setMoodboardForm({ ...moodboardForm, clientId: event.target.value })} required><option value="">Selecciona una cuenta</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
-          <label>TÃ­tulo<input className="input" value={moodboardForm.title} onChange={(event) => setMoodboardForm({ ...moodboardForm, title: event.target.value })} maxLength={255} required /></label>
-          <label>DirecciÃ³n visual<textarea className="input" rows={4} value={moodboardForm.description} onChange={(event) => setMoodboardForm({ ...moodboardForm, description: event.target.value })} /></label>
-          <label>Referencias <small>Una URL HTTPS por lÃ­nea</small><textarea className="input" rows={5} value={moodboardForm.images} onChange={(event) => setMoodboardForm({ ...moodboardForm, images: event.target.value })} placeholder="https://..." /></label>
+          <label>Título<input className="input" value={moodboardForm.title} onChange={(event) => setMoodboardForm({ ...moodboardForm, title: event.target.value })} maxLength={255} required /></label>
+          <label>Dirección visual<textarea className="input" rows={4} value={moodboardForm.description} onChange={(event) => setMoodboardForm({ ...moodboardForm, description: event.target.value })} /></label>
+          <label>Referencias <small>Una URL HTTPS por línea</small><textarea className="input" rows={5} value={moodboardForm.images} onChange={(event) => setMoodboardForm({ ...moodboardForm, images: event.target.value })} placeholder="https://..." /></label>
           {createMoodboard.error && <div className="alert alert-error">Revisa el cliente y las URLs de referencia.</div>}
           <button className="btn btn-primary btn-block" disabled={createMoodboard.isPending}>{createMoodboard.isPending ? 'Creando...' : 'Crear moodboard'}</button>
         </form>
       </Modal>
 
-      <Modal open={sessionOpen} onClose={() => setSessionOpen(false)} title="Nueva sesiÃ³n audiovisual">
+      <Modal open={sessionOpen} onClose={() => setSessionOpen(false)} title="Nueva sesión audiovisual">
         <form className="modal-form" onSubmit={(event) => { event.preventDefault(); createSession.mutate(); }}>
           <div className="form-row">
             <label>Cliente<select className="input" value={sessionForm.clientId} onChange={(event) => setSessionForm({ ...sessionForm, clientId: event.target.value, moodboardId: '' })} required><option value="">Selecciona una cuenta</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
@@ -213,23 +213,23 @@ export function AudiovisualPage() {
             <label>Lugar<input className="input" value={sessionForm.location} onChange={(event) => setSessionForm({ ...sessionForm, location: event.target.value })} /></label>
           </div>
           <label>Moodboard<select className="input" value={sessionForm.moodboardId} onChange={(event) => setSessionForm({ ...sessionForm, moodboardId: event.target.value })}><option value="">Sin moodboard</option>{(moodboardResult?.data ?? []).filter((item) => item.clientId === sessionForm.clientId).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
-          <label>Equipo asignado<select className="input" multiple size={Math.min(Math.max(assignees.length, 3), 7)} value={sessionForm.assignedTeam} onChange={(event) => setSessionForm({ ...sessionForm, assignedTeam: Array.from(event.currentTarget.selectedOptions, (option) => option.value) })}>{assignees.filter((member) => ['audiovisual', 'av_director'].includes(member.role)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select><small>Usa Ctrl o Cmd para seleccionar mÃ¡s de una persona.</small></label>
-          {createSession.error && <div className="alert alert-error">No fue posible crear la sesiÃ³n. Revisa cliente, fecha y equipo.</div>}
-          <button className="btn btn-primary btn-block" disabled={createSession.isPending}>{createSession.isPending ? 'Creando...' : 'Crear sesiÃ³n'}</button>
+          <label>Equipo asignado<select className="input" multiple size={Math.min(Math.max(assignees.length, 3), 7)} value={sessionForm.assignedTeam} onChange={(event) => setSessionForm({ ...sessionForm, assignedTeam: Array.from(event.currentTarget.selectedOptions, (option) => option.value) })}>{assignees.filter((member) => ['audiovisual', 'av_director'].includes(member.role)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select><small>Usa Ctrl o Cmd para seleccionar más de una persona.</small></label>
+          {createSession.error && <div className="alert alert-error">No fue posible crear la sesión. Revisa cliente, fecha y equipo.</div>}
+          <button className="btn btn-primary btn-block" disabled={createSession.isPending}>{createSession.isPending ? 'Creando...' : 'Crear sesión'}</button>
         </form>
       </Modal>
 
       <ConfirmDialog
         open={Boolean(confirmDialog.type)}
         title={
-          confirmDialog.type === 'session-confirm' ? 'Confirmar sesiÃ³n' :
-          confirmDialog.type === 'session-complete' ? 'Completar sesiÃ³n' :
+          confirmDialog.type === 'session-confirm' ? 'Confirmar sesión' :
+          confirmDialog.type === 'session-complete' ? 'Completar sesión' :
           'Aprobar moodboard'
         }
         description={
-          confirmDialog.type === 'session-confirm' ? 'La sesiÃ³n quedarÃ¡ confirmada en la agenda audiovisual.' :
-          confirmDialog.type === 'session-complete' ? 'La sesiÃ³n se marcarÃ¡ como completada. Esta acciÃ³n no se puede deshacer.' :
-          'El moodboard quedarÃ¡ aprobado como referencia visual definitiva.'
+          confirmDialog.type === 'session-confirm' ? 'La sesión quedará confirmada en la agenda audiovisual.' :
+          confirmDialog.type === 'session-complete' ? 'La sesión se marcará como completada. Esta acción no se puede deshacer.' :
+          'El moodboard quedará aprobado como referencia visual definitiva.'
         }
         confirmLabel={
           confirmDialog.type === 'session-confirm' ? 'Confirmar' :

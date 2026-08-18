@@ -37,7 +37,7 @@ export function BillingPage() {
   const chargeNotes = Array.isArray(chargeData) ? chargeData : [];
   return (
     <div className="page">
-      <h1>FacturaciÃ³n</h1>
+      <h1>Facturación</h1>
       <DataTable
         keyExtractor={(r) => r.id as string}
         columns={[
@@ -45,7 +45,7 @@ export function BillingPage() {
           { key: 'clientId', label: 'Cliente' },
           { key: 'total', label: 'Monto', render: (r) => `$${Number(r.total).toLocaleString('es-CL')}` },
           { key: 'status', label: 'Estado', render: (r) => <StatusBadge status={r.status as string} /> },
-          { key: 'issuedAt', label: 'EmisiÃ³n', render: (r) => new Date(r.issuedAt as string).toLocaleDateString() },
+          { key: 'issuedAt', label: 'Emisión', render: (r) => new Date(r.issuedAt as string).toLocaleDateString() },
         ]}
         data={invoices}
       />
