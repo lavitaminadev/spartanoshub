@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThan, Not, Repository } from 'typeorm';
+import { In, IsNull, LessThan, Not, Repository } from 'typeorm';
 import { Opportunity } from '../crm/opportunities/opportunity.entity';
 import { ApprovalRequest } from '../approvals/approval-request.entity';
-import { ApprovalRequestStatus } from '../approvals/approval-request-status.enum';
+import { OPEN_STATUSES } from '../approvals/approval-request-status.enum';
 
 /**
  * Cuántos registros se anuncian por pasada.
@@ -50,11 +50,16 @@ export class AutomationScheduleJob {
     return { overdueTasks, staleDeals };
   }
 
-  /** Aprobaciones cuya fecha de vencimiento pasó y siguen sin decidirse. */
+  /**
+   * Pendientes vencidos y sin cerrar: tanto tareas como aprobaciones.
+   *
+   * Antes solo miraba aprobaciones porque las tareas no existían. Ahora comparten tabla, así
+   * que ambas vencen igual y el aviso las cubre a las dos.
+   */
   private async announceOverdueTasks(): Promise<number> {
     const pendientes = await this.approvals.find({
       where: {
-        status: ApprovalRequestStatus.PENDING,
+        status: In([...OPEN_STATUSES]),
         dueAt: LessThan(new Date()),
       },
       order: { dueAt: 'ASC' },
@@ -67,6 +72,7 @@ export class AutomationScheduleJob {
         approvalId: approval.id,
         entityType: approval.entityType,
         entityId: approval.entityId,
+        kind: approval.kind,
         title: approval.title,
         assignedTo: approval.assignedTo,
         clientId: approval.clientId,

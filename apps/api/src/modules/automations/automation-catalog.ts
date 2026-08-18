@@ -81,6 +81,9 @@ export const AUTOMATION_ACTIONS: readonly ActionDefinition[] = [
   // Cierra el paso de lo comercial a lo operativo. El nombre es opcional: sin él se usa el
   // del trato, que es lo que se querría escribir a mano de todos modos.
   { key: 'create_contract', label: 'Abrir contrato del trato ganado', requiredConfig: [] },
+  // El responsable es opcional: sin él la tarea queda sin dueño y aparece igual en el registro,
+  // que es mejor que no crearla porque nadie decidió todavía quién la hace.
+  { key: 'create_task', label: 'Crear tarea', requiredConfig: ['title'] },
 ] as const;
 
 /** Espera antes de continuar. Es el nodo que hace útil el resto. */

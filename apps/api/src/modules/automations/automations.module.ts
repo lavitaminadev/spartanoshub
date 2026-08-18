@@ -16,6 +16,7 @@ import { NotificationsModule } from '../../core/notifications/notifications.modu
 import { EmailModule } from '../../core/notifications/email.module';
 import { CollaborationModule } from '../collaboration/collaboration.module';
 import { ContractsModule } from '../contracts/contracts.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
 import { Opportunity } from '../crm/opportunities/opportunity.entity';
 import { Lead } from '../crm/leads/lead.entity';
 import { User } from '../users/user.entity';
@@ -34,6 +35,7 @@ import { ApprovalRequest } from '../approvals/approval-request.entity';
     EmailModule,
     CollaborationModule,
     ContractsModule,
+    ApprovalsModule,
     HttpModule,
   ],
   controllers: [AutomationsController],

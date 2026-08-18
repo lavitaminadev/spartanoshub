@@ -6,6 +6,7 @@ import { EmailService } from '../../core/notifications/email.service';
 import { ProcessCommentsService } from '../collaboration/process-comments.service';
 import { WebhookDeliveryService } from './webhook-delivery.service';
 import { ContractsService } from '../contracts/contracts.service';
+import { TasksService } from '../approvals/tasks.service';
 import { CommentSubject, CommentVisibility } from '../collaboration/process-comment.entity';
 import { Opportunity } from '../crm/opportunities/opportunity.entity';
 import { Lead } from '../crm/leads/lead.entity';
@@ -43,6 +44,7 @@ export class AutomationActionsService {
     private readonly comments: ProcessCommentsService,
     private readonly webhooks: WebhookDeliveryService,
     private readonly contracts: ContractsService,
+    private readonly tasks: TasksService,
     @InjectRepository(Opportunity) private readonly opportunities: Repository<Opportunity>,
     @InjectRepository(Lead) private readonly leads: Repository<Lead>,
     @InjectRepository(User) private readonly users: Repository<User>,
@@ -63,6 +65,7 @@ export class AutomationActionsService {
       case 'add_comment': return this.addComment(config, ctx);
       case 'send_webhook': return this.sendWebhook(config, ctx);
       case 'create_contract': return this.createContract(config, ctx);
+      case 'create_task': return this.createTask(config, ctx);
       default:
         throw new BadRequestException(`La acción "${key}" no está implementada`);
     }
@@ -198,6 +201,36 @@ export class AutomationActionsService {
     }, ctx.organizationId);
 
     return { contractId: contract.id, contractStatus: contract.status };
+  }
+
+  /**
+   * Abre una tarea sobre el registro que disparó el flujo.
+   *
+   * Es la acción que cierra el círculo de los disparadores de tiempo: un trato sin seguimiento
+   * puede generar la tarea de retomarlo, con dueño y fecha, en vez de solo un aviso que se
+   * lee y se olvida.
+   *
+   * El vencimiento se expresa en días desde hoy y no como fecha fija: una automatización se
+   * escribe una vez y corre durante meses, así que una fecha concreta quedaría vencida sola.
+   */
+  private async createTask(config: Record<string, unknown>, ctx: ActionContext): Promise<Record<string, unknown>> {
+    const dueInDays = Number(config.dueInDays ?? 0);
+    const dueAt = Number.isFinite(dueInDays) && dueInDays > 0
+      ? new Date(Date.now() + dueInDays * 86_400_000).toISOString()
+      : undefined;
+
+    const task = await this.tasks.create(ctx.organizationId, ctx.actingUserId, {
+      title: this.render(this.text(config.title) ?? '', ctx.context),
+      description: this.render(this.text(config.description) ?? '', ctx.context) || undefined,
+      entityType: ctx.entityType,
+      entityId: ctx.entityId,
+      clientId: this.text(ctx.context.clientId),
+      // Sin responsable indicado, se le asigna a quien ya tiene el registro: es quien la va a
+      // hacer, y una tarea sin dueño no le aparece a nadie en su bandeja.
+      assignedTo: this.text(config.assignedTo) ?? this.text(ctx.context.assignedTo),
+      dueAt,
+    });
+    return { taskId: task.id };
   }
 
   /**
