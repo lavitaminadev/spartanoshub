@@ -30,6 +30,16 @@ const mockXp = {
 };
 const mockBilling = { createCorrectionCharge: vi.fn() };
 
+/**
+ * Regla de rondas incluidas. Devuelve cobrable a partir de la cuarta, que es el valor por
+ * defecto configurado; la prueba lo fija acá para no depender de la configuración.
+ */
+const mockPieceRules = {
+  shouldGenerateInvoice: vi.fn(async (count: number) => count > 3),
+  maxCorrections: vi.fn(async () => 3),
+  canRequestCorrection: vi.fn(async () => ({ allowed: true })),
+};
+
 import { ProductionWorkflowService } from '../../../src/modules/production/production-workflow.service';
 
 describe('ProductionWorkflowService', () => {
@@ -44,6 +54,7 @@ describe('ProductionWorkflowService', () => {
       mockDesignBudget as any,
       mockXp as any,
       mockBilling as any,
+      mockPieceRules as any,
     );
   });
 
@@ -92,7 +103,14 @@ describe('ProductionWorkflowService', () => {
       );
     });
 
-    it('creates a billable charge note from the fourth client correction', async () => {
+    /**
+     * La cuarta ronda se marca cobrable, pero **la nota no se emite al rechazar**.
+     *
+     * Emitirla acá la creaba antes de saber cómo terminaba el trabajo: si después resultaba
+     * que la ronda fue por un error del equipo, quedaba una nota que alguien tenía que anular
+     * a mano. Se emite al aprobar, en `settleBillableCorrections`.
+     */
+    it('marca cobrable la cuarta ronda del cliente, sin emitir la nota todavía', async () => {
       const piece = { id: 'piece-1', organizationId: 'org-1', clientId: 'client-1', clientCorrectionCount: 3, correctionCount: 3, status: PieceStatus.CLIENT_VALIDATION };
       const version = { id: 'version-1' };
       const mockManager = {
@@ -103,10 +121,72 @@ describe('ProductionWorkflowService', () => {
 
       await service.rejectByClient(piece as any, version as any, 'Nuevo cambio', 'client-user');
 
-      expect(mockBilling.createCorrectionCharge).toHaveBeenCalledWith(
-        expect.objectContaining({ correctionId: 'corr-4', correctionNumber: 4, clientId: 'client-1' }),
-        mockManager,
+      expect(mockManager.create).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ billableExtra: true, chargeNoteRequired: true }),
       );
+      expect(mockBilling.createCorrectionCharge).not.toHaveBeenCalled();
+    });
+
+    it('no marca cobrables las rondas incluidas', async () => {
+      const piece = { id: 'piece-1', organizationId: 'org-1', clientId: 'client-1', clientCorrectionCount: 0, correctionCount: 0, status: PieceStatus.CLIENT_VALIDATION };
+      const mockManager = {
+        create: vi.fn().mockReturnValue({ id: 'corr-1' }),
+        save: vi.fn().mockResolvedValue({ id: 'corr-1' }),
+      };
+      mockPieceRepo.manager.transaction = vi.fn((cb: any) => cb(mockManager));
+
+      await service.rejectByClient(piece as any, { id: 'version-1' } as any, 'Primer cambio', 'client-user');
+
+      expect(mockManager.create).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ billableExtra: false, chargeNoteRequired: false }),
+      );
+    });
+  });
+
+  describe('settleBillableCorrections', () => {
+    const piece = { id: 'piece-1', organizationId: 'org-1', clientId: 'client-1' } as never;
+
+    it('emite una nota por cada ronda cobrable al aprobar', async () => {
+      const manager = {
+        find: vi.fn().mockResolvedValue([{ id: 'corr-4' }, { id: 'corr-5' }]),
+        query: vi.fn().mockResolvedValue([]),
+      };
+
+      const emitidas = await service.settleBillableCorrections(piece, 'user-1', manager as never);
+
+      expect(emitidas).toBe(2);
+      expect(mockBilling.createCorrectionCharge).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * Aprobar dos veces, o reintentar tras un fallo parcial, no puede cobrar de nuevo: la nota
+     * ya emitida es dinero que el cliente ya debe.
+     */
+    it('no vuelve a cobrar lo que ya tiene nota', async () => {
+      const manager = {
+        find: vi.fn().mockResolvedValue([{ id: 'corr-4' }, { id: 'corr-5' }]),
+        query: vi.fn().mockResolvedValue([{ correction_id: 'corr-4' }]),
+      };
+
+      const emitidas = await service.settleBillableCorrections(piece, 'user-1', manager as never);
+
+      expect(emitidas).toBe(1);
+      expect(mockBilling.createCorrectionCharge).toHaveBeenCalledWith(
+        expect.objectContaining({ correctionId: 'corr-5' }),
+        manager,
+      );
+    });
+
+    it('no consulta cobros si no hay nada cobrable', async () => {
+      const manager = { find: vi.fn().mockResolvedValue([]), query: vi.fn() };
+
+      const emitidas = await service.settleBillableCorrections(piece, 'user-1', manager as never);
+
+      expect(emitidas).toBe(0);
+      expect(manager.query).not.toHaveBeenCalled();
+      expect(mockBilling.createCorrectionCharge).not.toHaveBeenCalled();
     });
   });
 

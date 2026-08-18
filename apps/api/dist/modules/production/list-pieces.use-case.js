@@ -17,9 +17,11 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const piece_entity_1 = require("./piece.entity");
+const piece_rules_service_1 = require("./piece-rules.service");
 let ListPiecesUseCase = class ListPiecesUseCase {
-    constructor(repo) {
+    constructor(repo, pieceRules) {
         this.repo = repo;
+        this.pieceRules = pieceRules;
     }
     async execute(organizationId, status, clientId, assignedTo, clientIds, page = 1, limit = 300) {
         const where = { organizationId };
@@ -38,6 +40,7 @@ let ListPiecesUseCase = class ListPiecesUseCase {
             skip: (page - 1) * limit,
             take: limit,
         });
+        const maxCorrections = await this.pieceRules.maxCorrections(organizationId);
         return pieces.map((piece) => ({
             id: piece.id,
             title: piece.title,
@@ -46,7 +49,8 @@ let ListPiecesUseCase = class ListPiecesUseCase {
             udAmount: Number(piece.udAmount ?? 0),
             correctionCount: piece.correctionCount,
             clientCorrectionCount: piece.clientCorrectionCount,
-            chargeNoteRequired: piece.clientCorrectionCount > 3,
+            chargeNoteRequired: piece.clientCorrectionCount > maxCorrections,
+            maxCorrections,
             clientName: piece.client?.name || 'Sin cliente',
             assignedTo: piece.assignedTo,
             dueDate: piece.deadlineAt?.toISOString(),
@@ -61,5 +65,6 @@ exports.ListPiecesUseCase = ListPiecesUseCase;
 exports.ListPiecesUseCase = ListPiecesUseCase = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(piece_entity_1.Piece)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        piece_rules_service_1.PieceRulesService])
 ], ListPiecesUseCase);

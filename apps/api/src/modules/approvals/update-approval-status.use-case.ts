@@ -11,12 +11,14 @@ import { Correction } from '../production/correction.entity';
 import { CorrectionOrigin } from '../production/correction-origin.enum';
 import { PieceVersion } from '../production/piece-version.entity';
 import { PieceRulesService } from '../production/piece-rules.service';
+import { ProductionWorkflowService } from '../production/production-workflow.service';
 
 @Injectable()
 export class UpdateApprovalStatusUseCase {
   constructor(
     @InjectRepository(ApprovalRequest) private repo: Repository<ApprovalRequest>,
     private readonly pieceRules: PieceRulesService,
+    private readonly workflow: ProductionWorkflowService,
     private readonly events: EventEmitter2,
   ) {}
 
@@ -60,6 +62,10 @@ export class UpdateApprovalStatusUseCase {
 
         if (status === ApprovalRequestStatus.APPROVED) {
           piece.status = PieceStatus.APPROVED;
+          // Recién acá se emiten las notas de las rondas que excedieron lo incluido. Marcarlas
+          // cobrables al rechazar es un hecho; emitir la nota antes de saber cómo termina el
+          // trabajo obligaba a anularla a mano si la ronda resultaba ser error del equipo.
+          await this.workflow.settleBillableCorrections(piece, actor.userId, manager);
         } else {
           const origin = actor.role === UserRole.CLIENT
             ? CorrectionOrigin.CLIENT_REQUEST

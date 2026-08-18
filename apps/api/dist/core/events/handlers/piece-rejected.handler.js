@@ -36,10 +36,8 @@ let PieceRejectedHandler = PieceRejectedHandler_1 = class PieceRejectedHandler {
             const piece = await this.pieces.findOne({ where: { id: payload.pieceId, organizationId: payload.organizationId } });
             if (!piece)
                 return;
-            const existing = await this.corrections.manager.query('SELECT id FROM charge_notes WHERE correction_id = ? LIMIT 1', [correction.id]);
-            if (existing.length)
-                return;
-            await this.billing.createCorrectionCharge({ organizationId: piece.organizationId, clientId: piece.clientId, pieceId: piece.id, correctionId: correction.id, correctionNumber: piece.clientCorrectionCount, createdBy: payload.requestedBy });
+            this.logger.log(`Pieza ${piece.id}: ronda ${piece.clientCorrectionCount} del cliente supera lo incluido. `
+                + 'Queda marcada como cobrable; la nota se emitirá al aprobar.');
         }
         catch (error) {
             this.logger.error(`Error procesando piece.rejected para pieza ${payload.pieceId} / correccion ${payload.correctionId}: ${error instanceof Error ? error.message : error}`);

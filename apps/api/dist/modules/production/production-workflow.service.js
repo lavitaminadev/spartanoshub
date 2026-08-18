@@ -19,19 +19,21 @@ const typeorm_2 = require("typeorm");
 const piece_entity_1 = require("./piece.entity");
 const piece_version_entity_1 = require("./piece-version.entity");
 const correction_entity_1 = require("./correction.entity");
+const piece_rules_service_1 = require("./piece-rules.service");
 const piece_status_enum_1 = require("./piece-status.enum");
 const correction_origin_enum_1 = require("./correction-origin.enum");
 const design_budget_service_1 = require("../design-budget/design-budget.service");
 const xp_service_1 = require("../gamification/xp.service");
 const billing_service_1 = require("../billing/billing.service");
 let ProductionWorkflowService = class ProductionWorkflowService {
-    constructor(pieceRepo, versionRepo, correctionRepo, designBudget, xp, billing) {
+    constructor(pieceRepo, versionRepo, correctionRepo, designBudget, xp, billing, pieceRules) {
         this.pieceRepo = pieceRepo;
         this.versionRepo = versionRepo;
         this.correctionRepo = correctionRepo;
         this.designBudget = designBudget;
         this.xp = xp;
         this.billing = billing;
+        this.pieceRules = pieceRules;
     }
     async assign(piece, designerId, pieceType, difficultyLevel, carouselSlides = 0, actorId) {
         await this.pieceRepo.manager.transaction(async (manager) => {
@@ -63,31 +65,47 @@ let ProductionWorkflowService = class ProductionWorkflowService {
         await this.pieceRepo.save(piece);
         return saved;
     }
+    async settleBillableCorrections(piece, actorId, manager) {
+        const runner = manager ?? this.pieceRepo.manager;
+        const pendientes = await runner.find(correction_entity_1.Correction, {
+            where: { pieceId: piece.id, chargeNoteRequired: true },
+            order: { createdAt: 'ASC' },
+        });
+        if (!pendientes.length)
+            return 0;
+        const yaCobradas = await runner.query(`SELECT correction_id FROM charge_notes WHERE correction_id IN (${pendientes.map(() => '?').join(',')})`, pendientes.map((item) => item.id));
+        const cobradas = new Set(yaCobradas.map((row) => row.correction_id));
+        let emitidas = 0;
+        for (const [index, correction] of pendientes.entries()) {
+            if (cobradas.has(correction.id))
+                continue;
+            await this.billing.createCorrectionCharge({
+                organizationId: piece.organizationId,
+                clientId: piece.clientId,
+                pieceId: piece.id,
+                correctionId: correction.id,
+                correctionNumber: index + 1,
+                createdBy: actorId,
+            }, runner);
+            emitidas += 1;
+        }
+        return emitidas;
+    }
     async rejectByClient(piece, version, comment, clientUserId) {
         await this.pieceRepo.manager.transaction(async (manager) => {
             piece.clientCorrectionCount = (piece.clientCorrectionCount ?? 0) + 1;
             piece.correctionCount = (piece.correctionCount ?? 0) + 1;
-            const shouldGenerateChargeNote = piece.clientCorrectionCount > 3;
+            const excedeLoIncluido = await this.pieceRules.shouldGenerateInvoice(piece.clientCorrectionCount, piece.organizationId);
             const correction = manager.create(correction_entity_1.Correction, {
                 pieceId: piece.id,
                 pieceVersionId: version.id,
                 origin: correction_origin_enum_1.CorrectionOrigin.CLIENT_REQUEST,
                 description: comment,
                 requestedBy: clientUserId,
-                billableExtra: shouldGenerateChargeNote,
-                chargeNoteRequired: shouldGenerateChargeNote,
+                billableExtra: excedeLoIncluido,
+                chargeNoteRequired: excedeLoIncluido,
             });
-            const savedCorrection = await manager.save(correction_entity_1.Correction, correction);
-            if (shouldGenerateChargeNote) {
-                await this.billing.createCorrectionCharge({
-                    organizationId: piece.organizationId,
-                    clientId: piece.clientId,
-                    pieceId: piece.id,
-                    correctionId: savedCorrection.id,
-                    correctionNumber: piece.clientCorrectionCount,
-                    createdBy: clientUserId,
-                }, manager);
-            }
+            await manager.save(correction_entity_1.Correction, correction);
             piece.status = piece_status_enum_1.PieceStatus.CORRECTION;
             await manager.save(piece_entity_1.Piece, piece);
         });
@@ -134,5 +152,6 @@ exports.ProductionWorkflowService = ProductionWorkflowService = __decorate([
         typeorm_2.Repository,
         design_budget_service_1.DesignBudgetService,
         xp_service_1.XPService,
-        billing_service_1.BillingService])
+        billing_service_1.BillingService,
+        piece_rules_service_1.PieceRulesService])
 ], ProductionWorkflowService);

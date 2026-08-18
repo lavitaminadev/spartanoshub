@@ -41,6 +41,12 @@ const meta_client_pixel_service_1 = require("../../integrations/meta/meta-client
 const geo_inference_1 = require("../../../shared/geo-inference");
 const google_conversion_outbox_service_1 = require("../../integrations/google/google-conversion-outbox.service");
 const client_capabilities_1 = require("../../clients/client-capabilities");
+const DEFAULT_VENUE_TIPS = [
+    'Te esperamos 10 minutos antes para acomodarte con calma.',
+    'Estamos en la esquina; si llegas en auto, hay estacionamiento a media cuadra.',
+    'Si te surge algo, avísanos con tu código y liberamos la mesa sin problema.',
+    '¿Alguna duda antes de venir? Escríbenos y te respondemos.',
+].join('\n');
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 const STATUS_TRANSITIONS = {
@@ -259,7 +265,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             fieldSchema,
             designConfig: isSurvey
                 ? { primaryColor: '#1f5b2d', accentColor: '#d79b3a', backgroundColor: '#f5eedf', textColor: '#263241', title: dto.name, welcome: 'Gracias por ser parte de nuestra experiencia. Tu opinión es fundamental para seguir mejorando.', confirmationMessage: 'Gracias por tu tiempo. Tu respuesta fue registrada.', backgroundMode: 'image', backgroundOpacity: '82', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'center', buttonRadius: '6', fieldRadius: '6', fontFamily: 'Inter, sans-serif', showFacts: 'false', showSecureBadge: 'false', showPoweredBy: 'false', googleReviewUrl: '', googleReviewMinRating: '4' }
-                : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui' },
+                : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
             scheduleConfig: { windows: [1, 2, 3, 4, 5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: capabilities.crm, calendarEnabled: false, metaCapiEnabled: false,
         });
         this.validateConfiguration(form);

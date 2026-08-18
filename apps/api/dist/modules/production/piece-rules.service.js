@@ -27,6 +27,9 @@ let PieceRulesService = class PieceRulesService {
     async shouldGenerateInvoice(clientCorrectionCount, organizationId) {
         return clientCorrectionCount > await this.resolveMaxCorrections(organizationId);
     }
+    async maxCorrections(organizationId) {
+        return this.resolveMaxCorrections(organizationId);
+    }
     async resolveMaxCorrections(organizationId) {
         if (!this.parameters || !organizationId)
             return this.defaultMaxCorrections;
