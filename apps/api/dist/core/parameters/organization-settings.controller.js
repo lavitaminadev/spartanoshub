@@ -57,7 +57,7 @@ exports.OrganizationSettingsController = OrganizationSettingsController = __deco
     (0, swagger_1.ApiTags)('Configuración'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Controller)('settings'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, module_scope_decorator_1.ModuleScope)('settings'),
     __metadata("design:paramtypes", [organization_settings_service_1.OrganizationSettingsService])
 ], OrganizationSettingsController);

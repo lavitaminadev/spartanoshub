@@ -20,8 +20,10 @@ const swagger_1 = require("@nestjs/swagger");
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const public_decorator_1 = require("../../core/auth/decorators/public.decorator");
+const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const service_requests_service_1 = require("./service-requests.service");
 const service_request_dto_1 = require("./dto/service-request.dto");
+const user_role_enum_1 = require("../organizations/user-role.enum");
 let ServiceRequestsController = class ServiceRequestsController {
     constructor(service) {
         this.service = service;
@@ -101,7 +103,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, requires_permission_decorator_1.RequiresPermission)('governance', 'view'),
+    (0, requires_permission_decorator_1.RequiresPermission)('settings', 'view'),
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('status')),
@@ -113,7 +115,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, requires_permission_decorator_1.RequiresPermission)('governance', 'view'),
+    (0, requires_permission_decorator_1.RequiresPermission)('settings', 'view'),
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -124,7 +126,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, requires_permission_decorator_1.RequiresPermission)('governance', 'edit'),
+    (0, requires_permission_decorator_1.RequiresPermission)('settings', 'edit'),
     (0, common_1.Put)(':id'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -136,7 +138,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, requires_permission_decorator_1.RequiresPermission)('governance', 'manage'),
+    (0, requires_permission_decorator_1.RequiresPermission)('settings', 'manage'),
     (0, common_1.Post)(':id/anonymize'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -147,6 +149,7 @@ __decorate([
 exports.ServiceRequestsController = ServiceRequestsController = __decorate([
     (0, swagger_1.ApiTags)('Solicitudes'),
     (0, common_1.Controller)('service-requests'),
-    (0, module_scope_decorator_1.ModuleScope)('governance'),
+    (0, module_scope_decorator_1.ModuleScope)('settings'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV),
     __metadata("design:paramtypes", [service_requests_service_1.ServiceRequestsService])
 ], ServiceRequestsController);

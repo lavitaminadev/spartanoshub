@@ -20,8 +20,11 @@ const purge_expired_leads_job_1 = require("./cron/purge-expired-leads.job");
 const meta_lead_recovery_job_1 = require("./cron/meta-lead-recovery.job");
 const meta_conversion_outbox_service_1 = require("../../modules/integrations/meta/meta-conversion-outbox.service");
 const operational_alerts_job_1 = require("./cron/operational-alerts.job");
+const automation_runner_service_1 = require("../../modules/automations/automation-runner.service");
+const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
+const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
-    constructor(xp, cycles, stale, collections, purge, metaRecovery, capiOutbox, operationalAlerts) {
+    constructor(xp, cycles, stale, collections, purge, metaRecovery, capiOutbox, operationalAlerts, automations, automationSchedule, webhooks) {
         this.xp = xp;
         this.cycles = cycles;
         this.stale = stale;
@@ -30,6 +33,9 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.metaRecovery = metaRecovery;
         this.capiOutbox = capiOutbox;
         this.operationalAlerts = operationalAlerts;
+        this.automations = automations;
+        this.automationSchedule = automationSchedule;
+        this.webhooks = webhooks;
         this.logger = new common_1.Logger(JobSchedulerService_1.name);
         this.timers = [];
         this.running = new Set();
@@ -41,6 +47,11 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         }
         this.schedule('meta-lead-recovery', 15 * 60_000, () => this.metaRecovery.handle());
         this.schedule('meta-capi-outbox', 5 * 60_000, () => this.capiOutbox.processPending());
+        this.schedule('automation-runs', 60_000, () => this.automations.processPending());
+        this.schedule('automation-cleanup', 24 * 60 * 60_000, () => this.automations.cleanup());
+        this.schedule('automation-schedule', 60 * 60_000, () => this.automationSchedule.handle());
+        this.schedule('automation-webhooks', 60_000, () => this.webhooks.processPending());
+        this.schedule('automation-webhooks-cleanup', 24 * 60 * 60_000, () => this.webhooks.cleanup());
         this.schedule('stale-pieces', 60 * 60_000, () => this.stale.handle());
         this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
         this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
@@ -82,5 +93,8 @@ exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __de
         purge_expired_leads_job_1.PurgeExpiredLeadsJob,
         meta_lead_recovery_job_1.MetaLeadRecoveryJob,
         meta_conversion_outbox_service_1.MetaConversionOutboxService,
-        operational_alerts_job_1.OperationalAlertsJob])
+        operational_alerts_job_1.OperationalAlertsJob,
+        automation_runner_service_1.AutomationRunnerService,
+        automation_schedule_job_1.AutomationScheduleJob,
+        webhook_delivery_service_1.WebhookDeliveryService])
 ], JobSchedulerService);

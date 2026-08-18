@@ -19,7 +19,7 @@ const typeorm_2 = require("typeorm");
 const onboarding_entity_1 = require("./onboarding.entity");
 const client_entity_1 = require("../clients/client.entity");
 const user_entity_1 = require("../users/user.entity");
-const workflows_service_1 = require("../workflows/workflows.service");
+const process_templates_service_1 = require("../process-templates/process-templates.service");
 let OnboardingService = class OnboardingService {
     constructor(repo, clients, users, workflows) {
         this.repo = repo;
@@ -106,5 +106,5 @@ exports.OnboardingService = OnboardingService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        workflows_service_1.WorkflowsService])
+        process_templates_service_1.ProcessTemplatesService])
 ], OnboardingService);

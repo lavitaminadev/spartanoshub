@@ -16,6 +16,8 @@ var CommentSubject;
     CommentSubject["PIECE"] = "piece";
     CommentSubject["SESSION"] = "session";
     CommentSubject["WORK_REQUEST"] = "work_request";
+    CommentSubject["LEAD"] = "lead";
+    CommentSubject["OPPORTUNITY"] = "opportunity";
 })(CommentSubject || (exports.CommentSubject = CommentSubject = {}));
 var CommentVisibility;
 (function (CommentVisibility) {

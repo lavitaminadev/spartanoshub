@@ -49,6 +49,10 @@ __decorate([
     __metadata("design:type", String)
 ], ApprovalRequest.prototype, "description", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 20, default: approval_request_status_enum_1.PendingKind.APPROVAL }),
+    __metadata("design:type", String)
+], ApprovalRequest.prototype, "kind", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'entity_type', type: 'varchar', length: 100 }),
     __metadata("design:type", String)
 ], ApprovalRequest.prototype, "entityType", void 0);
@@ -95,5 +99,7 @@ __decorate([
 ], ApprovalRequest.prototype, "updatedAt", void 0);
 exports.ApprovalRequest = ApprovalRequest = __decorate([
     (0, typeorm_1.Entity)('approval_requests'),
-    (0, typeorm_1.Index)('IDX_approval_requests_org_created', ['organizationId', 'createdAt'])
+    (0, typeorm_1.Index)('IDX_approval_requests_org_created', ['organizationId', 'createdAt']),
+    (0, typeorm_1.Index)('IDX_approval_requests_assignee_open', ['assignedTo', 'status', 'dueAt']),
+    (0, typeorm_1.Index)('IDX_approval_requests_kind_due', ['kind', 'status', 'dueAt'])
 ], ApprovalRequest);

@@ -18,15 +18,18 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const opportunity_entity_1 = require("../opportunity.entity");
 const opportunity_reference_validator_service_1 = require("../opportunity-reference-validator.service");
+const opportunity_stage_history_service_1 = require("../opportunity-stage-history.service");
 const get_opportunity_use_case_1 = require("./get-opportunity.use-case");
 let UpdateOpportunityUseCase = class UpdateOpportunityUseCase {
-    constructor(repo, referenceValidator, getOpportunity) {
+    constructor(repo, referenceValidator, getOpportunity, stageHistory) {
         this.repo = repo;
         this.referenceValidator = referenceValidator;
         this.getOpportunity = getOpportunity;
+        this.stageHistory = stageHistory;
     }
-    async execute(id, dto, organizationId) {
+    async execute(id, dto, organizationId, actorId) {
         const opportunity = await this.getOpportunity.execute(id, organizationId);
+        const previousStage = opportunity.stage;
         await this.referenceValidator.validate(dto, organizationId);
         const movingToLost = dto.stage?.trim().toLowerCase() === 'lost' && opportunity.stage !== 'lost';
         if (movingToLost && !dto.lossReason && !opportunity.lossReason) {
@@ -47,7 +50,9 @@ let UpdateOpportunityUseCase = class UpdateOpportunityUseCase {
             opportunity.nextAction = dto.nextAction?.trim().replace(/\s+/g, ' ') || undefined;
         if (dto.nextActionAt !== undefined)
             opportunity.nextActionAt = dto.nextActionAt ? new Date(dto.nextActionAt) : undefined;
-        return this.repo.save(opportunity);
+        const saved = await this.repo.save(opportunity);
+        await this.stageHistory.recordStageChange(saved, previousStage, actorId);
+        return saved;
     }
 };
 exports.UpdateOpportunityUseCase = UpdateOpportunityUseCase;
@@ -56,5 +61,6 @@ exports.UpdateOpportunityUseCase = UpdateOpportunityUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(opportunity_entity_1.Opportunity)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         opportunity_reference_validator_service_1.OpportunityReferenceValidator,
-        get_opportunity_use_case_1.GetOpportunityUseCase])
+        get_opportunity_use_case_1.GetOpportunityUseCase,
+        opportunity_stage_history_service_1.OpportunityStageHistoryService])
 ], UpdateOpportunityUseCase);

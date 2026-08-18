@@ -1,1 +1,0 @@
-function e(e,n=!1){return n||t()?!1:e}function t(){if(typeof document>`u`)return!1;let e=document.activeElement;if(!e)return!1;if(e.isContentEditable)return!0;let t=e.tagName;if(t===`TEXTAREA`)return!0;if(t!==`INPUT`)return!1;let n=e.type;return![`checkbox`,`radio`,`button`,`submit`,`reset`].includes(n)}export{e as t};

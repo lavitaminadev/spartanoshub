@@ -36,12 +36,13 @@ const reservation_entity_1 = require("../../modules/reservations/domain/reservat
 const reservation_form_entity_1 = require("../../modules/reservations/domain/reservation-form.entity");
 const google_module_1 = require("../../modules/integrations/google/google.module");
 const crm_module_1 = require("../../modules/crm/crm.module");
+const automations_module_1 = require("../../modules/automations/automations.module");
 let JobsModule = class JobsModule {
 };
 exports.JobsModule = JobsModule;
 exports.JobsModule = JobsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([xp_period_entity_1.XPPeriod, xp_event_entity_1.XPEvent, client_entity_1.Client, ud_budget_entity_1.UDBudget, piece_entity_1.Piece, notification_entity_1.Notification, invoice_entity_1.Invoice, lead_entity_1.Lead, integration_account_entity_1.IntegrationAccount, reservation_entity_1.Reservation, reservation_form_entity_1.ReservationForm]), email_module_1.EmailModule, data_protection_module_1.DataProtectionModule, meta_module_1.MetaModule, account_cycles_module_1.AccountCyclesModule, parameters_module_1.ParametersModule, google_module_1.GoogleModule, crm_module_1.CrmModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([xp_period_entity_1.XPPeriod, xp_event_entity_1.XPEvent, client_entity_1.Client, ud_budget_entity_1.UDBudget, piece_entity_1.Piece, notification_entity_1.Notification, invoice_entity_1.Invoice, lead_entity_1.Lead, integration_account_entity_1.IntegrationAccount, reservation_entity_1.Reservation, reservation_form_entity_1.ReservationForm]), email_module_1.EmailModule, data_protection_module_1.DataProtectionModule, meta_module_1.MetaModule, account_cycles_module_1.AccountCyclesModule, parameters_module_1.ParametersModule, google_module_1.GoogleModule, crm_module_1.CrmModule, automations_module_1.AutomationsModule],
         providers: [close_xp_periods_job_1.CloseXpPeriodsJob, create_monthly_cycles_job_1.CreateMonthlyCyclesJob, detect_stale_pieces_job_1.DetectStalePiecesJob, collection_emails_job_1.CollectionEmailsJob, purge_expired_leads_job_1.PurgeExpiredLeadsJob, meta_lead_recovery_job_1.MetaLeadRecoveryJob, operational_alerts_job_1.OperationalAlertsJob, recover_reservation_integrations_job_1.RecoverReservationIntegrationsJob, job_scheduler_service_1.JobSchedulerService],
         exports: [close_xp_periods_job_1.CloseXpPeriodsJob, create_monthly_cycles_job_1.CreateMonthlyCyclesJob, detect_stale_pieces_job_1.DetectStalePiecesJob, collection_emails_job_1.CollectionEmailsJob, purge_expired_leads_job_1.PurgeExpiredLeadsJob, meta_lead_recovery_job_1.MetaLeadRecoveryJob, operational_alerts_job_1.OperationalAlertsJob, recover_reservation_integrations_job_1.RecoverReservationIntegrationsJob],
     })

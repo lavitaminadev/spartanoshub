@@ -14,6 +14,8 @@ function normalizeOrganizationFeatures(value) {
         if (typeof provided === 'boolean')
             result[key] = provided;
     }
+    for (const key of exports.REQUIRED_ORGANIZATION_FEATURE_KEYS)
+        result[key] = true;
     return result;
 }
 function isOrganizationFeatureKey(value) {

@@ -78,54 +78,63 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "c70cab1f0ee4dfe7a247252c934171f2"
-  }, {
-    "url": "assets/WorkflowTimeline-XeaRwmup.js",
-    "revision": null
+    "revision": "6f4df34001db1d1f29a19b685075acdc"
   }, {
     "url": "assets/WorkflowTimeline-D8fl8gya.css",
     "revision": null
   }, {
-    "url": "assets/WorkDetailPage-lreP4yA-.js",
+    "url": "assets/WorkflowTimeline-5i3esCSp.js",
     "revision": null
   }, {
-    "url": "assets/WaitlistPage-Tlfji0Z1.js",
+    "url": "assets/WorkDetailPage-BTQDGs93.js",
     "revision": null
   }, {
-    "url": "assets/vendor-router-DQ9CXCio.js",
+    "url": "assets/WaitlistPage-BjQCX4zX.js",
     "revision": null
   }, {
-    "url": "assets/vendor-react-CtDnBR5A.js",
+    "url": "assets/vendor-router-DTPcpciV.js",
     "revision": null
   }, {
-    "url": "assets/vendor-query-BOdMp2AX.js",
+    "url": "assets/vendor-react-CPQqh_K1.js",
     "revision": null
   }, {
-    "url": "assets/vendor-DhjG7gKd.js",
+    "url": "assets/vendor-query-D5kL0zo2.js",
     "revision": null
   }, {
-    "url": "assets/vendor-charts-CTl1XruH.js",
+    "url": "assets/vendor-DLioOiRN.css",
     "revision": null
   }, {
-    "url": "assets/useSurveys-vTLjDU1L.js",
+    "url": "assets/vendor-CokarIxj.js",
     "revision": null
   }, {
-    "url": "assets/UsersPage-oQWxZyjx.js",
+    "url": "assets/vendor-charts-7ktXPl2_.js",
     "revision": null
   }, {
-    "url": "assets/Tooltip-BtzQrb5Y.js",
+    "url": "assets/useSurveys-Ds5gR1OU.js",
     "revision": null
   }, {
-    "url": "assets/SurveysPage-CupIrMK4.js",
+    "url": "assets/UsersPage-D-ydom1C.js",
+    "revision": null
+  }, {
+    "url": "assets/use-pipeline-stages-gnrGq-U0.js",
+    "revision": null
+  }, {
+    "url": "assets/Tooltip-fogC49ZV.js",
+    "revision": null
+  }, {
+    "url": "assets/Timeline-CHqlOAC5.js",
+    "revision": null
+  }, {
+    "url": "assets/SurveysPage-DKfrvQQk.js",
     "revision": null
   }, {
     "url": "assets/surveys-D9ZMDVjH.css",
     "revision": null
   }, {
-    "url": "assets/SurveyResultsPage-BOiQwPde.js",
+    "url": "assets/SurveyResultsPage-uXRx4cDw.js",
     "revision": null
   }, {
-    "url": "assets/StatusBadge-CCxB7eNQ.js",
+    "url": "assets/StatusBadge-BaCzA6Hd.js",
     "revision": null
   }, {
     "url": "assets/status-palette-Bpv_hTOn.js",
@@ -134,16 +143,16 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/status-labels-k5826si5.js",
     "revision": null
   }, {
-    "url": "assets/SolicitudesPage-DRTSBzN8.js",
+    "url": "assets/SolicitudesPage-D4UumU2k.js",
     "revision": null
   }, {
-    "url": "assets/SettingsPage-DATWgIJ2.js",
+    "url": "assets/SettingsPage-D6N90Gc9.js",
     "revision": null
   }, {
-    "url": "assets/SessionsPage-DdQLO2ZR.js",
+    "url": "assets/SessionsPage-Ca4iKNYv.js",
     "revision": null
   }, {
-    "url": "assets/SecurityPage-C1wUeU4G.js",
+    "url": "assets/SecurityPage-ifkVkIxH.js",
     "revision": null
   }, {
     "url": "assets/search-C-ELg2fg.js",
@@ -155,235 +164,250 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/rolldown-runtime-QTnfLwEv.js",
     "revision": null
   }, {
-    "url": "assets/ResetPasswordPage-kiOAPHbm.js",
+    "url": "assets/role-access-DjNaJx-y.js",
+    "revision": null
+  }, {
+    "url": "assets/ResetPasswordPage-BhpwMOhT.js",
     "revision": null
   }, {
     "url": "assets/ReservationsPage-CmUBKqEa.css",
     "revision": null
   }, {
-    "url": "assets/ReservationsPage-BKooOXUW.js",
+    "url": "assets/ReservationsPage-BxHW4aYx.js",
     "revision": null
   }, {
-    "url": "assets/ReservationsAnalyticsPage-BZAC91p3.js",
+    "url": "assets/ReservationsAnalyticsPage-BIa3x2Bz.js",
     "revision": null
   }, {
-    "url": "assets/ReservationResults-CVpr8-zv.js",
+    "url": "assets/ReservationResults-bQ0YMoND.js",
     "revision": null
   }, {
-    "url": "assets/ReservationBuilderPage-DvcbwzQZ.js",
+    "url": "assets/ReservationBuilderPage-mAWQm_Sp.js",
     "revision": null
   }, {
-    "url": "assets/ReportsPage-3ntTDoZB.js",
+    "url": "assets/ReportsPage-CVDewNIh.js",
     "revision": null
   }, {
-    "url": "assets/refetch-policy-DWFwdUVH.js",
+    "url": "assets/QueryErrorState-Bbugh244.js",
     "revision": null
   }, {
-    "url": "assets/QueryErrorState-DE956awA.js",
+    "url": "assets/PulsoEspartano-BTbQiy0Y.js",
     "revision": null
   }, {
-    "url": "assets/PulsoEspartano-IJGNJl3f.js",
-    "revision": null
-  }, {
-    "url": "assets/PublicSurveyPage-DfZU0v04.js",
+    "url": "assets/PublicSurveyPage-fd85MSL2.js",
     "revision": null
   }, {
     "url": "assets/PublicReservationPage-_9Pq96kA.css",
     "revision": null
   }, {
-    "url": "assets/PublicReservationPage-BddbSokO.js",
+    "url": "assets/PublicReservationPage-FE9lMsVP.js",
     "revision": null
   }, {
-    "url": "assets/ProductionPage-TR5Rxl_q.js",
+    "url": "assets/ProductionPage-BTzoWrZt.js",
     "revision": null
   }, {
-    "url": "assets/PasswordField-kN9G1QRV.js",
+    "url": "assets/ProcessCommentThread-D8vOCe9u.js",
     "revision": null
   }, {
-    "url": "assets/PageHero-CzR2jCTv.js",
+    "url": "assets/PipelineBoardPage-BNwByZmE.js",
+    "revision": null
+  }, {
+    "url": "assets/PasswordField-GUFm3-Zu.js",
     "revision": null
   }, {
     "url": "assets/PageHero-BFu4a6CR.css",
     "revision": null
   }, {
-    "url": "assets/organization-settings-DjRMSAsu.js",
+    "url": "assets/PageHero-BCs7lvhp.js",
     "revision": null
   }, {
-    "url": "assets/OperationsPage-CTOwHM8-.js",
+    "url": "assets/organization-settings-DHW00oc-.js",
     "revision": null
   }, {
-    "url": "assets/OnboardingPage-BWh4m436.js",
+    "url": "assets/OperationsPage-CPO0RFSK.js",
     "revision": null
   }, {
-    "url": "assets/OAuthCallbackPage-CSSsiMzM.js",
+    "url": "assets/OnboardingPage-CLFjN5s_.js",
     "revision": null
   }, {
-    "url": "assets/MonthlyReportCard-C3JxTbMU.js",
+    "url": "assets/OAuthCallbackPage-KqyC-HXk.js",
     "revision": null
   }, {
-    "url": "assets/Modal-C_NELw3q.js",
+    "url": "assets/MonthlyReportCard-WF7my4PN.js",
     "revision": null
   }, {
-    "url": "assets/MeetingsPage-BGhNCcwJ.js",
+    "url": "assets/Modal-DPFXZvRZ.js",
     "revision": null
   }, {
-    "url": "assets/LoginPage-C8BkcMe5.js",
+    "url": "assets/MeetingsPage-sZkDEujt.js",
+    "revision": null
+  }, {
+    "url": "assets/LoginPage-CqF_kGfG.js",
     "revision": null
   }, {
     "url": "assets/local-time-CDXSxa83.js",
     "revision": null
   }, {
-    "url": "assets/LeadsPage-CSBBJBch.js",
+    "url": "assets/LeadsPage-oCk8J4RW.js",
     "revision": null
   }, {
-    "url": "assets/KnowledgePage-C6gVjjlS.js",
+    "url": "assets/KnowledgePage-BI-t4QCh.js",
     "revision": null
   }, {
-    "url": "assets/IntegrationsPage-DBSBSWWb.js",
+    "url": "assets/IntegrationsPage-dT5s2kf2.js",
     "revision": null
   }, {
-    "url": "assets/IntakePage-CBbOluF7.js",
+    "url": "assets/IntakePage-Ht6DBnEp.js",
     "revision": null
   }, {
-    "url": "assets/index-V_d53-y3.js",
+    "url": "assets/index-DKbGm25w.css",
     "revision": null
   }, {
-    "url": "assets/index-DzMKlHNg.css",
+    "url": "assets/index-CjNsXPis.js",
     "revision": null
   }, {
-    "url": "assets/ImageUpload-Ds5zgl9z.js",
+    "url": "assets/ImageUpload-DlTP1X--.js",
     "revision": null
   }, {
-    "url": "assets/GovernancePage-DWZYQ_jo.js",
+    "url": "assets/GovernancePage-D6N1LGWo.js",
     "revision": null
   }, {
-    "url": "assets/GamificationPage-YZ9P4wzm.js",
+    "url": "assets/GamificationPage-CWW3ckfB.js",
     "revision": null
   }, {
-    "url": "assets/ga4-events-DNziss5t.js",
+    "url": "assets/ga4-events-Bf3UDPec.js",
     "revision": null
   }, {
-    "url": "assets/ForgotPasswordPage-D7HBL8DS.js",
+    "url": "assets/ForgotPasswordPage-4SNiH5rs.js",
     "revision": null
   }, {
-    "url": "assets/ForbiddenState-C3ZyTbYI.js",
+    "url": "assets/ForbiddenState-R0lqEQhP.js",
     "revision": null
   }, {
-    "url": "assets/FirstAccessPage-DhFDoWfA.js",
+    "url": "assets/FirstAccessPage-BvgQ0Epb.js",
     "revision": null
   }, {
-    "url": "assets/EmptyState-C403hg5Q.js",
+    "url": "assets/EmptyState-Cvdi03yH.js",
     "revision": null
   }, {
-    "url": "assets/DocumentsPage-cVj_t1vV.js",
+    "url": "assets/DocumentsPage-LtjxEtz7.js",
     "revision": null
   }, {
-    "url": "assets/DirectionPage-B97MG6nW.js",
+    "url": "assets/DirectionPage-BTbyzweI.js",
     "revision": null
   }, {
-    "url": "assets/DataTable-SYsoP5Yt.js",
+    "url": "assets/DataTable-DBPzVk4B.js",
     "revision": null
   }, {
-    "url": "assets/DashboardPage-Ddk2-kGc.js",
+    "url": "assets/DashboardPage-qwlp4jcI.js",
     "revision": null
   }, {
-    "url": "assets/CrmRecordsPage-DvcgFRe4.js",
-    "revision": null
-  }, {
-    "url": "assets/CreateSurveyWizard-DIUN_fYi.js",
+    "url": "assets/CrmRecordsPage-CEJ_OvUJ.js",
     "revision": null
   }, {
     "url": "assets/CreateSurveyWizard-D3jzy4Fi.css",
     "revision": null
   }, {
-    "url": "assets/ContractsPage-BF0B3YJ9.js",
+    "url": "assets/CreateSurveyWizard-CYntPUkD.js",
     "revision": null
   }, {
-    "url": "assets/ContentGridPage-BHsvS16p.js",
+    "url": "assets/ContractsPage-nHhdwAzP.js",
     "revision": null
   }, {
-    "url": "assets/ConfirmDialog-n4_Krhge.js",
+    "url": "assets/ContentGridPage-Jd4wX7wB.js",
     "revision": null
   }, {
-    "url": "assets/CloudinaryConfigModal-B6dpH2EW.js",
+    "url": "assets/ConfirmDialog-3FlwetdI.js",
     "revision": null
   }, {
-    "url": "assets/ClientsPage-rNrppy3i.js",
+    "url": "assets/CloudinaryConfigModal-Cc-bqyyF.js",
+    "revision": null
+  }, {
+    "url": "assets/ClientsPage-grPbHLZn.js",
     "revision": null
   }, {
     "url": "assets/ClientsPage-5vXbh_F2.css",
     "revision": null
   }, {
-    "url": "assets/ClientReports-BvDbbqwj.js",
+    "url": "assets/ClientReports-Cm6R6do2.js",
     "revision": null
   }, {
-    "url": "assets/ClientMeetings-BgeZ7R8T.js",
+    "url": "assets/ClientMeetings-DuDkLKeQ.js",
     "revision": null
   }, {
-    "url": "assets/ClientLayout-CUOt3m1Z.js",
+    "url": "assets/ClientLayout-DXBPvdqY.js",
     "revision": null
   }, {
-    "url": "assets/ClientGrid-Cw9c0c-a.js",
+    "url": "assets/ClientGrid-C4GA231-.js",
     "revision": null
   }, {
-    "url": "assets/ClientDetailPage-Btztzb3T.js",
+    "url": "assets/ClientDetailPage-CqPXOBZF.js",
     "revision": null
   }, {
-    "url": "assets/ClientDashboard-D6yN4DNr.js",
+    "url": "assets/ClientDashboard-lacvm-rc.js",
     "revision": null
   }, {
-    "url": "assets/ClientApprovals-CXi4O4GZ.js",
+    "url": "assets/ClientApprovals-C_X3EKvc.js",
     "revision": null
   }, {
-    "url": "assets/ChangePasswordPage-BD8OX4dr.js",
+    "url": "assets/ChangePasswordPage-ByZO7w66.js",
     "revision": null
   }, {
-    "url": "assets/CatalogPage-CUBvvJoS.js",
+    "url": "assets/CatalogPage-Cife4GOi.js",
     "revision": null
   }, {
-    "url": "assets/Card-BL6F9XtC.js",
+    "url": "assets/Card-CbgBr3Uk.js",
     "revision": null
   }, {
     "url": "assets/browser-storage-B9UsxX0B.js",
     "revision": null
   }, {
-    "url": "assets/BriefsPage-EVeMlTPm.js",
+    "url": "assets/BriefsPage-BSAO8MEQ.js",
     "revision": null
   }, {
     "url": "assets/booking-utils-DfHGxcnP.js",
     "revision": null
   }, {
-    "url": "assets/BillingPage-BsaiLCdH.js",
+    "url": "assets/BillingPage-Cr55NGA2.js",
     "revision": null
   }, {
     "url": "assets/AvailabilityCalendarPage-rG-YTosR.css",
     "revision": null
   }, {
-    "url": "assets/AvailabilityCalendarPage-B9zCTH0H.js",
+    "url": "assets/AvailabilityCalendarPage-CiwICslS.js",
     "revision": null
   }, {
-    "url": "assets/AuditPanel-ui1Q8lve.js",
+    "url": "assets/AutomationsPage-CUNDXam2.js",
     "revision": null
   }, {
-    "url": "assets/AudiovisualPage-DjooRLIF.js",
+    "url": "assets/AutomationRunsPage-C2KVTCPF.js",
     "revision": null
   }, {
-    "url": "assets/attendance-C8gDX3zQ.js",
+    "url": "assets/AutomationEditorPage-C7wA7lHw.js",
+    "revision": null
+  }, {
+    "url": "assets/AuditPanel-CK6u_4TH.js",
+    "revision": null
+  }, {
+    "url": "assets/AudiovisualPage-CxLT-MvC.js",
+    "revision": null
+  }, {
+    "url": "assets/attendance-PvKRqKZZ.js",
     "revision": null
   }, {
     "url": "assets/attendance-Byko9tlR.css",
     "revision": null
   }, {
-    "url": "assets/ApprovalsPage-CyYhYAxo.js",
+    "url": "assets/ApprovalsPage-CJ-AL8pN.js",
     "revision": null
   }, {
     "url": "assets/AgendaPage-Y83Y1SoO.css",
     "revision": null
   }, {
-    "url": "assets/AgendaPage-BRjqXb_Z.js",
+    "url": "assets/AgendaPage-DlOovTPI.js",
     "revision": null
   }, {
-    "url": "assets/AdminPage-MOaxRcra.js",
+    "url": "assets/AdminPage-BWz8kb-F.js",
     "revision": null
   }, {
     "url": "favicon.svg",

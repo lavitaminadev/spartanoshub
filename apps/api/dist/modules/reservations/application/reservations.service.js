@@ -42,8 +42,6 @@ const geo_inference_1 = require("../../../shared/geo-inference");
 const google_conversion_outbox_service_1 = require("../../integrations/google/google-conversion-outbox.service");
 const client_capabilities_1 = require("../../clients/client-capabilities");
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
-const CHOICE_FIELD_TYPES = ['select', 'multi_select'];
-const CONTACT_REQUEST_STATUSES = ['pending', 'contacted', 'resolved'];
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 const STATUS_TRANSITIONS = {
     pending: ['confirmed', 'cancelled_client', 'cancelled_business', 'waitlist'],

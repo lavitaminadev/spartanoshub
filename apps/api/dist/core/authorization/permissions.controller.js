@@ -186,6 +186,7 @@ let PermissionsController = class PermissionsController {
             module,
             level: dto.level,
             reason: dto.reason ?? null,
+            expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
             grantedBy: req.user.id,
         });
         this.permissions.invalidateUser(user.id);
@@ -196,7 +197,7 @@ let PermissionsController = class PermissionsController {
             entityId: saved.id,
             action: existing ? 'updated' : 'created',
             before: existing ? { level: existing.level, reason: existing.reason } : undefined,
-            after: { module, level: dto.level, reason: dto.reason ?? null },
+            after: { module, level: dto.level, reason: dto.reason ?? null, expiresAt: dto.expiresAt ?? null },
         });
         return saved;
     }

@@ -14,13 +14,13 @@ const onboarding_controller_1 = require("./onboarding.controller");
 const onboarding_service_1 = require("./onboarding.service");
 const client_entity_1 = require("../clients/client.entity");
 const user_entity_1 = require("../users/user.entity");
-const workflows_module_1 = require("../workflows/workflows.module");
+const process_templates_module_1 = require("../process-templates/process-templates.module");
 let OnboardingModule = class OnboardingModule {
 };
 exports.OnboardingModule = OnboardingModule;
 exports.OnboardingModule = OnboardingModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([onboarding_entity_1.Onboarding, client_entity_1.Client, user_entity_1.User]), workflows_module_1.WorkflowsModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([onboarding_entity_1.Onboarding, client_entity_1.Client, user_entity_1.User]), process_templates_module_1.ProcessTemplatesModule],
         controllers: [onboarding_controller_1.OnboardingController],
         providers: [onboarding_service_1.OnboardingService],
     })

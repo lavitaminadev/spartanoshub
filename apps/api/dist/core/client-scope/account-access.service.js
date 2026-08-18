@@ -22,6 +22,7 @@ const pod_member_entity_1 = require("../../modules/pods/pod-member.entity");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const user_client_access_entity_1 = require("./user-client-access.entity");
 const UNRESTRICTED_ROLES = new Set([
+    user_role_enum_1.UserRole.DEV,
     user_role_enum_1.UserRole.ADMIN,
     user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR,
     user_role_enum_1.UserRole.OPERATIONS_DIRECTOR,

@@ -44,6 +44,6 @@ exports.AuditController = AuditController = __decorate([
     (0, common_1.Controller)('audit'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
-    (0, module_scope_decorator_1.ModuleScope)('governance'),
+    (0, module_scope_decorator_1.ModuleScope)('settings'),
     __metadata("design:paramtypes", [audit_service_1.AuditService])
 ], AuditController);

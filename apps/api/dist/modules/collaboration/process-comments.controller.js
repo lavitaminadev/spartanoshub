@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WorkRequestCommentsController = exports.SessionCommentsController = exports.PieceCommentsController = void 0;
+exports.OpportunityCommentsController = exports.LeadCommentsController = exports.WorkRequestCommentsController = exports.SessionCommentsController = exports.PieceCommentsController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
@@ -110,3 +110,33 @@ exports.WorkRequestCommentsController = WorkRequestCommentsController = __decora
     (0, module_scope_decorator_1.ModuleScope)('operations'),
     __metadata("design:paramtypes", [process_comments_service_1.ProcessCommentsService])
 ], WorkRequestCommentsController);
+let LeadCommentsController = class LeadCommentsController extends BaseCommentsController {
+    constructor(service) {
+        super(service);
+        this.subject = process_comment_entity_1.CommentSubject.LEAD;
+    }
+};
+exports.LeadCommentsController = LeadCommentsController;
+exports.LeadCommentsController = LeadCommentsController = __decorate([
+    (0, swagger_1.ApiTags)('CRM'),
+    (0, common_1.Controller)('crm/leads/:subjectId/comments'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, module_scope_decorator_1.ModuleScope)('crm'),
+    __metadata("design:paramtypes", [process_comments_service_1.ProcessCommentsService])
+], LeadCommentsController);
+let OpportunityCommentsController = class OpportunityCommentsController extends BaseCommentsController {
+    constructor(service) {
+        super(service);
+        this.subject = process_comment_entity_1.CommentSubject.OPPORTUNITY;
+    }
+};
+exports.OpportunityCommentsController = OpportunityCommentsController;
+exports.OpportunityCommentsController = OpportunityCommentsController = __decorate([
+    (0, swagger_1.ApiTags)('CRM'),
+    (0, common_1.Controller)('crm/opportunities/:subjectId/comments'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, module_scope_decorator_1.ModuleScope)('crm'),
+    __metadata("design:paramtypes", [process_comments_service_1.ProcessCommentsService])
+], OpportunityCommentsController);

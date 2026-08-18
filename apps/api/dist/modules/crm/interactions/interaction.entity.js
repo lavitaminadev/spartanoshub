@@ -57,5 +57,6 @@ __decorate([
     __metadata("design:type", Date)
 ], Interaction.prototype, "createdAt", void 0);
 exports.Interaction = Interaction = __decorate([
-    (0, typeorm_1.Entity)('crm_interactions')
+    (0, typeorm_1.Entity)('crm_interactions'),
+    (0, typeorm_1.Index)('IDX_crm_interactions_org_lead_date', ['organizationId', 'leadId', 'date'])
 ], Interaction);

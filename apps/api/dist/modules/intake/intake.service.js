@@ -22,6 +22,7 @@ const organization_entity_1 = require("../organizations/organization.entity");
 const user_entity_1 = require("../users/user.entity");
 const piece_entity_1 = require("../production/piece.entity");
 const session_entity_1 = require("../audiovisual/session.entity");
+const moodboard_entity_1 = require("../audiovisual/moodboard.entity");
 const piece_status_enum_1 = require("../production/piece-status.enum");
 const ud_values_service_1 = require("../design-budget/ud-values.service");
 const piece_types_service_1 = require("../production/piece-types.service");
@@ -47,6 +48,7 @@ exports.AREA_SCOPED_ROLES = new Set([
     user_role_enum_1.UserRole.AV_DIRECTOR,
 ]);
 const UNRESTRICTED_AREA_ROLES = new Set([
+    user_role_enum_1.UserRole.DEV,
     user_role_enum_1.UserRole.ADMIN,
     user_role_enum_1.UserRole.OPERATIONS_DIRECTOR,
     user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR,
@@ -65,10 +67,11 @@ const TRANSITIONS = {
     [work_request_entity_1.WorkRequestStatus.REJECTED]: [],
 };
 let IntakeService = class IntakeService {
-    constructor(requests, clients, users, dataSource, udValues, pieceTypes) {
+    constructor(requests, clients, users, moodboards, dataSource, udValues, pieceTypes) {
         this.requests = requests;
         this.clients = clients;
         this.users = users;
+        this.moodboards = moodboards;
         this.dataSource = dataSource;
         this.udValues = udValues;
         this.pieceTypes = pieceTypes;
@@ -133,17 +136,19 @@ let IntakeService = class IntakeService {
             { ...base, assignedTo: viewer.id, ...(asked ? { area: asked } : {}) },
         ];
     }
-    async findOne(organizationId, id, allowedClientIds) {
+    async findOne(organizationId, id, allowedClientIds, viewer) {
         const request = await this.requests.findOne({ where: { id, organizationId }, relations: ['client', 'requester', 'assignee'] });
         if (!request)
             throw new common_1.NotFoundException('Solicitud no encontrada');
         if (allowedClientIds !== undefined && !allowedClientIds.includes(request.clientId)) {
             throw new common_1.NotFoundException('Solicitud no encontrada');
         }
+        this.assertAreaAccess(request, viewer);
         return request;
     }
-    async update(organizationId, id, dto, allowedClientIds) {
-        const request = await this.findOne(organizationId, id, allowedClientIds);
+    async update(organizationId, id, dto, allowedClientIds, viewer) {
+        const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
+        this.assertCanCoordinate(request, viewer);
         if (dto.status && dto.status !== request.status) {
             const allowed = TRANSITIONS[request.status] ?? [];
             if (!allowed.includes(dto.status)) {
@@ -179,8 +184,9 @@ let IntakeService = class IntakeService {
             request.operationalFields = dto.operationalFields;
         return this.requests.save(request);
     }
-    async convert(organizationId, id, dto, allowedClientIds) {
-        const request = await this.findOne(organizationId, id, allowedClientIds);
+    async convert(organizationId, id, dto, allowedClientIds, viewer) {
+        const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
+        this.assertCanCoordinate(request, viewer);
         if (request.status !== work_request_entity_1.WorkRequestStatus.ACCEPTED) {
             throw new common_1.ConflictException('Solo una solicitud aceptada se puede convertir');
         }
@@ -189,6 +195,24 @@ let IntakeService = class IntakeService {
         if (request.area === work_request_entity_1.WorkRequestArea.AUDIOVISUAL)
             return this.convertToSession(organizationId, request, dto);
         throw new common_1.ConflictException('Una solicitud de community todavía no se convierte: falta definir su destino en la parrilla de contenido');
+    }
+    assertAreaAccess(request, viewer) {
+        if (!viewer || UNRESTRICTED_AREA_ROLES.has(viewer.role))
+            return;
+        if (request.requestedBy === viewer.id || request.assignedTo === viewer.id)
+            return;
+        if ((AREAS_BY_ROLE[viewer.role] ?? []).includes(request.area))
+            return;
+        throw new common_1.NotFoundException('Solicitud no encontrada');
+    }
+    assertCanCoordinate(request, viewer) {
+        if (!viewer || UNRESTRICTED_AREA_ROLES.has(viewer.role))
+            return;
+        if (request.area === work_request_entity_1.WorkRequestArea.DESIGN && viewer.role === user_role_enum_1.UserRole.ART_DIRECTOR)
+            return;
+        if (request.area === work_request_entity_1.WorkRequestArea.AUDIOVISUAL && viewer.role === user_role_enum_1.UserRole.AV_DIRECTOR)
+            return;
+        throw new common_1.NotFoundException('Solicitud no encontrada');
     }
     async convertToPieces(organizationId, request, dto) {
         if (dto.session)
@@ -223,6 +247,7 @@ let IntakeService = class IntakeService {
         if (!dto.session)
             throw new common_1.BadRequestException('Indica el tipo, la fecha y la locación de la sesión');
         const { session } = dto;
+        await this.assertApprovedMoodboard(organizationId, request.clientId, session.moodboardId);
         const team = [...new Set([...(session.assignedTeam ?? []), ...(request.assignedTo ? [request.assignedTo] : [])])];
         await this.assertActiveUsers(organizationId, team);
         return (0, retry_on_deadlock_1.retryOnDeadlock)('convertir solicitud en sesión', () => this.dataSource.transaction(async (manager) => {
@@ -241,6 +266,17 @@ let IntakeService = class IntakeService {
             request.sessionId = created.id;
             return manager.save(work_request_entity_1.WorkRequest, request);
         }));
+    }
+    async assertApprovedMoodboard(organizationId, clientId, moodboardId) {
+        if (!moodboardId) {
+            throw new common_1.BadRequestException('Elige un moodboard aprobado antes de agendar la sesión');
+        }
+        const moodboard = await this.moodboards.findOne({ where: { id: moodboardId, organizationId, clientId } });
+        if (!moodboard)
+            throw new common_1.BadRequestException('El moodboard no pertenece al cliente de la solicitud');
+        if (moodboard.status !== 'approved') {
+            throw new common_1.BadRequestException(`El moodboard «${moodboard.title}» todavía no está aprobado. La dirección creativa debe aprobarlo antes de agendar.`);
+        }
     }
     async assertActiveUsers(organizationId, userIds) {
         if (!userIds.length)
@@ -293,7 +329,9 @@ exports.IntakeService = IntakeService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(work_request_entity_1.WorkRequest)),
     __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __param(2, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(3, (0, typeorm_1.InjectRepository)(moodboard_entity_1.Moodboard)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.DataSource,
