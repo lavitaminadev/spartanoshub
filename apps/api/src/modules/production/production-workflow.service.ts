@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Piece } from './piece.entity';
 import { PieceVersion } from './piece-version.entity';
 import { Correction } from './correction.entity';
+import { PieceRulesService } from './piece-rules.service';
 import { PieceStatus } from './piece-status.enum';
 import { CorrectionOrigin } from './correction-origin.enum';
 import { DesignBudgetService } from '../design-budget/design-budget.service';
@@ -20,6 +21,7 @@ export class ProductionWorkflowService {
     private designBudget: DesignBudgetService,
     private xp: XPService,
     private billing: BillingService,
+    private pieceRules: PieceRulesService,
   ) {}
 
   async assign(
@@ -66,11 +68,63 @@ export class ProductionWorkflowService {
     return saved;
   }
 
+  /**
+   * Emite las notas de cobro de las rondas que excedieron lo incluido.
+   *
+   * Se llama al aprobar la pieza y no en cada rechazo. Cobrar al rechazar emitía la nota antes
+   * de saber cómo terminaba el trabajo: si después resultaba que la ronda fue por un error del
+   * equipo, quedaba una nota emitida que alguien tenía que anular a mano. Al cerrar ya se sabe
+   * cuántas rondas hubo y cuáles fueron del cliente.
+   *
+   * Es idempotente: una corrección que ya tiene nota no genera otra, así que reintentar o
+   * aprobar dos veces no duplica el cobro.
+   *
+   * @param actorId - Quien aprueba. Queda como responsable de la nota.
+   */
+  async settleBillableCorrections(piece: Piece, actorId?: string, manager?: EntityManager): Promise<number> {
+    const runner = manager ?? this.pieceRepo.manager;
+
+    const pendientes = await runner.find(Correction, {
+      where: { pieceId: piece.id, chargeNoteRequired: true },
+      order: { createdAt: 'ASC' },
+    });
+    if (!pendientes.length) return 0;
+
+    // Una sola consulta para todas: preguntar por cada corrección haría una lectura por ronda.
+    const yaCobradas = await runner.query(
+      `SELECT correction_id FROM charge_notes WHERE correction_id IN (${pendientes.map(() => '?').join(',')})`,
+      pendientes.map((item: Correction) => item.id),
+    ) as Array<{ correction_id: string }>;
+    const cobradas = new Set(yaCobradas.map((row) => row.correction_id));
+
+    let emitidas = 0;
+    for (const [index, correction] of pendientes.entries()) {
+      if (cobradas.has(correction.id)) continue;
+      await this.billing.createCorrectionCharge({
+        organizationId: piece.organizationId,
+        clientId: piece.clientId,
+        pieceId: piece.id,
+        correctionId: correction.id,
+        // El número de ronda que le tocó, no el contador final: la nota debe decir cuál fue.
+        correctionNumber: index + 1,
+        createdBy: actorId,
+      }, runner);
+      emitidas += 1;
+    }
+    return emitidas;
+  }
+
   async rejectByClient(piece: Piece, version: PieceVersion, comment: string, clientUserId: string): Promise<void> {
     await this.pieceRepo.manager.transaction(async (manager) => {
       piece.clientCorrectionCount = (piece.clientCorrectionCount ?? 0) + 1;
       piece.correctionCount = (piece.correctionCount ?? 0) + 1;
-      const shouldGenerateChargeNote = piece.clientCorrectionCount > 3;
+
+      // El límite sale de la configuración, no de un número escrito acá: con el 3 fijo, subirlo
+      // dejaba esta pantalla cobrando lo que la aprobación consideraba incluido.
+      const excedeLoIncluido = await this.pieceRules.shouldGenerateInvoice(
+        piece.clientCorrectionCount,
+        piece.organizationId,
+      );
 
       const correction = manager.create(Correction, {
         pieceId: piece.id,
@@ -78,21 +132,19 @@ export class ProductionWorkflowService {
         origin: CorrectionOrigin.CLIENT_REQUEST,
         description: comment,
         requestedBy: clientUserId,
-        billableExtra: shouldGenerateChargeNote,
-        chargeNoteRequired: shouldGenerateChargeNote,
+        billableExtra: excedeLoIncluido,
+        chargeNoteRequired: excedeLoIncluido,
       });
-      const savedCorrection = await manager.save(Correction, correction);
+      await manager.save(Correction, correction);
 
-      if (shouldGenerateChargeNote) {
-        await this.billing.createCorrectionCharge({
-          organizationId: piece.organizationId,
-          clientId: piece.clientId,
-          pieceId: piece.id,
-          correctionId: savedCorrection.id,
-          correctionNumber: piece.clientCorrectionCount,
-          createdBy: clientUserId,
-        }, manager);
-      }
+      /*
+       * Se marca cobrable, pero **no se cobra todavía**.
+       *
+       * El cobro se genera al aprobar la pieza, en `settleBillableCorrections`. Cobrar en cada
+       * rechazo emitía la nota antes de saber cómo terminaba el trabajo: si después se
+       * determinaba que la ronda fue por un error del equipo, ya había una nota emitida que
+       * alguien tenía que anular a mano.
+       */
 
       piece.status = PieceStatus.CORRECTION;
       await manager.save(Piece, piece);

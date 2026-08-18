@@ -14,12 +14,16 @@ describe('UpdateApprovalStatusUseCase', () => {
   const events = { emit: vi.fn() };
   let manager: any;
   let service: UpdateApprovalStatusUseCase;
+  let workflow: { settleBillableCorrections: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
     manager = { findOne: vi.fn(), create: vi.fn((_target, value) => value), save: vi.fn(async (_target, value) => value) };
     const repo = { manager: { transaction: vi.fn((callback) => callback(manager)) } };
-    service = new UpdateApprovalStatusUseCase(repo as any, new PieceRulesService(), events as any);
+    // La liquidación de rondas cobrables vive en el flujo de producción; acá solo interesa que
+    // se invoque al aprobar y no al rechazar.
+    workflow = { settleBillableCorrections: vi.fn().mockResolvedValue(0) };
+    service = new UpdateApprovalStatusUseCase(repo as any, new PieceRulesService(), workflow as any, events as any);
   });
 
   it('records the fourth client rejection as a billable correction', async () => {
@@ -39,6 +43,30 @@ describe('UpdateApprovalStatusUseCase', () => {
     expect(piece.clientCorrectionCount).toBe(4);
     expect(manager.create).toHaveBeenCalledWith(Correction, expect.objectContaining({ billableExtra: true, chargeNoteRequired: true }));
     expect(events.emit).toHaveBeenCalledWith('piece.rejected', expect.objectContaining({ correctionId: 'correction-4' }));
+    // La ronda queda marcada, pero la nota no se emite todavía: eso ocurre al aprobar.
+    expect(workflow.settleBillableCorrections).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Aprobar es el momento en que se cobra, y no el rechazo.
+   *
+   * Emitir la nota en cada rechazo la creaba antes de saber cómo terminaba el trabajo: si
+   * después resultaba que la ronda fue por un error del equipo, quedaba una nota emitida que
+   * alguien tenía que anular a mano.
+   */
+  it('liquida las rondas cobrables al aprobar', async () => {
+    const approval = { id: 'approval-1', organizationId: 'org-1', clientId: 'client-1', entityType: 'piece', entityId: 'piece-1', status: ApprovalRequestStatus.PENDING };
+    const piece = { id: 'piece-1', organizationId: 'org-1', clientId: 'client-1', status: PieceStatus.CLIENT_VALIDATION, correctionCount: 4, clientCorrectionCount: 4 };
+    manager.findOne.mockImplementation(async (target: unknown) => {
+      if (target === ApprovalRequest) return approval;
+      if (target === Piece) return piece;
+      return null;
+    });
+
+    await service.execute('approval-1', 'org-1', { userId: 'client-user', role: UserRole.CLIENT, clientId: 'client-1' }, ApprovalRequestStatus.APPROVED);
+
+    expect(piece.status).toBe(PieceStatus.APPROVED);
+    expect(workflow.settleBillableCorrections).toHaveBeenCalledWith(piece, 'client-user', manager);
   });
 
   it('hides an approval that belongs to another client', async () => {

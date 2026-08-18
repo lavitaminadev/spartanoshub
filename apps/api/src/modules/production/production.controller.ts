@@ -10,6 +10,7 @@ import { DeliverPieceUseCase } from './deliver-piece.use-case';
 import { ListPiecesUseCase } from './list-pieces.use-case';
 import { Piece } from './piece.entity';
 import { PieceStatus } from './piece-status.enum';
+import { ProductionWorkflowService } from './production-workflow.service';
 import { AssignPieceDto } from './dto/assign-piece.dto';
 import { SubmitVersionDto } from './dto/submit-version.dto';
 import { RejectPieceDto } from './dto/reject-piece.dto';
@@ -45,6 +46,7 @@ export class ProductionController {
     @InjectRepository(Client) private clientRepo: Repository<Client>,
     @InjectRepository(User) private userRepo: Repository<User>,
     private readonly accountAccess: AccountAccessService,
+    private readonly workflow: ProductionWorkflowService,
     private readonly parameters: ParameterResolver,
     private readonly udValues: UdValuesService,
     private readonly pieceTypes: PieceTypesService,
@@ -194,7 +196,11 @@ export class ProductionController {
     await this.accountAccess.assertClient(req.organizationId, req.user, piece.clientId);
     if (piece.status !== PieceStatus.CLIENT_VALIDATION) throw new BadRequestException('La pieza no está pendiente de aprobación');
     piece.status = PieceStatus.APPROVED;
-    return this.pieceRepo.save(piece);
+    const saved = await this.pieceRepo.save(piece);
+    // Recién al aprobar se emiten las notas de las rondas que excedieron lo incluido: antes no
+    // se sabe cómo termina el trabajo ni cuántas rondas terminaron siendo del cliente.
+    await this.workflow.settleBillableCorrections(piece, req.user.id);
+    return saved;
   }
 
   @Post(':id/start')
@@ -235,7 +241,11 @@ export class ProductionController {
     automaticApprovalAt.setMonth(automaticApprovalAt.getMonth() + validationMonths);
     if (validationMonths === 0 || automaticApprovalAt <= new Date()) {
       piece.status = PieceStatus.APPROVED;
-      return this.pieceRepo.save(piece);
+      const aprobada = await this.pieceRepo.save(piece);
+      // La aprobación automática cierra el trabajo igual que la manual, así que también liquida
+      // lo cobrable. Omitirlo dejaba rondas marcadas y nunca emitidas en las cuentas antiguas.
+      await this.workflow.settleBillableCorrections(piece, req.user.id);
+      return aprobada;
     }
 
     piece.status = PieceStatus.CLIENT_VALIDATION;

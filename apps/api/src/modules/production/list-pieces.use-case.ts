@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { Piece } from './piece.entity';
+import { PieceRulesService } from './piece-rules.service';
 import { PieceStatus } from './piece-status.enum';
 
 @Injectable()
 export class ListPiecesUseCase {
   constructor(
     @InjectRepository(Piece) private repo: Repository<Piece>,
+    private readonly pieceRules: PieceRulesService,
   ) {}
 
   async execute(
@@ -33,6 +35,10 @@ export class ListPiecesUseCase {
       take: limit,
     });
 
+    // El límite se resuelve una vez para todo el lote: es configuración, no depende de la
+    // pieza, y consultarlo por fila serían tantas lecturas como piezas tenga la página.
+    const maxCorrections = await this.pieceRules.maxCorrections(organizationId);
+
     return pieces.map((piece) => ({
       id: piece.id,
       title: piece.title,
@@ -41,7 +47,10 @@ export class ListPiecesUseCase {
       udAmount: Number(piece.udAmount ?? 0),
       correctionCount: piece.correctionCount,
       clientCorrectionCount: piece.clientCorrectionCount,
-      chargeNoteRequired: piece.clientCorrectionCount > 3,
+      // Antes comparaba contra un 3 escrito acá, así que subir el límite configurado dejaba
+      // esta pantalla marcando como cobrable lo que la aprobación consideraba incluido.
+      chargeNoteRequired: piece.clientCorrectionCount > maxCorrections,
+      maxCorrections,
       clientName: piece.client?.name || 'Sin cliente',
       assignedTo: piece.assignedTo,
       dueDate: piece.deadlineAt?.toISOString(),
