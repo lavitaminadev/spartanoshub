@@ -259,6 +259,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { key: 'assign_user', label: 'Asignar responsable', requiredConfig: ['userId'] },
       { key: 'add_comment', label: 'Agregar nota al hilo', requiredConfig: ['body'] },
       { key: 'send_webhook', label: 'Enviar webhook', requiredConfig: ['url'] },
+      { key: 'create_contract', label: 'Abrir contrato del trato ganado', requiredConfig: [] },
     ],
   })],
   [/\/automations\/runs\/[^/?]+$/, () => ({

@@ -78,6 +78,9 @@ export const AUTOMATION_ACTIONS: readonly ActionDefinition[] = [
   { key: 'assign_user', label: 'Asignar responsable', requiredConfig: ['userId'] },
   { key: 'add_comment', label: 'Agregar nota al hilo', requiredConfig: ['body'] },
   { key: 'send_webhook', label: 'Enviar webhook', requiredConfig: ['url'] },
+  // Cierra el paso de lo comercial a lo operativo. El nombre es opcional: sin él se usa el
+  // del trato, que es lo que se querría escribir a mano de todos modos.
+  { key: 'create_contract', label: 'Abrir contrato del trato ganado', requiredConfig: [] },
 ] as const;
 
 /** Espera antes de continuar. Es el nodo que hace útil el resto. */

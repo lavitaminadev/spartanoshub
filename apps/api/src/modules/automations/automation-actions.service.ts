@@ -5,6 +5,7 @@ import { NotificationService } from '../../core/notifications/notification.servi
 import { EmailService } from '../../core/notifications/email.service';
 import { ProcessCommentsService } from '../collaboration/process-comments.service';
 import { WebhookDeliveryService } from './webhook-delivery.service';
+import { ContractsService } from '../contracts/contracts.service';
 import { CommentSubject, CommentVisibility } from '../collaboration/process-comment.entity';
 import { Opportunity } from '../crm/opportunities/opportunity.entity';
 import { Lead } from '../crm/leads/lead.entity';
@@ -41,6 +42,7 @@ export class AutomationActionsService {
     private readonly emails: EmailService,
     private readonly comments: ProcessCommentsService,
     private readonly webhooks: WebhookDeliveryService,
+    private readonly contracts: ContractsService,
     @InjectRepository(Opportunity) private readonly opportunities: Repository<Opportunity>,
     @InjectRepository(Lead) private readonly leads: Repository<Lead>,
     @InjectRepository(User) private readonly users: Repository<User>,
@@ -60,6 +62,7 @@ export class AutomationActionsService {
       case 'assign_user': return this.assignUser(config, ctx);
       case 'add_comment': return this.addComment(config, ctx);
       case 'send_webhook': return this.sendWebhook(config, ctx);
+      case 'create_contract': return this.createContract(config, ctx);
       default:
         throw new BadRequestException(`La acción "${key}" no está implementada`);
     }
@@ -155,6 +158,46 @@ export class AutomationActionsService {
       { id: ctx.actingUserId, role: UserRole.ADMIN, name: 'Automatización' },
     );
     return { commentId: comment.id };
+  }
+
+  /**
+   * Abre el contrato del trato ganado.
+   *
+   * Es el eslabón que faltaba entre lo comercial y lo operativo: hasta ahora ganar un trato no
+   * creaba nada y alguien tenía que ir a abrir el contrato a mano en otra pantalla.
+   *
+   * **Se omite si el trato no tiene cliente**, en vez de fallar. Un trato se gana antes de que
+   * exista la ficha del cliente —la crea «Convertir en cliente» desde el prospecto—, así que
+   * llegar sin cliente es lo normal en la mitad de los casos y no un error que merezca cinco
+   * reintentos. Cuando el cliente ya existe, el contrato queda abierto solo.
+   *
+   * Nace en `paused` y no en `activo`: un contrato define lo que se factura, y esa cifra la
+   * confirma una persona. Activarlo automáticamente pondría a cobrar un monto que nadie revisó.
+   */
+  private async createContract(config: Record<string, unknown>, ctx: ActionContext): Promise<Record<string, unknown>> {
+    if (ctx.entityType !== 'opportunity') {
+      throw new BadRequestException('Solo un trato puede abrir un contrato');
+    }
+
+    const opportunity = await this.opportunities.findOne({
+      where: { id: ctx.entityId, organizationId: ctx.organizationId },
+    });
+    if (!opportunity) throw new BadRequestException('El trato ya no existe');
+
+    if (!opportunity.clientId) {
+      this.logger.log(`Trato ${opportunity.id} sin cliente: el contrato se abrirá cuando exista la ficha`);
+      return { skipped: 'el trato aún no tiene cliente' };
+    }
+
+    const contract = await this.contracts.create({
+      clientId: opportunity.clientId,
+      name: this.render(this.text(config.name) ?? opportunity.name, ctx.context),
+      startDate: new Date().toISOString().slice(0, 10),
+      monthlyPrice: opportunity.amount ? Number(opportunity.amount) : undefined,
+      status: 'paused',
+    }, ctx.organizationId);
+
+    return { contractId: contract.id, contractStatus: contract.status };
   }
 
   /**
