@@ -1,0 +1,201 @@
+/*
+ * Piel de los componentes compartidos nuevos: tablero, línea de tiempo, KPI, filtros y
+ * paginación.
+ *
+ * Todo sale de los tokens de `tokens.css`. Ningún color literal: si la marca cambia, cambia
+ * en un solo sitio.
+ */
+
+/* ---------------------------------------------------------------- Tablero */
+
+.kanban-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(260px, 1fr);
+  gap: 12px;
+  /* El tablero desborda a lo ancho dentro de su propia caja y nunca empuja la página. */
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--soft);
+  transition: background .15s ease, border-color .15s ease;
+}
+
+/* Señal de destino mientras se arrastra: sin esto no se sabe dónde va a caer la tarjeta. */
+.kanban-column.is-over { border-color: var(--cyan); background: var(--white); }
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 3px solid var(--muted);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--white);
+}
+
+.kanban-column-header h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.kanban-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-sage);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.kanban-column-summary {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--white);
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kanban-column-body { display: grid; gap: 8px; padding: 10px; align-content: start; }
+
+.kanban-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: grab;
+  box-shadow: 0 1px 3px rgb(34 22 29 / .06);
+}
+
+.kanban-card.is-static { cursor: default; }
+/* La original se atenúa mientras la superposición la acompaña bajo el puntero. */
+.kanban-card.is-dragging { opacity: .35; }
+.kanban-card.is-overlay { cursor: grabbing; box-shadow: 0 12px 28px rgb(34 22 29 / .22); }
+.kanban-card:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+.kanban-empty { margin: 0; padding: 12px 4px; color: var(--muted); font-size: 11px; text-align: center; }
+
+/* Contenido de las tarjetas del pipeline comercial. */
+.kanban-card-title { color: var(--ink); font-size: 12px; font-weight: 700; line-height: 1.35; }
+.kanban-card-amount { color: var(--cyan); font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.kanban-card-meta { color: var(--muted); font-size: 10px; }
+.kanban-card-next { color: var(--ink); font-size: 10px; opacity: .8; }
+.kanban-card-loss { color: var(--terracotta); font-size: 10px; text-transform: capitalize; }
+
+/* ------------------------------------------------------- Línea de tiempo */
+
+.timeline { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+
+.timeline-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  padding: 8px 0 12px;
+}
+
+/* Hilo vertical que une los hechos. El último no lo lleva: no hay nada debajo. */
+.timeline-entry::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background: var(--line);
+}
+.timeline-entry:last-child::before { display: none; }
+
+.timeline-dot {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border: 2px solid var(--white);
+  border-radius: 999px;
+  background: var(--cyan);
+}
+
+/* Lo que registró el sistema se apaga para que no compita con lo que escribió una persona. */
+.timeline-entry.is-system .timeline-dot { background: var(--muted); }
+.timeline-entry.is-system .timeline-body { opacity: .82; }
+
+.timeline-body { display: grid; gap: 3px; }
+
+.timeline-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.timeline-head strong { color: var(--ink); font-size: 13px; font-weight: 700; }
+.timeline-head time { color: var(--muted); font-size: 10px; white-space: nowrap; }
+
+.timeline-detail { color: var(--ink); font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
+.timeline-author { color: var(--muted); font-size: 10px; }
+.timeline-empty { padding: 18px; color: var(--muted); font-size: 12px; text-align: center; }
+
+/* -------------------------------------------------------------- KPI */
+
+.kpi-card {
+  display: grid;
+  gap: 3px;
+  padding: 15px 17px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.kpi-label { color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.kpi-value { color: var(--ink); font-family: var(--font-display); font-size: 27px; font-weight: 500; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.kpi-hint { color: var(--muted); font-size: 10px; }
+
+.kpi-delta { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* El color lo decide `higherIsBetter`, no el signo: más tratos perdidos sube y es malo. */
+.kpi-delta.is-good { color: var(--cyan); }
+.kpi-delta.is-bad { color: var(--terracotta); }
+.kpi-delta.is-flat { color: var(--muted); }
+
+/* -------------------------------------------------- Filtros y paginación */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.filter-bar-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.filter-bar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.filter-search { min-width: 220px; }
+
+.filter-field { display: grid; gap: 3px; }
+.filter-field-label { color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+
+.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; }
+.pagination-range { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+.chart-empty { padding: 28px; color: var(--muted); font-size: 12px; text-align: center; }
+
+@media (max-width: 640px) {
+  .kanban-board { grid-auto-columns: minmax(220px, 85vw); }
+  .filter-search { min-width: 100%; }
+  .filter-bar-controls { width: 100%; }
+}

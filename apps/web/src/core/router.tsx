@@ -19,6 +19,10 @@ const ClientsPage = lazy(() => import('../features/clients/ClientsPage').then(m 
 const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage').then(m => ({ default: m.ClientDetailPage })));
 const LeadsPage = lazy(() => import('../features/crm/LeadsPage').then(m => ({ default: m.LeadsPage })));
 const OpportunitiesPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.OpportunitiesPage })));
+const PipelineBoardPage = lazy(() => import('../features/crm/PipelineBoardPage').then(m => ({ default: m.PipelineBoardPage })));
+const AutomationsPage = lazy(() => import('../features/automations/AutomationsPage').then(m => ({ default: m.AutomationsPage })));
+const AutomationEditorPage = lazy(() => import('../features/automations/AutomationEditorPage').then(m => ({ default: m.AutomationEditorPage })));
+const AutomationRunsPage = lazy(() => import('../features/automations/AutomationRunsPage').then(m => ({ default: m.AutomationRunsPage })));
 const ContactsPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.ContactsPage })));
 const InteractionsPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.InteractionsPage })));
 const ProductionPage = lazy(() => import('../features/production/ProductionPage').then(m => ({ default: m.ProductionPage })));
@@ -104,6 +108,13 @@ export function AppRouter() {
           <Route path="/clients/:id" element={<ProtectedRoute path="/clients"><SafeSuspense><ClientDetailPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/crm/leads" element={<ProtectedRoute path="/crm/leads"><SafeSuspense><LeadsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/crm/opportunities" element={<ProtectedRoute path="/crm/opportunities"><SafeSuspense><OpportunitiesPage /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/crm/pipeline" element={<ProtectedRoute path="/crm/pipeline"><SafeSuspense><PipelineBoardPage /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/automations" element={<ProtectedRoute path="/automations"><SafeSuspense><AutomationsPage /></SafeSuspense></ProtectedRoute>} />
+          {/* El editor y el historial cuelgan de la misma ruta de permiso que el listado: se
+              declaran con `path="/automations"` para no tener que repetir la regla por cada
+              subruta y arriesgar que una quede sin proteger. */}
+          <Route path="/automations/:id" element={<ProtectedRoute path="/automations"><SafeSuspense><AutomationEditorPage /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/automations/:id/runs" element={<ProtectedRoute path="/automations"><SafeSuspense><AutomationRunsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/crm/contacts" element={<ProtectedRoute path="/crm/contacts"><SafeSuspense><ContactsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/crm/interactions" element={<ProtectedRoute path="/crm/interactions"><SafeSuspense><InteractionsPage /></SafeSuspense></ProtectedRoute>} />
           {/* Personal y sin modulo: todo el mundo debe poder ver donde esta abierta su cuenta. */}
@@ -168,6 +179,7 @@ import '../features/reservations/feature.manifest';
 import '../features/contracts/feature.manifest';
 import '../features/catalog/feature.manifest';
 import '../features/crm/feature.manifest';
+import '../features/automations/feature.manifest';
 import '../features/briefs/feature.manifest';
 import '../features/intake/feature.manifest';
 import '../features/production/feature.manifest';

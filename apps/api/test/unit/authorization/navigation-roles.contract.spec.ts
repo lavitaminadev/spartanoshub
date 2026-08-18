@@ -37,7 +37,10 @@ const PATH_CONTROLLER: Record<string, string | null> = {
   '/crm/contacts': 'crm/leads/lead.controller.ts',
   '/crm/leads': 'crm/leads/lead.controller.ts',
   '/crm/opportunities': 'crm/opportunities/opportunities.controller.ts',
+  // El tablero muestra las mismas oportunidades que la tabla y consume su mismo controlador.
+  '/crm/pipeline': 'crm/opportunities/opportunities.controller.ts',
   '/crm/interactions': 'crm/interactions/interactions.controller.ts',
+  '/automations': 'automations/automations.controller.ts',
   '/documents': 'documents/documents.controller.ts',
   '/gamification': 'gamification/gamification.controller.ts',
   '/intake': 'intake/intake.controller.ts',

@@ -16,6 +16,9 @@ registerFeature({
     { label: 'Contactos captados', path: '/crm/contacts', icon: '🙋', roles: ['admin', 'commercial_director', 'operations_director', 'community_manager'] },
     { label: 'Posibles clientes', path: '/crm/leads', icon: '🌱', roles: ['admin', 'commercial_director'] },
     { label: 'Oportunidades de venta', path: '/crm/opportunities', icon: '🧭', roles: ['admin', 'commercial_director'] },
+    // El tablero muestra las mismas oportunidades por etapa. Convive con la tabla en vez de
+    // reemplazarla: la tabla sigue siendo mejor para revisar muchas a la vez y para exportar.
+    { label: 'Tablero de pipeline', path: '/crm/pipeline', icon: '🗂️', roles: ['admin', 'commercial_director'] },
     { label: 'Actividad comercial', path: '/crm/interactions', icon: '☎️', roles: ['admin', 'commercial_director'] },
   ],
   routes: [],
