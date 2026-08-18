@@ -13,6 +13,8 @@ import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { RequiresFeature } from '../../../core/authorization/requires-feature.decorator';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
+import { ProcessTemplatesService } from '../../process-templates/process-templates.service';
+import { COMMERCIAL_PIPELINE_TEMPLATE } from '../../process-templates/process-template-defaults';
 
 @Controller('crm/opportunities')
 @UseGuards(AuthGuard('jwt'))
@@ -26,7 +28,24 @@ export class OpportunitiesController {
     private updateOpportunity: UpdateOpportunityUseCase,
     private removeOpportunity: RemoveOpportunityUseCase,
     private readonly accountAccess: AccountAccessService,
+    private readonly processTemplates: ProcessTemplatesService,
   ) {}
+
+  /**
+   * Etapas del pipeline, en el orden en que se recorren.
+   *
+   * Estaban fijas en el frontend, de modo que cambiar una exigía desplegar y nada garantizaba
+   * que el tablero, la tabla y los informes hablaran de las mismas. Ahora salen de la
+   * plantilla de proceso, que es donde ya se configuran las etapas de los demás flujos.
+   *
+   * Va antes de `@Get(':id')` a propósito: declarada después, «stages» se interpretaría como
+   * el identificador de una oportunidad.
+   */
+  @Get('stages')
+  async stages(@Req() req: AuthenticatedRequest) {
+    const steps = await this.processTemplates.getSteps(req.organizationId, COMMERCIAL_PIPELINE_TEMPLATE);
+    return steps.map((step) => ({ key: step.key, label: step.label }));
+  }
 
   @Post()
   @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)

@@ -1,6 +1,47 @@
-import type { WorkflowStep } from './workflow-template.entity';
+import type { ProcessTemplateStep } from './process-template.entity';
 
-export const WORKFLOW_DEFAULTS: Record<string, { name: string; description: string; steps: WorkflowStep[] }> = {
+/**
+ * Código de la plantilla que define las etapas del pipeline comercial.
+ *
+ * Se exporta para que el CRM lo pida por nombre en vez de repetir la cadena, y para que
+ * renombrarlo rompa la compilación en lugar de dejar el pipeline sin etapas en silencio.
+ */
+export const COMMERCIAL_PIPELINE_TEMPLATE = 'commercial_pipeline';
+
+export const PROCESS_TEMPLATE_DEFAULTS: Record<string, { name: string; description: string; steps: ProcessTemplateStep[] }> = {
+  /**
+   * Etapas del pipeline comercial.
+   *
+   * Estaban fijas en el frontend (`CrmRecordsPage`), así que cambiar una exigía desplegar y
+   * el tablero, la tabla y el informe podían discrepar entre sí. Ahora salen de acá, que es
+   * donde ya viven las etapas de los demás procesos.
+   *
+   * Las `key` **son los valores guardados** en `crm_opportunities.stage` y en el historial de
+   * transiciones: cambiar una deja huérfanos los tratos que ya la tienen. La etiqueta sí se
+   * puede cambiar cuando se quiera.
+   *
+   * `won` y `lost` cierran el trato y el resto del sistema los trata distinto —el motivo de
+   * pérdida es obligatorio, la automatización de contrato escucha `won`—, así que su `key` es
+   * parte del contrato y no solo una etapa más de la lista.
+   */
+  [COMMERCIAL_PIPELINE_TEMPLATE]: {
+    name: 'Pipeline comercial',
+    description: 'Etapas por las que avanza una oportunidad hasta ganarse o perderse.',
+    steps: [
+      ['new', 'Nuevo', 'commercial_director', 48],
+      ['qualified', 'Calificado', 'commercial_director', 72],
+      ['proposal', 'Propuesta', 'commercial_director', 120],
+      ['negotiation', 'Negociación', 'commercial_director', 168],
+      ['won', 'Ganado', 'commercial_director', 0],
+      ['lost', 'Perdido', 'commercial_director', 0],
+    ].map(([key, label, responsibleRole, slaHours]) => ({
+      key: String(key),
+      label: String(label),
+      responsibleRole: String(responsibleRole),
+      slaHours: Number(slaHours),
+      required: true,
+    })),
+  },
   onboarding: {
     name: 'Activación de cliente',
     description: 'Desde el cierre comercial hasta la primera operación mensual activa.',

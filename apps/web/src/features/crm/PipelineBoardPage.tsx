@@ -9,6 +9,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { Modal } from '../../shared/Modal';
 import { matchesSearch } from '../../shared/search';
+import { usePipelineStages } from './use-pipeline-stages';
 
 interface Opportunity {
   id: string;
@@ -28,20 +29,19 @@ interface Opportunity {
 interface UserOption { id: string; name: string }
 
 /**
- * Etapas del pipeline comercial.
+ * Color de cada etapa conocida.
  *
- * Coinciden exactamente con las que ya usaba la vista de tabla y con los valores guardados en
- * `crm_opportunities.stage`. Cambiar una etiqueta acá es seguro; cambiar un `id` dejaría
- * huérfanos los tratos que ya tienen ese valor.
+ * Solo la piel: las etapas y su orden vienen de la plantilla de proceso. Una etapa que alguien
+ * agregue desde Gobierno aparece con el neutro, que es preferible a no aparecer.
  */
-const STAGES: KanbanColumn[] = [
-  { id: 'new', label: 'Nuevo', accent: '#706a73' },
-  { id: 'qualified', label: 'Calificado', accent: '#0fb9b1' },
-  { id: 'proposal', label: 'Propuesta', accent: '#5b4b8a' },
-  { id: 'negotiation', label: 'Negociación', accent: '#f0a202' },
-  { id: 'won', label: 'Ganado', accent: '#0fb9b1' },
-  { id: 'lost', label: 'Perdido', accent: '#b90749' },
-];
+const STAGE_ACCENTS: Record<string, string> = {
+  new: '#706a73',
+  qualified: '#0fb9b1',
+  proposal: '#5b4b8a',
+  negotiation: '#f0a202',
+  won: '#0fb9b1',
+  lost: '#b90749',
+};
 
 /** Motivos de pérdida ofrecidos al cerrar un trato como perdido. */
 const LOSS_REASONS = [
@@ -61,6 +61,7 @@ const CURRENCY = new Intl.NumberFormat('es-CL', { style: 'currency', currency: '
 export function PipelineBoardPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { stages } = usePipelineStages();
   const [search, setSearch] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
@@ -88,6 +89,12 @@ export function PipelineBoardPage() {
 
   const users = useMemo(() => usersResp?.data ?? [], [usersResp]);
   const userName = (id?: string) => users.find((user) => user.id === id)?.name;
+
+  // Las columnas son las etapas de la plantilla; acá solo se les pone color.
+  const columns = useMemo<KanbanColumn[]>(
+    () => stages.map((stage) => ({ id: stage.key, label: stage.label, accent: STAGE_ACCENTS[stage.key] })),
+    [stages],
+  );
 
   const move = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
@@ -188,7 +195,7 @@ export function PipelineBoardPage() {
       />
 
       <KanbanBoard
-        columns={STAGES}
+        columns={columns}
         items={opportunities}
         keyExtractor={(row) => row.id}
         columnOf={(row) => row.stage}

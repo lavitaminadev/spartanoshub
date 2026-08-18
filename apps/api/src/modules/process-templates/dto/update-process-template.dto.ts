@@ -9,7 +9,7 @@ export class WorkflowStepDto {
   @IsBoolean() required: boolean;
 }
 
-export class UpdateWorkflowDto {
+export class UpdateProcessTemplateDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(150) name?: string;
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
   @IsOptional() @IsBoolean() isActive?: boolean;

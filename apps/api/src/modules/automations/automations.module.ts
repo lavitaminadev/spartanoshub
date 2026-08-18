@@ -24,7 +24,7 @@ import { ApprovalRequest } from '../approvals/approval-request.entity';
 /**
  * Motor de automatizaciones.
  *
- * No confundir con `WorkflowsModule`, que administra plantillas de etapas de procesos
+ * No confundir con `ProcessTemplatesModule`, que administra plantillas de etapas de procesos
  * operativos y no ejecuta nada.
  */
 @Module({

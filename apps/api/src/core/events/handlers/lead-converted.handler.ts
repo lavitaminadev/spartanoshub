@@ -6,7 +6,7 @@ import { Lead } from '../../../modules/crm/leads/lead.entity';
 import { Client } from '../../../modules/clients/client.entity';
 import { Onboarding } from '../../../modules/onboarding/onboarding.entity';
 import { Notification } from '../../notifications/notification.entity';
-import { WorkflowsService } from '../../../modules/workflows/workflows.service';
+import { ProcessTemplatesService } from '../../../modules/process-templates/process-templates.service';
 
 @Injectable()
 export class LeadConvertedHandler {
@@ -17,7 +17,7 @@ export class LeadConvertedHandler {
     @InjectRepository(Client) private clientRepo: Repository<Client>,
     @InjectRepository(Onboarding) private onboardingRepo: Repository<Onboarding>,
     @InjectRepository(Notification) private notifRepo: Repository<Notification>,
-    private readonly workflows: WorkflowsService,
+    private readonly workflows: ProcessTemplatesService,
   ) {}
 
   @OnEvent('lead.converted')
