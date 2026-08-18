@@ -332,6 +332,32 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
         : [],
     };
   }],
+  /*
+   * Moodboards del cliente, con uno aprobado y uno en borrador.
+   *
+   * Los dos hacen falta para poder revisar la barrera: el selector de conversión solo debe
+   * ofrecer el aprobado.
+   */
+  [/\/moodboards/, () => ({
+    data: [
+      { id: 'mb-1', clientId: 'visual-client', title: 'Verano 2026 — aprobado', status: 'approved', images: [], createdAt: '2026-08-01T10:00:00Z' },
+      { id: 'mb-2', clientId: 'visual-client', title: 'Otoño — en borrador', status: 'draft', images: [], createdAt: '2026-08-10T10:00:00Z' },
+    ],
+    total: 2,
+  })],
+  /* Una solicitud audiovisual aceptada, para poder abrir el modal de conversión. */
+  [/\/intake\/requests(\?|$)/, () => ({
+    data: [{
+      id: 'req-1', code: 'SOL-00001', clientId: 'visual-client', area: 'audiovisual',
+      title: 'Reel de la carta nueva', description: 'Grabar los cuatro platos de la carta de primavera.',
+      priority: 'high', status: 'accepted', assignedTo: 'user-av',
+      creativeFields: { tipoAudiovisual: 'reel', locacion: '__no_aplica__', duracion: '30 s' },
+      createdAt: '2026-08-14T10:00:00Z',
+      client: { id: 'visual-client', name: 'Cocina Norte' },
+      requester: { id: 'user-cm', name: 'Valentina Rojas' },
+    }],
+    total: 1,
+  })],
   /* Hilo de trabajo. Sirve a las cinco áreas, así que la regla mira el sufijo. */
   [/\/comments$/, () => ({
     proceso: [

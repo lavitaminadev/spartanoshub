@@ -232,9 +232,10 @@ const PATH_FEATURE: Record<string, string> = {
   // puede ver el pipeline como tabla tampoco debe verlo como tablero.
   '/crm/pipeline': 'commercialPipeline',
   '/crm/interactions': 'commercialPipeline',
-  // Las automatizaciones actúan sobre el pipeline, así que responden a su mismo módulo: no
-  // tiene sentido poder automatizar tratos sin poder verlos.
-  '/automations': 'commercialPipeline',
+  // Debe coincidir con el `@ModuleScope('crm')` del controlador. Declararla sobre
+  // `commercialPipeline` mientras el backend guardaba `crm` dejaba la pantalla fuera del menú
+  // para dirección de operaciones, que sí tiene `crm` y es quien configura los flujos.
+  '/automations': 'crm',
   // Las solicitudes se declaran sobre `production`, igual que su controlador en el backend: es
   // la misma operación vista desde antes. Un módulo aparte obligaría a mantener dos listas de
   // permisos que describen lo mismo.

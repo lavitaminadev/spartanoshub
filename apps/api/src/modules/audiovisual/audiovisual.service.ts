@@ -11,6 +11,15 @@ import { Client } from '../clients/client.entity';
 import { User } from '../users/user.entity';
 
 /**
+ * Estado en que un moodboard habilita agendar.
+ *
+ * Coincide con el valor que acepta `CreateMoodboardDto` y con el que escribe «Aprobar» en la
+ * pantalla. Se declara acá para que la regla de agendamiento y la de aprobación no puedan
+ * describir estados distintos.
+ */
+const MOODBOARD_APPROVED = 'approved';
+
+/**
  * Lógica de negocio para moodboards y sesiones audiovisuales.
  */
 @Injectable()
@@ -68,7 +77,8 @@ export class AudiovisualService {
 
   // CRUD de sesión
   async createSession(dto: CreateSessionDto, organizationId: string): Promise<Session> {
-    await this.validateSessionReferences(dto.clientId, dto.moodboardId, dto.assignedTeam, organizationId);
+    // Al agendar el moodboard aprobado es obligatorio: es el momento en que se convoca al equipo.
+    await this.validateSessionReferences(dto.clientId, dto.moodboardId, dto.assignedTeam, organizationId, true);
     const entity = this.sessionRepo.create({
       ...dto,
       organizationId,
@@ -98,7 +108,9 @@ export class AudiovisualService {
 
   async updateSession(id: string, dto: UpdateSessionDto, organizationId: string): Promise<Session> {
     const entity = await this.findOneSession(id, organizationId);
-    await this.validateSessionReferences(entity.clientId, dto.moodboardId ?? entity.moodboardId, dto.assignedTeam, organizationId);
+    // `false`: una sesión ya agendada se confirma y se completa sin volver a exigir moodboard.
+    // Si el cambio incluye uno nuevo, ese sí tiene que estar aprobado.
+    await this.validateSessionReferences(entity.clientId, dto.moodboardId, dto.assignedTeam, organizationId, false);
     Object.assign(entity, dto);
     if (dto.date !== undefined) entity.date = new Date(dto.date);
     if (dto.location !== undefined) entity.location = dto.location.trim() || undefined;
@@ -125,10 +137,52 @@ export class AudiovisualService {
     if (count !== uniqueIds.length) throw new BadRequestException('El equipo asignado contiene usuarios invalidos');
   }
 
-  private async validateSessionReferences(clientId: string, moodboardId: string | undefined, assignedTeam: string[] | undefined, organizationId: string): Promise<void> {
+  /**
+   * Valida cliente, equipo y —cuando corresponde— el moodboard.
+   *
+   * @param requireMoodboard - Verdadero al agendar, donde el moodboard aprobado es obligatorio.
+   *   Falso al actualizar una sesión ya agendada: las sesiones creadas antes de que existiera
+   *   esta regla no tienen moodboard, y exigirlo en cada cambio impediría confirmarlas o
+   *   completarlas. En una actualización el moodboard solo se valida si se está cambiando.
+   */
+  private async validateSessionReferences(
+    clientId: string,
+    moodboardId: string | undefined,
+    assignedTeam: string[] | undefined,
+    organizationId: string,
+    requireMoodboard: boolean,
+  ): Promise<void> {
     await Promise.all([this.validateClient(clientId, organizationId), this.validateUsers(assignedTeam, organizationId)]);
-    if (!moodboardId) return;
+    if (!requireMoodboard && !moodboardId) return;
+    await this.assertApprovedMoodboard(clientId, moodboardId, organizationId);
+  }
+
+  /**
+   * Exige un moodboard aprobado para poder agendar.
+   *
+   * Es la regla del flujo audiovisual: la community manager crea el moodboard, la dirección
+   * creativa lo verifica y la dirección audiovisual asigna equipo. Agendar antes de esa
+   * aprobación convoca a un equipo a grabar algo que todavía no está definido, y el rodaje se
+   * pierde o se repite.
+   *
+   * Antes el moodboard era opcional —la validación retornaba sin comprobar nada si no venía— y
+   * cuando venía solo se verificaba que perteneciera al cliente: su estado no se miraba en
+   * ningún punto. Se podía agendar sin moodboard, o con uno en borrador.
+   *
+   * @throws BadRequestException con el motivo exacto, para que la pantalla lo pueda mostrar.
+   */
+  private async assertApprovedMoodboard(clientId: string, moodboardId: string | undefined, organizationId: string): Promise<void> {
+    if (!moodboardId) {
+      throw new BadRequestException('Una sesión necesita un moodboard aprobado antes de agendarse');
+    }
+
     const moodboard = await this.moodboardRepo.findOne({ where: { id: moodboardId, organizationId, clientId } });
     if (!moodboard) throw new BadRequestException('El moodboard no pertenece al cliente seleccionado');
+
+    if (moodboard.status !== MOODBOARD_APPROVED) {
+      throw new BadRequestException(
+        `El moodboard «${moodboard.title}» todavía no está aprobado. La dirección creativa debe aprobarlo antes de agendar la sesión.`,
+      );
+    }
   }
 }

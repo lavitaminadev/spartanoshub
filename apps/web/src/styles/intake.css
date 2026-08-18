@@ -304,3 +304,14 @@
 @media (max-width: 560px) {
   .session-card { flex-direction: column; }
 }
+
+/*
+ * «No aplica»: una respuesta explícita, no un vacío.
+ *
+ * Se atenúa para distinguirla de un dato real sin esconderla: quien revisa la solicitud tiene
+ * que ver que alguien contestó, no que el campo quedó en blanco.
+ */
+.intake-field-na { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--muted); font-size: 11px; cursor: pointer; }
+.intake-field input:disabled,
+.intake-field textarea:disabled { background: var(--soft); color: var(--muted); cursor: not-allowed; }
+dd.is-not-applicable { color: var(--muted); font-style: italic; }

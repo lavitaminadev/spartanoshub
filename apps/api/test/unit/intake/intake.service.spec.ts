@@ -18,6 +18,15 @@ const clients = { findOne: vi.fn() };
 const users = { findOne: vi.fn(), find: vi.fn(), count: vi.fn() };
 
 /**
+ * Moodboards del cliente. Por defecto devuelve uno aprobado, que es la precondición para
+ * agendar: sin ella toda conversión audiovisual sería rechazada y las pruebas de ese camino
+ * medirían la barrera en vez de lo que quieren medir.
+ */
+const moodboards = {
+  findOne: vi.fn(async () => ({ id: 'mb-1', clientId: 'client-1', title: 'Moodboard aprobado', status: 'approved' })),
+};
+
+/**
  * Simula la transacción devolviendo un `manager` que registra lo guardado.
  *
  * `getRepository` devuelve el mismo doble para cualquier entidad porque lo único que se ejerce
@@ -51,7 +60,7 @@ function build(saved: unknown[] = []) {
   const { dataSource, manager, lockedQueryBuilder } = transactionalDataSource(saved);
   const udValues = { udFor: async () => 1 };
   const pieceTypes = { assertUsable: async () => undefined };
-  const service = new IntakeService(requests as any, clients as any, users as any, dataSource as any, udValues as any, pieceTypes as any);
+  const service = new IntakeService(requests as any, clients as any, users as any, moodboards as any, dataSource as any, udValues as any, pieceTypes as any);
   return { service, manager, lockedQueryBuilder };
 }
 
@@ -356,16 +365,48 @@ describe('IntakeService', () => {
         const { service } = build(saved);
 
         const result = await service.convert('org-1', 'r-1', {
-          session: { type: 'sesion_foto', date: '2026-09-01', location: 'Terraza', assignedTeam: ['user-9'] },
+          session: { type: 'sesion_foto', date: '2026-09-01', location: 'Terraza', assignedTeam: ['user-9'], moodboardId: 'mb-1' },
         }, scoped);
 
         const session = saved[0] as Record<string, unknown>;
-        expect(session).toMatchObject({ clientId: 'client-1', type: 'sesion_foto', location: 'Terraza', status: 'scheduled' });
+        expect(session).toMatchObject({ clientId: 'client-1', type: 'sesion_foto', location: 'Terraza', status: 'scheduled', moodboardId: 'mb-1' });
         // El responsable de la solicitud entra al equipo aunque no lo repitan al agendar.
         expect(session.assignedTeam).toEqual(['user-9', 'user-7']);
         expect(result.status).toBe(WorkRequestStatus.CONVERTED);
         expect(result.sessionId).toBe('session-1');
         expect(result.pieceIds).toBeUndefined();
+      });
+
+      /**
+       * La misma regla que protege el agendamiento directo desde Audiovisual.
+       *
+       * Se comprueba también en esta conversión porque escribe la sesión por su cuenta, dentro
+       * de su propia transacción, y no pasa por `AudiovisualService`: sin esta barrera toda
+       * sesión convertida desde una solicitud nacía sin moodboard.
+       */
+      it('no agenda sin moodboard', async () => {
+        requests.findOne.mockResolvedValue(accepted(WorkRequestArea.AUDIOVISUAL));
+        const saved: unknown[] = [];
+        const { service } = build(saved);
+
+        await expect(service.convert('org-1', 'r-1', {
+          session: { type: 'reel', date: '2026-09-01' },
+        }, scoped)).rejects.toThrow(/moodboard aprobado/i);
+
+        expect(saved).toEqual([]);
+      });
+
+      it('no agenda con un moodboard que todavía no está aprobado', async () => {
+        requests.findOne.mockResolvedValue(accepted(WorkRequestArea.AUDIOVISUAL));
+        moodboards.findOne.mockResolvedValueOnce({ id: 'mb-2', clientId: 'client-1', title: 'Borrador', status: 'draft' });
+        const saved: unknown[] = [];
+        const { service } = build(saved);
+
+        await expect(service.convert('org-1', 'r-1', {
+          session: { type: 'reel', date: '2026-09-01', moodboardId: 'mb-2' },
+        }, scoped)).rejects.toThrow(/todavía no está aprobado/i);
+
+        expect(saved).toEqual([]);
       });
 
       it('rechaza crear piezas gráficas desde una solicitud audiovisual', async () => {
