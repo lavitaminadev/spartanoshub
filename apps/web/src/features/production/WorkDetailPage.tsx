@@ -11,8 +11,10 @@
  * auditoría transversal filtrada por esta pieza. No hay un endpoint de «detalle» que las
  * devuelva juntas, y no hacía falta inventarlo para poder mostrarlas.
  *
- * La pestaña de comentarios se retiró: no hay dominio de comentarios en el backend y su
- * cuadro de texto ofrecía publicar algo que siempre fallaba.
+ * La bitácora es el hilo de `process_comments`, con el flujo interno y el de revisión con el
+ * cliente en secciones separadas. Estuvo retirada mientras el backend no tenía dominio de
+ * comentarios —su cuadro de texto ofrecía publicar algo que siempre fallaba— y quedó así
+ * después de que ese dominio se construyera.
  */
 
 import { useState } from 'react';
@@ -30,6 +32,7 @@ import { WorkflowTimeline } from '../../shared/components/WorkflowTimeline';
 import type { WorkflowStage } from '../../shared/components/WorkflowTimeline';
 import { SourceChain } from '../../shared/components/SourceChain';
 import { ReadinessBar } from '../../shared/components/ReadinessBar';
+import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 
 interface Piece {
   id: string; title: string; type: string; status: string; udAmount: number;
@@ -104,6 +107,7 @@ function buildWorkflowStages(piece?: Piece | null): { stages: WorkflowStage[]; i
 const TABS = [
   { key: 'summary', label: 'Resumen' },
   { key: 'files', label: 'Archivos' },
+  { key: 'comments', label: 'Bitácora' },
   { key: 'history', label: 'Historial' },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
@@ -204,6 +208,13 @@ export function WorkDetailPage() {
       <section className="work-detail-main">
         {tab === 'summary' && <SummaryTab piece={piece} requirements={requirements} readiness={readiness} />}
         {tab === 'files' && <FilesTab versions={versions} />}
+        {tab === 'comments' && (
+          <ProcessCommentThread
+            basePath={`/production/pieces/${id}`}
+            canWrite={user?.role !== 'client'}
+            allowClientVisibility={user?.role !== 'client'}
+          />
+        )}
         {tab === 'history' && <AuditLog entries={audit} emptyMessage="Aún no hay movimientos registrados para este trabajo." />}
       </section>
 

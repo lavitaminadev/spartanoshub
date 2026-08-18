@@ -194,6 +194,25 @@
 
 .chart-empty { padding: 28px; color: var(--muted); font-size: 12px; text-align: center; }
 
+/* ------------------------------------------------ Hilo de trabajo */
+
+.comment-thread { display: grid; gap: 16px; }
+
+.comment-form { display: grid; gap: 8px; }
+.comment-form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.comment-visibility { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; cursor: pointer; }
+.comment-error { margin: 0; color: var(--terracotta); font-size: 11px; }
+
+.comment-section { display: grid; gap: 6px; }
+.comment-section h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 640px) {
   .kanban-board { grid-auto-columns: minmax(220px, 85vw); }
   .filter-search { min-width: 100%; }

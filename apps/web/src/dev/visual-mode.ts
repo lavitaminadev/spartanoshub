@@ -304,6 +304,28 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * automatizaciones. Devuelve el sobre `{ data }` porque es la forma que esas vistas leen;
    * la regla de abajo, con `isActive=true`, responde un arreglo pelado a quienes ya la usaban.
    */
+  /*
+   * Una pieza de producción, para poder abrir su detalle y su bitácora.
+   *
+   * Devuelve un arreglo pelado porque es lo que responde `ListPiecesUseCase`; envolverlo en
+   * `{ data }` rompía el detalle con `pieces.find is not a function`.
+   */
+  [/\/production\/pieces$/, () => ([{
+    id: 'piece-1', title: 'Parrilla agosto — pieza 3', type: 'post', status: 'internal_review',
+    udAmount: 4, correctionCount: 1, difficultyLevel: 2, clientName: 'Cocina Norte',
+    assignedTo: 'user-cm', assignedName: 'Valentina Rojas',
+    createdAt: '2026-08-10T12:00:00Z', assignedAt: '2026-08-11T09:00:00Z',
+  }])],
+  /* Hilo de trabajo. Sirve a las cinco áreas, así que la regla mira el sufijo. */
+  [/\/comments$/, () => ({
+    proceso: [
+      { id: 'c1', body: 'Se ajustó el encuadre según el moodboard aprobado.', authorName: 'Joaquín Muñoz', authorRole: 'designer', visibility: 'internal', createdAt: '2026-08-14T15:20:00Z' },
+      { id: 'c2', body: 'Falta el logo en vector; se pidió al cliente.', authorName: 'Valentina Rojas', authorRole: 'community_manager', visibility: 'internal', editedAt: '2026-08-15T10:05:00Z', createdAt: '2026-08-15T09:40:00Z' },
+    ],
+    revision: [
+      { id: 'c3', body: 'Nos gusta la propuesta, solo cambiar el color del texto.', authorName: 'Cliente', authorRole: 'client', visibility: 'client', createdAt: '2026-08-16T11:00:00Z' },
+    ],
+  })],
   [/\/users$/, () => ({
     data: [
       { id: 'user-admin', name: 'Camila Riquelme', role: 'admin', isActive: true },
