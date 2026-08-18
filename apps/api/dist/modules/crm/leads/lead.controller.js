@@ -25,6 +25,8 @@ const update_lead_use_case_1 = require("./use-cases/update-lead.use-case");
 const get_lead_use_case_1 = require("./use-cases/get-lead.use-case");
 const create_lead_dto_1 = require("./dto/create-lead.dto");
 const update_lead_dto_1 = require("./dto/update-lead.dto");
+const import_leads_dto_1 = require("./dto/import-leads.dto");
+const import_leads_use_case_1 = require("./use-cases/import-leads.use-case");
 const list_leads_dto_1 = require("./dto/list-leads.dto");
 const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
@@ -32,17 +34,21 @@ const reservation_entity_1 = require("../../reservations/domain/reservation.enti
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 let LeadController = class LeadController {
-    constructor(createLead, listLeads, getLead, convertLead, updateLead, reservationRepository, accountAccess) {
+    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess) {
         this.createLead = createLead;
         this.listLeads = listLeads;
         this.getLead = getLead;
         this.convertLead = convertLead;
         this.updateLead = updateLead;
+        this.importLeads = importLeads;
         this.reservationRepository = reservationRepository;
         this.accountAccess = accountAccess;
     }
     create(dto, req) {
         return this.createLead.execute({ ...dto, organizationId: req.organizationId });
+    }
+    import(dto, req) {
+        return this.importLeads.execute(req.organizationId, dto);
     }
     async list(query, req) {
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -115,6 +121,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], LeadController.prototype, "create", null);
 __decorate([
+    (0, common_1.Post)('import'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
+    (0, swagger_1.ApiOperation)({ summary: 'Importar prospectos desde un archivo' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [import_leads_dto_1.ImportLeadsDto, Object]),
+    __metadata("design:returntype", void 0)
+], LeadController.prototype, "import", null);
+__decorate([
     (0, common_1.Get)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Listar leads' }),
@@ -172,12 +188,13 @@ exports.LeadController = LeadController = __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
-    __param(5, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
+    __param(6, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __metadata("design:paramtypes", [create_lead_use_case_1.CreateLeadUseCase,
         list_leads_use_case_1.ListLeadsUseCase,
         get_lead_use_case_1.GetLeadUseCase,
         convert_lead_use_case_1.ConvertLeadUseCase,
         update_lead_use_case_1.UpdateLeadUseCase,
+        import_leads_use_case_1.ImportLeadsUseCase,
         typeorm_2.Repository,
         account_access_service_1.AccountAccessService])
 ], LeadController);

@@ -14,9 +14,24 @@ describe('alcance de fase', () => {
     }
   });
 
-  it('oculta los módulos fuera de alcance', () => {
+  /**
+   * Decisión del 2026-08-18: el catálogo ya no esconde ningún módulo.
+   *
+   * Abrir uno exigía editar el catálogo y desplegar. Ahora el ciclo de vida se guarda en
+   * configuración y se cambia desde el panel de Desarrollo, así que el código los ofrece
+   * todos y se elige cuáles se usan sin volver a desplegar.
+   *
+   * Que un módulo esté activo no lo hace aparecer: sigue necesitando su interruptor encendido
+   * y permiso en la matriz de cargos. Lo que cambió es que abrirlo dejó de ser un despliegue.
+   *
+   * El mecanismo de ocultar no desapareció —lo ejerce el bloque «el cargo de desarrollo frente
+   * al alcance de fase», con un ciclo de vida guardado en configuración—; lo que desapareció es que
+   * venga impuesto desde el código.
+   */
+  it('el catálogo no esconde ningún módulo: la decisión vive en configuración', () => {
+    expect(OUT_OF_SCOPE_MODULES).toEqual({});
     for (const module of ['content', 'billing', 'gamification', 'adsInsights']) {
-      expect(isModuleInPhaseScope(module), module).toBe(false);
+      expect(isModuleInPhaseScope(module), module).toBe(true);
     }
   });
 
@@ -52,17 +67,21 @@ describe('navegación bajo el alcance de fase', () => {
     }
   });
 
-  it('oculta las rutas fuera de alcance para cualquier rol', () => {
-    // `/governance` salió de esta lista a propósito: el sistema de solicitudes de derechos vive
-    // ahí y es parte del cumplimiento, así que el módulo pasó a `active` en el catálogo. La
-    // expectativa se actualiza junto con esa decisión para que quede registrada, que es lo que
-    // pide la prueba del interruptor de fase más arriba.
-    const outOfScopePaths = ['/content', '/audiovisual', '/approvals', '/briefs',
+  /**
+   * Con todos los módulos activos, ninguna ruta se cierra desde el código.
+   *
+   * `visible()` consulta solo el catálogo —sin interruptores ni permisos—, así que responde
+   * qué ofrece el producto, no qué ve una persona concreta. Esas dos preguntas se responden
+   * más abajo: `surveys` con su interruptor, y el bloque de Desarrollo con el ciclo de vida
+   * guardado en configuración.
+   */
+  it('ninguna ruta queda fuera de alcance por el catálogo', () => {
+    const antesOcultas = ['/content', '/approvals', '/briefs', '/audiovisual',
       '/meetings', '/billing', '/contracts', '/catalog', '/gamification', '/knowledge',
       '/onboarding', '/direction', '/operations', '/documents'];
 
-    for (const path of outOfScopePaths) {
-      expect(visible(path), path).toBe(false);
+    for (const path of antesOcultas) {
+      expect(visible(path), path).toBe(true);
     }
   });
 
@@ -72,9 +91,16 @@ describe('navegación bajo el alcance de fase', () => {
     }
   });
 
-  it('el permiso explícito no alcanza para reabrir una ruta fuera de alcance', () => {
-    // El alcance de fase se evalúa antes que los permisos: un administrador tampoco la ve.
-    expect(isPathEnabled('/content', { content: true }, { content: 'manage' })).toBe(false);
+  /**
+   * El orden de las preguntas no cambió, solo dejó de haber módulos que lo activen desde el
+   * catálogo. Se comprueba con un ciclo de vida guardado en configuración, que es la única
+   * vía que queda para cerrar uno: ni el interruptor encendido ni el permiso de administrar
+   * reabren lo que está cerrado ahí.
+   */
+  it('el permiso explícito no alcanza para reabrir una ruta cerrada en configuración', () => {
+    expect(isPathEnabled('/content', { content: true }, { content: 'manage' }, { content: 'development' }, 'admin')).toBe(false);
+    // Y con el módulo abierto, el permiso vuelve a mandar.
+    expect(isPathEnabled('/content', { content: true }, { content: 'manage' }, { content: 'active' }, 'admin')).toBe(true);
   });
 
   it('deja visibles la puerta de entrada a producción y su tablero', () => {

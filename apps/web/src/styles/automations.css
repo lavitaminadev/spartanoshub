@@ -1,0 +1,171 @@
+/*
+ * Constructor de automatizaciones e historial de ejecuciones.
+ *
+ * React Flow trae su propia hoja (`@xyflow/react/dist/style.css`, importada por el lienzo).
+ * Acá solo se define la piel de los nodos y del entorno, con los tokens de marca.
+ */
+
+/* ---------------------------------------------------------- Editor */
+
+.automation-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.automation-meta label { display: grid; gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.automation-meta-wide { grid-column: 1 / -1; }
+.field-hint { color: var(--muted); font-size: 10px; font-weight: 400; }
+
+.automation-hint { padding: 28px; border: 1px dashed var(--line); border-radius: var(--radius-md); color: var(--muted); text-align: center; }
+
+/*
+ * Paleta, lienzo e inspector en tres columnas.
+ *
+ * El lienzo es la columna elástica: los paneles laterales tienen ancho fijo porque su
+ * contenido es un formulario y ensancharlo no lo mejora, mientras que el flujo siempre
+ * agradece el espacio.
+ */
+.automation-workspace {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) 280px;
+  gap: 12px;
+  align-items: start;
+}
+
+.automation-palette {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.automation-palette h3,
+.automation-palette h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.automation-palette h4 { margin-top: 8px; }
+
+.flow-canvas {
+  height: 560px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--soft);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------- Nodos */
+
+.flow-node {
+  display: grid;
+  gap: 2px;
+  min-width: 168px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  box-shadow: 0 2px 8px rgb(34 22 29 / .1);
+}
+
+/* El color del borde izquierdo dice de un vistazo qué hace el paso. */
+.flow-node.is-trigger { border-left-color: var(--cyan); }
+.flow-node.is-condition { border-left-color: #f0a202; }
+.flow-node.is-action { border-left-color: #5b4b8a; }
+.flow-node.is-delay { border-left-color: var(--muted); }
+.flow-node.is-selected { outline: 2px solid var(--cyan); outline-offset: 1px; }
+
+.flow-node-kind { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.flow-node-label { color: var(--ink); font-size: 12px; font-weight: 700; line-height: 1.3; }
+.flow-node-summary { color: var(--muted); font-size: 10px; }
+
+/* --------------------------------------------------- Inspector */
+
+.automation-inspector {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.automation-inspector.is-empty { color: var(--muted); font-size: 11px; text-align: center; }
+.automation-inspector header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.automation-inspector h3 { margin: 0; font-size: 12px; font-weight: 800; color: var(--ink); }
+.automation-inspector label { display: grid; gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.automation-inspector-hint { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.automation-inspector-hint code { padding: 1px 4px; border-radius: 3px; background: var(--soft); font-size: 10px; }
+
+/* -------------------------------------------------- Ejecuciones */
+
+.run-list { display: grid; gap: 8px; }
+
+.run-row { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); overflow: hidden; }
+
+.run-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.run-row-head:hover { background: var(--soft); }
+
+.run-status { padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.run-status.is-completed { background: color-mix(in srgb, var(--cyan) 16%, transparent); color: var(--cyan); }
+.run-status.is-failed { background: color-mix(in srgb, var(--terracotta) 14%, transparent); color: var(--terracotta); }
+.run-status.is-waiting,
+.run-status.is-pending { background: var(--surface-sage); color: var(--muted); }
+.run-status.is-running { background: color-mix(in srgb, #f0a202 18%, transparent); color: #8a5d00; }
+.run-status.is-cancelled { background: var(--soft); color: var(--muted); }
+
+.run-entity { color: var(--ink); font-size: 12px; font-weight: 600; }
+.run-row-head time,
+.run-attempts,
+.run-resume { color: var(--muted); font-size: 10px; }
+.run-attempts { margin-left: auto; }
+
+.run-error { margin: 0; padding: 8px 13px; background: color-mix(in srgb, var(--terracotta) 7%, transparent); color: var(--terracotta); font-size: 11px; }
+
+.run-steps { padding: 6px 14px 12px; border-top: 1px solid var(--line); }
+.run-steps-empty { color: var(--muted); font-size: 11px; }
+.run-step-error { margin: 2px 0; color: var(--terracotta); font-size: 11px; }
+.run-step-duration { color: var(--muted); font-size: 10px; }
+
+/* El contenido puede ser ancho; desborda dentro de su caja y nunca empuja la página. */
+.run-step-json {
+  max-height: 160px;
+  margin: 4px 0;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 10px;
+  overflow: auto;
+}
+
+/* Interruptor de activación del listado. */
+.switch-field { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink); cursor: pointer; }
+
+@media (max-width: 1100px) {
+  .automation-workspace { grid-template-columns: 1fr; }
+  .flow-canvas { height: 420px; }
+  .automation-meta { grid-template-columns: 1fr; }
+}

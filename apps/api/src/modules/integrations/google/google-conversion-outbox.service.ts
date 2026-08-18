@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, LessThanOrEqual, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
+import { OutboxProcessor, type FailureVerdict } from '../../../core/outbox/outbox-processor.base';
 import { GoogleConversionOutbox } from './google-conversion-outbox.entity';
 import { GoogleClickConversion, GoogleConversionsService } from './google-conversions.service';
 import { Integration } from '../integration.entity';
@@ -16,20 +17,21 @@ export interface ResolvedAdsConversionConfig {
   conversionAction: string;
 }
 
-/** Tiempo tras el cual un evento tomado se considera abandonado y vuelve a la cola. */
-const CLAIM_TIMEOUT_MS = 10 * 60_000;
-
 @Injectable()
-export class GoogleConversionOutboxService {
-  private readonly logger = new Logger(GoogleConversionOutboxService.name);
+export class GoogleConversionOutboxService extends OutboxProcessor<GoogleConversionOutbox> {
+  protected readonly logger = new Logger(GoogleConversionOutboxService.name);
+  protected readonly entity = GoogleConversionOutbox;
+  protected readonly label = 'Google Ads';
 
   constructor(
-    @InjectRepository(GoogleConversionOutbox) private readonly outbox: Repository<GoogleConversionOutbox>,
+    @InjectRepository(GoogleConversionOutbox) protected readonly repository: Repository<GoogleConversionOutbox>,
     @InjectRepository(Integration) private readonly integrations: Repository<Integration>,
     @InjectRepository(IntegrationAccount) private readonly accounts: Repository<IntegrationAccount>,
     private readonly conversions: GoogleConversionsService,
     private readonly oauth: GoogleOAuthService,
-  ) {}
+  ) {
+    super();
+  }
 
   /**
    * Resuelve la cuenta de Google Ads del cliente y la acción de conversión
@@ -69,9 +71,9 @@ export class GoogleConversionOutboxService {
     conversion: Omit<GoogleClickConversion, 'conversionAction'>,
   ): Promise<GoogleConversionOutbox> {
     if (!eventId) throw new Error('A stable eventId is required for Google Ads conversions');
-    const existing = await this.outbox.findOne({ where: { organizationId, eventId } });
+    const existing = await this.repository.findOne({ where: { organizationId, eventId } });
     if (existing) return existing;
-    return this.outbox.save(this.outbox.create({
+    return this.repository.save(this.repository.create({
       organizationId,
       eventId,
       customerId: config.customerId,
@@ -87,7 +89,7 @@ export class GoogleConversionOutboxService {
    * baja entre consultas indica lotes que no están completando el envío.
    */
   async stats(): Promise<{ pending: number; retry: number; processing: number; failed: number; processed: number; total: number }> {
-    const countBy = (status?: string) => this.outbox.count({ where: status ? { status } : {} });
+    const countBy = (status?: string) => this.repository.count({ where: status ? { status } : {} });
     const [pending, retry, processing, failed, processed, total] = await Promise.all([
       countBy('pending'),
       countBy('retry'),
@@ -99,90 +101,37 @@ export class GoogleConversionOutboxService {
     return { pending, retry, processing, failed, processed, total };
   }
 
+  protected async send(item: GoogleConversionOutbox): Promise<void> {
+    const token = await this.resolveAccessToken(item.organizationId);
+    if (!token) throw new Error('Google integration is not connected');
+
+    const data = item.conversionData as Record<string, any>;
+    await this.conversions.uploadClickConversions(item.customerId, token, [{
+      ...data,
+      conversionAction: item.conversionAction,
+      // La fecha viaja como texto en el JSON de la bandeja; el cliente de Google la espera
+      // como fecha.
+      conversionDateTime: new Date(data.conversionDateTime),
+    } as GoogleClickConversion]);
+  }
+
   /**
-   * Reserva un lote de conversiones marcándolas como `processing`.
+   * Un payload malformado o una acción de conversión inexistente no se arreglan reintentando;
+   * un 429 o un 5xx sí.
    *
-   * La reserva ocurre en una transacción corta porque el bloqueo pesimista de TypeORM
-   * requiere una transacción abierta, y la subida a Google Ads se hace fuera de ella para
-   * no mantener filas bloqueadas durante llamadas HTTP.
-   *
-   * @param limit - Máximo de conversiones a reservar.
-   * @returns Las conversiones reservadas, incluidas las que quedaron abandonadas por una
-   *   ejecución previa que no terminó.
+   * Google no devuelve un código estable en estos casos, así que se reconoce por el texto. Es
+   * menos robusto que mirar un código —lo que sí puede hacerse con Meta— pero es lo que la API
+   * entrega.
    */
-  private async claimBatch(limit: number): Promise<GoogleConversionOutbox[]> {
-    const now = new Date();
-    return this.outbox.manager.transaction(async (manager) => {
-      const repository = manager.getRepository(GoogleConversionOutbox);
-      // Libera las conversiones abandonadas por una ejecución previa.
-      await repository.createQueryBuilder()
-        .update()
-        .set({ status: 'retry' })
-        .where('status = :status AND updated_at <= :staleBefore', { status: 'processing', staleBefore: new Date(now.getTime() - CLAIM_TIMEOUT_MS) })
-        .execute();
-      const items = await repository.find({
-        where: [
-          { status: In(['pending', 'retry']), nextAttemptAt: IsNull() },
-          { status: In(['pending', 'retry']), nextAttemptAt: LessThanOrEqual(now) },
-        ],
-        order: { createdAt: 'ASC' },
-        take: limit,
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (items.length === 0) return [];
-      await repository.update(items.map((item) => item.id), { status: 'processing' });
-      return items;
-    });
-  }
+  protected classifyFailure(error: unknown): FailureVerdict {
+    const message = error instanceof Error ? error.message : 'Unknown Google Ads error';
+    const isNonRetryable = /INVALID_ARGUMENT|NOT_FOUND|PERMISSION_DENIED|no se requiere|Se requiere un identificador/i.test(message);
+    const isExpiredToken = /expired|invalid.*token|unauthorized|UNAUTHENTICATED/i.test(message);
 
-  async processPending(limit = 25): Promise<{ processed: number; failed: number }> {
-    const items = await this.claimBatch(limit);
-
-    let processed = 0;
-    let failed = 0;
-    for (const item of items) {
-      try {
-        const token = await this.resolveAccessToken(item.organizationId);
-        if (!token) throw new Error('Google integration is not connected');
-        const data = item.conversionData as Record<string, any>;
-        await this.conversions.uploadClickConversions(item.customerId, token, [{
-          ...data,
-          conversionAction: item.conversionAction,
-          conversionDateTime: new Date(data.conversionDateTime),
-        } as GoogleClickConversion]);
-        item.status = 'processed';
-        item.processedAt = new Date();
-        item.lastError = undefined;
-        processed += 1;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown Google Ads error';
-        // Un payload malformado o una acción de conversión inexistente no se
-        // arreglan reintentando; un 429 o un 5xx sí.
-        const isNonRetryable = /INVALID_ARGUMENT|NOT_FOUND|PERMISSION_DENIED|no se requiere|Se requiere un identificador/i.test(message);
-        const isExpiredToken = /expired|invalid.*token|unauthorized|UNAUTHENTICATED/i.test(message);
-
-        item.attempts += 1;
-        if (isNonRetryable || isExpiredToken || item.attempts >= 8) {
-          item.status = 'failed';
-          item.nextAttemptAt = undefined;
-        } else {
-          item.status = 'retry';
-          item.nextAttemptAt = new Date(Date.now() + Math.min(60, 2 ** item.attempts) * 60_000);
-        }
-        item.lastError = isExpiredToken ? `[TOKEN] ${message}` : message;
-        failed += 1;
-        this.logger.warn(`Google Ads outbox ${item.id} failed${isNonRetryable || isExpiredToken ? ' (non-retryable)' : ''} (attempt ${item.attempts}): ${item.lastError}`);
-      }
-      await this.outbox.save(item);
-    }
-    return { processed, failed };
-  }
-
-  async cleanup(olderThanDays = 7): Promise<{ deleted: number }> {
-    const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60_000);
-    const result = await this.outbox.delete({ status: 'processed', processedAt: LessThanOrEqual(cutoff) });
-    const failedResult = await this.outbox.delete({ status: 'failed', createdAt: LessThanOrEqual(cutoff) });
-    return { deleted: (result.affected ?? 0) + (failedResult.affected ?? 0) };
+    return {
+      retryable: !isNonRetryable && !isExpiredToken,
+      tag: isExpiredToken ? '[TOKEN]' : undefined,
+    };
   }
 
   /** Obtiene un access token válido, refrescándolo si está por expirar. */

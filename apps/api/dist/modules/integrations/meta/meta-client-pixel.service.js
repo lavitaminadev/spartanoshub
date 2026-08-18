@@ -54,6 +54,19 @@ let MetaClientPixelService = class MetaClientPixelService {
         const value = integration.config?.clientPixels;
         return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     }
+    async mutateRecords(integrationId, mutate) {
+        return this.integrations.manager.transaction(async (manager) => {
+            const repo = manager.getRepository(integration_entity_1.Integration);
+            const fresh = await repo.findOne({ where: { id: integrationId }, lock: { mode: 'pessimistic_write' } });
+            if (!fresh)
+                throw new common_1.NotFoundException('Integración Meta no encontrada');
+            const current = this.records(fresh);
+            const [next, result] = await mutate(current);
+            fresh.config = { ...fresh.config, clientPixels: next };
+            await repo.save(fresh);
+            return result;
+        });
+    }
     async list(id, organizationId) {
         const integration = await this.integration(id, organizationId);
         return this.catalogRows(organizationId, this.records(integration));
@@ -102,18 +115,19 @@ let MetaClientPixelService = class MetaClientPixelService {
             throw new common_1.BadRequestException('Se requiere un token CAPI para este cliente');
         if (!await this.pixels.validatePixel(pixelId, token))
             throw new common_1.BadRequestException('Meta no reconoció el Pixel con el token entregado');
-        const clientPixels = {
-            ...this.records(integration),
-            [clientId]: {
+        return this.mutateRecords(integration.id, (records) => {
+            const current = records[clientId];
+            const record = {
                 pixelId,
-                pixelName: pixelName?.trim() || existing?.pixelName || client.name,
-                accessToken: accessToken?.trim() ? (0, integration_secrets_1.protectSecret)(accessToken.trim()) : existing?.accessToken,
+                pixelName: pixelName?.trim() || current?.pixelName || client.name,
+                accessToken: accessToken?.trim() ? (0, integration_secrets_1.protectSecret)(accessToken.trim()) : current?.accessToken,
                 configuredAt: new Date().toISOString(),
-            },
-        };
-        integration.config = { ...integration.config, clientPixels };
-        await this.integrations.save(integration);
-        return { clientId, clientName: client.name, pixelId, pixelName: clientPixels[clientId].pixelName || client.name, tokenConfigured: true, configuredAt: clientPixels[clientId].configuredAt };
+            };
+            return [
+                { ...records, [clientId]: record },
+                { clientId, clientName: client.name, pixelId, pixelName: record.pixelName || client.name, tokenConfigured: true, configuredAt: record.configuredAt },
+            ];
+        });
     }
     async setup(organizationId, clientId, mode, input) {
         const client = await this.clients.findOne({ where: { id: clientId, organizationId } });
@@ -122,34 +136,28 @@ let MetaClientPixelService = class MetaClientPixelService {
         const integration = await this.organizationIntegration(organizationId, mode !== 'none');
         if (!integration)
             return { clientId, clientName: client.name, pixelId: null, tokenConfigured: false, configuredAt: null };
-        const records = this.records(integration);
         if (mode === 'none') {
-            delete records[clientId];
-            integration.config = { ...integration.config, clientPixels: records };
-            await this.integrations.save(integration);
-            return { clientId, clientName: client.name, pixelId: null, tokenConfigured: false, configuredAt: null };
+            return this.mutateRecords(integration.id, (records) => {
+                const { [clientId]: _removed, ...rest } = records;
+                return [rest, { clientId, clientName: client.name, pixelId: null, tokenConfigured: false, configuredAt: null }];
+            });
         }
         if (mode === 'existing') {
-            const source = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
-            if (!source)
-                throw new common_1.BadRequestException('El Pixel existente no está disponible en esta organización');
-            const configuredAt = new Date().toISOString();
-            records[clientId] = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
-            integration.config = { ...integration.config, clientPixels: records };
-            await this.integrations.save(integration);
-            return { clientId, clientName: client.name, pixelId: source.pixelId, pixelName: records[clientId].pixelName || null, tokenConfigured: Boolean(source.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN), configuredAt };
+            return this.mutateRecords(integration.id, (records) => {
+                const source = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
+                if (!source)
+                    throw new common_1.BadRequestException('El Pixel existente no está disponible en esta organización');
+                const configuredAt = new Date().toISOString();
+                const record = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
+                return [
+                    { ...records, [clientId]: record },
+                    { clientId, clientName: client.name, pixelId: source.pixelId, pixelName: record.pixelName || null, tokenConfigured: Boolean(source.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN), configuredAt },
+                ];
+            });
         }
         if (!input.pixelId)
             throw new common_1.BadRequestException('Debes indicar el ID del Pixel');
-        const result = await this.configureRecord(integration, organizationId, clientId, input.pixelId, input.accessToken, input.pixelName);
-        if (input.pixelName?.trim()) {
-            const updated = this.records(integration);
-            updated[clientId] = { ...updated[clientId], pixelName: input.pixelName.trim() };
-            integration.config = { ...integration.config, clientPixels: updated };
-            await this.integrations.save(integration);
-            return { ...result, pixelName: input.pixelName.trim() };
-        }
-        return { ...result, pixelName: result.clientName };
+        return this.configureRecord(integration, organizationId, clientId, input.pixelId, input.accessToken, input.pixelName);
     }
     async resolve(organizationId, clientId) {
         const integration = await this.organizationIntegration(organizationId);

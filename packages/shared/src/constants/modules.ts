@@ -72,28 +72,48 @@ export const ORGANIZATION_MODULE_CATALOG = [
    */
   { key: 'intake', lifecycle: 'active', defaultEnabled: false },
 
-  // En desarrollo: el producto todavia no los ofrece, asi que encenderlos no los hace
-  // visibles. Para abrir uno hay que subir su `lifecycle`, no solo su interruptor.
-  { key: 'clientMetricsPanel', lifecycle: 'development', defaultEnabled: false },
-  { key: 'multiClientOnboarding', lifecycle: 'development', defaultEnabled: false },
-  { key: 'udBudget', lifecycle: 'development', defaultEnabled: false },
-  { key: 'gamification', lifecycle: 'development', defaultEnabled: false },
-  { key: 'billing', lifecycle: 'development', defaultEnabled: false },
-  { key: 'contracts', lifecycle: 'development', defaultEnabled: false },
-  { key: 'catalog', lifecycle: 'development', defaultEnabled: false },
-  { key: 'content', lifecycle: 'development', defaultEnabled: false },
-  { key: 'briefs', lifecycle: 'development', defaultEnabled: false },
-  { key: 'meetings', lifecycle: 'development', defaultEnabled: false },
-  { key: 'documents', lifecycle: 'development', defaultEnabled: false },
-  { key: 'approvals', lifecycle: 'development', defaultEnabled: false },
-  { key: 'audiovisual', lifecycle: 'development', defaultEnabled: false },
-  { key: 'knowledge', lifecycle: 'development', defaultEnabled: false },
-  { key: 'onboarding', lifecycle: 'development', defaultEnabled: false },
-  { key: 'operations', lifecycle: 'development', defaultEnabled: false },
+  /*
+   * Disponibles en el codigo y apagados de fabrica.
+   *
+   * El ciclo de vida y el interruptor responden preguntas distintas: el primero dice si el
+   * codigo ofrece el modulo, el segundo si la agencia lo esta usando. Mientras estuvieron en
+   * `development`, abrir uno exigia tocar este archivo y desplegar; ahora se cambia desde el
+   * panel de Desarrollo, que es donde corresponde y donde es reversible.
+   *
+   * Que esten activos no los hace aparecer: sin encender su interruptor y sin permiso en la
+   * matriz de cargos, nadie los ve.
+   *
+   * Varios tienen la pantalla a medio hacer —conocimiento, gamificacion, aprobaciones,
+   * facturacion y direccion son los mas pobres, con backend completo y muy poca interfaz—. Se
+   * dejan disponibles igualmente porque encenderlos y apagarlos ya no cuesta un despliegue.
+   */
+  { key: 'clientMetricsPanel', lifecycle: 'active', defaultEnabled: false },
+  { key: 'multiClientOnboarding', lifecycle: 'active', defaultEnabled: false },
+  { key: 'udBudget', lifecycle: 'active', defaultEnabled: false },
+  { key: 'gamification', lifecycle: 'active', defaultEnabled: false },
+  { key: 'billing', lifecycle: 'active', defaultEnabled: false },
+  { key: 'contracts', lifecycle: 'active', defaultEnabled: false },
+  { key: 'catalog', lifecycle: 'active', defaultEnabled: false },
+  { key: 'content', lifecycle: 'active', defaultEnabled: false },
+  { key: 'briefs', lifecycle: 'active', defaultEnabled: false },
+  { key: 'meetings', lifecycle: 'active', defaultEnabled: false },
+  { key: 'documents', lifecycle: 'active', defaultEnabled: false },
+  { key: 'approvals', lifecycle: 'active', defaultEnabled: false },
+  /*
+   * Audiovisual no puede apagarse mientras el intake acepte solicitudes de su area.
+   *
+   * Agendar una sesion exige un moodboard aprobado, y los moodboards se crean y se aprueban
+   * unicamente en esta pantalla. Apagarla deja a la direccion audiovisual sin donde aprobarlo
+   * y, con ello, sin poder convertir ninguna solicitud de su area.
+   */
+  { key: 'audiovisual', lifecycle: 'active', defaultEnabled: false },
+  { key: 'knowledge', lifecycle: 'active', defaultEnabled: false },
+  { key: 'onboarding', lifecycle: 'active', defaultEnabled: false },
+  { key: 'operations', lifecycle: 'active', defaultEnabled: false },
   // Sostiene la auditoría y el acceso técnico de Desarrollo. No se muestra como navegación
   // para Administración, pero no puede nacer apagado sin dejar la revisión diaria sin datos.
   { key: 'governance', lifecycle: 'active', defaultEnabled: true },
-  { key: 'direction', lifecycle: 'development', defaultEnabled: false },
+  { key: 'direction', lifecycle: 'active', defaultEnabled: false },
   // Encuestas propias, distintas de la encuesta post-visita que ya vive dentro de reservas.
   // Su API existe (`SurveysController`), asi que el producto ya la ofrece; nace apagada
   // porque distribuir una encuesta es una decision de cada organizacion, no un valor por
@@ -133,7 +153,7 @@ export function buildAgencyCoreOrganizationFeatures(): OrganizationFeaturesMap {
  * si siguen en desarrollo o si ya pueden mostrarse.
  */
 export const WEB_ONLY_MODULE_CATALOG = [
-  { key: 'adsInsights', lifecycle: 'development' },
+  { key: 'adsInsights', lifecycle: 'active' },
 ] as const;
 
 export type WebOnlyModuleKey = (typeof WEB_ONLY_MODULE_CATALOG)[number]['key'];

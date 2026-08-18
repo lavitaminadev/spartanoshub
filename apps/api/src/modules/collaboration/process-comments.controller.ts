@@ -78,3 +78,30 @@ export class WorkRequestCommentsController extends BaseCommentsController {
   protected readonly subject = CommentSubject.WORK_REQUEST;
   constructor(service: ProcessCommentsService) { super(service); }
 }
+
+/**
+ * Hilos del embudo comercial.
+ *
+ * Quedan bajo `ModuleScope('crm')` y no bajo el de producción: quién puede leer lo que se
+ * dijo de un prospecto se decide con el permiso del CRM, igual que las tres áreas deciden el
+ * suyo con el propio. Apagar el CRM esconde estos hilos sin tocar los de Arte.
+ */
+@ApiTags('CRM')
+@Controller('crm/leads/:subjectId/comments')
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@ModuleScope('crm')
+export class LeadCommentsController extends BaseCommentsController {
+  protected readonly subject = CommentSubject.LEAD;
+  constructor(service: ProcessCommentsService) { super(service); }
+}
+
+@ApiTags('CRM')
+@Controller('crm/opportunities/:subjectId/comments')
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@ModuleScope('crm')
+export class OpportunityCommentsController extends BaseCommentsController {
+  protected readonly subject = CommentSubject.OPPORTUNITY;
+  constructor(service: ProcessCommentsService) { super(service); }
+}

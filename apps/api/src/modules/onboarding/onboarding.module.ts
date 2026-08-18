@@ -5,10 +5,10 @@ import { OnboardingController } from './onboarding.controller';
 import { OnboardingService } from './onboarding.service';
 import { Client } from '../clients/client.entity';
 import { User } from '../users/user.entity';
-import { WorkflowsModule } from '../workflows/workflows.module';
+import { ProcessTemplatesModule } from '../process-templates/process-templates.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Onboarding, Client, User]), WorkflowsModule],
+  imports: [TypeOrmModule.forFeature([Onboarding, Client, User]), ProcessTemplatesModule],
   controllers: [OnboardingController],
   providers: [OnboardingService],
 })

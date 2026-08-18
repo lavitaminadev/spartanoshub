@@ -10,6 +10,8 @@ import { UpdateLeadUseCase } from './use-cases/update-lead.use-case';
 import { GetLeadUseCase } from './use-cases/get-lead.use-case';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
+import { ImportLeadsDto } from './dto/import-leads.dto';
+import { ImportLeadsUseCase } from './use-cases/import-leads.use-case';
 import { ListLeadsQueryDto } from './dto/list-leads.dto';
 import { Roles } from '../../../core/authorization/roles.decorator';
 import { UserRole } from '../../organizations/user-role.enum';
@@ -32,6 +34,7 @@ export class LeadController {
     private getLead: GetLeadUseCase,
     private convertLead: ConvertLeadUseCase,
     private updateLead: UpdateLeadUseCase,
+    private importLeads: ImportLeadsUseCase,
     @InjectRepository(Reservation) private readonly reservationRepository: Repository<Reservation>,
     private readonly accountAccess: AccountAccessService,
   ) {}
@@ -41,6 +44,20 @@ export class LeadController {
   @ApiOperation({ summary: 'Crear un nuevo lead' })
   create(@Body() dto: CreateLeadDto, @Req() req: AuthenticatedRequest) {
     return this.createLead.execute({ ...dto, organizationId: req.organizationId });
+  }
+
+  /**
+   * Alta masiva desde un archivo.
+   *
+   * Devuelve siempre 200 con el detalle de lo que entró y lo que no, incluso si fallaron
+   * filas: un archivo con dos correos mal escritos y cuatrocientas filas buenas no es una
+   * petición inválida, y responder un error dejaría a quien importa sin saber qué se guardó.
+   */
+  @Post('import')
+  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Importar prospectos desde un archivo' })
+  import(@Body() dto: ImportLeadsDto, @Req() req: AuthenticatedRequest) {
+    return this.importLeads.execute(req.organizationId, dto);
   }
 
   /**

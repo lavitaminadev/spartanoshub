@@ -217,10 +217,71 @@ function extractErrorMessage(error: AxiosError<ApiErrorPayload>): string {
   if (error.response.status >= 500) return 'El servidor encontró un problema y la acción no se completó. Tus datos no se guardaron parcialmente.';
   const data = error.response?.data;
   if (data?.errors?.length) {
-    return data.errors.slice(0, 3).map((item) => item.message).join('. ');
+    return data.errors.slice(0, 3).map(describeFieldError).join(' · ');
   }
   if (data?.message) return data.message;
   return 'El servidor no pudo completar la solicitud. Inténtalo nuevamente en unos segundos.';
+}
+
+/**
+ * Nombre legible de los campos que más aparecen en los errores de validación.
+ *
+ * El servidor devuelve la propiedad tal como se llama en el DTO (`clientId`, `dueAt`), que no
+ * es lo que la persona ve en la pantalla. Traducir las habituales evita el mensaje que obliga
+ * a adivinar en qué casilla estaba el problema.
+ */
+const FIELD_LABELS: Record<string, string> = {
+  clientId: 'Cliente',
+  leadId: 'Prospecto',
+  name: 'Nombre',
+  title: 'Título',
+  email: 'Correo',
+  phone: 'Teléfono',
+  amount: 'Monto',
+  total: 'Total',
+  subtotal: 'Subtotal',
+  stage: 'Etapa',
+  status: 'Estado',
+  assignedTo: 'Responsable',
+  dueAt: 'Vencimiento',
+  dueDate: 'Fecha de entrega',
+  startDate: 'Fecha de inicio',
+  weekStart: 'Inicio de semana',
+  weekEnd: 'Fin de semana',
+  date: 'Fecha',
+  type: 'Tipo',
+  area: 'Área',
+  description: 'Descripción',
+  runAsUserId: 'Identidad de ejecución',
+  triggerType: 'Disparador',
+  graph: 'Flujo',
+};
+
+/** Traducción de los mensajes de `class-validator` que más se repiten. */
+const CONSTRAINT_MESSAGES: Array<[RegExp, string]> = [
+  [/should not exist/i, 'no corresponde a este formulario'],
+  [/must be a UUID/i, 'debe seleccionarse de la lista'],
+  [/should not be empty/i, 'es obligatorio'],
+  [/must be a valid ISO 8601 date string|must be a Date/i, 'debe ser una fecha válida'],
+  [/must be a number/i, 'debe ser un número'],
+  [/must be an email/i, 'debe ser un correo válido'],
+  [/must be one of the following values/i, 'tiene un valor no permitido'],
+  [/must be longer than or equal to (\d+)/i, 'es demasiado corto'],
+  [/must be shorter than or equal to (\d+)/i, 'es demasiado largo'],
+];
+
+/**
+ * Convierte un error de validación en algo accionable.
+ *
+ * Antes se descartaba `field` y solo se mostraba el mensaje, así que un formulario con varias
+ * casillas devolvía «must be a UUID» sin decir cuál: no había forma de saber qué corregir y
+ * cualquier fallo se veía igual que cualquier otro.
+ */
+export function describeFieldError(item: { field?: string; message: string }): string {
+  const traduccion = CONSTRAINT_MESSAGES.find(([pattern]) => pattern.test(item.message));
+  const mensaje = traduccion ? traduccion[1] : item.message;
+  if (!item.field) return mensaje;
+  return `${FIELD_LABELS[item.field] ?? item.field}: ${mensaje}`;
 }
 
 function describeApiError(error: AxiosError<ApiErrorPayload>, message: string): ApiErrorEventDetail {

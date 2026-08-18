@@ -22,7 +22,7 @@ const lead_entity_1 = require("../../../modules/crm/leads/lead.entity");
 const client_entity_1 = require("../../../modules/clients/client.entity");
 const onboarding_entity_1 = require("../../../modules/onboarding/onboarding.entity");
 const notification_entity_1 = require("../../notifications/notification.entity");
-const workflows_service_1 = require("../../../modules/workflows/workflows.service");
+const process_templates_service_1 = require("../../../modules/process-templates/process-templates.service");
 let LeadConvertedHandler = LeadConvertedHandler_1 = class LeadConvertedHandler {
     constructor(leadRepo, clientRepo, onboardingRepo, notifRepo, workflows) {
         this.leadRepo = leadRepo;
@@ -85,5 +85,5 @@ exports.LeadConvertedHandler = LeadConvertedHandler = LeadConvertedHandler_1 = _
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        workflows_service_1.WorkflowsService])
+        process_templates_service_1.ProcessTemplatesService])
 ], LeadConvertedHandler);

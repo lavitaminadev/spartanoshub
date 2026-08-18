@@ -166,7 +166,14 @@ describe('GoogleConversionOutboxService.processPending', () => {
     await service.processPending();
     const saved = outbox.save.mock.calls[0][0];
     expect(saved.status).toBe('failed');
-    expect(saved.nextAttemptAt).toBeUndefined();
+    /*
+     * `null`, no `undefined`. Para TypeORM son cosas distintas: `undefined` significa «no
+     * toques esta columna», así que una conversión que había reintentado antes conservaba su
+     * fecha de próximo intento después de darse por fallida. No causaba un reintento —el lote
+     * solo toma `pending` y `retry`— pero dejaba en la tabla una fecha que ya no significaba
+     * nada, justo donde se mira para diagnosticar.
+     */
+    expect(saved.nextAttemptAt).toBeNull();
   });
 
   it('marca token expirado como no reintentable y lo etiqueta', async () => {

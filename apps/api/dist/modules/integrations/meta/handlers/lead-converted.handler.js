@@ -60,6 +60,7 @@ let LeadConvertedHandler = LeadConvertedHandler_1 = class LeadConvertedHandler {
             }
             const client = await this.clientRepo.findOne({ where: { id: payload.clientId, organizationId: lead.organizationId } });
             const eventId = `lead-converted:${lead.id}:${payload.clientId}`;
+            const attribution = (lead.metadata?.attribution ?? {});
             await this.outbox.enqueue(lead.organizationId, pixelId, {
                 eventName: 'QualifiedLead',
                 eventTime: Math.floor(Date.now() / 1000),
@@ -68,6 +69,10 @@ let LeadConvertedHandler = LeadConvertedHandler_1 = class LeadConvertedHandler {
                     em: lead.email ? [lead.email] : undefined,
                     ph: lead.phone ? [lead.phone] : undefined,
                     externalId: [lead.id],
+                    fbp: attribution.fbp,
+                    fbc: attribution.fbc,
+                    client_ip_address: attribution.clientIpAddress,
+                    client_user_agent: attribution.clientUserAgent,
                 },
                 customData: {
                     currency: 'CLP',

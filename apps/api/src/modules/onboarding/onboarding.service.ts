@@ -6,7 +6,7 @@ import { CreateOnboardingDto } from './dto/create-onboarding.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
 import { Client } from '../clients/client.entity';
 import { User } from '../users/user.entity';
-import { WorkflowsService } from '../workflows/workflows.service';
+import { ProcessTemplatesService } from '../process-templates/process-templates.service';
 
 /**
  * Lógica de negocio para los pasos de onboarding de clientes.
@@ -17,7 +17,7 @@ export class OnboardingService {
     @InjectRepository(Onboarding) private readonly repo: Repository<Onboarding>,
     @InjectRepository(Client) private readonly clients: Repository<Client>,
     @InjectRepository(User) private readonly users: Repository<User>,
-    private readonly workflows: WorkflowsService,
+    private readonly workflows: ProcessTemplatesService,
   ) {}
 
   async create(dto: CreateOnboardingDto, organizationId: string): Promise<Onboarding> {

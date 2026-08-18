@@ -11,7 +11,16 @@ export class PublicLeadConsentDto {
   @IsOptional() @IsString() @MaxLength(40) policyVersion?: string;
 }
 
-/** Datos de atribución de campaña, iguales en espíritu a los que ya captura la reserva pública. */
+/**
+ * Datos de atribución de campaña, iguales en espíritu a los que ya captura la reserva pública.
+ *
+ * `fbp` y `fbc` merecen mención aparte: son las dos señales que más pesan en la calidad de
+ * atribución de la Conversions API y **solo existen en el navegador de quien envía el
+ * formulario**. `fbp` es la cookie `_fbp` que planta el Pixel; `fbc` se deriva del `fbclid`
+ * con que Meta marca el clic. Ninguna de las dos puede reconstruirse después: si no se
+ * capturan en este instante, la conversión que se envíe más adelante viajará sin ellas y
+ * Meta la atribuirá peor. Por eso viajan acá y no se calculan en el servidor.
+ */
 export class PublicLeadTrackingDto {
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
@@ -20,6 +29,22 @@ export class PublicLeadTrackingDto {
   @IsOptional() @IsString() @MaxLength(120) utmTerm?: string;
   @IsOptional() @IsString() @MaxLength(255) fbclid?: string;
   @IsOptional() @IsString() @MaxLength(255) gclid?: string;
+
+  /** Cookie `_fbp` del Pixel, tal cual la entrega el navegador. */
+  @IsOptional() @IsString() @MaxLength(255) fbp?: string;
+
+  /**
+   * Parámetro de clic de Meta ya formateado (`fb.1.<timestamp>.<fbclid>`).
+   *
+   * Se acepta formado desde el cliente porque el navegador conoce el momento del clic; el
+   * servidor solo lo derivaría del `fbclid` con una marca de tiempo equivocada.
+   */
+  @IsOptional() @IsString() @MaxLength(255) fbc?: string;
+
+  /** Anuncio y conjunto de anuncios, cuando la página de destino los recibe por parámetro. */
+  @IsOptional() @IsString() @MaxLength(120) adId?: string;
+  @IsOptional() @IsString() @MaxLength(120) adsetId?: string;
+
   @IsOptional() @IsString() @MaxLength(500) landingUrl?: string;
   @IsOptional() @IsString() @MaxLength(500) referrer?: string;
 }

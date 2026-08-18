@@ -17,35 +17,37 @@ exports.MetaConversionOutboxService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const outbox_processor_base_1 = require("../../../core/outbox/outbox-processor.base");
 const meta_conversions_service_1 = require("./meta-conversions.service");
 const meta_conversion_outbox_entity_1 = require("./meta-conversion-outbox.entity");
 const meta_client_pixel_service_1 = require("./meta-client-pixel.service");
-const CLAIM_TIMEOUT_MS = 10 * 60_000;
 const MAX_AGE_DAYS_BY_ACTION_SOURCE = {
     physical_store: 62,
 };
 const DEFAULT_MAX_AGE_DAYS = 7;
 const META_OAUTH_ERROR_CODE = 190;
-const TERMINAL_STATUSES = ['failed', 'expired'];
-let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConversionOutboxService {
-    constructor(outbox, conversions, clientPixels) {
-        this.outbox = outbox;
+let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConversionOutboxService extends outbox_processor_base_1.OutboxProcessor {
+    constructor(repository, conversions, clientPixels) {
+        super();
+        this.repository = repository;
         this.conversions = conversions;
         this.clientPixels = clientPixels;
         this.logger = new common_1.Logger(MetaConversionOutboxService_1.name);
+        this.entity = meta_conversion_outbox_entity_1.MetaConversionOutbox;
+        this.label = 'Meta CAPI';
     }
     async enqueue(organizationId, pixelId, event) {
         const eventId = event.eventId;
         if (!eventId)
             throw new Error('A stable eventId is required for Meta CAPI');
-        const existing = await this.outbox.findOne({ where: { organizationId, eventId } });
+        const existing = await this.repository.findOne({ where: { organizationId, eventId } });
         if (existing)
             return existing;
-        return this.outbox.save(this.outbox.create({ organizationId, pixelId, eventId, eventData: event }));
+        return this.repository.save(this.repository.create({ organizationId, pixelId, eventId, eventData: event }));
     }
     async stats(organizationId) {
         const scope = organizationId ? { organizationId } : {};
-        const countBy = (status) => this.outbox.count({ where: status ? { ...scope, status } : scope });
+        const countBy = (status) => this.repository.count({ where: status ? { ...scope, status } : scope });
         const [pending, retry, processing, failed, expired, processed, total] = await Promise.all([
             countBy('pending'),
             countBy('retry'),
@@ -58,7 +60,7 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         return { pending, retry, processing, failed, expired, processed, total };
     }
     async recentProblems(organizationId, limit = 20) {
-        return this.outbox.find({
+        return this.repository.find({
             where: [
                 { organizationId, status: 'failed' },
                 { organizationId, status: 'expired' },
@@ -68,95 +70,39 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
             take: Math.min(Math.max(limit, 1), 100),
         });
     }
-    async releaseStaleClaims(manager, staleBefore) {
-        await manager.getRepository(meta_conversion_outbox_entity_1.MetaConversionOutbox)
-            .createQueryBuilder()
-            .update()
-            .set({ status: 'retry' })
-            .where('status = :status AND updated_at <= :staleBefore', { status: 'processing', staleBefore })
-            .execute();
+    expirationReason(item) {
+        const event = item.eventData;
+        const eventTime = Number(event?.eventTime ?? 0);
+        if (eventTime <= 0)
+            return null;
+        const maxAgeDays = MAX_AGE_DAYS_BY_ACTION_SOURCE[event?.actionSource ?? ''] ?? DEFAULT_MAX_AGE_DAYS;
+        if (Date.now() - eventTime * 1000 <= maxAgeDays * 86_400_000)
+            return null;
+        return `El evento supera los ${maxAgeDays} días que acepta Meta para su origen y ya no puede atribuirse.`;
     }
-    async claimBatch(limit) {
-        const now = new Date();
-        return this.outbox.manager.transaction(async (manager) => {
-            await this.releaseStaleClaims(manager, new Date(now.getTime() - CLAIM_TIMEOUT_MS));
-            const repository = manager.getRepository(meta_conversion_outbox_entity_1.MetaConversionOutbox);
-            const items = await repository.find({
-                where: [
-                    { status: (0, typeorm_2.In)(['pending', 'retry']), nextAttemptAt: (0, typeorm_2.IsNull)() },
-                    { status: (0, typeorm_2.In)(['pending', 'retry']), nextAttemptAt: (0, typeorm_2.LessThanOrEqual)(now) },
-                ],
-                order: { createdAt: 'ASC' },
-                take: limit,
-                lock: { mode: 'pessimistic_write' },
-            });
-            if (items.length === 0)
-                return [];
-            await repository.update(items.map((item) => item.id), { status: 'processing' });
-            return items;
-        });
+    async send(item) {
+        const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId);
+        if (!token)
+            throw new Error('Meta conversion token is unavailable');
+        await this.conversions.sendServerEvent(item.pixelId, token, item.eventData);
     }
-    async processPending(limit = 25) {
-        const items = await this.claimBatch(limit);
-        let processed = 0;
-        let failed = 0;
-        for (const item of items) {
-            try {
-                const event = item.eventData;
-                const eventTime = Number(event?.eventTime ?? 0);
-                const maxAgeDays = MAX_AGE_DAYS_BY_ACTION_SOURCE[event?.actionSource ?? ''] ?? DEFAULT_MAX_AGE_DAYS;
-                if (eventTime > 0 && Date.now() - eventTime * 1000 > maxAgeDays * 86_400_000) {
-                    item.status = 'expired';
-                    item.nextAttemptAt = undefined;
-                    item.lastError = `El evento supera los ${maxAgeDays} días que acepta Meta para su origen y ya no puede atribuirse.`;
-                    await this.outbox.save(item);
-                    failed += 1;
-                    continue;
-                }
-                const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId);
-                if (!token)
-                    throw new Error('Meta conversion token is unavailable');
-                await this.conversions.sendServerEvent(item.pixelId, token, item.eventData);
-                item.status = 'processed';
-                item.processedAt = new Date();
-                item.lastError = undefined;
-                processed += 1;
-            }
-            catch (error) {
-                const apiError = error;
-                const statusCode = apiError?.response?.status;
-                const isNonRetryable = typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 && statusCode !== 429;
-                const metaError = apiError?.response?.data?.error;
-                const bodyMsg = metaError?.message ?? metaError?.error_user_msg ?? '';
-                const isExpiredToken = metaError?.code === META_OAUTH_ERROR_CODE
-                    || metaError?.type === 'OAuthException'
-                    || /expired|invalid.*token|invalidated|revoked|unauthorized/i.test(bodyMsg);
-                item.attempts += 1;
-                if (isNonRetryable || isExpiredToken || item.attempts >= 8) {
-                    item.status = 'failed';
-                    item.nextAttemptAt = undefined;
-                }
-                else {
-                    item.status = 'retry';
-                    item.nextAttemptAt = new Date(Date.now() + Math.min(60, 2 ** item.attempts) * 60_000);
-                }
-                item.lastError = error instanceof Error ? error.message : 'Unknown CAPI error';
-                if (statusCode)
-                    item.lastError = `HTTP ${statusCode}: ${item.lastError}`;
-                if (isExpiredToken)
-                    item.lastError = `[TOKEN] ${item.lastError}`;
-                failed += 1;
-                this.logger.warn(`CAPI outbox ${item.id} failed${isNonRetryable || isExpiredToken ? ' (non-retryable)' : ''} (attempt ${item.attempts}): ${item.lastError}`);
-            }
-            await this.outbox.save(item);
-        }
-        return { processed, failed };
-    }
-    async cleanup(olderThanDays = 7) {
-        const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60_000);
-        const result = await this.outbox.delete({ status: 'processed', processedAt: (0, typeorm_2.LessThanOrEqual)(cutoff) });
-        const terminalResult = await this.outbox.delete({ status: (0, typeorm_2.In)([...TERMINAL_STATUSES]), createdAt: (0, typeorm_2.LessThanOrEqual)(cutoff) });
-        return { deleted: (result.affected ?? 0) + (terminalResult.affected ?? 0) };
+    classifyFailure(error) {
+        const apiError = error;
+        const statusCode = apiError?.response?.status;
+        const metaError = apiError?.response?.data?.error;
+        const bodyMsg = metaError?.message ?? metaError?.error_user_msg ?? '';
+        const isNonRetryable = typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 && statusCode !== 429;
+        const isExpiredToken = metaError?.code === META_OAUTH_ERROR_CODE
+            || metaError?.type === 'OAuthException'
+            || /expired|invalid.*token|invalidated|revoked|unauthorized/i.test(bodyMsg);
+        const prefijos = [
+            isExpiredToken ? '[TOKEN]' : null,
+            statusCode ? `HTTP ${statusCode}:` : null,
+        ].filter(Boolean);
+        return {
+            retryable: !isNonRetryable && !isExpiredToken,
+            tag: prefijos.length ? prefijos.join(' ') : undefined,
+        };
     }
 };
 exports.MetaConversionOutboxService = MetaConversionOutboxService;

@@ -47,7 +47,6 @@ const approvals_module_1 = require("./modules/approvals/approvals.module");
 const onboarding_module_1 = require("./modules/onboarding/onboarding.module");
 const briefs_module_1 = require("./modules/briefs/briefs.module");
 const documents_module_1 = require("./modules/documents/documents.module");
-const dashboards_module_1 = require("./modules/dashboards/dashboards.module");
 const meta_module_1 = require("./modules/integrations/meta/meta.module");
 const google_module_1 = require("./modules/integrations/google/google.module");
 const knowledge_module_1 = require("./modules/knowledge/knowledge.module");
@@ -62,7 +61,8 @@ const surveys_module_1 = require("./modules/surveys/surveys.module");
 const service_requests_module_1 = require("./modules/service-requests/service-requests.module");
 const account_access_module_1 = require("./core/client-scope/account-access.module");
 const cron_module_1 = require("./core/cron/cron.module");
-const workflows_module_1 = require("./modules/workflows/workflows.module");
+const process_templates_module_1 = require("./modules/process-templates/process-templates.module");
+const automations_module_1 = require("./modules/automations/automations.module");
 const pods_module_1 = require("./modules/pods/pods.module");
 const intake_module_1 = require("./modules/intake/intake.module");
 const DB_HOST = process.env.DB_HOST || 'localhost';
@@ -131,7 +131,6 @@ exports.AppModule = AppModule = __decorate([
             onboarding_module_1.OnboardingModule,
             briefs_module_1.BriefsModule,
             documents_module_1.DocumentsModule,
-            dashboards_module_1.DashboardsModule,
             meta_module_1.MetaModule,
             google_module_1.GoogleModule,
             knowledge_module_1.KnowledgeModule,
@@ -144,7 +143,8 @@ exports.AppModule = AppModule = __decorate([
             reservations_module_1.ReservationsModule,
             surveys_module_1.SurveysModule,
             service_requests_module_1.ServiceRequestsModule,
-            workflows_module_1.WorkflowsModule,
+            process_templates_module_1.ProcessTemplatesModule,
+            automations_module_1.AutomationsModule,
             pods_module_1.PodsModule,
             intake_module_1.IntakeModule,
             cron_module_1.CronModule,

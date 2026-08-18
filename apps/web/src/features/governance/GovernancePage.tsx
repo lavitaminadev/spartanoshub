@@ -36,19 +36,19 @@ export function GovernancePage() {
   const [podDraft, setPodDraft] = useState({ name: '', description: '', leaderId: '', monthlyCapacityUd: 80, memberIds: [] as string[], clientIds: [] as string[] });
   const [archivePodId, setArchivePodId] = useState<string | null>(null);
 
-  const workflowsQuery = useQuery<Workflow[]>({ queryKey: ['workflows'], queryFn: () => api.get('/workflows'), refetchInterval: refetchWhenIdle(60_000) });
+  const workflowsQuery = useQuery<Workflow[]>({ queryKey: ['workflows'], queryFn: () => api.get('/process-templates'), refetchInterval: refetchWhenIdle(60_000) });
   const podsQuery = useQuery<Pod[]>({ queryKey: ['pods'], queryFn: () => api.get('/pods') });
   const usersQuery = useQuery<UserOption[]>({ queryKey: ['governance-users'], queryFn: () => api.get('/users?isActive=true') });
   const clientsQuery = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = (clientsQuery.data as { data?: ClientOption[] } | undefined)?.data ?? [];
 
   const workflowMutation = useMutation({
-    mutationFn: (workflow: Workflow) => api.put(`/workflows/${workflow.id}`, { name: workflow.name, description: workflow.description, isActive: workflow.isActive, steps: workflow.steps }),
+    mutationFn: (workflow: Workflow) => api.put(`/process-templates/${workflow.id}`, { name: workflow.name, description: workflow.description, isActive: workflow.isActive, steps: workflow.steps }),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['workflows'] }); setEditingWorkflow(null); setWorkflowDraft(null); setFeedback({ tone: 'success', text: 'Flujo actualizado. Las nuevas operaciones usarán esta versión.' }); },
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
   });
   const resetWorkflowMutation = useMutation({
-    mutationFn: (code: string) => api.post(`/workflows/${code}/reset`),
+    mutationFn: (code: string) => api.post(`/process-templates/${code}/reset`),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['workflows'] }); setFeedback({ tone: 'success', text: 'Flujo restaurado según el Documento Maestro.' }); },
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
   });

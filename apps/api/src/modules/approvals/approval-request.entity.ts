@@ -5,10 +5,18 @@ import {
 import { Organization } from '../organizations/organization.entity';
 import { Client } from '../clients/client.entity';
 import { User } from '../users/user.entity';
-import { ApprovalRequestStatus } from './approval-request-status.enum';
+import { ApprovalRequestStatus, PendingKind } from './approval-request-status.enum';
 
 @Entity('approval_requests')
 @Index('IDX_approval_requests_org_created', ['organizationId', 'createdAt'])
+/*
+ * La consulta que se hace todo el día: qué tiene pendiente esta persona, lo más vencido
+ * primero. Sin este índice recorre la tabla entera, y es la que crece con cada pieza que se
+ * manda a aprobar y con cada tarea que se abre.
+ */
+@Index('IDX_approval_requests_assignee_open', ['assignedTo', 'status', 'dueAt'])
+/* El trabajo periódico que anuncia lo vencido filtra por estas dos. */
+@Index('IDX_approval_requests_kind_due', ['kind', 'status', 'dueAt'])
 export class ApprovalRequest {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -33,6 +41,21 @@ export class ApprovalRequest {
   @Column({ type: 'text', nullable: true })
   description?: string;
 
+  /**
+   * Clase de pendiente.
+   *
+   * Nace como `approval` para que las filas anteriores a esta columna sigan significando lo
+   * mismo: todas eran aprobaciones cuando se escribieron.
+   */
+  @Column({ type: 'varchar', length: 20, default: PendingKind.APPROVAL })
+  kind: PendingKind;
+
+  /**
+   * Registro al que pertenece: `piece`, `lead`, `opportunity`, `session`, `work_request`.
+   *
+   * Estaba limitado a `piece` por el DTO, no por la tabla. Al abrirlo a los registros del CRM,
+   * una tarea puede colgar de un prospecto o de un trato sin necesitar tabla propia.
+   */
   @Column({ name: 'entity_type', type: 'varchar', length: 100 })
   entityType: string;
 

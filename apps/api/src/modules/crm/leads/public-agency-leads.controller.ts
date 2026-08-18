@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Headers, Ip, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { randomUUID } from 'crypto';
@@ -32,7 +32,11 @@ export class PublicAgencyLeadsController {
 
   @Post('submissions')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  async submit(@Body() dto: PublicLeadSubmissionDto) {
+  async submit(
+    @Body() dto: PublicLeadSubmissionDto,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
     // Honeypot: un formulario real deja este campo vacío porque está oculto por CSS; se
     // descarta en silencio para no darle a un bot la señal de que fue detectado.
     if (dto.company_website_confirm) {
@@ -68,6 +72,44 @@ export class PublicAgencyLeadsController {
         website: dto.website,
         jobTitle: dto.jobTitle,
         tracking: dto.tracking ? { ...dto.tracking } : undefined,
+        /**
+         * Señales de atribución conservadas para poder enviar la conversión más adelante.
+         *
+         * Se guardan al capturar y no al convertir porque `fbp`, `fbc`, la IP y el
+         * user-agent describen el momento en que la persona llegó, y ese momento no vuelve:
+         * cuando el trato se gane, semanas después, ya no habrá forma de averiguarlos.
+         *
+         * La IP y el user-agent se leen de la petición y no del cuerpo: un dato que el
+         * cliente puede escribir no sirve para atribuir.
+         */
+        attribution: {
+          fbp: dto.tracking?.fbp,
+          fbc: dto.tracking?.fbc,
+          fbclid: dto.tracking?.fbclid,
+          gclid: dto.tracking?.gclid,
+          adId: dto.tracking?.adId,
+          adsetId: dto.tracking?.adsetId,
+          campaignId: dto.tracking?.utmCampaign,
+          landingUrl: dto.tracking?.landingUrl,
+          referrer: dto.tracking?.referrer,
+          clientIpAddress: ipAddress || undefined,
+          clientUserAgent: userAgent || undefined,
+          capturedAt: new Date().toISOString(),
+          /**
+           * Identificador del evento de captura, estable y derivado de la clave de
+           * idempotencia. Permite deduplicar contra el Pixel del navegador si más adelante
+           * se emite un `Lead` por las dos vías.
+           */
+          captureEventId: `lead-capture:${dto.idempotencyKey}`,
+        },
+        /**
+         * Se promueven al primer nivel porque es donde el resto del sistema los busca: el
+         * handler de conversiones decide si un lead vino de Meta mirando `metadata.adId`.
+         * Sin esto, alguien que llega desde un anuncio a la web —y no por el formulario
+         * nativo de Meta— nunca generaba la conversión, porque su `source` es `website`.
+         */
+        adId: dto.tracking?.adId,
+        adsetId: dto.tracking?.adsetId,
         consent: { marketingAccepted: Boolean(dto.consent.marketingAccepted), policyVersion: dto.consent.policyVersion },
       },
     }, 'create-only');

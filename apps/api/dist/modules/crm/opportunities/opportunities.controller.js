@@ -27,17 +27,24 @@ const roles_decorator_1 = require("../../../core/authorization/roles.decorator")
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const requires_feature_decorator_1 = require("../../../core/authorization/requires-feature.decorator");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
+const process_templates_service_1 = require("../../process-templates/process-templates.service");
+const process_template_defaults_1 = require("../../process-templates/process-template-defaults");
 let OpportunitiesController = class OpportunitiesController {
-    constructor(createOpportunity, listOpportunities, getOpportunity, updateOpportunity, removeOpportunity, accountAccess) {
+    constructor(createOpportunity, listOpportunities, getOpportunity, updateOpportunity, removeOpportunity, accountAccess, processTemplates) {
         this.createOpportunity = createOpportunity;
         this.listOpportunities = listOpportunities;
         this.getOpportunity = getOpportunity;
         this.updateOpportunity = updateOpportunity;
         this.removeOpportunity = removeOpportunity;
         this.accountAccess = accountAccess;
+        this.processTemplates = processTemplates;
+    }
+    async stages(req) {
+        const steps = await this.processTemplates.getSteps(req.organizationId, process_template_defaults_1.COMMERCIAL_PIPELINE_TEMPLATE);
+        return steps.map((step) => ({ key: step.key, label: step.label }));
     }
     create(dto, req) {
-        return this.createOpportunity.execute(dto, req.organizationId);
+        return this.createOpportunity.execute(dto, req.organizationId, req.user.id);
     }
     async findAll(query, req) {
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -48,13 +55,20 @@ let OpportunitiesController = class OpportunitiesController {
         return this.getOpportunity.execute(id, req.organizationId, allowed);
     }
     update(id, dto, req) {
-        return this.updateOpportunity.execute(id, dto, req.organizationId);
+        return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id);
     }
     remove(id, req) {
         return this.removeOpportunity.execute(id, req.organizationId);
     }
 };
 exports.OpportunitiesController = OpportunitiesController;
+__decorate([
+    (0, common_1.Get)('stages'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], OpportunitiesController.prototype, "stages", null);
 __decorate([
     (0, common_1.Post)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
@@ -109,5 +123,6 @@ exports.OpportunitiesController = OpportunitiesController = __decorate([
         get_opportunity_use_case_1.GetOpportunityUseCase,
         update_opportunity_use_case_1.UpdateOpportunityUseCase,
         remove_opportunity_use_case_1.RemoveOpportunityUseCase,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        process_templates_service_1.ProcessTemplatesService])
 ], OpportunitiesController);

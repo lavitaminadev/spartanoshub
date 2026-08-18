@@ -30,7 +30,7 @@ let PublicAgencyLeadsController = class PublicAgencyLeadsController {
             throw new common_1.ForbiddenException('El formulario de contacto no está disponible por ahora');
         return id;
     }
-    async submit(dto) {
+    async submit(dto, ipAddress, userAgent) {
         if (dto.company_website_confirm) {
             return { success: true, submissionId: (0, crypto_1.randomUUID)(), message: 'Información recibida correctamente' };
         }
@@ -60,6 +60,23 @@ let PublicAgencyLeadsController = class PublicAgencyLeadsController {
                 website: dto.website,
                 jobTitle: dto.jobTitle,
                 tracking: dto.tracking ? { ...dto.tracking } : undefined,
+                attribution: {
+                    fbp: dto.tracking?.fbp,
+                    fbc: dto.tracking?.fbc,
+                    fbclid: dto.tracking?.fbclid,
+                    gclid: dto.tracking?.gclid,
+                    adId: dto.tracking?.adId,
+                    adsetId: dto.tracking?.adsetId,
+                    campaignId: dto.tracking?.utmCampaign,
+                    landingUrl: dto.tracking?.landingUrl,
+                    referrer: dto.tracking?.referrer,
+                    clientIpAddress: ipAddress || undefined,
+                    clientUserAgent: userAgent || undefined,
+                    capturedAt: new Date().toISOString(),
+                    captureEventId: `lead-capture:${dto.idempotencyKey}`,
+                },
+                adId: dto.tracking?.adId,
+                adsetId: dto.tracking?.adsetId,
                 consent: { marketingAccepted: Boolean(dto.consent.marketingAccepted), policyVersion: dto.consent.policyVersion },
             },
         }, 'create-only');
@@ -71,8 +88,10 @@ __decorate([
     (0, common_1.Post)('submissions'),
     (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60000 } }),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Ip)()),
+    __param(2, (0, common_1.Headers)('user-agent')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [public_lead_submission_dto_1.PublicLeadSubmissionDto]),
+    __metadata("design:paramtypes", [public_lead_submission_dto_1.PublicLeadSubmissionDto, String, String]),
     __metadata("design:returntype", Promise)
 ], PublicAgencyLeadsController.prototype, "submit", null);
 exports.PublicAgencyLeadsController = PublicAgencyLeadsController = __decorate([

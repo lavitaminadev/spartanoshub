@@ -18,6 +18,8 @@ const GLYPHS: Record<string, string> = {
   // Ventas y CRM
   'Posibles clientes': 'PC',
   'Oportunidades de venta': 'OV',
+  'Tablero de pipeline': 'TP',
+  'Automatizaciones': 'AU',
   'Actividad comercial': 'AC',
   'Contactos captados': 'CC',
   'Catálogo': 'CA',

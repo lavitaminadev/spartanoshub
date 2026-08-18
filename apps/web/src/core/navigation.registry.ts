@@ -49,7 +49,7 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
   {
     id: 'sales',
     label: 'Ventas y CRM',
-    paths: ['/crm/leads', '/crm/opportunities', '/crm/interactions', '/crm/contacts', '/catalog', '/contracts', '/billing'],
+    paths: ['/crm/leads', '/crm/opportunities', '/crm/pipeline', '/crm/interactions', '/crm/contacts', '/automations', '/catalog', '/contracts', '/billing'],
   },
   {
     id: 'clients',
@@ -228,7 +228,14 @@ const PATH_FEATURE: Record<string, string> = {
   '/crm/contacts': 'crm',
   '/crm/leads': 'commercialPipeline',
   '/crm/opportunities': 'commercialPipeline',
+  // El tablero muestra las mismas oportunidades, así que responde al mismo módulo: quien no
+  // puede ver el pipeline como tabla tampoco debe verlo como tablero.
+  '/crm/pipeline': 'commercialPipeline',
   '/crm/interactions': 'commercialPipeline',
+  // Debe coincidir con el `@ModuleScope('crm')` del controlador. Declararla sobre
+  // `commercialPipeline` mientras el backend guardaba `crm` dejaba la pantalla fuera del menú
+  // para dirección de operaciones, que sí tiene `crm` y es quien configura los flujos.
+  '/automations': 'crm',
   // Las solicitudes se declaran sobre `production`, igual que su controlador en el backend: es
   // la misma operación vista desde antes. Un módulo aparte obligaría a mantener dos listas de
   // permisos que describen lo mismo.

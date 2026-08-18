@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
+import { refetchWhenIdle } from '../../core/refetch-policy';
 
 interface NotificationRecord {
   id: string;
@@ -49,7 +50,10 @@ export function NotificationBell() {
     queryKey: ['notifications', 'list'],
     queryFn: () => api.get('/notifications'),
     enabled: Boolean(user && open),
-    refetchInterval: open ? 30_000 : false,
+    // El contador de arriba puede refrescarse siempre: es un número y no estorba a nadie. La
+    // lista sí, porque se refresca con el panel abierto y reordenarla mueve bajo el cursor lo
+    // que la persona estaba a punto de tocar.
+    refetchInterval: open ? refetchWhenIdle(30_000) : false,
   });
 
   const refreshNotifications = async () => {

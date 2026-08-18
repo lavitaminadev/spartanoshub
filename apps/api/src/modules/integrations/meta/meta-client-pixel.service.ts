@@ -46,6 +46,38 @@ export class MetaClientPixelService {
     return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, ClientPixelRecord> : {};
   }
 
+  /**
+   * Modifica el mapa de Pixeles por cliente sin perder cambios ajenos.
+   *
+   * Los Pixeles de todos los clientes viven en un único campo JSON de la integración, así que
+   * configurar uno obliga a leer el mapa entero, cambiar una clave y volver a escribirlo
+   * completo. Hecho sin bloqueo, dos configuraciones simultáneas leen la misma versión y la
+   * segunda en guardar borra la primera: el Pixel recién configurado desaparece sin error, y
+   * las conversiones de ese cliente dejan de enviarse hasta que alguien lo note.
+   *
+   * La fila se relee dentro de la transacción y con bloqueo de escritura, de modo que la
+   * segunda operación espera y parte del mapa ya actualizado.
+   *
+   * @param mutate - Recibe el mapa vigente y devuelve el que debe quedar guardado.
+   * @returns Lo que devuelva `mutate` como segundo valor, ya con la escritura confirmada.
+   */
+  private async mutateRecords<T>(
+    integrationId: string,
+    mutate: (records: Record<string, ClientPixelRecord>) => Promise<[Record<string, ClientPixelRecord>, T]> | [Record<string, ClientPixelRecord>, T],
+  ): Promise<T> {
+    return this.integrations.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(Integration);
+      const fresh = await repo.findOne({ where: { id: integrationId }, lock: { mode: 'pessimistic_write' } });
+      if (!fresh) throw new NotFoundException('Integración Meta no encontrada');
+
+      const current = this.records(fresh);
+      const [next, result] = await mutate(current);
+      fresh.config = { ...fresh.config, clientPixels: next };
+      await repo.save(fresh);
+      return result;
+    });
+  }
+
   async list(id: string, organizationId: string) {
     const integration = await this.integration(id, organizationId);
     return this.catalogRows(organizationId, this.records(integration));
@@ -94,19 +126,27 @@ export class MetaClientPixelService {
     const existing = this.records(integration)[clientId];
     const token = accessToken?.trim() || revealSecret(existing?.accessToken) || process.env.META_CONVERSIONS_ACCESS_TOKEN;
     if (!token) throw new BadRequestException('Se requiere un token CAPI para este cliente');
+
+    // La validación va antes de abrir la transacción: es una llamada a Meta que puede tardar
+    // segundos, y hacerla con la fila bloqueada dejaría esperando a cualquier otra
+    // configuración de la misma organización.
     if (!await this.pixels.validatePixel(pixelId, token)) throw new BadRequestException('Meta no reconoció el Pixel con el token entregado');
-    const clientPixels = {
-      ...this.records(integration),
-      [clientId]: {
+
+    return this.mutateRecords(integration.id, (records) => {
+      // Se relee el registro de dentro de la transacción y no el de antes: entre la
+      // validación y esta escritura pudo cambiar.
+      const current = records[clientId];
+      const record: ClientPixelRecord = {
         pixelId,
-        pixelName: pixelName?.trim() || existing?.pixelName || client.name,
-        accessToken: accessToken?.trim() ? protectSecret(accessToken.trim()) : existing?.accessToken,
+        pixelName: pixelName?.trim() || current?.pixelName || client.name,
+        accessToken: accessToken?.trim() ? protectSecret(accessToken.trim()) : current?.accessToken,
         configuredAt: new Date().toISOString(),
-      },
-    };
-    integration.config = { ...integration.config, clientPixels };
-    await this.integrations.save(integration);
-    return { clientId, clientName: client.name, pixelId, pixelName: clientPixels[clientId].pixelName || client.name, tokenConfigured: true, configuredAt: clientPixels[clientId].configuredAt };
+      };
+      return [
+        { ...records, [clientId]: record },
+        { clientId, clientName: client.name, pixelId, pixelName: record.pixelName || client.name, tokenConfigured: true, configuredAt: record.configuredAt },
+      ];
+    });
   }
 
   async setup(
@@ -120,34 +160,31 @@ export class MetaClientPixelService {
     const integration = await this.organizationIntegration(organizationId, mode !== 'none');
     if (!integration) return { clientId, clientName: client.name, pixelId: null, tokenConfigured: false, configuredAt: null };
 
-    const records = this.records(integration);
     if (mode === 'none') {
-      delete records[clientId];
-      integration.config = { ...integration.config, clientPixels: records };
-      await this.integrations.save(integration);
-      return { clientId, clientName: client.name, pixelId: null, tokenConfigured: false, configuredAt: null };
+      return this.mutateRecords(integration.id, (records) => {
+        const { [clientId]: _removed, ...rest } = records;
+        return [rest, { clientId, clientName: client.name, pixelId: null, tokenConfigured: false, configuredAt: null }];
+      });
     }
 
     if (mode === 'existing') {
-      const source = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
-      if (!source) throw new BadRequestException('El Pixel existente no está disponible en esta organización');
-      const configuredAt = new Date().toISOString();
-      records[clientId] = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
-      integration.config = { ...integration.config, clientPixels: records };
-      await this.integrations.save(integration);
-      return { clientId, clientName: client.name, pixelId: source.pixelId, pixelName: records[clientId].pixelName || null, tokenConfigured: Boolean(source.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN), configuredAt };
+      return this.mutateRecords(integration.id, (records) => {
+        const source = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
+        if (!source) throw new BadRequestException('El Pixel existente no está disponible en esta organización');
+        const configuredAt = new Date().toISOString();
+        const record: ClientPixelRecord = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
+        return [
+          { ...records, [clientId]: record },
+          { clientId, clientName: client.name, pixelId: source.pixelId, pixelName: record.pixelName || null, tokenConfigured: Boolean(source.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN), configuredAt },
+        ];
+      });
     }
 
     if (!input.pixelId) throw new BadRequestException('Debes indicar el ID del Pixel');
-    const result = await this.configureRecord(integration, organizationId, clientId, input.pixelId, input.accessToken, input.pixelName);
-    if (input.pixelName?.trim()) {
-      const updated = this.records(integration);
-      updated[clientId] = { ...updated[clientId], pixelName: input.pixelName.trim() };
-      integration.config = { ...integration.config, clientPixels: updated };
-      await this.integrations.save(integration);
-      return { ...result, pixelName: input.pixelName.trim() };
-    }
-    return { ...result, pixelName: result.clientName };
+    // `configureRecord` ya aplica el nombre recibido. Antes había acá una segunda escritura
+    // que volvía a guardarlo; ahora sobra, y además leería la integración tal como estaba
+    // antes de la transacción, pisando con datos viejos lo que se acaba de escribir.
+    return this.configureRecord(integration, organizationId, clientId, input.pixelId, input.accessToken, input.pixelName);
   }
 
   async resolve(organizationId: string, clientId: string) {

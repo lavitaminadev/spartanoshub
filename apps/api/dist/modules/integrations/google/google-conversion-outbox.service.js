@@ -17,6 +17,7 @@ exports.GoogleConversionOutboxService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const outbox_processor_base_1 = require("../../../core/outbox/outbox-processor.base");
 const google_conversion_outbox_entity_1 = require("./google-conversion-outbox.entity");
 const google_conversions_service_1 = require("./google-conversions.service");
 const integration_entity_1 = require("../integration.entity");
@@ -25,15 +26,17 @@ const integration_account_type_enum_1 = require("../integration-account-type.enu
 const integration_provider_enum_1 = require("../integration-provider.enum");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
 const google_oauth_service_1 = require("./google-oauth.service");
-const CLAIM_TIMEOUT_MS = 10 * 60_000;
-let GoogleConversionOutboxService = GoogleConversionOutboxService_1 = class GoogleConversionOutboxService {
-    constructor(outbox, integrations, accounts, conversions, oauth) {
-        this.outbox = outbox;
+let GoogleConversionOutboxService = GoogleConversionOutboxService_1 = class GoogleConversionOutboxService extends outbox_processor_base_1.OutboxProcessor {
+    constructor(repository, integrations, accounts, conversions, oauth) {
+        super();
+        this.repository = repository;
         this.integrations = integrations;
         this.accounts = accounts;
         this.conversions = conversions;
         this.oauth = oauth;
         this.logger = new common_1.Logger(GoogleConversionOutboxService_1.name);
+        this.entity = google_conversion_outbox_entity_1.GoogleConversionOutbox;
+        this.label = 'Google Ads';
     }
     async resolveConfig(organizationId, clientId, eventKey) {
         const integration = await this.integrations.findOne({
@@ -59,10 +62,10 @@ let GoogleConversionOutboxService = GoogleConversionOutboxService_1 = class Goog
     async enqueue(organizationId, config, eventId, conversion) {
         if (!eventId)
             throw new Error('A stable eventId is required for Google Ads conversions');
-        const existing = await this.outbox.findOne({ where: { organizationId, eventId } });
+        const existing = await this.repository.findOne({ where: { organizationId, eventId } });
         if (existing)
             return existing;
-        return this.outbox.save(this.outbox.create({
+        return this.repository.save(this.repository.create({
             organizationId,
             eventId,
             customerId: config.customerId,
@@ -71,7 +74,7 @@ let GoogleConversionOutboxService = GoogleConversionOutboxService_1 = class Goog
         }));
     }
     async stats() {
-        const countBy = (status) => this.outbox.count({ where: status ? { status } : {} });
+        const countBy = (status) => this.repository.count({ where: status ? { status } : {} });
         const [pending, retry, processing, failed, processed, total] = await Promise.all([
             countBy('pending'),
             countBy('retry'),
@@ -82,76 +85,25 @@ let GoogleConversionOutboxService = GoogleConversionOutboxService_1 = class Goog
         ]);
         return { pending, retry, processing, failed, processed, total };
     }
-    async claimBatch(limit) {
-        const now = new Date();
-        return this.outbox.manager.transaction(async (manager) => {
-            const repository = manager.getRepository(google_conversion_outbox_entity_1.GoogleConversionOutbox);
-            await repository.createQueryBuilder()
-                .update()
-                .set({ status: 'retry' })
-                .where('status = :status AND updated_at <= :staleBefore', { status: 'processing', staleBefore: new Date(now.getTime() - CLAIM_TIMEOUT_MS) })
-                .execute();
-            const items = await repository.find({
-                where: [
-                    { status: (0, typeorm_2.In)(['pending', 'retry']), nextAttemptAt: (0, typeorm_2.IsNull)() },
-                    { status: (0, typeorm_2.In)(['pending', 'retry']), nextAttemptAt: (0, typeorm_2.LessThanOrEqual)(now) },
-                ],
-                order: { createdAt: 'ASC' },
-                take: limit,
-                lock: { mode: 'pessimistic_write' },
-            });
-            if (items.length === 0)
-                return [];
-            await repository.update(items.map((item) => item.id), { status: 'processing' });
-            return items;
-        });
+    async send(item) {
+        const token = await this.resolveAccessToken(item.organizationId);
+        if (!token)
+            throw new Error('Google integration is not connected');
+        const data = item.conversionData;
+        await this.conversions.uploadClickConversions(item.customerId, token, [{
+                ...data,
+                conversionAction: item.conversionAction,
+                conversionDateTime: new Date(data.conversionDateTime),
+            }]);
     }
-    async processPending(limit = 25) {
-        const items = await this.claimBatch(limit);
-        let processed = 0;
-        let failed = 0;
-        for (const item of items) {
-            try {
-                const token = await this.resolveAccessToken(item.organizationId);
-                if (!token)
-                    throw new Error('Google integration is not connected');
-                const data = item.conversionData;
-                await this.conversions.uploadClickConversions(item.customerId, token, [{
-                        ...data,
-                        conversionAction: item.conversionAction,
-                        conversionDateTime: new Date(data.conversionDateTime),
-                    }]);
-                item.status = 'processed';
-                item.processedAt = new Date();
-                item.lastError = undefined;
-                processed += 1;
-            }
-            catch (error) {
-                const message = error instanceof Error ? error.message : 'Unknown Google Ads error';
-                const isNonRetryable = /INVALID_ARGUMENT|NOT_FOUND|PERMISSION_DENIED|no se requiere|Se requiere un identificador/i.test(message);
-                const isExpiredToken = /expired|invalid.*token|unauthorized|UNAUTHENTICATED/i.test(message);
-                item.attempts += 1;
-                if (isNonRetryable || isExpiredToken || item.attempts >= 8) {
-                    item.status = 'failed';
-                    item.nextAttemptAt = undefined;
-                }
-                else {
-                    item.status = 'retry';
-                    item.nextAttemptAt = new Date(Date.now() + Math.min(60, 2 ** item.attempts) * 60_000);
-                }
-                item.lastError = isExpiredToken ? `[TOKEN] ${message}` : message;
-                failed += 1;
-                this.logger.warn(`Google Ads outbox ${item.id} failed${isNonRetryable || isExpiredToken ? ' (non-retryable)' : ''} (attempt ${item.attempts}): ${item.lastError}`);
-            }
-            await this.outbox.save(item);
-        }
-        return { processed, failed };
-    }
-    async cleanup(olderThanDays = 7) {
-        const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60_000);
-        const result = await this.outbox.delete({ status: 'processed', processedAt: (0, typeorm_2.LessThanOrEqual)(cutoff) });
-        const failedResult = await this.outbox.delete({ status: 'failed', createdAt: (0, typeorm_2.LessThanOrEqual)(cutoff) });
-        return { deleted: (result.affected ?? 0) + (failedResult.affected ?? 0) };
+    classifyFailure(error) {
+        const message = error instanceof Error ? error.message : 'Unknown Google Ads error';
+        const isNonRetryable = /INVALID_ARGUMENT|NOT_FOUND|PERMISSION_DENIED|no se requiere|Se requiere un identificador/i.test(message);
+        const isExpiredToken = /expired|invalid.*token|unauthorized|UNAUTHENTICATED/i.test(message);
+        return {
+            retryable: !isNonRetryable && !isExpiredToken,
+            tag: isExpiredToken ? '[TOKEN]' : undefined,
+        };
     }
     async resolveAccessToken(organizationId) {
         let integration = await this.integrations.findOne({

@@ -7,6 +7,7 @@ import { Organization } from '../organizations/organization.entity';
 import { User } from '../users/user.entity';
 import { Piece } from '../production/piece.entity';
 import { Session } from '../audiovisual/session.entity';
+import { Moodboard } from '../audiovisual/moodboard.entity';
 import { PieceStatus } from '../production/piece-status.enum';
 import { UdValuesService } from '../design-budget/ud-values.service';
 import { PieceTypesService } from '../production/piece-types.service';
@@ -101,6 +102,7 @@ export class IntakeService {
     @InjectRepository(WorkRequest) private readonly requests: Repository<WorkRequest>,
     @InjectRepository(Client) private readonly clients: Repository<Client>,
     @InjectRepository(User) private readonly users: Repository<User>,
+    @InjectRepository(Moodboard) private readonly moodboards: Repository<Moodboard>,
     private readonly dataSource: DataSource,
     private readonly udValues: UdValuesService,
     private readonly pieceTypes: PieceTypesService,
@@ -375,6 +377,11 @@ export class IntakeService {
     if (!dto.session) throw new BadRequestException('Indica el tipo, la fecha y la locación de la sesión');
     const { session } = dto;
 
+    // Misma regla que al agendar directo desde Audiovisual: sin moodboard aprobado no se
+    // convoca al equipo. Se comprueba acá y no solo allá porque esta conversión escribe la
+    // sesión por su cuenta, dentro de su propia transacción, y no pasa por `AudiovisualService`.
+    await this.assertApprovedMoodboard(organizationId, request.clientId, session.moodboardId);
+
     // El responsable de la solicitud queda dentro del equipo aunque no lo repitan al agendar:
     // se le asignó justamente para que estuviera en el rodaje.
     const team = [...new Set([...(session.assignedTeam ?? []), ...(request.assignedTo ? [request.assignedTo] : [])])];
@@ -397,6 +404,29 @@ export class IntakeService {
       request.sessionId = created.id;
       return manager.save(WorkRequest, request);
     }));
+  }
+
+  /**
+   * Exige un moodboard aprobado del mismo cliente antes de agendar la sesión.
+   *
+   * Se consulta la tabla directamente en vez de inyectar `AudiovisualService`: importarlo
+   * crearía una dependencia circular entre los dos módulos, porque el de audiovisual ya no
+   * conoce a intake pero sí comparte su entidad `Session`.
+   *
+   * @throws BadRequestException con el motivo, para que la pantalla lo muestre tal cual.
+   */
+  private async assertApprovedMoodboard(organizationId: string, clientId: string, moodboardId?: string): Promise<void> {
+    if (!moodboardId) {
+      throw new BadRequestException('Elige un moodboard aprobado antes de agendar la sesión');
+    }
+
+    const moodboard = await this.moodboards.findOne({ where: { id: moodboardId, organizationId, clientId } });
+    if (!moodboard) throw new BadRequestException('El moodboard no pertenece al cliente de la solicitud');
+    if (moodboard.status !== 'approved') {
+      throw new BadRequestException(
+        `El moodboard «${moodboard.title}» todavía no está aprobado. La dirección creativa debe aprobarlo antes de agendar.`,
+      );
+    }
   }
 
   /** Rechaza el lote completo si alguno no es usuario activo de la organización. */

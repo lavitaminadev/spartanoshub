@@ -131,7 +131,7 @@ describe('PermissionResolverService', () => {
 
   it('explain distingue lo heredado del cargo de la excepción', async () => {
     const { resolver } = makeResolver(
-      { reports: true, reservations: true, production: false, udBudget: true },
+      { reports: true, reservations: true, production: false },
       [{ module: 'reports', level: 'manage' }],
     );
     const modules = await resolver.explain('org-1', 'user-1', UserRole.DESIGNER);
@@ -144,7 +144,9 @@ describe('PermissionResolverService', () => {
     });
     expect(byModule.get('reservations')).toMatchObject({ source: 'role' });
     expect(byModule.get('production')).toMatchObject({ level: 'none', moduleDisabled: true, productHidden: false });
-    expect(byModule.get('udBudget')).toMatchObject({ level: 'none', moduleDisabled: false, productHidden: true });
+    // `productHidden` ya no se puede provocar desde el catálogo: todos los módulos están
+    // activos y abrirlos o cerrarlos se decide en configuración. El bloque «control de
+    // liberación», más abajo, lo ejerce por esa vía, que es la única que queda.
   });
 
   it('memoriza y relee después de invalidar el usuario', async () => {

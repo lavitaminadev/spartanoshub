@@ -25,7 +25,7 @@ const user_entity_1 = require("../../modules/users/user.entity");
 const lead_converted_handler_1 = require("./handlers/lead-converted.handler");
 const piece_delivered_handler_1 = require("./handlers/piece-delivered.handler");
 const piece_assigned_handler_1 = require("./handlers/piece-assigned.handler");
-const workflows_module_1 = require("../../modules/workflows/workflows.module");
+const process_templates_module_1 = require("../../modules/process-templates/process-templates.module");
 const correction_entity_1 = require("../../modules/production/correction.entity");
 const billing_module_1 = require("../../modules/billing/billing.module");
 const piece_rejected_handler_1 = require("./handlers/piece-rejected.handler");
@@ -42,7 +42,7 @@ exports.EventsModule = EventsModule = __decorate([
                 xp_event_entity_1.XPEvent, xp_period_entity_1.XPPeriod, ud_budget_entity_1.UDBudget, ud_movement_entity_1.UDMovement, user_entity_1.User,
                 correction_entity_1.Correction,
             ]),
-            workflows_module_1.WorkflowsModule,
+            process_templates_module_1.ProcessTemplatesModule,
             billing_module_1.BillingModule,
         ],
         providers: [lead_converted_handler_1.LeadConvertedHandler, piece_delivered_handler_1.PieceDeliveredHandler, piece_assigned_handler_1.PieceAssignedHandler, piece_rejected_handler_1.PieceRejectedHandler],

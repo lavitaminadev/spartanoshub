@@ -15,6 +15,8 @@
 @import './shared/theme-colors.css';
 @import './styles/layout.css';
 @import './styles/ui-kit.css';
+@import './styles/shared-kit.css';
+@import './styles/automations.css';
 @import './styles/auth.css';
 @import './styles/production-kanban.css';
 @import './styles/content-meetings.css';

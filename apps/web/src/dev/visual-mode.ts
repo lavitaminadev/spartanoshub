@@ -224,6 +224,158 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { id:'exc-003', userId:'user-av', userName:'Diego Venegas', userRole:'audiovisual', module:'reports', level:'edit', reason:'Reporte trimestral del equipo AV', expiresAt: null, status:'active', createdAt: new Date(Date.now() - 5*864e5).toISOString() },
     ],
   })],
+  /*
+   * Pipeline comercial y automatizaciones.
+   *
+   * Van antes que la regla general de `/users` porque las pantallas nuevas piden `/users` sin
+   * el filtro `isActive`, y sin una respuesta propia caerían en el vacío: los selectores de
+   * responsable quedarían sin opciones y el tablero sin nombres.
+   */
+  [/\/crm\/opportunities/, () => ({
+    total: 6,
+    data: [
+      { id: 'opp-1', name: 'Restaurante Ánimo — retainer mensual', amount: 1850000, stage: 'negotiation', probability: 70, assignedTo: 'user-admin', nextAction: 'Enviar propuesta ajustada', createdAt: '2026-07-28T12:00:00Z' },
+      { id: 'opp-2', name: 'Café del Puerto — parrilla + audiovisual', amount: 920000, stage: 'proposal', probability: 45, assignedTo: 'user-ops', nextAction: 'Reunión de encuadre', createdAt: '2026-08-02T15:30:00Z' },
+      { id: 'opp-3', name: 'Panadería Trigo — campaña de apertura', amount: 480000, stage: 'qualified', probability: 30, assignedTo: 'user-admin', createdAt: '2026-08-08T09:15:00Z' },
+      { id: 'opp-4', name: 'Bar Sur — pauta trimestral', amount: 2400000, stage: 'new', probability: 15, createdAt: '2026-08-14T18:00:00Z' },
+      { id: 'opp-5', name: 'Cocina Norte — retainer anual', amount: 3600000, stage: 'won', probability: 100, assignedTo: 'user-ops', createdAt: '2026-06-20T11:00:00Z' },
+      { id: 'opp-6', name: 'Food truck Delta — piloto', amount: 320000, stage: 'lost', probability: 0, lossReason: 'sin_presupuesto', createdAt: '2026-07-05T14:20:00Z' },
+    ],
+  })],
+  [/\/automations\/catalog$/, () => ({
+    triggers: [
+      { key: 'deal.created', label: 'Trato creado', entityType: 'opportunity', event: 'deal.created' },
+      { key: 'deal.stage_changed', label: 'Cambio de etapa', entityType: 'opportunity', event: 'deal.stage_changed' },
+      { key: 'deal.won', label: 'Trato ganado', entityType: 'opportunity', event: 'deal.won' },
+      { key: 'deal.lost', label: 'Trato perdido', entityType: 'opportunity', event: 'deal.lost' },
+      { key: 'lead.converted', label: 'Prospecto convertido', entityType: 'lead', event: 'lead.converted' },
+      { key: 'task.overdue', label: 'Tarea vencida', entityType: 'approval', event: 'task.overdue' },
+      { key: 'deal.stale', label: 'Trato sin seguimiento', entityType: 'opportunity', event: 'deal.stale' },
+    ],
+    actions: [
+      { key: 'notify_user', label: 'Enviar notificación', requiredConfig: ['userId', 'title', 'message'] },
+      { key: 'notify_assignee', label: 'Notificar al responsable', requiredConfig: ['title', 'message'] },
+      { key: 'send_email', label: 'Enviar correo', requiredConfig: ['to', 'subject', 'body'] },
+      { key: 'assign_user', label: 'Asignar responsable', requiredConfig: ['userId'] },
+      { key: 'add_comment', label: 'Agregar nota al hilo', requiredConfig: ['body'] },
+      { key: 'send_webhook', label: 'Enviar webhook', requiredConfig: ['url'] },
+      { key: 'create_contract', label: 'Abrir contrato del trato ganado', requiredConfig: [] },
+    ],
+  })],
+  [/\/automations\/runs\/[^/?]+$/, () => ({
+    run: { id: 'run-1', automationId: 'auto-1', automationVersion: 2, triggerKey: 'deal.won:opp-5::2', entityType: 'opportunity', entityId: 'opp-5', status: 'completed', attempts: 0, createdAt: '2026-08-16T10:00:00Z', finishedAt: '2026-08-16T12:00:04Z' },
+    steps: [
+      { id: 'step-1', nodeId: 'cond-1', nodeType: 'condition', nodeKey: 'field', status: 'completed', output: { result: true }, durationMs: 3, createdAt: '2026-08-16T10:00:00Z' },
+      { id: 'step-2', nodeId: 'delay-1', nodeType: 'delay', nodeKey: 'wait', status: 'skipped', durationMs: 1, createdAt: '2026-08-16T10:00:00Z' },
+      { id: 'step-3', nodeId: 'act-1', nodeType: 'action', nodeKey: 'notify_assignee', status: 'completed', output: { notifiedUserId: 'user-ops' }, durationMs: 42, createdAt: '2026-08-16T12:00:04Z' },
+    ],
+  })],
+  [/\/automations\/[^/?]+\/runs$/, () => ([
+    { id: 'run-1', automationId: 'auto-1', automationVersion: 2, triggerKey: 'deal.won:opp-5::2', entityType: 'opportunity', entityId: 'opp-5abc1234', status: 'completed', attempts: 0, createdAt: '2026-08-16T10:00:00Z', finishedAt: '2026-08-16T12:00:04Z' },
+    { id: 'run-2', automationId: 'auto-1', automationVersion: 2, triggerKey: 'deal.won:opp-9::2', entityType: 'opportunity', entityId: 'opp-9def5678', status: 'waiting', attempts: 0, resumeAt: '2026-08-18T14:00:00Z', createdAt: '2026-08-18T12:00:00Z' },
+    { id: 'run-3', automationId: 'auto-1', automationVersion: 1, triggerKey: 'deal.won:opp-3::1', entityType: 'opportunity', entityId: 'opp-3ghi9012', status: 'failed', attempts: 5, lastError: 'La persona indicada no está activa en la organización', createdAt: '2026-08-10T08:00:00Z', finishedAt: '2026-08-10T09:04:00Z' },
+  ])],
+  [/\/automations\/[^/?]+$/, () => ({
+    id: 'auto-1',
+    name: 'Avisar al ganar un trato grande',
+    description: 'Cuando se gana un trato sobre el millón, avisa al responsable pasadas dos horas.',
+    triggerType: 'deal.won',
+    isActive: true,
+    version: 2,
+    runAsUserId: 'user-admin',
+    createdAt: '2026-08-01T10:00:00Z',
+    updatedAt: '2026-08-16T09:00:00Z',
+    graph: {
+      nodes: [
+        { id: 'trigger', type: 'trigger', key: 'deal.won', config: {}, position: { x: 140, y: 20 } },
+        { id: 'cond-1', type: 'condition', key: 'field', config: { field: 'amount', operator: 'greater_than', value: '1000000' }, position: { x: 140, y: 150 } },
+        { id: 'delay-1', type: 'delay', key: 'wait', config: { amount: 2, unit: 'hours' }, position: { x: 40, y: 290 } },
+        { id: 'act-1', type: 'action', key: 'notify_assignee', config: { title: 'Trato ganado', message: 'El trato cerró en {{amount}}.' }, position: { x: 40, y: 420 } },
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger', target: 'cond-1' },
+        { id: 'e2', source: 'cond-1', target: 'delay-1', branch: 'true' },
+        { id: 'e3', source: 'delay-1', target: 'act-1' },
+      ],
+    },
+  })],
+  [/\/automations$/, () => ([
+    { id: 'auto-1', name: 'Avisar al ganar un trato grande', description: 'Sobre el millón, avisa al responsable pasadas dos horas.', triggerType: 'deal.won', isActive: true, version: 2, runAsUserId: 'user-admin', graph: { nodes: [], edges: [] }, createdAt: '2026-08-01T10:00:00Z', updatedAt: '2026-08-16T09:00:00Z' },
+    { id: 'auto-2', name: 'Nota al perder un trato', description: 'Deja constancia del motivo en el hilo.', triggerType: 'deal.lost', isActive: false, version: 1, runAsUserId: 'user-ops', graph: { nodes: [], edges: [] }, createdAt: '2026-08-05T16:00:00Z', updatedAt: '2026-08-05T16:00:00Z' },
+  ])],
+  /*
+   * `/users` sin filtros, que es como lo piden el tablero de pipeline y el editor de
+   * automatizaciones. Devuelve el sobre `{ data }` porque es la forma que esas vistas leen;
+   * la regla de abajo, con `isActive=true`, responde un arreglo pelado a quienes ya la usaban.
+   */
+  /*
+   * Una pieza de producción, para poder abrir su detalle y su bitácora.
+   *
+   * Devuelve un arreglo pelado porque es lo que responde `ListPiecesUseCase`; envolverlo en
+   * `{ data }` rompía el detalle con `pieces.find is not a function`.
+   */
+  [/\/production\/pieces$/, () => ([{
+    id: 'piece-1', title: 'Parrilla agosto — pieza 3', type: 'post', status: 'internal_review',
+    udAmount: 4, correctionCount: 1, difficultyLevel: 2, clientName: 'Cocina Norte',
+    assignedTo: 'user-cm', assignedName: 'Valentina Rojas',
+    createdAt: '2026-08-10T12:00:00Z', assignedAt: '2026-08-11T09:00:00Z',
+  }])],
+  /* Resultado de una importación, con filas buenas y una rechazada. */
+  [/\/crm\/leads\/import$/, (config) => {
+    const body = typeof config?.data === 'string' ? JSON.parse(config.data) : config?.data;
+    const total = Array.isArray(body?.rows) ? body.rows.length : 0;
+    return {
+      imported: Math.max(0, total - 1),
+      duplicates: total > 1 ? 1 : 0,
+      failed: total > 2
+        ? [{ row: 4, name: 'Fila de ejemplo', reason: 'Sin correo ni teléfono: no hay forma de reconocer a la persona' }]
+        : [],
+    };
+  }],
+  /*
+   * Moodboards del cliente, con uno aprobado y uno en borrador.
+   *
+   * Los dos hacen falta para poder revisar la barrera: el selector de conversión solo debe
+   * ofrecer el aprobado.
+   */
+  [/\/moodboards/, () => ({
+    data: [
+      { id: 'mb-1', clientId: 'visual-client', title: 'Verano 2026 — aprobado', status: 'approved', images: [], createdAt: '2026-08-01T10:00:00Z' },
+      { id: 'mb-2', clientId: 'visual-client', title: 'Otoño — en borrador', status: 'draft', images: [], createdAt: '2026-08-10T10:00:00Z' },
+    ],
+    total: 2,
+  })],
+  /* Una solicitud audiovisual aceptada, para poder abrir el modal de conversión. */
+  [/\/intake\/requests(\?|$)/, () => ({
+    data: [{
+      id: 'req-1', code: 'SOL-00001', clientId: 'visual-client', area: 'audiovisual',
+      title: 'Reel de la carta nueva', description: 'Grabar los cuatro platos de la carta de primavera.',
+      priority: 'high', status: 'accepted', assignedTo: 'user-av',
+      creativeFields: { tipoAudiovisual: 'reel', locacion: '__no_aplica__', duracion: '30 s' },
+      createdAt: '2026-08-14T10:00:00Z',
+      client: { id: 'visual-client', name: 'Cocina Norte' },
+      requester: { id: 'user-cm', name: 'Valentina Rojas' },
+    }],
+    total: 1,
+  })],
+  /* Hilo de trabajo. Sirve a las cinco áreas, así que la regla mira el sufijo. */
+  [/\/comments$/, () => ({
+    proceso: [
+      { id: 'c1', body: 'Se ajustó el encuadre según el moodboard aprobado.', authorName: 'Joaquín Muñoz', authorRole: 'designer', visibility: 'internal', createdAt: '2026-08-14T15:20:00Z' },
+      { id: 'c2', body: 'Falta el logo en vector; se pidió al cliente.', authorName: 'Valentina Rojas', authorRole: 'community_manager', visibility: 'internal', editedAt: '2026-08-15T10:05:00Z', createdAt: '2026-08-15T09:40:00Z' },
+    ],
+    revision: [
+      { id: 'c3', body: 'Nos gusta la propuesta, solo cambiar el color del texto.', authorName: 'Cliente', authorRole: 'client', visibility: 'client', createdAt: '2026-08-16T11:00:00Z' },
+    ],
+  })],
+  [/\/users$/, () => ({
+    data: [
+      { id: 'user-admin', name: 'Camila Riquelme', role: 'admin', isActive: true },
+      { id: 'user-ops', name: 'María Paredes', role: 'operations_director', isActive: true },
+      { id: 'user-cm', name: 'Valentina Rojas', role: 'community_manager', isActive: true },
+    ],
+    total: 3,
+  })],
   [/\/users\?isActive=true$/, () => {
     const sampleUsers = [
       { id:'user-admin', name:'Camila Riquelme', role:'admin', isActive:true },

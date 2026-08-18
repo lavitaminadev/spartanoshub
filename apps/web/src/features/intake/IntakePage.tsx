@@ -4,12 +4,14 @@ import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { hasRoleAccess } from '../../core/role-access';
 import { Modal } from '../../shared/Modal';
+import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 import { EmptyState } from '../../shared/EmptyState';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import {
   AREAS, CREATIVE_FIELDS, PRIORITIES, STATUS_LABELS,
-  compactValues, missingCreativeFields, type AreaValue, type IntakeField,
+  compactValues, missingCreativeFields, displayFieldValue, isNotApplicable,
+  NOT_APPLICABLE, NOT_APPLICABLE_LABEL, type AreaValue, type IntakeField,
 } from './intake-fields';
 
 /**
@@ -119,7 +121,7 @@ export function IntakePage() {
   /** Destino de una solicitud de diseño: una o más piezas gráficas. */
   const [pieces, setPieces] = useState<Array<{ title: string; type: string }>>([]);
   /** Destino de una solicitud audiovisual: una sesión de rodaje. */
-  const [session, setSession] = useState({ type: 'reel', date: '', location: '', team: [] as string[] });
+  const [session, setSession] = useState({ type: 'reel', date: '', location: '', team: [] as string[], moodboardId: '' });
 
   const params = new URLSearchParams();
   if (areaFilter) params.set('area', areaFilter);
@@ -159,6 +161,30 @@ export function IntakePage() {
   );
 
   const requests = useMemo(() => data?.data ?? [], [data]);
+
+  /**
+   * Moodboards aprobados del cliente de la solicitud que se está convirtiendo.
+   *
+   * Solo se consulta al abrir el modal de una solicitud audiovisual: pedirlos siempre sumaría
+   * una llamada a cada carga del tablero para algo que casi nunca se usa.
+   */
+  const { data: moodboardsResp } = useQuery<{ data: Array<{ id: string; title: string; status: string; clientId: string }> }>({
+    queryKey: ['moodboards', 'approved'],
+    // Sin `clientId` en la URL: el endpoint recibe un `PaginationDto` y la validación global
+    // rechaza con 400 cualquier parámetro que el DTO no declare. El recorte por cliente y por
+    // estado se hace abajo.
+    queryFn: () => api.get('/moodboards?limit=100'),
+    enabled: Boolean(convertFor && convertFor.area === 'audiovisual' && convertFor.clientId),
+  });
+
+  // Solo los aprobados del cliente de esta solicitud: ofrecer uno de otro cliente, o uno en
+  // borrador, deja elegir algo que el servidor va a rechazar.
+  const approvedMoodboards = useMemo(
+    () => (moodboardsResp?.data ?? []).filter(
+      (item) => item.status === 'approved' && item.clientId === convertFor?.clientId,
+    ),
+    [moodboardsResp, convertFor],
+  );
 
   const refresh = async (message: string) => {
     await queryClient.invalidateQueries({ queryKey: ['work-requests'] });
@@ -228,6 +254,8 @@ export function IntakePage() {
 
     if (convertFor.area === 'audiovisual') {
       if (!session.date) return setFeedback('Error: la sesión necesita una fecha de rodaje.');
+      // El servidor lo exige igual; comprobarlo acá evita un viaje para recibir el mismo aviso.
+      if (!session.moodboardId) return setFeedback('Error: elige un moodboard aprobado antes de agendar.');
       return convertMutation.mutate({
         id: convertFor.id,
         body: {
@@ -235,6 +263,7 @@ export function IntakePage() {
             type: session.type,
             date: session.date,
             location: session.location.trim() || undefined,
+            moodboardId: session.moodboardId,
             assignedTeam: session.team.length ? session.team : undefined,
           },
         },
@@ -257,6 +286,9 @@ export function IntakePage() {
         date: String(fields.fechaGrabacion ?? request.neededBy?.slice(0, 10) ?? ''),
         location: String(fields.locacion ?? ''),
         team: request.assignedTo ? [request.assignedTo] : [],
+        // Vacío a propósito: el moodboard no lo declara quien pide, lo elige quien agenda entre
+        // los que la dirección creativa ya aprobó.
+        moodboardId: '',
       });
       setPieces([]);
       return;
@@ -267,20 +299,38 @@ export function IntakePage() {
   const renderField = (field: IntakeField) => {
     const value = creative[field.name] ?? '';
     const onChange = (next: string) => setCreative((current) => ({ ...current, [field.name]: next }));
+    const noAplica = isNotApplicable(value);
+
     return (
       <label className="intake-field" key={field.name}>
         <span>{field.label}{field.required && <i aria-hidden="true"> *</i>}</span>
         {field.type === 'textarea' ? (
-          <textarea className="input" rows={3} value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />
+          <textarea className="input" rows={3} value={noAplica ? '' : value} disabled={noAplica} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />
         ) : field.type === 'select' ? (
           <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
             <option value="">Sin definir</option>
             {field.options?.map(([option, label]) => <option key={option} value={option}>{label}</option>)}
           </select>
         ) : (
-          <input className="input" type={field.type === 'date' ? 'date' : 'text'} value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />
+          <input className="input" type={field.type === 'date' ? 'date' : 'text'} value={noAplica ? '' : value} disabled={noAplica} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />
         )}
-        {field.help && <small>{field.help}</small>}
+        {/*
+          * «No aplica» es una respuesta, no un vacío. Deshabilita el campo mientras está
+          * marcado para que no queden las dos cosas a la vez, y al desmarcarlo lo devuelve
+          * vacío en vez de recuperar lo anterior: si dijiste que no aplica, lo que hubiera
+          * antes ya no describe el trabajo.
+          */}
+        {field.allowNotApplicable && (
+          <span className="intake-field-na">
+            <input
+              type="checkbox"
+              checked={noAplica}
+              onChange={(e) => onChange(e.target.checked ? NOT_APPLICABLE : '')}
+            />
+            {NOT_APPLICABLE_LABEL}
+          </span>
+        )}
+        {field.help && !noAplica && <small>{field.help}</small>}
       </label>
     );
   };
@@ -493,13 +543,26 @@ export function IntakePage() {
                     .filter((field) => detail.creativeFields?.[field.name])
                     .map((field) => {
                       const raw = detail.creativeFields?.[field.name] ?? '';
-                      const label = field.options?.find(([value]) => value === raw)?.[1] ?? raw;
-                      return <div key={field.name}><dt>{field.label}</dt><dd>{label}</dd></div>;
+                      // `displayFieldValue` traduce el marcador interno a «No aplica» y resuelve
+                      // la etiqueta de las opciones, para que el detalle y el formulario no
+                      // muestren cosas distintas del mismo dato.
+                      return (
+                        <div key={field.name}>
+                          <dt>{field.label}</dt>
+                          <dd className={isNotApplicable(raw) ? 'is-not-applicable' : undefined}>
+                            {displayFieldValue(field, raw)}
+                          </dd>
+                        </div>
+                      );
                     })}
                 </dl>
               </>
             )}
             {detail.rejectionReason && <><h3>Motivo del rechazo</h3><p>{detail.rejectionReason}</p></>}
+            {/* Mismo hilo que producción y audiovisual: lo que se conversa antes de convertir
+                la solicitud queda junto a ella y no en una conversación aparte. */}
+            <h3>Bitácora</h3>
+            <ProcessCommentThread basePath={`/intake/requests/${detail.id}`} />
             <div className="modal-actions">
               <button className="btn btn-outline" onClick={() => setDetail(null)}>Cerrar</button>
             </div>
@@ -552,6 +615,23 @@ export function IntakePage() {
               <label className="intake-field">
                 <span>Locación</span>
                 <input className="input" value={session.location} placeholder="Local, estudio, exterior…" onChange={(e) => setSession({ ...session, location: e.target.value })} />
+              </label>
+              {/*
+                * El moodboard es obligatorio y solo se ofrecen los aprobados del cliente de la
+                * solicitud. Antes esta pantalla no lo pedía ni lo mandaba, así que toda sesión
+                * convertida nacía sin él: se convocaba al equipo a grabar algo sin definir.
+                */}
+              <label className="intake-field">
+                <span>Moodboard aprobado <i aria-hidden="true">*</i></span>
+                <select className="input" value={session.moodboardId} onChange={(e) => setSession({ ...session, moodboardId: e.target.value })}>
+                  <option value="">Elige un moodboard</option>
+                  {approvedMoodboards.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                </select>
+                {approvedMoodboards.length === 0 && (
+                  <small className="intake-field-help">
+                    Este cliente no tiene moodboards aprobados. La dirección creativa debe aprobar uno antes de agendar.
+                  </small>
+                )}
               </label>
             </div>
             <fieldset className="intake-section">

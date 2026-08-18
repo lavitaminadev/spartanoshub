@@ -22,5 +22,6 @@ exports.ContractsModule = ContractsModule = __decorate([
         imports: [typeorm_1.TypeOrmModule.forFeature([contract_entity_1.Contract, contract_service_entity_1.ContractService, client_entity_1.Client])],
         controllers: [contracts_controller_1.ContractsController],
         providers: [contracts_service_1.ContractsService],
+        exports: [contracts_service_1.ContractsService],
     })
 ], ContractsModule);

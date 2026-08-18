@@ -27,9 +27,10 @@ import { Reservation } from '../../modules/reservations/domain/reservation.entit
 import { ReservationForm } from '../../modules/reservations/domain/reservation-form.entity';
 import { GoogleModule } from '../../modules/integrations/google/google.module';
 import { CrmModule } from '../../modules/crm/crm.module';
+import { AutomationsModule } from '../../modules/automations/automations.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([XPPeriod, XPEvent, Client, UDBudget, Piece, Notification, Invoice, Lead, IntegrationAccount, Reservation, ReservationForm]), EmailModule, DataProtectionModule, MetaModule, AccountCyclesModule, ParametersModule, GoogleModule, CrmModule],
+  imports: [TypeOrmModule.forFeature([XPPeriod, XPEvent, Client, UDBudget, Piece, Notification, Invoice, Lead, IntegrationAccount, Reservation, ReservationForm]), EmailModule, DataProtectionModule, MetaModule, AccountCyclesModule, ParametersModule, GoogleModule, CrmModule, AutomationsModule],
   providers: [CloseXpPeriodsJob, CreateMonthlyCyclesJob, DetectStalePiecesJob, CollectionEmailsJob, PurgeExpiredLeadsJob, MetaLeadRecoveryJob, OperationalAlertsJob, RecoverReservationIntegrationsJob, JobSchedulerService],
   exports: [CloseXpPeriodsJob, CreateMonthlyCyclesJob, DetectStalePiecesJob, CollectionEmailsJob, PurgeExpiredLeadsJob, MetaLeadRecoveryJob, OperationalAlertsJob, RecoverReservationIntegrationsJob],
 })

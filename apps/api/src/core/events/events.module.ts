@@ -16,7 +16,7 @@ import { User } from '../../modules/users/user.entity';
 import { LeadConvertedHandler } from './handlers/lead-converted.handler';
 import { PieceDeliveredHandler } from './handlers/piece-delivered.handler';
 import { PieceAssignedHandler } from './handlers/piece-assigned.handler';
-import { WorkflowsModule } from '../../modules/workflows/workflows.module';
+import { ProcessTemplatesModule } from '../../modules/process-templates/process-templates.module';
 import { Correction } from '../../modules/production/correction.entity';
 import { BillingModule } from '../../modules/billing/billing.module';
 import { PieceRejectedHandler } from './handlers/piece-rejected.handler';
@@ -30,7 +30,7 @@ import { PieceRejectedHandler } from './handlers/piece-rejected.handler';
       XPEvent, XPPeriod, UDBudget, UDMovement, User,
       Correction,
     ]),
-    WorkflowsModule,
+    ProcessTemplatesModule,
     BillingModule,
   ],
   providers: [LeadConvertedHandler, PieceDeliveredHandler, PieceAssignedHandler, PieceRejectedHandler],

@@ -19,7 +19,13 @@ exports.CollaborationModule = CollaborationModule;
 exports.CollaborationModule = CollaborationModule = __decorate([
     (0, common_1.Module)({
         imports: [typeorm_1.TypeOrmModule.forFeature([process_comment_entity_1.ProcessComment]), audit_module_1.AuditModule],
-        controllers: [process_comments_controller_1.PieceCommentsController, process_comments_controller_1.SessionCommentsController, process_comments_controller_1.WorkRequestCommentsController],
+        controllers: [
+            process_comments_controller_1.PieceCommentsController,
+            process_comments_controller_1.SessionCommentsController,
+            process_comments_controller_1.WorkRequestCommentsController,
+            process_comments_controller_1.LeadCommentsController,
+            process_comments_controller_1.OpportunityCommentsController,
+        ],
         providers: [process_comments_service_1.ProcessCommentsService],
         exports: [process_comments_service_1.ProcessCommentsService],
     })

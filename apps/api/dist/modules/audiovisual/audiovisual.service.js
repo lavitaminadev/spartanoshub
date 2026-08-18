@@ -20,6 +20,7 @@ const moodboard_entity_1 = require("./moodboard.entity");
 const session_entity_1 = require("./session.entity");
 const client_entity_1 = require("../clients/client.entity");
 const user_entity_1 = require("../users/user.entity");
+const MOODBOARD_APPROVED = 'approved';
 let AudiovisualService = class AudiovisualService {
     constructor(moodboardRepo, sessionRepo, clients, users) {
         this.moodboardRepo = moodboardRepo;
@@ -69,7 +70,7 @@ let AudiovisualService = class AudiovisualService {
         return this.moodboardRepo.remove(entity);
     }
     async createSession(dto, organizationId) {
-        await this.validateSessionReferences(dto.clientId, dto.moodboardId, dto.assignedTeam, organizationId);
+        await this.validateSessionReferences(dto.clientId, dto.moodboardId, dto.assignedTeam, organizationId, true);
         const entity = this.sessionRepo.create({
             ...dto,
             organizationId,
@@ -98,7 +99,7 @@ let AudiovisualService = class AudiovisualService {
     }
     async updateSession(id, dto, organizationId) {
         const entity = await this.findOneSession(id, organizationId);
-        await this.validateSessionReferences(entity.clientId, dto.moodboardId ?? entity.moodboardId, dto.assignedTeam, organizationId);
+        await this.validateSessionReferences(entity.clientId, dto.moodboardId, dto.assignedTeam, organizationId, false);
         Object.assign(entity, dto);
         if (dto.date !== undefined)
             entity.date = new Date(dto.date);
@@ -126,13 +127,22 @@ let AudiovisualService = class AudiovisualService {
         if (count !== uniqueIds.length)
             throw new common_1.BadRequestException('El equipo asignado contiene usuarios invalidos');
     }
-    async validateSessionReferences(clientId, moodboardId, assignedTeam, organizationId) {
+    async validateSessionReferences(clientId, moodboardId, assignedTeam, organizationId, requireMoodboard) {
         await Promise.all([this.validateClient(clientId, organizationId), this.validateUsers(assignedTeam, organizationId)]);
-        if (!moodboardId)
+        if (!requireMoodboard && !moodboardId)
             return;
+        await this.assertApprovedMoodboard(clientId, moodboardId, organizationId);
+    }
+    async assertApprovedMoodboard(clientId, moodboardId, organizationId) {
+        if (!moodboardId) {
+            throw new common_1.BadRequestException('Una sesión necesita un moodboard aprobado antes de agendarse');
+        }
         const moodboard = await this.moodboardRepo.findOne({ where: { id: moodboardId, organizationId, clientId } });
         if (!moodboard)
             throw new common_1.BadRequestException('El moodboard no pertenece al cliente seleccionado');
+        if (moodboard.status !== MOODBOARD_APPROVED) {
+            throw new common_1.BadRequestException(`El moodboard «${moodboard.title}» todavía no está aprobado. La dirección creativa debe aprobarlo antes de agendar la sesión.`);
+        }
     }
 };
 exports.AudiovisualService = AudiovisualService;

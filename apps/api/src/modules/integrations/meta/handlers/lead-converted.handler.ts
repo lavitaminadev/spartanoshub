@@ -58,6 +58,21 @@ export class LeadConvertedHandler {
 
       const client = await this.clientRepo.findOne({ where: { id: payload.clientId, organizationId: lead.organizationId } });
       const eventId = `lead-converted:${lead.id}:${payload.clientId}`;
+
+      /**
+       * Señales del navegador guardadas cuando la persona llegó.
+       *
+       * Meta atribuye bastante mejor un evento que llega con `fbp` y `fbc` que uno que solo
+       * trae correo y teléfono. Como acá se está enviando una conversión que ocurre semanas
+       * después de la visita, estas señales solo pueden venir de lo que se guardó entonces.
+       * Si la captura es anterior a que se registraran, no habrá nada y el evento sale igual
+       * con lo que haya: menos preciso, pero nunca se pierde.
+       */
+      const attribution = (lead.metadata?.attribution ?? {}) as {
+        fbp?: string; fbc?: string;
+        clientIpAddress?: string; clientUserAgent?: string;
+      };
+
       await this.outbox.enqueue(lead.organizationId, pixelId, {
         eventName: 'QualifiedLead',
         eventTime: Math.floor(Date.now() / 1000),
@@ -66,6 +81,10 @@ export class LeadConvertedHandler {
           em: lead.email ? [lead.email] : undefined,
           ph: lead.phone ? [lead.phone] : undefined,
           externalId: [lead.id],
+          fbp: attribution.fbp,
+          fbc: attribution.fbc,
+          client_ip_address: attribution.clientIpAddress,
+          client_user_agent: attribution.clientUserAgent,
         },
         customData: {
           currency: 'CLP',

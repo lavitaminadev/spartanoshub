@@ -69,67 +69,67 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly defaultEnabled: false;
 }, {
     readonly key: "clientMetricsPanel";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "multiClientOnboarding";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "udBudget";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "gamification";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "billing";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "contracts";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "catalog";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "content";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "briefs";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "meetings";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "documents";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "approvals";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "audiovisual";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "knowledge";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "onboarding";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "operations";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "governance";
@@ -137,7 +137,7 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly defaultEnabled: true;
 }, {
     readonly key: "direction";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
     readonly defaultEnabled: false;
 }, {
     readonly key: "surveys";
@@ -156,7 +156,7 @@ export declare function buildAgencyCoreOrganizationFeatures(): OrganizationFeatu
  */
 export declare const WEB_ONLY_MODULE_CATALOG: readonly [{
     readonly key: "adsInsights";
-    readonly lifecycle: "development";
+    readonly lifecycle: "active";
 }];
 export type WebOnlyModuleKey = (typeof WEB_ONLY_MODULE_CATALOG)[number]['key'];
 export type ProductModuleKey = OrganizationModuleKey | WebOnlyModuleKey;
