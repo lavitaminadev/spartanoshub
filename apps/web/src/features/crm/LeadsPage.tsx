@@ -9,6 +9,7 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { LeadDetailDrawer } from './components/LeadDetailDrawer';
 import { matchesSearch } from '../../shared/search';
 import { Modal } from '../../shared/Modal';
+import { ImportLeadsModal } from './ImportLeadsModal';
 import { Link, useSearchParams } from 'react-router-dom';
 import { LEAD_PIPELINE_STAGES, LEAD_CLOSING_STAGES, RESERVATION_LEAD_SOURCES } from '@espartanos/shared';
 
@@ -124,6 +125,7 @@ export function LeadsPage() {
   const [dragLeadId, setDragLeadId] = useState<string | null>(null);
   const [dropStatus, setDropStatus] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
+  const [importOpen, setImportOpen] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '' });
 
   const { data: leadsResp, isLoading, error, refetch, isFetching } = useQuery<{ data: Lead[] }>({
@@ -278,7 +280,7 @@ export function LeadsPage() {
 
   return (
     <div className="page">
-      <div className="page-header"><div><span className="crm-scope is-agency">CRM de Espartanos</span><span className="page-eyebrow">PROSPECTOS</span><h1>Prospectos de la agencia</h1><p className="page-subtitle">Empresas que Espartanos quiere sumar como clientes. Cuando un prospecto califica, se le abre una oportunidad y entra al pipeline. No son los contactos de campañas de los clientes.</p></div><button type="button" className="btn btn-primary" onClick={() => { setFeedback(null); setCreateOpen(true); }}>+ Nuevo lead</button></div>
+      <div className="page-header"><div><span className="crm-scope is-agency">CRM de Espartanos</span><span className="page-eyebrow">PROSPECTOS</span><h1>Prospectos de la agencia</h1><p className="page-subtitle">Empresas que Espartanos quiere sumar como clientes. Cuando un prospecto califica, se le abre una oportunidad y entra al pipeline. No son los contactos de campañas de los clientes.</p></div><div className="page-header-actions"><button type="button" className="btn btn-outline" onClick={() => setImportOpen(true)}>Importar CSV</button><button type="button" className="btn btn-primary" onClick={() => { setFeedback(null); setCreateOpen(true); }}>+ Nuevo lead</button></div></div>
 
       <div className="card-grid">
         <div className="card">
@@ -617,6 +619,8 @@ export function LeadsPage() {
           <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setCreateOpen(false)}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={createMutation.isPending || leadForm.name.trim().length < 2}>{createMutation.isPending ? 'Creando...' : 'Crear lead'}</button></div>
         </form>
       </Modal>
+
+      <ImportLeadsModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   );
 }

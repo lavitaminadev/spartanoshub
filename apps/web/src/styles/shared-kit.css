@@ -204,6 +204,41 @@
 .comment-error { margin: 0; color: var(--terracotta); font-size: 11px; }
 
 .comment-section { display: grid; gap: 6px; }
+/* ------------------------------------------------ Importación CSV */
+
+.import-leads { display: grid; gap: 12px; }
+
+.import-mapping { display: grid; gap: 6px; }
+.import-mapping-row { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 10px; }
+.import-mapping-row > span {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  /* Un encabezado largo del archivo no debe ensanchar el diálogo. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-preview,
+.import-result,
+.import-failed { display: grid; gap: 6px; }
+
+.import-preview ul,
+.import-failed ul {
+  max-height: 160px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-y: auto;
+}
+
+.import-failed li { color: var(--terracotta); }
+
+.import-mapping h4,
+.import-preview h4,
+.import-failed h4,
 .comment-section h4 {
   margin: 0;
   color: var(--muted);

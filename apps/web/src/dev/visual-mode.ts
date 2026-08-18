@@ -316,6 +316,18 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     assignedTo: 'user-cm', assignedName: 'Valentina Rojas',
     createdAt: '2026-08-10T12:00:00Z', assignedAt: '2026-08-11T09:00:00Z',
   }])],
+  /* Resultado de una importación, con filas buenas y una rechazada. */
+  [/\/crm\/leads\/import$/, (config) => {
+    const body = typeof config?.data === 'string' ? JSON.parse(config.data) : config?.data;
+    const total = Array.isArray(body?.rows) ? body.rows.length : 0;
+    return {
+      imported: Math.max(0, total - 1),
+      duplicates: total > 1 ? 1 : 0,
+      failed: total > 2
+        ? [{ row: 4, name: 'Fila de ejemplo', reason: 'Sin correo ni teléfono: no hay forma de reconocer a la persona' }]
+        : [],
+    };
+  }],
   /* Hilo de trabajo. Sirve a las cinco áreas, así que la regla mira el sufijo. */
   [/\/comments$/, () => ({
     proceso: [

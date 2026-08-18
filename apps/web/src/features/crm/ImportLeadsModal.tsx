@@ -1,0 +1,240 @@
+import { useState, type JSX } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import Papa from 'papaparse';
+import { api } from '../../core/api';
+import { Modal } from '../../shared/Modal';
+
+/** Campos del prospecto que la importación sabe llenar. */
+const TARGET_FIELDS = [
+  { key: 'name', label: 'Nombre', required: true },
+  { key: 'email', label: 'Correo', required: false },
+  { key: 'phone', label: 'Teléfono', required: false },
+  { key: 'company', label: 'Empresa', required: false },
+  { key: 'notes', label: 'Notas', required: false },
+] as const;
+
+type TargetField = (typeof TARGET_FIELDS)[number]['key'];
+
+/** Tope del servidor. Se comprueba acá para no mandar un archivo que va a ser rechazado entero. */
+const MAX_ROWS = 500;
+
+interface ImportResult {
+  imported: number;
+  duplicates: number;
+  failed: Array<{ row: number; name: string; reason: string }>;
+}
+
+/**
+ * Adivina a qué campo corresponde cada columna del archivo.
+ *
+ * Ahorra el paso de mapear a mano en el caso habitual, que es una planilla exportada de otro
+ * sistema con encabezados reconocibles. Lo que no reconoce queda sin asignar y a la vista, en
+ * vez de adivinar mal en silencio.
+ */
+function guessField(header: string): TargetField | '' {
+  const normalized = header.trim().toLowerCase();
+  const table: Array<[TargetField, string[]]> = [
+    ['name', ['nombre', 'name', 'contacto', 'full name', 'nombre completo']],
+    ['email', ['email', 'correo', 'e-mail', 'mail', 'correo electrónico']],
+    ['phone', ['telefono', 'teléfono', 'phone', 'celular', 'movil', 'móvil', 'fono']],
+    ['company', ['empresa', 'company', 'negocio', 'organización', 'organizacion']],
+    ['notes', ['notas', 'notes', 'comentario', 'comentarios', 'observaciones']],
+  ];
+  const match = table.find(([, aliases]) => aliases.includes(normalized));
+  return match ? match[0] : '';
+}
+
+export interface ImportLeadsModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+/**
+ * Importación de prospectos desde un archivo separado por comas.
+ *
+ * El archivo se lee **en el navegador** y nunca se sube: lo que viaja son las filas ya
+ * mapeadas. Así no hace falta manejar archivos en el servidor ni almacenarlos, y una planilla
+ * con columnas que no interesan no deja copia de esos datos en ninguna parte.
+ *
+ * Se muestra una vista previa antes de escribir nada. Importar sin ver qué va a entrar es la
+ * forma más rápida de meter cuatrocientos registros mal mapeados en el CRM.
+ */
+export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.Element {
+  const queryClient = useQueryClient();
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [rows, setRows] = useState<Record<string, string>[]>([]);
+  const [mapping, setMapping] = useState<Record<string, TargetField | ''>>({});
+  const [source, setSource] = useState('importacion');
+  const [sourceDetail, setSourceDetail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
+
+  const reset = () => {
+    setHeaders([]); setRows([]); setMapping({});
+    setError(null); setResult(null); setSourceDetail('');
+  };
+
+  const handleFile = (file: File) => {
+    setError(null);
+    setResult(null);
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (parsed) => {
+        const fields = parsed.meta.fields ?? [];
+        if (!fields.length) {
+          setError('El archivo no tiene encabezados. La primera fila debe nombrar las columnas.');
+          return;
+        }
+        if (parsed.data.length > MAX_ROWS) {
+          setError(`El archivo trae ${parsed.data.length} filas y el máximo por tanda es ${MAX_ROWS}. Divídelo y súbelo por partes.`);
+          return;
+        }
+        setHeaders(fields);
+        setRows(parsed.data);
+        setMapping(Object.fromEntries(fields.map((field) => [field, guessField(field)])));
+      },
+      error: () => setError('No se pudo leer el archivo. Comprueba que sea un CSV válido.'),
+    });
+  };
+
+  /** Filas ya traducidas al formato que espera el servidor, descartando las que quedan vacías. */
+  const buildRows = () => rows
+    .map((row) => {
+      const mapped: Record<string, string> = {};
+      for (const [header, target] of Object.entries(mapping)) {
+        const value = row[header]?.trim();
+        if (target && value) mapped[target] = value;
+      }
+      return mapped;
+    })
+    .filter((row) => row.name);
+
+  const nameMapped = Object.values(mapping).includes('name');
+  const preparedRows = headers.length ? buildRows() : [];
+
+  const importMutation = useMutation({
+    mutationFn: () => api.post<ImportResult>('/crm/leads/import', {
+      rows: preparedRows,
+      source: source.trim(),
+      sourceDetail: sourceDetail.trim() || undefined,
+    }),
+    onSuccess: async (data) => {
+      setResult(data);
+      await queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onError: (mutationError: Error) => setError(mutationError.message),
+  });
+
+  return (
+    <Modal open={open} onClose={() => { reset(); onClose(); }} title="Importar prospectos">
+      <div className="modal-form import-leads">
+        {result ? (
+          <div className="import-result">
+            <p>
+              <strong>{result.imported}</strong> prospectos nuevos ·{' '}
+              <strong>{result.duplicates}</strong> ya existían y se actualizaron ·{' '}
+              <strong>{result.failed.length}</strong> con problemas
+            </p>
+            {result.failed.length > 0 ? (
+              <div className="import-failed">
+                <h4>Filas que no entraron</h4>
+                <ul>
+                  {result.failed.slice(0, 20).map((item) => (
+                    <li key={item.row}>Fila {item.row} — {item.name || 'sin nombre'}: {item.reason}</li>
+                  ))}
+                </ul>
+                {result.failed.length > 20 ? <p>…y {result.failed.length - 20} más.</p> : null}
+              </div>
+            ) : null}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={reset}>Importar otro archivo</button>
+              <button type="button" className="btn btn-primary" onClick={() => { reset(); onClose(); }}>Cerrar</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <label>
+              Archivo CSV
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="input"
+                onChange={(event) => { const file = event.target.files?.[0]; if (file) handleFile(file); }}
+              />
+              <small className="field-hint">
+                La primera fila debe nombrar las columnas. El archivo se lee en tu navegador y no se sube.
+              </small>
+            </label>
+
+            {error ? <div className="alert alert-error">{error}</div> : null}
+
+            {headers.length > 0 ? (
+              <>
+                <div className="import-mapping">
+                  <h4>A qué corresponde cada columna</h4>
+                  {headers.map((header) => (
+                    <label key={header} className="import-mapping-row">
+                      <span>{header}</span>
+                      <select
+                        className="input"
+                        value={mapping[header] ?? ''}
+                        onChange={(event) => setMapping((current) => ({ ...current, [header]: event.target.value as TargetField | '' }))}
+                      >
+                        <option value="">No importar</option>
+                        {TARGET_FIELDS.map((field) => (
+                          <option key={field.key} value={field.key}>{field.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+
+                <label>
+                  Origen
+                  <input className="input" value={source} onChange={(event) => setSource(event.target.value)} />
+                  <small className="field-hint">Con qué origen quedan marcados, para poder distinguirlos después en los informes.</small>
+                </label>
+                <label>
+                  Detalle del origen (opcional)
+                  <input className="input" value={sourceDetail} onChange={(event) => setSourceDetail(event.target.value)} placeholder="Ej. Feria gastronómica agosto" />
+                </label>
+
+                <div className="import-preview">
+                  <h4>Vista previa</h4>
+                  {!nameMapped ? (
+                    <p className="alert alert-error">Falta indicar qué columna trae el nombre. Sin eso no se puede importar.</p>
+                  ) : (
+                    <>
+                      <p>
+                        Se importarán <strong>{preparedRows.length}</strong> de {rows.length} filas.
+                        {preparedRows.length < rows.length ? ' Las demás no tienen nombre.' : ''}
+                      </p>
+                      <ul>
+                        {preparedRows.slice(0, 3).map((row, index) => (
+                          <li key={index}>{row.name}{row.email ? ` · ${row.email}` : ''}{row.phone ? ` · ${row.phone}` : ''}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-outline" onClick={() => { reset(); onClose(); }}>Cancelar</button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={importMutation.isPending || !nameMapped || preparedRows.length === 0 || !source.trim()}
+                    onClick={() => importMutation.mutate()}
+                  >
+                    {importMutation.isPending ? 'Importando...' : `Importar ${preparedRows.length}`}
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}

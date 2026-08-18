@@ -10,6 +10,7 @@ import { ConvertLeadUseCase } from './leads/use-cases/convert-lead.use-case';
 import { UpdateLeadUseCase } from './leads/use-cases/update-lead.use-case';
 import { GetLeadUseCase } from './leads/use-cases/get-lead.use-case';
 import { LeadIntakeService } from './leads/lead-intake.service';
+import { ImportLeadsUseCase } from './leads/use-cases/import-leads.use-case';
 import { CrmLeadAutomationService } from './leads/crm-lead-automation.service';
 import { Contact } from './contacts/contact.entity';
 import { ContactsController } from './contacts/contacts.controller';
@@ -36,7 +37,7 @@ import { Reservation } from '../reservations/domain/reservation.entity';
   imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation]), AccountAccessModule, AuditModule],
   controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController],
   providers: [
-    CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, LeadIntakeService, CrmLeadAutomationService,
+    CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, CrmLeadAutomationService,
     ContactsService,
     OpportunityReferenceValidator, OpportunityStageHistoryService, CreateOpportunityUseCase, ListOpportunitiesUseCase, GetOpportunityUseCase, UpdateOpportunityUseCase, RemoveOpportunityUseCase,
     InteractionsService,
