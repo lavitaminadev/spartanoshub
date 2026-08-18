@@ -86,7 +86,18 @@ export const ORGANIZATION_MODULE_CATALOG = [
   { key: 'meetings', lifecycle: 'development', defaultEnabled: false },
   { key: 'documents', lifecycle: 'development', defaultEnabled: false },
   { key: 'approvals', lifecycle: 'development', defaultEnabled: false },
-  { key: 'audiovisual', lifecycle: 'development', defaultEnabled: false },
+  /**
+   * Activo porque el flujo de solicitudes depende de él.
+   *
+   * Agendar una sesión exige un moodboard aprobado, y los moodboards se crean y se aprueban
+   * únicamente en esta pantalla. Con el módulo en desarrollo —visible solo para Desarrollo—
+   * la dirección audiovisual no tenía dónde aprobarlo, así que no podía convertir ninguna
+   * solicitud de su área: la regla habría bloqueado el flujo en vez de ordenarlo.
+   *
+   * `defaultEnabled` queda en falso igual que los demás: el ciclo de vida decide si el
+   * producto lo ofrece, el interruptor decide si esta organización lo usa.
+   */
+  { key: 'audiovisual', lifecycle: 'active', defaultEnabled: false },
   { key: 'knowledge', lifecycle: 'development', defaultEnabled: false },
   { key: 'onboarding', lifecycle: 'development', defaultEnabled: false },
   { key: 'operations', lifecycle: 'development', defaultEnabled: false },

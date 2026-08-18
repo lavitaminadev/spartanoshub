@@ -57,7 +57,11 @@ describe('navegación bajo el alcance de fase', () => {
     // ahí y es parte del cumplimiento, así que el módulo pasó a `active` en el catálogo. La
     // expectativa se actualiza junto con esa decisión para que quede registrada, que es lo que
     // pide la prueba del interruptor de fase más arriba.
-    const outOfScopePaths = ['/content', '/audiovisual', '/approvals', '/briefs',
+    //
+    // `/audiovisual` salió por lo mismo. Agendar una sesión exige un moodboard aprobado, y los
+    // moodboards se aprueban solo en esa pantalla: con el módulo oculto, la dirección
+    // audiovisual no tenía dónde hacerlo y no podía convertir ninguna solicitud de su área.
+    const outOfScopePaths = ['/content', '/approvals', '/briefs',
       '/meetings', '/billing', '/contracts', '/catalog', '/gamification', '/knowledge',
       '/onboarding', '/direction', '/operations', '/documents'];
 
