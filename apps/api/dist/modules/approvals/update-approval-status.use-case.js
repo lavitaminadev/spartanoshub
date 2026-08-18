@@ -26,10 +26,12 @@ const correction_entity_1 = require("../production/correction.entity");
 const correction_origin_enum_1 = require("../production/correction-origin.enum");
 const piece_version_entity_1 = require("../production/piece-version.entity");
 const piece_rules_service_1 = require("../production/piece-rules.service");
+const production_workflow_service_1 = require("../production/production-workflow.service");
 let UpdateApprovalStatusUseCase = class UpdateApprovalStatusUseCase {
-    constructor(repo, pieceRules, events) {
+    constructor(repo, pieceRules, workflow, events) {
         this.repo = repo;
         this.pieceRules = pieceRules;
+        this.workflow = workflow;
         this.events = events;
     }
     async execute(id, organizationId, actor, status, decisionNotes) {
@@ -65,6 +67,7 @@ let UpdateApprovalStatusUseCase = class UpdateApprovalStatusUseCase {
                 }
                 if (status === approval_request_status_enum_1.ApprovalRequestStatus.APPROVED) {
                     piece.status = piece_status_enum_1.PieceStatus.APPROVED;
+                    await this.workflow.settleBillableCorrections(piece, actor.userId, manager);
                 }
                 else {
                     const origin = actor.role === user_role_enum_1.UserRole.CLIENT
@@ -112,5 +115,6 @@ exports.UpdateApprovalStatusUseCase = UpdateApprovalStatusUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(approval_request_entity_1.ApprovalRequest)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         piece_rules_service_1.PieceRulesService,
+        production_workflow_service_1.ProductionWorkflowService,
         event_emitter_1.EventEmitter2])
 ], UpdateApprovalStatusUseCase);

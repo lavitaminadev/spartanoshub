@@ -299,3 +299,25 @@
     color: var(--text-primary);
   }
 }
+
+/*
+ * Recomendaciones del local en la confirmación.
+ *
+ * Van después del código de reserva: el código es lo único que la persona necesita conservar y
+ * anteponerle cuatro líneas lo empuja fuera de la primera pantalla en un teléfono.
+ */
+.booking-tips { margin-top: 18px; text-align: left; }
+.booking-tips ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.booking-tips li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: .85;
+}
+.booking-tips li::before {
+  content: '·';
+  position: absolute;
+  left: 6px;
+  font-weight: 700;
+}

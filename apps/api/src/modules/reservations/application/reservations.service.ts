@@ -27,6 +27,27 @@ import { inferLocationFromPhone } from '../../../shared/geo-inference';
 import { GoogleConversionOutboxService } from '../../integrations/google/google-conversion-outbox.service';
 import { normalizeClientCapabilities } from '../../clients/client-capabilities';
 
+/**
+ * Recomendaciones que el local muestra al confirmar una reserva.
+ *
+ * Es el valor inicial; después se edita desde el constructor, en el paso de diseño. Las cuatro
+ * responden preguntas que la persona se hace igual y que, sin respuesta, terminan en una
+ * llamada al local o en una inasistencia: a qué hora conviene llegar, dónde dejar el auto, cómo
+ * avisar si no puede venir, y a quién escribir si duda.
+ *
+ * La tercera es la que más pesa: ofrecer la salida reduce la inasistencia, porque quien sabe que
+ * puede cancelar avisa en vez de no aparecer.
+ *
+ * El catálogo completo de sugerencias, con el motivo de cada una, vive en el frontend:
+ * `features/reservations/success/venue-tips.ts`, que es donde se eligen.
+ */
+const DEFAULT_VENUE_TIPS = [
+  'Te esperamos 10 minutos antes para acomodarte con calma.',
+  'Estamos en la esquina; si llegas en auto, hay estacionamiento a media cuadra.',
+  'Si te surge algo, avísanos con tu código y liberamos la mesa sin problema.',
+  '¿Alguna duda antes de venir? Escríbenos y te respondemos.',
+].join('\n');
+
 type ScheduleWindow = { day: number; start: string; end: string };
 type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number };
 type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[] };
@@ -242,7 +263,7 @@ export class ReservationsService {
       fieldSchema,
       designConfig: isSurvey
         ? { primaryColor: '#1f5b2d', accentColor: '#d79b3a', backgroundColor: '#f5eedf', textColor: '#263241', title: dto.name, welcome: 'Gracias por ser parte de nuestra experiencia. Tu opinión es fundamental para seguir mejorando.', confirmationMessage: 'Gracias por tu tiempo. Tu respuesta fue registrada.', backgroundMode: 'image', backgroundOpacity: '82', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'center', buttonRadius: '6', fieldRadius: '6', fontFamily: 'Inter, sans-serif', showFacts: 'false', showSecureBadge: 'false', showPoweredBy: 'false', googleReviewUrl: '', googleReviewMinRating: '4' }
-        : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui' },
+        : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
       scheduleConfig: { windows: [1,2,3,4,5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: capabilities.crm, calendarEnabled: false, metaCapiEnabled: false,
     });
     this.validateConfiguration(form); return this.forms.save(form);

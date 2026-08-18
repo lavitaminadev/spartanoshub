@@ -9,6 +9,8 @@ import { plainDateInZone } from './local-time';
 import { accessibleForeground, contrastText, normalizeHexColor } from '../../shared/color-contrast';
 import { BrandMark } from '../../shared/Brand';
 import { MetaPixel } from '../../shared/MetaPixel';
+import { ShareBooking } from './success/ShareBooking';
+import { VenueTips } from './success/VenueTips';
 import { Ga4Tag } from '../../shared/Ga4Tag';
 import { trackGa4Event } from '../../shared/ga4-events';
 import { readMetaMatchData } from '../../shared/meta-match';
@@ -386,7 +388,18 @@ export function PublicReservationPage() {
       <Link className="btn btn-primary" to={`/book/${slug}`}>Volver al inicio</Link>
       {calendarSaveEnabled && gcalUrl ? <a className="btn btn-outline" href={gcalUrl} target="_blank" rel="noopener noreferrer">Android / Google Calendar</a> : null}
       {calendarSaveEnabled ? <a className="btn btn-outline" href={icsUrl} download={`reserva-${submit.data.referenceCode}.ics`}>iPhone / Apple Calendar</a> : null}
+      {/* Llevarse el código a donde la persona lo va a buscar. El calendario avisa a la hora;
+          WhatsApp conserva el código. No manda nada solo: abre la aplicación con el texto. */}
+      <ShareBooking
+        formName={form.name}
+        when={new Date(submit.data.startsAt!).toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone })}
+        referenceCode={submit.data.referenceCode!}
+        partySize={guest.partySize}
+        venuePhone={design.venuePhone}
+        label={design.whatsappShareText}
+      />
     </div>
+    <VenueTips raw={design.venueTips} />
     {submit.data.status === 'pending' && <small className="success-note">Recibirás una confirmación pronto.</small>}{calendarSaveEnabled && <small className="success-note">{design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'}</small>}</section></main>;
   }
 

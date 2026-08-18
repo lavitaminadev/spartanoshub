@@ -25,6 +25,7 @@ const deliver_piece_use_case_1 = require("./deliver-piece.use-case");
 const list_pieces_use_case_1 = require("./list-pieces.use-case");
 const piece_entity_1 = require("./piece.entity");
 const piece_status_enum_1 = require("./piece-status.enum");
+const production_workflow_service_1 = require("./production-workflow.service");
 const assign_piece_dto_1 = require("./dto/assign-piece.dto");
 const submit_version_dto_1 = require("./dto/submit-version.dto");
 const reject_piece_dto_1 = require("./dto/reject-piece.dto");
@@ -45,13 +46,14 @@ const account_access_service_1 = require("../../core/client-scope/account-access
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
 const requires_feature_decorator_1 = require("../../core/authorization/requires-feature.decorator");
 let ProductionController = class ProductionController {
-    constructor(pieceRepo, approvalRepo, versionRepo, clientRepo, userRepo, accountAccess, parameters, udValues, pieceTypes, assignPiece, cancelPiece, submitVer, rejectPiece, deliverPiece, listPieces) {
+    constructor(pieceRepo, approvalRepo, versionRepo, clientRepo, userRepo, accountAccess, workflow, parameters, udValues, pieceTypes, assignPiece, cancelPiece, submitVer, rejectPiece, deliverPiece, listPieces) {
         this.pieceRepo = pieceRepo;
         this.approvalRepo = approvalRepo;
         this.versionRepo = versionRepo;
         this.clientRepo = clientRepo;
         this.userRepo = userRepo;
         this.accountAccess = accountAccess;
+        this.workflow = workflow;
         this.parameters = parameters;
         this.udValues = udValues;
         this.pieceTypes = pieceTypes;
@@ -151,7 +153,9 @@ let ProductionController = class ProductionController {
         if (piece.status !== piece_status_enum_1.PieceStatus.CLIENT_VALIDATION)
             throw new common_1.BadRequestException('La pieza no está pendiente de aprobación');
         piece.status = piece_status_enum_1.PieceStatus.APPROVED;
-        return this.pieceRepo.save(piece);
+        const saved = await this.pieceRepo.save(piece);
+        await this.workflow.settleBillableCorrections(piece, req.user.id);
+        return saved;
     }
     async startProgress(id, req) {
         const piece = await this.pieceRepo.findOne({ where: { id, organizationId: req.organizationId } });
@@ -185,7 +189,9 @@ let ProductionController = class ProductionController {
         automaticApprovalAt.setMonth(automaticApprovalAt.getMonth() + validationMonths);
         if (validationMonths === 0 || automaticApprovalAt <= new Date()) {
             piece.status = piece_status_enum_1.PieceStatus.APPROVED;
-            return this.pieceRepo.save(piece);
+            const aprobada = await this.pieceRepo.save(piece);
+            await this.workflow.settleBillableCorrections(piece, req.user.id);
+            return aprobada;
         }
         piece.status = piece_status_enum_1.PieceStatus.CLIENT_VALIDATION;
         await this.pieceRepo.save(piece);
@@ -356,6 +362,7 @@ exports.ProductionController = ProductionController = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         account_access_service_1.AccountAccessService,
+        production_workflow_service_1.ProductionWorkflowService,
         parameter_resolver_service_1.ParameterResolver,
         ud_values_service_1.UdValuesService,
         piece_types_service_1.PieceTypesService,
