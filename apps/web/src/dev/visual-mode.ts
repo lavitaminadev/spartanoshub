@@ -249,6 +249,8 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { key: 'deal.won', label: 'Trato ganado', entityType: 'opportunity', event: 'deal.won' },
       { key: 'deal.lost', label: 'Trato perdido', entityType: 'opportunity', event: 'deal.lost' },
       { key: 'lead.converted', label: 'Prospecto convertido', entityType: 'lead', event: 'lead.converted' },
+      { key: 'task.overdue', label: 'Tarea vencida', entityType: 'approval', event: 'task.overdue' },
+      { key: 'deal.stale', label: 'Trato sin seguimiento', entityType: 'opportunity', event: 'deal.stale' },
     ],
     actions: [
       { key: 'notify_user', label: 'Enviar notificación', requiredConfig: ['userId', 'title', 'message'] },
@@ -256,6 +258,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { key: 'send_email', label: 'Enviar correo', requiredConfig: ['to', 'subject', 'body'] },
       { key: 'assign_user', label: 'Asignar responsable', requiredConfig: ['userId'] },
       { key: 'add_comment', label: 'Agregar nota al hilo', requiredConfig: ['body'] },
+      { key: 'send_webhook', label: 'Enviar webhook', requiredConfig: ['url'] },
     ],
   })],
   [/\/automations\/runs\/[^/?]+$/, () => ({

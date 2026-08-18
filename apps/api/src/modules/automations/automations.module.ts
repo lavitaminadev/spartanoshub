@@ -8,12 +8,17 @@ import { AutomationsController } from './automations.controller';
 import { AutomationRunnerService } from './automation-runner.service';
 import { AutomationActionsService } from './automation-actions.service';
 import { AutomationTriggerListener } from './automation-trigger.listener';
+import { AutomationScheduleJob } from './automation-schedule.job';
+import { WebhookDelivery } from './webhook-delivery.entity';
+import { WebhookDeliveryService } from './webhook-delivery.service';
+import { HttpModule } from '@nestjs/axios';
 import { NotificationsModule } from '../../core/notifications/notifications.module';
 import { EmailModule } from '../../core/notifications/email.module';
 import { CollaborationModule } from '../collaboration/collaboration.module';
 import { Opportunity } from '../crm/opportunities/opportunity.entity';
 import { Lead } from '../crm/leads/lead.entity';
 import { User } from '../users/user.entity';
+import { ApprovalRequest } from '../approvals/approval-request.entity';
 
 /**
  * Motor de automatizaciones.
@@ -23,13 +28,14 @@ import { User } from '../users/user.entity';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Automation, AutomationRun, AutomationRunStep, Opportunity, Lead, User]),
+    TypeOrmModule.forFeature([Automation, AutomationRun, AutomationRunStep, Opportunity, Lead, User, ApprovalRequest, WebhookDelivery]),
     NotificationsModule,
     EmailModule,
     CollaborationModule,
+    HttpModule,
   ],
   controllers: [AutomationsController],
-  providers: [AutomationsService, AutomationRunnerService, AutomationActionsService, AutomationTriggerListener],
-  exports: [AutomationRunnerService],
+  providers: [AutomationsService, AutomationRunnerService, AutomationActionsService, AutomationTriggerListener, AutomationScheduleJob, WebhookDeliveryService],
+  exports: [AutomationRunnerService, AutomationScheduleJob, WebhookDeliveryService],
 })
 export class AutomationsModule {}

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { EmailService } from '../../core/notifications/email.service';
 import { ProcessCommentsService } from '../collaboration/process-comments.service';
+import { WebhookDeliveryService } from './webhook-delivery.service';
 import { CommentSubject, CommentVisibility } from '../collaboration/process-comment.entity';
 import { Opportunity } from '../crm/opportunities/opportunity.entity';
 import { Lead } from '../crm/leads/lead.entity';
@@ -39,6 +40,7 @@ export class AutomationActionsService {
     private readonly notifications: NotificationService,
     private readonly emails: EmailService,
     private readonly comments: ProcessCommentsService,
+    private readonly webhooks: WebhookDeliveryService,
     @InjectRepository(Opportunity) private readonly opportunities: Repository<Opportunity>,
     @InjectRepository(Lead) private readonly leads: Repository<Lead>,
     @InjectRepository(User) private readonly users: Repository<User>,
@@ -57,6 +59,7 @@ export class AutomationActionsService {
       case 'send_email': return this.sendEmail(config, ctx);
       case 'assign_user': return this.assignUser(config, ctx);
       case 'add_comment': return this.addComment(config, ctx);
+      case 'send_webhook': return this.sendWebhook(config, ctx);
       default:
         throw new BadRequestException(`La acción "${key}" no está implementada`);
     }
@@ -152,6 +155,29 @@ export class AutomationActionsService {
       { id: ctx.actingUserId, role: UserRole.ADMIN, name: 'Automatización' },
     );
     return { commentId: comment.id };
+  }
+
+  /**
+   * Deja un webhook en la bandeja de salida.
+   *
+   * **No llama a nadie desde acá.** Un destinatario caído o lento retendría la ejecución
+   * durante su tiempo de espera y, con ella, las demás automatizaciones de la misma tanda. Es
+   * la misma razón por la que Meta y Google tienen la suya.
+   *
+   * El cuerpo lleva siempre el registro que disparó el flujo, para que quien recibe sepa de
+   * qué se le está hablando sin tener que consultarnos de vuelta.
+   */
+  private async sendWebhook(config: Record<string, unknown>, ctx: ActionContext): Promise<Record<string, unknown>> {
+    const url = this.text(config.url);
+    if (!url) throw new BadRequestException('El webhook necesita una dirección');
+
+    const delivery = await this.webhooks.enqueue(ctx.organizationId, url, {
+      entityType: ctx.entityType,
+      entityId: ctx.entityId,
+      context: ctx.context,
+      sentAt: new Date().toISOString(),
+    });
+    return { webhookDeliveryId: delivery.id };
   }
 
   /**

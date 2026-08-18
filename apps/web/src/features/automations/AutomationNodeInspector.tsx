@@ -155,6 +155,7 @@ const FIELD_LABEL: Record<string, string> = {
   to: 'Destinatario',
   subject: 'Asunto',
   body: 'Contenido',
+  url: 'Dirección del webhook (HTTPS)',
 };
 
 function titleFor(node: AutomationNodeData, catalog?: AutomationCatalog): string {

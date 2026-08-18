@@ -4,6 +4,7 @@ import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { hasRoleAccess } from '../../core/role-access';
 import { Modal } from '../../shared/Modal';
+import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 import { EmptyState } from '../../shared/EmptyState';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
@@ -500,6 +501,10 @@ export function IntakePage() {
               </>
             )}
             {detail.rejectionReason && <><h3>Motivo del rechazo</h3><p>{detail.rejectionReason}</p></>}
+            {/* Mismo hilo que producción y audiovisual: lo que se conversa antes de convertir
+                la solicitud queda junto a ella y no en una conversación aparte. */}
+            <h3>Bitácora</h3>
+            <ProcessCommentThread basePath={`/intake/requests/${detail.id}`} />
             <div className="modal-actions">
               <button className="btn btn-outline" onClick={() => setDetail(null)}>Cerrar</button>
             </div>

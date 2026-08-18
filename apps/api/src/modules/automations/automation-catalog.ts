@@ -11,7 +11,7 @@
  */
 
 /** Qué tipo de registro acompaña a un disparador, para saber qué condiciones ofrecerle. */
-export type AutomationEntityType = 'lead' | 'opportunity' | 'contact' | 'reservation' | 'service_request';
+export type AutomationEntityType = 'lead' | 'opportunity' | 'contact' | 'reservation' | 'service_request' | 'approval';
 
 export interface TriggerDefinition {
   key: string;
@@ -34,6 +34,10 @@ export const AUTOMATION_TRIGGERS: readonly TriggerDefinition[] = [
   { key: 'deal.won', label: 'Trato ganado', entityType: 'opportunity', event: 'deal.won' },
   { key: 'deal.lost', label: 'Trato perdido', entityType: 'opportunity', event: 'deal.lost' },
   { key: 'lead.converted', label: 'Prospecto convertido', entityType: 'lead', event: 'lead.converted' },
+  // Disparadores de tiempo. No los provoca nadie: los anuncia `AutomationScheduleJob` cuando la
+  // condición se cumple sola, y se limitan a un aviso por registro y por día.
+  { key: 'task.overdue', label: 'Tarea vencida', entityType: 'approval', event: 'task.overdue' },
+  { key: 'deal.stale', label: 'Trato sin seguimiento', entityType: 'opportunity', event: 'deal.stale' },
 ] as const;
 
 /** Operadores de comparación. Deliberadamente pocos: cubren el caso real sin volverse un lenguaje. */
@@ -73,6 +77,7 @@ export const AUTOMATION_ACTIONS: readonly ActionDefinition[] = [
   { key: 'send_email', label: 'Enviar correo', requiredConfig: ['to', 'subject', 'body'] },
   { key: 'assign_user', label: 'Asignar responsable', requiredConfig: ['userId'] },
   { key: 'add_comment', label: 'Agregar nota al hilo', requiredConfig: ['body'] },
+  { key: 'send_webhook', label: 'Enviar webhook', requiredConfig: ['url'] },
 ] as const;
 
 /** Espera antes de continuar. Es el nodo que hace útil el resto. */

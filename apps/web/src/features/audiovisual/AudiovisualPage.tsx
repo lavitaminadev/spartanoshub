@@ -5,6 +5,7 @@ import { useAuth } from '../../core/auth';
 import { hasRoleAccess } from '../../core/role-access';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
+import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { matchesSearch } from '../../shared/search';
@@ -37,6 +38,8 @@ export function AudiovisualPage() {
   const [moodboardForm, setMoodboardForm] = useState(EMPTY_MOODBOARD);
   const [sessionForm, setSessionForm] = useState(EMPTY_SESSION);
   const [confirmDialog, setConfirmDialog] = useState<{ type: 'session-confirm' | 'session-complete' | 'moodboard-approve' | null; id: string | null }>({ type: null, id: null });
+  /** Sesión cuyo hilo de trabajo está abierto. */
+  const [threadSessionId, setThreadSessionId] = useState<string | null>(null);
 
   const canManageMoodboards = hasRoleAccess(user?.role, ['admin', 'creative_director', 'av_director']);
   const canManageSessions = hasRoleAccess(user?.role, ['admin', 'operations_director', 'av_director']);
@@ -158,10 +161,14 @@ export function AudiovisualPage() {
               {item.moodboardId && <small>Moodboard: {moodboardMap.get(item.moodboardId) ?? 'Referencia vinculada'}</small>}
               <div className="portal-item-actions">{(item.assignedTeam ?? []).map((id) => <span className="date-chip" key={id}>{userMap.get(id) ?? (id === user?.id ? 'TÃº' : 'Equipo asignado')}</span>)}</div>
             </div>
-            {canManageSessions && <div className="portal-item-actions">
-              {item.status !== 'confirmed' && item.status !== 'completed' && <button className="btn btn-sm btn-outline" onClick={() => setConfirmDialog({ type: 'session-confirm', id: item.id })}>Confirmar</button>}
-              {item.status !== 'completed' && <button className="btn btn-sm btn-primary" onClick={() => setConfirmDialog({ type: 'session-complete', id: item.id })}>Completar</button>}
-            </div>}
+            <div className="portal-item-actions">
+              {/* La bitácora es el mismo hilo que usan producción e intake. No depende de
+                  poder administrar la sesión: quien participa del rodaje necesita leer y
+                  anotar lo que se decidió, aunque no pueda confirmarla ni completarla. */}
+              <button className="btn btn-sm btn-outline" onClick={() => setThreadSessionId(item.id)}>Bitácora</button>
+              {canManageSessions && item.status !== 'confirmed' && item.status !== 'completed' && <button className="btn btn-sm btn-outline" onClick={() => setConfirmDialog({ type: 'session-confirm', id: item.id })}>Confirmar</button>}
+              {canManageSessions && item.status !== 'completed' && <button className="btn btn-sm btn-primary" onClick={() => setConfirmDialog({ type: 'session-complete', id: item.id })}>Completar</button>}
+            </div>
           </article>
         ))}</div> : <EmptyState icon="film" title="Sin sesiones" description="No se encontraron sesiones con los filtros aplicados." action={canManageSessions ? <button className="btn btn-primary" type="button" onClick={() => setSessionOpen(true)}>+ Nueva sesiÃ³n</button> : undefined} />
       ) : moodboardsLoading ? <LoadingSpinner text="Cargando moodboards..." /> : (
@@ -179,6 +186,10 @@ export function AudiovisualPage() {
         ))}</div> : <EmptyState icon="palette" title="Sin moodboards" description="No se encontraron moodboards con los filtros aplicados." action={canManageMoodboards ? <button className="btn btn-outline" type="button" onClick={() => setMoodboardOpen(true)}>+ Moodboard</button> : undefined} />
       )}
       {(updateMoodboard.error || updateSession.error) && <div className="alert alert-error">No fue posible actualizar el estado. Intenta nuevamente.</div>}
+
+      <Modal open={Boolean(threadSessionId)} onClose={() => setThreadSessionId(null)} title="Bitácora de la sesión">
+        {threadSessionId ? <ProcessCommentThread basePath={`/audiovisual/sessions/${threadSessionId}`} /> : null}
+      </Modal>
 
       <Modal open={moodboardOpen} onClose={() => setMoodboardOpen(false)} title="Nuevo moodboard">
         <form className="modal-form" onSubmit={(event) => { event.preventDefault(); createMoodboard.mutate(); }}>

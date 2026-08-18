@@ -47,6 +47,12 @@ export class AutomationTriggerListener {
   @OnEvent('lead.converted')
   handleLeadConverted(payload: TriggerPayload) { return this.enqueue('lead.converted', payload); }
 
+  @OnEvent('task.overdue')
+  handleTaskOverdue(payload: TriggerPayload) { return this.enqueue('task.overdue', payload); }
+
+  @OnEvent('deal.stale')
+  handleDealStale(payload: TriggerPayload) { return this.enqueue('deal.stale', payload); }
+
   /**
    * Escribe una ejecución pendiente por cada automatización activa que escuche este evento.
    *
@@ -91,9 +97,14 @@ export class AutomationTriggerListener {
      * Incluye el estado de destino porque un mismo trato pasa varias veces por
      * `stage_changed` y cada paso es un hecho distinto que debe ejecutarse. Sin ese matiz,
      * la guardia de unicidad haría que solo el primer cambio disparara algo.
+     *
+     * `occurredOn` lo traen los disparadores de tiempo, que se anuncian en cada pasada del
+     * trabajo periódico mientras la condición siga cumpliéndose. Al llevar la fecha, un trato
+     * vencido genera un aviso al día y no uno por hora: sin eso el equipo dejaría de mirarlos.
      */
     const stage = typeof payload.stage === 'string' ? payload.stage : '';
-    const clave = `${triggerKey}:${entityId}:${stage}:${automation.version}`;
+    const occurredOn = typeof payload.occurredOn === 'string' ? payload.occurredOn : '';
+    const clave = `${triggerKey}:${entityId}:${stage}${occurredOn ? `:${occurredOn}` : ''}:${automation.version}`;
 
     const existente = await this.runs.findOne({
       where: { organizationId: automation.organizationId, automationId: automation.id, triggerKey: clave },
@@ -121,6 +132,7 @@ export class AutomationTriggerListener {
       contact: payload.contactId,
       reservation: payload.reservationId,
       service_request: payload.serviceRequestId,
+      approval: payload.approvalId,
     };
     const value = candidatos[entityType];
     return typeof value === 'string' ? value : undefined;
