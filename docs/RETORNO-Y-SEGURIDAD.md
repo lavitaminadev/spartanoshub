@@ -53,6 +53,31 @@ npm run migration:revert
 Revierte **la última** migración aplicada. Ejecutarlo varias veces retrocede varias.
 Verifica siempre qué va a revertir antes de correrlo.
 
+## Qué se hizo en esta rama
+
+| Commit | Contenido |
+|---|---|
+| `4d652bc0` | Historial de etapas del pipeline, hilos de comentarios en el CRM, atribución de captura, arreglo de la escritura de Pixeles |
+| `4efb8feb` | Motor de automatizaciones |
+
+Migraciones nuevas, todas aditivas:
+
+- `0093-opportunity-stage-changes` — tabla `crm_opportunity_stage_changes`
+- `0094-crm-interactions-index` — índice que faltaba en `crm_interactions`
+- `0095-automations` — tablas `automations`, `automation_runs`, `automation_run_steps`
+
+Ninguna toca una columna o tabla existente, así que el código anterior sigue
+funcionando con el esquema nuevo.
+
+### Estado del motor de automatizaciones
+
+El motor está completo y probado del lado del servidor, pero **todavía no tiene
+pantalla**. Se administra por API (`/automations`) y toda automatización **nace
+desactivada**: mientras nadie la active a propósito, no se ejecuta nada y el
+sistema se comporta exactamente igual que antes de esta rama.
+
+Eso lo hace seguro de desplegar aunque el editor visual no exista aún.
+
 ## Principios que se siguieron en esta rama
 
 1. **Todas las migraciones son aditivas.** No se renombra ni se borra ninguna columna ni
