@@ -6,6 +6,7 @@ import { Modal } from '../../../shared/Modal';
 import { statusLabel } from '../../../shared/status-labels';
 import { useFocusTrap } from '../../../shared/useFocusTrap';
 import { triggerToast } from '../../../shared/toast-events';
+import { ProcessCommentThread } from '../../../shared/ProcessCommentThread';
 
 interface LeadDetail {
   id: string;
@@ -279,6 +280,13 @@ export function LeadDetailDrawer({ leadId, onClose }: LeadDetailDrawerProps) {
                 <h4>Continuidad comercial</h4>
                 {conversionMessage && <div className="alert alert-success">{conversionMessage}</div>}
                 {lead.status !== 'won' ? <><p className="page-subtitle">Al confirmar el cierre se crea la ficha del cliente en onboarding y el lead queda vinculado para trazabilidad.</p><button className="btn btn-primary btn-sm" type="button" onClick={() => setConvertOpen(true)}>Convertir en cliente</button></> : <div className="alert alert-info">Este lead ya fue convertido o marcado como ganado.</div>}
+              </div>
+
+              {/* Mismo hilo que usan producción y audiovisual: lo que se decide sobre un
+                  prospecto deja de vivir en una conversación suelta. */}
+              <div className="drawer-section">
+                <h4>Bitácora</h4>
+                <ProcessCommentThread basePath={`/crm/leads/${lead.id}`} />
               </div>
 
               <div className="drawer-section">
