@@ -7,6 +7,7 @@ import { PurgeExpiredLeadsJob } from './cron/purge-expired-leads.job';
 import { MetaLeadRecoveryJob } from './cron/meta-lead-recovery.job';
 import { MetaConversionOutboxService } from '../../modules/integrations/meta/meta-conversion-outbox.service';
 import { OperationalAlertsJob } from './cron/operational-alerts.job';
+import { AutomationRunnerService } from '../../modules/automations/automation-runner.service';
 
 @Injectable()
 export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown {
@@ -23,6 +24,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly metaRecovery: MetaLeadRecoveryJob,
     private readonly capiOutbox: MetaConversionOutboxService,
     private readonly operationalAlerts: OperationalAlertsJob,
+    private readonly automations: AutomationRunnerService,
   ) {}
 
   onModuleInit(): void {
@@ -32,6 +34,10 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     }
     this.schedule('meta-lead-recovery', 15 * 60_000, () => this.metaRecovery.handle());
     this.schedule('meta-capi-outbox', 5 * 60_000, () => this.capiOutbox.processPending());
+    // Cada minuto: es la resolución de las esperas. Una automatización que dice "esperar dos
+    // horas" no puede reanudarse con un margen mayor que el intervalo de este trabajo.
+    this.schedule('automation-runs', 60_000, () => this.automations.processPending());
+    this.schedule('automation-cleanup', 24 * 60 * 60_000, () => this.automations.cleanup());
     this.schedule('stale-pieces', 60 * 60_000, () => this.stale.handle());
     this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
     this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);

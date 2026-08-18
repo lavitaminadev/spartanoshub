@@ -56,6 +56,7 @@ import { ServiceRequestsModule } from './modules/service-requests/service-reques
 import { AccountAccessModule } from './core/client-scope/account-access.module';
 import { CronModule } from './core/cron/cron.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
+import { AutomationsModule } from './modules/automations/automations.module';
 import { PodsModule } from './modules/pods/pods.module';
 import { IntakeModule } from './modules/intake/intake.module';
 
@@ -155,6 +156,7 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
     SurveysModule,
     ServiceRequestsModule,
     WorkflowsModule,
+    AutomationsModule,
     PodsModule,
     IntakeModule,
     CronModule,
