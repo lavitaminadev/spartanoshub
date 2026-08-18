@@ -13,16 +13,48 @@
 /**
  * Intervalo efectivo para `refetchInterval`.
  *
- * Devuelve `false` —que TanStack Query entiende como «no refrescar»— cuando hay un formulario en
- * uso. En cuanto deja de haberlo, el intervalo vuelve solo, sin que la pantalla tenga que
- * suscribirse a nada.
+ * **Devuelve una función, no un número.** TanStack Query evalúa `refetchInterval` en cada
+ * vencimiento del temporizador cuando recibe una función, y una sola vez cuando recibe un
+ * valor. Con un valor, la guardia solo miraba si había alguien escribiendo en el instante del
+ * renderizado: quien empezaba a escribir después seguía recibiendo el refresco encima, que es
+ * exactamente lo que esta política venía a evitar. Devolver la función traslada la decisión al
+ * momento en que el refresco iría a ocurrir, que es el único que importa.
  *
  * @param baseMs - Cada cuánto refrescar cuando no hay nadie escribiendo.
- * @param blocked - Condición propia de la pantalla, como un modal abierto.
+ * @param blocked - Condición propia de la pantalla, como un modal abierto. Se lee en cada
+ *   vencimiento, así que puede cambiar sin volver a montar la consulta.
  */
-export function refetchWhenIdle(baseMs: number, blocked = false): number | false {
-  if (blocked || isEditing()) return false;
-  return baseMs;
+export function refetchWhenIdle(baseMs: number, blocked: boolean | (() => boolean) = false): () => number | false {
+  return () => {
+    const bloqueado = typeof blocked === 'function' ? blocked() : blocked;
+    if (bloqueado || isEditing() || isInteracting()) return false;
+    return baseMs;
+  };
+}
+
+/**
+ * Si hay una interacción en curso que un redibujado interrumpiría.
+ *
+ * Escribir no es lo único que se pierde con un refresco: arrastrar una tarjeta entre columnas,
+ * tener un menú desplegado o una selección hecha también se deshacen si la lista se reordena
+ * debajo. Se detecta por señales del documento y no por un registro propio para que una
+ * pantalla nueva quede cubierta sin acordarse de avisar.
+ */
+export function isInteracting(): boolean {
+  if (typeof document === 'undefined') return false;
+
+  // dnd-kit marca el elemento arrastrado mientras dura el gesto. Refrescar en mitad de un
+  // arrastre devuelve la tarjeta a su columna original y el movimiento se pierde.
+  if (document.querySelector('[aria-pressed="true"], .kanban-card.is-dragging')) return true;
+
+  // Un diálogo abierto casi siempre está mostrando algo a medio completar.
+  if (document.querySelector('dialog[open], [role="dialog"]')) return true;
+
+  // Texto seleccionado: alguien está leyendo o por copiar, y el redibujado lo deshace.
+  const selection = typeof window !== 'undefined' ? window.getSelection() : null;
+  if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) return true;
+
+  return false;
 }
 
 /**

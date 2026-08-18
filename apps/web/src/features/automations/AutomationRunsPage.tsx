@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../core/api';
+import { refetchWhenIdle } from '../../core/refetch-policy';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
@@ -24,8 +25,9 @@ export function AutomationRunsPage() {
     queryKey: ['automation-runs', id],
     queryFn: () => api.get(`/automations/${id}/runs`),
     // Hay ejecuciones esperando su turno o su reanudación, así que la vista se refresca sola:
-    // sin esto habría que recargar a mano para ver avanzar algo que sí está avanzando.
-    refetchInterval: 15_000,
+    // sin esto habría que recargar a mano para ver avanzar algo que sí está avanzando. Se pasa
+    // por la política común para que no reordene la lista mientras alguien lee un paso abierto.
+    refetchInterval: refetchWhenIdle(15_000, () => openRunId !== null),
   });
 
   const { data: detail } = useQuery<{ run: AutomationRun; steps: AutomationRunStep[] }>({
