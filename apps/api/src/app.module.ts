@@ -40,7 +40,6 @@ import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { BriefsModule } from './modules/briefs/briefs.module';
 import { DocumentsModule } from './modules/documents/documents.module';
-import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { MetaModule } from './modules/integrations/meta/meta.module';
 import { GoogleModule } from './modules/integrations/google/google.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
@@ -142,7 +141,6 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
     OnboardingModule,
     BriefsModule,
     DocumentsModule,
-    DashboardsModule,
     MetaModule,
     GoogleModule,
     KnowledgeModule,
