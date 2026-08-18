@@ -4,15 +4,20 @@ import { Repository } from 'typeorm';
 import { Opportunity } from '../opportunity.entity';
 import { CreateOpportunityDto } from '../dto/create-opportunity.dto';
 import { OpportunityReferenceValidator } from '../opportunity-reference-validator.service';
+import { OpportunityStageHistoryService } from '../opportunity-stage-history.service';
 
 @Injectable()
 export class CreateOpportunityUseCase {
   constructor(
     @InjectRepository(Opportunity) private readonly repo: Repository<Opportunity>,
     private readonly referenceValidator: OpportunityReferenceValidator,
+    private readonly stageHistory: OpportunityStageHistoryService,
   ) {}
 
-  async execute(dto: CreateOpportunityDto, organizationId: string): Promise<Opportunity> {
+  /**
+   * @param actorId - Persona que abre el trato, para el historial de etapas.
+   */
+  async execute(dto: CreateOpportunityDto, organizationId: string, actorId?: string): Promise<Opportunity> {
     await this.referenceValidator.validate(dto, organizationId);
     const opportunity = this.repo.create({
       ...dto,
@@ -23,6 +28,8 @@ export class CreateOpportunityUseCase {
       nextAction: dto.nextAction?.trim().replace(/\s+/g, ' ') || undefined,
       nextActionAt: dto.nextActionAt ? new Date(dto.nextActionAt) : undefined,
     });
-    return this.repo.save(opportunity);
+    const saved = await this.repo.save(opportunity);
+    await this.stageHistory.recordCreated(saved, actorId);
+    return saved;
   }
 }

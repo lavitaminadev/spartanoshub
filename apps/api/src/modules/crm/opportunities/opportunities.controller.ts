@@ -31,7 +31,7 @@ export class OpportunitiesController {
   @Post()
   @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   create(@Body() dto: CreateOpportunityDto, @Req() req: AuthenticatedRequest) {
-    return this.createOpportunity.execute(dto, req.organizationId);
+    return this.createOpportunity.execute(dto, req.organizationId, req.user.id);
   }
 
   @Get()
@@ -49,7 +49,7 @@ export class OpportunitiesController {
   @Put(':id')
   @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto, @Req() req: AuthenticatedRequest) {
-    return this.updateOpportunity.execute(id, dto, req.organizationId);
+    return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id);
   }
 
   @Delete(':id')

@@ -12,6 +12,21 @@ export enum CommentSubject {
   PIECE = 'piece',
   SESSION = 'session',
   WORK_REQUEST = 'work_request',
+  /**
+   * Prospecto y trato del embudo comercial.
+   *
+   * Se suman al mismo hilo y no a una tabla propia del CRM por la razón que ya justificaba
+   * unir las tres áreas: la conversación alrededor del trabajo es la misma cosa, cambie el
+   * trabajo de forma. Un hilo aparte para lo comercial obligaría a reescribir la visibilidad
+   * hacia el cliente, el congelado del autor y la despersonalización por retención, que acá
+   * ya están resueltos.
+   *
+   * La visibilidad `client` conserva su significado y gana uno nuevo: en una pieza distingue
+   * al equipo del cliente que revisa; en un trato distingue la nota interna de lo que el
+   * prospecto podría llegar a ver. Ante la duda el valor por defecto sigue siendo `internal`.
+   */
+  LEAD = 'lead',
+  OPPORTUNITY = 'opportunity',
 }
 
 /**

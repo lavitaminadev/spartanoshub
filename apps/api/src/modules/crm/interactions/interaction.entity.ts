@@ -1,7 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { Organization } from '../../organizations/organization.entity';
 
+/**
+ * Hecho registrado sobre un lead o un contacto.
+ *
+ * Desde que los hilos de `process_comments` alcanzan también al CRM, el reparto es este: acá
+ * van los hechos que anota el sistema —la captura, la calificación, el descarte— y allá va lo
+ * que escriben las personas. Mezclarlos hacía que el historial de un lead intercalara notas
+ * humanas con eventos automáticos sin nada que los distinguiera.
+ */
 @Entity('crm_interactions')
+@Index('IDX_crm_interactions_org_lead_date', ['organizationId', 'leadId', 'date'])
 export class Interaction {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ name: 'organization_id', type: 'uuid' }) organizationId: string;
