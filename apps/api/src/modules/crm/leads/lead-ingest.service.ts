@@ -1,0 +1,93 @@
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { createHash, randomBytes } from 'node:crypto';
+import { LeadIngestSource } from './ingest-source.entity';
+import { LeadIntakeService } from './lead-intake.service';
+import { IngestLeadDto } from './dto/ingest-lead.dto';
+
+/** Prefijo visible de la llave, para reconocerla si aparece pegada en otro sitio. */
+const TOKEN_PREFIX = 'esp_in_';
+
+/**
+ * Entrada de leads desde integraciones externas.
+ *
+ * La llave identifica **al origen**, y el origen determina de dónde se dice que viene el lead.
+ * Quien llama no lo declara: si lo hiciera, cualquiera con una llave del portal podría marcar sus
+ * leads como venidos de una campaña que costó dinero, y el costo por lead quedaría falseado.
+ */
+@Injectable()
+export class LeadIngestService {
+  private readonly logger = new Logger(LeadIngestService.name);
+
+  constructor(
+    @InjectRepository(LeadIngestSource) private readonly sources: Repository<LeadIngestSource>,
+    private readonly intake: LeadIntakeService,
+  ) {}
+
+  /**
+   * Genera una llave nueva y devuelve el valor en claro **una sola vez**.
+   *
+   * Solo se guarda su huella, igual que una contraseña: quien lea la base no debe poder usar la
+   * integración. Recuperarla después es imposible por diseño; se rota y se reconfigura el Zap.
+   */
+  async issueToken(source: LeadIngestSource): Promise<{ source: LeadIngestSource; token: string }> {
+    const token = `${TOKEN_PREFIX}${randomBytes(24).toString('hex')}`;
+    source.tokenHash = this.hash(token);
+    source.tokenHint = token.slice(-6);
+    return { source: await this.sources.save(source), token };
+  }
+
+  /**
+   * Recibe un lead y lo atribuye al origen de la llave.
+   *
+   * @param token - Llave enviada en `Authorization: Bearer …`.
+   * @throws UnauthorizedException si la llave no existe o el origen está apagado. El mensaje no
+   *   distingue ambos casos: decir «la llave existe pero está apagada» confirmaría a un tercero
+   *   que acertó una llave válida.
+   */
+  async ingest(token: string, dto: IngestLeadDto): Promise<{ leadId: string; source: string }> {
+    const source = await this.sources.findOne({ where: { tokenHash: this.hash(token), isActive: true } });
+    if (!source) throw new UnauthorizedException('Llave de integración no válida');
+
+    try {
+      const lead = await this.intake.captureLead({
+        organizationId: source.organizationId,
+        clientId: source.clientId ?? undefined,
+        name: dto.nombre,
+        phone: dto.telefono,
+        email: dto.email,
+        source: source.source,
+        campaignName: dto.campana,
+        notes: dto.mensaje,
+        // Sin identificador propio se compone uno con el origen: dos portales distintos pueden
+        // usar el mismo número interno sin que uno pise el lead del otro.
+        externalLeadId: dto.idExterno ? `${source.source}:${dto.idExterno}` : undefined,
+      });
+
+      // El contador y la fecha se actualizan aparte del lead: si esto fallara, el lead ya está
+      // guardado y perder una cifra de diagnóstico no justifica devolver un error que haría a
+      // Zapier reintentar y crear un duplicado.
+      await this.sources.update(source.id, {
+        receivedCount: () => 'received_count + 1',
+        lastReceivedAt: new Date(),
+        lastError: null,
+        lastErrorAt: null,
+      }).catch((err) => this.logger.warn(`No se pudo actualizar el contador de ${source.id}: ${err}`));
+
+      return { leadId: lead.id, source: source.source };
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : String(err);
+      // Se deja anotado en el origen para que la pantalla explique por qué no entra un lead: sin
+      // esto, una integración mal configurada se ve igual que una que nadie usó todavía.
+      await this.sources.update(source.id, { lastError: motivo.slice(0, 300), lastErrorAt: new Date() })
+        .catch(() => undefined);
+      throw err;
+    }
+  }
+
+  /** SHA-256 basta: la llave tiene 24 bytes al azar, no una contraseña que alguien memorice. */
+  private hash(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+}
