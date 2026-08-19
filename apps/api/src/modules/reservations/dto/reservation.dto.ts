@@ -106,7 +106,22 @@ export class UpdateReservationDto {
    */
   @IsOptional() @IsIn(['draft','sent','confirmed','preparation','execution','delivered']) workflowState?: string;
 }
-export class PublicFormEventDto { @IsIn(['view','start']) type: string; @IsOptional() @IsString() @MaxLength(80) sessionId?: string; @IsOptional() @IsString() @MaxLength(120) utmSource?: string; @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string; }
+/**
+ * Evento de uso del formulario público.
+ *
+ * `start` viaja además a Meta como `InitiateCheckout`, así que trae las señales del navegador
+ * que hacen falta para emparejarlo. Quien no las mande sigue funcionando: el evento se guarda
+ * igual y la conversión sale con menos precisión, pero nunca se pierde.
+ */
+export class PublicFormEventDto {
+  @IsIn(['view', 'start']) type: string;
+  @IsOptional() @IsString() @MaxLength(80) sessionId?: string;
+  @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
+  @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
+  @IsOptional() @IsString() @MaxLength(255) fbc?: string;
+  @IsOptional() @IsString() @MaxLength(255) fbp?: string;
+  @IsOptional() @IsString() @MaxLength(500) eventSourceUrl?: string;
+}
 export class PublicSurveyResponseDto {
   @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) guestName: string;
   @IsOptional() @IsEmail() guestEmail?: string;
