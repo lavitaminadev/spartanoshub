@@ -22,12 +22,13 @@ const user_entity_1 = require("../users/user.entity");
 const tasks_controller_1 = require("./tasks.controller");
 const tasks_service_1 = require("./tasks.service");
 const parameters_module_1 = require("../../core/parameters/parameters.module");
+const production_module_1 = require("../production/production.module");
 let ApprovalsModule = class ApprovalsModule {
 };
 exports.ApprovalsModule = ApprovalsModule;
 exports.ApprovalsModule = ApprovalsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([approval_request_entity_1.ApprovalRequest, piece_entity_1.Piece, piece_version_entity_1.PieceVersion, correction_entity_1.Correction, client_entity_1.Client, user_entity_1.User]), parameters_module_1.ParametersModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([approval_request_entity_1.ApprovalRequest, piece_entity_1.Piece, piece_version_entity_1.PieceVersion, correction_entity_1.Correction, client_entity_1.Client, user_entity_1.User]), parameters_module_1.ParametersModule, production_module_1.ProductionModule],
         controllers: [approvals_controller_1.ApprovalsController, tasks_controller_1.TasksController],
         providers: [list_approvals_use_case_1.ListApprovalsUseCase, update_approval_status_use_case_1.UpdateApprovalStatusUseCase, piece_rules_service_1.PieceRulesService, tasks_service_1.TasksService],
         exports: [tasks_service_1.TasksService],

@@ -28,6 +28,8 @@ import { ParametersModule } from '../../core/parameters/parameters.module';
   imports: [TypeOrmModule.forFeature([Piece, PieceVersion, Correction, ApprovalRequest, User, Client, PieceTypeDefinition]), DesignBudgetModule, GamificationModule, BillingModule, ParametersModule, AuditModule],
   controllers: [ProductionController, PieceTypesController],
   providers: [PieceTypesService, AssignPieceUseCase, CancelPieceUseCase, SubmitVersionUseCase, RejectPieceUseCase, DeliverPieceUseCase, ListPiecesUseCase, ProductionWorkflowService, PieceRulesService],
-  exports: [TypeOrmModule, PieceTypesService],
+  // `ProductionWorkflowService` sale del módulo porque el cobro de correcciones se liquida al
+  // aprobar, y esa aprobación ocurre en `ApprovalsModule`.
+  exports: [TypeOrmModule, PieceTypesService, ProductionWorkflowService],
 })
 export class ProductionModule {}
