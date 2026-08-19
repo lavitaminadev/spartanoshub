@@ -49,12 +49,27 @@ function syntheticJwt(): string {
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ sub: 'visual', exp: expiresAt })}.visual`;
 }
 
+/**
+ * Cargo con el que se revisa, tomado de `?rol=` en la dirección.
+ *
+ * El menú y varias pantallas cambian con el cargo, así que revisar siempre como `admin` deja sin
+ * ver justo lo que está asignado a otros: el inicio del CRM, por ejemplo, es de dirección
+ * comercial y de operaciones. Con esto se revisa cada vista desde el cargo que la va a usar,
+ * cambiando la dirección y sin volver a entrar.
+ *
+ *   http://localhost:5176/crm?rol=commercial_director
+ */
+function rolDeRevision(): string {
+  const solicitado = new URLSearchParams(window.location.search).get('rol');
+  return solicitado?.trim() || 'admin';
+}
+
 /** Perfil con acceso total, usado para responder `/auth/me`. */
 const VISUAL_USER = {
   id: 'visual-user',
   name: 'Modo Visual',
   email: 'visual@espartanos.local',
-  role: 'admin',
+  role: rolDeRevision(),
   organizationId: 'visual-org',
   mustChangePassword: false,
   mustCompleteProfile: false,

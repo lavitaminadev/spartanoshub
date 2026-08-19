@@ -93,7 +93,19 @@ export function CrmHomePage(): JSX.Element {
     );
   }
 
+  /*
+   * Se desarma con valores por defecto en vez de leer `data?.month.leads` en cada uso.
+   *
+   * El opcional cuida `data` pero no el contenedor de adentro: con una respuesta parcial —o
+   * vacía, mientras la integración se configura— `data.month` es indefinido y leer `.leads`
+   * revienta la pantalla entera. Desarmar acá lo resuelve una vez para toda la vista.
+   */
   const alerts = data?.alerts ?? [];
+  const team = data?.team ?? [];
+  const leadsEnCartera = data?.month?.leads ?? 0;
+  const coolingDays = data?.coolingDays ?? 7;
+  const enGestion = team.reduce((total, row) => total + row.open, 0);
+  const enfriandose = team.reduce((total, row) => total + row.cooling, 0);
   const primerNombre = user?.name?.split(/\s+/)[0] ?? '';
 
   return (
@@ -111,19 +123,19 @@ export function CrmHomePage(): JSX.Element {
 
       <section className="crm-home-kpis">
         <article>
-          <strong>{data?.month.leads ?? 0}</strong>
+          <strong>{leadsEnCartera}</strong>
           <span>Leads en cartera</span>
           <small>abiertos y cerrados</small>
         </article>
         <article>
-          <strong>{data?.team.reduce((total, row) => total + row.open, 0) ?? 0}</strong>
+          <strong>{enGestion}</strong>
           <span>En gestión</span>
           <small>asignados y sin cerrar</small>
         </article>
         <article>
-          <strong>{data?.team.reduce((total, row) => total + row.cooling, 0) ?? 0}</strong>
+          <strong>{enfriandose}</strong>
           <span>Enfriándose</span>
-          <small>sin movimiento hace +{data?.coolingDays ?? 7} días</small>
+          <small>sin movimiento hace +{coolingDays} días</small>
         </article>
       </section>
 
@@ -161,7 +173,7 @@ export function CrmHomePage(): JSX.Element {
         <header>
           <h2>Carga del equipo</h2>
         </header>
-        {data?.team.length ? (
+        {team.length ? (
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
@@ -173,7 +185,7 @@ export function CrmHomePage(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {data.team.map((row) => (
+                {team.map((row) => (
                   <tr key={row.userId}>
                     <td data-label="Persona"><strong>{row.name}</strong></td>
                     <td data-label="Leads abiertos">{row.open}</td>
