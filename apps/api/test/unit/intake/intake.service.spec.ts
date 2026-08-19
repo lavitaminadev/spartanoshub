@@ -1,3 +1,4 @@
+import { createProcessHistoryDouble } from '../../helpers/process-history.double';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 
@@ -60,7 +61,7 @@ function build(saved: unknown[] = []) {
   const { dataSource, manager, lockedQueryBuilder } = transactionalDataSource(saved);
   const udValues = { udFor: async () => 1 };
   const pieceTypes = { assertUsable: async () => undefined };
-  const service = new IntakeService(requests as any, clients as any, users as any, moodboards as any, dataSource as any, udValues as any, pieceTypes as any);
+  const service = new IntakeService(requests as any, clients as any, users as any, moodboards as any, dataSource as any, udValues as any, pieceTypes as any, createProcessHistoryDouble());
   return { service, manager, lockedQueryBuilder };
 }
 

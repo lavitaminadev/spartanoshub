@@ -63,6 +63,7 @@ const account_access_module_1 = require("./core/client-scope/account-access.modu
 const cron_module_1 = require("./core/cron/cron.module");
 const process_templates_module_1 = require("./modules/process-templates/process-templates.module");
 const automations_module_1 = require("./modules/automations/automations.module");
+const process_history_module_1 = require("./core/process-history/process-history.module");
 const pods_module_1 = require("./modules/pods/pods.module");
 const intake_module_1 = require("./modules/intake/intake.module");
 const DB_HOST = process.env.DB_HOST || 'localhost';
@@ -106,6 +107,7 @@ exports.AppModule = AppModule = __decorate([
             organization_module_1.OrganizationModule,
             account_access_module_1.AccountAccessModule,
             audit_module_1.AuditModule,
+            process_history_module_1.ProcessHistoryModule,
             events_module_1.EventsModule,
             jobs_module_1.JobsModule,
             parameters_module_1.ParametersModule,

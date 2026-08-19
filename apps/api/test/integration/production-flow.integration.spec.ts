@@ -1,3 +1,5 @@
+import { PieceRulesService } from '../../src/modules/production/piece-rules.service';
+import { createProcessHistoryDouble } from '../helpers/process-history.double';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PieceStatus } from '../../src/modules/production/piece-status.enum';
 import { CorrectionOrigin } from '../../src/modules/production/correction-origin.enum';
@@ -41,6 +43,8 @@ describe('Production Flow Integration', () => {
       mockDesignBudget as any,
       mockXp as any,
       mockBilling as any,
+      new PieceRulesService(),
+      createProcessHistoryDouble(),
     );
   });
 

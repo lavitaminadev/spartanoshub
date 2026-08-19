@@ -1,3 +1,4 @@
+import { createProcessHistoryDouble } from '../../helpers/process-history.double';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PieceStatus } from '../../../src/modules/production/piece-status.enum';
 import { CorrectionOrigin } from '../../../src/modules/production/correction-origin.enum';
@@ -55,6 +56,7 @@ describe('ProductionWorkflowService', () => {
       mockXp as any,
       mockBilling as any,
       mockPieceRules as any,
+      createProcessHistoryDouble(),
     );
   });
 

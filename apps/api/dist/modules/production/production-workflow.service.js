@@ -20,13 +20,15 @@ const piece_entity_1 = require("./piece.entity");
 const piece_version_entity_1 = require("./piece-version.entity");
 const correction_entity_1 = require("./correction.entity");
 const piece_rules_service_1 = require("./piece-rules.service");
+const process_history_service_1 = require("../../core/process-history/process-history.service");
+const process_stage_change_entity_1 = require("../../core/process-history/process-stage-change.entity");
 const piece_status_enum_1 = require("./piece-status.enum");
 const correction_origin_enum_1 = require("./correction-origin.enum");
 const design_budget_service_1 = require("../design-budget/design-budget.service");
 const xp_service_1 = require("../gamification/xp.service");
 const billing_service_1 = require("../billing/billing.service");
 let ProductionWorkflowService = class ProductionWorkflowService {
-    constructor(pieceRepo, versionRepo, correctionRepo, designBudget, xp, billing, pieceRules) {
+    constructor(pieceRepo, versionRepo, correctionRepo, designBudget, xp, billing, pieceRules, history) {
         this.pieceRepo = pieceRepo;
         this.versionRepo = versionRepo;
         this.correctionRepo = correctionRepo;
@@ -34,8 +36,10 @@ let ProductionWorkflowService = class ProductionWorkflowService {
         this.xp = xp;
         this.billing = billing;
         this.pieceRules = pieceRules;
+        this.history = history;
     }
     async assign(piece, designerId, pieceType, difficultyLevel, carouselSlides = 0, actorId) {
+        const etapaPrevia = piece.status;
         await this.pieceRepo.manager.transaction(async (manager) => {
             const udAmount = await this.designBudget.calculateForPiece(pieceType, carouselSlides, piece.organizationId);
             piece.assignedTo = designerId;
@@ -46,6 +50,7 @@ let ProductionWorkflowService = class ProductionWorkflowService {
             await manager.save(piece_entity_1.Piece, piece);
             await this.designBudget.reserveForPiece(piece, actorId, manager);
         });
+        await this.history.recordStageChange(piece.organizationId, process_stage_change_entity_1.ProcessSubject.PIECE, piece.id, etapaPrevia, piece.status, actorId);
     }
     async submitVersion(piece, fileName, driveFileId, userId) {
         const maxResult = await this.versionRepo.findOne({
@@ -61,8 +66,10 @@ let ProductionWorkflowService = class ProductionWorkflowService {
             createdBy: userId,
         });
         const saved = await this.versionRepo.save(version);
+        const etapaPrevia = piece.status;
         piece.status = piece_status_enum_1.PieceStatus.INTERNAL_REVIEW;
         await this.pieceRepo.save(piece);
+        await this.history.recordStageChange(piece.organizationId, process_stage_change_entity_1.ProcessSubject.PIECE, piece.id, etapaPrevia, piece.status, userId);
         return saved;
     }
     async settleBillableCorrections(piece, actorId, manager) {
@@ -92,6 +99,7 @@ let ProductionWorkflowService = class ProductionWorkflowService {
         return emitidas;
     }
     async rejectByClient(piece, version, comment, clientUserId) {
+        const etapaPrevia = piece.status;
         await this.pieceRepo.manager.transaction(async (manager) => {
             piece.clientCorrectionCount = (piece.clientCorrectionCount ?? 0) + 1;
             piece.correctionCount = (piece.correctionCount ?? 0) + 1;
@@ -109,8 +117,10 @@ let ProductionWorkflowService = class ProductionWorkflowService {
             piece.status = piece_status_enum_1.PieceStatus.CORRECTION;
             await manager.save(piece_entity_1.Piece, piece);
         });
+        await this.history.recordStageChange(piece.organizationId, process_stage_change_entity_1.ProcessSubject.PIECE, piece.id, etapaPrevia, piece.status, clientUserId, comment);
     }
     async deliver(piece, actorId) {
+        const etapaPrevia = piece.status;
         await this.pieceRepo.manager.transaction(async (manager) => {
             piece.status = piece_status_enum_1.PieceStatus.DELIVERED;
             piece.deliveredAt = new Date();
@@ -121,6 +131,7 @@ let ProductionWorkflowService = class ProductionWorkflowService {
                 await this.xp.registerDelivery(freshPiece, freshPiece.assignedTo, new Date(), manager);
             }
         });
+        await this.history.recordStageChange(piece.organizationId, process_stage_change_entity_1.ProcessSubject.PIECE, piece.id, etapaPrevia, piece.status, actorId);
     }
     async flagDesignerError(piece, version, description, artDirectorId) {
         await this.pieceRepo.manager.transaction(async (manager) => {
@@ -153,5 +164,6 @@ exports.ProductionWorkflowService = ProductionWorkflowService = __decorate([
         design_budget_service_1.DesignBudgetService,
         xp_service_1.XPService,
         billing_service_1.BillingService,
-        piece_rules_service_1.PieceRulesService])
+        piece_rules_service_1.PieceRulesService,
+        process_history_service_1.ProcessHistoryService])
 ], ProductionWorkflowService);
