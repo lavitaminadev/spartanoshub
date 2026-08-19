@@ -58,6 +58,15 @@ const CURRENCY = new Intl.NumberFormat('es-CL', { style: 'currency', currency: '
  * para revisar muchos tratos a la vez y para exportar, y el tablero para ver en qué etapa
  * está cada cosa y moverla.
  */
+/**
+ * Tratos que el tablero trae de una vez.
+ *
+ * El servidor acepta como máximo 100 por consulta (`PaginationDto`); pedir más devuelve 400 y el
+ * tablero queda vacío. Cuando hay más tratos que este tope, se avisa en pantalla en vez de
+ * recortar en silencio: una columna incompleta se lee como «ese trato se perdió».
+ */
+const BOARD_PAGE_SIZE = 100;
+
 export function PipelineBoardPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -79,7 +88,7 @@ export function PipelineBoardPage() {
 
   const { data, isLoading, error, refetch } = useQuery<{ data: Opportunity[]; total: number }>({
     queryKey: ['crm-opportunities-board'],
-    queryFn: () => api.get('/crm/opportunities?limit=200'),
+    queryFn: () => api.get(`/crm/opportunities?limit=${BOARD_PAGE_SIZE}`),
   });
 
   const { data: usersResp } = useQuery<{ data: UserOption[] }>({
@@ -129,6 +138,7 @@ export function PipelineBoardPage() {
   const lost = opportunities.filter((row) => row.stage === 'lost');
   const openValue = open.reduce((total, row) => total + Number(row.amount ?? 0), 0);
   const decided = won.length + lost.length;
+  const hiddenCount = Math.max(0, (data?.total ?? 0) - (data?.data.length ?? 0));
 
   const handleMove = (opportunity: Opportunity, toStage: string) => {
     if (toStage === 'lost') {
@@ -167,6 +177,13 @@ export function PipelineBoardPage() {
       </div>
 
       {feedback ? <div className={`alert alert-${feedback.tone === 'success' ? 'success' : 'error'}`}>{feedback.text}</div> : null}
+
+      {hiddenCount > 0 ? (
+        <div className="alert alert-info">
+          El tablero muestra los {BOARD_PAGE_SIZE} tratos más recientes. Hay {hiddenCount} más que
+          no caben acá: usa «Ver como tabla» para revisarlos con filtros.
+        </div>
+      ) : null}
 
       <div className="viz-stat-row">
         <KpiCard label="Tratos abiertos" value={open.length} hint="Sin cerrar" />
