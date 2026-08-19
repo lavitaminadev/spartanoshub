@@ -14,6 +14,7 @@ import { VenueTips } from './success/VenueTips';
 import { Ga4Tag } from '../../shared/Ga4Tag';
 import { trackGa4Event } from '../../shared/ga4-events';
 import { readMetaMatchData } from '../../shared/meta-match';
+import { META_DEDUPLICATED_EVENTS, metaEventId } from '@espartanos/shared';
 import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible, slotDateKey } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
 import { VitaIcons } from '../../shared/Icons';
@@ -143,7 +144,8 @@ export function PublicReservationPage() {
       fbc: meta.fbc, fbp: meta.fbp, eventSourceUrl: window.location.href,
     }).then((evento: { id?: string }) => {
       if (!evento?.id || !window.fbq || !form?.pixelId) return;
-      window.fbq('trackSingle', form.pixelId, 'InitiateCheckout', {}, { eventID: `initiatecheckout:${evento.id}` });
+      const evt = META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT;
+      window.fbq('trackSingle', form.pixelId, evt, {}, { eventID: metaEventId(evt, evento.id) });
     }).catch(() => undefined);
   };
 
@@ -192,9 +194,8 @@ export function PublicReservationPage() {
   useEffect(() => {
     if (!submit.data?.id || !window.fbq) return;
     if (!form?.pixelId) return;
-    const eventName = isSurvey ? 'Lead' : 'Schedule';
-    const eventId = `${eventName.toLowerCase()}:${submit.data.id}`;
-    window.fbq('trackSingle', form.pixelId, eventName, {}, { eventID: eventId });
+    const eventName = isSurvey ? META_DEDUPLICATED_EVENTS.LEAD : META_DEDUPLICATED_EVENTS.SCHEDULE;
+    window.fbq('trackSingle', form.pixelId, eventName, {}, { eventID: metaEventId(eventName, submit.data.id) });
   }, [form?.pixelId, isSurvey, submit.data?.id]);
 
   useEffect(() => {

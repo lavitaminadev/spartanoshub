@@ -586,7 +586,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}`
                 : undefined;
             await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-                eventName: 'InitiateCheckout',
+                eventName: shared_1.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT,
                 eventTime: Math.floor(event.createdAt.getTime() / 1000),
                 actionSource: 'website',
                 eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
@@ -598,7 +598,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     client_user_agent: userAgent ?? undefined,
                 },
                 customData: { contentIds: [form.id], contentType: 'reservation' },
-                eventId: `initiatecheckout:${event.id}`,
+                eventId: (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
             });
         }
         catch (err) {
@@ -856,7 +856,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         if (result.created && result.form.metaCapiEnabled && capabilities.metaConversions) {
             try {
-                await this.enqueueMetaConversion(result.booking, result.form, 'Schedule', Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
+                await this.enqueueMetaConversion(result.booking, result.form, shared_1.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI enqueue failed for booking ${result.booking.id}: ${err instanceof Error ? err.message : err}`);
@@ -942,7 +942,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 client_ip_address: booking.clientIpAddress ?? undefined,
                 client_user_agent: booking.clientUserAgent ?? undefined,
             },
-            customData: { contentIds: [form.id], contentType: 'reservation' }, eventId: `${eventName.toLowerCase()}:${booking.id}`,
+            customData: { contentIds: [form.id], contentType: 'reservation' },
+            eventId: (0, shared_1.metaEventId)(eventName, booking.id),
         });
     }
     async enqueueMetaSurveyConversion(response, form, dto, ipAddress, userAgent, eventSourceUrl) {
@@ -956,7 +957,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const location = (0, geo_inference_1.inferLocationFromPhone)(phone);
         const rating = Number((dto.answers || {}).rating ?? (dto.answers || {}).experience_rating);
         await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-            eventName: 'Lead',
+            eventName: shared_1.META_DEDUPLICATED_EVENTS.LEAD,
             eventTime: Math.floor(response.createdAt.getTime() / 1000),
             actionSource: 'website',
             eventSourceUrl: eventSourceUrl || fallbackUrl || undefined,
@@ -979,7 +980,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 contentType: 'survey',
                 ...(Number.isFinite(rating) ? { value: rating } : {}),
             },
-            eventId: `lead:${response.id}`,
+            eventId: (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.LEAD, response.id),
         });
     }
     async notifyNewBooking(form, booking) {
@@ -1031,7 +1032,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const result = new Map();
         if (items.length === 0)
             return result;
-        const eventIds = items.flatMap((item) => [`schedule:${item.id}`, `reserva_asistida:${item.id}`]);
+        const eventIds = items.flatMap((item) => [
+            (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id),
+            (0, shared_1.metaEventId)(shared_1.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id),
+        ]);
         let rows = [];
         try {
             rows = await this.dataSource.query(`SELECT event_id, status FROM meta_conversion_outbox WHERE organization_id = ? AND event_id IN (${eventIds.map(() => '?').join(',')})`, [organizationId, ...eventIds]);
@@ -1044,8 +1048,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         for (const item of items) {
             const matchFields = [item.guestEmail, item.guestPhone, item.fbc, item.fbp, item.clientIpAddress].filter(Boolean).length;
             result.set(item.id, {
-                schedule: byEvent.get(`schedule:${item.id}`) ?? null,
-                attended: byEvent.get(`reserva_asistida:${item.id}`) ?? null,
+                schedule: byEvent.get((0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id)) ?? null,
+                attended: byEvent.get((0, shared_1.metaEventId)(shared_1.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id)) ?? null,
                 matchFields,
             });
         }
@@ -1100,7 +1104,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
         if (statusChangedTo === 'attended' && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) {
             try {
-                await this.enqueueMetaConversion(saved, formForMeta, 'Reserva_Asistida', Math.floor(saved.startsAt.getTime() / 1000));
+                await this.enqueueMetaConversion(saved, formForMeta, shared_1.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000));
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);

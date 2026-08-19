@@ -46,5 +46,6 @@ export const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'app
 
 export * from './industries'
 export * from './lead-sources'
+export * from './meta-events'
 export * from './modules'
 export * from './role-tiers'
