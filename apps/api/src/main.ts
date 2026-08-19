@@ -43,8 +43,15 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'],
-    maxAge: 86400,
+    // `X-XSRF-TOKEN` la agrega axios por su cuenta cuando existe la galleta `XSRF-TOKEN`. Sin
+    // declararla, el navegador bloquea la petición aunque el servidor esté sano.
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Request-Id', 'X-XSRF-TOKEN'],
+    // Diez minutos, no un día. El navegador guarda también los preflight que fallan: si la API
+    // está caída cuando alguien entra, recibe la pagina de error del servidor web —sin cabeceras
+    // CORS— y reutiliza ese fracaso durante todo el tiempo que diga este valor, aunque la API ya
+    // haya vuelto. Con un día, una caída de un minuto deja al equipo fuera hasta el día
+    // siguiente, y no se arregla recargando: esa cache no se vacía sin cerrar el navegador.
+    maxAge: 600,
   });
   app.setGlobalPrefix('api');
 
