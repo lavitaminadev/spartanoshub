@@ -6,6 +6,7 @@ import { CollectionEmailsJob } from './cron/collection-emails.job';
 import { PurgeExpiredLeadsJob } from './cron/purge-expired-leads.job';
 import { MetaLeadRecoveryJob } from './cron/meta-lead-recovery.job';
 import { MetaConversionOutboxService } from '../../modules/integrations/meta/meta-conversion-outbox.service';
+import { GoogleConversionOutboxService } from '../../modules/integrations/google/google-conversion-outbox.service';
 import { OperationalAlertsJob } from './cron/operational-alerts.job';
 import { AutomationRunnerService } from '../../modules/automations/automation-runner.service';
 import { AutomationScheduleJob } from '../../modules/automations/automation-schedule.job';
@@ -25,6 +26,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly purge: PurgeExpiredLeadsJob,
     private readonly metaRecovery: MetaLeadRecoveryJob,
     private readonly capiOutbox: MetaConversionOutboxService,
+    private readonly googleOutbox: GoogleConversionOutboxService,
     private readonly operationalAlerts: OperationalAlertsJob,
     private readonly automations: AutomationRunnerService,
     private readonly automationSchedule: AutomationScheduleJob,
@@ -38,6 +40,11 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     }
     this.schedule('meta-lead-recovery', 15 * 60_000, () => this.metaRecovery.handle());
     this.schedule('meta-capi-outbox', 5 * 60_000, () => this.capiOutbox.processPending());
+    // Google va acá por la misma razón que Meta, y faltaba: tenía endpoint de cron externo pero
+    // nadie lo vaciaba desde adentro. Una reserva encola su conversión de Google igual que la de
+    // Meta, así que sin esto quedaban esperando indefinidamente mientras las de Meta salían, y
+    // la diferencia solo se nota al comparar campañas semanas después.
+    this.schedule('google-ads-outbox', 5 * 60_000, () => this.googleOutbox.processPending());
     // Cada minuto: es la resolución de las esperas. Una automatización que dice "esperar dos
     // horas" no puede reanudarse con un margen mayor que el intervalo de este trabajo.
     this.schedule('automation-runs', 60_000, () => this.automations.processPending());
