@@ -4,6 +4,9 @@ import { normalizePhone } from '../../../shared/phone';
 
 @Entity('leads')
 @Index('UQ_leads_org_external', ['organizationId', 'externalLeadId'], { unique: true })
+// Cubren las consultas del inicio del CRM: por estado, por antigüedad y por responsable.
+@Index('IDX_leads_org_status_updated', ['organizationId', 'status', 'updatedAt'])
+@Index('IDX_leads_org_assigned', ['organizationId', 'assignedTo'])
 export class Lead {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ name: 'organization_id', type: 'uuid' }) organizationId: string;
