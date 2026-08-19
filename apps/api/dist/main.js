@@ -44,8 +44,8 @@ async function bootstrap() {
         },
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'],
-        maxAge: 86400,
+        allowedHeaders: ['Authorization', 'Content-Type', 'X-Request-Id', 'X-XSRF-TOKEN'],
+        maxAge: 600,
     });
     app.setGlobalPrefix('api');
     const swaggerConfig = new swagger_1.DocumentBuilder()
