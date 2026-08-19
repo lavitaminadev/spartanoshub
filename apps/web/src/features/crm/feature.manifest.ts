@@ -13,6 +13,12 @@ registerFeature({
     //
     // El "pipeline" es el recorrido por etapas de las oportunidades (nuevo → calificado →
     // propuesta → negociación → ganado/perdido); los prospectos son quienes entran a él.
+    // Va primero porque es la puerta: dice qué atender antes de mostrar cualquier lista.
+    //
+    // Sin `admin` a propósito: la matriz no le da el módulo `crm`, así que ofrecérselo en el menú
+    // solo produciría una entrada que lleva a una pantalla cerrada. Las demás entradas de acá lo
+    // listan por arrastre histórico y hay una prueba que impide que esa contradicción crezca.
+    { label: 'Inicio del CRM', path: '/crm', icon: '🏁', roles: ['commercial_director', 'operations_director'] },
     { label: 'Contactos captados', path: '/crm/contacts', icon: '🙋', roles: ['admin', 'commercial_director', 'operations_director', 'community_manager'] },
     { label: 'Posibles clientes', path: '/crm/leads', icon: '🌱', roles: ['admin', 'commercial_director'] },
     { label: 'Oportunidades de venta', path: '/crm/opportunities', icon: '🧭', roles: ['admin', 'commercial_director'] },

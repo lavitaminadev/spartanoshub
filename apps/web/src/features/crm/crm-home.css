@@ -1,0 +1,53 @@
+/*
+ * Inicio del CRM.
+ *
+ * Tres bloques en orden de urgencia: saludo con el recuento, cifras de contexto, y los avisos.
+ * El saludo va primero y en grande porque es lo único que dice cuánto trabajo hay antes de que la
+ * persona tenga que leer un número.
+ */
+
+.crm-home { display: grid; gap: 22px; }
+
+.crm-home-greeting h1 { margin: 0; font-size: 30px; color: var(--text-dark); letter-spacing: -.01em; }
+.crm-home-greeting p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+
+/* Cifras de contexto. El borde superior las separa sin encerrarlas en una caja completa. */
+.crm-home-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.crm-home-kpis article {
+  display: grid; gap: 2px; padding: 18px 20px;
+  background: var(--white); border: 1px solid var(--surface-sage);
+  border-top: 3px solid #17c78a; border-radius: var(--radius-md);
+}
+.crm-home-kpis strong { font-size: 34px; line-height: 1.1; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.crm-home-kpis span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+/* El subtítulo es lo que hace legible el número: «12» no dice nada, «12 sin movimiento» sí. */
+.crm-home-kpis small { font-size: 12px; color: var(--muted); }
+
+.crm-home-alerts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.crm-home-alerts article {
+  display: grid; gap: 12px; padding: 18px 20px;
+  background: var(--white); border: 1px solid var(--surface-sage);
+  border-left: 3px solid #e2a33c; border-radius: var(--radius-md);
+}
+.crm-home-alert-head { display: flex; gap: 14px; align-items: flex-start; }
+.crm-home-alert-head b { font-size: 30px; line-height: 1; color: #e2a33c; font-variant-numeric: tabular-nums; }
+.crm-home-alert-head h3 { margin: 0; font-size: 15px; color: var(--text-dark); }
+.crm-home-alert-head p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
+
+/* El ejemplo concreto: sin él, el aviso manda a buscar a otra pantalla. */
+.crm-home-alert-sample {
+  display: grid; gap: 2px; padding: 10px 12px;
+  background: var(--soft); border-radius: var(--radius-sm);
+  text-decoration: none; color: inherit;
+}
+.crm-home-alert-sample:hover { background: var(--surface-sage); }
+.crm-home-alert-sample strong { font-size: 13px; color: var(--text-dark); }
+.crm-home-alert-sample span { font-size: 12px; color: var(--muted); }
+
+.crm-home-team { display: grid; gap: 12px; }
+.crm-home-team h2 { margin: 0; font-size: 18px; color: var(--text-dark); }
+
+@media (max-width: 600px) {
+  .crm-home-greeting h1 { font-size: 24px; }
+  .crm-home-kpis strong { font-size: 28px; }
+}

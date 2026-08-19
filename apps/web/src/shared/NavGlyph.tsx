@@ -21,6 +21,7 @@ const GLYPHS: Record<string, string> = {
   'Tablero de pipeline': 'TP',
   'Automatizaciones': 'AU',
   'Actividad comercial': 'AC',
+  'Inicio del CRM': 'IC',
   'Contactos captados': 'CC',
   'Catálogo': 'CA',
   Contratos: 'CT',

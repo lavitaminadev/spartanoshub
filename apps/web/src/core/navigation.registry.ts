@@ -49,7 +49,7 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
   {
     id: 'sales',
     label: 'Ventas y CRM',
-    paths: ['/crm/leads', '/crm/opportunities', '/crm/pipeline', '/crm/interactions', '/crm/contacts', '/automations', '/catalog', '/contracts', '/billing'],
+    paths: ['/crm', '/crm/leads', '/crm/opportunities', '/crm/pipeline', '/crm/interactions', '/crm/contacts', '/automations', '/catalog', '/contracts', '/billing'],
   },
   {
     id: 'clients',
@@ -225,6 +225,7 @@ const PATH_FEATURE: Record<string, string> = {
   // entrada es lo que hace que ese estado gobierne el menú: sin ella la ruta no pertenece a
   // ningún módulo y se muestra siempre, sea cual sea su fase.
   '/surveys': 'surveys',
+  '/crm': 'crm',
   '/crm/contacts': 'crm',
   '/crm/leads': 'commercialPipeline',
   '/crm/opportunities': 'commercialPipeline',
