@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from 'react';
+import { useDeferredValue } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -9,6 +9,7 @@ import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import type { Reservation } from './types';
 import { browserDateBoundaryUtc } from './local-time';
+import { useUrlFilters } from '../../shared/use-url-filters';
 
 interface Client { id: string; name: string }
 interface ReservationPage { items: Reservation[]; total: number; page: number; pageSize: number; pages: number }
@@ -31,6 +32,9 @@ function waitingTimeLabel(createdAt?: string): string {
   return remainingMinutes > 0 ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
 }
 
+/** Claves que esta pantalla filtra. Limpiar suelta solo estas. */
+const FILTER_KEYS = ['cliente', 'fecha'] as const;
+
 /**
  * Vista de solo lectura con las reservas en estado `waitlist`.
  *
@@ -39,9 +43,15 @@ function waitingTimeLabel(createdAt?: string): string {
  * real en la bandeja de reservas.
  */
 export function WaitlistPage() {
-  const [clientFilter, setClientFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  // En la dirección: quien atiende la lista abre un detalle, vuelve, y necesita seguir viendo lo
+  // mismo. En estado local ese viaje de ida y vuelta borraba los tres filtros.
+  const filtros = useUrlFilters(FILTER_KEYS);
+  const clientFilter = filtros.values.cliente;
+  const setClientFilter = (valor: string) => filtros.setValue('cliente', valor);
+  const dateFilter = filtros.values.fecha;
+  const setDateFilter = (valor: string) => filtros.setValue('fecha', valor);
+  const searchInput = filtros.search;
+  const setSearchInput = filtros.setSearch;
   const search = useDeferredValue(searchInput.trim());
 
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
@@ -81,7 +91,7 @@ export function WaitlistPage() {
         {clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}
       </select>
       <label className="filter-date">Fecha<input className="input" type="date" aria-label="Filtrar por fecha" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></label>
-      <button type="button" className="btn btn-outline btn-sm" disabled={!clientFilter && !dateFilter && !searchInput} onClick={() => { setClientFilter(''); setDateFilter(''); setSearchInput(''); }}>Limpiar</button>
+      <button type="button" className="btn btn-outline btn-sm" disabled={!filtros.hasAny} onClick={filtros.clear}>Limpiar</button>
     </div>
 
     {error ? (isForbiddenError(error) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar la lista de espera" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />)
