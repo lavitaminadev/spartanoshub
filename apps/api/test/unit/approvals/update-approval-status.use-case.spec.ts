@@ -1,3 +1,4 @@
+import { createProcessHistoryDouble } from '../../helpers/process-history.double';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { UpdateApprovalStatusUseCase } from '../../../src/modules/approvals/update-approval-status.use-case';
@@ -23,7 +24,7 @@ describe('UpdateApprovalStatusUseCase', () => {
     // La liquidación de rondas cobrables vive en el flujo de producción; acá solo interesa que
     // se invoque al aprobar y no al rechazar.
     workflow = { settleBillableCorrections: vi.fn().mockResolvedValue(0) };
-    service = new UpdateApprovalStatusUseCase(repo as any, new PieceRulesService(), workflow as any, events as any);
+    service = new UpdateApprovalStatusUseCase(repo as any, new PieceRulesService(), workflow as any, events as any, createProcessHistoryDouble());
   });
 
   it('records the fourth client rejection as a billable correction', async () => {

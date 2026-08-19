@@ -28,6 +28,8 @@ const ud_values_service_1 = require("../design-budget/ud-values.service");
 const piece_types_service_1 = require("../production/piece-types.service");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const retry_on_deadlock_1 = require("../../shared/retry-on-deadlock");
+const process_history_service_1 = require("../../core/process-history/process-history.service");
+const process_stage_change_entity_1 = require("../../core/process-history/process-stage-change.entity");
 const EMPTY_SCOPE = Symbol('empty-client-scope');
 const ROLES_BY_AREA = {
     [work_request_entity_1.WorkRequestArea.DESIGN]: [user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.ART_DIRECTOR],
@@ -67,7 +69,7 @@ const TRANSITIONS = {
     [work_request_entity_1.WorkRequestStatus.REJECTED]: [],
 };
 let IntakeService = class IntakeService {
-    constructor(requests, clients, users, moodboards, dataSource, udValues, pieceTypes) {
+    constructor(requests, clients, users, moodboards, dataSource, udValues, pieceTypes, history) {
         this.requests = requests;
         this.clients = clients;
         this.users = users;
@@ -75,10 +77,11 @@ let IntakeService = class IntakeService {
         this.dataSource = dataSource;
         this.udValues = udValues;
         this.pieceTypes = pieceTypes;
+        this.history = history;
     }
     async create(organizationId, requestedBy, dto, allowedClientIds) {
         await this.assertClient(organizationId, dto.clientId, allowedClientIds);
-        return (0, retry_on_deadlock_1.retryOnDeadlock)('crear solicitud', () => this.dataSource.transaction(async (manager) => {
+        const creada = await (0, retry_on_deadlock_1.retryOnDeadlock)('crear solicitud', () => this.dataSource.transaction(async (manager) => {
             await manager.getRepository(organization_entity_1.Organization)
                 .createQueryBuilder('o')
                 .setLock('pessimistic_write')
@@ -101,6 +104,8 @@ let IntakeService = class IntakeService {
             });
             return manager.save(work_request_entity_1.WorkRequest, request);
         }));
+        await this.history.recordCreated(organizationId, process_stage_change_entity_1.ProcessSubject.WORK_REQUEST, creada.id, creada.status, requestedBy);
+        return creada;
     }
     async list(organizationId, filters, allowedClientIds, viewer) {
         const scope = this.clientScope(filters.clientId, allowedClientIds);
@@ -149,6 +154,7 @@ let IntakeService = class IntakeService {
     async update(organizationId, id, dto, allowedClientIds, viewer) {
         const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
         this.assertCanCoordinate(request, viewer);
+        const etapaPrevia = request.status;
         if (dto.status && dto.status !== request.status) {
             const allowed = TRANSITIONS[request.status] ?? [];
             if (!allowed.includes(dto.status)) {
@@ -182,7 +188,9 @@ let IntakeService = class IntakeService {
             request.rejectionReason = dto.rejectionReason?.trim() || null;
         if (dto.operationalFields !== undefined)
             request.operationalFields = dto.operationalFields;
-        return this.requests.save(request);
+        const guardada = await this.requests.save(request);
+        await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.WORK_REQUEST, guardada.id, etapaPrevia, guardada.status, viewer?.id, guardada.rejectionReason);
+        return guardada;
     }
     async convert(organizationId, id, dto, allowedClientIds, viewer) {
         const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
@@ -190,10 +198,13 @@ let IntakeService = class IntakeService {
         if (request.status !== work_request_entity_1.WorkRequestStatus.ACCEPTED) {
             throw new common_1.ConflictException('Solo una solicitud aceptada se puede convertir');
         }
-        if (request.area === work_request_entity_1.WorkRequestArea.DESIGN)
-            return this.convertToPieces(organizationId, request, dto);
-        if (request.area === work_request_entity_1.WorkRequestArea.AUDIOVISUAL)
-            return this.convertToSession(organizationId, request, dto);
+        if (request.area === work_request_entity_1.WorkRequestArea.DESIGN || request.area === work_request_entity_1.WorkRequestArea.AUDIOVISUAL) {
+            const convertida = request.area === work_request_entity_1.WorkRequestArea.DESIGN
+                ? await this.convertToPieces(organizationId, request, dto)
+                : await this.convertToSession(organizationId, request, dto);
+            await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.WORK_REQUEST, convertida.id, work_request_entity_1.WorkRequestStatus.ACCEPTED, convertida.status, viewer?.id);
+            return convertida;
+        }
         throw new common_1.ConflictException('Una solicitud de community todavía no se convierte: falta definir su destino en la parrilla de contenido');
     }
     assertAreaAccess(request, viewer) {
@@ -336,5 +347,6 @@ exports.IntakeService = IntakeService = __decorate([
         typeorm_2.Repository,
         typeorm_2.DataSource,
         ud_values_service_1.UdValuesService,
-        piece_types_service_1.PieceTypesService])
+        piece_types_service_1.PieceTypesService,
+        process_history_service_1.ProcessHistoryService])
 ], IntakeService);

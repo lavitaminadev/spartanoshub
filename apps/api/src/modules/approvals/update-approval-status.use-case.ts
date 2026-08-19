@@ -6,6 +6,8 @@ import { ApprovalRequest } from './approval-request.entity';
 import { ApprovalRequestStatus } from './approval-request-status.enum';
 import { Piece } from '../production/piece.entity';
 import { PieceStatus } from '../production/piece-status.enum';
+import { ProcessHistoryService } from '../../core/process-history/process-history.service';
+import { ProcessSubject } from '../../core/process-history/process-stage-change.entity';
 import { UserRole } from '../organizations/user-role.enum';
 import { Correction } from '../production/correction.entity';
 import { CorrectionOrigin } from '../production/correction-origin.enum';
@@ -20,6 +22,7 @@ export class UpdateApprovalStatusUseCase {
     private readonly pieceRules: PieceRulesService,
     private readonly workflow: ProductionWorkflowService,
     private readonly events: EventEmitter2,
+    private readonly history: ProcessHistoryService,
   ) {}
 
   async execute(
@@ -47,6 +50,8 @@ export class UpdateApprovalStatusUseCase {
         throw new BadRequestException('Esta solicitud ya fue resuelta');
       }
 
+      // Se lee antes de pisarla: es de dónde viene la aprobación, y el historial lo necesita.
+      const etapaPrevia = approval.status;
       approval.status = status as ApprovalRequestStatus;
       approval.decisionAt = new Date();
       approval.decisionNotes = notes || undefined;
@@ -100,10 +105,17 @@ export class UpdateApprovalStatusUseCase {
         await manager.save(Piece, piece);
       }
 
-      return { approval: await manager.save(ApprovalRequest, approval), correctionEvent };
+      return { approval: await manager.save(ApprovalRequest, approval), correctionEvent, etapaPrevia };
     });
 
     if (result.correctionEvent) this.events.emit('piece.rejected', result.correctionEvent);
+
+    // Fuera de la transacción, como en los demás procesos: perder una fila de historial degrada
+    // un informe; impedir que el cliente apruebe detiene la entrega.
+    await this.history.recordStageChange(
+      organizationId, ProcessSubject.APPROVAL, result.approval.id,
+      result.etapaPrevia, result.approval.status, actor.userId, notes,
+    );
     return result.approval;
   }
 }

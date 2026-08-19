@@ -56,6 +56,7 @@ import { AccountAccessModule } from './core/client-scope/account-access.module';
 import { CronModule } from './core/cron/cron.module';
 import { ProcessTemplatesModule } from './modules/process-templates/process-templates.module';
 import { AutomationsModule } from './modules/automations/automations.module';
+import { ProcessHistoryModule } from './core/process-history/process-history.module';
 import { PodsModule } from './modules/pods/pods.module';
 import { IntakeModule } from './modules/intake/intake.module';
 
@@ -116,6 +117,7 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
     OrganizationModule,
     AccountAccessModule,
     AuditModule,
+    ProcessHistoryModule,
     EventsModule,
     JobsModule,
     ParametersModule,

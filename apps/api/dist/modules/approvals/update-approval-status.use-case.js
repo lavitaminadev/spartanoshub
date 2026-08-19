@@ -21,6 +21,8 @@ const approval_request_entity_1 = require("./approval-request.entity");
 const approval_request_status_enum_1 = require("./approval-request-status.enum");
 const piece_entity_1 = require("../production/piece.entity");
 const piece_status_enum_1 = require("../production/piece-status.enum");
+const process_history_service_1 = require("../../core/process-history/process-history.service");
+const process_stage_change_entity_1 = require("../../core/process-history/process-stage-change.entity");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const correction_entity_1 = require("../production/correction.entity");
 const correction_origin_enum_1 = require("../production/correction-origin.enum");
@@ -28,11 +30,12 @@ const piece_version_entity_1 = require("../production/piece-version.entity");
 const piece_rules_service_1 = require("../production/piece-rules.service");
 const production_workflow_service_1 = require("../production/production-workflow.service");
 let UpdateApprovalStatusUseCase = class UpdateApprovalStatusUseCase {
-    constructor(repo, pieceRules, workflow, events) {
+    constructor(repo, pieceRules, workflow, events, history) {
         this.repo = repo;
         this.pieceRules = pieceRules;
         this.workflow = workflow;
         this.events = events;
+        this.history = history;
     }
     async execute(id, organizationId, actor, status, decisionNotes) {
         if (![approval_request_status_enum_1.ApprovalRequestStatus.APPROVED, approval_request_status_enum_1.ApprovalRequestStatus.REJECTED].includes(status)) {
@@ -52,6 +55,7 @@ let UpdateApprovalStatusUseCase = class UpdateApprovalStatusUseCase {
             if (![approval_request_status_enum_1.ApprovalRequestStatus.PENDING, approval_request_status_enum_1.ApprovalRequestStatus.VIEWED].includes(approval.status)) {
                 throw new common_1.BadRequestException('Esta solicitud ya fue resuelta');
             }
+            const etapaPrevia = approval.status;
             approval.status = status;
             approval.decisionAt = new Date();
             approval.decisionNotes = notes || undefined;
@@ -102,10 +106,11 @@ let UpdateApprovalStatusUseCase = class UpdateApprovalStatusUseCase {
                 }
                 await manager.save(piece_entity_1.Piece, piece);
             }
-            return { approval: await manager.save(approval_request_entity_1.ApprovalRequest, approval), correctionEvent };
+            return { approval: await manager.save(approval_request_entity_1.ApprovalRequest, approval), correctionEvent, etapaPrevia };
         });
         if (result.correctionEvent)
             this.events.emit('piece.rejected', result.correctionEvent);
+        await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.APPROVAL, result.approval.id, result.etapaPrevia, result.approval.status, actor.userId, notes);
         return result.approval;
     }
 };
@@ -116,5 +121,6 @@ exports.UpdateApprovalStatusUseCase = UpdateApprovalStatusUseCase = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         piece_rules_service_1.PieceRulesService,
         production_workflow_service_1.ProductionWorkflowService,
-        event_emitter_1.EventEmitter2])
+        event_emitter_1.EventEmitter2,
+        process_history_service_1.ProcessHistoryService])
 ], UpdateApprovalStatusUseCase);

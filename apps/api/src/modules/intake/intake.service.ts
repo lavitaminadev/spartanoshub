@@ -14,6 +14,8 @@ import { PieceTypesService } from '../production/piece-types.service';
 import { CreateWorkRequestDto, ResolveWorkRequestDto, UpdateWorkRequestDto } from './dto/work-request.dto';
 import { UserRole } from '../organizations/user-role.enum';
 import { retryOnDeadlock } from '../../shared/retry-on-deadlock';
+import { ProcessHistoryService } from '../../core/process-history/process-history.service';
+import { ProcessSubject } from '../../core/process-history/process-stage-change.entity';
 
 /** Marca un alcance que no puede coincidir con ningún registro. */
 const EMPTY_SCOPE = Symbol('empty-client-scope');
@@ -106,6 +108,7 @@ export class IntakeService {
     private readonly dataSource: DataSource,
     private readonly udValues: UdValuesService,
     private readonly pieceTypes: PieceTypesService,
+    private readonly history: ProcessHistoryService,
   ) {}
 
   /**
@@ -120,7 +123,7 @@ export class IntakeService {
   async create(organizationId: string, requestedBy: string, dto: CreateWorkRequestDto, allowedClientIds?: string[]): Promise<WorkRequest> {
     await this.assertClient(organizationId, dto.clientId, allowedClientIds);
 
-    return retryOnDeadlock('crear solicitud', () => this.dataSource.transaction(async (manager) => {
+    const creada = await retryOnDeadlock('crear solicitud', () => this.dataSource.transaction(async (manager) => {
       await manager.getRepository(Organization)
         .createQueryBuilder('o')
         .setLock('pessimistic_write')
@@ -148,6 +151,13 @@ export class IntakeService {
       });
       return manager.save(WorkRequest, request);
     }));
+
+    // Fuera de la transacción a propósito: el historial no puede hacer fallar la creación de la
+    // solicitud, y dentro heredaría un reintento por bloqueo dejando dos filas de apertura.
+    await this.history.recordCreated(
+      organizationId, ProcessSubject.WORK_REQUEST, creada.id, creada.status, requestedBy,
+    );
+    return creada;
   }
 
   /**
@@ -240,6 +250,10 @@ export class IntakeService {
     const request = await this.findOne(organizationId, id, allowedClientIds, viewer);
     this.assertCanCoordinate(request, viewer);
 
+    // Se lee antes de pisarla: el registro de recorrido necesita de dónde viene, y `request`
+    // ya trae la etapa nueva para cuando se guarda.
+    const etapaPrevia = request.status;
+
     if (dto.status && dto.status !== request.status) {
       const allowed = TRANSITIONS[request.status] ?? [];
       if (!allowed.includes(dto.status)) {
@@ -273,7 +287,12 @@ export class IntakeService {
     if (dto.rejectionReason !== undefined) request.rejectionReason = dto.rejectionReason?.trim() || null;
     if (dto.operationalFields !== undefined) request.operationalFields = dto.operationalFields;
 
-    return this.requests.save(request);
+    const guardada = await this.requests.save(request);
+    await this.history.recordStageChange(
+      organizationId, ProcessSubject.WORK_REQUEST, guardada.id,
+      etapaPrevia, guardada.status, viewer?.id, guardada.rejectionReason,
+    );
+    return guardada;
   }
 
   /**
@@ -304,8 +323,19 @@ export class IntakeService {
       throw new ConflictException('Solo una solicitud aceptada se puede convertir');
     }
 
-    if (request.area === WorkRequestArea.DESIGN) return this.convertToPieces(organizationId, request, dto);
-    if (request.area === WorkRequestArea.AUDIOVISUAL) return this.convertToSession(organizationId, request, dto);
+    // Las dos conversiones llevan la solicitud de `accepted` a `converted`, así que el registro
+    // va acá una vez y no repetido en cada rama: una rama nueva queda cubierta sin acordarse.
+    if (request.area === WorkRequestArea.DESIGN || request.area === WorkRequestArea.AUDIOVISUAL) {
+      const convertida = request.area === WorkRequestArea.DESIGN
+        ? await this.convertToPieces(organizationId, request, dto)
+        : await this.convertToSession(organizationId, request, dto);
+
+      await this.history.recordStageChange(
+        organizationId, ProcessSubject.WORK_REQUEST, convertida.id,
+        WorkRequestStatus.ACCEPTED, convertida.status, viewer?.id,
+      );
+      return convertida;
+    }
 
     // Community produce publicaciones, que viven en la parrilla de contenido y necesitan una
     // semana a la que pertenecer. Mientras esa decisión no esté tomada, la solicitud se acepta

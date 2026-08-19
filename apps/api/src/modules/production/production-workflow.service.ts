@@ -5,6 +5,8 @@ import { Piece } from './piece.entity';
 import { PieceVersion } from './piece-version.entity';
 import { Correction } from './correction.entity';
 import { PieceRulesService } from './piece-rules.service';
+import { ProcessHistoryService } from '../../core/process-history/process-history.service';
+import { ProcessSubject } from '../../core/process-history/process-stage-change.entity';
 import { PieceStatus } from './piece-status.enum';
 import { CorrectionOrigin } from './correction-origin.enum';
 import { DesignBudgetService } from '../design-budget/design-budget.service';
@@ -22,6 +24,7 @@ export class ProductionWorkflowService {
     private xp: XPService,
     private billing: BillingService,
     private pieceRules: PieceRulesService,
+    private history: ProcessHistoryService,
   ) {}
 
   async assign(
@@ -32,6 +35,7 @@ export class ProductionWorkflowService {
     carouselSlides = 0,
     actorId?: string,
   ): Promise<void> {
+    const etapaPrevia = piece.status;
     await this.pieceRepo.manager.transaction(async (manager) => {
       const udAmount = await this.designBudget.calculateForPiece(pieceType, carouselSlides, piece.organizationId);
 
@@ -44,6 +48,13 @@ export class ProductionWorkflowService {
       await manager.save(Piece, piece);
       await this.designBudget.reserveForPiece(piece, actorId, manager);
     });
+
+    // El registro va fuera de la transacción en los cuatro pasos: si el historial fallara
+    // dentro, revertiría el avance del trabajo, y perder una fila de informe nunca justifica
+    // impedir que alguien asigne, entregue o corrija una pieza.
+    await this.history.recordStageChange(
+      piece.organizationId, ProcessSubject.PIECE, piece.id, etapaPrevia, piece.status, actorId,
+    );
   }
 
   async submitVersion(piece: Piece, fileName: string, driveFileId: string | undefined, userId: string): Promise<PieceVersion> {
@@ -62,8 +73,12 @@ export class ProductionWorkflowService {
     });
     const saved = await this.versionRepo.save(version);
 
+    const etapaPrevia = piece.status;
     piece.status = PieceStatus.INTERNAL_REVIEW;
     await this.pieceRepo.save(piece);
+    await this.history.recordStageChange(
+      piece.organizationId, ProcessSubject.PIECE, piece.id, etapaPrevia, piece.status, userId,
+    );
 
     return saved;
   }
@@ -115,6 +130,7 @@ export class ProductionWorkflowService {
   }
 
   async rejectByClient(piece: Piece, version: PieceVersion, comment: string, clientUserId: string): Promise<void> {
+    const etapaPrevia = piece.status;
     await this.pieceRepo.manager.transaction(async (manager) => {
       piece.clientCorrectionCount = (piece.clientCorrectionCount ?? 0) + 1;
       piece.correctionCount = (piece.correctionCount ?? 0) + 1;
@@ -149,9 +165,17 @@ export class ProductionWorkflowService {
       piece.status = PieceStatus.CORRECTION;
       await manager.save(Piece, piece);
     });
+
+    // El comentario del cliente viaja como motivo: es lo que explica esta vuelta atrás, y sin
+    // él el historial muestra un retroceso sin causa.
+    await this.history.recordStageChange(
+      piece.organizationId, ProcessSubject.PIECE, piece.id,
+      etapaPrevia, piece.status, clientUserId, comment,
+    );
   }
 
   async deliver(piece: Piece, actorId?: string): Promise<void> {
+    const etapaPrevia = piece.status;
     await this.pieceRepo.manager.transaction(async (manager) => {
       piece.status = PieceStatus.DELIVERED;
       piece.deliveredAt = new Date();
@@ -165,6 +189,10 @@ export class ProductionWorkflowService {
         await this.xp.registerDelivery(freshPiece, freshPiece.assignedTo, new Date(), manager);
       }
     });
+
+    await this.history.recordStageChange(
+      piece.organizationId, ProcessSubject.PIECE, piece.id, etapaPrevia, piece.status, actorId,
+    );
   }
 
   async flagDesignerError(piece: Piece, version: PieceVersion, description: string, artDirectorId: string): Promise<void> {
