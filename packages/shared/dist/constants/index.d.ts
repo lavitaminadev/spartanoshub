@@ -31,6 +31,7 @@ export declare const FILE_MAX_SIZE_BYTES: number;
 export declare const ALLOWED_FILE_TYPES: readonly ["image/jpeg", "image/png", "image/webp", "application/pdf", "video/mp4"];
 export * from './industries';
 export * from './lead-sources';
+export * from './meta-events';
 export * from './modules';
 export * from './role-tiers';
 //# sourceMappingURL=index.d.ts.map

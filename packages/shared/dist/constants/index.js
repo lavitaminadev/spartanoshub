@@ -48,6 +48,7 @@ exports.FILE_MAX_SIZE_BYTES = 50 * 1024 * 1024;
 exports.ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'video/mp4'];
 __exportStar(require("./industries"), exports);
 __exportStar(require("./lead-sources"), exports);
+__exportStar(require("./meta-events"), exports);
 __exportStar(require("./modules"), exports);
 __exportStar(require("./role-tiers"), exports);
 //# sourceMappingURL=index.js.map

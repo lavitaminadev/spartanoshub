@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicReservationDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
-import { RESERVATION_LEAD_SOURCE } from '@espartanos/shared';
+import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, RESERVATION_LEAD_SOURCE, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
@@ -642,7 +642,7 @@ export class ReservationsService {
         : undefined;
 
       await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-        eventName: 'InitiateCheckout',
+        eventName: META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT,
         eventTime: Math.floor(event.createdAt.getTime() / 1000),
         actionSource: 'website',
         eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
@@ -655,7 +655,7 @@ export class ReservationsService {
         },
         customData: { contentIds: [form.id], contentType: 'reservation' },
         // Mismo identificador que dispara el navegador, o Meta cuenta el inicio dos veces.
-        eventId: `initiatecheckout:${event.id}`,
+        eventId: metaEventId(META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
       });
     } catch (err) {
       this.logger.warn(`Meta CAPI InitiateCheckout enqueue failed for form event ${event.id}: ${err instanceof Error ? err.message : err}`);
@@ -988,7 +988,7 @@ export class ReservationsService {
 
     if (result.created && result.form.metaCapiEnabled && capabilities.metaConversions) {
       try {
-        await this.enqueueMetaConversion(result.booking, result.form, 'Schedule', Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
+        await this.enqueueMetaConversion(result.booking, result.form, META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
       } catch (err) {
         this.logger.warn(`Meta CAPI enqueue failed for booking ${result.booking.id}: ${err instanceof Error ? err.message : err}`);
         await this.recordIntegrationFailure(result.booking, 'meta_capi');
@@ -1095,7 +1095,10 @@ export class ReservationsService {
         client_ip_address: booking.clientIpAddress ?? undefined,
         client_user_agent: booking.clientUserAgent ?? undefined,
       },
-      customData: { contentIds: [form.id], contentType: 'reservation' }, eventId: `${eventName.toLowerCase()}:${booking.id}`,
+      customData: { contentIds: [form.id], contentType: 'reservation' },
+      // El identificador sale de la función compartida con el navegador: si los dos lados no
+      // coinciden, Meta cuenta dos conversiones donde hubo una y nadie se entera.
+      eventId: metaEventId(eventName as MetaEvent, booking.id),
     });
   }
 
@@ -1109,7 +1112,7 @@ export class ReservationsService {
     const location = inferLocationFromPhone(phone);
     const rating = Number((dto.answers || {}).rating ?? (dto.answers || {}).experience_rating);
     await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-      eventName: 'Lead',
+      eventName: META_DEDUPLICATED_EVENTS.LEAD,
       eventTime: Math.floor(response.createdAt.getTime() / 1000),
       actionSource: 'website',
       eventSourceUrl: eventSourceUrl || fallbackUrl || undefined,
@@ -1132,7 +1135,7 @@ export class ReservationsService {
         contentType: 'survey',
         ...(Number.isFinite(rating) ? { value: rating } : {}),
       },
-      eventId: `lead:${response.id}`,
+      eventId: metaEventId(META_DEDUPLICATED_EVENTS.LEAD, response.id),
     });
   }
 
@@ -1181,7 +1184,10 @@ export class ReservationsService {
     const result = new Map<string, { schedule: string | null; attended: string | null; matchFields: number }>();
     if (items.length === 0) return result;
 
-    const eventIds = items.flatMap((item) => [`schedule:${item.id}`, `reserva_asistida:${item.id}`]);
+    const eventIds = items.flatMap((item) => [
+      metaEventId(META_DEDUPLICATED_EVENTS.SCHEDULE, item.id),
+      metaEventId(META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id),
+    ]);
     let rows: Array<{ event_id: string; status: string }> = [];
     try {
       rows = await this.dataSource.query(
@@ -1198,8 +1204,8 @@ export class ReservationsService {
     for (const item of items) {
       const matchFields = [item.guestEmail, item.guestPhone, item.fbc, item.fbp, item.clientIpAddress].filter(Boolean).length;
       result.set(item.id, {
-        schedule: byEvent.get(`schedule:${item.id}`) ?? null,
-        attended: byEvent.get(`reserva_asistida:${item.id}`) ?? null,
+        schedule: byEvent.get(metaEventId(META_DEDUPLICATED_EVENTS.SCHEDULE, item.id)) ?? null,
+        attended: byEvent.get(metaEventId(META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id)) ?? null,
         matchFields,
       });
     }
@@ -1234,7 +1240,7 @@ export class ReservationsService {
     // que es lo opuesto de lo que pasó. 'attended' es el único resultado que produce una señal
     // de conversión real. Ambos resultados igual se sincronizan al CRM abajo para que el equipo
     // pueda ver/reportar las inasistencias internamente.
-    if (statusChangedTo === 'attended' && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, 'Reserva_Asistida', Math.floor(saved.startsAt.getTime() / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
+    if (statusChangedTo === 'attended' && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
     if (statusChangedTo === 'attended' && formForMeta) { try { await this.enqueueGoogleConversion(saved, formForMeta, 'attended', saved.startsAt); } catch (err) { this.logger.warn(`Google Ads attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'google_ads'); } }
     if (statusChangedTo === 'attended' || statusChangedTo === 'no_show') { try { await this.leadIntake.updateStatusByContact(organizationId, statusChangedTo === 'attended' ? 'attended' : 'no_show', saved.guestEmail, saved.guestPhone, saved.clientId); } catch (err) { this.logger.warn(`CRM status sync failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); /* CRM sync is best-effort */ } }
     return saved;
