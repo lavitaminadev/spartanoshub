@@ -156,5 +156,7 @@ __decorate([
 ], Lead.prototype, "normalize", null);
 exports.Lead = Lead = __decorate([
     (0, typeorm_1.Entity)('leads'),
-    (0, typeorm_1.Index)('UQ_leads_org_external', ['organizationId', 'externalLeadId'], { unique: true })
+    (0, typeorm_1.Index)('UQ_leads_org_external', ['organizationId', 'externalLeadId'], { unique: true }),
+    (0, typeorm_1.Index)('IDX_leads_org_status_updated', ['organizationId', 'status', 'updatedAt']),
+    (0, typeorm_1.Index)('IDX_leads_org_assigned', ['organizationId', 'assignedTo'])
 ], Lead);
