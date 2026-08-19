@@ -2,6 +2,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { DataTable } from '../../shared/DataTable';
+import { FilterBar } from '../../shared/FilterBar';
+import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { EmptyState } from '../../shared/EmptyState';
@@ -24,9 +26,19 @@ interface ChargeNote {
 
 export function BillingPage() {
   const queryClient = useQueryClient();
+  const filtros = useUrlFilters(['estado']);
   const [prices, setPrices] = useState<Record<string, string>>({});
   const { data: invoicesResp, isLoading, error } = useQuery<{ data: Invoice[] }>({ queryKey: ['invoices'], queryFn: () => api.get('/billing/invoices') });
-  const invoices = (invoicesResp?.data ?? []) as Invoice[];
+  const todas = (invoicesResp?.data ?? []) as Invoice[];
+  // Filtro básico: número y estado. Los estados salen de lo que hay cargado y no de una lista
+  // escrita acá, así que un estado nuevo en el servidor aparece sin tocar esta pantalla.
+  const invoices = todas.filter((factura) => {
+    if (filtros.values.estado && factura.status !== filtros.values.estado) return false;
+    const buscado = filtros.search.trim().toLowerCase();
+    return !buscado || factura.number.toLowerCase().includes(buscado);
+  });
+  const estadosPresentes = [...new Set(todas.map((factura) => factura.status))].sort()
+    .map((estado) => ({ value: estado, label: estado }));
   const { data: chargeData } = useQuery<ChargeNote[]>({ queryKey: ['charge-notes'], queryFn: () => api.get('/billing/invoices/charge-notes') });
   const priceMutation = useMutation({
     mutationFn: ({ id, amount }: { id: string; amount: number }) => api.put(`/billing/invoices/charge-notes/${id}/price`, { amount }),
@@ -38,10 +50,21 @@ export function BillingPage() {
   return (
     <div className="page">
       <h1>Facturación</h1>
+
+      <FilterBar
+        search={filtros.search}
+        onSearchChange={filtros.setSearch}
+        searchPlaceholder="Buscar por número de factura..."
+        filters={[{ key: 'estado', label: 'Estado', options: estadosPresentes, allLabel: 'Todos los estados' }]}
+        values={filtros.values}
+        onFilterChange={filtros.setValue}
+        onClear={filtros.hasAny ? filtros.clear : undefined}
+      />
+
       <DataTable
         keyExtractor={(r) => r.id as string}
         columns={[
-          { key: 'number', label: 'NÂ° Factura', sortable: true },
+          { key: 'number', label: 'N° Factura', sortable: true },
           { key: 'clientId', label: 'Cliente' },
           { key: 'total', label: 'Monto', render: (r) => `$${Number(r.total).toLocaleString('es-CL')}` },
           { key: 'status', label: 'Estado', render: (r) => <StatusBadge status={r.status as string} /> },

@@ -2,6 +2,7 @@ import { useDeferredValue, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { DataTable } from '../../shared/DataTable';
+import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
 import { matchesSearch } from '../../shared/search';
@@ -18,10 +19,18 @@ interface KnowledgeChunk {
   createdAt: number;
 }
 
+/** Claves que esta pantalla filtra. Limpiar suelta solo estas. */
+const FILTER_KEYS = ['fuente'] as const;
+
 export function KnowledgePage() {
-  const [search, setSearch] = useState('');
+  // En la dirección y no en estado local: volver desde un fragmento conserva la búsqueda, y una
+  // vista filtrada se puede compartir con quien está buscando lo mismo.
+  const filtros = useUrlFilters(FILTER_KEYS);
+  const search = filtros.search;
+  const setSearch = filtros.setSearch;
   const deferredSearch = useDeferredValue(search);
-  const [source, setSource] = useState('');
+  const source = filtros.values.fuente;
+  const setSource = (valor: string) => filtros.setValue('fuente', valor);
   const [selected, setSelected] = useState<KnowledgeChunk | null>(null);
   const knowledgeQuery = useQuery<KnowledgeChunk[]>({ queryKey: ['knowledge'], queryFn: () => api.get('/knowledge') });
   if (knowledgeQuery.isLoading) return <LoadingSpinner text="Organizando conocimiento interno..." />;
@@ -41,7 +50,7 @@ export function KnowledgePage() {
       aside={<div className="page-hero-stats"><span><small>Fuentes</small><strong>{sources.length}</strong></span><span><small>Fragmentos</small><strong>{chunks.length}</strong></span><span><small>Volumen</small><strong>{totalTokens.toLocaleString('es-CL')} <i>tokens</i></strong></span></div>}
     />
     <div className="knowledge-explainer"><span>i</span><p><strong>¿Qué estás viendo?</strong> Cada documento se divide en fragmentos pequeños para conservar trazabilidad y facilitar búsquedas internas. La fuente original siempre permanece identificada.</p></div>
-    <section className="knowledge-panel"><header><div><span className="page-eyebrow">EXPLORADOR</span><h2>Contenido indexado</h2></div><span>{filtered.length} resultados</span></header><div className="filters knowledge-filters"><input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar dentro de fuentes y contenido..." aria-label="Buscar conocimiento" /><select className="input" value={source} onChange={(event) => setSource(event.target.value)} aria-label="Filtrar por fuente"><option value="">Todas las fuentes</option>{sources.map((item) => <option value={item} key={item}>{item}</option>)}</select>{(search || source) && <button className="btn btn-outline" onClick={() => { setSearch(''); setSource(''); }}>Limpiar</button>}</div>
+    <section className="knowledge-panel"><header><div><span className="page-eyebrow">EXPLORADOR</span><h2>Contenido indexado</h2></div><span>{filtered.length} resultados</span></header><div className="filters knowledge-filters"><input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar dentro de fuentes y contenido..." aria-label="Buscar conocimiento" /><select className="input" value={source} onChange={(event) => setSource(event.target.value)} aria-label="Filtrar por fuente"><option value="">Todas las fuentes</option>{sources.map((item) => <option value={item} key={item}>{item}</option>)}</select>{filtros.hasAny && <button className="btn btn-outline" onClick={filtros.clear}>Limpiar</button>}</div>
       <DataTable<KnowledgeChunk> keyExtractor={(row) => row.id} emptyMessage={chunks.length ? 'No hay coincidencias con los filtros actuales.' : 'Aún no hay documentos procesados en la memoria operativa.'} columns={[
         { key: 'sourceName', label: 'Fuente', sortable: true, render: (row) => <span className="primary-cell"><strong>{row.sourceName}</strong><small>Fragmento {row.chunkIndex + 1}</small></span> },
         { key: 'content', label: 'Vista previa', render: (row) => <span className="knowledge-preview">{row.content.slice(0, 150)}{row.content.length > 150 ? '...' : ''}</span> },

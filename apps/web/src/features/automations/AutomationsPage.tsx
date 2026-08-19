@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../core/api';
 import { DataTable, type Column } from '../../shared/DataTable';
+import { FilterBar } from '../../shared/FilterBar';
+import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
@@ -20,6 +22,7 @@ export function AutomationsPage() {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
+  const filtros = useUrlFilters(['estado']);
   const { data, isLoading, error, refetch } = useQuery<Automation[]>({
     queryKey: ['automations'],
     queryFn: () => api.get('/automations'),
@@ -92,7 +95,13 @@ export function AutomationsPage() {
   if (isLoading) return <LoadingSpinner />;
   if (error) return <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} />;
 
-  const automations = data ?? [];
+  const todas = data ?? [];
+  const automations = todas.filter((row) => {
+    if (filtros.values.estado === 'activas' && !row.isActive) return false;
+    if (filtros.values.estado === 'pausadas' && row.isActive) return false;
+    const buscado = filtros.search.trim().toLowerCase();
+    return !buscado || row.name.toLowerCase().includes(buscado);
+  });
 
   return (
     <div className="page">
@@ -112,11 +121,34 @@ export function AutomationsPage() {
 
       {feedback ? <div className={`alert alert-${feedback.tone === 'success' ? 'success' : 'error'}`}>{feedback.text}</div> : null}
 
+      <FilterBar
+        search={filtros.search}
+        onSearchChange={filtros.setSearch}
+        searchPlaceholder="Buscar por nombre..."
+        filters={[{
+          key: 'estado',
+          label: 'Estado',
+          allLabel: 'Activas y pausadas',
+          options: [{ value: 'activas', label: 'Activas' }, { value: 'pausadas', label: 'Pausadas' }],
+        }]}
+        values={filtros.values}
+        onFilterChange={filtros.setValue}
+        onClear={filtros.hasAny ? filtros.clear : undefined}
+      />
+
       {automations.length === 0 ? (
-        <EmptyState
-          title="Aún no hay automatizaciones"
-          description="Crea la primera para que el sistema reaccione solo a los cambios del pipeline."
-        />
+        filtros.hasAny ? (
+          <EmptyState
+            title="Ninguna automatización calza con este filtro"
+            description="Prueba con otro estado o borra la búsqueda para verlas todas."
+            action={<button type="button" className="btn btn-outline" onClick={filtros.clear}>Limpiar filtros</button>}
+          />
+        ) : (
+          <EmptyState
+            title="Aún no hay automatizaciones"
+            description="Crea la primera para que el sistema reaccione solo a los cambios del pipeline."
+          />
+        )
       ) : (
         <DataTable
           columns={columns}
