@@ -41,8 +41,8 @@ let PublicReservationsController = class PublicReservationsController {
     slots(slug, from, days, serviceId, resourceId) {
         return this.service.slots(slug, from, Number(days || 14), serviceId, resourceId);
     }
-    event(slug, dto) {
-        return this.service.trackPublicEvent(slug, dto);
+    event(slug, dto, ipAddress, userAgent) {
+        return this.service.trackPublicEvent(slug, dto, ipAddress, userAgent);
     }
     async validateCoupon(slug, dto) {
         const code = dto.code?.trim();
@@ -83,8 +83,10 @@ __decorate([
     (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60000 } }),
     __param(0, (0, common_1.Param)('slug')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Ip)()),
+    __param(3, (0, common_1.Headers)('user-agent')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, reservation_dto_1.PublicFormEventDto]),
+    __metadata("design:paramtypes", [String, reservation_dto_1.PublicFormEventDto, String, Object]),
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "event", null);
 __decorate([

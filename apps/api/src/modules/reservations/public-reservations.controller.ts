@@ -54,8 +54,15 @@ export class PublicReservationsController {
 
   @Post(':slug/events')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  event(@Param('slug') slug: string, @Body() dto: PublicFormEventDto) {
-    return this.service.trackPublicEvent(slug, dto);
+  event(
+    @Param('slug') slug: string,
+    @Body() dto: PublicFormEventDto,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string | undefined,
+  ) {
+    // La IP y el user-agent se leen de la petición y no del cuerpo: un dato que el navegador
+    // puede escribir no sirve para atribuir.
+    return this.service.trackPublicEvent(slug, dto, ipAddress, userAgent);
   }
 
   @Post(':slug/coupon-validate')

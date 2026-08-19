@@ -589,15 +589,77 @@ export class ReservationsService {
     return { slots: result, fullDays };
   }
 
-  async trackPublicEvent(slug: string, dto: PublicFormEventDto) {
+  async trackPublicEvent(slug: string, dto: PublicFormEventDto, ipAddress?: string, userAgent?: string) {
     const form = await this.publishedForm(slug);
     if (dto.sessionId) {
       const existing = await this.formEvents.findOne({ where: { formId: form.id, type: dto.type, sessionId: dto.sessionId } });
+      // Ya registrado: no se reenvía a Meta. La deduplicación por `eventId` la cubriría, pero
+      // gastar la llamada igual llena la cola de duplicados que se descartan al otro lado.
       if (existing) return existing;
     }
-    return this.saveFormEventOnce(
+    const saved = await this.saveFormEventOnce(
       this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmCampaign: dto.utmCampaign }),
     );
+
+    if (dto.type === 'start') {
+      await this.enqueueMetaInitiateCheckout(saved, form, dto, ipAddress, userAgent);
+    }
+    return saved;
+  }
+
+  /**
+   * Avisa a Meta de que alguien empezó a llenar el formulario.
+   *
+   * Sin este evento Meta solo ve dos momentos —quien aterriza y quien reserva— y entre ambos
+   * puede haber semanas de campaña sin señal. `InitiateCheckout` le da el paso intermedio, que
+   * es lo que necesita para optimizar hacia gente que se interesa y no solo hacia tráfico.
+   *
+   * En este momento la persona todavía no dio correo ni teléfono, así que lo único con lo que
+   * Meta puede emparejar es lo que trae el navegador: `fbp`, `fbc`, IP y user-agent. Por eso el
+   * evento vale sobre todo cuando el Pixel está bloqueado, que es justo cuando el navegador no
+   * lo manda por su cuenta.
+   *
+   * Nunca interrumpe el registro del evento: la analítica propia del formulario no depende de
+   * que Meta esté configurado ni de que responda.
+   */
+  private async enqueueMetaInitiateCheckout(
+    event: ReservationFormEvent,
+    form: ReservationForm,
+    dto: PublicFormEventDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    try {
+      if (!form.metaCapiEnabled) return;
+      const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
+      if (!capabilities.metaConversions) return;
+
+      const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId);
+      if (!pixelId || !accessToken) return;
+
+      const fallbackUrl = process.env.APP_PUBLIC_URL
+        ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}`
+        : undefined;
+
+      await this.metaOutbox.enqueue(form.organizationId, pixelId, {
+        eventName: 'InitiateCheckout',
+        eventTime: Math.floor(event.createdAt.getTime() / 1000),
+        actionSource: 'website',
+        eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
+        userData: {
+          externalId: [event.id],
+          fbc: dto.fbc ?? undefined,
+          fbp: dto.fbp ?? undefined,
+          client_ip_address: ipAddress ?? undefined,
+          client_user_agent: userAgent ?? undefined,
+        },
+        customData: { contentIds: [form.id], contentType: 'reservation' },
+        // Mismo identificador que dispara el navegador, o Meta cuenta el inicio dos veces.
+        eventId: `initiatecheckout:${event.id}`,
+      });
+    } catch (err) {
+      this.logger.warn(`Meta CAPI InitiateCheckout enqueue failed for form event ${event.id}: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   /**

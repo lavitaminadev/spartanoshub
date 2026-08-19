@@ -559,14 +559,51 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         return { slots: result, fullDays };
     }
-    async trackPublicEvent(slug, dto) {
+    async trackPublicEvent(slug, dto, ipAddress, userAgent) {
         const form = await this.publishedForm(slug);
         if (dto.sessionId) {
             const existing = await this.formEvents.findOne({ where: { formId: form.id, type: dto.type, sessionId: dto.sessionId } });
             if (existing)
                 return existing;
         }
-        return this.saveFormEventOnce(this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmCampaign: dto.utmCampaign }));
+        const saved = await this.saveFormEventOnce(this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmCampaign: dto.utmCampaign }));
+        if (dto.type === 'start') {
+            await this.enqueueMetaInitiateCheckout(saved, form, dto, ipAddress, userAgent);
+        }
+        return saved;
+    }
+    async enqueueMetaInitiateCheckout(event, form, dto, ipAddress, userAgent) {
+        try {
+            if (!form.metaCapiEnabled)
+                return;
+            const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
+            if (!capabilities.metaConversions)
+                return;
+            const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId);
+            if (!pixelId || !accessToken)
+                return;
+            const fallbackUrl = process.env.APP_PUBLIC_URL
+                ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}`
+                : undefined;
+            await this.metaOutbox.enqueue(form.organizationId, pixelId, {
+                eventName: 'InitiateCheckout',
+                eventTime: Math.floor(event.createdAt.getTime() / 1000),
+                actionSource: 'website',
+                eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
+                userData: {
+                    externalId: [event.id],
+                    fbc: dto.fbc ?? undefined,
+                    fbp: dto.fbp ?? undefined,
+                    client_ip_address: ipAddress ?? undefined,
+                    client_user_agent: userAgent ?? undefined,
+                },
+                customData: { contentIds: [form.id], contentType: 'reservation' },
+                eventId: `initiatecheckout:${event.id}`,
+            });
+        }
+        catch (err) {
+            this.logger.warn(`Meta CAPI InitiateCheckout enqueue failed for form event ${event.id}: ${err instanceof Error ? err.message : err}`);
+        }
     }
     async saveFormEventOnce(event) {
         try {

@@ -127,10 +127,24 @@ export function PublicReservationPage() {
     api.post(`/public/reservations/${slug}/events`, { type: 'view', sessionId, utmSource, utmCampaign }).catch(() => undefined);
   }, [form, sessionId, slug, utmCampaign, utmSource]);
 
+  /**
+   * Avisa —una sola vez por sesión— de que la persona empezó a llenar el formulario.
+   *
+   * El servidor traduce este `start` a `InitiateCheckout` de Meta, así que viaja con las señales
+   * del navegador para poder emparejarlo. El identificador del evento lo devuelve el servidor y
+   * con él se dispara el Pixel, para que Meta no cuente el inicio dos veces.
+   */
   const markStarted = () => {
     if (started.current) return;
     started.current = true;
-    api.post(`/public/reservations/${slug}/events`, { type: 'start', sessionId, utmSource, utmCampaign }).catch(() => undefined);
+    const meta = readMetaMatchData();
+    api.post(`/public/reservations/${slug}/events`, {
+      type: 'start', sessionId, utmSource, utmCampaign,
+      fbc: meta.fbc, fbp: meta.fbp, eventSourceUrl: window.location.href,
+    }).then((evento: { id?: string }) => {
+      if (!evento?.id || !window.fbq || !form?.pixelId) return;
+      window.fbq('trackSingle', form.pixelId, 'InitiateCheckout', {}, { eventID: `initiatecheckout:${evento.id}` });
+    }).catch(() => undefined);
   };
 
   const submit = useMutation({
