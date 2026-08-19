@@ -11,6 +11,9 @@ import { ConvertLeadUseCase } from './leads/use-cases/convert-lead.use-case';
 import { UpdateLeadUseCase } from './leads/use-cases/update-lead.use-case';
 import { GetLeadUseCase } from './leads/use-cases/get-lead.use-case';
 import { LeadIntakeService } from './leads/lead-intake.service';
+import { LeadIngestService } from './leads/lead-ingest.service';
+import { LeadIngestController } from './leads/lead-ingest.controller';
+import { LeadIngestSource } from './leads/ingest-source.entity';
 import { ImportLeadsUseCase } from './leads/use-cases/import-leads.use-case';
 import { CrmLeadAutomationService } from './leads/crm-lead-automation.service';
 import { Contact } from './contacts/contact.entity';
@@ -35,10 +38,10 @@ import { Client } from '../clients/client.entity';
 import { Reservation } from '../reservations/domain/reservation.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation]), AccountAccessModule, AuditModule, ProcessTemplatesModule],
-  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController],
+  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource]), AccountAccessModule, AuditModule, ProcessTemplatesModule],
+  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController],
   providers: [
-    CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, CrmLeadAutomationService,
+    CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, LeadIngestService, CrmLeadAutomationService,
     ContactsService,
     OpportunityReferenceValidator, OpportunityStageHistoryService, CreateOpportunityUseCase, ListOpportunitiesUseCase, GetOpportunityUseCase, UpdateOpportunityUseCase, RemoveOpportunityUseCase,
     InteractionsService,
