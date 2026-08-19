@@ -40,6 +40,6 @@ exports.ProductionModule = ProductionModule = __decorate([
         imports: [typeorm_1.TypeOrmModule.forFeature([piece_entity_1.Piece, piece_version_entity_1.PieceVersion, correction_entity_1.Correction, approval_request_entity_1.ApprovalRequest, user_entity_1.User, client_entity_1.Client, piece_type_definition_entity_1.PieceTypeDefinition]), design_budget_module_1.DesignBudgetModule, gamification_module_1.GamificationModule, billing_module_1.BillingModule, parameters_module_1.ParametersModule, audit_module_1.AuditModule],
         controllers: [production_controller_1.ProductionController, piece_types_controller_1.PieceTypesController],
         providers: [piece_types_service_1.PieceTypesService, assign_piece_use_case_1.AssignPieceUseCase, cancel_piece_use_case_1.CancelPieceUseCase, submit_version_use_case_1.SubmitVersionUseCase, reject_piece_use_case_1.RejectPieceUseCase, deliver_piece_use_case_1.DeliverPieceUseCase, list_pieces_use_case_1.ListPiecesUseCase, production_workflow_service_1.ProductionWorkflowService, piece_rules_service_1.PieceRulesService],
-        exports: [typeorm_1.TypeOrmModule, piece_types_service_1.PieceTypesService],
+        exports: [typeorm_1.TypeOrmModule, piece_types_service_1.PieceTypesService, production_workflow_service_1.ProductionWorkflowService],
     })
 ], ProductionModule);
