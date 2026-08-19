@@ -7,6 +7,7 @@ import type { JSX } from 'react';
 import { useAuth } from './auth';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { getAllowedRolesForPath, isPathEnabled, isRoleAllowedForPath } from './navigation.registry';
+import { AccessDenied } from './AccessDenied';
 import type { UserRole } from '@espartanos/shared';
 
 /**
@@ -47,12 +48,14 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   // sobre sí mismo (ni convertir el inicio de sesión en un 404). Los módulos secundarios
   // siguen protegidos por feature, ciclo de vida y permiso efectivo.
   const isInternalDashboard = path === '/dashboard' && user.role !== 'client';
-  if (path && !isPersonalRoute && !isInternalDashboard && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle, user.role)) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Un bloqueo se explica, no se disimula. Antes ambos casos devolvían al inicio en silencio y
+  // eso se reporta como pantalla rota, cuando en realidad es un permiso que falta.
   const roles = allowedRoles ?? (path ? getAllowedRolesForPath(path) : undefined);
+  if (path && !isPersonalRoute && !isInternalDashboard && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle, user.role)) {
+    return <AccessDenied path={path} userRole={user.role} allowedRoles={roles} reason="module" />;
+  }
   if (!isRoleAllowedForPath(roles, user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <AccessDenied path={path} userRole={user.role} allowedRoles={roles} reason="role" />;
   }
   return <>{children}</>;
 }

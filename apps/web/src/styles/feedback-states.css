@@ -45,3 +45,15 @@
   .dashboard-config > footer { flex-direction: column; }
 }
 
+
+/* Pantalla de acceso denegado. Un bloqueo se explica: qué cargo entró, qué cargos la abren y
+   cuál es el paso siguiente. Antes era un redirect mudo al inicio y se reportaba como falla. */
+.access-denied-detail { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 8px 18px; margin: 0 0 16px; align-items: baseline; }
+.access-denied-detail dt { color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.access-denied-detail dd { margin: 0; color: var(--text-dark); font-size: 13px; }
+.access-denied-detail code { font-size: 12px; }
+.access-denied-next { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 62ch; }
+@media (max-width: 520px) {
+  .access-denied-detail { grid-template-columns: 1fr; gap: 2px; }
+  .access-denied-detail dt { margin-top: 10px; }
+}
