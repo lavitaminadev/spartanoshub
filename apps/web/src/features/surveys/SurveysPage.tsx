@@ -18,6 +18,8 @@ import { PageHero } from '../../shared/PageHero';
 import { triggerToast } from '../../shared/toast-events';
 import { useDeleteSurvey, useSurveys, useUpdateSurvey } from './useSurveys';
 import { publicSurveyUrl } from '../../core/public-url';
+import { FilterBar } from '../../shared/FilterBar';
+import { useUrlFilters } from '../../shared/use-url-filters';
 import { useAuth } from '../../core/auth';
 import type { Survey, SurveyType } from '@espartanos/shared';
 import './surveys.css';
@@ -27,6 +29,15 @@ const TYPE_FILTERS: Array<{ value: 'all' | SurveyType; label: string }> = [
   { value: 'all', label: 'Todas' },
   { value: 'internal', label: 'Equipo' },
   { value: 'customer', label: 'Clientes' },
+];
+
+/** Claves que esta pantalla filtra. Limpiar suelta solo estas y no parámetros ajenos. */
+const FILTER_KEYS = ['tipo', 'estado'] as const;
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'draft', label: 'Borrador' },
+  { value: 'active', label: 'Publicada' },
+  { value: 'closed', label: 'Cerrada' },
 ];
 
 function nextSurveyStatus(status: Survey['status']): { status: Survey['status']; label: string; toast: string } {
@@ -44,7 +55,10 @@ export function SurveysPage(): JSX.Element {
   const deleteMutation = useDeleteSurvey();
   const statusMutation = useUpdateSurvey();
   const [confirmDelete, setConfirmDelete] = useState<Survey | null>(null);
-  const [typeFilter, setTypeFilter] = useState<'all' | SurveyType>('all');
+  // Los filtros viven en la dirección: volver desde una encuesta conserva lo filtrado, recargar
+  // no borra el trabajo y la vista se puede mandar por mensaje.
+  const filtros = useUrlFilters(FILTER_KEYS);
+  const typeFilter = (filtros.values.tipo || 'all') as 'all' | SurveyType;
   const { user } = useAuth();
   const canDeleteSurvey = Boolean(user && (user.role === 'admin' || user.role === 'dev' || user.role === 'operations_director'));
 
@@ -60,7 +74,12 @@ export function SurveysPage(): JSX.Element {
     );
   }
 
-  const visible = surveys.filter((survey) => typeFilter === 'all' || survey.type === typeFilter);
+  const visible = surveys.filter((survey) => {
+    if (typeFilter !== 'all' && survey.type !== typeFilter) return false;
+    if (filtros.values.estado && survey.status !== filtros.values.estado) return false;
+    const buscado = filtros.search.trim().toLowerCase();
+    return !buscado || survey.title.toLowerCase().includes(buscado);
+  });
   const channelUrl = (survey: Survey, source: string) => publicSurveyUrl(survey.id, survey.publicUrl, source);
   const copyPublicSurveyLink = async (survey: Survey, source = 'link') => {
     await navigator.clipboard.writeText(channelUrl(survey, source));
@@ -145,7 +164,7 @@ export function SurveysPage(): JSX.Element {
             type="button"
             className={typeFilter === filter.value ? 'active' : ''}
             aria-pressed={typeFilter === filter.value}
-            onClick={() => setTypeFilter(filter.value)}
+            onClick={() => filtros.setValue('tipo', filter.value === 'all' ? '' : filter.value)}
           >
             <strong>{filter.value === 'all' ? surveys.length : surveys.filter((survey) => survey.type === filter.value).length}</strong>
             <span>{filter.label}</span>
@@ -153,13 +172,34 @@ export function SurveysPage(): JSX.Element {
         ))}
       </div>
 
+      <FilterBar
+        search={filtros.search}
+        onSearchChange={filtros.setSearch}
+        searchPlaceholder="Buscar por título..."
+        filters={[{ key: 'estado', label: 'Estado', options: STATUS_FILTER_OPTIONS, allLabel: 'Todos los estados' }]}
+        values={filtros.values}
+        onFilterChange={filtros.setValue}
+        onClear={filtros.hasAny ? filtros.clear : undefined}
+      />
+
+      {/* Sin filtro no hay ninguna; con filtro las hay pero ninguna calza. Son dos situaciones
+          distintas y con la misma pantalla vacía parecen la misma: que el módulo no funciona. */}
       {visible.length === 0 ? (
-        <EmptyState
-          icon="survey"
-          title="Todavía no hay encuestas"
-          description="Crea la primera encuesta para el equipo o para tus clientes."
-          action={<Link className="btn btn-primary" to="/surveys/create">Crear encuesta</Link>}
-        />
+        filtros.hasAny || typeFilter !== 'all' ? (
+          <EmptyState
+            icon="survey"
+            title="Ninguna encuesta calza con este filtro"
+            description="Prueba con otro estado o borra la búsqueda para ver todas."
+            action={<button type="button" className="btn btn-outline" onClick={filtros.clear}>Limpiar filtros</button>}
+          />
+        ) : (
+          <EmptyState
+            icon="survey"
+            title="Todavía no hay encuestas"
+            description="Crea la primera encuesta para el equipo o para tus clientes."
+            action={<Link className="btn btn-primary" to="/surveys/create">Crear encuesta</Link>}
+          />
+        )
       ) : (
         <div className="survey-list">
           <DataTable
