@@ -51,9 +51,40 @@ describe('reconocimiento de columnas al importar', () => {
    * equivocado sin aviso.
    */
   it('no asigna el mismo campo a dos columnas', () => {
-    const mapeo = guessMapping(['Teléfono', 'Teléfono secundario']);
+    const mapeo = guessMapping(['Teléfono', 'Celular']);
     expect(mapeo['Teléfono']).toBe('phone');
-    expect(mapeo['Teléfono secundario']).toBe('');
+    expect(mapeo.Celular).toBe('');
+  });
+
+  /**
+   * Cabeceras reales de una exportación de leads de Meta, tomadas de un archivo de 303 filas.
+   * Antes solo se reconocían tres de las doce y las otras nueve se perdían en silencio.
+   */
+  it('reconoce las columnas de una exportación de Meta', () => {
+    const mapeo = guessMapping([
+      'Fecha de creación', 'Nombre', 'Correo electrónico', 'Origen', 'Formulario', 'Canal',
+      'Etapa', 'Propietario', 'Etiquetas', 'Teléfono',
+      'Número de teléfono secundario', 'Número de WhatsApp',
+    ]);
+
+    expect(mapeo.Nombre).toBe('name');
+    expect(mapeo['Correo electrónico']).toBe('email');
+    expect(mapeo['Teléfono']).toBe('phone');
+    expect(mapeo.Formulario).toBe('campaignName');
+    // 'Origen' gana el detalle de origen por venir antes; 'Canal' queda para asignar a mano,
+    // que es lo correcto: en el archivo real traen cosas distintas —«Pagada» y «Correo
+    // electrónico»— y quedarse con una sola en silencio perdería la otra.
+    expect(mapeo.Origen).toBe('sourceDetail');
+    expect(mapeo.Canal).toBe('');
+    expect(mapeo.Etiquetas).toBe('tags');
+    expect(mapeo['Número de teléfono secundario']).toBe('altPhone');
+  });
+
+  /** El secundario y el de WhatsApp no pueden pisar el principal. */
+  it('separa el teléfono principal del alternativo', () => {
+    const mapeo = guessMapping(['Teléfono', 'Número de WhatsApp']);
+    expect(mapeo['Teléfono']).toBe('phone');
+    expect(mapeo['Número de WhatsApp']).toBe('altPhone');
   });
 
   it('normaliza acentos, mayúsculas y separadores', () => {
