@@ -52,9 +52,9 @@ const ALERTS: Record<string, { title: string; why: string }> = {
     title: 'Leads sin asignar',
     why: 'Nadie los está trabajando. Asígnalos para que alguien se haga cargo.',
   },
-  listos_sin_avanzar: {
-    title: 'Listos y sin avanzar',
-    why: 'Ya recibieron propuesta y llevan días sin movimiento. Son los más cerca de cerrarse.',
+  calificados_sin_visita: {
+    title: 'Calificados sin visita agendada',
+    why: 'Están listos para visitar pero no tienen fecha.',
   },
 };
 
@@ -124,8 +124,8 @@ export function CrmHomePage(): JSX.Element {
       <section className="crm-home-kpis">
         <article>
           <strong>{leadsEnCartera}</strong>
-          <span>Leads en cartera</span>
-          <small>abiertos y cerrados</small>
+          <span>Leads del mes</span>
+          <small>ingresados</small>
         </article>
         <article>
           <strong>{enGestion}</strong>
@@ -178,7 +178,7 @@ export function CrmHomePage(): JSX.Element {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Persona</th>
+                  <th>Ejecutivo</th>
                   <th>Leads abiertos</th>
                   <th>Sin contactar</th>
                   <th>Enfriándose</th>
@@ -187,7 +187,7 @@ export function CrmHomePage(): JSX.Element {
               <tbody>
                 {team.map((row) => (
                   <tr key={row.userId}>
-                    <td data-label="Persona"><strong>{row.name}</strong></td>
+                    <td data-label="Ejecutivo"><strong>{row.name}</strong></td>
                     <td data-label="Leads abiertos">{row.open}</td>
                     <td data-label="Sin contactar">{row.uncontacted}</td>
                     <td data-label="Enfriándose">{row.cooling}</td>

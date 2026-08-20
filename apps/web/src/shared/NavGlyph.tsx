@@ -16,13 +16,13 @@ const GLYPHS: Record<string, string> = {
   Inicio: 'IN',
 
   // Ventas y CRM
-  'Posibles clientes': 'PC',
+
   'Oportunidades de venta': 'OV',
   'Tablero de pipeline': 'TP',
   'Automatizaciones': 'AU',
   'Actividad comercial': 'AC',
-  'Inicio del CRM': 'IC',
-  'Tablero de leads': 'TL',
+  'Tablero': 'TB',
+  'Leads': 'LD',
   'Contactos captados': 'CC',
   'Catálogo': 'CA',
   Contratos: 'CT',

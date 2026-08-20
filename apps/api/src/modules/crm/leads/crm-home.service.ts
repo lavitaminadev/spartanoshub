@@ -74,11 +74,16 @@ export class CrmHomeService {
       this.leads.count({ where: { organizationId } }),
       this.alert('sin_contactar', { ...abierto, status: LeadStatus.NEW }),
       this.alert('sin_asignar', { ...abierto, assignedTo: IsNull() }),
-      // Cotizado o en negociación y sin movimiento: está listo para cerrar y nadie lo empujó.
-      this.alert('listos_sin_avanzar', {
+      /*
+       * Calificado y todavía sin visita agendada.
+       *
+       * Basta con mirar la etapa: el embudo es secuencial y agendar la visita mueve el lead a la
+       * siguiente. Comprobar además que no exista una visita sería preguntar dos veces lo mismo,
+       * y cualquier discrepancia entre ambas respuestas dejaría el aviso mintiendo.
+       */
+      this.alert('calificados_sin_visita', {
         organizationId,
-        status: In([LeadStatus.QUOTE_SENT, LeadStatus.NEGOTIATION]),
-        updatedAt: LessThan(limiteFrio),
+        status: LeadStatus.QUOTE_SENT,
       }),
       this.teamLoad(organizationId, limiteFrio),
     ]);
