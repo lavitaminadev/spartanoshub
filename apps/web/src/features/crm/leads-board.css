@@ -1,0 +1,39 @@
+/*
+ * Tarjetas del tablero de leads.
+ *
+ * La tarjeta se lee de un vistazo mientras se arrastra, así que solo lleva lo que decide a dónde
+ * moverla: quién es, cómo contactarlo, de dónde vino, y si lleva demasiado quieto.
+ */
+
+.leads-board-card { display: grid; gap: 4px; }
+
+.leads-board-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.leads-board-card-head strong { font-size: 13px; line-height: 1.35; color: var(--text-dark); }
+
+/* Iniciales en vez del nombre: en una columna angosta, el nombre completo empuja todo lo demás. */
+.leads-board-avatar {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface-sage); color: var(--text-dark);
+  font-size: 10px; font-weight: 600; letter-spacing: .02em;
+}
+
+.leads-board-contacto { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.leads-board-origen { font-size: 11px; color: var(--muted); }
+
+/* Los dos avisos que cambian qué hacer con la tarjeta, no solo cómo se ve. */
+.leads-board-frio,
+.leads-board-sin-duenio {
+  justify-self: start; margin-top: 2px; padding: 2px 7px; border-radius: 999px;
+  font-size: 10px; letter-spacing: .04em;
+}
+.leads-board-frio { background: #f8eeda; color: #855200; }
+.leads-board-sin-duenio { background: #f7e6e5; color: #a32020; }
+
+/* El borde marca la tarjeta entera sin competir con el color de la columna. */
+.leads-board-card.esta-frio { border-left: 2px solid #e2a33c; padding-left: 8px; margin-left: -10px; }
+
+@media (prefers-color-scheme: dark) {
+  .leads-board-frio { background: #362a13; color: #e3b25f; }
+  .leads-board-sin-duenio { background: #3a2220; color: #f0857c; }
+}
