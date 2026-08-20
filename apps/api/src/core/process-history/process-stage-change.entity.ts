@@ -14,6 +14,13 @@ export enum ProcessSubject {
   PIECE = 'piece',
   /** Aprobación: la decisión sobre una pieza. */
   APPROVAL = 'approval',
+  /**
+   * Lead del embudo comercial.
+   *
+   * Se registra acá y no en `crm_opportunity_stage_changes`, que es de las oportunidades: un
+   * lead puede recorrer todo el embudo y cerrarse sin llegar a ser una oportunidad.
+   */
+  LEAD = 'lead',
 }
 
 /**

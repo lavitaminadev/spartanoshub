@@ -1,0 +1,42 @@
+/*
+ * Ficha del lead.
+ *
+ * Tres bloques en orden de uso: los datos que se consultan, las acciones que se ejecutan, y el
+ * historial que se lee cuando algo no cuadra.
+ */
+
+.lead-detail { display: grid; gap: 16px; }
+
+.lead-detail-datos {
+  display: grid; grid-template-columns: minmax(100px, max-content) 1fr;
+  gap: 8px 18px; margin: 0; align-items: baseline;
+}
+.lead-detail-datos dt { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.lead-detail-datos dd { margin: 0; font-size: 13px; color: var(--text-dark); }
+
+.lead-detail-fechas { margin: 0; font-size: 12px; color: var(--muted); }
+
+.lead-detail-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.lead-detail-nota { display: grid; gap: 5px; }
+.lead-detail-nota span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+.lead-detail-historial { display: grid; gap: 10px; border-top: 1px solid var(--surface-sage); padding-top: 14px; }
+.lead-detail-historial h3 { margin: 0; font-size: 13px; color: var(--text-dark); }
+.lead-detail-vacio { margin: 0; font-size: 12px; color: var(--muted); }
+
+/* Línea de tiempo: la fecha a la izquierda deja los cambios alineados y comparables de un vistazo. */
+.lead-detail-pasos { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.lead-detail-pasos li { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: start; }
+.lead-detail-pasos time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.lead-detail-pasos strong { display: block; font-size: 13px; color: var(--text-dark); }
+.lead-detail-pasos span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.lead-detail-pasos em { display: block; font-size: 12px; color: var(--text-dark); font-style: normal; margin-top: 4px; }
+
+.lead-detail-pie { display: flex; justify-content: flex-end; gap: 8px; padding-top: 6px; }
+
+@media (max-width: 520px) {
+  .lead-detail-datos { grid-template-columns: 1fr; gap: 2px; }
+  .lead-detail-datos dt { margin-top: 8px; }
+  .lead-detail-pasos li { grid-template-columns: 1fr; gap: 2px; }
+}
