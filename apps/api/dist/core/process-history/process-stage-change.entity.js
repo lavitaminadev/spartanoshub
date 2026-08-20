@@ -16,6 +16,7 @@ var ProcessSubject;
     ProcessSubject["WORK_REQUEST"] = "work_request";
     ProcessSubject["PIECE"] = "piece";
     ProcessSubject["APPROVAL"] = "approval";
+    ProcessSubject["LEAD"] = "lead";
 })(ProcessSubject || (exports.ProcessSubject = ProcessSubject = {}));
 let ProcessStageChange = class ProcessStageChange {
 };

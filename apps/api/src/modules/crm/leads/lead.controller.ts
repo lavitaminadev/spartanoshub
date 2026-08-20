@@ -20,6 +20,8 @@ import { Reservation } from '../../reservations/domain/reservation.entity';
 import { Lead } from './lead.entity';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
+import { ProcessHistoryService } from '../../../core/process-history/process-history.service';
+import { ProcessSubject } from '../../../core/process-history/process-stage-change.entity';
 
 @ApiTags('CRM - Leads')
 @Controller('crm/leads')
@@ -37,6 +39,7 @@ export class LeadController {
     private importLeads: ImportLeadsUseCase,
     @InjectRepository(Reservation) private readonly reservationRepository: Repository<Reservation>,
     private readonly accountAccess: AccountAccessService,
+    private readonly history: ProcessHistoryService,
   ) {}
 
   @Post()
@@ -92,13 +95,30 @@ export class LeadController {
     return lead;
   }
 
+  /**
+   * Recorrido del lead por el embudo, del más antiguo al más reciente.
+   *
+   * Se lee como una historia y no como un registro técnico: interesa por dónde pasó y cuánto
+   * tardó, no cuál fue lo último. Cada paso trae la duración de la etapa que abandona, calculada
+   * al escribirse, así que la ficha no tiene que restar fechas para mostrarla.
+   */
+  @Get(':id/historial')
+  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  @ApiOperation({ summary: 'Historial de etapas de un lead' })
+  async historial(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    // El mismo control de acceso que el detalle: conocer un identificador no debe alcanzar para
+    // leer por dónde pasó un lead de una cuenta ajena.
+    await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+    return this.history.timeline(ProcessSubject.LEAD, id);
+  }
+
   /** Actualiza estado, calidad o etiquetas de un lead de una cuenta accesible. */
   @Put(':id')
   @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Actualizar estado de un lead' })
   async update(@Param('id') id: string, @Body() dto: UpdateLeadDto, @Req() req: AuthenticatedRequest) {
     await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
-    return this.updateLead.execute(id, dto, req.organizationId);
+    return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
   }
 
   /**

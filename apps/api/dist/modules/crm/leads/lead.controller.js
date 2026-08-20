@@ -33,8 +33,10 @@ const user_role_enum_1 = require("../../organizations/user-role.enum");
 const reservation_entity_1 = require("../../reservations/domain/reservation.entity");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
+const process_history_service_1 = require("../../../core/process-history/process-history.service");
+const process_stage_change_entity_1 = require("../../../core/process-history/process-stage-change.entity");
 let LeadController = class LeadController {
-    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess) {
+    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history) {
         this.createLead = createLead;
         this.listLeads = listLeads;
         this.getLead = getLead;
@@ -43,6 +45,7 @@ let LeadController = class LeadController {
         this.importLeads = importLeads;
         this.reservationRepository = reservationRepository;
         this.accountAccess = accountAccess;
+        this.history = history;
     }
     create(dto, req) {
         return this.createLead.execute({ ...dto, organizationId: req.organizationId });
@@ -66,9 +69,13 @@ let LeadController = class LeadController {
         await this.assertLeadAccess(req, lead);
         return lead;
     }
+    async historial(id, req) {
+        await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+        return this.history.timeline(process_stage_change_entity_1.ProcessSubject.LEAD, id);
+    }
     async update(id, dto, req) {
         await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
-        return this.updateLead.execute(id, dto, req.organizationId);
+        return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
     }
     async assertLeadAccess(req, lead) {
         if (!lead)
@@ -151,6 +158,16 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LeadController.prototype, "getById", null);
 __decorate([
+    (0, common_1.Get)(':id/historial'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    (0, swagger_1.ApiOperation)({ summary: 'Historial de etapas de un lead' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], LeadController.prototype, "historial", null);
+__decorate([
     (0, common_1.Put)(':id'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar estado de un lead' }),
@@ -196,5 +213,6 @@ exports.LeadController = LeadController = __decorate([
         update_lead_use_case_1.UpdateLeadUseCase,
         import_leads_use_case_1.ImportLeadsUseCase,
         typeorm_2.Repository,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        process_history_service_1.ProcessHistoryService])
 ], LeadController);

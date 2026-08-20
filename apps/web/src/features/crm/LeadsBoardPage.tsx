@@ -23,6 +23,7 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
 import { statusLabel } from '../../shared/status-labels';
 import { matchesSearch } from '../../shared/search';
+import { LeadDetailDrawer } from './LeadDetailDrawer';
 import './leads-board.css';
 
 interface Lead {
@@ -75,6 +76,7 @@ export function LeadsBoardPage(): JSX.Element {
   const queryClient = useQueryClient();
   const filtros = useUrlFilters(FILTER_KEYS);
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
+  const [abierto, setAbierto] = useState<Lead | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery<{ data: Lead[] }>({
     queryKey: ['crm-leads-board'],
@@ -168,7 +170,17 @@ export function LeadsBoardPage(): JSX.Element {
             const frio = Date.now() - new Date(lead.updatedAt).getTime() > COOLING_DAYS * 86_400_000;
             const responsable = nombreDe(lead.assignedTo);
             return (
-              <div className={`leads-board-card${frio ? ' esta-frio' : ''}`}>
+              <div
+                className={`leads-board-card${frio ? ' esta-frio' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setAbierto(lead)}
+                // Enter y espacio además del clic: la tarjeta es el único camino a la ficha, y
+                // dejarla solo para el ratón la vuelve inalcanzable por teclado.
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setAbierto(lead); }
+                }}
+              >
                 <div className="leads-board-card-head">
                   <strong>{lead.name}</strong>
                   {responsable ? <span className="leads-board-avatar" title={responsable}>{iniciales(responsable)}</span> : null}
@@ -186,6 +198,10 @@ export function LeadsBoardPage(): JSX.Element {
           }}
         />
       )}
+
+      {abierto ? (
+        <LeadDetailDrawer lead={abierto} nombreDe={nombreDe} onClose={() => setAbierto(null)} />
+      ) : null}
     </div>
   );
 }

@@ -19,18 +19,22 @@ const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("../lead.entity");
 const lead_status_enum_1 = require("../lead-status.enum");
 const lead_fit_status_enum_1 = require("../lead-fit-status.enum");
+const process_history_service_1 = require("../../../../core/process-history/process-history.service");
+const process_stage_change_entity_1 = require("../../../../core/process-history/process-stage-change.entity");
 const DOMAIN_LABELS = {
     commercial: 'el embudo comercial',
     audience: 'la audiencia de un local',
 };
 let UpdateLeadUseCase = class UpdateLeadUseCase {
-    constructor(repo) {
+    constructor(repo, history) {
         this.repo = repo;
+        this.history = history;
     }
-    async execute(id, data, organizationId) {
+    async execute(id, data, organizationId, actorId) {
         const lead = await this.repo.findOne({ where: { id, organizationId } });
         if (!lead)
             throw new common_1.NotFoundException('Lead not found');
+        const etapaPrevia = lead.status;
         if (data.status === lead_status_enum_1.LeadStatus.WON && !lead.convertedToClientId) {
             throw new common_1.BadRequestException('Para marcar un lead como ganado debes convertirlo en cliente');
         }
@@ -49,12 +53,15 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.discardReason = data.discardReason;
         if (data.tags !== undefined)
             lead.tags = data.tags;
-        return this.repo.save(lead);
+        const guardado = await this.repo.save(lead);
+        await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.LEAD, guardado.id, etapaPrevia, guardado.status, actorId, guardado.discardReason);
+        return guardado;
     }
 };
 exports.UpdateLeadUseCase = UpdateLeadUseCase;
 exports.UpdateLeadUseCase = UpdateLeadUseCase = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        process_history_service_1.ProcessHistoryService])
 ], UpdateLeadUseCase);

@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
 import { LeadStatus, isStatusInDomain } from '../lead-status.enum';
 import { LeadFitStatus } from '../lead-fit-status.enum';
+import { ProcessHistoryService } from '../../../../core/process-history/process-history.service';
+import { ProcessSubject } from '../../../../core/process-history/process-stage-change.entity';
 
 /** Nombre del dominio en los mensajes de error, para que digan algo accionable. */
 const DOMAIN_LABELS: Record<string, string> = {
@@ -15,15 +17,20 @@ const DOMAIN_LABELS: Record<string, string> = {
 export class UpdateLeadUseCase {
   constructor(
     @InjectRepository(Lead) private repo: Repository<Lead>,
+    private readonly history: ProcessHistoryService,
   ) {}
 
   async execute(
     id: string,
     data: { status?: string; notes?: string; fitStatus?: string; discardReason?: string; tags?: string[] },
     organizationId: string,
+    actorId?: string,
   ) {
     const lead = await this.repo.findOne({ where: { id, organizationId } });
     if (!lead) throw new NotFoundException('Lead not found');
+
+    // Se lee antes de pisarla: el registro necesita de dónde viene.
+    const etapaPrevia = lead.status;
 
     if (data.status === LeadStatus.WON && !lead.convertedToClientId) {
       throw new BadRequestException('Para marcar un lead como ganado debes convertirlo en cliente');
@@ -46,6 +53,16 @@ export class UpdateLeadUseCase {
     if (data.discardReason !== undefined) lead.discardReason = data.discardReason;
     if (data.tags !== undefined) lead.tags = data.tags;
 
-    return this.repo.save(lead);
+    const guardado = await this.repo.save(lead);
+
+    // El registro de recorrido ya existía y los leads no lo escribían, así que su ficha no podía
+    // mostrar por dónde pasó ni cuánto tardó en cada etapa. El motivo de descarte viaja como
+    // motivo del paso: es lo que explica una salida del embudo y sin él el historial muestra un
+    // cierre sin causa.
+    await this.history.recordStageChange(
+      organizationId, ProcessSubject.LEAD, guardado.id,
+      etapaPrevia, guardado.status, actorId, guardado.discardReason,
+    );
+    return guardado;
   }
 }
