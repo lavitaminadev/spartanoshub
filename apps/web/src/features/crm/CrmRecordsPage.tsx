@@ -16,6 +16,7 @@ import { StatusTrafficLight } from '../../shared/StatusTrafficLight';
 import { attendanceRateOf } from '../../shared/attendance';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useSearchParams } from 'react-router-dom';
+import { useCrmScope } from './crm-scope';
 
 interface PageResult<T> { data: T[]; total: number }
 interface LeadOption { id: string; name: string; company?: string; createdAt?: string; status?: string }
@@ -75,6 +76,8 @@ const CONTACTS_PAGE_SIZE = 50;
 
 export function ContactsPage() {
   const user = useAuth((state) => state.user);
+  // La empresa cuyo CRM se está mirando; la elige la barra, no esta pantalla.
+  const scope = useCrmScope();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -110,8 +113,11 @@ export function ContactsPage() {
   const clients = useMemo<ClientOption[]>(() => clientsResp?.data ?? [], [clientsResp]);
   // `/crm/leads` pagina de a 20 por defecto, por lo que límite y desplazamiento son explícitos.
   const contactsQuery = useQuery<PageResult<ReservationContact>>({
-    queryKey: ['crm-reservation-contacts', clientFilter, statusFilter, sourceFilter, page],
-    queryFn: () => api.get(`/crm/leads?domain=audience&limit=${CONTACTS_PAGE_SIZE}&offset=${(page - 1) * CONTACTS_PAGE_SIZE}${sourceFilter ? `&source=${encodeURIComponent(sourceFilter)}` : ''}${clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`),
+    // La empresa sale de la barra, no de esta pantalla: es el contexto del CRM y no un filtro
+    // más. Tenerlo en los dos sitios permitía mirar el encabezado de una empresa con la tabla
+    // de otra, que es justo la confusión que se está quitando.
+    queryKey: ['crm-reservation-contacts', scope.domain, scope.clientId, statusFilter, sourceFilter, page],
+    queryFn: () => api.get(`/crm/leads?domain=${scope.domain}&limit=${CONTACTS_PAGE_SIZE}&offset=${(page - 1) * CONTACTS_PAGE_SIZE}${sourceFilter ? `&source=${encodeURIComponent(sourceFilter)}` : ''}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`),
     placeholderData: (previous) => previous,
   });
   const { data: historyReservations = [], isLoading: historyLoading } = useQuery<Array<{ id: string; referenceCode: string; status: string; startsAt: string; partySize: number }>>({
@@ -161,13 +167,13 @@ export function ContactsPage() {
   // Totales por estado: una consulta con `limit=1` por estado, leyendo el campo `total`.
   // Son exactos sobre el conjunto completo y no dependen de la página cargada ni del filtro activo.
   const countsQuery = useQuery<Record<string, number>>({
-    queryKey: ['crm-reservation-contact-counts', clientFilter, sourceFilter],
+    queryKey: ['crm-reservation-contact-counts', scope.domain, scope.clientId, sourceFilter],
     queryFn: async () => {
       // Los totales siguen el mismo alcance que la tabla. Con el origen fijo acá y variable
       // arriba, el encabezado contaba un conjunto y la tabla mostraba otro.
-      const scope = `${sourceFilter ? `&source=${encodeURIComponent(sourceFilter)}` : ''}${clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : ''}`;
+      const acotado = `${sourceFilter ? `&source=${encodeURIComponent(sourceFilter)}` : ''}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`;
       const pages = await Promise.all(CONTACT_STATUS_ORDER.map((status) =>
-        api.get(`/crm/leads?domain=audience&limit=1&status=${status}${scope}`) as Promise<PageResult<ReservationContact>>,
+        api.get(`/crm/leads?domain=${scope.domain}&limit=1&status=${status}${acotado}`) as Promise<PageResult<ReservationContact>>,
       ));
       return Object.fromEntries(CONTACT_STATUS_ORDER.map((status, index) => [status, pages[index]?.total ?? 0]));
     },
@@ -232,7 +238,7 @@ export function ContactsPage() {
     ))}
   </div>
 
-  {feedback && <div className={`alert alert-${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>{feedback.text}</div>}{contactsQuery.error && <div className="alert alert-error">{contactsQuery.error.message}</div>}<div className="filters crm-filter-bar"><input className="input" type="search" placeholder="Buscar persona, email, teléfono o campaña" value={search} onChange={(event) => setSearch(event.target.value)} />{user?.role !== 'client' && <select className="input" aria-label="Filtrar por cliente" value={clientFilter} onChange={(event) => updateFilter('clientId', event.target.value)}><option value="">Todos los clientes</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar por estado" value={statusFilter} onChange={(event) => updateFilter('status', event.target.value)}><option value="">Todos los estados</option>{CONTACT_STATUS_ORDER.map((status) => <option key={status} value={status}>{CONTACT_STATUSES[status]}</option>)}</select><select className="input" aria-label="Filtrar por origen" value={sourceFilter} onChange={(event) => updateFilter('source', event.target.value)}><option value="">Todos los orígenes</option><option value={RESERVATION_LEAD_SOURCE}>Reservas</option>{sourceOptions.map((origen) => <option key={origen} value={origen}>{origen}</option>)}</select><button type="button" className="btn btn-outline btn-sm" disabled={!search && !clientFilter && !statusFilter && !sourceFilter} onClick={() => { setSearch(''); updateFilter('clientId', ''); updateFilter('status', ''); updateFilter('source', ''); }}>Limpiar</button><span className="filter-result-count">{loadedTotal} contacto{loadedTotal === 1 ? '' : 's'}</span></div><DataTable<ReservationContact> storageKey="reservation-contacts" exportFileName={puedeExportar ? "contactos-reservas" : undefined} keyExtractor={(contact) => contact.id} data={contacts} emptyMessage="Aún no hay contactos de reservas" columns={[
+  {feedback && <div className={`alert alert-${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>{feedback.text}</div>}{contactsQuery.error && <div className="alert alert-error">{contactsQuery.error.message}</div>}<div className="filters crm-filter-bar"><input className="input" type="search" placeholder="Buscar persona, email, teléfono o campaña" value={search} onChange={(event) => setSearch(event.target.value)} /><select className="input" aria-label="Filtrar por estado" value={statusFilter} onChange={(event) => updateFilter('status', event.target.value)}><option value="">Todos los estados</option>{CONTACT_STATUS_ORDER.map((status) => <option key={status} value={status}>{CONTACT_STATUSES[status]}</option>)}</select><select className="input" aria-label="Filtrar por origen" value={sourceFilter} onChange={(event) => updateFilter('source', event.target.value)}><option value="">Todos los orígenes</option><option value={RESERVATION_LEAD_SOURCE}>Reservas</option>{sourceOptions.map((origen) => <option key={origen} value={origen}>{origen}</option>)}</select><button type="button" className="btn btn-outline btn-sm" disabled={!search && !clientFilter && !statusFilter && !sourceFilter} onClick={() => { setSearch(''); updateFilter('clientId', ''); updateFilter('status', ''); updateFilter('source', ''); }}>Limpiar</button><span className="filter-result-count">{loadedTotal} contacto{loadedTotal === 1 ? '' : 's'}</span></div><DataTable<ReservationContact> storageKey="reservation-contacts" exportFileName={puedeExportar ? "contactos-reservas" : undefined} keyExtractor={(contact) => contact.id} data={contacts} emptyMessage="Aún no hay contactos de reservas" columns={[
     { key: 'name', label: 'Persona', sortable: true, render: (contact) => <div className="user-cell"><strong>{contact.name}</strong><small>{contact.email || contact.phone || 'Sin canal de contacto'}</small></div> },
     { key: 'clientId', label: 'Cliente', sortable: true, render: (contact) => contact.clientId ? (clientNameById.get(contact.clientId) ?? 'Cliente no encontrado') : 'Sin cliente' },
     { key: 'phone', label: 'Teléfono', render: (contact) => contact.phone || '-' },
