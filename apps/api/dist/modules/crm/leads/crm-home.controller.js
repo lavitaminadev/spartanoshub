@@ -20,13 +20,19 @@ const roles_decorator_1 = require("../../../core/authorization/roles.decorator")
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const crm_home_service_1 = require("./crm-home.service");
+const crm_dashboard_service_1 = require("./crm-dashboard.service");
 let CrmHomeController = class CrmHomeController {
-    constructor(home) {
+    constructor(home, dashboard) {
         this.home = home;
+        this.dashboard = dashboard;
     }
     async get(req, coolingDays) {
         const dias = Math.min(Math.max(Number(coolingDays) || 7, 1), 90);
         return this.home.home(req.organizationId, dias);
+    }
+    async panel(req, days) {
+        const ventana = Math.min(Math.max(Number(days) || 30, 1), 365);
+        return this.dashboard.dashboard(req.organizationId, ventana);
     }
 };
 exports.CrmHomeController = CrmHomeController;
@@ -39,11 +45,21 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], CrmHomeController.prototype, "get", null);
+__decorate([
+    (0, common_1.Get)('dashboard'),
+    (0, swagger_1.ApiOperation)({ summary: 'Cifras del embudo comercial' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('days')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], CrmHomeController.prototype, "panel", null);
 exports.CrmHomeController = CrmHomeController = __decorate([
     (0, common_1.Controller)('crm/home'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
-    __metadata("design:paramtypes", [crm_home_service_1.CrmHomeService])
+    __metadata("design:paramtypes", [crm_home_service_1.CrmHomeService,
+        crm_dashboard_service_1.CrmDashboardService])
 ], CrmHomeController);

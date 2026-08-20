@@ -6,6 +6,7 @@ import { ModuleScope } from '../../../core/authorization/module-scope.decorator'
 import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { CrmHomeService } from './crm-home.service';
+import { CrmDashboardService } from './crm-dashboard.service';
 
 /**
  * Lo que se ve al entrar al CRM.
@@ -20,7 +21,10 @@ import { CrmHomeService } from './crm-home.service';
 @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
 @ModuleScope('crm')
 export class CrmHomeController {
-  constructor(private readonly home: CrmHomeService) {}
+  constructor(
+    private readonly home: CrmHomeService,
+    private readonly dashboard: CrmDashboardService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Avisos y carga del equipo al entrar al CRM' })
@@ -29,5 +33,14 @@ export class CrmHomeController {
     // no debe poder pedir un rango que recorra toda la tabla.
     const dias = Math.min(Math.max(Number(coolingDays) || 7, 1), 90);
     return this.home.home(req.organizationId!, dias);
+  }
+
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Cifras del embudo comercial' })
+  async panel(@Req() req: AuthenticatedRequest, @Query('days') days?: string) {
+    // Entre un día y un año: una ventana mayor recorre toda la tabla para responder algo que
+    // nadie compara, y una menor a un día no distingue nada.
+    const ventana = Math.min(Math.max(Number(days) || 30, 1), 365);
+    return this.dashboard.dashboard(req.organizationId!, ventana);
   }
 }
