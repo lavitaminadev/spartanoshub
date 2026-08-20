@@ -10,14 +10,15 @@
  * barra, igual que en la herramienta que se tomó como referencia.
  */
 
-import { createContext, useContext, useMemo, useState, type JSX } from 'react';
+import { useMemo, useState, type JSX } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../core/auth';
 import { api } from '../../core/api';
 import { readStoredJson, storageKey, writeStoredJson } from '../../core/browser-storage';
 import { isRoleAllowedForPath } from '../../core/navigation.registry';
-import type { UserRole } from '../../core/navigation.registry';
+import type { UserRole } from '@espartanos/shared';
+import { CrmScopeContext, type CrmScopeValue } from './crm-scope';
 import './crm-layout.css';
 
 /**
@@ -63,32 +64,6 @@ const SECCIONES: Array<{ to: string; label: string; end?: boolean; grupo: Grupo;
   { to: '/crm/administracion', label: 'Administración', grupo: 'general', roles: ['commercial_director', 'operations_director'] },
 ];
 
-/** Cuenta elegida en la barra, o `''` cuando se están mirando todas. */
-interface CrmScope {
-  clientId: string;
-  setClientId: (value: string) => void;
-  /** Cuentas que esta persona alcanza, ya resueltas por el servidor. */
-  clients: Array<{ id: string; name: string }>;
-  /** Nombre de una cuenta, para no repetir el mapa en cada pantalla. */
-  nombreDe: (clientId?: string | null) => string;
-}
-
-const CrmScopeContext = createContext<CrmScope | null>(null);
-
-/**
- * Alcance de cuenta vigente en el CRM.
- *
- * Vive en la barra y no en cada pantalla a propósito: elegir la cuenta una vez y que se
- * mantenga al pasar de los contactos al tablero es justamente lo que hace que el CRM se sienta
- * «por empresa». Con el filtro dentro de cada pantalla había que volver a elegirla en cada una.
- *
- * @throws Si se usa fuera del CRM, que sería un error de montaje y no un caso a tolerar.
- */
-export function useCrmScope(): CrmScope {
-  const scope = useContext(CrmScopeContext);
-  if (!scope) throw new Error('useCrmScope solo puede usarse dentro de CrmLayout');
-  return scope;
-}
 
 export function CrmLayout(): JSX.Element {
   const { user } = useAuth();
@@ -100,7 +75,9 @@ export function CrmLayout(): JSX.Element {
     queryKey: ['clients'],
     queryFn: () => api.get('/clients'),
   });
-  const clients = clientsResp?.data ?? [];
+  // Memorizado para conservar la identidad del arreglo entre renders: `?? []` crea uno nuevo
+  // cada vez, y con eso el `useMemo` del mapa de nombres se recalculaba siempre.
+  const clients = useMemo(() => clientsResp?.data ?? [], [clientsResp]);
 
   // Se recuerda por persona: quien atiende una sola cuenta no debería tener que elegirla cada
   // vez que entra, y quien las ve todas rara vez cambia de cuenta dentro de la misma jornada.
@@ -111,7 +88,7 @@ export function CrmLayout(): JSX.Element {
   const nombrePorId = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const nombreDe = (id?: string | null) => (id ? nombrePorId.get(id) ?? 'Cuenta no encontrada' : 'Sin cuenta');
 
-  const scope: CrmScope = { clientId, setClientId, clients, nombreDe };
+  const scope: CrmScopeValue = { clientId, setClientId, clients, nombreDe };
 
   // Una pestaña que el backend va a rechazar no es una sección: es un callejón. Se filtra con
   // la misma función que la lateral general, para que las dos barras oculten lo mismo.

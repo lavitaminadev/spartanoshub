@@ -141,7 +141,9 @@ export function ContactsPage() {
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
   });
 
-  const allContacts = contactsQuery.data?.data ?? [];
+  // Memorizado por la misma razón que la lista de cuentas: `?? []` devuelve un arreglo nuevo en
+  // cada render y anula el `useMemo` que deriva los orígenes.
+  const allContacts = useMemo(() => contactsQuery.data?.data ?? [], [contactsQuery.data]);
   // Los orígenes que aparecen en la página cargada, para no tener que escribirlos a mano. No
   // pretende ser la lista completa del embudo: es un atajo sobre lo que se está mirando.
   const sourceOptions = useMemo(
