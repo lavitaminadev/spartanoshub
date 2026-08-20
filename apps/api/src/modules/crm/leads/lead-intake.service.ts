@@ -95,6 +95,13 @@ export interface LeadCaptureInput {
   source?: string;
   sourceDetail?: string;
   notes?: string;
+  /**
+   * Cuándo ocurrió en el origen. Vacío cuando no hay origen externo que lo aporte.
+   *
+   * Se propaga tal cual y no se rellena con la hora actual: suponerla borraría la distinción
+   * entre cuándo llegó la gente y cuándo la integración logró entregarla.
+   */
+  sourceCreatedAt?: Date;
   externalLeadId?: string;
   externalFormId?: string;
   externalCampaignId?: string;
@@ -218,6 +225,10 @@ export class LeadIntakeService {
       // El dominio se fija al crear el lead y no cambia en updates posteriores: una captura de
       // otro origen no debe poder mover un lead entre embudos silenciosamente.
       domain: match.lead?.domain ?? domain,
+      // La fecha de origen es la de la primera captura y no se pisa: si el mismo lead vuelve a
+      // llegar por otro canal, lo que interesa sigue siendo cuándo apareció, no cuándo se
+      // repitió. Sin esta regla, una reimportación desplazaría todo el historial al presente.
+      sourceCreatedAt: match.lead?.sourceCreatedAt ?? normalized.sourceCreatedAt ?? null,
       qualityScore: qualification.qualityScore,
       fitStatus: qualification.fitStatus,
       discardReason: qualification.discardReason,

@@ -60,6 +60,9 @@ export class LeadIngestService {
         source: source.source,
         campaignName: dto.campana,
         notes: dto.mensaje,
+        // La fecha del origen, no la de recepción: es lo que hace que el informe por período
+        // refleje cuándo llegó la gente y no cuándo la integración logró entregarla.
+        sourceCreatedAt: dto.fechaOrigen ? new Date(dto.fechaOrigen) : undefined,
         // Sin identificador propio se compone uno con el origen: dos portales distintos pueden
         // usar el mismo número interno sin que uno pise el lead del otro.
         externalLeadId: dto.idExterno ? `${source.source}:${dto.idExterno}` : undefined,
