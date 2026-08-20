@@ -39,6 +39,12 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], SaveAutomationDto.prototype, "runAsUserId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, value) => value !== null),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", Object)
+], SaveAutomationDto.prototype, "clientId", void 0);
 class SetAutomationActiveDto {
 }
 exports.SetAutomationActiveDto = SetAutomationActiveDto;

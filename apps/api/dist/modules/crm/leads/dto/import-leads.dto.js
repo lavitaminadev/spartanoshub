@@ -17,67 +17,56 @@ class ImportLeadRowDto {
 exports.ImportLeadRowDto = ImportLeadRowDto;
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(2),
-    (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "name", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEmail)(),
-    (0, class_validator_1.MaxLength)(255),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "email", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.Matches)(/^[\d+\-\s()]+$/, { message: 'El teléfono solo admite números, espacios, paréntesis, + y -' }),
-    (0, class_validator_1.MaxLength)(50),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "phone", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "company", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "notes", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(50),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "source", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "sourceDetail", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(180),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "campaignName", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(50),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "altPhone", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(500),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "tags", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsISO8601)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], ImportLeadRowDto.prototype, "sourceCreatedAt", void 0);
 class ImportLeadsDto {
@@ -103,3 +92,13 @@ __decorate([
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], ImportLeadsDto.prototype, "sourceDetail", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], ImportLeadsDto.prototype, "clientId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['audience', 'commercial']),
+    __metadata("design:type", String)
+], ImportLeadsDto.prototype, "domain", void 0);

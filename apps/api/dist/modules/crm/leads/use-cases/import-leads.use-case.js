@@ -20,6 +20,7 @@ const typeorm_2 = require("typeorm");
 const lead_intake_service_1 = require("../lead-intake.service");
 const lead_entity_1 = require("../lead.entity");
 const phone_1 = require("../../../../shared/phone");
+const import_lead_row_validation_1 = require("../import-lead-row.validation");
 let ImportLeadsUseCase = ImportLeadsUseCase_1 = class ImportLeadsUseCase {
     constructor(intake, leads) {
         this.intake = intake;
@@ -28,17 +29,20 @@ let ImportLeadsUseCase = ImportLeadsUseCase_1 = class ImportLeadsUseCase {
     }
     async execute(organizationId, dto) {
         const result = { imported: 0, duplicates: 0, failed: [] };
-        for (const [index, row] of dto.rows.entries()) {
+        for (const [index, raw] of dto.rows.entries()) {
             const rowNumber = index + 2;
-            if (!row.email && !row.phone) {
-                result.failed.push({ row: rowNumber, name: row.name, reason: 'Sin correo ni teléfono: no hay forma de reconocer a la persona' });
+            const check = (0, import_lead_row_validation_1.validateImportRow)(raw);
+            if (!check.ok) {
+                result.failed.push({ row: rowNumber, name: raw.name?.trim() || '', reason: check.reason });
                 continue;
             }
+            const row = check.row;
             try {
-                const yaExistia = await this.findExisting(organizationId, row.email, row.phone);
+                const yaExistia = await this.findExisting(organizationId, row.email, row.phone, dto.clientId);
                 await this.intake.captureLead({
                     organizationId,
-                    domain: 'commercial',
+                    domain: dto.domain ?? 'commercial',
+                    clientId: dto.clientId,
                     name: row.name,
                     email: row.email,
                     phone: row.phone,
@@ -49,7 +53,7 @@ let ImportLeadsUseCase = ImportLeadsUseCase_1 = class ImportLeadsUseCase {
                     sourceDetail: row.sourceDetail || dto.sourceDetail,
                     campaignName: row.campaignName,
                     tags: row.tags?.split(/[,;]/).map((t) => t.trim()).filter(Boolean),
-                    sourceCreatedAt: row.sourceCreatedAt ? new Date(row.sourceCreatedAt) : undefined,
+                    sourceCreatedAt: row.sourceCreatedAt,
                 }, 'upsert');
                 if (yaExistia)
                     result.duplicates += 1;
@@ -64,14 +68,15 @@ let ImportLeadsUseCase = ImportLeadsUseCase_1 = class ImportLeadsUseCase {
         }
         return result;
     }
-    async findExisting(organizationId, email, phone) {
+    async findExisting(organizationId, email, phone, clientId) {
         const where = [];
         const normalizedEmail = email?.trim().toLowerCase();
         const normalizedPhone = (0, phone_1.normalizePhone)(phone);
+        const scope = clientId ? { organizationId, clientId } : { organizationId };
         if (normalizedEmail)
-            where.push({ organizationId, email: normalizedEmail });
+            where.push({ ...scope, email: normalizedEmail });
         if (normalizedPhone)
-            where.push({ organizationId, phone: normalizedPhone });
+            where.push({ ...scope, phone: normalizedPhone });
         if (!where.length)
             return false;
         return (await this.leads.count({ where })) > 0;

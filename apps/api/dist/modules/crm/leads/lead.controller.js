@@ -50,7 +50,8 @@ let LeadController = class LeadController {
     create(dto, req) {
         return this.createLead.execute({ ...dto, organizationId: req.organizationId });
     }
-    import(dto, req) {
+    async import(dto, req) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
         return this.importLeads.execute(req.organizationId, dto);
     }
     async list(query, req) {
@@ -135,7 +136,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [import_leads_dto_1.ImportLeadsDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], LeadController.prototype, "import", null);
 __decorate([
     (0, common_1.Get)(),
