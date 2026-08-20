@@ -28,23 +28,8 @@
 
 .crm-dash-dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
 
-/* Barras horizontales: los nombres de etapa y de fuente son largos y en vertical se cortan. */
-.crm-dash-barras { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.crm-dash-barras li { display: grid; grid-template-columns: minmax(90px, 130px) 1fr auto; gap: 10px; align-items: center; }
-.crm-dash-barra-nombre { font-size: 12px; color: var(--text-dark); }
-.crm-dash-barra-pista { height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; }
-.crm-dash-barra-pista i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #17c78a, #8fd8ff); }
-.crm-dash-barra-valor { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-
-/* Serie diaria. Cada barra se estira desde abajo, así que la altura se lee como el conteo. */
-.crm-dash-dias { display: flex; align-items: flex-end; gap: 2px; height: 120px; }
-.crm-dash-dias > span { flex: 1 1 0; display: flex; align-items: flex-end; height: 100%; min-width: 3px; }
-.crm-dash-dias i { display: block; width: 100%; border-radius: 2px 2px 0 0; background: #17c78a; min-height: 2px; }
-
-@media (max-width: 520px) {
-  .crm-dash-barras li { grid-template-columns: 1fr auto; }
-  .crm-dash-barra-pista { grid-column: 1 / -1; }
-}
+/* Los gráficos los dibuja recharts y traen su propio tamaño; el panel solo les da el ancho. */
+.crm-dash-panel .recharts-wrapper { font-family: inherit; }
 
 /*
  * Un hijo de rejilla no encoge por debajo del ancho de su contenido salvo que se le diga: el
