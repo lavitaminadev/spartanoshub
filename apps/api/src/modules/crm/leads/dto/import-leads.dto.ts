@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsOptional, IsString,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsISO8601, IsOptional, IsString,
   Matches, MaxLength, MinLength, ValidateNested,
 } from 'class-validator';
 
@@ -15,6 +15,35 @@ export class ImportLeadRowDto {
 
   @IsOptional() @IsString() @MaxLength(255) company?: string;
   @IsOptional() @IsString() @MaxLength(255) notes?: string;
+
+  /**
+   * Origen de esta fila.
+   *
+   * Antes se fijaba igual para todo el archivo, así que una planilla mixta —parte pagada, parte
+   * orgánica— entraba marcada toda igual y el costo por lead quedaba repartido entre campañas que
+   * no la trajeron. Sin valor en la fila, se usa el del archivo.
+   */
+  @IsOptional() @IsString() @MaxLength(50) source?: string;
+
+  /** Canal por el que llegó: correo, WhatsApp, teléfono, presencial. */
+  @IsOptional() @IsString() @MaxLength(255) sourceDetail?: string;
+
+  /** Campaña o formulario que lo trajo. Es lo que alimenta el costo por lead. */
+  @IsOptional() @IsString() @MaxLength(180) campaignName?: string;
+
+  /** Teléfono alternativo, para no pisar el principal cuando el archivo trae los dos. */
+  @IsOptional() @IsString() @MaxLength(50) altPhone?: string;
+
+  /** Etiquetas de la celda, separadas por coma o punto y coma. */
+  @IsOptional() @IsString() @MaxLength(500) tags?: string;
+
+  /**
+   * Cuándo ocurrió en el origen, en ISO.
+   *
+   * Sin esto, importar trescientas filas las mete todas como del día de la importación y el
+   * gráfico por día muestra un pico que nunca existió.
+   */
+  @IsOptional() @IsISO8601() sourceCreatedAt?: string;
 }
 
 /**

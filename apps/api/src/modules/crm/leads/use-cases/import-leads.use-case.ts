@@ -59,9 +59,20 @@ export class ImportLeadsUseCase {
           email: row.email,
           phone: row.phone,
           company: row.company,
-          notes: row.notes,
-          source: dto.source,
-          sourceDetail: dto.sourceDetail,
+          // El teléfono alternativo se anexa a las notas y no se descarta: no hay columna para
+          // él, y perderlo significa perder la única forma de contactar a quien puso ahí su
+          // número real. Queda a la vista para moverlo a mano si hace falta.
+          notes: [row.notes, row.altPhone ? `Teléfono alternativo: ${row.altPhone}` : null]
+            .filter(Boolean).join('\n') || undefined,
+          // Lo de la fila manda sobre lo del archivo: una planilla mixta entra con el origen y el
+          // canal que traiga cada lead, en vez de marcada toda igual.
+          source: row.source || dto.source,
+          sourceDetail: row.sourceDetail || dto.sourceDetail,
+          campaignName: row.campaignName,
+          // Se separan por coma o punto y coma porque las dos formas aparecen según qué sistema
+          // exportó el archivo.
+          tags: row.tags?.split(/[,;]/).map((t) => t.trim()).filter(Boolean),
+          sourceCreatedAt: row.sourceCreatedAt ? new Date(row.sourceCreatedAt) : undefined,
         }, 'upsert');
 
         if (yaExistia) result.duplicates += 1;

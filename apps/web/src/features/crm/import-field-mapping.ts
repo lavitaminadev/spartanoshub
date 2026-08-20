@@ -14,8 +14,16 @@ export type TargetField =
   | 'name' | 'email' | 'phone' | 'company' | 'notes'
   /** Campaña o formulario de origen. En las exportaciones de Meta viene como «Formulario». */
   | 'campaignName'
-  /** Detalle del origen: canal, plataforma, anuncio. */
+  /**
+   * Canal por el que llegó: correo, WhatsApp, teléfono, presencial.
+   *
+   * Separado de `source` porque son dos preguntas distintas y en el archivo real vienen en dos
+   * columnas: «Origen» dice si se pagó por el lead, «Canal» por dónde entró. Con un solo destino
+   * competían y una de las dos se perdía en silencio.
+   */
   | 'sourceDetail'
+  /** Si el lead fue pagado u orgánico, y de qué plataforma. Es la columna «Origen». */
+  | 'source'
   /** Etiquetas, separadas por coma o punto y coma dentro de la celda. */
   | 'tags'
   /** Teléfono alternativo. Se guarda aparte para no pisar el principal. */
@@ -47,7 +55,8 @@ const ALIASES: Array<[TargetField, string[]]> = [
   // Van antes que 'phone': 'numerodewhatsapp' contiene 'numero', que es alias del principal.
   ['altPhone', ['telefonosecundario', 'numerodetelefonosecundario', 'whatsapp', 'numerodewhatsapp', 'telefono2', 'telefonoalternativo']],
   ['campaignName', ['formulario', 'campana', 'campaign', 'formname', 'campaignname', 'adname', 'anuncio', 'adset', 'conjuntodeanuncios']],
-  ['sourceDetail', ['canal', 'channel', 'plataforma', 'platform', 'medio', 'origen', 'source', 'utmsource']],
+  ['sourceDetail', ['canal', 'channel', 'medio', 'mediodecontacto']],
+  ['source', ['origen', 'source', 'plataforma', 'platform', 'utmsource', 'procedencia']],
   ['tags', ['etiquetas', 'tags', 'etiqueta', 'label', 'labels']],
   ['email', ['email', 'correo', 'mail', 'correoelectronico', 'emailaddress', 'e']],
   ['phone', ['telefono', 'phone', 'celular', 'movil', 'fono', 'contacto', 'numero', 'mobile', 'phonenumber']],
