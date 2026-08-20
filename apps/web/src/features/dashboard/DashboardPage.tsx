@@ -131,7 +131,16 @@ export function DashboardPage() {
     .filter(widgetAllowed);
   const widgetVisible = (widget: DashboardWidget) => visibleWidgets.includes(widget) && availableWidgets.includes(widget);
   const { data, isLoading, error, refetch, isFetching } = useQuery<DashboardData>({ queryKey: ['dashboard'], queryFn: () => api.get('/reporting/dashboard') });
-  const { data: performance } = useQuery<PerformanceData>({ queryKey: ['performance'], queryFn: () => api.get('/reporting/performance'), enabled: canViewPerformance });
+  /*
+    Se pide solo si el widget se va a dibujar y si la persona alcanza el módulo que el endpoint
+    exige. Son dos condiciones distintas y las dos hacen falta: la tarjeta se muestra según
+    `adsInsights` —una clave de interfaz, sin permiso en el servidor—, mientras que
+    `/reporting/*` está gobernado por `reports`. Pidiendo solo por `!personalView` se llamaba a
+    un endpoint prohibido para traer datos de una tarjeta que ni siquiera se renderiza: de ahí
+    los 403 en la consola del navegador nada más entrar al dashboard.
+  */
+  const canFetchPerformance = canViewPerformance && widgetVisible('performance') && moduleAllowed('reports');
+  const { data: performance } = useQuery<PerformanceData>({ queryKey: ['performance'], queryFn: () => api.get('/reporting/performance'), enabled: canFetchPerformance });
   if (isLoading) return <LoadingSpinner text="Cargando dashboard..." />;
   if (error) return <QueryErrorState title="No pudimos cargar tu dashboard" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
   if (!data) return <div className="alert alert-info">No hay datos disponibles</div>;
