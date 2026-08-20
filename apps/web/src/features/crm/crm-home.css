@@ -58,3 +58,8 @@
   background: #f8eeda; color: #855200;
   font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
 }
+
+/* Misma razón que en el panel: sin `min-width: 0` el monto empuja la tarjeta fuera de su columna. */
+.crm-home-kpis article { min-width: 0; }
+.crm-home-kpis strong { overflow-wrap: anywhere; }
+.crm-home-alerts article { min-width: 0; }

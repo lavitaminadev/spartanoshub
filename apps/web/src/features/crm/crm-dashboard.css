@@ -45,3 +45,19 @@
   .crm-dash-barras li { grid-template-columns: 1fr auto; }
   .crm-dash-barra-pista { grid-column: 1 / -1; }
 }
+
+/*
+ * Un hijo de rejilla no encoge por debajo del ancho de su contenido salvo que se le diga: el
+ * valor por defecto de `min-width` es `auto`, y un monto como «$96.500.000» a 32px empuja la
+ * tarjeta más allá de la columna. Sin esto la fila desborda en pantallas angostas.
+ */
+.crm-dash-kpis article { min-width: 0; }
+.crm-dash-kpis strong { overflow-wrap: anywhere; }
+
+@media (max-width: 520px) {
+  /* Dos por fila en vez de una: ocho tarjetas apiladas obligan a desplazar toda la pantalla
+     para leer la última, y estas cifras se comparan entre sí. */
+  .crm-dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crm-dash-kpis strong { font-size: 22px; }
+  .crm-dash-kpis article { padding: 14px; }
+}
