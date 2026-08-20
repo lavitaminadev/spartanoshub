@@ -49,7 +49,7 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
   {
     id: 'sales',
     label: 'Ventas y CRM',
-    paths: ['/crm', '/crm/leads', '/crm/opportunities', '/crm/pipeline', '/crm/interactions', '/crm/contacts', '/automations', '/catalog', '/contracts', '/billing'],
+    paths: ['/crm', '/crm/tablero', '/crm/leads', '/crm/opportunities', '/crm/pipeline', '/crm/interactions', '/crm/contacts', '/automations', '/catalog', '/contracts', '/billing'],
   },
   {
     id: 'clients',
@@ -226,6 +226,7 @@ const PATH_FEATURE: Record<string, string> = {
   // ningún módulo y se muestra siempre, sea cual sea su fase.
   '/surveys': 'surveys',
   '/crm': 'crm',
+  '/crm/tablero': 'commercialPipeline',
   '/crm/contacts': 'crm',
   '/crm/leads': 'commercialPipeline',
   '/crm/opportunities': 'commercialPipeline',

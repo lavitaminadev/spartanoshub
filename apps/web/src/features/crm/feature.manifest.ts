@@ -19,6 +19,10 @@ registerFeature({
     // solo produciría una entrada que lleva a una pantalla cerrada. Las demás entradas de acá lo
     // listan por arrastre histórico y hay una prueba que impide que esa contradicción crezca.
     { label: 'Inicio del CRM', path: '/crm', icon: '🏁', roles: ['commercial_director', 'operations_director'] },
+    // Solo dirección comercial: el tablero muestra el mismo embudo que «Posibles clientes», que
+    // pertenece a `commercialPipeline`, y la matriz no le da ese módulo a operaciones. El inicio
+    // del CRM sí lo ve, porque resume sin entrar al detalle de cada trato.
+    { label: 'Tablero de leads', path: '/crm/tablero', icon: '🗂️', roles: ['commercial_director'] },
     { label: 'Contactos captados', path: '/crm/contacts', icon: '🙋', roles: ['admin', 'commercial_director', 'operations_director', 'community_manager'] },
     { label: 'Posibles clientes', path: '/crm/leads', icon: '🌱', roles: ['admin', 'commercial_director'] },
     { label: 'Oportunidades de venta', path: '/crm/opportunities', icon: '🧭', roles: ['admin', 'commercial_director'] },
