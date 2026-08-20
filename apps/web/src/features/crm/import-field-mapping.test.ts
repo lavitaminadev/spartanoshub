@@ -71,11 +71,10 @@ describe('reconocimiento de columnas al importar', () => {
     expect(mapeo['Correo electrónico']).toBe('email');
     expect(mapeo['Teléfono']).toBe('phone');
     expect(mapeo.Formulario).toBe('campaignName');
-    // 'Origen' gana el detalle de origen por venir antes; 'Canal' queda para asignar a mano,
-    // que es lo correcto: en el archivo real traen cosas distintas —«Pagada» y «Correo
-    // electrónico»— y quedarse con una sola en silencio perdería la otra.
-    expect(mapeo.Origen).toBe('sourceDetail');
-    expect(mapeo.Canal).toBe('');
+    // Dos columnas, dos destinos: «Origen» dice si se pagó por el lead y «Canal» por dónde
+    // entró. Antes competían por el mismo campo y una de las dos se perdía sin aviso.
+    expect(mapeo.Origen).toBe('source');
+    expect(mapeo.Canal).toBe('sourceDetail');
     expect(mapeo.Etiquetas).toBe('tags');
     expect(mapeo['Número de teléfono secundario']).toBe('altPhone');
   });

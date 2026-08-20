@@ -15,7 +15,8 @@ const TARGET_FIELDS = [
   // Los cuatro de abajo salen de mirar una exportación real de Meta: sin ellos, nueve de sus
   // doce columnas no tenían destino y se perdían al importar.
   { key: 'campaignName', label: 'Campaña o formulario', required: false },
-  { key: 'sourceDetail', label: 'Detalle del origen', required: false },
+  { key: 'source', label: 'Origen (pagado / orgánico)', required: false },
+  { key: 'sourceDetail', label: 'Canal de contacto', required: false },
   { key: 'tags', label: 'Etiquetas', required: false },
   { key: 'altPhone', label: 'Teléfono alternativo', required: false },
 ] as const;

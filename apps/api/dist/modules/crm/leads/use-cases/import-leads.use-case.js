@@ -43,9 +43,13 @@ let ImportLeadsUseCase = ImportLeadsUseCase_1 = class ImportLeadsUseCase {
                     email: row.email,
                     phone: row.phone,
                     company: row.company,
-                    notes: row.notes,
-                    source: dto.source,
-                    sourceDetail: dto.sourceDetail,
+                    notes: [row.notes, row.altPhone ? `Teléfono alternativo: ${row.altPhone}` : null]
+                        .filter(Boolean).join('\n') || undefined,
+                    source: row.source || dto.source,
+                    sourceDetail: row.sourceDetail || dto.sourceDetail,
+                    campaignName: row.campaignName,
+                    tags: row.tags?.split(/[,;]/).map((t) => t.trim()).filter(Boolean),
+                    sourceCreatedAt: row.sourceCreatedAt ? new Date(row.sourceCreatedAt) : undefined,
                 }, 'upsert');
                 if (yaExistia)
                     result.duplicates += 1;
