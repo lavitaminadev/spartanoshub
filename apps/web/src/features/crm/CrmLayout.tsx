@@ -16,8 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../core/auth';
 import { api } from '../../core/api';
 import { readStoredJson, storageKey, writeStoredJson } from '../../core/browser-storage';
-import { isRoleAllowedForPath } from '../../core/navigation.registry';
-import type { UserRole } from '@espartanos/shared';
+import { isPathEnabled } from '../../core/navigation.registry';
 import { CrmScopeContext, type CrmScopeValue } from './crm-scope';
 import './crm-layout.css';
 
@@ -33,7 +32,7 @@ type Grupo = 'general' | 'cliente' | 'agencia';
 const GRUPO_LABEL: Record<Grupo, string> = {
   general: '',
   cliente: 'Clientes',
-  agencia: 'La Vitamina',
+  agencia: 'Espartanos',
 };
 
 /**
@@ -42,26 +41,26 @@ const GRUPO_LABEL: Record<Grupo, string> = {
  * `end` en el inicio porque su ruta es prefijo de todas las demás: sin eso quedaría marcado como
  * activo estando en cualquier otra sección.
  */
-const SECCIONES: Array<{ to: string; label: string; end?: boolean; grupo: Grupo; roles: UserRole[] }> = [
-  { to: '/crm', label: 'Inicio', end: true, grupo: 'general', roles: ['commercial_director', 'operations_director'] },
+const SECCIONES: Array<{ to: string; label: string; end?: boolean; grupo: Grupo }> = [
+  { to: '/crm', label: 'Inicio', end: true, grupo: 'general' },
 
   // Contactos de campaña (`domain=audience`): pertenecen a una cuenta y el selector los acota.
   // Es la única sección que consulta ese embudo; las demás son todas de la agencia.
-  { to: '/crm/contacts', label: 'Contactos', grupo: 'cliente', roles: ['commercial_director', 'operations_director', 'community_manager'] },
+  { to: '/crm/contacts', label: 'Contactos', grupo: 'cliente' },
 
   // Embudo propio de la agencia (`domain=commercial`): sus prospectos son empresas, no personas
   // de una cuenta, así que el selector de cuenta no les aplica.
   // Sin «Tablero» aparte: el tablero y la tabla son dos vistas de esta misma sección y se
   // alternan dentro de ella. Como pestañas separadas eran dos entradas al mismo dato, y la
   // barra marcaba una u otra como activa según por dónde se hubiera entrado.
-  { to: '/crm/leads', label: 'Prospectos', grupo: 'agencia', roles: ['commercial_director'] },
-  { to: '/crm/opportunities', label: 'Oportunidades', grupo: 'agencia', roles: ['commercial_director'] },
-  { to: '/crm/pipeline', label: 'Pipeline', grupo: 'agencia', roles: ['commercial_director'] },
-  { to: '/crm/interactions', label: 'Actividad', grupo: 'agencia', roles: ['commercial_director'] },
+  { to: '/crm/leads', label: 'Prospectos', grupo: 'agencia' },
+  { to: '/crm/opportunities', label: 'Oportunidades', grupo: 'agencia' },
+  { to: '/crm/pipeline', label: 'Pipeline', grupo: 'agencia' },
+  { to: '/crm/interactions', label: 'Actividad', grupo: 'agencia' },
 
-  { to: '/crm/dashboard', label: 'Dashboard', grupo: 'general', roles: ['commercial_director'] },
-  { to: '/crm/calendario', label: 'Calendario', grupo: 'general', roles: ['operations_director'] },
-  { to: '/crm/administracion', label: 'Administración', grupo: 'general', roles: ['commercial_director', 'operations_director'] },
+  { to: '/crm/dashboard', label: 'Dashboard', grupo: 'general' },
+  { to: '/crm/calendario', label: 'Calendario', grupo: 'general' },
+  { to: '/crm/administracion', label: 'Administración', grupo: 'general' },
 ];
 
 
@@ -90,9 +89,22 @@ export function CrmLayout(): JSX.Element {
 
   const scope: CrmScopeValue = { clientId, setClientId, clients, nombreDe };
 
-  // Una pestaña que el backend va a rechazar no es una sección: es un callejón. Se filtra con
-  // la misma función que la lateral general, para que las dos barras oculten lo mismo.
-  const visibles = SECCIONES.filter((seccion) => isRoleAllowedForPath(seccion.roles, user?.role as UserRole));
+  /*
+    Qué secciones ve cada persona lo decide la matriz de permisos, no una lista de cargos
+    escrita acá.
+
+    Antes cada sección declaraba sus roles a mano, así que cambiar quién ve el calendario
+    obligaba a tocar código y desplegar, y la pantalla de permisos —que es donde se espera
+    hacerlo— no gobernaba esta barra. Ahora se resuelve con la misma función que la lateral
+    general: mismo módulo, mismos permisos efectivos, misma respuesta en las dos.
+  */
+  const visibles = SECCIONES.filter((seccion) => isPathEnabled(
+    seccion.to,
+    user?.features,
+    user?.permissions,
+    user?.moduleLifecycle,
+    user?.role,
+  ));
 
   // El selector solo gobierna los contactos de campaña. Ofrecerlo a quien no alcanza esa
   // sección sería un control que no cambia nada de lo que esa persona ve.

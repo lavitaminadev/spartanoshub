@@ -310,7 +310,7 @@ let PermissionsController = class PermissionsController {
 exports.PermissionsController = PermissionsController;
 __decorate([
     (0, common_1.Get)('roles/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Matriz de permisos por cargo y módulo' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -319,7 +319,7 @@ __decorate([
 ], PermissionsController.prototype, "roleMatrix", null);
 __decorate([
     (0, common_1.Put)('roles/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('cambiar los permisos de un cargo'),
     (0, swagger_1.ApiOperation)({ summary: 'Guardar la matriz de permisos por cargo' }),
     __param(0, (0, common_1.Body)()),
@@ -348,7 +348,7 @@ __decorate([
 ], PermissionsController.prototype, "mine", null);
 __decorate([
     (0, common_1.Get)('roles/:role/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Permisos de un cargo, para previsualizacion' }),
     __param(0, (0, common_1.Param)('role')),
     __param(1, (0, common_1.Req)()),

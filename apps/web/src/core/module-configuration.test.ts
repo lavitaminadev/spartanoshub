@@ -11,18 +11,21 @@ describe('configuración recuperable de módulos', () => {
   });
 
   /**
-   * El ciclo de vida y el interruptor siguen siendo dos decisiones distintas.
+   * El catálogo y la preselección siguen siendo dos decisiones distintas.
    *
-   * Desde que todos los módulos están activos, el catálogo dice que el producto los ofrece;
-   * el interruptor dice cuáles se usan. La preselección base deja fuera lo que no forma parte
-   * de la operación diaria, y eso no cambió al abrirlos.
+   * Todos los módulos están activos y todos arrancan encendidos: el producto los ofrece y una
+   * organización nueva los recibe. La preselección `AGENCY_CORE` es otra cosa —el conjunto
+   * mínimo con el que se levanta una agencia— y deja fuera lo que no forma parte de esa base.
+   *
+   * Antes las dos coincidían porque 22 módulos venían apagados de fábrica, y esa coincidencia
+   * escondía que respondían preguntas diferentes.
    */
-  it('ofrecer un módulo no es lo mismo que encenderlo', () => {
+  it('el catálogo ofrece más de lo que preselecciona la base de agencia', () => {
     const features = buildAgencyCoreOrganizationFeatures();
     const content = ORGANIZATION_MODULE_CATALOG.find((module) => module.key === 'content');
 
     expect(content?.lifecycle).toBe('active');
-    expect(content?.defaultEnabled).toBe(false);
+    expect(content?.defaultEnabled).toBe(true);
     expect(features.content).toBe(false);
   });
 

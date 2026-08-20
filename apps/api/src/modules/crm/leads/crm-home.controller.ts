@@ -18,7 +18,9 @@ import { CrmDashboardService } from './crm-dashboard.service';
 @Controller('crm/home')
 @UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
-@Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+// `DEV` incluido: es quien levanta y comprueba los módulos antes de encenderlos, así que tiene
+// que poder abrir la pantalla que va a habilitar. Faltaba, y el inicio del CRM le respondía 403.
+@Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
 @ModuleScope('crm')
 export class CrmHomeController {
   constructor(

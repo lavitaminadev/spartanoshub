@@ -58,7 +58,7 @@ exports.CrmHomeController = CrmHomeController = __decorate([
     (0, common_1.Controller)('crm/home'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
     __metadata("design:paramtypes", [crm_home_service_1.CrmHomeService,
         crm_dashboard_service_1.CrmDashboardService])

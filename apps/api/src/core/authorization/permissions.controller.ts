@@ -53,7 +53,9 @@ export class PermissionsController {
    * es justo lo que hay que saber para decidir si tocarlo.
    */
   @Get('roles/permissions')
-  @Roles(UserRole.DEV)
+  // Administración también: es el cargo del dueño de la organización y ajustar quién ve qué es
+  // precisamente lo que hace desde configuración, sin depender de desarrollo.
+  @Roles(UserRole.DEV, UserRole.ADMIN)
   @ApiOperation({ summary: 'Matriz de permisos por cargo y módulo' })
   async roleMatrix(@Req() req: AuthenticatedRequest) {
     return this.permissions.roleMatrix(req.organizationId);
@@ -70,7 +72,9 @@ export class PermissionsController {
    * de ignorarse, para que un panel desactualizado no guarde en silencio una matriz parcial.
    */
   @Put('roles/permissions')
-  @Roles(UserRole.DEV)
+  @Roles(UserRole.DEV, UserRole.ADMIN)
+  // La reautenticación reciente se conserva: abrir la matriz a administración amplía quién
+  // puede cambiarla, no relaja la comprobación de que sea esa persona quien está al teclado.
   @RequiresRecentAuth('cambiar los permisos de un cargo')
   @ApiOperation({ summary: 'Guardar la matriz de permisos por cargo' })
   async updateRoleMatrix(@Body() dto: UpdateRoleMatrixDto, @Req() req: AuthenticatedRequest) {
@@ -216,7 +220,7 @@ export class PermissionsController {
    * mostraría el acceso real de alguien identificable, que es otra cosa y más sensible.
    */
   @Get('roles/:role/permissions')
-  @Roles(UserRole.DEV)
+  @Roles(UserRole.DEV, UserRole.ADMIN)
   @ApiOperation({ summary: 'Permisos de un cargo, para previsualizacion' })
   async ofRole(@Param('role') role: string, @Req() req: AuthenticatedRequest) {
     if (!Object.values(UserRole).includes(role as UserRole)) throw new NotFoundException('Cargo no encontrado');

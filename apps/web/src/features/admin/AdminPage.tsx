@@ -45,7 +45,24 @@ type Feedback = { tone: 'success' | 'error'; text: string } | null;
 export function AdminPage() {
   const qc = useQueryClient();
   const user = useAuth((state) => state.user);
-  const canManageProductAccess = user?.role === 'dev';
+  /**
+   * Ajustar quién ve qué: administración y desarrollo.
+   *
+   * Es la función que el dueño de la organización resuelve desde configuración sin depender de
+   * nadie. Estaba fijada a `dev`, así que la pestaña existía y no se dibujaba nunca para él.
+   */
+  const esDesarrollo = user?.role === 'dev';
+  const canManagePermissions = esDesarrollo || user?.role === 'admin';
+
+  /**
+   * Encender y apagar módulos: solo desarrollo.
+   *
+   * Va después de actualizar el servidor y comprobar que el módulo funciona, así que lo decide
+   * quien despliega. Es una decisión distinta de la anterior aunque vivan en la misma pantalla:
+   * una dice qué existe y la otra quién lo ve, y tenerlas bajo la misma condición obligaba a
+   * elegir entre ocultarle a administración lo suyo o darle lo que no le toca.
+   */
+  const canManageModules = esDesarrollo;
   const [tab, setTab] = useState<'permisos' | 'modulos' | 'excepciones' | 'consentimiento'>('excepciones');
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [dirty, setDirty] = useState(false);
@@ -61,10 +78,10 @@ export function AdminPage() {
   const [consentPublishOpen, setConsentPublishOpen] = useState(false);
   const [pwdPolicy, setPwdPolicy] = useState({ minLength: 8, requireUppercase: true, requireNumber: true, requireSpecial: false, expiryDays: 90, preventReuse: 5 });
 
-  const permsQuery = useQuery<{ matrix?: Record<string, Record<string, string>> }>({ queryKey: ['role-permissions'], queryFn: () => api.get('/roles/permissions'), enabled: canManageProductAccess });
+  const permsQuery = useQuery<{ matrix?: Record<string, Record<string, string>> }>({ queryKey: ['role-permissions'], queryFn: () => api.get('/roles/permissions'), enabled: canManagePermissions });
   const exceptionsQuery = useQuery<{ items?: AccessException[] }>({ queryKey: ['access-exceptions'], queryFn: () => api.get('/permission-overrides') });
   const usersQuery = useQuery<(UserOption[] | { data: UserOption[] })>({ queryKey: ['admin-users'], queryFn: () => api.get('/users?isActive=true') });
-  const featuresQuery = useQuery<{ features?: OrganizationFeatures }>({ queryKey: ['organization-features'], queryFn: () => api.get('/organizations/features'), enabled: canManageProductAccess });
+  const featuresQuery = useQuery<{ features?: OrganizationFeatures }>({ queryKey: ['organization-features'], queryFn: () => api.get('/organizations/features'), enabled: canManageModules });
   const settingsQuery = useQuery<OrganizationSetting[]>({ queryKey: ['organization-settings'], queryFn: () => api.get('/settings') });
   const consentVersionsQuery = useQuery<{ items?: Array<{ id: string; version: number; title: string; text: string; publishedAt: string; active: boolean }> }>({ queryKey: ['consent-versions'], queryFn: () => api.get('/consent/versions') });
   const consentUsersQuery = useQuery<{ items?: Array<{ userId: string; userName: string; acceptedVersion: number | null; acceptedAt?: string; status: 'accepted' | 'pending' | 'expired' }> }>({ queryKey: ['consent-users'], queryFn: () => api.get('/consent/users') });
@@ -77,12 +94,14 @@ export function AdminPage() {
   const lifecycleSettings = new Map((settingsQuery.data ?? []).filter((s) => s.key.startsWith('modules.lifecycle.')).map((s) => [s.key, s.value]));
 
   useEffect(() => {
-    if (!canManageProductAccess && (tab === 'permisos' || tab === 'modulos')) setTab('excepciones');
-  }, [canManageProductAccess, tab]);
+    if ((!canManagePermissions && tab === 'permisos') || (!canManageModules && tab === 'modulos')) setTab('excepciones');
+  }, [canManagePermissions, canManageModules, tab]);
 
-  const exceptionUsers = users.filter((u) => u.id && u.name && (canManageProductAccess || u.role !== 'dev'));
+  // Las personas con cargo de desarrollo solo se listan para desarrollo: conceder excepciones
+  // sobre ese cargo es lo mismo que ampliarse el acceso a uno mismo por la puerta de al lado.
+  const exceptionUsers = users.filter((u) => u.id && u.name && (esDesarrollo || u.role !== 'dev'));
   const visibleExceptions = exceptions.filter((e) =>
-    (canManageProductAccess || e.userRole !== 'dev') &&
+    (esDesarrollo || e.userRole !== 'dev') &&
     matchesSearch(exceptionSearch, [e.userName, e.module, e.level, e.reason]) &&
     (!exceptionClient || e.userId === exceptionClient)
   );
@@ -178,8 +197,8 @@ export function AdminPage() {
   const consentUsers = (consentUsersQuery.data as { items?: Array<{ userId: string; userName: string; acceptedVersion: number | null; acceptedAt?: string; status: 'accepted' | 'pending' | 'expired' }> } | undefined)?.items ?? [];
   const activeConsent = consentVersions.find(v => v.active);
   const pendingConsent = consentUsers.filter(u => u.status === 'pending');
-  const loading = (canManageProductAccess && permsQuery.isLoading) || exceptionsQuery.isLoading || usersQuery.isLoading || (canManageProductAccess && featuresQuery.isLoading) || settingsQuery.isLoading || consentVersionsQuery.isLoading || consentUsersQuery.isLoading;
-  const loadError = (canManageProductAccess && permsQuery.error) || exceptionsQuery.error || usersQuery.error || (canManageProductAccess && featuresQuery.error) || settingsQuery.error || consentVersionsQuery.error || consentUsersQuery.error;
+  const loading = (canManagePermissions && permsQuery.isLoading) || exceptionsQuery.isLoading || usersQuery.isLoading || (canManageModules && featuresQuery.isLoading) || settingsQuery.isLoading || consentVersionsQuery.isLoading || consentUsersQuery.isLoading;
+  const loadError = (canManagePermissions && permsQuery.error) || exceptionsQuery.error || usersQuery.error || (canManageModules && featuresQuery.error) || settingsQuery.error || consentVersionsQuery.error || consentUsersQuery.error;
 
   const setCell = (modKey: string, role: string, level: PermissionLevel) => {
     const next = { ...matrixDraft } as Record<string, Record<string, PermissionLevel>>;
@@ -199,10 +218,10 @@ export function AdminPage() {
   const activeExCount = exceptions.filter((e) => e.status === 'active').length;
   const expiredExCount = exceptions.filter((e) => e.status === 'expired').length;
   const exceptionModuleOptions = MODULE_CATALOG.filter((module) => {
-    const lifecycle = canManageProductAccess
+    const lifecycle = canManageModules
       ? lifecycleOf(module.key, module.lifecycle)
       : (user?.moduleLifecycle?.[module.key] ?? module.lifecycle);
-    const orgEnabled = canManageProductAccess
+    const orgEnabled = canManageModules
       ? (features?.[module.key] ?? module.defaultEnabled)
       : (user?.features?.[module.key] ?? module.defaultEnabled);
     return orgEnabled && isModuleLifecycleVisible(lifecycle);
@@ -235,13 +254,13 @@ export function AdminPage() {
     <PageHero
       eyebrow="CONTROL DE ACCESO"
       title="Accesos y seguridad"
-      subtitle={canManageProductAccess ? 'Matriz base, excepciones, consentimiento y estado de módulos.' : 'Personas, accesos puntuales, consentimiento y seguridad operativa.'}
+      subtitle={canManagePermissions ? 'Matriz base, excepciones, consentimiento y estado de módulos.' : 'Personas, accesos puntuales, consentimiento y seguridad operativa.'}
       variant="feature"
       aside={<div className="page-hero-stats">
         <span><small>Cargos</small><strong>{ROLE_KEYS.length}</strong></span>
         <span><small>Excepciones activas</small><strong>{activeExCount}</strong></span>
-        {canManageProductAccess && <span><small>Módulos</small><strong>{MODULE_CATALOG.length}</strong></span>}
-        {canManageProductAccess && <span><small>Módulos activos</small><strong>{lifecycleSummary.active ?? 0}</strong></span>}
+        {canManageModules && <span><small>Módulos</small><strong>{MODULE_CATALOG.length}</strong></span>}
+        {canManageModules && <span><small>Módulos activos</small><strong>{lifecycleSummary.active ?? 0}</strong></span>}
         <span><small>Pendientes consent.</small><strong>{pendingConsent.length}</strong></span>
       </div>}
     />
@@ -251,20 +270,20 @@ export function AdminPage() {
         <Link to="/users" className="admin-quick-card"><strong>Usuarios</strong><small>Gestionar personas y cargos</small></Link>
         <Link to="/security" className="admin-quick-card"><strong>Seguridad</strong><small>Salud y auditoría</small></Link>
         <Link to="/integrations" className="admin-quick-card"><strong>Integraciones</strong><small>Meta, Cloudinary, GA4</small></Link>
-        {canManageProductAccess && <Link to="/governance" className="admin-quick-card"><strong>Gobierno del producto</strong><small>Flujos, pods y módulos</small></Link>}
-        {canManageProductAccess && <Link to="/settings" className="admin-quick-card"><strong>Configuración técnica</strong><small>Parámetros del producto</small></Link>}
-        {canManageProductAccess && <Link to="/operations" className="admin-quick-card"><strong>Estado del sistema</strong><small>Diagnóstico y capacidad</small></Link>}
+        {esDesarrollo && <Link to="/governance" className="admin-quick-card"><strong>Gobierno del producto</strong><small>Flujos, pods y módulos</small></Link>}
+        {esDesarrollo && <Link to="/settings" className="admin-quick-card"><strong>Configuración técnica</strong><small>Parámetros del producto</small></Link>}
+        {esDesarrollo && <Link to="/operations" className="admin-quick-card"><strong>Estado del sistema</strong><small>Diagnóstico y capacidad</small></Link>}
       </div>
     </div>
     <nav className="governance-tabs">
-      {canManageProductAccess && <button className={tab === 'permisos' ? 'active' : ''} onClick={() => { setTab('permisos'); setFeedback(null); }}><span>01</span><strong>Permisos por cargo</strong><small>Matriz de acceso por rol y módulo</small></button>}
-      {canManageProductAccess && <button className={tab === 'modulos' ? 'active' : ''} onClick={() => { setTab('modulos'); setFeedback(null); }}><span>02</span><strong>Módulos</strong><small>Ciclo de vida y acceso por organización</small></button>}
+      {canManagePermissions && <button className={tab === 'permisos' ? 'active' : ''} onClick={() => { setTab('permisos'); setFeedback(null); }}><span>01</span><strong>Permisos por cargo</strong><small>Matriz de acceso por rol y módulo</small></button>}
+      {canManageModules && <button className={tab === 'modulos' ? 'active' : ''} onClick={() => { setTab('modulos'); setFeedback(null); }}><span>02</span><strong>Módulos</strong><small>Ciclo de vida y acceso por organización</small></button>}
       <button className={tab === 'excepciones' ? 'active' : ''} onClick={() => { setTab('excepciones'); setFeedback(null); }}><span>03</span><strong>Accesos por persona</strong><small>Excepciones y accesos temporales</small></button>
       <button className={tab === 'consentimiento' ? 'active' : ''} onClick={() => { setTab('consentimiento'); setFeedback(null); }}><span>04</span><strong>Consentimiento</strong><small>Versiones, aceptación y acceso</small></button>
     </nav>
     {feedback && <div className={`alert alert-${feedback.tone}`}>{feedback.text}</div>}
 
-    {canManageProductAccess && tab === 'permisos' && <section className="permission-matrix-section">
+    {canManagePermissions && tab === 'permisos' && <section className="permission-matrix-section">
       <div className="section-toolbar"><div><span className="page-eyebrow">MATRIZ DE ACCESO</span><h2>Permisos por cargo y módulo</h2><p className="page-subtitle">Cada celda define qué puede hacer un cargo en un módulo. Los cambios se guardan al confirmar.</p></div>
         <div className="permission-view-toggle" role="group" aria-label="Forma de ver los permisos"><button className={permView === 'role' ? 'active' : ''} onClick={() => setPermView('role')}>Por cargo</button><button className={permView === 'matrix' ? 'active' : ''} onClick={() => setPermView('matrix')}>Matriz completa</button></div>
         {dirty && <div className="toolbar-actions"><button className="btn btn-outline btn-sm" onClick={() => { setMatrixDraft({}); setDirty(false); qc.invalidateQueries({ queryKey: ['role-permissions'] }); }}>Descartar cambios</button><button className="btn btn-primary btn-sm" disabled={permMutation.isPending} onClick={() => permMutation.mutate(currentMatrix)}>{permMutation.isPending ? 'Guardando...' : 'Guardar matriz'}</button></div>}
@@ -290,7 +309,7 @@ export function AdminPage() {
       )}
     </section>}
 
-    {canManageProductAccess && tab === 'modulos' && <section className="modules-center">
+    {canManageModules && tab === 'modulos' && <section className="modules-center">
       <div className="section-toolbar">
         <div>
           <span className="page-eyebrow">OFERTA Y ACCESO</span>

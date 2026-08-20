@@ -19,18 +19,15 @@ registerFeature({
     // entradas de un módulo en la lateral, empujaba fuera de vista a los demás y ofrecía dos
     // caminos al mismo sitio que se marcaban activos de forma distinta.
     //
-    // Sin `admin` a propósito: la matriz no le da el módulo `crm` ni `commercialPipeline`, así
-    // que las cinco entradas que lo listaban llevaban a pantallas cerradas. Colapsar a una es
-    // también lo que retira esa contradicción en vez de contenerla con una prueba.
-    { label: 'CRM', path: '/crm', icon: '🏁', roles: ['commercial_director', 'operations_director'] },
-
-    // Dos entradas, pero con roles disjuntos: cada persona sigue viendo exactamente una.
+    // Sin lista de cargos: quién ve el CRM lo decide la matriz de permisos, que se edita en
+    // Configuración. Enumerarlos acá obligaba a tocar código y desplegar para un cambio que la
+    // pantalla ya sabe hacer, y mantenía dos respuestas a la misma pregunta.
     //
-    // El inicio del CRM lo sirve `crm-home.controller`, que no acepta community managers. Su
-    // puerta es la sección de contactos de campaña, que es además la única del CRM que les
-    // corresponde: el resto es el embudo de la agencia. Llevarlas a `/crm` habría sido ofrecer
-    // una pantalla que el backend rechaza —o ampliarle el acceso al inicio para justificar el
-    // menú, que es decidir un permiso desde la navegación.
+    // Se conserva la segunda entrada para community managers porque no es una cuestión de
+    // permiso sino de destino: el inicio del CRM lo sirve `crm-home.controller`, que no los
+    // acepta, así que su puerta es la sección de contactos de campaña. Las dos se llaman «CRM»
+    // y sus condiciones no se solapan, de modo que cada persona ve exactamente una.
+    { label: 'CRM', path: '/crm', icon: '🏁', roles: ['admin', 'dev', 'commercial_director', 'operations_director'] },
     { label: 'CRM', path: '/crm/contacts', icon: '🏁', roles: ['community_manager'] },
   ],
   routes: [],
