@@ -43,43 +43,7 @@ interface Lead {
 interface UserOption { id: string; name: string }
 interface ClientOption { id: string; name: string }
 
-/**
- * Columnas del embudo, en el orden en que se recorre.
- *
- * Es la misma lista que el servidor acepta para el dominio comercial. Escribirla acá y no
- * derivarla de una respuesta la deja fija: una etapa nueva en el servidor no aparece sola, pero
- * tampoco aparece una que el servidor rechace, que es el fallo que se ve como tablero roto.
- */
-const STAGES = ['new', 'contacted', 'quote_sent', 'meeting_scheduled', 'negotiation', 'won', 'lost'] as const;
-
-/**
- * Nombre de cada columna en el tablero.
- *
- * Se declara acá y no se toma de `statusLabel` porque la clave guardada y la palabra que usa el
- * equipo no tienen por qué coincidir: `quote_sent` se lee «Calificado» y `won` se lee «Venta».
- * Cambiar el rótulo no toca la base —las claves siguen siendo las mismas— y renombrarlas sí
- * dejaría huérfanos todos los leads que ya las tienen.
- */
-const STAGE_LABEL: Record<string, string> = {
-  new: 'Nuevo',
-  contacted: 'Contactado',
-  quote_sent: 'Calificado',
-  meeting_scheduled: 'Visita agendada',
-  negotiation: 'Negociación',
-  won: 'Venta',
-  lost: 'Descartado',
-};
-
-/** El color no decora: separa lo que está en curso de lo que ya se cerró. */
-const STAGE_ACCENT: Record<string, string> = {
-  new: '#8fd8ff',
-  contacted: '#7cc6f5',
-  meeting_scheduled: '#e2a33c',
-  quote_sent: '#17c78a',
-  negotiation: '#f0a05a',
-  won: '#17c78a',
-  lost: '#c9736b',
-};
+import { STAGES, STAGE_ACCENT, STAGE_LABEL } from './stage-labels';
 
 const FILTER_KEYS = ['cliente', 'responsable'] as const;
 

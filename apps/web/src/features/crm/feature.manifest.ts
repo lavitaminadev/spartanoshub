@@ -23,6 +23,7 @@ registerFeature({
     // pertenece a `commercialPipeline`, y la matriz no le da ese módulo a operaciones. El inicio
     // del CRM sí lo ve, porque resume sin entrar al detalle de cada trato.
     { label: 'Tablero', path: '/crm/tablero', icon: '🗂️', roles: ['commercial_director'] },
+    { label: 'Dashboard', path: '/crm/dashboard', icon: '📊', roles: ['commercial_director'] },
     { label: 'Contactos captados', path: '/crm/contacts', icon: '🙋', roles: ['admin', 'commercial_director', 'operations_director', 'community_manager'] },
     { label: 'Leads', path: '/crm/leads', icon: '🌱', roles: ['admin', 'commercial_director'] },
     { label: 'Oportunidades de venta', path: '/crm/opportunities', icon: '🧭', roles: ['admin', 'commercial_director'] },

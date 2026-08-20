@@ -1,0 +1,47 @@
+/*
+ * Dashboard del CRM.
+ *
+ * Las cifras arriba, las distribuciones abajo. Los gráficos son CSS y no una librería: son barras
+ * y una serie de conteos, y sumar una dependencia de gráficos por eso pesaría más que todo el
+ * módulo.
+ */
+
+.crm-dash { display: grid; gap: 20px; }
+
+.crm-dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.crm-dash-kpis article {
+  display: grid; gap: 2px; padding: 18px 20px;
+  background: var(--white); border: 1px solid var(--surface-sage);
+  border-top: 3px solid #17c78a; border-radius: var(--radius-md);
+}
+.crm-dash-kpis strong { font-size: 32px; line-height: 1.1; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.crm-dash-kpis span { margin-top: 6px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+/* El subtítulo es lo que vuelve legible la cifra: sin él, «9» no se sabe si está bien o mal. */
+.crm-dash-kpis small { font-size: 12px; color: var(--muted); }
+
+.crm-dash-panel {
+  display: grid; gap: 12px; padding: 18px 20px;
+  background: var(--white); border: 1px solid var(--surface-sage); border-radius: var(--radius-md);
+}
+.crm-dash-panel h2 { margin: 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.crm-dash-vacio { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+
+.crm-dash-dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+
+/* Barras horizontales: los nombres de etapa y de fuente son largos y en vertical se cortan. */
+.crm-dash-barras { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.crm-dash-barras li { display: grid; grid-template-columns: minmax(90px, 130px) 1fr auto; gap: 10px; align-items: center; }
+.crm-dash-barra-nombre { font-size: 12px; color: var(--text-dark); }
+.crm-dash-barra-pista { height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; }
+.crm-dash-barra-pista i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #17c78a, #8fd8ff); }
+.crm-dash-barra-valor { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Serie diaria. Cada barra se estira desde abajo, así que la altura se lee como el conteo. */
+.crm-dash-dias { display: flex; align-items: flex-end; gap: 2px; height: 120px; }
+.crm-dash-dias > span { flex: 1 1 0; display: flex; align-items: flex-end; height: 100%; min-width: 3px; }
+.crm-dash-dias i { display: block; width: 100%; border-radius: 2px 2px 0 0; background: #17c78a; min-height: 2px; }
+
+@media (max-width: 520px) {
+  .crm-dash-barras li { grid-template-columns: 1fr auto; }
+  .crm-dash-barra-pista { grid-column: 1 / -1; }
+}

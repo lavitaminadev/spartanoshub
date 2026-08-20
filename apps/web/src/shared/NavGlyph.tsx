@@ -22,6 +22,7 @@ const GLYPHS: Record<string, string> = {
   'Automatizaciones': 'AU',
   'Actividad comercial': 'AC',
   'Tablero': 'TB',
+  'Dashboard': 'DB',
   'Leads': 'LD',
   'Contactos captados': 'CC',
   'Catálogo': 'CA',

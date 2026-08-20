@@ -14,6 +14,7 @@ import { LeadIntakeService } from './leads/lead-intake.service';
 import { LeadIngestService } from './leads/lead-ingest.service';
 import { LeadIngestController } from './leads/lead-ingest.controller';
 import { CrmHomeService } from './leads/crm-home.service';
+import { CrmDashboardService } from './leads/crm-dashboard.service';
 import { CrmHomeController } from './leads/crm-home.controller';
 import { IngestSourcesController } from './leads/ingest-sources.controller';
 import { LeadIngestSource } from './leads/ingest-source.entity';
@@ -44,7 +45,7 @@ import { Reservation } from '../reservations/domain/reservation.entity';
   imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource]), AccountAccessModule, AuditModule, ProcessTemplatesModule],
   controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController],
   providers: [
-    CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, LeadIngestService, CrmHomeService, CrmLeadAutomationService,
+    CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, LeadIngestService, CrmHomeService, CrmDashboardService, CrmLeadAutomationService,
     ContactsService,
     OpportunityReferenceValidator, OpportunityStageHistoryService, CreateOpportunityUseCase, ListOpportunitiesUseCase, GetOpportunityUseCase, UpdateOpportunityUseCase, RemoveOpportunityUseCase,
     InteractionsService,

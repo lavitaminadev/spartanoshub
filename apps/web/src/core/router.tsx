@@ -19,6 +19,8 @@ const ClientsPage = lazy(() => import('../features/clients/ClientsPage').then(m 
 const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage').then(m => ({ default: m.ClientDetailPage })));
 const LeadsPage = lazy(() => import('../features/crm/LeadsPage').then(m => ({ default: m.LeadsPage })));
 const OpportunitiesPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.OpportunitiesPage })));
+const CrmLayout = lazy(() => import('../features/crm/CrmLayout').then(m => ({ default: m.CrmLayout })));
+const CrmDashboardPage = lazy(() => import('../features/crm/CrmDashboardPage').then(m => ({ default: m.CrmDashboardPage })));
 const LeadsBoardPage = lazy(() => import('../features/crm/LeadsBoardPage').then(m => ({ default: m.LeadsBoardPage })));
 const CrmHomePage = lazy(() => import('../features/crm/CrmHomePage').then(m => ({ default: m.CrmHomePage })));
 const PipelineBoardPage = lazy(() => import('../features/crm/PipelineBoardPage').then(m => ({ default: m.PipelineBoardPage })));
@@ -108,8 +110,13 @@ export function AppRouter() {
           <Route path="/dashboard" element={<ProtectedRoute path="/dashboard"><SafeSuspense><DashboardPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/clients" element={<ProtectedRoute path="/clients"><SafeSuspense><ClientsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/clients/:id" element={<ProtectedRoute path="/clients"><SafeSuspense><ClientDetailPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/crm" element={<ProtectedRoute path="/crm"><SafeSuspense><CrmHomePage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/crm/tablero" element={<ProtectedRoute path="/crm/tablero"><SafeSuspense><LeadsBoardPage /></SafeSuspense></ProtectedRoute>} />
+          {/* El CRM se recorre entero sin salir de él, así que sus secciones cuelgan de una barra
+              propia. Cada hija conserva su `ProtectedRoute`: la barra no decide quién entra. */}
+          <Route element={<CrmLayout />}>
+            <Route path="/crm" element={<ProtectedRoute path="/crm"><SafeSuspense><CrmHomePage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/tablero" element={<ProtectedRoute path="/crm/tablero"><SafeSuspense><LeadsBoardPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/dashboard" element={<ProtectedRoute path="/crm/dashboard"><SafeSuspense><CrmDashboardPage /></SafeSuspense></ProtectedRoute>} />
+          </Route>
           <Route path="/crm/leads" element={<ProtectedRoute path="/crm/leads"><SafeSuspense><LeadsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/crm/opportunities" element={<ProtectedRoute path="/crm/opportunities"><SafeSuspense><OpportunitiesPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/crm/pipeline" element={<ProtectedRoute path="/crm/pipeline"><SafeSuspense><PipelineBoardPage /></SafeSuspense></ProtectedRoute>} />
