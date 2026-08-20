@@ -16,6 +16,11 @@ const GLYPHS: Record<string, string> = {
   Inicio: 'IN',
 
   // Ventas y CRM
+  //
+  // El CRM entró a una sola entrada: sus nueve secciones se navegan desde su propia barra y ya
+  // no aparecen en la lateral. Los monogramas de esas secciones se conservan porque el mapa se
+  // consulta por etiqueta y las mismas palabras se usan en otros menús.
+  CRM: 'CR',
 
   'Oportunidades de venta': 'OV',
   'Tablero de pipeline': 'TP',

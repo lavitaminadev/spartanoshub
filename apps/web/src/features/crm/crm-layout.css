@@ -31,7 +31,36 @@
 
 .crm-nav-usuario { flex: 0 0 auto; font-size: 12px; color: var(--muted); }
 
+/* Cada pestaña con su posible rótulo de grupo encima, para que el rótulo no empuje la fila. */
+.crm-nav-item { position: relative; display: flex; align-items: center; }
+
+/*
+ * Rótulo del embudo al que pertenece el tramo que empieza.
+ *
+ * Va como separador vertical con el nombre al lado y no como encabezado sobre las pestañas:
+ * encima obligaba a dar altura a toda la barra para un texto que solo aparece dos veces.
+ */
+.crm-nav-grupo {
+  align-self: center; margin: 0 10px 0 6px; padding-left: 12px;
+  border-left: 1px solid var(--surface-sage);
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); opacity: .75; white-space: nowrap;
+}
+
+.crm-nav-derecha { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+
+/* El selector de cuenta gobierna todas las secciones de campaña, así que se lee como parte de
+   la barra y no como un filtro más dentro de la pantalla. */
+.crm-nav-cuenta { display: flex; align-items: center; gap: 8px; }
+.crm-nav-cuenta-label {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.crm-nav-cuenta .input { min-width: 190px; padding: 6px 10px; font-size: 13px; }
+
 @media (max-width: 720px) {
   .crm-nav { flex-direction: column; align-items: stretch; gap: 4px; }
   .crm-nav-usuario { padding: 0 2px 8px; }
+  .crm-nav-derecha { flex-wrap: wrap; gap: 8px; padding: 0 2px 8px; }
+  .crm-nav-cuenta { flex: 1 1 100%; }
+  .crm-nav-cuenta .input { flex: 1 1 auto; min-width: 0; }
 }

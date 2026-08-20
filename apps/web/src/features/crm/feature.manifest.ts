@@ -11,30 +11,27 @@ registerFeature({
     // 2. Prospectos / Pipeline / Actividad — el CRM DE LA VITAMINA. Las empresas que la
     //    agencia quiere sumar como clientes. Es de dirección comercial.
     //
-    // El "pipeline" es el recorrido por etapas de las oportunidades (nuevo → calificado →
-    // propuesta → negociación → ganado/perdido); los prospectos son quienes entran a él.
-    // Va primero porque es la puerta: dice qué atender antes de mostrar cualquier lista.
+    // Los separa `leads.domain` en la base desde la migración 0069, y la barra del CRM los
+    // muestra en dos grupos con ese mismo nombre.
     //
-    // Sin `admin` a propósito: la matriz no le da el módulo `crm`, así que ofrecérselo en el menú
-    // solo produciría una entrada que lleva a una pantalla cerrada. Las demás entradas de acá lo
-    // listan por arrastre histórico y hay una prueba que impide que esa contradicción crezca.
-    { label: 'Inicio', path: '/crm', icon: '🏁', roles: ['commercial_director', 'operations_director'] },
-    // Solo dirección comercial: el tablero muestra el mismo embudo que «Posibles clientes», que
-    // pertenece a `commercialPipeline`, y la matriz no le da ese módulo a operaciones. El inicio
-    // del CRM sí lo ve, porque resume sin entrar al detalle de cada trato.
-    { label: 'Tablero', path: '/crm/tablero', icon: '🗂️', roles: ['commercial_director'] },
-    { label: 'Dashboard', path: '/crm/dashboard', icon: '📊', roles: ['commercial_director'] },
-    // Solo operaciones: el calendario lee las reuniones, y ese controlador no acepta dirección
-    // comercial. Ofrecérselo produciría una entrada que lleva a una pantalla cerrada.
-    { label: 'Calendario', path: '/crm/calendario', icon: '📅', roles: ['operations_director'] },
-    { label: 'Administración', path: '/crm/administracion', icon: '⚙️', roles: ['commercial_director', 'operations_director'] },
-    { label: 'Contactos captados', path: '/crm/contacts', icon: '🙋', roles: ['admin', 'commercial_director', 'operations_director', 'community_manager'] },
-    { label: 'Leads', path: '/crm/leads', icon: '🌱', roles: ['admin', 'commercial_director'] },
-    { label: 'Oportunidades de venta', path: '/crm/opportunities', icon: '🧭', roles: ['admin', 'commercial_director'] },
-    // El tablero muestra las mismas oportunidades por etapa. Convive con la tabla en vez de
-    // reemplazarla: la tabla sigue siendo mejor para revisar muchas a la vez y para exportar.
-    { label: 'Tablero de pipeline', path: '/crm/pipeline', icon: '🗂️', roles: ['admin', 'commercial_director'] },
-    { label: 'Actividad comercial', path: '/crm/interactions', icon: '☎️', roles: ['admin', 'commercial_director'] },
+    // **Una sola entrada en la lateral.** Las nueve secciones viven en la barra propia del CRM
+    // (`CrmLayout`), que es donde se navega una vez adentro. Publicarlas también acá ponía diez
+    // entradas de un módulo en la lateral, empujaba fuera de vista a los demás y ofrecía dos
+    // caminos al mismo sitio que se marcaban activos de forma distinta.
+    //
+    // Sin `admin` a propósito: la matriz no le da el módulo `crm` ni `commercialPipeline`, así
+    // que las cinco entradas que lo listaban llevaban a pantallas cerradas. Colapsar a una es
+    // también lo que retira esa contradicción en vez de contenerla con una prueba.
+    { label: 'CRM', path: '/crm', icon: '🏁', roles: ['commercial_director', 'operations_director'] },
+
+    // Dos entradas, pero con roles disjuntos: cada persona sigue viendo exactamente una.
+    //
+    // El inicio del CRM lo sirve `crm-home.controller`, que no acepta community managers. Su
+    // puerta es la sección de contactos de campaña, que es además la única del CRM que les
+    // corresponde: el resto es el embudo de la agencia. Llevarlas a `/crm` habría sido ofrecer
+    // una pantalla que el backend rechaza —o ampliarle el acceso al inicio para justificar el
+    // menú, que es decidir un permiso desde la navegación.
+    { label: 'CRM', path: '/crm/contacts', icon: '🏁', roles: ['community_manager'] },
   ],
   routes: [],
 });

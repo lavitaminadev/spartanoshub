@@ -123,6 +123,11 @@ describe('contrato entre el menú y la matriz de permisos', () => {
       })
       .map(([path]) => path);
 
-    expect(rutas.length, `rutas donde el menú ofrece admin sin permiso:\n${rutas.join('\n')}`).toBe(27);
+    // Bajó de 27 a 22 al colapsar el menú del CRM a una sola entrada: las cinco rutas de CRM
+    // que ofrecían `admin` sin darle el módulo (`/crm/leads`, `/crm/opportunities`,
+    // `/crm/pipeline`, `/crm/interactions`, `/crm/contacts`) salieron de la lateral y ahora se
+    // navegan desde la barra del propio CRM. La contradicción de fondo sigue sin decidirse en
+    // las 22 restantes; lo que se retiró fue el tramo que dejó de tener entrada de menú.
+    expect(rutas.length, `rutas donde el menú ofrece admin sin permiso:\n${rutas.join('\n')}`).toBe(22);
   });
 });
