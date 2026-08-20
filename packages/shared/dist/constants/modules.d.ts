@@ -54,83 +54,83 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "crm";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "commercialPipeline";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "production";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "intake";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "clientMetricsPanel";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "multiClientOnboarding";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "udBudget";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "gamification";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "billing";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "contracts";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "catalog";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "content";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "briefs";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "meetings";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "documents";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "approvals";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "audiovisual";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "knowledge";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "onboarding";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "operations";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "governance";
     readonly lifecycle: "active";
@@ -138,11 +138,11 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "direction";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }, {
     readonly key: "surveys";
     readonly lifecycle: "active";
-    readonly defaultEnabled: false;
+    readonly defaultEnabled: true;
 }];
 export type OrganizationModuleKey = (typeof ORGANIZATION_MODULE_CATALOG)[number]['key'];
 export declare const AGENCY_CORE_MODULE_KEYS: readonly ["dashboard", "settings", "users", "clients", "reports", "integrations", "reservations", "governance", "crm", "surveys"];

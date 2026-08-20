@@ -187,7 +187,7 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
                   A qué CRM entran
                   <select className="input" value={domain} onChange={(event) => { setDomain(event.target.value as 'audience' | 'commercial'); setClientId(''); }}>
                     <option value="audience">Contactos de campaña — el CRM de un cliente</option>
-                    <option value="commercial">Prospectos de La Vitamina — el embudo de la agencia</option>
+                    <option value="commercial">Prospectos de Espartanos — el embudo propio</option>
                   </select>
                   <small className="field-hint">
                     Son dos embudos separados. Los contactos de campaña pertenecen a la cuenta que

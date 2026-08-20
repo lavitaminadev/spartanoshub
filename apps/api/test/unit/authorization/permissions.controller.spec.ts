@@ -35,10 +35,22 @@ describe('PermissionsController: separación admin/dev', () => {
     );
   });
 
-  it('reserva la matriz base de permisos al rol dev', () => {
-    expect(Reflect.getMetadata(ROLES_KEY, PermissionsController.prototype.roleMatrix)).toEqual([UserRole.DEV]);
-    expect(Reflect.getMetadata(ROLES_KEY, PermissionsController.prototype.updateRoleMatrix)).toEqual([UserRole.DEV]);
-    expect(Reflect.getMetadata(ROLES_KEY, PermissionsController.prototype.ofRole)).toEqual([UserRole.DEV]);
+  /**
+   * La matriz de permisos la manejan desarrollo y administración.
+   *
+   * Ajustar quién ve qué es lo que el dueño de la organización resuelve desde configuración sin
+   * depender de desarrollo. Lo que **no** pasa a administración es encender y apagar módulos:
+   * eso va después de actualizar el servidor y comprobar que funcionan, y lo cubre la prueba de
+   * `organizations.controller`.
+   */
+  it('deja la matriz de permisos a desarrollo y administración', () => {
+    for (const handler of [
+      PermissionsController.prototype.roleMatrix,
+      PermissionsController.prototype.updateRoleMatrix,
+      PermissionsController.prototype.ofRole,
+    ]) {
+      expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([UserRole.DEV, UserRole.ADMIN]);
+    }
   });
 
   it('impide que admin administre excepciones de una cuenta dev', async () => {

@@ -54,10 +54,11 @@ describe('FeatureGuard', () => {
       .rejects.toThrow('Este módulo no está habilitado');
   });
 
-  it('rechaza los módulos de fases futuras por defecto', async () => {
+  it('acepta un módulo del catálogo cuando la organización no ha configurado nada', async () => {
+    // El catálogo arranca entero encendido. Antes 22 de los 31 módulos venían apagados, así que
+    // una instalación nueva rechazaba pantallas que el producto sí ofrece.
     const { guard } = makeGuard({ [REQUIRES_FEATURE_KEY]: 'clientMetricsPanel' }, { id: 'org-1', features: null });
-    await expect(guard.canActivate(makeContext({ organizationId: 'org-1' })))
-      .rejects.toThrow('Este módulo no está habilitado');
+    await expect(guard.canActivate(makeContext({ organizationId: 'org-1' }))).resolves.toBe(true);
   });
 
   it('niega cuando no se puede determinar la organización', async () => {
@@ -102,14 +103,15 @@ describe('normalizeOrganizationFeatures', () => {
     expect(Object.keys(result).sort()).toEqual([...ORGANIZATION_FEATURE_KEYS].sort());
   });
 
-  it('ignora valores que no son booleanos para no encender un módulo por accidente', () => {
-    expect(normalizeOrganizationFeatures({ production: 'si' } as never).production).toBe(false);
+  it('descarta los valores que no son booleanos y usa el del catálogo', () => {
+    // Un texto donde debería ir un booleano es un dato corrupto, no una intención: se ignora y
+    // manda el valor por defecto en vez de interpretarlo.
+    expect(normalizeOrganizationFeatures({ production: 'si' } as never).production).toBe(true);
+    expect(normalizeOrganizationFeatures({ production: false }).production).toBe(false);
   });
 
-  it('deja encendidos los módulos base y de cumplimiento por defecto', () => {
-    const enabled = ORGANIZATION_FEATURE_KEYS.filter((key) => DEFAULT_ORGANIZATION_FEATURES[key]);
-    expect([...enabled].sort()).toEqual(
-      ['clients', 'dashboard', 'governance', 'integrations', 'reports', 'reservations', 'settings', 'users'],
-    );
+  it('enciende el catálogo completo por defecto', () => {
+    const apagados = ORGANIZATION_FEATURE_KEYS.filter((key) => !DEFAULT_ORGANIZATION_FEATURES[key]);
+    expect(apagados, `módulos apagados de fábrica: ${apagados.join(', ')}`).toEqual([]);
   });
 });

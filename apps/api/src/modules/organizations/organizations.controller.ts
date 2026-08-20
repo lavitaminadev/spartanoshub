@@ -91,6 +91,9 @@ export class OrganizationsController {
   @Put('features')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  // Solo desarrollo. Encender un módulo va después de actualizar el servidor y comprobar que
+  // funciona, así que lo hace quien despliega. Administración ajusta quién ve qué —eso sí es
+  // suyo—, pero no decide qué está disponible.
   @Roles(UserRole.DEV)
   @ApiOperation({ summary: 'Habilitar o deshabilitar módulos de la organización' })
   async updateFeatures(@Req() req: AuthenticatedRequest, @Body() dto: UpdateOrganizationFeaturesDto) {

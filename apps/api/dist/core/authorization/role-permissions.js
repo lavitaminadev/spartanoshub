@@ -8,7 +8,7 @@ const TEAM_BASELINE = {
     dashboard: 'view',
     settings: 'view',
 };
-exports.ROLE_PERMISSIONS = {
+const PERFIL_SUGERIDO = {
     [user_role_enum_1.UserRole.ADMIN]: {
         dashboard: 'view',
         users: 'manage',
@@ -165,3 +165,9 @@ exports.ROLE_PERMISSIONS = {
 function roleLevel(role, module) {
     return exports.ROLE_PERMISSIONS[role]?.[module] ?? 'none';
 }
+const ACCESO_COMPLETO = Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage']));
+const CARGOS_INTERNOS = Object.keys(PERFIL_SUGERIDO).filter((rol) => rol !== user_role_enum_1.UserRole.CLIENT);
+exports.ROLE_PERMISSIONS = {
+    ...Object.fromEntries(CARGOS_INTERNOS.map((rol) => [rol, ACCESO_COMPLETO])),
+    [user_role_enum_1.UserRole.CLIENT]: PERFIL_SUGERIDO[user_role_enum_1.UserRole.CLIENT],
+};

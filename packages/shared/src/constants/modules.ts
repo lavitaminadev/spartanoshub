@@ -54,11 +54,17 @@ export const ORGANIZATION_MODULE_CATALOG = [
   // Operacion en produccion hoy: reservas y su circuito de captacion.
   { key: 'reservations', lifecycle: 'active', defaultEnabled: true },
 
-  // Ofrecidos por el producto y listos para usarse, pero apagados de fabrica: quedan a un
-  // interruptor de distancia en el panel de administracion, sin tocar codigo.
-  { key: 'crm', lifecycle: 'active', defaultEnabled: false },
-  { key: 'commercialPipeline', lifecycle: 'active', defaultEnabled: false },
-  { key: 'production', lifecycle: 'active', defaultEnabled: false },
+  // Encendidos de fabrica, como todo el catalogo.
+  //
+  // Antes venian apagados y habia que buscarlos en el panel de administracion para poder
+  // usarlos, de modo que una instalacion nueva se veia incompleta sin que nada lo explicara:
+  // 22 de los 31 modulos no aparecian por ningun lado. Quien no quiera uno lo apaga en el
+  // panel, que es una decision mas facil de tomar viendo lo que hay que adivinando lo que
+  // falta. El interruptor por organizacion sigue existiendo; lo que cambia es de que lado
+  // arranca.
+  { key: 'crm', lifecycle: 'active', defaultEnabled: true },
+  { key: 'commercialPipeline', lifecycle: 'active', defaultEnabled: true },
+  { key: 'production', lifecycle: 'active', defaultEnabled: true },
 
   /**
    * Puerta de entrada del trabajo: recibir una solicitud, revisarla y asignarla.
@@ -70,7 +76,7 @@ export const ORGANIZATION_MODULE_CATALOG = [
    * No se separa la logica de dominio: una solicitud sigue convirtiendose en piezas. Lo que se
    * separa es cuando cada parte queda disponible.
    */
-  { key: 'intake', lifecycle: 'active', defaultEnabled: false },
+  { key: 'intake', lifecycle: 'active', defaultEnabled: true },
 
   /*
    * Disponibles en el codigo y apagados de fabrica.
@@ -87,18 +93,18 @@ export const ORGANIZATION_MODULE_CATALOG = [
    * facturacion y direccion son los mas pobres, con backend completo y muy poca interfaz—. Se
    * dejan disponibles igualmente porque encenderlos y apagarlos ya no cuesta un despliegue.
    */
-  { key: 'clientMetricsPanel', lifecycle: 'active', defaultEnabled: false },
-  { key: 'multiClientOnboarding', lifecycle: 'active', defaultEnabled: false },
-  { key: 'udBudget', lifecycle: 'active', defaultEnabled: false },
-  { key: 'gamification', lifecycle: 'active', defaultEnabled: false },
-  { key: 'billing', lifecycle: 'active', defaultEnabled: false },
-  { key: 'contracts', lifecycle: 'active', defaultEnabled: false },
-  { key: 'catalog', lifecycle: 'active', defaultEnabled: false },
-  { key: 'content', lifecycle: 'active', defaultEnabled: false },
-  { key: 'briefs', lifecycle: 'active', defaultEnabled: false },
-  { key: 'meetings', lifecycle: 'active', defaultEnabled: false },
-  { key: 'documents', lifecycle: 'active', defaultEnabled: false },
-  { key: 'approvals', lifecycle: 'active', defaultEnabled: false },
+  { key: 'clientMetricsPanel', lifecycle: 'active', defaultEnabled: true },
+  { key: 'multiClientOnboarding', lifecycle: 'active', defaultEnabled: true },
+  { key: 'udBudget', lifecycle: 'active', defaultEnabled: true },
+  { key: 'gamification', lifecycle: 'active', defaultEnabled: true },
+  { key: 'billing', lifecycle: 'active', defaultEnabled: true },
+  { key: 'contracts', lifecycle: 'active', defaultEnabled: true },
+  { key: 'catalog', lifecycle: 'active', defaultEnabled: true },
+  { key: 'content', lifecycle: 'active', defaultEnabled: true },
+  { key: 'briefs', lifecycle: 'active', defaultEnabled: true },
+  { key: 'meetings', lifecycle: 'active', defaultEnabled: true },
+  { key: 'documents', lifecycle: 'active', defaultEnabled: true },
+  { key: 'approvals', lifecycle: 'active', defaultEnabled: true },
   /*
    * Audiovisual no puede apagarse mientras el intake acepte solicitudes de su area.
    *
@@ -106,19 +112,19 @@ export const ORGANIZATION_MODULE_CATALOG = [
    * unicamente en esta pantalla. Apagarla deja a la direccion audiovisual sin donde aprobarlo
    * y, con ello, sin poder convertir ninguna solicitud de su area.
    */
-  { key: 'audiovisual', lifecycle: 'active', defaultEnabled: false },
-  { key: 'knowledge', lifecycle: 'active', defaultEnabled: false },
-  { key: 'onboarding', lifecycle: 'active', defaultEnabled: false },
-  { key: 'operations', lifecycle: 'active', defaultEnabled: false },
+  { key: 'audiovisual', lifecycle: 'active', defaultEnabled: true },
+  { key: 'knowledge', lifecycle: 'active', defaultEnabled: true },
+  { key: 'onboarding', lifecycle: 'active', defaultEnabled: true },
+  { key: 'operations', lifecycle: 'active', defaultEnabled: true },
   // Sostiene la auditoría y el acceso técnico de Desarrollo. No se muestra como navegación
   // para Administración, pero no puede nacer apagado sin dejar la revisión diaria sin datos.
   { key: 'governance', lifecycle: 'active', defaultEnabled: true },
-  { key: 'direction', lifecycle: 'active', defaultEnabled: false },
+  { key: 'direction', lifecycle: 'active', defaultEnabled: true },
   // Encuestas propias, distintas de la encuesta post-visita que ya vive dentro de reservas.
   // Su API existe (`SurveysController`), asi que el producto ya la ofrece; nace apagada
   // porque distribuir una encuesta es una decision de cada organizacion, no un valor por
   // defecto, y queda a un interruptor de distancia en el panel de administracion.
-  { key: 'surveys', lifecycle: 'active', defaultEnabled: false },
+  { key: 'surveys', lifecycle: 'active', defaultEnabled: true },
 ] as const satisfies readonly ProductModuleDefinition[];
 
 export type OrganizationModuleKey = (typeof ORGANIZATION_MODULE_CATALOG)[number]['key'];

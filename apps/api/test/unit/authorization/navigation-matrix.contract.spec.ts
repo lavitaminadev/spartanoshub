@@ -73,21 +73,16 @@ describe('contrato entre el menú y la matriz de permisos', () => {
   /**
    * El menú no puede ofrecer una pantalla a un rol que la matriz no le concede.
    *
-   * `dev` se exceptúa porque `isRoleAllowedForPath` lo deja pasar siempre y la matriz le da
-   * `manage` sobre todo el catálogo: no hay contradicción posible.
+   * Ya no hay excepciones. `admin` estaba exceptuado mientras se decidía si administración
+   * opera el día a día o solo administra el sistema: la contradicción abarcaba 22 rutas y una
+   * prueba aparte impedía que creciera. Se resolvió abriendo el catálogo a todo el equipo y
+   * dejando el recorte en la pantalla de permisos, así que ese hueco desapareció y con él la
+   * prueba que lo contenía.
    *
-   * `admin` también, y esa exclusión **no** es una conveniencia de la prueba: es una
-   * contradicción real y sistémica que hay que decidir, no silenciar. Está declarado en 25
-   * manifiestos y la matriz solo le da `dashboard`, `users`, `settings`, `integrations` y
-   * `governance`. Resolverlo es elegir entre dos productos distintos —una administración que
-   * opera el día a día o una que solo administra el sistema— y esa decisión no se toma desde
-   * una prueba. Ver `docs/PERMISOS-ADMIN.md`.
-   *
-   * Mientras se decide, la prueba cubre a los demás cargos, que es donde una discrepancia
-   * nueva sí sería un descuido y no una decisión pendiente.
+   * El cargo de cliente sí puede quedarse corto a propósito —es el único de fuera de la
+   * agencia—, pero no aparece en los manifiestos de la aplicación interna, así que tampoco
+   * necesita excepción.
    */
-  const DECISION_PENDIENTE = new Set(['dev', 'admin']);
-
   it('ningún rol del menú carece del permiso que la ruta exige', () => {
     const contradicciones: string[] = [];
 
@@ -97,7 +92,6 @@ describe('contrato entre el menú y la matriz de permisos', () => {
       if (!moduleKey) continue;
 
       for (const role of roles) {
-        if (DECISION_PENDIENTE.has(role)) continue;
         if (grantedLevel(role, moduleKey) === 'none') {
           contradicciones.push(`${path} ofrece "${role}" pero la matriz no le da "${moduleKey}"`);
         }
@@ -107,27 +101,4 @@ describe('contrato entre el menú y la matriz de permisos', () => {
     expect(contradicciones, contradicciones.join('\n')).toEqual([]);
   });
 
-  /**
-   * Fija el alcance de la contradicción de `admin` para que no crezca sin que nadie lo note.
-   *
-   * Si alguien agrega `admin` a un manifiesto nuevo, este número sube y la prueba falla: la
-   * decisión pendiente sigue pendiente, pero no se amplía en silencio. Y cuando se resuelva
-   * —en cualquiera de las dos direcciones— el número baja y también falla, que es justo el
-   * momento de borrar esta prueba.
-   */
-  it('la contradicción de admin no se amplía mientras no se decida', () => {
-    const rutas = [...navigation]
-      .filter(([path, roles]) => {
-        const moduleKey = modules.get(path);
-        return moduleKey && roles.includes('admin') && grantedLevel('admin', moduleKey) === 'none';
-      })
-      .map(([path]) => path);
-
-    // Bajó de 27 a 22 al colapsar el menú del CRM a una sola entrada: las cinco rutas de CRM
-    // que ofrecían `admin` sin darle el módulo (`/crm/leads`, `/crm/opportunities`,
-    // `/crm/pipeline`, `/crm/interactions`, `/crm/contacts`) salieron de la lateral y ahora se
-    // navegan desde la barra del propio CRM. La contradicción de fondo sigue sin decidirse en
-    // las 22 restantes; lo que se retiró fue el tramo que dejó de tener entrada de menú.
-    expect(rutas.length, `rutas donde el menú ofrece admin sin permiso:\n${rutas.join('\n')}`).toBe(22);
-  });
 });

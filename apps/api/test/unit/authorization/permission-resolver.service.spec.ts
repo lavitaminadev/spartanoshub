@@ -29,22 +29,36 @@ describe('satisfies', () => {
   });
 });
 
+/**
+ * El reparto por cargo dejó de vivir en código.
+ *
+ * Todos los cargos del equipo nacen con el catálogo completo y el recorte se hace desde la
+ * pantalla de permisos, que guarda excepciones por cargo y por persona. Lo que se comprueba acá
+ * ya no es qué módulos tiene cada cargo —eso es un dato editable— sino que la apertura sea
+ * pareja para el equipo y que **no** alcance al cargo de cliente.
+ */
 describe('roleLevel', () => {
-  it('limita administración al uso diario, sin configuración de producto', () => {
-    expect(roleLevel(UserRole.ADMIN, 'users')).toBe('manage');
-    expect(roleLevel(UserRole.ADMIN, 'integrations')).toBe('manage');
-    expect(roleLevel(UserRole.ADMIN, 'billing')).toBe('none');
-    expect(roleLevel(UserRole.ADMIN, 'clientMetricsPanel')).toBe('none');
+  const CARGOS_INTERNOS = Object.values(UserRole).filter((rol) => rol !== UserRole.CLIENT);
+
+  it('abre el catálogo completo a todos los cargos del equipo', () => {
+    for (const rol of CARGOS_INTERNOS) {
+      for (const modulo of ['users', 'billing', 'crm', 'clientMetricsPanel', 'reservations'] as const) {
+        expect(roleLevel(rol, modulo), `${rol} debería administrar ${modulo}`).toBe('manage');
+      }
+    }
   });
 
-  it('devuelve none para un módulo ausente en el mapa del rol', () => {
-    expect(roleLevel(UserRole.DESIGNER, 'billing')).toBe('none');
+  it('deja al cargo de cliente con su perfil acotado', () => {
+    // Es el único que no pertenece a la agencia. Abrirle el catálogo expondría los datos de
+    // unas cuentas a las personas de otras, que es lo que el alcance por cuenta impide.
+    expect(roleLevel(UserRole.CLIENT, 'reservations')).toBe('edit');
+    expect(roleLevel(UserRole.CLIENT, 'clients')).toBe('view');
+    expect(roleLevel(UserRole.CLIENT, 'billing')).toBe('none');
+    expect(roleLevel(UserRole.CLIENT, 'users')).toBe('none');
   });
 
-  it('da al community manager edición de reservas y CRM, sin facturación', () => {
-    expect(roleLevel(UserRole.COMMUNITY_MANAGER, 'reservations')).toBe('edit');
-    expect(roleLevel(UserRole.COMMUNITY_MANAGER, 'crm')).toBe('edit');
-    expect(roleLevel(UserRole.COMMUNITY_MANAGER, 'billing')).toBe('none');
+  it('devuelve none para un módulo que no existe en el catálogo', () => {
+    expect(roleLevel(UserRole.DESIGNER, 'modulo-inventado')).toBe('none');
   });
 });
 
@@ -54,7 +68,7 @@ describe('PermissionResolverService', () => {
   it('resuelve el nivel del cargo cuando el módulo está habilitado', async () => {
     const { resolver } = makeResolver({ reservations: true });
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.COMMUNITY_MANAGER);
-    expect(permissions.reservations).toBe('edit');
+    expect(permissions.reservations).toBe('manage');
   });
 
   it('devuelve none en un módulo deshabilitado, incluso para admin', async () => {
@@ -63,19 +77,27 @@ describe('PermissionResolverService', () => {
     expect(permissions.billing).toBe('none');
   });
 
-  it('deja los módulos de fases futuras en none por defecto', async () => {
-    const { resolver } = makeResolver(null);
-    const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
-    expect(permissions.clientMetricsPanel).toBe('none');
-    expect(permissions.udBudget).toBe('none');
-    expect(permissions.reservations).toBe('none');
+  /**
+   * El interruptor por organización sigue mandando sobre el cargo.
+   *
+   * Es lo único que no cambió al abrir la matriz, y es lo que importa que siga en pie: dar el
+   * catálogo completo al equipo no puede significar que apagar un módulo deje de surtir efecto.
+   */
+  it('un módulo apagado por la organización queda en none para cualquier cargo del equipo', async () => {
+    const { resolver } = makeResolver({ production: false, udBudget: false });
+    const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.COMMERCIAL_DIRECTOR);
     expect(permissions.production).toBe('none');
+    expect(permissions.udBudget).toBe('none');
   });
 
-  it('un modulo visible en producto sigue en none si la organizacion no lo enciende', async () => {
+  it('sin configuración guardada, la organización arranca con el catálogo encendido', async () => {
+    // Antes 22 de los 31 módulos venían apagados y había que buscarlos en el panel para poder
+    // usarlos: una instalación nueva se veía incompleta sin que nada lo explicara.
     const { resolver } = makeResolver(null);
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
-    expect(permissions.production).toBe('none');
+    expect(permissions.production).toBe('manage');
+    expect(permissions.crm).toBe('manage');
+    expect(permissions.clientMetricsPanel).toBe('manage');
   });
 
   it('un módulo visible y encendido usa el nivel del cargo', async () => {
@@ -111,16 +133,22 @@ describe('PermissionResolverService', () => {
     expect(permissions.production).toBe('none');
   });
 
-  it('un módulo oculto por lifecycle queda en none aunque la organización lo encienda', async () => {
-    const { resolver } = makeResolver({ udBudget: true });
-    const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
-    expect(permissions.udBudget).toBe('none');
-  });
+  /*
+    Acá vivía «un módulo oculto por lifecycle queda en none aunque la organización lo encienda».
+    Se retiró porque no probaba eso: pasaba porque `admin` no tenía `udBudget` en la matriz, y
+    los 31 módulos del catálogo están en `active`, así que no hay ninguno que el ciclo de vida
+    oculte. Una prueba con ese nombre habría seguido en verde ante una regresión real de
+    lifecycle. Cuando vuelva a haber un módulo en fase futura, la prueba se escribe con él.
+  */
 
   it('can compara contra el nivel exigido', async () => {
-    const { resolver } = makeResolver({ reservations: true });
-    await expect(resolver.can('org-1', 'user-1', UserRole.COMMUNITY_MANAGER, 'reservations', 'view')).resolves.toBe(true);
-    await expect(resolver.can('org-1', 'user-1', UserRole.COMMUNITY_MANAGER, 'reservations', 'manage')).resolves.toBe(false);
+    const { resolver } = makeResolver({ reservations: true, billing: true });
+    // El equipo administra; el cargo de cliente es el que se queda corto, y por eso sirve para
+    // comprobar que la comparación de niveles distingue de verdad.
+    await expect(resolver.can('org-1', 'user-1', UserRole.COMMUNITY_MANAGER, 'reservations', 'manage')).resolves.toBe(true);
+    await expect(resolver.can('org-1', 'user-1', UserRole.CLIENT, 'reservations', 'edit')).resolves.toBe(true);
+    await expect(resolver.can('org-1', 'user-1', UserRole.CLIENT, 'reservations', 'manage')).resolves.toBe(false);
+    await expect(resolver.can('org-1', 'user-1', UserRole.CLIENT, 'billing', 'view')).resolves.toBe(false);
   });
 
   it('can niega un módulo desconocido', async () => {
