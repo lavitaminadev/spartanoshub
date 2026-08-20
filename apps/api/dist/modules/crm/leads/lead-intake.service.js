@@ -103,6 +103,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         Object.assign(lead, {
             ...normalized,
             domain: match.lead?.domain ?? domain,
+            sourceCreatedAt: match.lead?.sourceCreatedAt ?? normalized.sourceCreatedAt ?? null,
             qualityScore: qualification.qualityScore,
             fitStatus: qualification.fitStatus,
             discardReason: qualification.discardReason,

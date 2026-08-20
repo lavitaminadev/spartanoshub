@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 /**
@@ -61,4 +61,17 @@ export class IngestLeadDto {
   @Transform(({ obj }) => primeroDe(obj.mensaje, obj.message, obj.notas, obj.notes, obj.comentario))
   @IsOptional() @IsString() @MaxLength(2000)
   mensaje?: string;
+
+  /**
+   * Cuándo ocurrió en el origen, en formato ISO.
+   *
+   * Sin esto todo lead entra con la hora en que el sistema lo recibió, y una integración que se
+   * atasca dos horas pasa inadvertida porque sus leads siguen pareciendo puntuales. Con la fecha
+   * de origen, la brecha entre ambas queda a la vista.
+   *
+   * Quien no la mande sigue funcionando: se deja vacía, que es distinto de suponerla.
+   */
+  @Transform(({ obj }) => primeroDe(obj.fechaOrigen, obj.created_time, obj.createdTime, obj.created_at, obj.fecha))
+  @IsOptional() @IsISO8601()
+  fechaOrigen?: string;
 }

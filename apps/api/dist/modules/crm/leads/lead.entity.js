@@ -144,6 +144,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Lead.prototype, "estimatedAmount", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'source_created_at', type: 'datetime', nullable: true }),
+    __metadata("design:type", Object)
+], Lead.prototype, "sourceCreatedAt", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Lead.prototype, "createdAt", void 0);
@@ -162,5 +166,6 @@ exports.Lead = Lead = __decorate([
     (0, typeorm_1.Entity)('leads'),
     (0, typeorm_1.Index)('UQ_leads_org_external', ['organizationId', 'externalLeadId'], { unique: true }),
     (0, typeorm_1.Index)('IDX_leads_org_status_updated', ['organizationId', 'status', 'updatedAt']),
-    (0, typeorm_1.Index)('IDX_leads_org_assigned', ['organizationId', 'assignedTo'])
+    (0, typeorm_1.Index)('IDX_leads_org_assigned', ['organizationId', 'assignedTo']),
+    (0, typeorm_1.Index)('IDX_leads_org_source_created', ['organizationId', 'sourceCreatedAt'])
 ], Lead);

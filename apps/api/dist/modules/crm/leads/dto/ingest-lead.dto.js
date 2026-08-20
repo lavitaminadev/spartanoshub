@@ -65,3 +65,9 @@ __decorate([
     (0, class_validator_1.MaxLength)(2000),
     __metadata("design:type", String)
 ], IngestLeadDto.prototype, "mensaje", void 0);
+__decorate([
+    (0, class_transformer_1.Transform)(({ obj }) => primeroDe(obj.fechaOrigen, obj.created_time, obj.createdTime, obj.created_at, obj.fecha)),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsISO8601)(),
+    __metadata("design:type", String)
+], IngestLeadDto.prototype, "fechaOrigen", void 0);

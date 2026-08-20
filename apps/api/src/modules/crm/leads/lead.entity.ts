@@ -7,6 +7,8 @@ import { normalizePhone } from '../../../shared/phone';
 // Cubren las consultas del inicio del CRM: por estado, por antigüedad y por responsable.
 @Index('IDX_leads_org_status_updated', ['organizationId', 'status', 'updatedAt'])
 @Index('IDX_leads_org_assigned', ['organizationId', 'assignedTo'])
+// Los informes por período preguntan por la fecha de origen, no por la de ingreso.
+@Index('IDX_leads_org_source_created', ['organizationId', 'sourceCreatedAt'])
 export class Lead {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ name: 'organization_id', type: 'uuid' }) organizationId: string;
@@ -52,6 +54,17 @@ export class Lead {
    */
   @Column({ name: 'estimated_amount', type: 'decimal', precision: 14, scale: 2, nullable: true })
   estimatedAmount?: number | null;
+
+  /**
+   * Cuándo ocurrió el lead en su origen.
+   *
+   * Distinta de `createdAt`, que es cuándo entró al sistema. La brecha entre ambas es lo que
+   * delata una integración atascada: un lead de Meta o de Make debería entrar en segundos.
+   *
+   * Vacía en los leads creados a mano, que no tienen origen externo.
+   */
+  @Column({ name: 'source_created_at', type: 'datetime', nullable: true })
+  sourceCreatedAt?: Date | null;
 
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

@@ -47,6 +47,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 source: source.source,
                 campaignName: dto.campana,
                 notes: dto.mensaje,
+                sourceCreatedAt: dto.fechaOrigen ? new Date(dto.fechaOrigen) : undefined,
                 externalLeadId: dto.idExterno ? `${source.source}:${dto.idExterno}` : undefined,
             });
             await this.sources.update(source.id, {
