@@ -10,7 +10,16 @@
  * intenta escribirle a alguien.
  */
 
-export type TargetField = 'name' | 'email' | 'phone' | 'company' | 'notes';
+export type TargetField =
+  | 'name' | 'email' | 'phone' | 'company' | 'notes'
+  /** Campaña o formulario de origen. En las exportaciones de Meta viene como «Formulario». */
+  | 'campaignName'
+  /** Detalle del origen: canal, plataforma, anuncio. */
+  | 'sourceDetail'
+  /** Etiquetas, separadas por coma o punto y coma dentro de la celda. */
+  | 'tags'
+  /** Teléfono alternativo. Se guarda aparte para no pisar el principal. */
+  | 'altPhone';
 
 /**
  * Reduce un encabezado a su forma comparable.
@@ -35,8 +44,13 @@ export function normalizeHeader(header: string): string {
  * que `name` porque «nombre de correo» contiene ambas palabras y pertenece al correo.
  */
 const ALIASES: Array<[TargetField, string[]]> = [
+  // Van antes que 'phone': 'numerodewhatsapp' contiene 'numero', que es alias del principal.
+  ['altPhone', ['telefonosecundario', 'numerodetelefonosecundario', 'whatsapp', 'numerodewhatsapp', 'telefono2', 'telefonoalternativo']],
+  ['campaignName', ['formulario', 'campana', 'campaign', 'formname', 'campaignname', 'adname', 'anuncio', 'adset', 'conjuntodeanuncios']],
+  ['sourceDetail', ['canal', 'channel', 'plataforma', 'platform', 'medio', 'origen', 'source', 'utmsource']],
+  ['tags', ['etiquetas', 'tags', 'etiqueta', 'label', 'labels']],
   ['email', ['email', 'correo', 'mail', 'correoelectronico', 'emailaddress', 'e']],
-  ['phone', ['telefono', 'phone', 'celular', 'movil', 'fono', 'whatsapp', 'contacto', 'numero', 'mobile', 'phonenumber']],
+  ['phone', ['telefono', 'phone', 'celular', 'movil', 'fono', 'contacto', 'numero', 'mobile', 'phonenumber']],
   ['company', ['empresa', 'company', 'negocio', 'organizacion', 'razonsocial', 'compania']],
   ['notes', ['notas', 'notes', 'comentario', 'comentarios', 'observaciones', 'mensaje', 'detalle', 'descripcion']],
   ['name', ['nombre', 'name', 'nombrecompleto', 'fullname', 'cliente', 'persona', 'prospecto', 'lead']],

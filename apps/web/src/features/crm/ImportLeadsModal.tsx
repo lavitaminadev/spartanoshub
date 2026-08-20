@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
-import { guessMapping } from './import-field-mapping';
+import { guessMapping, type TargetField } from './import-field-mapping';
 
 /** Campos del prospecto que la importación sabe llenar. */
 const TARGET_FIELDS = [
@@ -12,9 +12,13 @@ const TARGET_FIELDS = [
   { key: 'phone', label: 'Teléfono', required: false },
   { key: 'company', label: 'Empresa', required: false },
   { key: 'notes', label: 'Notas', required: false },
+  // Los cuatro de abajo salen de mirar una exportación real de Meta: sin ellos, nueve de sus
+  // doce columnas no tenían destino y se perdían al importar.
+  { key: 'campaignName', label: 'Campaña o formulario', required: false },
+  { key: 'sourceDetail', label: 'Detalle del origen', required: false },
+  { key: 'tags', label: 'Etiquetas', required: false },
+  { key: 'altPhone', label: 'Teléfono alternativo', required: false },
 ] as const;
-
-type TargetField = (typeof TARGET_FIELDS)[number]['key'];
 
 /** Tope del servidor. Se comprueba acá para no mandar un archivo que va a ser rechazado entero. */
 const MAX_ROWS = 500;
