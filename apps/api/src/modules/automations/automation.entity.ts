@@ -49,9 +49,20 @@ export interface AutomationGraph {
  */
 @Entity('automations')
 @Index('IDX_automations_org_trigger_active', ['organizationId', 'triggerType', 'isActive'])
+@Index('IDX_automations_org_client_trigger', ['organizationId', 'clientId', 'triggerType'])
 export class Automation {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ name: 'organization_id', type: 'uuid' }) organizationId: string;
+
+  /**
+   * Cuenta a la que se limita esta automatización.
+   *
+   * Vacío significa **todas las cuentas**, y es el valor con el que quedaron las que ya
+   * existían: una regla transversal —«avísame de cualquier trato sin seguimiento»— es tan
+   * legítima como una escrita para un cliente concreto, así que el alcance amplio se declara
+   * y no se deduce de un descuido.
+   */
+  @Column({ name: 'client_id', type: 'uuid', nullable: true }) clientId?: string | null;
 
   @Column({ type: 'varchar', length: 150 }) name: string;
   @Column({ type: 'text', nullable: true }) description?: string | null;

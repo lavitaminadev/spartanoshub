@@ -28,6 +28,12 @@ export function AutomationsPage() {
     queryFn: () => api.get('/automations'),
   });
 
+  const { data: clientsResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
+    queryKey: ['clients-min'],
+    queryFn: () => api.get('/clients'),
+  });
+  const clients = clientsResp?.data ?? [];
+
   const { data: catalog } = useQuery<AutomationCatalog>({
     queryKey: ['automations-catalog'],
     queryFn: () => api.get('/automations/catalog'),
@@ -48,6 +54,9 @@ export function AutomationsPage() {
   });
 
   const triggerLabel = (key: string) => catalog?.triggers.find((trigger) => trigger.key === key)?.label ?? key;
+  // «Cuenta no encontrada» y no el identificador crudo: una cuenta cerrada deja reglas
+  // apuntando a ella, y un UUID en la tabla no dice nada sobre qué hacer con esa regla.
+  const clientName = (id: string) => clients.find((client) => client.id === id)?.name ?? 'Cuenta no encontrada';
 
   const columns: Column<Automation>[] = [
     {
@@ -62,6 +71,16 @@ export function AutomationsPage() {
       ),
     },
     { key: 'triggerType', label: 'Se dispara con', sortable: true, render: (row) => triggerLabel(row.triggerType) },
+    {
+      // El alcance va en la tabla y no solo dentro del editor: una regla acotada y una
+      // transversal se comportan de forma muy distinta, y averiguarlo abriendo una por una es
+      // justo lo que lleva a suponer que todas valen para todos.
+      key: 'clientId',
+      label: 'Cuenta',
+      sortable: true,
+      exportValue: (row) => (row.clientId ? clientName(row.clientId) : 'Todas'),
+      render: (row) => (row.clientId ? clientName(row.clientId) : <span className="text-muted">Todas</span>),
+    },
     { key: 'version', label: 'Versión', sortable: true, render: (row) => `v${row.version}` },
     {
       key: 'isActive',

@@ -31,6 +31,8 @@ export interface Automation {
   version: number;
   graph: AutomationGraph;
   runAsUserId: string;
+  /** Cuenta a la que se limita. Vacío o nulo significa que vale para todas. */
+  clientId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

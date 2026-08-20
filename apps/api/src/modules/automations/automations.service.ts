@@ -53,6 +53,8 @@ export class AutomationsService {
       triggerType: dto.triggerType,
       graph: dto.graph,
       runAsUserId: dto.runAsUserId,
+      // Vacío es un alcance válido y declarado: vale para todas las cuentas.
+      clientId: dto.clientId ?? null,
       isActive: false,
       version: 1,
       createdBy,
@@ -76,6 +78,7 @@ export class AutomationsService {
     automation.triggerType = dto.triggerType;
     automation.graph = dto.graph;
     automation.runAsUserId = dto.runAsUserId;
+    automation.clientId = dto.clientId ?? null;
     automation.version += 1;
     return this.automations.save(automation);
   }

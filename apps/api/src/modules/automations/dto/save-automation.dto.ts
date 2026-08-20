@@ -1,4 +1,4 @@
-import { IsBoolean, IsObject, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsObject, IsOptional, IsString, IsUUID, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import type { AutomationGraph } from '../automation.entity';
 
 /**
@@ -20,6 +20,15 @@ export class SaveAutomationDto {
 
   /** Persona en cuyo nombre actúa la automatización. Ver `Automation.runAsUserId`. */
   @IsUUID() runAsUserId: string;
+
+  /**
+   * Cuenta a la que se limita.
+   *
+   * Ausente o `null` significa que vale para todas. Se acepta `null` de forma explícita para
+   * poder volver una regla acotada a transversal desde el editor; sin eso, la única manera de
+   * ampliarla sería borrarla y escribirla de nuevo.
+   */
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsUUID() clientId?: string | null;
 }
 
 export class SetAutomationActiveDto {
