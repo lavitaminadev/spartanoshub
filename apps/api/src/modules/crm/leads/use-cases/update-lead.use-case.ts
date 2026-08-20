@@ -22,7 +22,7 @@ export class UpdateLeadUseCase {
 
   async execute(
     id: string,
-    data: { status?: string; notes?: string; fitStatus?: string; discardReason?: string; tags?: string[] },
+    data: { status?: string; notes?: string; fitStatus?: string; discardReason?: string; tags?: string[]; estimatedAmount?: number },
     organizationId: string,
     actorId?: string,
   ) {
@@ -52,6 +52,7 @@ export class UpdateLeadUseCase {
     if (data.notes !== undefined) lead.notes = data.notes;
     if (data.discardReason !== undefined) lead.discardReason = data.discardReason;
     if (data.tags !== undefined) lead.tags = data.tags;
+    if (data.estimatedAmount !== undefined) lead.estimatedAmount = data.estimatedAmount;
 
     const guardado = await this.repo.save(lead);
 

@@ -24,6 +24,7 @@ import { EmptyState } from '../../shared/EmptyState';
 
 import { matchesSearch } from '../../shared/search';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
+import { ExportButtons, type ExportDocument } from '../../shared/export';
 import './leads-board.css';
 
 interface Lead {
@@ -98,6 +99,34 @@ export function LeadsBoardPage(): JSX.Element {
     });
   }, [data, filtros.values.cliente, filtros.values.responsable, filtros.search]);
 
+
+  /*
+   * El mismo documento alimenta el CSV y el PDF, así que no pueden divergir: agregar una columna
+   * acá la agrega a los dos formatos. Exporta lo filtrado y no todo, que es lo que se está
+   * mirando en pantalla, y el filtro queda anotado en el encabezado para que el archivo se
+   * entienda semanas después.
+   */
+  const documento: ExportDocument<Lead> = {
+    fileName: 'leads',
+    title: 'Leads del embudo comercial',
+    subtitle: `${leads.length} de ${(data?.data ?? []).length} leads`,
+    meta: [
+      { label: 'Cliente', value: cartera.find((c) => c.id === filtros.values.cliente)?.name ?? 'Todos' },
+      { label: 'Responsable', value: nombreDe(filtros.values.responsable) ?? 'Todo el equipo' },
+      { label: 'Búsqueda', value: filtros.search || 'Sin filtrar' },
+    ],
+    columns: [
+      { header: 'Nombre', value: (l) => l.name, width: 22 },
+      { header: 'Teléfono', value: (l) => l.phone, width: 14 },
+      { header: 'Correo', value: (l) => l.email, width: 22 },
+      { header: 'Etapa', value: (l) => STAGE_LABEL[l.status] ?? l.status, width: 13 },
+      { header: 'Origen', value: (l) => l.campaignName || l.source, width: 15 },
+      { header: 'Responsable', value: (l) => nombreDe(l.assignedTo) ?? 'Sin asignar', width: 14 },
+    ],
+    rows: leads,
+    footer: 'Espartanos · CRM',
+  };
+
   const columnas = useMemo<KanbanColumn[]>(
     () => STAGES.map((stage) => ({ id: stage, label: STAGE_LABEL[stage], accent: STAGE_ACCENT[stage] })),
     [],
@@ -118,6 +147,7 @@ export function LeadsBoardPage(): JSX.Element {
           <h1>Tablero</h1>
           <p className="page-subtitle">Arrastra una tarjeta para cambiarle la etapa.</p>
         </div>
+        <ExportButtons document={documento} />
       </div>
 
       {aviso ? <div className={`alert alert-${aviso.tono}`}>{aviso.texto}</div> : null}
