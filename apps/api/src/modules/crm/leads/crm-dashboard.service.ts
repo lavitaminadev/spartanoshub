@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { Lead } from './lead.entity';
 import { LeadStatus } from './lead-status.enum';
 
@@ -36,6 +36,18 @@ export class CrmDashboardService {
       this.agrupar(organizationId, 'discard_reason', LeadStatus.LOST),
     ]);
 
+    const [montoVendido, pipelineAbierto, estancados] = await Promise.all([
+      this.sumar(organizationId, LeadStatus.WON),
+      this.sumarAbiertos(organizationId),
+      this.leads.count({
+        where: {
+          ...base,
+          status: In([LeadStatus.CONTACTED, LeadStatus.QUOTE_SENT, LeadStatus.NEGOTIATION]),
+          updatedAt: LessThan(new Date(Date.now() - 7 * 86_400_000)),
+        } as never,
+      }),
+    ]);
+
     return {
       days,
       totals: {
@@ -45,12 +57,45 @@ export class CrmDashboardService {
         calificados,
         conVisita,
         ventas,
+        montoVendido,
+        pipelineAbierto,
+        // El promedio se calcula sobre lo vendido y no sobre todo: incluir los abiertos mezclaría
+        // valor cerrado con valor estimado, y el número dejaría de significar nada.
+        ticketPromedio: ventas > 0 ? Math.round(montoVendido / ventas) : 0,
+        estancados,
       },
       porEtapa,
       porFuente,
       porDia,
       motivosDeCierre: motivos,
     };
+  }
+
+  /** Suma el monto estimado de los leads en una etapa. */
+  private async sumar(organizationId: string, status: LeadStatus): Promise<number> {
+    const fila = await this.leads.createQueryBuilder('lead')
+      .select('COALESCE(SUM(lead.estimated_amount), 0)', 'total')
+      .where('lead.organization_id = :organizationId', { organizationId })
+      .andWhere('lead.domain = :domain', { domain: 'commercial' })
+      .andWhere('lead.status = :status', { status })
+      .getRawOne<{ total: string }>();
+    return Number(fila?.total ?? 0);
+  }
+
+  /**
+   * Suma el monto de lo que sigue en juego.
+   *
+   * Excluye ganado y perdido: uno ya entró y el otro no va a entrar, así que sumarlos al pipeline
+   * abierto lo convertiría en un total histórico y no en lo que queda por cerrar.
+   */
+  private async sumarAbiertos(organizationId: string): Promise<number> {
+    const fila = await this.leads.createQueryBuilder('lead')
+      .select('COALESCE(SUM(lead.estimated_amount), 0)', 'total')
+      .where('lead.organization_id = :organizationId', { organizationId })
+      .andWhere('lead.domain = :domain', { domain: 'commercial' })
+      .andWhere('lead.status NOT IN (:...cerrados)', { cerrados: [LeadStatus.WON, LeadStatus.LOST] })
+      .getRawOne<{ total: string }>();
+    return Number(fila?.total ?? 0);
   }
 
   /**

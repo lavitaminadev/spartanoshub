@@ -30,7 +30,7 @@ interface LeadPreview {
 interface Alert { key: string; count: number; sample: LeadPreview | null }
 interface TeamRow { userId: string; name: string; open: number; uncontacted: number; cooling: number }
 interface Home {
-  month: { leads: number };
+  month: { leads: number; ventas: number; monto: number };
   urgentCount: number;
   alerts: Alert[];
   team: TeamRow[];
@@ -103,9 +103,8 @@ export function CrmHomePage(): JSX.Element {
   const alerts = data?.alerts ?? [];
   const team = data?.team ?? [];
   const leadsEnCartera = data?.month?.leads ?? 0;
-  const coolingDays = data?.coolingDays ?? 7;
-  const enGestion = team.reduce((total, row) => total + row.open, 0);
-  const enfriandose = team.reduce((total, row) => total + row.cooling, 0);
+  const ventasDelMes = data?.month?.ventas ?? 0;
+  const montoVendido = `$${Math.round(data?.month?.monto ?? 0).toLocaleString('es-CL')}`;
   const primerNombre = user?.name?.split(/\s+/)[0] ?? '';
 
   return (
@@ -128,14 +127,14 @@ export function CrmHomePage(): JSX.Element {
           <small>ingresados</small>
         </article>
         <article>
-          <strong>{enGestion}</strong>
-          <span>En gestión</span>
-          <small>asignados y sin cerrar</small>
+          <strong>{ventasDelMes}</strong>
+          <span>Ventas del mes</span>
+          <small>cerradas</small>
         </article>
         <article>
-          <strong>{enfriandose}</strong>
-          <span>Enfriándose</span>
-          <small>sin movimiento hace +{coolingDays} días</small>
+          <strong>{montoVendido}</strong>
+          <span>Monto vendido</span>
+          <small>en el mes</small>
         </article>
       </section>
 
@@ -171,7 +170,7 @@ export function CrmHomePage(): JSX.Element {
 
       <section className="crm-home-team">
         <header>
-          <h2>Carga del equipo</h2>
+          <h2>Carga del equipo <span className="crm-home-solo">Solo jefatura</span></h2>
         </header>
         {team.length ? (
           <div className="table-wrapper">

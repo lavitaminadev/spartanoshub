@@ -35,6 +35,17 @@ let CrmDashboardService = class CrmDashboardService {
             this.porDia(organizationId, desde),
             this.agrupar(organizationId, 'discard_reason', lead_status_enum_1.LeadStatus.LOST),
         ]);
+        const [montoVendido, pipelineAbierto, estancados] = await Promise.all([
+            this.sumar(organizationId, lead_status_enum_1.LeadStatus.WON),
+            this.sumarAbiertos(organizationId),
+            this.leads.count({
+                where: {
+                    ...base,
+                    status: (0, typeorm_2.In)([lead_status_enum_1.LeadStatus.CONTACTED, lead_status_enum_1.LeadStatus.QUOTE_SENT, lead_status_enum_1.LeadStatus.NEGOTIATION]),
+                    updatedAt: (0, typeorm_2.LessThan)(new Date(Date.now() - 7 * 86_400_000)),
+                },
+            }),
+        ]);
         return {
             days,
             totals: {
@@ -42,12 +53,34 @@ let CrmDashboardService = class CrmDashboardService {
                 calificados,
                 conVisita,
                 ventas,
+                montoVendido,
+                pipelineAbierto,
+                ticketPromedio: ventas > 0 ? Math.round(montoVendido / ventas) : 0,
+                estancados,
             },
             porEtapa,
             porFuente,
             porDia,
             motivosDeCierre: motivos,
         };
+    }
+    async sumar(organizationId, status) {
+        const fila = await this.leads.createQueryBuilder('lead')
+            .select('COALESCE(SUM(lead.estimated_amount), 0)', 'total')
+            .where('lead.organization_id = :organizationId', { organizationId })
+            .andWhere('lead.domain = :domain', { domain: 'commercial' })
+            .andWhere('lead.status = :status', { status })
+            .getRawOne();
+        return Number(fila?.total ?? 0);
+    }
+    async sumarAbiertos(organizationId) {
+        const fila = await this.leads.createQueryBuilder('lead')
+            .select('COALESCE(SUM(lead.estimated_amount), 0)', 'total')
+            .where('lead.organization_id = :organizationId', { organizationId })
+            .andWhere('lead.domain = :domain', { domain: 'commercial' })
+            .andWhere('lead.status NOT IN (:...cerrados)', { cerrados: [lead_status_enum_1.LeadStatus.WON, lead_status_enum_1.LeadStatus.LOST] })
+            .getRawOne();
+        return Number(fila?.total ?? 0);
     }
     async agrupar(organizationId, columna, status) {
         const query = this.leads.createQueryBuilder('lead')

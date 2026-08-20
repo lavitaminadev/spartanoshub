@@ -31,8 +31,10 @@ let CrmHomeService = class CrmHomeService {
         inicioDeMes.setHours(0, 0, 0, 0);
         const limiteFrio = new Date(Date.now() - coolingDays * 86_400_000);
         const abierto = { organizationId, status: (0, typeorm_2.In)(this.openStatuses()) };
-        const [delMes, sinContactar, sinAsignar, listosSinAvanzar, equipo] = await Promise.all([
-            this.leads.count({ where: { organizationId } }),
+        const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, equipo] = await Promise.all([
+            this.leads.count({ where: { organizationId, createdAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
+            this.leads.count({ where: { organizationId, status: lead_status_enum_1.LeadStatus.WON, updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
+            this.montoDelMes(organizationId, inicioDeMes),
             this.alert('sin_contactar', { ...abierto, status: lead_status_enum_1.LeadStatus.NEW }),
             this.alert('sin_asignar', { ...abierto, assignedTo: (0, typeorm_2.IsNull)() }),
             this.alert('calificados_sin_visita', {
@@ -41,14 +43,23 @@ let CrmHomeService = class CrmHomeService {
             }),
             this.teamLoad(organizationId, limiteFrio),
         ]);
-        const alerts = [sinContactar, sinAsignar, listosSinAvanzar].filter((a) => a.count > 0);
+        const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
         return {
-            month: { leads: delMes },
+            month: { leads: delMes, ventas: ventasDelMes, monto: montoDelMes },
             urgentCount: alerts.length,
             alerts,
             team: equipo,
             coolingDays,
         };
+    }
+    async montoDelMes(organizationId, desde) {
+        const fila = await this.leads.createQueryBuilder('lead')
+            .select('COALESCE(SUM(lead.estimated_amount), 0)', 'total')
+            .where('lead.organization_id = :organizationId', { organizationId })
+            .andWhere('lead.status = :status', { status: lead_status_enum_1.LeadStatus.WON })
+            .andWhere('lead.updated_at >= :desde', { desde })
+            .getRawOne();
+        return Number(fila?.total ?? 0);
     }
     openStatuses() {
         return Object.values(lead_status_enum_1.LeadStatus).filter((s) => !CLOSED_STATUSES.includes(s));

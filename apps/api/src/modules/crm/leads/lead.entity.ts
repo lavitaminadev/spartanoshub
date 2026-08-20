@@ -44,6 +44,15 @@ export class Lead {
   @Column({ type: 'json', nullable: true }) metadata?: Record<string, any>;
   @Column({ name: 'converted_at', type: 'timestamp', nullable: true }) convertedAt?: Date;
   @Column({ name: 'converted_to_client_id', type: 'uuid', nullable: true }) convertedToClientId?: string;
+  /**
+   * Monto estimado del negocio, en la moneda de la organización.
+   *
+   * Admite vacío: cero y «todavía no se sabe» son cosas distintas, y confundirlas hunde el ticket
+   * promedio con negocios que sí valen pero nadie anotó.
+   */
+  @Column({ name: 'estimated_amount', type: 'decimal', precision: 14, scale: 2, nullable: true })
+  estimatedAmount?: number | null;
+
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;
 

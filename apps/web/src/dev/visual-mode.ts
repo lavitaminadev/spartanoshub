@@ -146,6 +146,82 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/auth\/logout$/, () => ({})],
   [/\/notifications\/unread/, () => ({ unread: 0 })],
   /*
+   * Datos de ejemplo del CRM.
+   *
+   * El vacio generico deja las seis vistas en blanco, y una pantalla vacia no permite revisar si
+   * una tarjeta cabe, si una columna se corta o si un porcentaje se lee. Estos datos no tocan
+   * ninguna base: viven aca y solo existen bajo \`npm run dev:visual\`.
+   *
+   * Se eligieron para que cada vista muestre sus casos limite: un lead sin asignar, uno recien
+   * ingresado, uno enfriandose y un descarte con motivo.
+   */
+  [/\/crm\/home\/dashboard/, () => ({
+    days: 30,
+    totals: {
+      leads: 42, calificados: 18, conVisita: 11, ventas: 4,
+      montoVendido: 32400000, pipelineAbierto: 96500000, ticketPromedio: 8100000, estancados: 6,
+    },
+    porEtapa: [
+      { key: 'contacted', total: 14 }, { key: 'new', total: 9 }, { key: 'quote_sent', total: 7 },
+      { key: 'meeting_scheduled', total: 5 }, { key: 'negotiation', total: 3 },
+      { key: 'won', total: 4 }, { key: 'lost', total: 6 },
+    ],
+    porFuente: [
+      { key: 'Meta Ads', total: 24 }, { key: 'Formulario web', total: 11 },
+      { key: 'Referido', total: 5 }, { key: 'Portal', total: 2 },
+    ],
+    porDia: [1, 4, 2, 0, 3, 5, 1, 2, 6, 3, 0, 4, 7, 4].map((total, i) => ({
+      key: new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10),
+      total,
+    })),
+    motivosDeCierre: [
+      { key: 'Precio', total: 3 }, { key: 'Sin respuesta', total: 2 }, { key: 'Otro', total: 1 },
+    ],
+  })],
+  [/\/crm\/home$/, () => ({
+    month: { leads: 42, ventas: 4, monto: 32400000 },
+    urgentCount: 3,
+    coolingDays: 7,
+    alerts: [
+      { key: 'sin_contactar', count: 9, sample: { id: 'l1', name: 'Ricardo Galvez Lopez', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-20T02:15:20.674Z' } },
+      { key: 'sin_asignar', count: 3, sample: { id: 'l2', name: 'Fabiana Ibanez Escalona', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-19T02:15:20.676Z' } },
+      { key: 'calificados_sin_visita', count: 7, sample: { id: 'l3', name: 'Matias Cancino Caceres', source: 'Formulario web', campaignName: null, createdAt: '2026-08-15T02:15:20.676Z' } },
+    ],
+    team: [
+      { userId: 'u1', name: 'Mathias Quintana', open: 14, uncontacted: 3, cooling: 2 },
+      { userId: 'u2', name: 'German Larre', open: 9, uncontacted: 1, cooling: 4 },
+      { userId: 'u3', name: 'Maria Veronica Vera', open: 5, uncontacted: 0, cooling: 0 },
+    ],
+  })],
+  [/\/crm\/leads\/[^/]+\/historial$/, () => ([
+    { id: 'p1', fromStage: null, toStage: 'new', durationHours: null, changedBy: null, reason: null, createdAt: '2026-08-08T02:15:20.676Z' },
+    { id: 'p2', fromStage: 'new', toStage: 'contacted', durationHours: 26.5, changedBy: 'u1', reason: null, createdAt: '2026-08-09T02:15:20.676Z' },
+    { id: 'p3', fromStage: 'contacted', toStage: 'quote_sent', durationHours: 72, changedBy: 'u1', reason: null, createdAt: '2026-08-12T02:15:20.676Z' },
+  ])],
+  [/\/crm\/leads(\?|$)/, () => ({
+    data: [
+      { id: 'l1', name: 'Ricardo Galvez Lopez', phone: '+56983000089', email: 'galvezr941@gmail.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z' },
+      { id: 'l2', name: 'Fabiana Ibanez Escalona', phone: '+56948532342', email: 'fabiana@gmail.com', status: 'contacted', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: 'u1', clientId: null, estimatedAmount: 7800000, createdAt: '2026-08-17T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
+      { id: 'l3', name: 'Matias Cancino Caceres', phone: '+56967338235', email: 'matias09@hotmail.com', status: 'quote_sent', source: 'Formulario web', campaignName: null, assignedTo: 'u1', clientId: null, estimatedAmount: 12000000, createdAt: '2026-08-14T02:15:20.676Z', updatedAt: '2026-08-10T02:15:20.676Z' },
+      { id: 'l4', name: 'Yohana Valenzuela', phone: '+56996118555', email: 'yohana@gmail.com', status: 'meeting_scheduled', source: 'Referido', campaignName: null, assignedTo: 'u2', clientId: null, estimatedAmount: 9200000, createdAt: '2026-08-11T02:15:20.676Z', updatedAt: '2026-08-18T02:15:20.676Z' },
+      { id: 'l5', name: 'Oriana Astete', phone: '+56987392203', email: 'oriana@gmail.com', status: 'negotiation', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u2', clientId: null, estimatedAmount: 15600000, createdAt: '2026-07-31T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
+      { id: 'l6', name: 'Merida Colores', phone: '+56958036024', email: 'merida@gmail.com', status: 'won', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, estimatedAmount: 8100000, createdAt: '2026-07-21T02:15:20.676Z', updatedAt: '2026-08-16T02:15:20.676Z' },
+      { id: 'l7', name: 'Maria Elena Donoso', phone: '+56966459555', email: 'elenadg30@hotmail.com', status: 'lost', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, discardReason: 'Precio', estimatedAmount: 0, createdAt: '2026-07-26T02:15:20.676Z', updatedAt: '2026-08-13T02:15:20.676Z' },
+    ],
+    total: 7,
+  })],
+  [/\/crm\/ingest-sources/, () => ([
+    { id: 's1', name: 'Meta Ads', source: 'meta_ads', isActive: true, tokenHint: '...4a2f91', receivedCount: 24, lastReceivedAt: '2026-08-20T02:15:20.676Z', lastError: null, url: '' },
+    { id: 's2', name: 'Portal inmobiliario', source: 'portal', isActive: true, tokenHint: '...b7c033', receivedCount: 0, lastReceivedAt: null, lastError: null, url: '' },
+    { id: 's3', name: 'Formulario web', source: 'formulario_web', isActive: false, tokenHint: '...19ee42', receivedCount: 6, lastReceivedAt: '2026-08-15T02:15:20.676Z', lastError: 'El lead necesita telefono o correo', url: '' },
+  ])],
+  [/\/meetings/, () => ([
+    { id: 'm1', title: 'Visita Fundo La Esperanza', scheduledAt: '2026-08-20T02:15:20.676Z', clientId: null },
+    { id: 'm2', title: 'Llamada Oriana Astete', scheduledAt: '2026-08-22T02:15:20.676Z', clientId: null },
+    { id: 'm3', title: 'Cierre Merida Colores', scheduledAt: '2026-08-25T02:15:20.676Z', clientId: null },
+  ])],
+
+  /*
    * El dashboard es la unica vista de las 33 que no se sostiene con el vacio generico:
    * `OperationalHome` desestructura `const { today, upcoming } = data` y lee `today.total`
    * derecho. Un `today` ausente la tumba, y uno vacio le hace imprimir «undefined» en pantalla.

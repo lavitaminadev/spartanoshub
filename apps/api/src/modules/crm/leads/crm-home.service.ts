@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, LessThan, Repository } from 'typeorm';
+import { In, IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import { Lead } from './lead.entity';
 import { LeadStatus } from './lead-status.enum';
 import { User } from '../../users/user.entity';
@@ -70,8 +70,10 @@ export class CrmHomeService {
     const limiteFrio = new Date(Date.now() - coolingDays * 86_400_000);
     const abierto = { organizationId, status: In(this.openStatuses()) };
 
-    const [delMes, sinContactar, sinAsignar, listosSinAvanzar, equipo] = await Promise.all([
-      this.leads.count({ where: { organizationId } }),
+    const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, equipo] = await Promise.all([
+      this.leads.count({ where: { organizationId, createdAt: MoreThanOrEqual(inicioDeMes) } as never }),
+      this.leads.count({ where: { organizationId, status: LeadStatus.WON, updatedAt: MoreThanOrEqual(inicioDeMes) } as never }),
+      this.montoDelMes(organizationId, inicioDeMes),
       this.alert('sin_contactar', { ...abierto, status: LeadStatus.NEW }),
       this.alert('sin_asignar', { ...abierto, assignedTo: IsNull() }),
       /*
@@ -88,10 +90,10 @@ export class CrmHomeService {
       this.teamLoad(organizationId, limiteFrio),
     ]);
 
-    const alerts = [sinContactar, sinAsignar, listosSinAvanzar].filter((a) => a.count > 0);
+    const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
 
     return {
-      month: { leads: delMes },
+      month: { leads: delMes, ventas: ventasDelMes, monto: montoDelMes },
       // Se envía el total de avisos y no solo la lista para que el saludo pueda decir cuántos hay
       // sin que la pantalla tenga que contarlos y arriesgarse a discrepar con lo que muestra.
       urgentCount: alerts.length,
@@ -99,6 +101,17 @@ export class CrmHomeService {
       team: equipo,
       coolingDays,
     };
+  }
+
+  /** Suma vendida en el mes. Se usa COALESCE porque sin ventas la suma es nula, no cero. */
+  private async montoDelMes(organizationId: string, desde: Date): Promise<number> {
+    const fila = await this.leads.createQueryBuilder('lead')
+      .select('COALESCE(SUM(lead.estimated_amount), 0)', 'total')
+      .where('lead.organization_id = :organizationId', { organizationId })
+      .andWhere('lead.status = :status', { status: LeadStatus.WON })
+      .andWhere('lead.updated_at >= :desde', { desde })
+      .getRawOne<{ total: string }>();
+    return Number(fila?.total ?? 0);
   }
 
   /** Estados en los que el lead todavía espera algo de alguien. */

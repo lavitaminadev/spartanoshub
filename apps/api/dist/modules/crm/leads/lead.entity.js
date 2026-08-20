@@ -140,6 +140,10 @@ __decorate([
     __metadata("design:type", String)
 ], Lead.prototype, "convertedToClientId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'estimated_amount', type: 'decimal', precision: 14, scale: 2, nullable: true }),
+    __metadata("design:type", Object)
+], Lead.prototype, "estimatedAmount", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Lead.prototype, "createdAt", void 0);
