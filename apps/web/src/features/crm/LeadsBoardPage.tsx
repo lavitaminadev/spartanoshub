@@ -21,7 +21,7 @@ import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
-import { statusLabel } from '../../shared/status-labels';
+
 import { matchesSearch } from '../../shared/search';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
 import './leads-board.css';
@@ -50,14 +50,32 @@ interface ClientOption { id: string; name: string }
  * derivarla de una respuesta la deja fija: una etapa nueva en el servidor no aparece sola, pero
  * tampoco aparece una que el servidor rechace, que es el fallo que se ve como tablero roto.
  */
-const STAGES = ['new', 'contacted', 'meeting_scheduled', 'quote_sent', 'negotiation', 'won', 'lost'] as const;
+const STAGES = ['new', 'contacted', 'quote_sent', 'meeting_scheduled', 'negotiation', 'won', 'lost'] as const;
+
+/**
+ * Nombre de cada columna en el tablero.
+ *
+ * Se declara acá y no se toma de `statusLabel` porque la clave guardada y la palabra que usa el
+ * equipo no tienen por qué coincidir: `quote_sent` se lee «Calificado» y `won` se lee «Venta».
+ * Cambiar el rótulo no toca la base —las claves siguen siendo las mismas— y renombrarlas sí
+ * dejaría huérfanos todos los leads que ya las tienen.
+ */
+const STAGE_LABEL: Record<string, string> = {
+  new: 'Nuevo',
+  contacted: 'Contactado',
+  quote_sent: 'Calificado',
+  meeting_scheduled: 'Visita agendada',
+  negotiation: 'Negociación',
+  won: 'Venta',
+  lost: 'Descartado',
+};
 
 /** El color no decora: separa lo que está en curso de lo que ya se cerró. */
 const STAGE_ACCENT: Record<string, string> = {
   new: '#8fd8ff',
   contacted: '#7cc6f5',
-  meeting_scheduled: '#a9a0e8',
-  quote_sent: '#e2a33c',
+  meeting_scheduled: '#e2a33c',
+  quote_sent: '#17c78a',
   negotiation: '#f0a05a',
   won: '#17c78a',
   lost: '#c9736b',
@@ -117,7 +135,7 @@ export function LeadsBoardPage(): JSX.Element {
   }, [data, filtros.values.cliente, filtros.values.responsable, filtros.search]);
 
   const columnas = useMemo<KanbanColumn[]>(
-    () => STAGES.map((stage) => ({ id: stage, label: statusLabel(stage), accent: STAGE_ACCENT[stage] })),
+    () => STAGES.map((stage) => ({ id: stage, label: STAGE_LABEL[stage], accent: STAGE_ACCENT[stage] })),
     [],
   );
 
@@ -132,8 +150,8 @@ export function LeadsBoardPage(): JSX.Element {
     <div className="page leads-board">
       <div className="page-header">
         <div>
-          <span className="page-eyebrow">VENTAS</span>
-          <h1>Tablero de leads</h1>
+          <span className="page-eyebrow">EMBUDO COMERCIAL</span>
+          <h1>Tablero</h1>
           <p className="page-subtitle">Arrastra una tarjeta para cambiarle la etapa.</p>
         </div>
       </div>
@@ -200,7 +218,7 @@ export function LeadsBoardPage(): JSX.Element {
       )}
 
       {abierto ? (
-        <LeadDetailDrawer lead={abierto} nombreDe={nombreDe} onClose={() => setAbierto(null)} />
+        <LeadDetailDrawer lead={abierto} nombreDe={nombreDe} etapaLabel={(s) => STAGE_LABEL[s] ?? s} onClose={() => setAbierto(null)} />
       ) : null}
     </div>
   );

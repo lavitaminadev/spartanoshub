@@ -35,10 +35,9 @@ let CrmHomeService = class CrmHomeService {
             this.leads.count({ where: { organizationId } }),
             this.alert('sin_contactar', { ...abierto, status: lead_status_enum_1.LeadStatus.NEW }),
             this.alert('sin_asignar', { ...abierto, assignedTo: (0, typeorm_2.IsNull)() }),
-            this.alert('listos_sin_avanzar', {
+            this.alert('calificados_sin_visita', {
                 organizationId,
-                status: (0, typeorm_2.In)([lead_status_enum_1.LeadStatus.QUOTE_SENT, lead_status_enum_1.LeadStatus.NEGOTIATION]),
-                updatedAt: (0, typeorm_2.LessThan)(limiteFrio),
+                status: lead_status_enum_1.LeadStatus.QUOTE_SENT,
             }),
             this.teamLoad(organizationId, limiteFrio),
         ]);

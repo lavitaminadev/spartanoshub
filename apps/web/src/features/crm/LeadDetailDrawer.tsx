@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
-import { statusLabel } from '../../shared/status-labels';
+
 import { roleLabel } from '../../core/role-labels';
 import './lead-detail.css';
 
@@ -43,6 +43,8 @@ interface Paso {
 
 interface Props {
   lead: Lead;
+  /** Nombre de la etapa, con el vocabulario del tablero. */
+  etapaLabel: (stage: string) => string;
   /** Nombre de quien movió cada paso, resuelto por quien abre la ficha. */
   nombreDe: (id?: string | null) => string | undefined;
   onClose: () => void;
@@ -63,7 +65,7 @@ function whatsapp(telefono?: string | null): string | undefined {
   return digitos ? `https://wa.me/${digitos}` : undefined;
 }
 
-export function LeadDetailDrawer({ lead, nombreDe, onClose }: Props): JSX.Element {
+export function LeadDetailDrawer({ lead, nombreDe, etapaLabel, onClose }: Props): JSX.Element {
   const queryClient = useQueryClient();
   const [nota, setNota] = useState(lead.notes ?? '');
 
@@ -87,7 +89,7 @@ export function LeadDetailDrawer({ lead, nombreDe, onClose }: Props): JSX.Elemen
       <div className="lead-detail">
         <dl className="lead-detail-datos">
           <dt>Etapa</dt>
-          <dd>{statusLabel(lead.status)}</dd>
+          <dd>{etapaLabel(lead.status)}</dd>
 
           <dt>Teléfono</dt>
           <dd>{lead.phone || '—'}</dd>
@@ -153,8 +155,8 @@ export function LeadDetailDrawer({ lead, nombreDe, onClose }: Props): JSX.Elemen
                     <div>
                       <strong>
                         {paso.fromStage
-                          ? `${statusLabel(paso.fromStage)} → ${statusLabel(paso.toStage)}`
-                          : `Ingresó como ${statusLabel(paso.toStage)}`}
+                          ? `${etapaLabel(paso.fromStage)} → ${etapaLabel(paso.toStage)}`
+                          : `Ingresó como ${etapaLabel(paso.toStage)}`}
                       </strong>
                       <span>
                         {/* Sin autor significa que lo movió el sistema, no que se desconozca. */}
