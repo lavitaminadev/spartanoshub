@@ -1,5 +1,5 @@
 import { useState, type JSX } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
@@ -52,8 +52,26 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
   const [mapping, setMapping] = useState<Record<string, TargetField | ''>>({});
   const [source, setSource] = useState('importacion');
   const [sourceDetail, setSourceDetail] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [domain, setDomain] = useState<'audience' | 'commercial'>('audience');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+
+  const { data: clientsResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
+    queryKey: ['clients'],
+    queryFn: () => api.get('/clients'),
+    enabled: open,
+  });
+  const clients = clientsResp?.data ?? [];
+
+  /**
+   * La cuenta solo aplica a los contactos de campaña.
+   *
+   * En el embudo de la agencia el prospecto **es** la empresa, así que pedirle una cuenta a la
+   * que pertenece no significa nada. Se limpia al cambiar de embudo para no arrastrar una
+   * elección que dejó de tener sentido.
+   */
+  const necesitaCliente = domain === 'audience';
 
   const reset = () => {
     setHeaders([]); setRows([]); setMapping({});
@@ -104,6 +122,8 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
       rows: preparedRows,
       source: source.trim(),
       sourceDetail: sourceDetail.trim() || undefined,
+      domain,
+      clientId: necesitaCliente ? clientId : undefined,
     }),
     onSuccess: async (data) => {
       setResult(data);
@@ -157,6 +177,37 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
 
             {headers.length > 0 ? (
               <>
+                {/*
+                  Van antes del mapeo de columnas a propósito: son las dos decisiones que no se
+                  pueden corregir cómodamente después. Un origen mal puesto se arregla filtrando
+                  y reescribiendo; trescientos contactos en el embudo equivocado o en la cuenta
+                  equivocada hay que localizarlos y borrarlos uno por uno.
+                */}
+                <label>
+                  A qué CRM entran
+                  <select className="input" value={domain} onChange={(event) => { setDomain(event.target.value as 'audience' | 'commercial'); setClientId(''); }}>
+                    <option value="audience">Contactos de campaña — el CRM de un cliente</option>
+                    <option value="commercial">Prospectos de La Vitamina — el embudo de la agencia</option>
+                  </select>
+                  <small className="field-hint">
+                    Son dos embudos separados. Los contactos de campaña pertenecen a la cuenta que
+                    los generó; los prospectos son empresas que la agencia quiere sumar.
+                  </small>
+                </label>
+
+                {necesitaCliente ? (
+                  <label>
+                    Cuenta
+                    <select className="input" value={clientId} onChange={(event) => setClientId(event.target.value)}>
+                      <option value="">Elige la cuenta…</option>
+                      {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                    </select>
+                    <small className="field-hint">
+                      Solo el equipo que atiende esta cuenta verá los contactos importados.
+                    </small>
+                  </label>
+                ) : null}
+
                 <div className="import-mapping">
                   <h4>A qué corresponde cada columna</h4>
                   {headers.map((header) => (
@@ -190,6 +241,8 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
                   <h4>Vista previa</h4>
                   {!nameMapped ? (
                     <p className="alert alert-error">Falta indicar qué columna trae el nombre. Sin eso no se puede importar.</p>
+                  ) : necesitaCliente && !clientId ? (
+                    <p className="alert alert-error">Falta elegir la cuenta. Sin ella, los contactos entran sin dueño y el equipo del cliente no los ve.</p>
                   ) : (
                     <>
                       <p>
@@ -210,7 +263,7 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
                   <button
                     type="button"
                     className="btn btn-primary"
-                    disabled={importMutation.isPending || !nameMapped || preparedRows.length === 0 || !source.trim()}
+                    disabled={importMutation.isPending || !nameMapped || preparedRows.length === 0 || !source.trim() || (necesitaCliente && !clientId)}
                     onClick={() => importMutation.mutate()}
                   >
                     {importMutation.isPending ? 'Importando...' : `Importar ${preparedRows.length}`}

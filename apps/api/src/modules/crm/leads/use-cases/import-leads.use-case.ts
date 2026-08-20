@@ -5,6 +5,7 @@ import { LeadIntakeService } from '../lead-intake.service';
 import { Lead } from '../lead.entity';
 import { normalizePhone } from '../../../../shared/phone';
 import type { ImportLeadsDto } from '../dto/import-leads.dto';
+import { validateImportRow } from '../import-lead-row.validation';
 
 /** Qué pasó con cada fila del archivo. */
 export interface ImportLeadsResult {
@@ -37,24 +38,33 @@ export class ImportLeadsUseCase {
   async execute(organizationId: string, dto: ImportLeadsDto): Promise<ImportLeadsResult> {
     const result: ImportLeadsResult = { imported: 0, duplicates: 0, failed: [] };
 
-    for (const [index, row] of dto.rows.entries()) {
+    for (const [index, raw] of dto.rows.entries()) {
       // Número de fila tal como se ve en la planilla: la primera es el encabezado.
       const rowNumber = index + 2;
 
-      if (!row.email && !row.phone) {
-        result.failed.push({ row: rowNumber, name: row.name, reason: 'Sin correo ni teléfono: no hay forma de reconocer a la persona' });
+      // El contenido se comprueba acá y no en la validación del cuerpo. Exigirlo en el DTO
+      // rechaza la petición completa con 400, y entonces un archivo de trescientas filas no
+      // entra por dos correos mal escritos: lo contrario de lo que promete esta importación.
+      const check = validateImportRow(raw);
+      if (!check.ok) {
+        result.failed.push({ row: rowNumber, name: raw.name?.trim() || '', reason: check.reason });
         continue;
       }
+      const row = check.row;
 
       try {
         // Solo para informar el resultado: la deduplicación de verdad la hace `captureLead`.
         // Acá se consulta para poder decir cuántas filas eran gente que ya estaba, en vez de
         // reportar como altas nuevas lo que en realidad fueron actualizaciones.
-        const yaExistia = await this.findExisting(organizationId, row.email, row.phone);
+        const yaExistia = await this.findExisting(organizationId, row.email, row.phone, dto.clientId);
 
         await this.intake.captureLead({
           organizationId,
-          domain: 'commercial',
+          // El embudo y la cuenta mandan sobre cualquier cosa que traiga el archivo: los elige
+          // quien importa en la pantalla, y son lo que decide en qué CRM aparecen y para qué
+          // equipo son visibles.
+          domain: dto.domain ?? 'commercial',
+          clientId: dto.clientId,
           name: row.name,
           email: row.email,
           phone: row.phone,
@@ -72,7 +82,7 @@ export class ImportLeadsUseCase {
           // Se separan por coma o punto y coma porque las dos formas aparecen según qué sistema
           // exportó el archivo.
           tags: row.tags?.split(/[,;]/).map((t) => t.trim()).filter(Boolean),
-          sourceCreatedAt: row.sourceCreatedAt ? new Date(row.sourceCreatedAt) : undefined,
+          sourceCreatedAt: row.sourceCreatedAt,
         }, 'upsert');
 
         if (yaExistia) result.duplicates += 1;
@@ -93,14 +103,19 @@ export class ImportLeadsUseCase {
    * El teléfono se normaliza igual que al guardarlo; comparar el texto crudo del archivo contra
    * el valor normalizado en base habría dado siempre «no existe», y cada reimportación del mismo
    * archivo se habría reportado como altas nuevas.
+   *
+   * La cuenta acota la búsqueda igual que en `captureLead`. Sin acotarla, la misma persona
+   * presente en dos cuentas distintas se contaba como repetida al importarla para la segunda,
+   * mientras la escritura la daba de alta: el resumen decía «ya existía» y el lead era nuevo.
    */
-  private async findExisting(organizationId: string, email?: string, phone?: string): Promise<boolean> {
+  private async findExisting(organizationId: string, email?: string, phone?: string, clientId?: string): Promise<boolean> {
     const where: Array<Record<string, unknown>> = [];
     const normalizedEmail = email?.trim().toLowerCase();
     const normalizedPhone = normalizePhone(phone);
+    const scope = clientId ? { organizationId, clientId } : { organizationId };
 
-    if (normalizedEmail) where.push({ organizationId, email: normalizedEmail });
-    if (normalizedPhone) where.push({ organizationId, phone: normalizedPhone });
+    if (normalizedEmail) where.push({ ...scope, email: normalizedEmail });
+    if (normalizedPhone) where.push({ ...scope, phone: normalizedPhone });
     if (!where.length) return false;
 
     return (await this.leads.count({ where })) > 0;

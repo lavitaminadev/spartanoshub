@@ -59,7 +59,11 @@ export class LeadController {
   @Post('import')
   @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Importar prospectos desde un archivo' })
-  import(@Body() dto: ImportLeadsDto, @Req() req: AuthenticatedRequest) {
+  async import(@Body() dto: ImportLeadsDto, @Req() req: AuthenticatedRequest) {
+    // La cuenta se comprueba antes de escribir una sola fila. Es un identificador que llega del
+    // navegador y decide a qué cliente quedan atribuidos cientos de contactos: sin esto, quien
+    // importa puede escribir en una cuenta que no alcanza con solo cambiar el valor enviado.
+    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
     return this.importLeads.execute(req.organizationId, dto);
   }
 
