@@ -121,6 +121,20 @@ export function CrmLayout(): JSX.Element {
   // sección sería un control que no cambia nada de lo que esa persona ve.
   const mostrarSelector = visibles.some((seccion) => seccion.grupo === 'cliente');
 
+  /*
+    Sin secciones no hay barra.
+
+    Un cargo que no opera ninguna sección del CRM —administración, por ejemplo, que administra
+    el sistema y no el embudo— dibujaba igual el marco: una barra sin una sola pestaña y un
+    selector de cuenta que no acotaba nada. La pantalla a la que llegó se sigue mostrando; lo
+    que se omite es el envoltorio que prometía una navegación que no existe para esa persona.
+  */
+  // El proveedor de alcance se conserva: las pantallas hijas lo consultan, y quedarse sin él por
+  // no tener barra son dos cosas sin relación.
+  if (!visibles.length) {
+    return <CrmScopeContext.Provider value={scope}><Outlet /></CrmScopeContext.Provider>;
+  }
+
   return (
     <CrmScopeContext.Provider value={scope}>
       <div className="crm-shell">

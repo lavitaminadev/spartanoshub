@@ -314,7 +314,7 @@ export function LeadsBoardPage(): JSX.Element {
 
       {seleccionVisible.length > 0 ? (
         <div className="leads-board-lote">
-          <strong>{seleccionVisible.length} seleccionados</strong>
+          <strong>{seleccionVisible.length} seleccionado{seleccionVisible.length === 1 ? '' : 's'}</strong>
           <select className="input" value={etapaEnLote} onChange={(event) => setEtapaEnLote(event.target.value)}>
             {/* «Venta» exige convertir cada prospecto en cliente, y eso no se puede hacer en
                 lote sin decidir uno por uno: se deja fuera en vez de fallar en la mitad. */}
