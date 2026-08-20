@@ -22,7 +22,10 @@ export class UpdateLeadUseCase {
 
   async execute(
     id: string,
-    data: { status?: string; notes?: string; fitStatus?: string; discardReason?: string; tags?: string[]; estimatedAmount?: number },
+    data: {
+      status?: string; notes?: string; fitStatus?: string; discardReason?: string;
+      tags?: string[]; estimatedAmount?: number; assignedTo?: string | null;
+    },
     organizationId: string,
     actorId?: string,
   ) {
@@ -53,6 +56,9 @@ export class UpdateLeadUseCase {
     if (data.discardReason !== undefined) lead.discardReason = data.discardReason;
     if (data.tags !== undefined) lead.tags = data.tags;
     if (data.estimatedAmount !== undefined) lead.estimatedAmount = data.estimatedAmount;
+    // `null` desasigna y `undefined` deja como está: son dos intenciones distintas y colapsarlas
+    // haría imposible devolver un lead a la bandeja común desde la ficha.
+    if (data.assignedTo !== undefined) lead.assignedTo = data.assignedTo ?? undefined;
 
     const guardado = await this.repo.save(lead);
 

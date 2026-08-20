@@ -81,6 +81,25 @@ export function ContactsPage() {
   const [search, setSearch] = useState('');
   const [clientFilter, setClientFilter] = useState(searchParams.get('clientId') ?? '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? '');
+  /**
+   * Origen de los contactos que se listan.
+   *
+   * Vacío quiere decir «todos los de campaña». Antes esta pantalla fijaba el origen a reservas,
+   * de modo que era la única ventana al embudo `audience` y solo mostraba una parte de él:
+   * cualquier contacto de campaña que no viniera de una reserva —los de una importación, por
+   * ejemplo— quedaba guardado y sin ninguna pantalla que lo mostrara.
+   */
+  const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') ?? '');
+
+  /**
+   * Si esta persona puede descargar la tabla.
+   *
+   * Solo el equipo de Espartanos. Esta pantalla la abre también el rol `client`, y la
+   * exportación llevaba nombre, correo y teléfono de cada contacto a un archivo suelto: quien
+   * contrata a la agencia ve sus contactos en pantalla, pero sacarlos del sistema es una
+   * decisión de quien opera el servidor y no del portal.
+   */
+  const puedeExportar = user?.role !== 'client';
   const [page, setPage] = useState(1);
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [tagging, setTagging] = useState<ReservationContact | null>(null);
@@ -91,8 +110,8 @@ export function ContactsPage() {
   const clients = useMemo<ClientOption[]>(() => clientsResp?.data ?? [], [clientsResp]);
   // `/crm/leads` pagina de a 20 por defecto, por lo que límite y desplazamiento son explícitos.
   const contactsQuery = useQuery<PageResult<ReservationContact>>({
-    queryKey: ['crm-reservation-contacts', clientFilter, statusFilter, page],
-    queryFn: () => api.get(`/crm/leads?domain=audience&source=${RESERVATION_LEAD_SOURCE}&limit=${CONTACTS_PAGE_SIZE}&offset=${(page - 1) * CONTACTS_PAGE_SIZE}${clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`),
+    queryKey: ['crm-reservation-contacts', clientFilter, statusFilter, sourceFilter, page],
+    queryFn: () => api.get(`/crm/leads?domain=audience&limit=${CONTACTS_PAGE_SIZE}&offset=${(page - 1) * CONTACTS_PAGE_SIZE}${sourceFilter ? `&source=${encodeURIComponent(sourceFilter)}` : ''}${clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`),
     placeholderData: (previous) => previous,
   });
   const { data: historyReservations = [], isLoading: historyLoading } = useQuery<Array<{ id: string; referenceCode: string; status: string; startsAt: string; partySize: number }>>({
@@ -122,7 +141,15 @@ export function ContactsPage() {
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
   });
 
-  const allContacts = contactsQuery.data?.data ?? [];
+  // Memorizado por la misma razón que la lista de cuentas: `?? []` devuelve un arreglo nuevo en
+  // cada render y anula el `useMemo` que deriva los orígenes.
+  const allContacts = useMemo(() => contactsQuery.data?.data ?? [], [contactsQuery.data]);
+  // Los orígenes que aparecen en la página cargada, para no tener que escribirlos a mano. No
+  // pretende ser la lista completa del embudo: es un atajo sobre lo que se está mirando.
+  const sourceOptions = useMemo(
+    () => [...new Set(allContacts.map((contact) => contact.source).filter((value): value is string => Boolean(value) && value !== RESERVATION_LEAD_SOURCE))].sort(),
+    [allContacts],
+  );
   const loadedTotal = contactsQuery.data?.total ?? allContacts.length;
   const totalPages = Math.max(1, Math.ceil(loadedTotal / CONTACTS_PAGE_SIZE));
   const contacts = allContacts.filter((contact) => matchesSearch(search, [contact.name, contact.email, contact.phone, contact.company, contact.sourceDetail, contact.campaignName, ...(contact.tags || [])]));
@@ -134,11 +161,13 @@ export function ContactsPage() {
   // Totales por estado: una consulta con `limit=1` por estado, leyendo el campo `total`.
   // Son exactos sobre el conjunto completo y no dependen de la página cargada ni del filtro activo.
   const countsQuery = useQuery<Record<string, number>>({
-    queryKey: ['crm-reservation-contact-counts', clientFilter],
+    queryKey: ['crm-reservation-contact-counts', clientFilter, sourceFilter],
     queryFn: async () => {
-      const scope = clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : '';
+      // Los totales siguen el mismo alcance que la tabla. Con el origen fijo acá y variable
+      // arriba, el encabezado contaba un conjunto y la tabla mostraba otro.
+      const scope = `${sourceFilter ? `&source=${encodeURIComponent(sourceFilter)}` : ''}${clientFilter ? `&clientId=${encodeURIComponent(clientFilter)}` : ''}`;
       const pages = await Promise.all(CONTACT_STATUS_ORDER.map((status) =>
-        api.get(`/crm/leads?domain=audience&source=${RESERVATION_LEAD_SOURCE}&limit=1&status=${status}${scope}`) as Promise<PageResult<ReservationContact>>,
+        api.get(`/crm/leads?domain=audience&limit=1&status=${status}${scope}`) as Promise<PageResult<ReservationContact>>,
       ));
       return Object.fromEntries(CONTACT_STATUS_ORDER.map((status, index) => [status, pages[index]?.total ?? 0]));
     },
@@ -155,10 +184,11 @@ export function ContactsPage() {
   });
   const segments = segmentsQuery.data ?? [];
   const segmentTotal = segments.find((segment) => segment.id === 'total')?.count ?? 0;
-  const updateFilter = (key: 'clientId' | 'status', value: string) => {
+  const updateFilter = (key: 'clientId' | 'status' | 'source', value: string) => {
     setSearchParams((current) => { const next = new URLSearchParams(current); if (value) next.set(key, value); else next.delete(key); return next; });
     if (key === 'clientId') setClientFilter(value);
     if (key === 'status') setStatusFilter(value);
+    if (key === 'source') setSourceFilter(value);
     setPage(1); // El filtro redefine el conjunto, por lo que la paginación vuelve al inicio.
   };
   if (contactsQuery.isLoading) return <LoadingSpinner text="Cargando contactos..." />;
@@ -202,7 +232,7 @@ export function ContactsPage() {
     ))}
   </div>
 
-  {feedback && <div className={`alert alert-${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>{feedback.text}</div>}{contactsQuery.error && <div className="alert alert-error">{contactsQuery.error.message}</div>}<div className="filters crm-filter-bar"><input className="input" type="search" placeholder="Buscar persona, email, teléfono o campaña" value={search} onChange={(event) => setSearch(event.target.value)} />{user?.role !== 'client' && <select className="input" aria-label="Filtrar por cliente" value={clientFilter} onChange={(event) => updateFilter('clientId', event.target.value)}><option value="">Todos los clientes</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar por estado" value={statusFilter} onChange={(event) => updateFilter('status', event.target.value)}><option value="">Todos los estados</option>{CONTACT_STATUS_ORDER.map((status) => <option key={status} value={status}>{CONTACT_STATUSES[status]}</option>)}</select><button type="button" className="btn btn-outline btn-sm" disabled={!search && !clientFilter && !statusFilter} onClick={() => { setSearch(''); updateFilter('clientId', ''); updateFilter('status', ''); }}>Limpiar</button><span className="filter-result-count">{loadedTotal} contacto{loadedTotal === 1 ? '' : 's'}</span></div><DataTable<ReservationContact> storageKey="reservation-contacts" exportFileName="contactos-reservas" keyExtractor={(contact) => contact.id} data={contacts} emptyMessage="Aún no hay contactos de reservas" columns={[
+  {feedback && <div className={`alert alert-${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>{feedback.text}</div>}{contactsQuery.error && <div className="alert alert-error">{contactsQuery.error.message}</div>}<div className="filters crm-filter-bar"><input className="input" type="search" placeholder="Buscar persona, email, teléfono o campaña" value={search} onChange={(event) => setSearch(event.target.value)} />{user?.role !== 'client' && <select className="input" aria-label="Filtrar por cliente" value={clientFilter} onChange={(event) => updateFilter('clientId', event.target.value)}><option value="">Todos los clientes</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar por estado" value={statusFilter} onChange={(event) => updateFilter('status', event.target.value)}><option value="">Todos los estados</option>{CONTACT_STATUS_ORDER.map((status) => <option key={status} value={status}>{CONTACT_STATUSES[status]}</option>)}</select><select className="input" aria-label="Filtrar por origen" value={sourceFilter} onChange={(event) => updateFilter('source', event.target.value)}><option value="">Todos los orígenes</option><option value={RESERVATION_LEAD_SOURCE}>Reservas</option>{sourceOptions.map((origen) => <option key={origen} value={origen}>{origen}</option>)}</select><button type="button" className="btn btn-outline btn-sm" disabled={!search && !clientFilter && !statusFilter && !sourceFilter} onClick={() => { setSearch(''); updateFilter('clientId', ''); updateFilter('status', ''); updateFilter('source', ''); }}>Limpiar</button><span className="filter-result-count">{loadedTotal} contacto{loadedTotal === 1 ? '' : 's'}</span></div><DataTable<ReservationContact> storageKey="reservation-contacts" exportFileName={puedeExportar ? "contactos-reservas" : undefined} keyExtractor={(contact) => contact.id} data={contacts} emptyMessage="Aún no hay contactos de reservas" columns={[
     { key: 'name', label: 'Persona', sortable: true, render: (contact) => <div className="user-cell"><strong>{contact.name}</strong><small>{contact.email || contact.phone || 'Sin canal de contacto'}</small></div> },
     { key: 'clientId', label: 'Cliente', sortable: true, render: (contact) => contact.clientId ? (clientNameById.get(contact.clientId) ?? 'Cliente no encontrado') : 'Sin cliente' },
     { key: 'phone', label: 'Teléfono', render: (contact) => contact.phone || '-' },

@@ -6,6 +6,7 @@ import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import { AutomationsService } from './automations.service';
 import { SaveAutomationDto, SetAutomationActiveDto } from './dto/save-automation.dto';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
 
 /**
  * Administración de automatizaciones.
@@ -20,7 +21,10 @@ import { SaveAutomationDto, SetAutomationActiveDto } from './dto/save-automation
 @Roles(UserRole.ADMIN, UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR, UserRole.OPERATIONS_DIRECTOR)
 @ModuleScope('crm')
 export class AutomationsController {
-  constructor(private readonly automations: AutomationsService) {}
+  constructor(
+    private readonly automations: AutomationsService,
+    private readonly accountAccess: AccountAccessService,
+  ) {}
 
   @Get('catalog')
   @ApiOperation({ summary: 'Disparadores y acciones disponibles para el editor' })
@@ -42,13 +46,17 @@ export class AutomationsController {
 
   @Post()
   @ApiOperation({ summary: 'Crear una automatización (nace desactivada)' })
-  create(@Body() dto: SaveAutomationDto, @Req() req: AuthenticatedRequest) {
+  async create(@Body() dto: SaveAutomationDto, @Req() req: AuthenticatedRequest) {
+    // La cuenta se comprueba contra las que quien configura alcanza. Sin esto, acotar una regla
+    // a una cuenta ajena bastaría para hacerla actuar sobre datos que esa persona no puede ver.
+    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
     return this.automations.create(req.organizationId, dto, req.user.id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar el flujo de una automatización' })
-  update(@Param('id') id: string, @Body() dto: SaveAutomationDto, @Req() req: AuthenticatedRequest) {
+  async update(@Param('id') id: string, @Body() dto: SaveAutomationDto, @Req() req: AuthenticatedRequest) {
+    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
     return this.automations.update(id, req.organizationId, dto);
   }
 

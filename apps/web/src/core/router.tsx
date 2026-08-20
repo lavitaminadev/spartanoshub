@@ -17,7 +17,6 @@ const SessionsPage = lazy(() => import('../features/auth/SessionsPage').then(m =
 const DashboardPage = lazy(() => import('../features/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ClientsPage = lazy(() => import('../features/clients/ClientsPage').then(m => ({ default: m.ClientsPage })));
 const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage').then(m => ({ default: m.ClientDetailPage })));
-const LeadsPage = lazy(() => import('../features/crm/LeadsPage').then(m => ({ default: m.LeadsPage })));
 const OpportunitiesPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.OpportunitiesPage })));
 const CrmLayout = lazy(() => import('../features/crm/CrmLayout').then(m => ({ default: m.CrmLayout })));
 const CrmCalendarPage = lazy(() => import('../features/crm/CrmCalendarPage').then(m => ({ default: m.CrmCalendarPage })));
@@ -116,22 +115,28 @@ export function AppRouter() {
               propia. Cada hija conserva su `ProtectedRoute`: la barra no decide quién entra. */}
           <Route element={<CrmLayout />}>
             <Route path="/crm" element={<ProtectedRoute path="/crm"><SafeSuspense><CrmHomePage /></SafeSuspense></ProtectedRoute>} />
-            <Route path="/crm/tablero" element={<ProtectedRoute path="/crm/tablero"><SafeSuspense><LeadsBoardPage /></SafeSuspense></ProtectedRoute>} />
+            {/* El tablero y la tabla de prospectos eran dos pantallas sobre la misma consulta y
+                ahora son una sola con dos vistas. La ruta antigua se conserva redirigiendo, para
+                no romper los enlaces que ya circulan. */}
+            <Route path="/crm/tablero" element={<Navigate to="/crm/leads" replace />} />
             <Route path="/crm/dashboard" element={<ProtectedRoute path="/crm/dashboard"><SafeSuspense><CrmDashboardPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/calendario" element={<ProtectedRoute path="/crm/calendario"><SafeSuspense><CrmCalendarPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/administracion" element={<ProtectedRoute path="/crm/administracion"><SafeSuspense><CrmAdminPage /></SafeSuspense></ProtectedRoute>} />
+            {/* Estas cinco colgaban del layout general y no de la barra del CRM. El efecto era
+                que entrar a «Leads» desde la propia barra la hacía desaparecer: se navegaba
+                dentro del CRM y se salía de él sin haber pedido salir. */}
+            <Route path="/crm/leads" element={<ProtectedRoute path="/crm/leads"><SafeSuspense><LeadsBoardPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/opportunities" element={<ProtectedRoute path="/crm/opportunities"><SafeSuspense><OpportunitiesPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/pipeline" element={<ProtectedRoute path="/crm/pipeline"><SafeSuspense><PipelineBoardPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/contacts" element={<ProtectedRoute path="/crm/contacts"><SafeSuspense><ContactsPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/interactions" element={<ProtectedRoute path="/crm/interactions"><SafeSuspense><InteractionsPage /></SafeSuspense></ProtectedRoute>} />
           </Route>
-          <Route path="/crm/leads" element={<ProtectedRoute path="/crm/leads"><SafeSuspense><LeadsPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/crm/opportunities" element={<ProtectedRoute path="/crm/opportunities"><SafeSuspense><OpportunitiesPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/crm/pipeline" element={<ProtectedRoute path="/crm/pipeline"><SafeSuspense><PipelineBoardPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/automations" element={<ProtectedRoute path="/automations"><SafeSuspense><AutomationsPage /></SafeSuspense></ProtectedRoute>} />
           {/* El editor y el historial cuelgan de la misma ruta de permiso que el listado: se
               declaran con `path="/automations"` para no tener que repetir la regla por cada
               subruta y arriesgar que una quede sin proteger. */}
           <Route path="/automations/:id" element={<ProtectedRoute path="/automations"><SafeSuspense><AutomationEditorPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/automations/:id/runs" element={<ProtectedRoute path="/automations"><SafeSuspense><AutomationRunsPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/crm/contacts" element={<ProtectedRoute path="/crm/contacts"><SafeSuspense><ContactsPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/crm/interactions" element={<ProtectedRoute path="/crm/interactions"><SafeSuspense><InteractionsPage /></SafeSuspense></ProtectedRoute>} />
           {/* Personal y sin modulo: todo el mundo debe poder ver donde esta abierta su cuenta. */}
           <Route path="/sesiones" element={<ProtectedRoute path="/sesiones"><SafeSuspense><SessionsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/intake" element={<ProtectedRoute path="/intake"><SafeSuspense><IntakePage /></SafeSuspense></ProtectedRoute>} />

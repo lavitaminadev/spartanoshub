@@ -34,6 +34,7 @@ export function AutomationEditorPage() {
   const [description, setDescription] = useState('');
   const [triggerType, setTriggerType] = useState('');
   const [runAsUserId, setRunAsUserId] = useState('');
+  const [clientId, setClientId] = useState('');
   const [graph, setGraph] = useState<AutomationGraph | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
@@ -46,6 +47,11 @@ export function AutomationEditorPage() {
   const { data: usersResp } = useQuery<{ data: UserOption[] }>({
     queryKey: ['users-min'],
     queryFn: () => api.get('/users'),
+  });
+
+  const { data: clientsResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
+    queryKey: ['clients-min'],
+    queryFn: () => api.get('/clients'),
   });
 
   const { data: existing, isLoading, error, refetch } = useQuery<Automation>({
@@ -61,11 +67,13 @@ export function AutomationEditorPage() {
     setDescription(existing.description ?? '');
     setTriggerType(existing.triggerType);
     setRunAsUserId(existing.runAsUserId);
+    setClientId(existing.clientId ?? '');
     setGraph(existing.graph);
     setHydrated(true);
   }
 
   const users = useMemo(() => usersResp?.data ?? [], [usersResp]);
+  const clients = useMemo(() => clientsResp?.data ?? [], [clientsResp]);
   const currentGraph = graph ?? (triggerType ? emptyGraph(triggerType) : null);
 
   const describeNode = useCallback((node: AutomationNodeData) => {
@@ -137,7 +145,9 @@ export function AutomationEditorPage() {
 
   const handleSave = () => {
     if (!currentGraph) return;
-    save.mutate({ name, description: description || undefined, triggerType, runAsUserId, graph: currentGraph });
+    // Cadena vacía significa «todas las cuentas»; el servidor distingue null de omitido para
+    // poder volver transversal una regla que estaba acotada.
+    save.mutate({ name, description: description || undefined, triggerType, runAsUserId, clientId: clientId || null, graph: currentGraph });
   };
 
   if (!isNew && isLoading) return <LoadingSpinner />;
@@ -201,6 +211,17 @@ export function AutomationEditorPage() {
             {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
           </select>
           <small className="field-hint">Todo lo que haga esta automatización queda registrado a nombre de esta persona.</small>
+        </label>
+        <label>
+          Cuenta
+          <select className="input" value={clientId} onChange={(event) => setClientId(event.target.value)}>
+            <option value="">Todas las cuentas</option>
+            {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+          </select>
+          <small className="field-hint">
+            Acotada a una cuenta, solo se dispara con lo que ocurra en ella. «Todas» es un alcance
+            legítimo, no un campo sin llenar.
+          </small>
         </label>
         <label className="automation-meta-wide">
           Descripción

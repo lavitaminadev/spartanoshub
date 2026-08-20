@@ -37,3 +37,35 @@
   .leads-board-frio { background: #362a13; color: #e3b25f; }
   .leads-board-sin-duenio { background: #3a2220; color: #f0857c; }
 }
+
+/*
+ * Alternador entre tablero y tabla.
+ *
+ * Se lee como dos formas de lo mismo y no como dos secciones: van juntos, sin separación entre
+ * ellos, y el conteo queda al lado para que se vea que el filtro afecta a las dos por igual.
+ */
+.leads-board-vistas { display: flex; align-items: center; gap: 2px; margin: 4px 0 12px; }
+.leads-board-vistas button {
+  padding: 7px 16px; border: 1px solid var(--surface-sage); background: transparent;
+  color: var(--muted); cursor: pointer;
+  font-size: 12px; letter-spacing: .05em; text-transform: uppercase; font-weight: 600;
+}
+.leads-board-vistas button:first-of-type { border-radius: 6px 0 0 6px; }
+.leads-board-vistas button:nth-of-type(2) { border-radius: 0 6px 6px 0; border-left: none; }
+.leads-board-vistas button.activo { background: #17c78a; border-color: #17c78a; color: #06281c; }
+.leads-board-vistas button:focus-visible { outline: 2px solid #17c78a; outline-offset: 2px; }
+.leads-board-conteo { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Aparece solo con algo seleccionado, así que no puede empujar la tabla al surgir: por eso va
+   antes de la vista y no flotando sobre ella. */
+.leads-board-lote {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 12px;
+  border: 1px solid #17c78a; border-radius: 8px; background: rgba(23, 199, 138, .06);
+}
+.leads-board-lote .input { max-width: 200px; padding: 6px 10px; font-size: 13px; }
+
+@media (max-width: 560px) {
+  .leads-board-vistas { flex-wrap: wrap; }
+  .leads-board-conteo { flex: 1 1 100%; margin: 4px 0 0; }
+}

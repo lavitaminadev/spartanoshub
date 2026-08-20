@@ -75,3 +75,41 @@ describe('CRM-09 · el estado corresponde al dominio del lead', () => {
     });
   });
 });
+
+describe('UpdateLeadUseCase · responsable del lead', () => {
+  function useCaseFor(lead: Record<string, unknown>) {
+    const repo = {
+      findOne: vi.fn().mockResolvedValue(lead),
+      save: vi.fn().mockImplementation(async (value) => value),
+    };
+    return { useCase: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble()), repo };
+  }
+
+  it('asigna el responsable que llega en la petición', async () => {
+    const { useCase } = useCaseFor({ id: 'lead-1', domain: 'commercial', status: LeadStatus.NEW });
+
+    // La columna existía desde el principio y no había forma de escribirla: todos los leads
+    // quedaban «Sin asignar» para siempre.
+    const guardado = await useCase.execute('lead-1', { assignedTo: 'user-1' }, 'org-1');
+
+    expect(guardado.assignedTo).toBe('user-1');
+  });
+
+  it('devuelve el lead a la bandeja común cuando el responsable llega en null', async () => {
+    const { useCase } = useCaseFor({ id: 'lead-1', domain: 'commercial', status: LeadStatus.NEW, assignedTo: 'user-1' });
+
+    const guardado = await useCase.execute('lead-1', { assignedTo: null }, 'org-1');
+
+    expect(guardado.assignedTo).toBeUndefined();
+  });
+
+  it('no toca el responsable cuando el campo no viene', async () => {
+    const { useCase } = useCaseFor({ id: 'lead-1', domain: 'commercial', status: LeadStatus.NEW, assignedTo: 'user-1' });
+
+    // `null` y ausente son dos intenciones distintas: si se colapsaran, guardar una nota
+    // desasignaría el lead sin que nadie lo pidiera.
+    const guardado = await useCase.execute('lead-1', { notes: 'Llamado el martes' }, 'org-1');
+
+    expect(guardado.assignedTo).toBe('user-1');
+  });
+});

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { Automation } from './automation.entity';
 import { AutomationRun } from './automation-run.entity';
 import { AUTOMATION_TRIGGERS, findTrigger } from './automation-catalog';
@@ -9,6 +9,14 @@ import { AUTOMATION_TRIGGERS, findTrigger } from './automation-catalog';
 /** Carga mínima que todo evento de dominio debe traer para poder disparar algo. */
 interface TriggerPayload {
   organizationId: string;
+  /**
+   * Cuenta a la que pertenece el registro que provocó el evento.
+   *
+   * Es lo que permite acotar las automatizaciones por cuenta. Un evento que no la trae solo
+   * puede disparar reglas transversales: sin saber de quién es el trato, ejecutar una regla
+   * escrita para un cliente concreto sería adivinar.
+   */
+  clientId?: string | null;
   [key: string]: unknown;
 }
 
@@ -71,8 +79,23 @@ export class AutomationTriggerListener {
         return;
       }
 
+      /*
+        Alcance por cuenta.
+
+        Se piden las transversales (`client_id` nulo) y, si el evento dice de qué cuenta es, las
+        escritas para esa cuenta. Nunca las de otra: ese es el punto del alcance.
+
+        El filtro se hace en la consulta y no al recorrer el resultado. Con cientos de reglas,
+        traerlas todas para descartar la mayoría en memoria es trabajo que se repite en cada
+        evento del sistema, que es justamente el camino más caliente que hay.
+      */
       const activas = await this.automations.find({
-        where: { organizationId: payload.organizationId, triggerType: triggerKey, isActive: true },
+        where: payload.clientId
+          ? [
+            { organizationId: payload.organizationId, triggerType: triggerKey, isActive: true, clientId: IsNull() },
+            { organizationId: payload.organizationId, triggerType: triggerKey, isActive: true, clientId: payload.clientId },
+          ]
+          : { organizationId: payload.organizationId, triggerType: triggerKey, isActive: true, clientId: IsNull() },
       });
       if (!activas.length) return;
 

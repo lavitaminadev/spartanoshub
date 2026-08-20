@@ -20,9 +20,11 @@ const module_scope_decorator_1 = require("../../core/authorization/module-scope.
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const automations_service_1 = require("./automations.service");
 const save_automation_dto_1 = require("./dto/save-automation.dto");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 let AutomationsController = class AutomationsController {
-    constructor(automations) {
+    constructor(automations, accountAccess) {
         this.automations = automations;
+        this.accountAccess = accountAccess;
     }
     catalog() {
         return this.automations.catalog();
@@ -33,10 +35,12 @@ let AutomationsController = class AutomationsController {
     get(id, req) {
         return this.automations.get(id, req.organizationId);
     }
-    create(dto, req) {
+    async create(dto, req) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
         return this.automations.create(req.organizationId, dto, req.user.id);
     }
-    update(id, dto, req) {
+    async update(id, dto, req) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
         return this.automations.update(id, req.organizationId, dto);
     }
     setActive(id, dto, req) {
@@ -84,7 +88,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [save_automation_dto_1.SaveAutomationDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], AutomationsController.prototype, "create", null);
 __decorate([
     (0, common_1.Put)(':id'),
@@ -94,7 +98,7 @@ __decorate([
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, save_automation_dto_1.SaveAutomationDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], AutomationsController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/active'),
@@ -140,5 +144,6 @@ exports.AutomationsController = AutomationsController = __decorate([
     (0, common_1.Controller)('automations'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
-    __metadata("design:paramtypes", [automations_service_1.AutomationsService])
+    __metadata("design:paramtypes", [automations_service_1.AutomationsService,
+        account_access_service_1.AccountAccessService])
 ], AutomationsController);

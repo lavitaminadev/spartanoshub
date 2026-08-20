@@ -8,6 +8,9 @@
 
 import { useMemo, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import {
+  Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts';
 import { api } from '../../core/api';
 import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -46,26 +49,47 @@ function porcentaje(parte: number, total: number): string {
   return `${valor % 1 === 0 ? valor : valor.toFixed(1)}%`;
 }
 
+/** Verde de la marca, el mismo que marca la sección activa en la barra del CRM. */
+const ACENTO = '#17c78a';
+/** Rojo apagado para lo que se perdió: un motivo de cierre no se lee como un logro. */
+const ACENTO_PERDIDA = '#e2725b';
+
+/** Altura fija de los paneles: distintas alturas hacen que dos gráficos no se puedan comparar. */
+const ALTO = 240;
+
 /**
- * Barra de una distribución, en porcentaje del mayor.
+ * Distribución en barras horizontales.
  *
- * Se escala contra el mayor y no contra el total: con siete etapas, la barra más larga ocuparía
- * un séptimo del ancho y ninguna se distinguiría de otra.
+ * Horizontales y no verticales porque las categorías son texto —«Visita agendada», el nombre de
+ * una fuente— y en vertical esas etiquetas se rotan o se recortan. El eje arranca en cero y la
+ * escala la fija el propio gráfico: recortar el eje exagera diferencias que no existen.
  */
-function Barras({ datos, etiqueta }: { datos: Conteo[]; etiqueta: (key: string) => string }): JSX.Element {
-  const mayor = Math.max(...datos.map((d) => d.total), 1);
+function Barras({ datos, etiqueta, color = ACENTO }: { datos: Conteo[]; etiqueta: (key: string) => string; color?: string }): JSX.Element {
+  const filas = datos.map((dato) => ({ ...dato, nombre: etiqueta(dato.key) }));
+  // Cada barra necesita su alto mínimo legible; con muchas categorías el panel crece en vez de
+  // apretarlas hasta que dejan de distinguirse.
+  const alto = Math.max(ALTO, filas.length * 34);
+
   return (
-    <ul className="crm-dash-barras">
-      {datos.map((dato) => (
-        <li key={dato.key}>
-          <span className="crm-dash-barra-nombre">{etiqueta(dato.key)}</span>
-          <span className="crm-dash-barra-pista">
-            <i style={{ width: `${(dato.total / mayor) * 100}%` }} />
-          </span>
-          <span className="crm-dash-barra-valor">{dato.total}</span>
-        </li>
-      ))}
-    </ul>
+    <ResponsiveContainer width="100%" height={alto}>
+      <BarChart data={filas} layout="vertical" margin={{ top: 4, right: 28, bottom: 4, left: 8 }}>
+        <XAxis type="number" hide />
+        <YAxis
+          type="category"
+          dataKey="nombre"
+          width={130}
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 12, fill: 'var(--muted)' }}
+        />
+        <Tooltip
+          cursor={{ fill: 'rgba(23,199,138,.08)' }}
+          formatter={(valor: number) => [valor, 'Leads']}
+          contentStyle={{ fontSize: 12, borderRadius: 8 }}
+        />
+        <Bar dataKey="total" fill={color} radius={[0, 4, 4, 0]} maxBarSize={22} />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -175,13 +199,35 @@ export function CrmDashboardPage(): JSX.Element {
           {porDia.length ? (
             /* Barras verticales y no una línea: con pocos días una línea sugiere continuidad
                entre puntos que son conteos sueltos, no una serie que evolucione. */
-            <div className="crm-dash-dias" role="img" aria-label={`Leads por día en los últimos ${ventana} días`}>
-              {porDia.map((dia) => (
-                <span key={dia.key} title={`${dia.key}: ${dia.total}`}>
-                  <i style={{ height: `${(dia.total / maxDia) * 100}%` }} />
-                </span>
-              ))}
-            </div>
+            <ResponsiveContainer width="100%" height={ALTO}>
+              <BarChart data={porDia} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <XAxis
+                  dataKey="key"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 11, fill: 'var(--muted)' }}
+                  // Con 90 días no caben 90 fechas: se muestran las que quepan y el resto se
+                  // consulta en el tooltip, en vez de solaparse hasta volverse ilegibles.
+                  interval="preserveStartEnd"
+                  minTickGap={24}
+                  tickFormatter={(valor: string) => valor.slice(5)}
+                />
+                <YAxis width={32} allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--muted)' }} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(23,199,138,.08)' }}
+                  formatter={(valor: number) => [valor, 'Leads']}
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                />
+                <Bar dataKey="total" radius={[3, 3, 0, 0]} maxBarSize={26}>
+                  {porDia.map((dia) => (
+                    // El día más alto se destaca: es la pregunta que se le hace a este gráfico
+                    // —«¿cuándo entró el pico?»— y buscarlo a ojo entre noventa barras iguales
+                    // es justamente lo que cuesta.
+                    <Cell key={dia.key} fill={dia.total === maxDia ? ACENTO : 'rgba(23,199,138,.45)'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           ) : (
             <p className="crm-dash-vacio">Sin leads en el período.</p>
           )}
@@ -200,7 +246,7 @@ export function CrmDashboardPage(): JSX.Element {
       <section className="crm-dash-panel">
         <h2>Por qué perdemos negocios</h2>
         {motivos.length ? (
-          <Barras datos={motivos} etiqueta={(key) => key} />
+          <Barras datos={motivos} etiqueta={(key) => key} color={ACENTO_PERDIDA} />
         ) : (
           /* Distinto de «no hay datos»: puede haber leads descartados sin motivo anotado, y
              decirlo es lo que empuja a que se anote. */

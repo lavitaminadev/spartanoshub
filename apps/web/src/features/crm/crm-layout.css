@@ -5,16 +5,35 @@
  * lleva alto útil de pantalla, y las secciones se cambian al empezar una tarea, no a mitad de ella.
  */
 
-.crm-shell { display: grid; gap: 18px; }
+/*
+ * `minmax(0, 1fr)` y no la columna implícita: una pista `auto` se dimensiona por el contenido
+ * mínimo de sus hijas, así que la barra de secciones la estiraba hasta sumar sus nueve pestañas
+ * y el selector de cuenta. El resultado era que la página entera se desplazaba en horizontal en
+ * vez de desplazarse las pestañas dentro de su caja.
+ */
+.crm-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 
+/*
+ * `min-width: 0` acá y en las secciones, por la misma razón en dos niveles: una hija de grid
+ * —como esta barra dentro de `.crm-shell`— también arranca en `min-width: auto` y se niega a
+ * medir menos que su contenido. Sin esto la barra crecía hasta sumar sus nueve pestañas más el
+ * selector, y era la página entera la que se desplazaba en horizontal.
+ */
 .crm-nav {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-width: 0;
   padding: 0 2px; border-bottom: 1px solid var(--surface-sage);
 }
 
 /* Desplazamiento horizontal solo en pantallas angostas: seis secciones no caben en un teléfono,
    y partirlas en dos filas mueve el contenido de sitio cada vez que se cambia de sección. */
-.crm-nav-secciones { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+/*
+ * `min-width: 0` no es opcional: un hijo de flex arranca en `min-width: auto`, es decir se
+ * niega a encogerse por debajo de su contenido. Con nueve secciones y el selector de cuenta al
+ * lado, la barra medía más que la ventana y era la página entera la que scrolleaba en
+ * horizontal, en vez de estas pestañas dentro de su propia caja.
+ */
+.crm-nav-secciones { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .crm-nav-secciones::-webkit-scrollbar { display: none; }
 
 .crm-nav-link {
@@ -31,7 +50,36 @@
 
 .crm-nav-usuario { flex: 0 0 auto; font-size: 12px; color: var(--muted); }
 
+/* Cada pestaña con su posible rótulo de grupo encima, para que el rótulo no empuje la fila. */
+.crm-nav-item { position: relative; display: flex; align-items: center; }
+
+/*
+ * Rótulo del embudo al que pertenece el tramo que empieza.
+ *
+ * Va como separador vertical con el nombre al lado y no como encabezado sobre las pestañas:
+ * encima obligaba a dar altura a toda la barra para un texto que solo aparece dos veces.
+ */
+.crm-nav-grupo {
+  align-self: center; margin: 0 10px 0 6px; padding-left: 12px;
+  border-left: 1px solid var(--surface-sage);
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); opacity: .75; white-space: nowrap;
+}
+
+.crm-nav-derecha { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+
+/* El selector de cuenta gobierna todas las secciones de campaña, así que se lee como parte de
+   la barra y no como un filtro más dentro de la pantalla. */
+.crm-nav-cuenta { display: flex; align-items: center; gap: 8px; }
+.crm-nav-cuenta-label {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.crm-nav-cuenta .input { min-width: 190px; padding: 6px 10px; font-size: 13px; }
+
 @media (max-width: 720px) {
   .crm-nav { flex-direction: column; align-items: stretch; gap: 4px; }
   .crm-nav-usuario { padding: 0 2px 8px; }
+  .crm-nav-derecha { flex-wrap: wrap; gap: 8px; padding: 0 2px 8px; }
+  .crm-nav-cuenta { flex: 1 1 100%; }
+  .crm-nav-cuenta .input { flex: 1 1 auto; min-width: 0; }
 }

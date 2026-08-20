@@ -45,7 +45,12 @@ let AutomationTriggerListener = AutomationTriggerListener_1 = class AutomationTr
                 return;
             }
             const activas = await this.automations.find({
-                where: { organizationId: payload.organizationId, triggerType: triggerKey, isActive: true },
+                where: payload.clientId
+                    ? [
+                        { organizationId: payload.organizationId, triggerType: triggerKey, isActive: true, clientId: (0, typeorm_2.IsNull)() },
+                        { organizationId: payload.organizationId, triggerType: triggerKey, isActive: true, clientId: payload.clientId },
+                    ]
+                    : { organizationId: payload.organizationId, triggerType: triggerKey, isActive: true, clientId: (0, typeorm_2.IsNull)() },
             });
             if (!activas.length)
                 return;

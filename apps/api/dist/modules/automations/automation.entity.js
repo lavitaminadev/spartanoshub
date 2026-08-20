@@ -23,6 +23,10 @@ __decorate([
     __metadata("design:type", String)
 ], Automation.prototype, "organizationId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'client_id', type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], Automation.prototype, "clientId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 150 }),
     __metadata("design:type", String)
 ], Automation.prototype, "name", void 0);
@@ -64,5 +68,6 @@ __decorate([
 ], Automation.prototype, "updatedAt", void 0);
 exports.Automation = Automation = __decorate([
     (0, typeorm_1.Entity)('automations'),
-    (0, typeorm_1.Index)('IDX_automations_org_trigger_active', ['organizationId', 'triggerType', 'isActive'])
+    (0, typeorm_1.Index)('IDX_automations_org_trigger_active', ['organizationId', 'triggerType', 'isActive']),
+    (0, typeorm_1.Index)('IDX_automations_org_client_trigger', ['organizationId', 'clientId', 'triggerType'])
 ], Automation);
