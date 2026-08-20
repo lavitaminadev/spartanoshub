@@ -40,3 +40,36 @@
   .lead-detail-datos dt { margin-top: 8px; }
   .lead-detail-pasos li { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/*
+ * Campos editables de la ficha.
+ *
+ * En una fila y no apilados: etapa, responsable y monto se deciden en el mismo momento —al
+ * terminar de atender al lead— y verlos juntos deja claro que se guardan juntos.
+ */
+.lead-detail-edicion {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;
+  padding: 14px 0; border-top: 1px solid var(--surface-sage); border-bottom: 1px solid var(--surface-sage);
+}
+.lead-detail-edicion label { display: grid; gap: 5px; }
+.lead-detail-edicion label > span {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+
+.lead-detail-convertir { display: grid; gap: 4px; justify-items: start; }
+.lead-detail-convertir small { color: var(--muted); font-size: 12px; }
+
+/* Misma forma que el historial de etapas: las dos listas se leen como una sola cronología. */
+.lead-detail-actividades { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lead-detail-actividades li { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: start; }
+.lead-detail-actividades time { font-size: 12px; color: var(--muted); }
+.lead-detail-actividades strong { display: block; font-size: 13px; }
+.lead-detail-actividades span { font-size: 13px; color: var(--muted); }
+
+/* Separada del resto: borrar datos de una persona no es una acción más del formulario. */
+.lead-detail-privacidad { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--surface-sage); }
+.lead-detail-privacidad small { color: var(--muted); font-size: 12px; }
+
+@media (max-width: 560px) {
+  .lead-detail-actividades li { grid-template-columns: 1fr; gap: 2px; }
+}

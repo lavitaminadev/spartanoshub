@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsOptional, IsString, MaxLength, IsNumber, Min, Max } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, IsString, MaxLength, IsNumber, Min, Max, IsUUID, ValidateIf } from 'class-validator';
 import { LeadStatus } from '../lead-status.enum';
 import { LeadFitStatus } from '../lead-fit-status.enum';
 
@@ -16,4 +16,15 @@ export class UpdateLeadDto {
    */
   @IsOptional() @IsNumber() @Min(0) @Max(999999999999) estimatedAmount?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
+
+  /**
+   * Persona responsable del lead.
+   *
+   * La columna `assigned_to` existía desde el principio y no había forma de escribirla: los
+   * leads llegaban sin dueño y la ficha solo podía mostrar «Sin asignar» para siempre.
+   *
+   * `null` es un valor válido y distinto de omitir el campo: significa devolverlo a la bandeja
+   * común. Sin poder desasignar, un lead que cambia de manos queda con el dueño anterior.
+   */
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsUUID() assignedTo?: string | null;
 }
