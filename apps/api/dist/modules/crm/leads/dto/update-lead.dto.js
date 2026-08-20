@@ -40,6 +40,13 @@ __decorate([
 ], UpdateLeadDto.prototype, "notes", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(999999999999),
+    __metadata("design:type", Number)
+], UpdateLeadDto.prototype, "estimatedAmount", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)

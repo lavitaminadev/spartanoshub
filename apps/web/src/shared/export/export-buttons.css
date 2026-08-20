@@ -1,0 +1,6 @@
+/* Los dos botones van juntos y se envuelven en pantallas angostas antes que encogerse: un botón
+   más chico que su texto se corta, y «Exportar CSV» deja de leerse. */
+.export-botones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.export-aviso { flex: 1 1 100%; font-size: 12px; color: #a32020; line-height: 1.5; }
+
+@media (prefers-color-scheme: dark) { .export-aviso { color: #f0857c; } }

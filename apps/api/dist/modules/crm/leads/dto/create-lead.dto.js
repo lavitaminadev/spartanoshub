@@ -50,3 +50,10 @@ __decorate([
     (0, class_validator_1.MaxLength)(10000),
     __metadata("design:type", String)
 ], CreateLeadDto.prototype, "notes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(999999999999),
+    __metadata("design:type", Number)
+], CreateLeadDto.prototype, "estimatedAmount", void 0);
