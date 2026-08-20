@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
+import { guessMapping } from './import-field-mapping';
 
 /** Campos del prospecto que la importación sabe llenar. */
 const TARGET_FIELDS = [
@@ -22,26 +23,6 @@ interface ImportResult {
   imported: number;
   duplicates: number;
   failed: Array<{ row: number; name: string; reason: string }>;
-}
-
-/**
- * Adivina a qué campo corresponde cada columna del archivo.
- *
- * Ahorra el paso de mapear a mano en el caso habitual, que es una planilla exportada de otro
- * sistema con encabezados reconocibles. Lo que no reconoce queda sin asignar y a la vista, en
- * vez de adivinar mal en silencio.
- */
-function guessField(header: string): TargetField | '' {
-  const normalized = header.trim().toLowerCase();
-  const table: Array<[TargetField, string[]]> = [
-    ['name', ['nombre', 'name', 'contacto', 'full name', 'nombre completo']],
-    ['email', ['email', 'correo', 'e-mail', 'mail', 'correo electrónico']],
-    ['phone', ['telefono', 'teléfono', 'phone', 'celular', 'movil', 'móvil', 'fono']],
-    ['company', ['empresa', 'company', 'negocio', 'organización', 'organizacion']],
-    ['notes', ['notas', 'notes', 'comentario', 'comentarios', 'observaciones']],
-  ];
-  const match = table.find(([, aliases]) => aliases.includes(normalized));
-  return match ? match[0] : '';
 }
 
 export interface ImportLeadsModalProps {
@@ -92,7 +73,7 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
         }
         setHeaders(fields);
         setRows(parsed.data);
-        setMapping(Object.fromEntries(fields.map((field) => [field, guessField(field)])));
+        setMapping(guessMapping(fields));
       },
       error: () => setError('No se pudo leer el archivo. Comprueba que sea un CSV válido.'),
     });
