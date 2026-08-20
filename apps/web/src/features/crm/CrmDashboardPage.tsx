@@ -18,7 +18,10 @@ import './crm-dashboard.css';
 interface Conteo { key: string; total: number }
 interface Panel {
   days: number;
-  totals: { leads: number; calificados: number; conVisita: number; ventas: number };
+  totals: {
+    leads: number; calificados: number; conVisita: number; ventas: number;
+    montoVendido: number; pipelineAbierto: number; ticketPromedio: number; estancados: number;
+  };
   porEtapa: Conteo[];
   porFuente: Conteo[];
   porDia: Conteo[];
@@ -30,6 +33,11 @@ const VENTANAS = [
   { value: '30', label: 'Últimos 30 días' },
   { value: '90', label: 'Últimos 90 días' },
 ];
+
+/** Monto en pesos, sin decimales: el panel compara órdenes de magnitud, no centavos. */
+function dinero(valor: number): string {
+  return `$${Math.round(valor).toLocaleString('es-CL')}`;
+}
 
 /** Porcentaje con un decimal, o un guion cuando no hay divisor. */
 function porcentaje(parte: number, total: number): string {
@@ -70,7 +78,10 @@ export function CrmDashboardPage(): JSX.Element {
     queryFn: () => api.get(`/crm/home/dashboard?days=${dias}`),
   });
 
-  const totals = data?.totals ?? { leads: 0, calificados: 0, conVisita: 0, ventas: 0 };
+  const totals = data?.totals ?? {
+    leads: 0, calificados: 0, conVisita: 0, ventas: 0,
+    montoVendido: 0, pipelineAbierto: 0, ticketPromedio: 0, estancados: 0,
+  };
   const porDia = data?.porDia ?? [];
   const porEtapa = data?.porEtapa ?? [];
   const porFuente = data?.porFuente ?? [];
@@ -119,13 +130,33 @@ export function CrmDashboardPage(): JSX.Element {
         </article>
         <article>
           <strong>{totals.conVisita}</strong>
-          <span>Con visita agendada</span>
+          <span>Llegaron a visita</span>
           <small>{porcentaje(totals.conVisita, totals.calificados)} de calificados</small>
         </article>
         <article>
           <strong>{totals.ventas}</strong>
           <span>Ventas</span>
           <small>{porcentaje(totals.ventas, totals.leads)} de conversión total</small>
+        </article>
+        <article>
+          <strong>{dinero(totals.pipelineAbierto)}</strong>
+          <span>Pipeline abierto</span>
+          <small>Negocios en curso</small>
+        </article>
+        <article>
+          <strong>{dinero(totals.montoVendido)}</strong>
+          <span>Monto vendido</span>
+          <small>{totals.ventas} venta(s) cerrada(s)</small>
+        </article>
+        <article>
+          <strong>{dinero(totals.ticketPromedio)}</strong>
+          <span>Ticket promedio</span>
+          <small>Valor medio por negocio</small>
+        </article>
+        <article>
+          <strong>{totals.estancados}</strong>
+          <span>Leads estancados</span>
+          <small>Sin gestión hace +7 días</small>
         </article>
       </section>
 

@@ -51,3 +51,10 @@
   .crm-home-greeting h1 { font-size: 24px; }
   .crm-home-kpis strong { font-size: 28px; }
 }
+
+/* Insignia de alcance: decir por qué ves algo que otros no evita que se lea como un error. */
+.crm-home-solo {
+  margin-left: 8px; padding: 2px 8px; border-radius: 999px;
+  background: #f8eeda; color: #855200;
+  font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+}
