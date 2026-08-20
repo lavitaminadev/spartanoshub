@@ -20,6 +20,8 @@ const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage
 const LeadsPage = lazy(() => import('../features/crm/LeadsPage').then(m => ({ default: m.LeadsPage })));
 const OpportunitiesPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.OpportunitiesPage })));
 const CrmLayout = lazy(() => import('../features/crm/CrmLayout').then(m => ({ default: m.CrmLayout })));
+const CrmCalendarPage = lazy(() => import('../features/crm/CrmCalendarPage').then(m => ({ default: m.CrmCalendarPage })));
+const CrmAdminPage = lazy(() => import('../features/crm/CrmAdminPage').then(m => ({ default: m.CrmAdminPage })));
 const CrmDashboardPage = lazy(() => import('../features/crm/CrmDashboardPage').then(m => ({ default: m.CrmDashboardPage })));
 const LeadsBoardPage = lazy(() => import('../features/crm/LeadsBoardPage').then(m => ({ default: m.LeadsBoardPage })));
 const CrmHomePage = lazy(() => import('../features/crm/CrmHomePage').then(m => ({ default: m.CrmHomePage })));
@@ -116,6 +118,8 @@ export function AppRouter() {
             <Route path="/crm" element={<ProtectedRoute path="/crm"><SafeSuspense><CrmHomePage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/tablero" element={<ProtectedRoute path="/crm/tablero"><SafeSuspense><LeadsBoardPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/dashboard" element={<ProtectedRoute path="/crm/dashboard"><SafeSuspense><CrmDashboardPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/calendario" element={<ProtectedRoute path="/crm/calendario"><SafeSuspense><CrmCalendarPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/administracion" element={<ProtectedRoute path="/crm/administracion"><SafeSuspense><CrmAdminPage /></SafeSuspense></ProtectedRoute>} />
           </Route>
           <Route path="/crm/leads" element={<ProtectedRoute path="/crm/leads"><SafeSuspense><LeadsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/crm/opportunities" element={<ProtectedRoute path="/crm/opportunities"><SafeSuspense><OpportunitiesPage /></SafeSuspense></ProtectedRoute>} />
