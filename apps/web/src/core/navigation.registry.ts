@@ -49,7 +49,7 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
   {
     id: 'sales',
     label: 'Ventas y CRM',
-    paths: ['/crm', '/crm/tablero', '/crm/dashboard', '/crm/leads', '/crm/opportunities', '/crm/pipeline', '/crm/interactions', '/crm/contacts', '/automations', '/catalog', '/contracts', '/billing'],
+    paths: ['/crm', '/crm/tablero', '/crm/dashboard', '/crm/calendario', '/crm/administracion', '/crm/leads', '/crm/opportunities', '/crm/pipeline', '/crm/interactions', '/crm/contacts', '/automations', '/catalog', '/contracts', '/billing'],
   },
   {
     id: 'clients',
@@ -228,6 +228,8 @@ const PATH_FEATURE: Record<string, string> = {
   '/crm': 'crm',
   '/crm/tablero': 'commercialPipeline',
   '/crm/dashboard': 'commercialPipeline',
+  '/crm/calendario': 'crm',
+  '/crm/administracion': 'crm',
   '/crm/contacts': 'crm',
   '/crm/leads': 'commercialPipeline',
   '/crm/opportunities': 'commercialPipeline',

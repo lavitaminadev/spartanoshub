@@ -24,6 +24,10 @@ registerFeature({
     // del CRM sí lo ve, porque resume sin entrar al detalle de cada trato.
     { label: 'Tablero', path: '/crm/tablero', icon: '🗂️', roles: ['commercial_director'] },
     { label: 'Dashboard', path: '/crm/dashboard', icon: '📊', roles: ['commercial_director'] },
+    // Solo operaciones: el calendario lee las reuniones, y ese controlador no acepta dirección
+    // comercial. Ofrecérselo produciría una entrada que lleva a una pantalla cerrada.
+    { label: 'Calendario', path: '/crm/calendario', icon: '📅', roles: ['operations_director'] },
+    { label: 'Administración', path: '/crm/administracion', icon: '⚙️', roles: ['commercial_director', 'operations_director'] },
     { label: 'Contactos captados', path: '/crm/contacts', icon: '🙋', roles: ['admin', 'commercial_director', 'operations_director', 'community_manager'] },
     { label: 'Leads', path: '/crm/leads', icon: '🌱', roles: ['admin', 'commercial_director'] },
     { label: 'Oportunidades de venta', path: '/crm/opportunities', icon: '🧭', roles: ['admin', 'commercial_director'] },

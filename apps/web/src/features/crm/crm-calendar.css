@@ -1,0 +1,29 @@
+/* Calendario mensual del CRM. Cuadrícula fija de siete columnas: si el ancho de las celdas
+   cambiara con la cantidad de eventos, las columnas dejarían de alinearse con los días. */
+
+.crm-cal { display: grid; gap: 16px; }
+.crm-cal-controles { display: flex; align-items: center; gap: 8px; }
+.crm-cal-controles strong { min-width: 150px; text-align: center; color: var(--text-dark); text-transform: capitalize; }
+
+.crm-cal-grilla { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.crm-cal-cabecera { padding: 6px 4px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); text-align: center; }
+
+.crm-cal-celda {
+  display: grid; align-content: start; gap: 3px;
+  min-height: 92px; padding: 6px;
+  background: var(--white); border: 1px solid var(--surface-sage); border-radius: var(--radius-sm);
+}
+/* Los días vecinos se atenúan en vez de ocultarse: un hueco rompería la alineación semanal. */
+.crm-cal-celda.fuera { background: var(--soft); }
+.crm-cal-celda.fuera .crm-cal-numero { color: var(--muted); opacity: .5; }
+.crm-cal-celda.hoy { border-color: #17c78a; box-shadow: inset 0 0 0 1px #17c78a; }
+
+.crm-cal-numero { font-size: 12px; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.crm-cal-evento {
+  padding: 2px 5px; border-radius: 3px; background: #e0efea; color: #0f6d55;
+  font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.crm-cal-vacio { margin: 0; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 640px) { .crm-cal-celda { min-height: 62px; } .crm-cal-evento { display: none; } }
