@@ -100,6 +100,18 @@ export function Layout(): JSX.Element {
 
   const toggleSidebar = useCallback(() => setSidebarOpen((open) => !open), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
+  /**
+   * Cierre del menú al navegar, solo cuando es un cajón.
+   *
+   * Bajo el punto de corte la lateral se superpone al contenido y cerrarla tras elegir es lo
+   * correcto. Por encima está fija y no estorba, pero el manejador se disparaba igual: la clase
+   * `open` se perdía en cada clic, así que al angostar después la ventana el menú aparecía
+   * cerrado sin que nadie lo hubiera cerrado. Se lee como que «se encoge solo».
+   */
+  const cerrarSiEsCajon = useCallback(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile]);
   const currentItem = navItems.find((item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`));
 
   return (
@@ -132,7 +144,7 @@ export function Layout(): JSX.Element {
                     key={item.path}
                     to={item.path}
                     className={`nav-item ${active ? 'active' : ''}`}
-                    onClick={closeSidebar}
+                    onClick={cerrarSiEsCajon}
                     aria-label={item.label}
                     aria-current={active ? 'page' : undefined}
                   >
@@ -153,8 +165,8 @@ export function Layout(): JSX.Element {
             <div className="user-name">{user?.name}</div>
             <div className="user-role">{user?.role}</div>
           </div>
-          <Link className="sidebar-account-link" to="/sesiones" onClick={closeSidebar}>Mis sesiones</Link>
-          <Link className="sidebar-account-link" to="/change-password" onClick={closeSidebar}>Cambiar mi contraseña</Link>
+          <Link className="sidebar-account-link" to="/sesiones" onClick={cerrarSiEsCajon}>Mis sesiones</Link>
+          <Link className="sidebar-account-link" to="/change-password" onClick={cerrarSiEsCajon}>Cambiar mi contraseña</Link>
           <button className="btn btn-outline btn-sm" onClick={logout}>
             Cerrar sesión
           </button>
