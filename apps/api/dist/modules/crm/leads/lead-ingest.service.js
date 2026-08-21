@@ -20,6 +20,7 @@ const typeorm_2 = require("typeorm");
 const node_crypto_1 = require("node:crypto");
 const ingest_source_entity_1 = require("./ingest-source.entity");
 const lead_intake_service_1 = require("./lead-intake.service");
+const identificador_externo_1 = require("./identificador-externo");
 const TOKEN_PREFIX = 'esp_in_';
 let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
     constructor(sources, intake) {
@@ -48,7 +49,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 campaignName: source.campaignName ?? dto.campana,
                 notes: dto.mensaje,
                 sourceCreatedAt: dto.fechaOrigen ? new Date(dto.fechaOrigen) : undefined,
-                externalLeadId: dto.idExterno ? `${source.source}:${dto.idExterno}` : undefined,
+                externalLeadId: (0, identificador_externo_1.identificadorExterno)(source.source, dto.idExterno),
             });
             await this.sources.update(source.id, {
                 receivedCount: () => 'received_count + 1',

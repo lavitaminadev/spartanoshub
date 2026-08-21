@@ -5,6 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { LeadIngestSource } from './ingest-source.entity';
 import { LeadIntakeService } from './lead-intake.service';
 import { IngestLeadDto } from './dto/ingest-lead.dto';
+import { identificadorExterno } from './identificador-externo';
 
 /** Prefijo visible de la llave, para reconocerla si aparece pegada en otro sitio. */
 const TOKEN_PREFIX = 'esp_in_';
@@ -73,9 +74,7 @@ export class LeadIngestService {
         // La fecha del origen, no la de recepción: es lo que hace que el informe por período
         // refleje cuándo llegó la gente y no cuándo la integración logró entregarla.
         sourceCreatedAt: dto.fechaOrigen ? new Date(dto.fechaOrigen) : undefined,
-        // Sin identificador propio se compone uno con el origen: dos portales distintos pueden
-        // usar el mismo número interno sin que uno pise el lead del otro.
-        externalLeadId: dto.idExterno ? `${source.source}:${dto.idExterno}` : undefined,
+        externalLeadId: identificadorExterno(source.source, dto.idExterno),
       });
 
       // El contador y la fecha se actualizan aparte del lead: si esto fallara, el lead ya está
