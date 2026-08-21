@@ -16,6 +16,7 @@ exports.TasksController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
+const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const tasks_service_1 = require("./tasks.service");
 const task_dto_1 = require("./dto/task.dto");
 let TasksController = class TasksController {
@@ -79,5 +80,6 @@ exports.TasksController = TasksController = __decorate([
     (0, common_1.Controller)('tasks'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
+    (0, module_scope_decorator_1.ModuleExempt)('Trabajo asignado sobre registros de cinco módulos distintos; no pertenece a ninguno'),
     __metadata("design:paramtypes", [tasks_service_1.TasksService])
 ], TasksController);
