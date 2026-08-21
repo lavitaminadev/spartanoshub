@@ -17,18 +17,35 @@ const common_1 = require("@nestjs/common");
 const throttler_1 = require("@nestjs/throttler");
 const public_decorator_1 = require("../../../core/auth/decorators/public.decorator");
 const lead_ingest_service_1 = require("./lead-ingest.service");
+const class_transformer_1 = require("class-transformer");
+const class_validator_1 = require("class-validator");
 const ingest_lead_dto_1 = require("./dto/ingest-lead.dto");
+const normalizar_cuerpo_entrada_1 = require("./normalizar-cuerpo-entrada");
 let LeadIngestController = class LeadIngestController {
     constructor(ingest) {
         this.ingest = ingest;
     }
-    async recibir(authorization, dto) {
+    async recibir(authorization, cuerpo) {
         const token = this.leerLlave(authorization);
+        const dto = await this.validar((0, normalizar_cuerpo_entrada_1.normalizarCuerpoEntrada)(cuerpo ?? {}));
         if (!dto.telefono && !dto.email) {
             throw new common_1.BadRequestException('El lead necesita teléfono o correo. Mapea al menos uno en tu Zap.');
         }
         const { leadId, source } = await this.ingest.ingest(token, dto);
         return { ok: true, leadId, source };
+    }
+    async validar(cuerpo) {
+        const dto = (0, class_transformer_1.plainToInstance)(ingest_lead_dto_1.IngestLeadDto, cuerpo);
+        const errores = await (0, class_validator_1.validate)(dto, { whitelist: true });
+        if (!errores.length)
+            return dto;
+        throw new common_1.BadRequestException({
+            message: 'Validation failed',
+            errors: errores.map((error) => ({
+                field: error.property,
+                message: Object.values(error.constraints ?? {}).join(', '),
+            })),
+        });
     }
     leerLlave(authorization) {
         const valor = authorization?.trim();
@@ -45,7 +62,7 @@ __decorate([
     __param(0, (0, common_1.Headers)('authorization')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, ingest_lead_dto_1.IngestLeadDto]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], LeadIngestController.prototype, "recibir", null);
 exports.LeadIngestController = LeadIngestController = __decorate([

@@ -1,5 +1,4 @@
 import { IsEmail, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
-import { Transform } from 'class-transformer';
 
 /**
  * Lead que entra por integración.
@@ -10,17 +9,13 @@ import { Transform } from 'class-transformer';
  *
  * **No trae la fuente.** La determina la llave con que se llamó, de modo que nadie pueda
  * declararse «Meta Ads» desde un portal cualquiera.
+ *
+ * Los nombres alternativos —`full_name`, `phone_number`, `created_time`— los resuelve
+ * `normalizarCuerpoEntrada` antes de llegar acá. Se intentó con `@Transform` y no sirve: un
+ * transformador de `class-transformer` solo se ejecuta si la propiedad de destino **ya viene**
+ * en el cuerpo, así que un lead de Meta nunca disparaba el de `nombre` y la respuesta decía
+ * «Falta el nombre» sobre un cuerpo que sí lo traía.
  */
-
-/** Toma el primer nombre de campo presente, para no obligar a acertar el exacto. */
-function primeroDe(...alternativas: unknown[]): string | undefined {
-  for (const valor of alternativas) {
-    if (typeof valor === 'string' && valor.trim()) return valor.trim();
-    if (typeof valor === 'number') return String(valor);
-  }
-  return undefined;
-}
-
 export class IngestLeadDto {
   /**
    * Nombre de la persona.
@@ -28,16 +23,13 @@ export class IngestLeadDto {
    * Acepta `nombre`, `name` y `full_name` porque son los tres que produce cualquier formulario
    * en español o inglés, y equivocarse cuesta una ronda de prueba y error en Zapier.
    */
-  @Transform(({ obj }) => primeroDe(obj.nombre, obj.name, obj.full_name, obj.fullName))
   @IsString({ message: 'Falta el nombre. Mapea el campo `nombre` (o `name`) en tu Zap.' })
   @MaxLength(180)
   nombre: string;
 
-  @Transform(({ obj }) => primeroDe(obj.telefono, obj.phone, obj.celular, obj.mobile, obj.phone_number))
   @IsOptional() @IsString() @MaxLength(50)
   telefono?: string;
 
-  @Transform(({ obj }) => primeroDe(obj.email, obj.correo, obj.mail)?.toLowerCase())
   @IsOptional()
   @IsEmail({}, { message: 'El correo no tiene forma de correo. Revisa el campo que mapeaste.' })
   @MaxLength(180)
@@ -50,15 +42,12 @@ export class IngestLeadDto {
    * ante cualquier error de servidor, así que sin esta clave un corte de red convierte un lead en
    * tres. Cuando no viene, se deduce del teléfono o el correo.
    */
-  @Transform(({ obj }) => primeroDe(obj.idExterno, obj.external_id, obj.externalId, obj.id))
   @IsOptional() @IsString() @MaxLength(120)
   idExterno?: string;
 
-  @Transform(({ obj }) => primeroDe(obj.campana, obj.campaign, obj.utm_campaign))
   @IsOptional() @IsString() @MaxLength(180)
   campana?: string;
 
-  @Transform(({ obj }) => primeroDe(obj.mensaje, obj.message, obj.notas, obj.notes, obj.comentario))
   @IsOptional() @IsString() @MaxLength(2000)
   mensaje?: string;
 
@@ -71,7 +60,6 @@ export class IngestLeadDto {
    *
    * Quien no la mande sigue funcionando: se deja vacía, que es distinto de suponerla.
    */
-  @Transform(({ obj }) => primeroDe(obj.fechaOrigen, obj.created_time, obj.createdTime, obj.created_at, obj.fecha))
   @IsOptional() @IsISO8601()
   fechaOrigen?: string;
 }
