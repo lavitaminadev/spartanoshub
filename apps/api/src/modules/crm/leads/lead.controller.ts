@@ -18,6 +18,7 @@ import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { Reservation } from '../../reservations/domain/reservation.entity';
 import { Lead } from './lead.entity';
+import { LeadTaskSummaryService } from './lead-task-summary.service';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { ProcessHistoryService } from '../../../core/process-history/process-history.service';
@@ -52,6 +53,7 @@ export class LeadController {
     @InjectRepository(Reservation) private readonly reservationRepository: Repository<Reservation>,
     private readonly accountAccess: AccountAccessService,
     private readonly history: ProcessHistoryService,
+    private readonly leadTasks: LeadTaskSummaryService,
   ) {}
 
   @Post()
@@ -88,7 +90,7 @@ export class LeadController {
   @ApiOperation({ summary: 'Listar leads' })
   async list(@Query() query: ListLeadsQueryDto, @Req() req: AuthenticatedRequest) {
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.listLeads.execute(req.organizationId, query.limit, query.offset, {
+    const pagina = await this.listLeads.execute(req.organizationId, query.limit, query.offset, {
       status: query.status,
       fitStatus: query.fitStatus,
       source: query.source,
@@ -96,6 +98,23 @@ export class LeadController {
       clientId: query.clientId,
       allowedClientIds,
     });
+
+    /*
+     * Cada lead sale con su próximo paso y cuántas tareas abiertas le quedan.
+     *
+     * Va acá y no en una consulta aparte de la pantalla: el tablero dibuja cien tarjetas, y pedir
+     * las tareas de cada una por separado son cien peticiones para algo que se mira de reojo.
+     * Es una sola consulta agrupada sobre los leads de esta página.
+     */
+    const tareas = await this.leadTasks.porLead(req.organizationId, pagina.data.map((lead) => lead.id));
+    return {
+      ...pagina,
+      data: pagina.data.map((lead) => ({
+        ...lead,
+        openTasks: tareas.get(lead.id)?.openTasks ?? 0,
+        nextStep: tareas.get(lead.id)?.nextStep ?? null,
+      })),
+    };
   }
 
   /** Devuelve un lead, siempre que pertenezca a una cuenta accesible para el usuario. */

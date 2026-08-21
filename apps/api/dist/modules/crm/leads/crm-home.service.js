@@ -19,6 +19,7 @@ const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("./lead.entity");
 const lead_status_enum_1 = require("./lead-status.enum");
 const user_entity_1 = require("../../users/user.entity");
+const MUESTRA_POR_AVISO = 5;
 const CLOSED_STATUSES = [lead_status_enum_1.LeadStatus.WON, lead_status_enum_1.LeadStatus.LOST, lead_status_enum_1.LeadStatus.NO_SHOW];
 let CrmHomeService = class CrmHomeService {
     constructor(leads, users) {
@@ -40,9 +41,9 @@ let CrmHomeService = class CrmHomeService {
             this.leads.count({ where: { ...base, createdAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
             this.leads.count({ where: { ...base, status: lead_status_enum_1.LeadStatus.WON, updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
             this.montoDelMes(base, inicioDeMes),
-            this.alert('sin_contactar', { ...abierto, status: lead_status_enum_1.LeadStatus.NEW }),
-            this.alert('sin_asignar', { ...abierto, assignedTo: (0, typeorm_2.IsNull)() }),
-            this.alert('calificados_sin_visita', {
+            this.alert('sin_contactar', 'critico', { ...abierto, status: lead_status_enum_1.LeadStatus.NEW }),
+            this.alert('sin_asignar', 'critico', { ...abierto, assignedTo: (0, typeorm_2.IsNull)() }),
+            this.alert('calificados_sin_visita', 'alto', {
                 ...base,
                 status: lead_status_enum_1.LeadStatus.QUOTE_SENT,
             }),
@@ -51,7 +52,9 @@ let CrmHomeService = class CrmHomeService {
         const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
         return {
             month: { leads: delMes, ventas: ventasDelMes, monto: montoDelMes },
-            urgentCount: alerts.length,
+            urgentCount: alerts
+                .filter((a) => a.level === 'critico')
+                .reduce((suma, a) => suma + a.count, 0),
             alerts,
             team: equipo,
             coolingDays,
@@ -76,28 +79,22 @@ let CrmHomeService = class CrmHomeService {
     openStatuses() {
         return Object.values(lead_status_enum_1.LeadStatus).filter((s) => !CLOSED_STATUSES.includes(s));
     }
-    async alert(key, where) {
+    async alert(key, nivel, where) {
         const [rows, count] = await this.leads.findAndCount({
             where: where,
             order: { createdAt: 'ASC' },
-            take: 1,
+            take: MUESTRA_POR_AVISO,
             select: { id: true, name: true, source: true, campaignName: true, assignedTo: true, createdAt: true },
         });
-        const lead = rows[0];
-        return {
-            key,
-            count,
-            sample: lead
-                ? {
-                    id: lead.id,
-                    name: lead.name,
-                    source: lead.source,
-                    campaignName: lead.campaignName,
-                    assignedToName: null,
-                    createdAt: lead.createdAt,
-                }
-                : null,
-        };
+        const items = rows.map((lead) => ({
+            id: lead.id,
+            name: lead.name,
+            source: lead.source,
+            campaignName: lead.campaignName,
+            assignedToName: null,
+            createdAt: lead.createdAt,
+        }));
+        return { key, count, level: nivel, items, sample: items[0] ?? null };
     }
     async teamLoad(base, limiteFrio) {
         const filas = await this.acotar(this.leads.createQueryBuilder('lead'), base)

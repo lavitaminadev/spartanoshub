@@ -17,6 +17,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { STAGE_LABEL } from './stage-labels';
 import { useCrmScope } from './crm-scope';
+import { useStageLabels } from './use-stage-labels';
 import './crm-dashboard.css';
 
 interface Conteo { key: string; total: number }
@@ -121,6 +122,7 @@ function Barras({ datos, etiqueta, color = ACENTO }: { datos: Conteo[]; etiqueta
 export function CrmDashboardPage(): JSX.Element {
   // De qué empresa son las cifras. Lo decide la barra del CRM, igual que el resto de secciones.
   const scope = useCrmScope();
+  const rotulos = useStageLabels(scope.clientId);
   const filtros = useUrlFilters(['dias']);
   const dias = filtros.values.dias || '30';
 
@@ -271,8 +273,10 @@ export function CrmDashboardPage(): JSX.Element {
 
       <section className="crm-dash-panel">
         <h2>Embudo por etapa</h2>
+        {/* El embudo se rotula como lo llama esta empresa: el panel y el tablero deben decir lo
+            mismo, o el gráfico parece de otro CRM. */}
         {porEtapa.length ? (
-          <Barras datos={porEtapa} etiqueta={(key) => STAGE_LABEL[key] ?? key} />
+          <Barras datos={porEtapa} etiqueta={(key) => rotulos[key] ?? STAGE_LABEL[key] ?? key} />
         ) : (
           <p className="crm-dash-vacio">Sin leads en el período.</p>
         )}

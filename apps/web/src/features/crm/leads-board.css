@@ -27,11 +27,11 @@
   justify-self: start; margin-top: 2px; padding: 2px 7px; border-radius: 999px;
   font-size: 10px; letter-spacing: .04em;
 }
-.leads-board-frio { background: #f8eeda; color: #855200; }
-.leads-board-sin-duenio { background: #f7e6e5; color: #a32020; }
+.leads-board-frio { background: var(--amber-soft); color: var(--amber-deep); }
+.leads-board-sin-duenio { background: var(--pink-soft); color: var(--pink-dark); }
 
 /* El borde marca la tarjeta entera sin competir con el color de la columna. */
-.leads-board-card.esta-frio { border-left: 2px solid #e2a33c; padding-left: 8px; margin-left: -10px; }
+.leads-board-card.esta-frio { border-left: 2px solid var(--amber); padding-left: 8px; margin-left: -10px; }
 
 @media (prefers-color-scheme: dark) {
   .leads-board-frio { background: #362a13; color: #e3b25f; }
@@ -52,8 +52,8 @@
 }
 .leads-board-vistas button:first-of-type { border-radius: 6px 0 0 6px; }
 .leads-board-vistas button:nth-of-type(2) { border-radius: 0 6px 6px 0; border-left: none; }
-.leads-board-vistas button.activo { background: #17c78a; border-color: #17c78a; color: #06281c; }
-.leads-board-vistas button:focus-visible { outline: 2px solid #17c78a; outline-offset: 2px; }
+.leads-board-vistas button.activo { background: var(--primary); border-color: var(--primary); color: var(--white); }
+.leads-board-vistas button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .leads-board-conteo { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* Aparece solo con algo seleccionado, así que no puede empujar la tabla al surgir: por eso va
@@ -61,11 +61,48 @@
 .leads-board-lote {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 10px 12px; margin-bottom: 12px;
-  border: 1px solid #17c78a; border-radius: 8px; background: rgba(23, 199, 138, .06);
+  border: 1px solid var(--cyan); border-radius: 8px; background: var(--cyan-soft);
 }
 .leads-board-lote .input { max-width: 200px; padding: 6px 10px; font-size: 13px; }
 
 @media (max-width: 560px) {
   .leads-board-vistas { flex-wrap: wrap; }
   .leads-board-conteo { flex: 1 1 100%; margin: 4px 0 0; }
+}
+
+/*
+ * Pie de la tarjeta: calidad, tareas pendientes y dueño.
+ *
+ * Va abajo y en fila porque son etiquetas de estado, no datos del prospecto: se miran al barrer
+ * la columna con la vista, no al leer una tarjeta en concreto.
+ */
+.leads-board-pie { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.leads-board-chip {
+  padding: 2px 9px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  background: var(--soft); color: var(--muted); border: 1px solid var(--line);
+}
+.leads-board-chip.es-qualified { background: var(--cyan-soft); color: var(--cyan-deep); border-color: var(--cyan); }
+.leads-board-chip.es-discarded { background: var(--pink-soft); color: var(--pink-dark); border-color: var(--pink); }
+.leads-board-chip.es-tarea { background: var(--amber-soft); color: var(--amber-deep); border-color: var(--amber); }
+
+/* El icono de origen precede al nombre: identifica la procedencia sin gastar una línea. */
+.leads-board-icono { margin-right: 5px; }
+.leads-board-monto { display: block; font-size: 12px; color: var(--cyan-deep); font-weight: 600; }
+
+/*
+ * Próximo paso.
+ *
+ * Vencido cambia de color y no de icono: la tarjeta ya tiene varios símbolos y uno más se pierde,
+ * mientras que un color distinto salta al mirar la columna entera.
+ */
+.leads-board-paso {
+  display: block; margin-top: 5px; font-size: 11.5px; line-height: 1.35; color: var(--cyan-deep);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.leads-board-paso.esta-vencido { color: var(--amber-deep); font-weight: 600; }
+
+/* Sin dueño la insignia es un signo de interrogación, no un hueco: el hueco parece un fallo. */
+.leads-board-avatar.es-libre {
+  background: var(--amber-soft); color: var(--amber-deep);
+  border: 1px dashed var(--amber);
 }

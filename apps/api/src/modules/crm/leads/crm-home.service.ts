@@ -15,12 +15,25 @@ export interface HomeLeadPreview {
   createdAt: Date;
 }
 
-/** Un aviso del inicio: cuántos, y un ejemplo para no tener que ir a buscarlo. */
+/**
+ * Un aviso del inicio: cuántos son, y quiénes.
+ *
+ * Trae los primeros —los que llevan más tiempo esperando— y no solo el total. Un número manda a
+ * buscar a otra pantalla; una lista de nombres se puede empezar a trabajar sin salir del inicio.
+ * El resto queda contado en `count`, que es siempre el total y no lo que cabe en la lista.
+ */
 export interface HomeAlert {
   key: string;
   count: number;
+  /** Qué tan urgente es. Decide el color del aviso, no su orden. */
+  level: 'critico' | 'alto';
+  items: HomeLeadPreview[];
+  /** El primero de `items`. Se mantiene para que nada que lo lea deje de funcionar. */
   sample: HomeLeadPreview | null;
 }
+
+/** Cuántos nombres muestra cada aviso antes de resumir el resto en «y N más». */
+const MUESTRA_POR_AVISO = 5;
 
 /** Carga de una persona del equipo. */
 export interface TeamLoadRow {
@@ -84,8 +97,8 @@ export class CrmHomeService {
       this.leads.count({ where: { ...base, createdAt: MoreThanOrEqual(inicioDeMes) } as never }),
       this.leads.count({ where: { ...base, status: LeadStatus.WON, updatedAt: MoreThanOrEqual(inicioDeMes) } as never }),
       this.montoDelMes(base, inicioDeMes),
-      this.alert('sin_contactar', { ...abierto, status: LeadStatus.NEW }),
-      this.alert('sin_asignar', { ...abierto, assignedTo: IsNull() }),
+      this.alert('sin_contactar', 'critico', { ...abierto, status: LeadStatus.NEW }),
+      this.alert('sin_asignar', 'critico', { ...abierto, assignedTo: IsNull() }),
       /*
        * Calificado y todavía sin visita agendada.
        *
@@ -93,7 +106,7 @@ export class CrmHomeService {
        * siguiente. Comprobar además que no exista una visita sería preguntar dos veces lo mismo,
        * y cualquier discrepancia entre ambas respuestas dejaría el aviso mintiendo.
        */
-      this.alert('calificados_sin_visita', {
+      this.alert('calificados_sin_visita', 'alto', {
         ...base,
         status: LeadStatus.QUOTE_SENT,
       }),
@@ -104,9 +117,16 @@ export class CrmHomeService {
 
     return {
       month: { leads: delMes, ventas: ventasDelMes, monto: montoDelMes },
-      // Se envía el total de avisos y no solo la lista para que el saludo pueda decir cuántos hay
-      // sin que la pantalla tenga que contarlos y arriesgarse a discrepar con lo que muestra.
-      urgentCount: alerts.length,
+      /*
+       * Cuántos leads urgen, no cuántos avisos hay.
+       *
+       * El saludo dice «tienes N asuntos urgentes»: si contara los avisos, tres leads sin
+       * contactar y treinta darían el mismo «1». Solo suma los críticos —lo que nadie está
+       * mirando—; un calificado sin visita ya tiene dueño y puede esperar al final del día.
+       */
+      urgentCount: alerts
+        .filter((a) => a.level === 'critico')
+        .reduce((suma, a) => suma + a.count, 0),
       alerts,
       team: equipo,
       coolingDays,
@@ -143,34 +163,36 @@ export class CrmHomeService {
   }
 
   /**
-   * Cuenta y toma un ejemplo en una sola pasada.
+   * Cuenta y toma los primeros en una sola pasada.
    *
-   * El ejemplo es el **más antiguo** y no el más reciente: el que lleva más tiempo esperando es el
-   * que más urge, y el que más probablemente ya no responda.
+   * Se ordenan del **más antiguo** al más reciente: el que lleva más tiempo esperando es el que
+   * más urge, y el que más probablemente ya no responda.
+   *
+   * @param nivel - Urgencia con que se pinta el aviso. Sin asignar y sin contactar son críticos
+   *   porque nadie los está mirando; un calificado sin visita ya tiene dueño.
    */
-  private async alert(key: string, where: Record<string, unknown>): Promise<HomeAlert> {
+  private async alert(
+    key: string,
+    nivel: HomeAlert['level'],
+    where: Record<string, unknown>,
+  ): Promise<HomeAlert> {
     const [rows, count] = await this.leads.findAndCount({
       where: where as never,
       order: { createdAt: 'ASC' },
-      take: 1,
+      take: MUESTRA_POR_AVISO,
       select: { id: true, name: true, source: true, campaignName: true, assignedTo: true, createdAt: true },
     });
 
-    const lead = rows[0];
-    return {
-      key,
-      count,
-      sample: lead
-        ? {
-          id: lead.id,
-          name: lead.name,
-          source: lead.source,
-          campaignName: lead.campaignName,
-          assignedToName: null,
-          createdAt: lead.createdAt,
-        }
-        : null,
-    };
+    const items: HomeLeadPreview[] = rows.map((lead) => ({
+      id: lead.id,
+      name: lead.name,
+      source: lead.source,
+      campaignName: lead.campaignName,
+      assignedToName: null,
+      createdAt: lead.createdAt,
+    }));
+
+    return { key, count, level: nivel, items, sample: items[0] ?? null };
   }
 
   /**

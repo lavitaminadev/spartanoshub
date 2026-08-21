@@ -28,7 +28,13 @@ interface LeadPreview {
   createdAt: string;
 }
 
-interface Alert { key: string; count: number; sample: LeadPreview | null }
+interface Alert {
+  key: string;
+  count: number;
+  level: 'critico' | 'alto';
+  items: LeadPreview[];
+  sample: LeadPreview | null;
+}
 interface TeamRow { userId: string; name: string; open: number; uncontacted: number; cooling: number }
 interface Home {
   month: { leads: number; ventas: number; monto: number };
@@ -107,6 +113,7 @@ export function CrmHomePage(): JSX.Element {
    * revienta la pantalla entera. Desarmar acá lo resuelve una vez para toda la vista.
    */
   const alerts = data?.alerts ?? [];
+  const urgentes = data?.urgentCount ?? 0;
   const team = data?.team ?? [];
   const leadsEnCartera = data?.month?.leads ?? 0;
   const ventasDelMes = data?.month?.ventas ?? 0;
@@ -117,12 +124,12 @@ export function CrmHomePage(): JSX.Element {
     <div className="page crm-home">
       <header className="crm-home-greeting">
         <h1>{saludo()}{primerNombre ? `, ${primerNombre}` : ''}</h1>
-        <p>
-          {alerts.length === 0
-            ? 'No hay nada urgente esperando. Buen momento para adelantar seguimientos.'
-            : alerts.length === 1
+<p>
+          {urgentes === 0
+            ? 'Nada urgente por ahora. Revisa tu agenda y el seguimiento.'
+            : urgentes === 1
               ? 'Tienes 1 asunto urgente que atender primero.'
-              : `Tienes ${alerts.length} asuntos urgentes que atender primero.`}
+              : `Tienes ${urgentes} asuntos urgentes que atender primero.`}
         </p>
       </header>
 
@@ -144,35 +151,50 @@ export function CrmHomePage(): JSX.Element {
         </article>
       </section>
 
-      {alerts.length > 0 ? (
-        <section className="crm-home-alerts">
-          {alerts.map((alert) => {
-            const texto = ALERTS[alert.key];
-            if (!texto) return null;
-            return (
-              <article key={alert.key}>
-                <div className="crm-home-alert-head">
-                  <b>{alert.count}</b>
-                  <div>
-                    <h3>{texto.title}</h3>
-                    <p>{texto.why}</p>
-                  </div>
+      {/*
+        * Cada aviso lista nombres, no un ejemplo.
+        *
+        * Con un solo nombre el aviso decía «hay 12» y mostraba uno: para trabajar los otros once
+        * había que irse a otra pantalla y volver a filtrarlos a mano. Muestra los primeros —los
+        * que llevan más esperando— y cuenta el resto, que es como se empieza sin salir de acá.
+        */}
+      <section className="crm-home-alerts">
+        {alerts.length === 0 ? (
+          <p className="crm-home-al-dia">Todo al día. No hay nada pendiente que requiera tu atención.</p>
+        ) : alerts.map((alert) => {
+          const texto = ALERTS[alert.key];
+          if (!texto) return null;
+          const restantes = alert.count - alert.items.length;
+          return (
+            <article key={alert.key} className={`crm-home-alert es-${alert.level}`}>
+              <div className="crm-home-alert-head">
+                <b>{alert.count}</b>
+                <div>
+                  <h3>{texto.title}</h3>
+                  <p>{texto.why}</p>
                 </div>
-                {alert.sample ? (
-                  <Link className="crm-home-alert-sample" to={`/crm/leads?q=${encodeURIComponent(alert.sample.name)}`}>
-                    <strong>{alert.sample.name}</strong>
+              </div>
+              <div className="crm-home-alert-items">
+                {alert.items.map((lead) => (
+                  <Link
+                    key={lead.id}
+                    className="crm-home-alert-sample"
+                    to={`/crm/leads?q=${encodeURIComponent(lead.name)}`}
+                  >
+                    <strong>{lead.name}</strong>
                     <span>
-                      {desde(alert.sample.createdAt)}
-                      {alert.sample.campaignName ? ` · ${alert.sample.campaignName}` : ''}
-                      {alert.sample.source ? ` · ${alert.sample.source}` : ''}
+                      {desde(lead.createdAt)}
+                      {lead.campaignName ? ` · ${lead.campaignName}` : ''}
+                      {lead.source ? ` · ${lead.source}` : ''}
                     </span>
                   </Link>
-                ) : null}
-              </article>
-            );
-          })}
-        </section>
-      ) : null}
+                ))}
+                {restantes > 0 ? <p className="crm-home-alert-mas">y {restantes} más…</p> : null}
+              </div>
+            </article>
+          );
+        })}
+      </section>
 
       <section className="crm-home-team">
         <header>
