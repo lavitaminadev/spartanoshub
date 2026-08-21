@@ -4,8 +4,17 @@ import { IsNull, Repository } from 'typeorm';
 import { ParameterDefinition } from '../../../core/parameters/parameter-definition.entity';
 import { ParameterValue } from '../../../core/parameters/parameter-value.entity';
 
-/** Clave bajo la que viven los rótulos. Una sola definición; el alcance distingue la empresa. */
+/** Clave de los rótulos de etapa. Una sola definición; el alcance distingue la empresa. */
 export const CLAVE_ROTULOS = 'crm.stage_labels';
+
+/**
+ * Clave del vocabulario: cómo llama cada empresa a las cosas del CRM.
+ *
+ * Va aparte de los rótulos de etapa porque son dos preguntas distintas —cómo se llama un paso
+ * del embudo y cómo se llama la unidad de negocio— y quien renombra una no está renombrando la
+ * otra. Comparten el mecanismo, no el contenido.
+ */
+export const CLAVE_VOCABULARIO = 'crm.vocabulary';
 
 /** Rótulos de etapa: estado interno → cómo lo llama esa empresa. */
 export type RotulosDeEtapa = Record<string, string>;
@@ -35,8 +44,12 @@ export class StageLabelsService {
    * @returns Solo los estados renombrados. Los que no aparecen usan el rótulo de fábrica, que
    *   vive en la pantalla: repetirlo acá obligaría a mantener la misma lista en dos sitios.
    */
-  async get(organizationId: string, clientId?: string | null): Promise<RotulosDeEtapa> {
-    const definicion = await this.definiciones.findOne({ where: { key: CLAVE_ROTULOS } });
+  async get(
+    organizationId: string,
+    clientId?: string | null,
+    clave: string = CLAVE_ROTULOS,
+  ): Promise<RotulosDeEtapa> {
+    const definicion = await this.definiciones.findOne({ where: { key: clave } });
     if (!definicion) return {};
 
     const fila = await this.valores.findOne({
@@ -56,11 +69,16 @@ export class StageLabelsService {
    * Se guarda el mapa completo y no una diferencia: borrar un rótulo es no mandarlo, y con
    * parches habría que inventar una forma de decir «este vuelve al de fábrica».
    */
-  async set(organizationId: string, clientId: string | null, rotulos: RotulosDeEtapa): Promise<RotulosDeEtapa> {
-    const definicion = await this.definiciones.findOne({ where: { key: CLAVE_ROTULOS } })
+  async set(
+    organizationId: string,
+    clientId: string | null,
+    rotulos: RotulosDeEtapa,
+    clave: string = CLAVE_ROTULOS,
+  ): Promise<RotulosDeEtapa> {
+    const definicion = await this.definiciones.findOne({ where: { key: clave } })
       ?? await this.definiciones.save(this.definiciones.create({
-        key: CLAVE_ROTULOS,
-        description: 'Cómo llama cada empresa a las etapas de su embudo. No cambia el estado guardado.',
+        key: clave,
+        description: 'Cómo llama cada empresa a las cosas del CRM. Solo cambia lo que se muestra.',
         defaultValue: { value: {} },
       }));
 

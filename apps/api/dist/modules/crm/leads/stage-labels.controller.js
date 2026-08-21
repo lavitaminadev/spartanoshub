@@ -30,6 +30,16 @@ let StageLabelsController = class StageLabelsController {
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         return { labels: await this.rotulos.get(req.organizationId, clientId ?? null) };
     }
+    async vocabulario(req, clientId) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        return { labels: await this.rotulos.get(req.organizationId, clientId ?? null, stage_labels_service_1.CLAVE_VOCABULARIO) };
+    }
+    async guardarVocabulario(req, cuerpo, clientId) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        return {
+            labels: await this.rotulos.set(req.organizationId, clientId ?? null, cuerpo?.labels ?? {}, stage_labels_service_1.CLAVE_VOCABULARIO),
+        };
+    }
     async put(req, cuerpo, clientId) {
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         return { labels: await this.rotulos.set(req.organizationId, clientId ?? null, cuerpo?.labels ?? {}) };
@@ -45,6 +55,26 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], StageLabelsController.prototype, "get", null);
+__decorate([
+    (0, common_1.Get)('vocabulary'),
+    (0, swagger_1.ApiOperation)({ summary: 'Vocabulario del CRM de una empresa' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], StageLabelsController.prototype, "vocabulario", null);
+__decorate([
+    (0, common_1.Put)('vocabulary'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
+    (0, swagger_1.ApiOperation)({ summary: 'Renombrar las cosas del CRM de una empresa' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object, String]),
+    __metadata("design:returntype", Promise)
+], StageLabelsController.prototype, "guardarVocabulario", null);
 __decorate([
     (0, common_1.Put)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),

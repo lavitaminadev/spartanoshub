@@ -6,7 +6,7 @@ import { Roles } from '../../../core/authorization/roles.decorator';
 import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
-import { StageLabelsService, type RotulosDeEtapa } from './stage-labels.service';
+import { CLAVE_VOCABULARIO, StageLabelsService, type RotulosDeEtapa } from './stage-labels.service';
 
 /**
  * Cómo llama cada empresa a las etapas de su embudo.
@@ -30,6 +30,36 @@ export class StageLabelsController {
   async get(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
     return { labels: await this.rotulos.get(req.organizationId!, clientId ?? null) };
+  }
+
+  /**
+   * Vocabulario: cómo llama esta empresa a las cosas del CRM.
+   *
+   * Una inmobiliaria trabaja por proyectos, una agencia por clientes y un local por sucursales.
+   * Es la misma columna con tres nombres, y obligar a las tres al mismo hace que la pantalla
+   * parezca de otro negocio. Solo cambia el rótulo: nada de lo guardado se mueve.
+   */
+  @Get('vocabulary')
+  @ApiOperation({ summary: 'Vocabulario del CRM de una empresa' })
+  async vocabulario(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    return { labels: await this.rotulos.get(req.organizationId!, clientId ?? null, CLAVE_VOCABULARIO) };
+  }
+
+  @Put('vocabulary')
+  @Roles(UserRole.DEV, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Renombrar las cosas del CRM de una empresa' })
+  async guardarVocabulario(
+    @Req() req: AuthenticatedRequest,
+    @Body() cuerpo: { labels?: RotulosDeEtapa },
+    @Query('clientId') clientId?: string,
+  ) {
+    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    return {
+      labels: await this.rotulos.set(
+        req.organizationId!, clientId ?? null, cuerpo?.labels ?? {}, CLAVE_VOCABULARIO,
+      ),
+    };
   }
 
   @Put()

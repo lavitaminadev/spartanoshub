@@ -78,7 +78,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "1f8b604c1b1b9c91f26d44e3a223be96"
+    "revision": "ec7bc5892f851bccf80197dbf85e3ef3"
   }, {
     "url": "assets/WorkflowTimeline-DfArb0dU.js",
     "revision": null
@@ -86,10 +86,10 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/WorkflowTimeline-D8fl8gya.css",
     "revision": null
   }, {
-    "url": "assets/WorkDetailPage-ZlxPr-lV.js",
+    "url": "assets/WorkDetailPage-DDvXWbnh.js",
     "revision": null
   }, {
-    "url": "assets/WaitlistPage-B7qCBHEf.js",
+    "url": "assets/WaitlistPage-Bun3Tfxh.js",
     "revision": null
   }, {
     "url": "assets/vendor-router-CiwSJq2L.js",
@@ -113,7 +113,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/useSurveys-B_hCh9G9.js",
     "revision": null
   }, {
-    "url": "assets/UsersPage-CnXenS4k.js",
+    "url": "assets/UsersPage-ytdaXwf9.js",
     "revision": null
   }, {
     "url": "assets/use-url-filters-WylZtAbk.js",
@@ -128,13 +128,13 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/Timeline-xHEJxs-A.js",
     "revision": null
   }, {
-    "url": "assets/SurveysPage-D68S-fWr.js",
+    "url": "assets/SurveysPage-b162-4b_.js",
     "revision": null
   }, {
     "url": "assets/surveys-D9ZMDVjH.css",
     "revision": null
   }, {
-    "url": "assets/SurveyResultsPage-BpTSkQN7.js",
+    "url": "assets/SurveyResultsPage-BeL2wY7v.js",
     "revision": null
   }, {
     "url": "assets/StatusBadge-BGxDHeRD.js",
@@ -149,16 +149,16 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/stage-labels-D7GSIuII.js",
     "revision": null
   }, {
-    "url": "assets/SolicitudesPage-DuRzlnrM.js",
+    "url": "assets/SolicitudesPage-DjYP9PZN.js",
     "revision": null
   }, {
-    "url": "assets/SettingsPage-RyP6hu3a.js",
+    "url": "assets/SettingsPage-BNX1tHP8.js",
     "revision": null
   }, {
-    "url": "assets/SessionsPage-BYPgcN4S.js",
+    "url": "assets/SessionsPage-DpZvMuDU.js",
     "revision": null
   }, {
-    "url": "assets/SecurityPage-DKfgUNnF.js",
+    "url": "assets/SecurityPage-EBnH2NBj.js",
     "revision": null
   }, {
     "url": "assets/search-C-ELg2fg.js",
@@ -176,52 +176,52 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/ResetPasswordPage-CGvlI-ae.js",
     "revision": null
   }, {
-    "url": "assets/ReservationsPage-CumMnEPd.js",
-    "revision": null
-  }, {
     "url": "assets/ReservationsPage-CmUBKqEa.css",
     "revision": null
   }, {
-    "url": "assets/ReservationsLayout-Dm_nh4I9.js",
+    "url": "assets/ReservationsPage-CbM3gH5I.js",
+    "revision": null
+  }, {
+    "url": "assets/ReservationsLayout-LXZWTwpR.js",
     "revision": null
   }, {
     "url": "assets/ReservationsLayout-D1HiBnGw.css",
     "revision": null
   }, {
-    "url": "assets/ReservationsAnalyticsPage-CGJPWftJ.js",
+    "url": "assets/ReservationsAnalyticsPage-BumJeQY8.js",
     "revision": null
   }, {
-    "url": "assets/ReservationResults-CaqPWIw3.js",
+    "url": "assets/ReservationResults-Dr8U5gXD.js",
     "revision": null
   }, {
-    "url": "assets/ReservationBuilderPage-CKcwabr9.js",
+    "url": "assets/ReservationBuilderPage-CM1EdCS4.js",
     "revision": null
   }, {
-    "url": "assets/ReportsPage-D-ZAGu6O.js",
+    "url": "assets/ReportsPage-CLj4pDRF.js",
     "revision": null
   }, {
     "url": "assets/QueryErrorState-DCkEYvSe.js",
     "revision": null
   }, {
-    "url": "assets/PulsoEspartano-hrth90CB.js",
+    "url": "assets/PulsoEspartano-D-2_hOlw.js",
     "revision": null
   }, {
     "url": "assets/PublicSurveyPage-1MuAt2uz.js",
     "revision": null
   }, {
-    "url": "assets/PublicReservationPage-iJZbmGim.js",
+    "url": "assets/PublicReservationPage-BrX4RXo8.js",
     "revision": null
   }, {
     "url": "assets/PublicReservationPage-B2riEtaj.css",
     "revision": null
   }, {
-    "url": "assets/ProductionPage-DfCWGtdN.js",
+    "url": "assets/ProductionPage-DkTM4gOK.js",
     "revision": null
   }, {
-    "url": "assets/ProcessCommentThread-C_EhYgO3.js",
+    "url": "assets/ProcessCommentThread-DrjMmLVh.js",
     "revision": null
   }, {
-    "url": "assets/PipelineBoardPage-DIb8xlAx.js",
+    "url": "assets/PipelineBoardPage-DWW5RgT4.js",
     "revision": null
   }, {
     "url": "assets/PasswordField-CexQWZmd.js",
@@ -236,10 +236,10 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/organization-settings-BiqisCxj.js",
     "revision": null
   }, {
-    "url": "assets/OperationsPage-C4rfnL9M.js",
+    "url": "assets/OperationsPage-BZON5ai0.js",
     "revision": null
   }, {
-    "url": "assets/OnboardingPage-pOkDxvLq.js",
+    "url": "assets/OnboardingPage-DRRdbn7M.js",
     "revision": null
   }, {
     "url": "assets/OAuthCallbackPage-CtarJxJW.js",
@@ -248,46 +248,46 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/MonthlyReportCard-j_b96eiO.js",
     "revision": null
   }, {
-    "url": "assets/MeetingsPage-Cz1g-6OP.js",
+    "url": "assets/MeetingsPage-DlO6T1MH.js",
     "revision": null
   }, {
-    "url": "assets/LoginPage-C8L9yh85.js",
+    "url": "assets/LoginPage-lbs8fT_M.js",
     "revision": null
   }, {
     "url": "assets/local-time-CDXSxa83.js",
     "revision": null
   }, {
+    "url": "assets/LeadsBoardPage-D13b8iNw.js",
+    "revision": null
+  }, {
     "url": "assets/LeadsBoardPage-Bq6_uXnT.css",
     "revision": null
   }, {
-    "url": "assets/LeadsBoardPage-BQ3JaCMs.js",
-    "revision": null
-  }, {
-    "url": "assets/KnowledgePage-DTmoYApw.js",
+    "url": "assets/KnowledgePage-ChMPQeEx.js",
     "revision": null
   }, {
     "url": "assets/KanbanBoard-BkqLjk3y.js",
     "revision": null
   }, {
-    "url": "assets/IntegrationsPage-C30REMMk.js",
+    "url": "assets/IntegrationsPage-1ZsQPjKt.js",
     "revision": null
   }, {
-    "url": "assets/IntakePage-CMtSTC6R.js",
+    "url": "assets/IntakePage-DpK0_oKR.js",
+    "revision": null
+  }, {
+    "url": "assets/index-DR7k57ig.js",
     "revision": null
   }, {
     "url": "assets/index-CwPL-yuM.css",
     "revision": null
   }, {
-    "url": "assets/index-BML0YjHX.js",
+    "url": "assets/ImageUpload-CVaT-nhu.js",
     "revision": null
   }, {
-    "url": "assets/ImageUpload-CYEAR2nF.js",
+    "url": "assets/GovernancePage-CIxLTdpW.js",
     "revision": null
   }, {
-    "url": "assets/GovernancePage-CHHkNIfb.js",
-    "revision": null
-  }, {
-    "url": "assets/GamificationPage-4cCXGCAr.js",
+    "url": "assets/GamificationPage-BJ-pIYIt.js",
     "revision": null
   }, {
     "url": "assets/ga4-events-Bysu5I0x.js",
@@ -296,10 +296,10 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/ForgotPasswordPage-BFOBlUsx.js",
     "revision": null
   }, {
-    "url": "assets/ForbiddenState-qaKKUSuD.js",
+    "url": "assets/ForbiddenState-DKa6dFcQ.js",
     "revision": null
   }, {
-    "url": "assets/FirstAccessPage-BGlwivvE.js",
+    "url": "assets/FirstAccessPage-G2YC_v7E.js",
     "revision": null
   }, {
     "url": "assets/FilterBar-R7Xk2NJB.js",
@@ -311,52 +311,52 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/export-C8AbdLP8.js",
     "revision": null
   }, {
-    "url": "assets/EmptyState-etD_XVr2.js",
+    "url": "assets/EmptyState-kH3YF_FV.js",
     "revision": null
   }, {
-    "url": "assets/DocumentsPage-DKj9slTU.js",
+    "url": "assets/DocumentsPage-BeVDlf_U.js",
     "revision": null
   }, {
-    "url": "assets/DirectionPage-DwMqsVxp.js",
+    "url": "assets/DirectionPage-Dxs1Qmrx.js",
     "revision": null
   }, {
     "url": "assets/DataTable-DTR3b3wc.js",
     "revision": null
   }, {
-    "url": "assets/DashboardPage-CPyvWdrS.js",
+    "url": "assets/DashboardPage-CtnwObWM.js",
     "revision": null
   }, {
-    "url": "assets/CrmRecordsPage-CCrvqCbq.js",
+    "url": "assets/CrmRecordsPage-DqSqQVWv.js",
     "revision": null
   }, {
-    "url": "assets/CrmLayout-hmjvNqCm.js",
+    "url": "assets/CrmLayout-rTlUQDNu.js",
     "revision": null
   }, {
     "url": "assets/CrmLayout-B0e4Y8gq.css",
     "revision": null
   }, {
-    "url": "assets/CrmHomePage-yysHT_kT.js",
-    "revision": null
-  }, {
     "url": "assets/CrmHomePage-vxHeKC3i.css",
     "revision": null
   }, {
-    "url": "assets/CrmDashboardPage-DwY6vXH5.js",
+    "url": "assets/CrmHomePage-CwqyFr0-.js",
     "revision": null
   }, {
     "url": "assets/CrmDashboardPage-DEYi0G0f.css",
     "revision": null
   }, {
+    "url": "assets/CrmDashboardPage-BK_5jCfP.js",
+    "revision": null
+  }, {
     "url": "assets/CrmCalendarPage-DX38vv-4.css",
     "revision": null
   }, {
-    "url": "assets/CrmCalendarPage-Dwb6y4dv.js",
+    "url": "assets/CrmCalendarPage-CA_7IbzQ.js",
     "revision": null
   }, {
     "url": "assets/CrmAdminPage-xQJRXQLe.css",
     "revision": null
   }, {
-    "url": "assets/CrmAdminPage-kgRXeJX_.js",
+    "url": "assets/CrmAdminPage-R9q1JAwj.js",
     "revision": null
   }, {
     "url": "assets/crm-scope-CgXToSil.js",
@@ -365,52 +365,52 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/CreateSurveyWizard-D3jzy4Fi.css",
     "revision": null
   }, {
-    "url": "assets/CreateSurveyWizard-B8Lqxr8d.js",
+    "url": "assets/CreateSurveyWizard-BzbnpoQB.js",
     "revision": null
   }, {
-    "url": "assets/ContractsPage-Cz-n1F8y.js",
+    "url": "assets/ContractsPage-djt8HaJW.js",
     "revision": null
   }, {
-    "url": "assets/ContentGridPage-CH7IY_tg.js",
+    "url": "assets/ContentGridPage-C-Uzxdc4.js",
     "revision": null
   }, {
-    "url": "assets/ConfirmDialog-Cagrp7Zy.js",
+    "url": "assets/ConfirmDialog-CuTfxFNR.js",
     "revision": null
   }, {
-    "url": "assets/CloudinaryConfigModal-D-N6oU69.js",
+    "url": "assets/CloudinaryConfigModal-B4Uitaqr.js",
     "revision": null
   }, {
-    "url": "assets/ClientsPage-CGhwumTn.js",
+    "url": "assets/ClientsPage-BRtul0hL.js",
     "revision": null
   }, {
     "url": "assets/ClientsPage-5vXbh_F2.css",
     "revision": null
   }, {
-    "url": "assets/ClientReports-BBYB_x1d.js",
+    "url": "assets/ClientReports-Yl5JHkUs.js",
     "revision": null
   }, {
-    "url": "assets/ClientMeetings-D7X9ozky.js",
+    "url": "assets/ClientMeetings-C6hhs90s.js",
     "revision": null
   }, {
-    "url": "assets/ClientLayout-CpjgENfc.js",
+    "url": "assets/ClientLayout-CrmoqD-z.js",
     "revision": null
   }, {
-    "url": "assets/ClientGrid-CFLKMU99.js",
+    "url": "assets/ClientGrid-Dl9NJIAE.js",
     "revision": null
   }, {
-    "url": "assets/ClientDetailPage-XrcsDyO4.js",
+    "url": "assets/ClientDetailPage-CUCLsTVT.js",
     "revision": null
   }, {
-    "url": "assets/ClientDashboard-CyOGytKA.js",
+    "url": "assets/ClientDashboard-BN21i7wT.js",
     "revision": null
   }, {
-    "url": "assets/ClientApprovals-_XtsgyKg.js",
+    "url": "assets/ClientApprovals-8WPcm_Bp.js",
     "revision": null
   }, {
     "url": "assets/ChangePasswordPage-BEuwNswp.js",
     "revision": null
   }, {
-    "url": "assets/CatalogPage-BxC3HcPn.js",
+    "url": "assets/CatalogPage-C9rR-S12.js",
     "revision": null
   }, {
     "url": "assets/Card-rKytrgCF.js",
@@ -419,34 +419,34 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/browser-storage-B9UsxX0B.js",
     "revision": null
   }, {
-    "url": "assets/BriefsPage-BOjCBZ6P.js",
+    "url": "assets/BriefsPage-CNPY5lvj.js",
     "revision": null
   }, {
     "url": "assets/booking-utils-DfHGxcnP.js",
     "revision": null
   }, {
-    "url": "assets/BillingPage-DYyXHBjN.js",
+    "url": "assets/BillingPage-BTOvZKm6.js",
     "revision": null
   }, {
     "url": "assets/AvailabilityCalendarPage-rG-YTosR.css",
     "revision": null
   }, {
-    "url": "assets/AvailabilityCalendarPage-DtawtNf4.js",
+    "url": "assets/AvailabilityCalendarPage-BKSu9FIx.js",
     "revision": null
   }, {
-    "url": "assets/AutomationsPage-Tzq9w_9D.js",
+    "url": "assets/AutomationsPage-BlCJayU6.js",
     "revision": null
   }, {
-    "url": "assets/AutomationRunsPage-D_5OWlzI.js",
+    "url": "assets/AutomationRunsPage-C8DxAHqa.js",
     "revision": null
   }, {
-    "url": "assets/AutomationEditorPage-3CylvGTS.js",
+    "url": "assets/AutomationEditorPage-BDHp_2s9.js",
     "revision": null
   }, {
-    "url": "assets/AuditPanel-COayhfoU.js",
+    "url": "assets/AuditPanel-BatOkECR.js",
     "revision": null
   }, {
-    "url": "assets/AudiovisualPage-C9goiTFH.js",
+    "url": "assets/AudiovisualPage-DLyumxgL.js",
     "revision": null
   }, {
     "url": "assets/attendance-CxsPSrsP.js",
@@ -455,16 +455,16 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/attendance-Byko9tlR.css",
     "revision": null
   }, {
-    "url": "assets/ApprovalsPage-BKKKw8R8.js",
+    "url": "assets/ApprovalsPage-DEGrcA-n.js",
     "revision": null
   }, {
     "url": "assets/AgendaPage-Y83Y1SoO.css",
     "revision": null
   }, {
-    "url": "assets/AgendaPage-CMKrJ7Dw.js",
+    "url": "assets/AgendaPage-pB71cFxZ.js",
     "revision": null
   }, {
-    "url": "assets/AdminPage-BMQAuXUr.js",
+    "url": "assets/AdminPage-DdKUpDVs.js",
     "revision": null
   }, {
     "url": "favicon.svg",
@@ -495,6 +495,8 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "revision": "5e4ebab5a95e7df65224bbb2f0fb66e7"
   }], {});
   workbox.cleanupOutdatedCaches();
-  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html")));
+  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
+    denylist: [/^\/api\//]
+  }));
 
 }));
