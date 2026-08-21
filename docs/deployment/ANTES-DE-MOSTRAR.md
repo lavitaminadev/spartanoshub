@@ -39,17 +39,27 @@ el código pero no lo desplegaste.
 
 ## 2. Dejar solo lo que se va a mostrar
 
-Entra como **desarrollo**. En **Accesos y seguridad → 02 Módulos**:
+Entra como **desarrollo**. En **Accesos y seguridad → 02 Módulos**, elige según lo que vayas a
+mostrar:
 
-1. Pulsa **«Dejar solo el CRM»**
-2. **Recarga la página** — el menú se arma con el perfil que tiene tu navegador, no con lo que el
-   servidor acaba de guardar
+| Botón | Deja encendido | Cuándo |
+| --- | --- | --- |
+| **Dejar solo el CRM** | inicio, configuración, informes, CRM, clientes, usuarios | Solo vas a mostrar el CRM |
+| **CRM + portal + operaciones** | lo anterior más aprobaciones, contenido, reuniones, operaciones y reservas | Vas a mostrar también la vista del cliente |
 
-**Verificación:** la lateral debe quedar exactamente en cinco entradas:
+Después, **recarga la página** — el menú se arma con el perfil que tiene tu navegador, no con lo
+que el servidor acaba de guardar.
+
+**Verificación con «Dejar solo el CRM»:** la lateral debe quedar en cinco entradas.
 
 > Inicio · CRM · Clientes · Usuarios · Accesos y seguridad
 
 Si ves algo más, no recargaste.
+
+Los módulos del segundo preajuste están medidos sobre lo que esas pantallas piden de verdad: el
+portal consulta aprobaciones, contenido, reuniones e informes mensuales, y su inicio monta el
+pulso; operaciones consulta su resumen, objetivos, clientes y usuarios. Uno de menos no se nota
+al preparar la demostración: se nota al abrir la pantalla delante de alguien.
 
 > Si necesitas apagar algo puntual, usa el interruptor **«Acceso organización»** de cada tarjeta,
 > nunca el estado del producto. «En desarrollo» esconde el módulo del equipo pero **no de ti**, así

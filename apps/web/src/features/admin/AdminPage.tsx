@@ -34,6 +34,29 @@ import { matchesSearch } from '../../shared/search';
  */
 const MODULOS_CRM: string[] = ['dashboard', 'settings', 'reports', 'crm', 'clients', 'users'];
 
+/**
+ * Lo que hace falta para mostrar además el portal del cliente y la vista de operaciones.
+ *
+ * Medido sobre lo que esas pantallas piden de verdad, no sobre lo que parece que necesitan:
+ *
+ * - El portal consulta aprobaciones, contenido, reuniones e informes mensuales, y su inicio
+ *   monta el pulso, que también sale de informes.
+ * - La vista de operaciones consulta su propio resumen, objetivos, clientes y usuarios.
+ * - Reservas entra porque es lo que el cliente ve como su operación diaria y de donde salen los
+ *   contactos de campaña que después aparecen en el CRM.
+ *
+ * Un módulo de menos acá no se nota al preparar la demostración: se nota al abrir la pantalla
+ * delante de alguien, en forma de «no tienes acceso a este módulo».
+ */
+const MODULOS_DEMOSTRACION: string[] = [
+  ...MODULOS_CRM,
+  'approvals',
+  'content',
+  'meetings',
+  'operations',
+  'reservations',
+];
+
 const LEVELS: PermissionLevel[] = ['none', 'view', 'edit', 'manage'];
 const LEVEL_LABELS: Record<PermissionLevel, string> = { none: 'Sin acceso', view: 'Ver', edit: 'Editar', manage: 'Administrar' };
 const LEVEL_COLORS: Record<PermissionLevel, string> = { none: '#706a73', view: '#1f6fb2', edit: '#9a5a00', manage: '#096f6b' };
@@ -288,11 +311,29 @@ export function AdminPage() {
     if (!window.confirm(
       'Se dejará encendido solo lo que el CRM necesita —inicio, configuración, informes, CRM, clientes y usuarios— y se apagará todo lo demás para esta organización. Se puede volver a encender módulo por módulo.',
     )) return;
+    aplicarPreajuste(MODULOS_CRM);
+  };
 
-    const soloCrm = Object.fromEntries(
-      MODULE_CATALOG.map((module) => [module.key, MODULOS_CRM.includes(module.key)]),
-    ) as Partial<OrganizationFeatures>;
-    featuresMutation.mutate(soloCrm);
+  /**
+   * Enciende lo justo para mostrar el CRM, el portal del cliente y la vista de operaciones.
+   *
+   * Es el otro escenario real de demostración: no siempre se muestra solo el CRM, y armar la
+   * lista a mano son once interruptores acertados entre treinta y uno.
+   */
+  const applyDemoPreset = () => {
+    if (!window.confirm(
+      'Se dejará encendido lo necesario para mostrar el CRM, el portal del cliente y la vista de operaciones, y se apagará el resto para esta organización.',
+    )) return;
+    aplicarPreajuste(MODULOS_DEMOSTRACION);
+  };
+
+  /** Enciende exactamente los de la lista y apaga los demás, en una sola escritura. */
+  const aplicarPreajuste = (encendidos: string[]) => {
+    featuresMutation.mutate(
+      Object.fromEntries(
+        MODULE_CATALOG.map((module) => [module.key, encendidos.includes(module.key)]),
+      ) as Partial<OrganizationFeatures>,
+    );
   };
 
   const activateAllForReview = () => {
@@ -389,7 +430,8 @@ export function AdminPage() {
           <button className="btn btn-outline" type="button" disabled={featuresMutation.isPending} onClick={applyAgencyCorePreset}>Usar solo operación base</button>
           {/* Primero en importancia y por eso destacado: es el estado con el que se muestra el
               producto, y armarlo a mano son veinticinco interruptores. */}
-          <button className="btn btn-primary" type="button" disabled={featuresMutation.isPending} onClick={applyCrmOnlyPreset}>Dejar solo el CRM</button>
+          <button className="btn btn-outline" type="button" disabled={featuresMutation.isPending} onClick={applyCrmOnlyPreset}>Dejar solo el CRM</button>
+          <button className="btn btn-primary" type="button" disabled={featuresMutation.isPending} onClick={applyDemoPreset}>CRM + portal + operaciones</button>
         </div>
       </div>
       <div className="reservation-flow-switch module-lifecycle-summary" role="group" aria-label="Resumen por ciclo de vida">
