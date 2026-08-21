@@ -16,6 +16,8 @@ import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { EmptyState } from '../../shared/EmptyState';
+import { Modal } from '../../shared/Modal';
+import { useCrmScope } from './crm-scope';
 import './crm-admin.css';
 
 interface Cliente { id: string; name: string }
@@ -37,9 +39,52 @@ function cuando(fecha?: string | null): string {
   return fecha ? new Date(fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : 'sin uso aún';
 }
 
+interface Campania {
+  id: string;
+  name: string;
+  source: string;
+  investment: number;
+  status: string;
+  leads: number;
+  costPerLead: number | null;
+}
+
 export function CrmAdminPage(): JSX.Element {
   const queryClient = useQueryClient();
+  // La empresa cuyas campañas se administran; la elige la barra del CRM.
+  const scope = useCrmScope();
   const [llaveNueva, setLlaveNueva] = useState<string | null>(null);
+  const [campaniaAbierta, setCampaniaAbierta] = useState(false);
+  const [formCampania, setFormCampania] = useState({ name: '', source: 'Meta Ads', investment: '0', status: 'active' });
+
+  const campanias = useQuery<Campania[]>({
+    queryKey: ['crm-campaigns', scope.clientId],
+    queryFn: () => api.get(`/crm/campaigns${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`),
+  });
+
+  const refrescarCampanias = () => queryClient.invalidateQueries({ queryKey: ['crm-campaigns'] });
+
+  const crearCampania = useMutation({
+    mutationFn: () => api.post('/crm/campaigns', {
+      name: formCampania.name.trim(),
+      source: formCampania.source.trim() || undefined,
+      investment: Number(formCampania.investment) || 0,
+      status: formCampania.status,
+      // La cuenta sale del contexto y no de un campo: administrar campañas de otra empresa
+      // desde el panel de esta sería justo la mezcla que el selector vino a evitar.
+      clientId: scope.clientId || null,
+    }),
+    onSuccess: async () => {
+      setCampaniaAbierta(false);
+      setFormCampania({ name: '', source: 'Meta Ads', investment: '0', status: 'active' });
+      await refrescarCampanias();
+    },
+  });
+
+  const borrarCampania = useMutation({
+    mutationFn: (id: string) => api.delete(`/crm/campaigns/${id}`),
+    onSuccess: () => refrescarCampanias(),
+  });
 
   const clientes = useQuery<{ data: Cliente[] }>({ queryKey: ['clients-min'], queryFn: () => api.get('/clients') });
   const usuarios = useQuery<{ data: Usuario[] }>({ queryKey: ['users-min'], queryFn: () => api.get('/users') });
@@ -123,6 +168,111 @@ export function CrmAdminPage(): JSX.Element {
           )}
         </section>
       </div>
+
+      {/*
+        Inversión por campaña.
+
+        Sin esta tabla el panel no puede calcular el costo por lead: los leads dicen de qué
+        campaña vinieron, pero nadie anota cuánto costó. El nombre debe coincidir con el que
+        traen los leads, y se avisa acá porque es el error que deja la cifra en nada.
+      */}
+      <section className="crm-admin-panel">
+        <header>
+          <h2>Campañas e inversión <span className="crm-admin-cuenta">{campanias.data?.length ?? 0}</span></h2>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setCampaniaAbierta(true)}>
+            + Nueva campaña
+          </button>
+        </header>
+        <p className="crm-admin-explica">
+          El nombre tiene que escribirse igual que el que traen los leads —{scope.esAgencia ? 'los de Espartanos' : `los de ${scope.empresa}`}—;
+          si no coincide, la campaña aparece con cero leads y su inversión no se reparte entre nadie.
+        </p>
+        {campanias.data?.length ? (
+          <ul className="crm-admin-lista">
+            {campanias.data.map((campania) => (
+              <li key={campania.id}>
+                <div>
+                  <strong>{campania.name}</strong>
+                  <small>
+                    {campania.source} · ${Math.round(campania.investment).toLocaleString('es-CL')} ·{' '}
+                    {campania.leads} lead{campania.leads === 1 ? '' : 's'} ·{' '}
+                    {campania.costPerLead === null
+                      ? 'sin costo por lead aún'
+                      : `$${campania.costPerLead.toLocaleString('es-CL')} por lead`}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={borrarCampania.isPending}
+                  onClick={() => borrarCampania.mutate(campania.id)}
+                >
+                  Quitar
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="crm-admin-vacio">Todavía no hay campañas registradas.</p>
+        )}
+      </section>
+
+      {campaniaAbierta ? (
+        <Modal open onClose={() => setCampaniaAbierta(false)} title="Nueva campaña">
+          <div className="modal-form">
+            <label>
+              Nombre
+              <input
+                className="input"
+                value={formCampania.name}
+                onChange={(event) => setFormCampania({ ...formCampania, name: event.target.value })}
+                placeholder="Tal como llega en los leads"
+              />
+            </label>
+            <label>
+              Fuente
+              <input
+                className="input"
+                value={formCampania.source}
+                onChange={(event) => setFormCampania({ ...formCampania, source: event.target.value })}
+              />
+            </label>
+            <label>
+              Inversión (CLP)
+              <input
+                className="input"
+                type="number"
+                min={0}
+                value={formCampania.investment}
+                onChange={(event) => setFormCampania({ ...formCampania, investment: event.target.value })}
+              />
+            </label>
+            <label>
+              Estado
+              <select
+                className="input"
+                value={formCampania.status}
+                onChange={(event) => setFormCampania({ ...formCampania, status: event.target.value })}
+              >
+                <option value="active">Activa</option>
+                <option value="paused">Pausada</option>
+                <option value="finished">Finalizada</option>
+              </select>
+            </label>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setCampaniaAbierta(false)}>Cancelar</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={crearCampania.isPending || formCampania.name.trim().length < 2}
+                onClick={() => crearCampania.mutate()}
+              >
+                {crearCampania.isPending ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       <section className="crm-admin-panel">
         <header>

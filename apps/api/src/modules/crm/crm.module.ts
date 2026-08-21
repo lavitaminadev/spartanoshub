@@ -4,6 +4,9 @@ import { AuditModule } from '../../core/audit/audit.module';
 import { ProcessTemplatesModule } from '../process-templates/process-templates.module';
 import { AccountAccessModule } from '../../core/client-scope/account-access.module';
 import { Lead } from './leads/lead.entity';
+import { Campaign } from './campaigns/campaign.entity';
+import { CampaignsController } from './campaigns/campaigns.controller';
+import { CampaignsService } from './campaigns/campaigns.service';
 import { LeadController } from './leads/lead.controller';
 import { CreateLeadUseCase } from './leads/use-cases/create-lead.use-case';
 import { ListLeadsUseCase } from './leads/use-cases/list-leads.use-case';
@@ -42,13 +45,14 @@ import { Client } from '../clients/client.entity';
 import { Reservation } from '../reservations/domain/reservation.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource]), AccountAccessModule, AuditModule, ProcessTemplatesModule],
-  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController],
+  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign]), AccountAccessModule, AuditModule, ProcessTemplatesModule],
+  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController],
   providers: [
     CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, LeadIngestService, CrmHomeService, CrmDashboardService, CrmLeadAutomationService,
     ContactsService,
     OpportunityReferenceValidator, OpportunityStageHistoryService, CreateOpportunityUseCase, ListOpportunitiesUseCase, GetOpportunityUseCase, UpdateOpportunityUseCase, RemoveOpportunityUseCase,
     InteractionsService,
+    CampaignsService,
   ],
   exports: [LeadIntakeService, CrmLeadAutomationService],
 })
