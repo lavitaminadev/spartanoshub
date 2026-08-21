@@ -91,7 +91,12 @@ export function AdminPage() {
   const rawUsers = usersQuery.data;
   const users = Array.isArray(rawUsers) ? rawUsers : (rawUsers as { data?: UserOption[] } | undefined)?.data ?? [];
   const features = featuresQuery.data?.features;
-  const lifecycleSettings = new Map((settingsQuery.data ?? []).filter((s) => s.key.startsWith('modules.lifecycle.')).map((s) => [s.key, s.value]));
+  // Memorizado: se construía un `Map` nuevo en cada render, así que el `useMemo` del resumen
+  // por ciclo de vida dependía de una referencia distinta cada vez y no memorizaba nada.
+  const lifecycleSettings = useMemo(
+    () => new Map((settingsQuery.data ?? []).filter((s) => s.key.startsWith('modules.lifecycle.')).map((s) => [s.key, s.value])),
+    [settingsQuery.data],
+  );
 
   useEffect(() => {
     if ((!canManagePermissions && tab === 'permisos') || (!canManageModules && tab === 'modulos')) setTab('excepciones');
@@ -155,13 +160,20 @@ export function AdminPage() {
   const featuresMutation = useMutation({
     mutationFn: (f: Partial<OrganizationFeatures>) => api.put('/organizations/features', { features: f }),
     onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ['organization-features'] }),
-        // `user.features` vive en Zustand, no en React Query. Sin recargar este perfil el
-        // interruptor se guardaba, pero el menú seguía representando el estado anterior.
-        useAuth.getState().refreshProfile().catch(() => undefined),
-      ]);
-      setFeedback({ tone: 'success', text: 'Acceso por módulo actualizado.' });
+      await qc.invalidateQueries({ queryKey: ['organization-features'] });
+      // `user.features` vive en Zustand, no en React Query. Sin recargar este perfil el
+      // interruptor se guardaba y el menú seguía representando el estado anterior; si esa
+      // recarga falla hay que decirlo, porque el resultado es un menú que ofrece lo que el
+      // servidor ya está bloqueando.
+      try {
+        await useAuth.getState().refreshProfile();
+        setFeedback({ tone: 'success', text: 'Acceso por módulo actualizado.' });
+      } catch {
+        setFeedback({
+          tone: 'error',
+          text: 'Se guardó el cambio, pero no se pudo recargar tu perfil: el menú puede seguir mostrando el estado anterior. Vuelve a cargar la página.',
+        });
+      }
     },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
@@ -169,11 +181,25 @@ export function AdminPage() {
   const lifecycleMutation = useMutation({
     mutationFn: (values: Record<string, string>) => api.put('/settings', { values }),
     onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ['organization-settings'] }),
-        useAuth.getState().refreshProfile().catch(() => undefined),
-      ]);
-      setFeedback({ tone: 'success', text: 'Ciclo de vida del módulo actualizado.' });
+      await qc.invalidateQueries({ queryKey: ['organization-settings'] });
+      /*
+        Si el perfil no se recarga, hay que decirlo.
+
+        El cambio ya está guardado y el servidor lo aplica de inmediato, pero el menú se arma
+        con el perfil que tiene el navegador. Cuando esa recarga fallaba en silencio, quedaba la
+        peor combinación posible: el menú seguía ofreciendo el módulo y al entrar respondía que
+        no hay acceso. Se lee como que el sistema se contradice, y en realidad es una pantalla
+        con datos viejos.
+      */
+      try {
+        await useAuth.getState().refreshProfile();
+        setFeedback({ tone: 'success', text: 'Ciclo de vida del módulo actualizado.' });
+      } catch {
+        setFeedback({
+          tone: 'error',
+          text: 'Se guardó el cambio, pero no se pudo recargar tu perfil: el menú puede seguir mostrando el estado anterior. Vuelve a cargar la página.',
+        });
+      }
     },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
@@ -314,7 +340,14 @@ export function AdminPage() {
         <div>
           <span className="page-eyebrow">OFERTA Y ACCESO</span>
           <h2>Centro de módulos</h2>
-          <p className="page-subtitle">Controla si el producto muestra cada módulo y si esta organización puede usarlo. Un módulo en desarrollo sigue oculto aunque esté encendido para la organización.</p>
+          {/* Cuál oculta y cuál no era la pregunta que llevaba a cambiar a «piloto» esperando
+              que desapareciera del menú, que es justo lo que piloto no hace. */}
+          <p className="page-subtitle">
+            Controla si el producto muestra cada módulo y si esta organización puede usarlo.
+            <strong> Activo, piloto y mantenimiento se ven igual</strong>: los tres aparecen en el
+            menú. Para esconder uno usa <strong>En desarrollo</strong> —queda visible solo para
+            Desarrollo— o <strong>Deshabilitado</strong>, que lo oculta para todos.
+          </p>
         </div>
         <div className="toolbar-actions">
           <button className="btn btn-outline" type="button" disabled={featuresMutation.isPending || lifecycleMutation.isPending} onClick={activateAllForReview}>Encender todo para revisar</button>
