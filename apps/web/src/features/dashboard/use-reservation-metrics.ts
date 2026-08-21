@@ -38,10 +38,16 @@ export interface ReservationTotals {
  * @param days - Ventana en días.
  * @param clientId - Acota a un cliente; sin él, agrega todos los visibles para el usuario.
  */
-export function useReservationMetrics(days: number, clientId?: string) {
+/**
+ * @param enabled - Si quien mira alcanza el módulo de reservas. Sin esto la consulta salía
+ *   igual y respondía 403: con reservas apagado para la organización, el inicio se llenaba de
+ *   avisos de «acceso no autorizado» por un panel que ni siquiera se dibuja.
+ */
+export function useReservationMetrics(days: number, clientId?: string, enabled = true) {
   return useQuery<ReservationMetrics>({
     queryKey: ['reservation-metrics', days, clientId ?? null],
     queryFn: () => api.get(`/reservations/analytics/metrics?days=${days}${clientId ? `&clientId=${encodeURIComponent(clientId)}` : ''}`),
+    enabled,
   });
 }
 
