@@ -23,6 +23,7 @@ import { triggerToast } from '../../shared/toast-events';
 import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 import { roleLabel } from '../../core/role-labels';
 import { STAGES } from './stage-labels';
+import { useCrmScope } from './crm-scope';
 import './lead-detail.css';
 
 interface Lead {
@@ -77,6 +78,9 @@ interface Props {
   onClose: () => void;
 }
 
+/** Orígenes que ya se usan, como sugerencia. No es una lista cerrada. */
+const FUENTES_SUGERIDAS = ['Meta Ads', 'Google Ads', 'manual', 'importacion', 'referido', 'sitio web'];
+
 const TIPOS_ACTIVIDAD: Array<{ value: string; label: string }> = [
   { value: 'call', label: 'Llamada' },
   { value: 'email', label: 'Correo' },
@@ -100,6 +104,19 @@ function whatsapp(telefono?: string | null): string | undefined {
   return digitos ? `https://wa.me/${digitos}` : undefined;
 }
 
+/**
+ * Fecha local, o un guion cuando no hay una utilizable.
+ *
+ * `new Date(undefined).toLocaleDateString()` devuelve «Invalid Date», que se imprimía tal cual
+ * en la ficha. Un lead sin fecha de ingreso es raro pero existe —los que llegaron por vías que
+ * no la escribían—, y mostrar eso parece un sistema roto en vez de un dato que falta.
+ */
+function fecha(valor?: string | null): string {
+  if (!valor) return '—';
+  const parsed = new Date(valor);
+  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString('es-CL');
+}
+
 /** Monto con formato local, o `''` cuando no hay ninguno. Vacío y cero no son lo mismo. */
 function montoInicial(valor?: number | string | null): string {
   if (valor === null || valor === undefined || valor === '') return '';
@@ -108,6 +125,9 @@ function montoInicial(valor?: number | string | null): string {
 
 export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onClose }: Props): JSX.Element {
   const queryClient = useQueryClient();
+  // Las cuentas que esta persona alcanza, para poder mover el lead de empresa sin una consulta
+  // propia: la barra ya las tiene resueltas.
+  const scope = useCrmScope();
 
   /*
     El lead llega ya cargado desde el listado y además se vuelve a pedir.
@@ -129,6 +149,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [etiquetas, setEtiquetas] = useState((lead.tags ?? []).join(', '));
   const [motivo, setMotivo] = useState(lead.discardReason ?? '');
   const [tarea, setTarea] = useState({ title: '', dueAt: '' });
+  const [fuente, setFuente] = useState(lead.source ?? '');
+  const [empresa, setEmpresa] = useState(lead.clientId ?? '');
   const [aviso, setAviso] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [confirmarAnonimizar, setConfirmarAnonimizar] = useState(false);
   const [actividadAbierta, setActividadAbierta] = useState(false);
@@ -144,7 +166,12 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setCalificacion(lead.fitStatus ?? 'review');
     setEtiquetas((lead.tags ?? []).join(', '));
     setMotivo(lead.discardReason ?? '');
-  }, [lead.id, lead.notes, lead.status, lead.assignedTo, lead.estimatedAmount, lead.fitStatus, lead.tags, lead.discardReason]);
+    setFuente(lead.source ?? '');
+    setEmpresa(lead.clientId ?? '');
+  }, [
+    lead.id, lead.notes, lead.status, lead.assignedTo, lead.estimatedAmount,
+    lead.fitStatus, lead.tags, lead.discardReason, lead.source, lead.clientId,
+  ]);
 
   const { data: historial, isLoading } = useQuery<Paso[]>({
     queryKey: ['crm-lead-historial', lead.id],
@@ -200,6 +227,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       // Solo viaja si el lead queda descartado: un motivo guardado en un lead vivo reaparece
       // como explicación de un cierre que no ocurrió.
       discardReason: etapa === 'lost' ? motivo : '',
+      source: fuente.trim(),
+      // Vacío deja el lead sin cuenta, que es el estado natural de un prospecto de la agencia.
+      clientId: empresa || null,
     }),
     onSuccess: async () => {
       setAviso({ tone: 'success', text: 'Ficha actualizada.' });
@@ -253,17 +283,50 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
   });
 
+  /**
+   * Deja constancia de que se habló con esta persona.
+   *
+   * Escribe la interacción y, si el lead seguía en «Nuevo», lo mueve a «Contactado». Son dos
+   * cosas que siempre ocurrían juntas y que había que hacer por separado, de modo que la
+   * bandeja de «sin contactar» seguía acusando a leads que ya se habían llamado.
+   */
+  const registrarContacto = useMutation({
+    mutationFn: async () => {
+      await api.post('/crm/interactions', { leadId: lead.id, type: 'call', description: 'Contacto registrado desde la ficha' });
+      if (lead.status === 'new') await api.put(`/crm/leads/${lead.id}`, { status: 'contacted' });
+    },
+    onSuccess: async () => {
+      setAviso({ tone: 'success', text: 'Contacto registrado.' });
+      await Promise.all([refrescar(), queryClient.invalidateQueries({ queryKey: ['lead-interactions', lead.id] })]);
+    },
+    onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
+  });
+
   const registrarActividad = useMutation({
-    mutationFn: () => api.post('/crm/interactions', {
-      leadId: lead.id,
-      type: actividad.type,
-      description: actividad.description.trim(),
-      date: actividad.date ? new Date(actividad.date).toISOString() : undefined,
-    }),
+    mutationFn: async () => {
+      await api.post('/crm/interactions', {
+        leadId: lead.id,
+        type: actividad.type,
+        description: actividad.description.trim(),
+        date: actividad.date ? new Date(actividad.date).toISOString() : undefined,
+      });
+      /*
+        Una reunión con fecha futura **es** una visita agendada, así que la etapa se mueve sola.
+        Dejarlo a mano producía justo la contradicción que el inicio del CRM señala como
+        pendiente: leads con visita anotada que el embudo seguía contando como calificados sin
+        fecha. Solo avanza; si el lead ya iba más adelante no se le hace retroceder.
+      */
+      const futura = actividad.date && new Date(actividad.date) > new Date();
+      const avanza = ['new', 'contacted', 'quote_sent'].includes(lead.status);
+      if (actividad.type === 'meeting' && futura && avanza) {
+        await api.put(`/crm/leads/${lead.id}`, { status: 'meeting_scheduled' });
+      }
+    },
     onSuccess: async () => {
       setActividadAbierta(false);
       setActividad({ type: 'call', description: '', date: '' });
       setAviso({ tone: 'success', text: 'Actividad agregada.' });
+      await refrescar();
       await queryClient.invalidateQueries({ queryKey: ['lead-interactions', lead.id] });
       await queryClient.invalidateQueries({ queryKey: ['crm-interactions'] });
     },
@@ -295,6 +358,17 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   });
 
   const enlaceWhatsapp = whatsapp(lead.phone);
+
+  /**
+   * Cuándo se habló por última vez con esta persona.
+   *
+   * Sale de la interacción más reciente que ya ocurrió: una reunión agendada para el jueves no
+   * es gestión hecha, y contarla como tal haría que un lead sin atender pareciera atendido.
+   */
+  const ultimoContacto = (actividades?.data ?? [])
+    .map((registro) => new Date(registro.date))
+    .filter((fecha) => fecha <= new Date())
+    .sort((a, b) => b.getTime() - a.getTime())[0];
   const sinCambios =
     nota === (lead.notes ?? '') &&
     etapa === lead.status &&
@@ -337,9 +411,14 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           {lead.discardReason ? (<><dt>Motivo de cierre</dt><dd>{lead.discardReason}</dd></>) : null}
         </dl>
 
+        {/*
+          «Sin gestión aún» no es lo mismo que una fecha vieja, y es la distinción que decide
+          qué hacer: a quien nunca se llamó hay que llamarlo, a quien se llamó hace un mes hay
+          que insistirle. Antes solo se veía la fecha de ingreso, que no dice nada de eso.
+        */}
         <p className="lead-detail-fechas">
-          Ingresó el {new Date(lead.createdAt).toLocaleDateString('es-CL')} ·
-          {' '}último movimiento {new Date(lead.updatedAt).toLocaleDateString('es-CL')}
+          Último contacto: <strong>{ultimoContacto ? ultimoContacto.toLocaleDateString('es-CL') : 'sin gestión aún'}</strong>
+          {' · '}Ingresó el {fecha(lead.createdAt)}
         </p>
 
         <div className="lead-detail-acciones">
@@ -348,6 +427,23 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <a className="btn btn-outline btn-sm" href={enlaceWhatsapp} target="_blank" rel="noreferrer">WhatsApp</a>
           ) : null}
           {lead.email ? <a className="btn btn-outline btn-sm" href={`mailto:${lead.email}`}>Correo</a> : null}
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            disabled={registrarContacto.isPending}
+            onClick={() => registrarContacto.mutate()}
+          >
+            {registrarContacto.isPending ? 'Registrando...' : 'Registrar contacto'}
+          </button>
+          {/* Abre el mismo formulario de actividad, ya puesto en reunión: agendar una visita es
+              anotar una reunión con fecha, y tener dos caminos para lo mismo los desincroniza. */}
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => { setActividad({ type: 'meeting', description: '', date: '' }); setActividadAbierta(true); }}
+          >
+            Agendar visita
+          </button>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => setActividadAbierta(true)}>Registrar actividad</button>
         </div>
 
@@ -403,6 +499,31 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               onChange={(event) => setEtiquetas(event.target.value)}
               placeholder="Sin etiquetas"
             />
+          </label>
+
+          <label>
+            <span>Fuente</span>
+            {/* Texto con sugerencias y no una lista cerrada: `source` es libre en la base y ya
+                guarda valores que ningún catálogo declara. Cerrarlo acá dejaría sin poder
+                corregir justamente los leads que llegaron con un origen raro. */}
+            <input
+              className="input"
+              list="fuentes-conocidas"
+              value={fuente}
+              onChange={(event) => setFuente(event.target.value)}
+              placeholder="Sin origen"
+            />
+            <datalist id="fuentes-conocidas">
+              {FUENTES_SUGERIDAS.map((valor) => <option key={valor} value={valor} />)}
+            </datalist>
+          </label>
+
+          <label>
+            <span>Empresa</span>
+            <select className="input" value={empresa} onChange={(event) => setEmpresa(event.target.value)}>
+              <option value="">Sin empresa</option>
+              {scope.clients.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{cuenta.name}</option>)}
+            </select>
           </label>
 
           {/* Solo cuando la etapa es de cierre: preguntar por qué se perdió algo que sigue vivo
@@ -486,7 +607,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
                       <span>{pendiente.title}</span>
                     </label>
                     {pendiente.dueAt ? (
-                      <time>{new Date(pendiente.dueAt).toLocaleDateString('es-CL')}</time>
+                      <time>{fecha(pendiente.dueAt)}</time>
                     ) : null}
                   </li>
                 );

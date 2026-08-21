@@ -122,6 +122,10 @@ export class LeadController {
   @ApiOperation({ summary: 'Actualizar estado de un lead' })
   async update(@Param('id') id: string, @Body() dto: UpdateLeadDto, @Req() req: AuthenticatedRequest) {
     await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+    // Se comprueban las dos cuentas, no solo la de origen: sin verificar el destino, mover un
+    // lead a una cuenta ajena sería una forma de sacarlo del alcance de quien lo estaba viendo
+    // —o de meterlo en el de otro equipo— con un solo campo.
+    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
     return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
   }
 

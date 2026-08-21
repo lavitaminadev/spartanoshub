@@ -57,6 +57,10 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.estimatedAmount = data.estimatedAmount;
         if (data.assignedTo !== undefined)
             lead.assignedTo = data.assignedTo ?? undefined;
+        if (data.source !== undefined)
+            lead.source = data.source;
+        if (data.clientId !== undefined)
+            lead.clientId = data.clientId ?? undefined;
         const guardado = await this.repo.save(lead);
         await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.LEAD, guardado.id, etapaPrevia, guardado.status, actorId, guardado.discardReason);
         return guardado;
