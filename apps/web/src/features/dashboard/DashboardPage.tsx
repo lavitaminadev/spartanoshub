@@ -123,14 +123,32 @@ export function DashboardPage() {
   };
   // Comparte clave de caché con el panel de resultados: montados juntos resuelven con una sola
   // llamada y no pueden mostrar cifras distintas del mismo período.
-  const { data: reservationMetrics } = useReservationMetrics(30);
+  // Solo si esta persona alcanza reservas. Con el módulo apagado la consulta salía igual y
+  // respondía 403, así que el inicio se llenaba de avisos por paneles que no se dibujan.
+  const { data: reservationMetrics } = useReservationMetrics(30, undefined, moduleAllowed('reservations'));
   const reservationKpis = reservationTotals(reservationMetrics);
   const availableWidgets = (Object.keys(WIDGET_LABELS) as DashboardWidget[])
     .filter((widget) => canViewPerformance || widget !== 'performance')
     .filter((widget) => widget !== 'conversions' || canManageConversions)
     .filter(widgetAllowed);
   const widgetVisible = (widget: DashboardWidget) => visibleWidgets.includes(widget) && availableWidgets.includes(widget);
-  const { data, isLoading, error, refetch, isFetching } = useQuery<DashboardData>({ queryKey: ['dashboard'], queryFn: () => api.get('/reporting/dashboard') });
+  /*
+    El inicio se apoya en `reports`, y hasta ahora lo pedía sin comprobarlo.
+
+    Con ese módulo apagado la pantalla quedaba en «No pudimos cargar tu dashboard · No tienes
+    acceso a este módulo», que se lee como una avería y es una decisión de configuración. Peor:
+    es la pantalla de aterrizaje de todo cargo interno, así que el sistema parecía roto desde el
+    primer segundo.
+
+    Sin `reports` se muestran igual las tarjetas que no dependen de él, en vez de convertir la
+    pantalla entera en un error.
+  */
+  const puedeVerInformes = moduleAllowed('reports');
+  const { data, isLoading, error, refetch, isFetching } = useQuery<DashboardData>({
+    queryKey: ['dashboard'],
+    queryFn: () => api.get('/reporting/dashboard'),
+    enabled: puedeVerInformes,
+  });
   /*
     Se pide solo si el widget se va a dibujar y si la persona alcanza el módulo que el endpoint
     exige. Son dos condiciones distintas y las dos hacen falta: la tarjeta se muestra según
@@ -141,6 +159,17 @@ export function DashboardPage() {
   */
   const canFetchPerformance = canViewPerformance && widgetVisible('performance') && moduleAllowed('reports');
   const { data: performance } = useQuery<PerformanceData>({ queryKey: ['performance'], queryFn: () => api.get('/reporting/performance'), enabled: canFetchPerformance });
+  // Sin el módulo de informes no hay nada que cargar ni que reintentar: se dice qué falta y
+  // dónde se enciende, en vez de mostrar un error que parece una avería del sistema.
+  if (!puedeVerInformes) {
+    return (
+      <div className="alert alert-info">
+        <strong>Este inicio necesita el módulo de informes.</strong>{' '}
+        Está apagado para esta organización, así que no hay cifras que mostrar. Se enciende en
+        Accesos y seguridad, en el centro de módulos.
+      </div>
+    );
+  }
   if (isLoading) return <LoadingSpinner text="Cargando dashboard..." />;
   if (error) return <QueryErrorState title="No pudimos cargar tu dashboard" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
   if (!data) return <div className="alert alert-info">No hay datos disponibles</div>;
