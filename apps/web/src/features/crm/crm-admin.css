@@ -23,3 +23,17 @@
 /* La llave se muestra una sola vez, así que el aviso ocupa espacio y no se puede ignorar. */
 .crm-admin-llave { display: grid; gap: 8px; justify-items: start; }
 .crm-admin-llave code { padding: 8px 10px; border-radius: 4px; background: var(--soft); font-size: 12px; word-break: break-all; }
+
+/* Los datos de conexión junto a la llave: es lo que se pega en la automatización, y verlo
+   completo evita tener que volver a preguntar por la dirección o la cabecera. */
+.crm-admin-llave-datos { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 10px 0; }
+.crm-admin-llave-datos dt { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; opacity: .8; }
+.crm-admin-llave-datos dd { margin: 0; min-width: 0; }
+.crm-admin-llave-datos code { display: block; word-break: break-all; font-size: 12px; }
+
+.crm-admin-llave-acciones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+@media (max-width: 560px) {
+  .crm-admin-llave-datos { grid-template-columns: 1fr; gap: 2px; }
+  .crm-admin-llave-datos dt { margin-top: 8px; }
+}
