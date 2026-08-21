@@ -91,3 +91,7 @@
   background: var(--soft); border-left: 3px solid var(--cyan);
   border-radius: var(--radius-sm); font-size: 13px; color: var(--muted);
 }
+
+/* El nombre ocupa lo que puede y la acción queda a la derecha, alineada en toda la lista. */
+.crm-home-alert-fila { display: flex; align-items: center; gap: 8px; }
+.crm-home-alert-fila .crm-home-alert-sample { flex: 1; min-width: 0; }

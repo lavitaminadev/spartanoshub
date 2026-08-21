@@ -1,0 +1,41 @@
+/*
+ * Barra de secciones de un módulo que se recorre por dentro.
+ *
+ * Vive en `shared` y no dentro de un módulo a propósito. La usan módulos que no tienen ninguna
+ * relación entre sí —el CRM y Reservas son dos servicios distintos, con datos distintos y
+ * personas distintas—, y hacer que uno importe la hoja del otro los ataría por el lado
+ * equivocado: bastaría tocar el CRM para cambiarle el aspecto a Reservas.
+ *
+ * Lo que comparten no es el negocio, es la forma de moverse: una entrada en la lateral y las
+ * secciones dentro. Eso sí conviene que se vea igual, o cada módulo enseñaría una manera
+ * distinta de navegar.
+ */
+
+.section-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+
+/*
+ * `min-width: 0` acá y en la fila de secciones, por la misma razón en dos niveles: una hija de
+ * grid arranca en `min-width: auto` y se niega a medir menos que su contenido, así que la barra
+ * crecía hasta sumar todas sus pestañas y era la página entera la que se desplazaba.
+ */
+.section-nav {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-width: 0;
+  padding: 0 2px; border-bottom: 1px solid var(--surface-sage);
+}
+
+/* Desplazamiento horizontal solo dentro de la barra: en un teléfono no caben cinco secciones. */
+.section-nav-items { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.section-nav-items::-webkit-scrollbar { display: none; }
+
+.section-nav-link {
+  padding: 12px 16px; border-bottom: 2px solid transparent;
+  color: var(--muted); text-decoration: none; white-space: nowrap;
+  font-size: 12px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
+}
+.section-nav-link:hover { color: var(--text-dark); }
+
+/* La sección activa se marca con línea y color, no solo con color: en pantallas con poco
+   contraste el color solo es imperceptible. */
+.section-nav-link.activo { color: var(--cyan); border-bottom-color: var(--cyan); }
+.section-nav-link:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; border-radius: 2px; }

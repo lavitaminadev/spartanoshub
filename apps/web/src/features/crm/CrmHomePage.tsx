@@ -9,7 +9,7 @@
  * ejemplo concreto, para que el aviso sea un punto de partida y no un recordatorio.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { JSX } from 'react';
 import { api } from '../../core/api';
@@ -88,6 +88,16 @@ export function CrmHomePage(): JSX.Element {
   // De qué empresa son los avisos. Sin esto el inicio respondía siempre por toda la
   // organización, así que cambiar de empresa arriba dejaba los mismos avisos de antes.
   const scope = useCrmScope();
+  const queryClient = useQueryClient();
+
+  /** Hacerse cargo de un lead sin dueño, desde el aviso que pide que alguien lo haga. */
+  const tomar = useMutation({
+    mutationFn: (id: string) => api.put(`/crm/leads/${id}`, { assignedTo: user?.id }),
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['crm-home'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm-leads-board'] }),
+    ]),
+  });
   const { data, isLoading, error, refetch, isFetching } = useQuery<Home>({
     queryKey: ['crm-home', scope.domain, scope.clientId],
     queryFn: () => api.get(
@@ -186,18 +196,36 @@ export function CrmHomePage(): JSX.Element {
               </div>
               <div className="crm-home-alert-items">
                 {alert.items.map((lead) => (
-                  <Link
-                    key={lead.id}
-                    className="crm-home-alert-sample"
-                    to={`/crm/leads?q=${encodeURIComponent(lead.name)}`}
-                  >
-                    <strong>{lead.name}</strong>
-                    <span>
-                      {desde(lead.createdAt)}
-                      {lead.campaignName ? ` · ${lead.campaignName}` : ''}
-                      {lead.source ? ` · ${lead.source}` : ''}
-                    </span>
-                  </Link>
+                  <div key={lead.id} className="crm-home-alert-fila">
+                    <Link
+                      className="crm-home-alert-sample"
+                      to={`/crm/leads?q=${encodeURIComponent(lead.name)}`}
+                    >
+                      <strong>{lead.name}</strong>
+                      <span>
+                        {desde(lead.createdAt)}
+                        {lead.campaignName ? ` · ${lead.campaignName}` : ''}
+                        {lead.source ? ` · ${lead.source}` : ''}
+                      </span>
+                    </Link>
+                    {/*
+                      Tomar el lead desde el propio aviso.
+
+                      El aviso de «sin asignar» existe para que alguien se haga cargo; mandar a
+                      otra pantalla a hacerlo convierte un gesto en un recado. Solo aparece en
+                      ese aviso: en los demás el lead ya tiene dueño.
+                    */}
+                    {alert.key === 'sin_asignar' ? (
+                      <button
+                        type="button"
+                        className="btn btn-accent btn-sm"
+                        disabled={tomar.isPending}
+                        onClick={() => tomar.mutate(lead.id)}
+                      >
+                        Tomar
+                      </button>
+                    ) : null}
+                  </div>
                 ))}
                 {restantes > 0 ? <p className="crm-home-alert-mas">y {restantes} más…</p> : null}
               </div>

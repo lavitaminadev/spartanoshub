@@ -5,7 +5,9 @@ const dataSource = {
   query: vi.fn(),
 };
 const pulseService = { getPulse: vi.fn() };
-const accountAccess = { allowedClientIds: vi.fn() };
+// `assertClient` comprueba la empresa pedida por la dirección; sin doble, el panel por empresa
+// fallaría acá en vez de en la comprobación que la prueba mira.
+const accountAccess = { allowedClientIds: vi.fn(), assertClient: vi.fn().mockResolvedValue(undefined) };
 
 describe('ReportingController', () => {
   let controller: ReportingController;

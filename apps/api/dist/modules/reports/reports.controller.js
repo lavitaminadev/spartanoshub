@@ -45,10 +45,12 @@ let ReportingController = class ReportingController {
         const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.pulseService.getPulse(req.organizationId, clientId, clientIds);
     }
-    async dashboard(req) {
+    async dashboard(req, clientId) {
         const orgId = req.organizationId;
         const personal = [user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL].includes(req.user.role);
-        const clientIds = await this.accountAccess.allowedClientIds(orgId, req.user);
+        await this.accountAccess.assertClient(orgId, req.user, clientId);
+        const permitidas = await this.accountAccess.allowedClientIds(orgId, req.user);
+        const clientIds = clientId ? [clientId] : permitidas;
         const clientScope = clientIds === undefined
             ? { sql: '', params: [] }
             : clientIds.length
@@ -264,8 +266,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL),
     (0, swagger_1.ApiOperation)({ summary: 'Dashboard ejecutivo' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReportingController.prototype, "dashboard", null);
 __decorate([

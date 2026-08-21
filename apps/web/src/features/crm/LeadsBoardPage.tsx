@@ -38,6 +38,7 @@ import { ExportButtons, type ExportDocument } from '../../shared/export';
 import { STAGES, STAGE_ACCENT, STAGE_LABEL } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
+import { useAuth } from '../../core/auth';
 import { useStageLabels } from './use-stage-labels';
 import './leads-board.css';
 
@@ -119,6 +120,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const queryClient = useQueryClient();
   // De qué empresa es el CRM que se está mirando. Lo decide la barra, no esta pantalla.
   const scope = useCrmScope();
+  const { user } = useAuth();
   // Cómo llama esta empresa a sus etapas. Vacío mientras carga: se ven los nombres de fábrica.
   const rotulos = useStageLabels(scope.clientId);
   const filtros = useUrlFilters(FILTER_KEYS);
@@ -210,6 +212,25 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     // En ambos casos: al fallar, para recuperar el estado real; al acertar, para traer lo que el
     // servidor haya cambiado además de la etapa.
     onSettled: () => refrescar(),
+  });
+
+  /**
+   * Hacerse cargo de un lead que no tiene dueño.
+   *
+   * Es el gesto que más se repite en un equipo donde cada persona ve lo suyo y lo que está
+   * libre: se mira la bandeja común y se toma uno. Hacerlo por la ficha son cuatro pasos
+   * —abrir, buscar el desplegable, elegirse, guardar— para decir «este lo llevo yo».
+   *
+   * Solo aparece sobre lo que nadie tiene: sobre un lead con dueño sería quitárselo, que es
+   * otra decisión y se toma en la ficha, donde se ve de quién es.
+   */
+  const tomar = useMutation({
+    mutationFn: (id: string) => api.put(`/crm/leads/${id}`, { assignedTo: user?.id }),
+    onSuccess: async () => {
+      await refrescar();
+      setAviso({ tono: 'success', texto: 'Lead tomado. Ahora aparece como tuyo.' });
+    },
+    onError: (err: Error) => setAviso({ tono: 'error', texto: err.message || 'No se pudo tomar el lead' }),
   });
 
   /**
@@ -512,7 +533,17 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     ? <span className={`leads-board-chip es-${lead.fitStatus}`}>{CALIDADES.find((c) => c.value === lead.fitStatus)?.label}</span>
                     : null}
                   {lead.openTasks ? <span className="leads-board-chip es-tarea" title="Tareas pendientes">✓ {lead.openTasks}</span> : null}
-                  {!lead.assignedTo ? <span className="leads-board-sin-duenio">Sin asignar</span> : null}
+                  {!lead.assignedTo ? (
+                    <button
+                      type="button"
+                      className="leads-board-tomar"
+                      disabled={tomar.isPending}
+                      // La tarjeta entera abre la ficha: sin esto, tomar el lead la abriría además.
+                      onClick={(event) => { event.stopPropagation(); tomar.mutate(lead.id); }}
+                    >
+                      Tomar
+                    </button>
+                  ) : null}
                 </div>
               </div>
             );

@@ -19,6 +19,7 @@ const ClientsPage = lazy(() => import('../features/clients/ClientsPage').then(m 
 const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage').then(m => ({ default: m.ClientDetailPage })));
 const OpportunitiesPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.OpportunitiesPage })));
 const CrmLayout = lazy(() => import('../features/crm/CrmLayout').then(m => ({ default: m.CrmLayout })));
+const ReservationsLayout = lazy(() => import('../features/reservations/ReservationsLayout').then(m => ({ default: m.ReservationsLayout })));
 const CrmCalendarPage = lazy(() => import('../features/crm/CrmCalendarPage').then(m => ({ default: m.CrmCalendarPage })));
 const CrmAdminPage = lazy(() => import('../features/crm/CrmAdminPage').then(m => ({ default: m.CrmAdminPage })));
 const CrmDashboardPage = lazy(() => import('../features/crm/CrmDashboardPage').then(m => ({ default: m.CrmDashboardPage })));
@@ -169,12 +170,19 @@ export function AppRouter() {
           {/* `?id=` re-abre el mismo asistente para editar, en vez de una cuarta ruta: mismo rol que la lista. */}
           <Route path="/surveys/create" element={<ProtectedRoute path="/surveys"><SafeSuspense><CreateSurveyWizard /></SafeSuspense></ProtectedRoute>} />
           <Route path="/surveys/:id/results" element={<ProtectedRoute path="/surveys"><SafeSuspense><SurveyResultsPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/reservations" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/reservations/forms/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/reservations/agenda" element={<ProtectedRoute path="/reservations/agenda"><SafeSuspense><AgendaPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/reservations/calendar" element={<ProtectedRoute path="/reservations/calendar"><SafeSuspense><AvailabilityCalendarPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/reservations/waitlist" element={<ProtectedRoute path="/reservations/waitlist"><SafeSuspense><WaitlistPage /></SafeSuspense></ProtectedRoute>} />
-          <Route path="/reservations/analytics" element={<ProtectedRoute path="/reservations/analytics"><SafeSuspense><ReservationsAnalyticsPage /></SafeSuspense></ProtectedRoute>} />
+          {/*
+            Reservas comparte marco, igual que el CRM: la lateral trae una sola entrada y las
+            cinco secciones se recorren desde la barra de dentro. Cada ruta conserva su propio
+            `ProtectedRoute`, así que quién entra a cada una no cambia por estar anidadas.
+          */}
+          <Route element={<SafeSuspense><ReservationsLayout /></SafeSuspense>}>
+            <Route path="/reservations" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/forms/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/agenda" element={<ProtectedRoute path="/reservations/agenda"><SafeSuspense><AgendaPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/calendar" element={<ProtectedRoute path="/reservations/calendar"><SafeSuspense><AvailabilityCalendarPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/waitlist" element={<ProtectedRoute path="/reservations/waitlist"><SafeSuspense><WaitlistPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/analytics" element={<ProtectedRoute path="/reservations/analytics"><SafeSuspense><ReservationsAnalyticsPage /></SafeSuspense></ProtectedRoute>} />
+          </Route>
         </Route>
         <Route path="/portal" element={<ClientRoute><SafeSuspense><ClientLayout /></SafeSuspense></ClientRoute>}>
           <Route index element={<SafeSuspense><ClientDashboard /></SafeSuspense>} />

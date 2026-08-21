@@ -147,9 +147,26 @@ export function DashboardPage() {
     pantalla entera en un error.
   */
   const puedeVerInformes = moduleAllowed('reports');
+  /*
+    Empresa por la que responde el panel.
+
+    Era el único sitio del sistema donde cambiar de empresa no cambiaba una sola cifra: respondía
+    siempre por la organización entera. Al lado del CRM, que sí lo hace, se leía como que el dato
+    estaba mal. Vacío significa «todas las que alcanzo», que es lo que mostraba antes.
+  */
+  const [empresa, setEmpresa] = useState('');
+  const { data: cartera } = useQuery<{ data: Array<{ id: string; name: string }> }>({
+    queryKey: ['clients-min'],
+    queryFn: () => api.get('/clients'),
+    enabled: puedeVerInformes,
+  });
+  const empresas = cartera?.data ?? [];
+
   const { data, isLoading, error, refetch, isFetching } = useQuery<DashboardData>({
-    queryKey: ['dashboard'],
-    queryFn: () => api.get('/reporting/dashboard'),
+    // La empresa forma parte de la clave: con otra elegida son otras cifras, no las mismas
+    // filtradas, así que su resultado no puede reutilizar la caché de la anterior.
+    queryKey: ['dashboard', empresa],
+    queryFn: () => api.get(`/reporting/dashboard${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
     enabled: puedeVerInformes,
   });
   /*
@@ -184,7 +201,22 @@ export function DashboardPage() {
         eyebrow="CENTRO DE CONTROL"
         title="Dashboard"
         subtitle="Visión general de la operación."
-        actions={<><span className="date-chip">{new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</span><button className="btn btn-outline btn-sm" onClick={() => setConfigureOpen(true)}>Configurar widgets</button></>}
+        actions={<>
+          {/* Solo con más de una empresa: un selector de un elemento no ofrece ninguna decisión. */}
+          {empresas.length > 1 ? (
+            <select
+              className="input"
+              aria-label="Empresa"
+              value={empresa}
+              onChange={(evento) => setEmpresa(evento.target.value)}
+            >
+              <option value="">Todas las empresas</option>
+              {empresas.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{cuenta.name}</option>)}
+            </select>
+          ) : null}
+          <span className="date-chip">{new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+          <button className="btn btn-outline btn-sm" onClick={() => setConfigureOpen(true)}>Configurar widgets</button>
+        </>}
       />
 
       {/*

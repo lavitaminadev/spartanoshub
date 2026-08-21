@@ -14,6 +14,7 @@ import { IntegrationAccount } from "../integration-account.entity";
 import { CrmModule } from "../../crm/crm.module";
 import { MetaLeadAdsService } from "./meta-lead-ads.service";
 import { MetaLeadWebhookEvent } from "./meta-lead-webhook-event.entity";
+import { Campaign } from "../../crm/campaigns/campaign.entity";
 import { LeadConvertedHandler } from "./handlers/lead-converted.handler";
 import { Lead } from "../../crm/leads/lead.entity";
 import { Client } from "../../clients/client.entity";
@@ -24,7 +25,7 @@ import { MetaInsightsService } from "./meta-insights.service";
 import { MetaClientPixelService } from "./meta-client-pixel.service";
 
 @Module({
-  imports: [HttpModule, CrmModule, TypeOrmModule.forFeature([Integration, IntegrationAccount, IntegrationMetric, MetaLeadWebhookEvent, MetaConversionOutbox, Lead, Client])],
+  imports: [HttpModule, CrmModule, TypeOrmModule.forFeature([Integration, IntegrationAccount, IntegrationMetric, MetaLeadWebhookEvent, MetaConversionOutbox, Lead, Client, Campaign])],
   controllers: [MetaController, MetaPixelController],
   providers: [MetaService, MetaPixelService, MetaClientPixelService, MetaConversionsService, MetaConversionOutboxService, MetaInsightsService, MetaIntegrationAccessor, MetaAssetDiscoveryService, MetaOAuthService, MetaLeadAdsService, LeadConvertedHandler],
   exports: [MetaService, MetaPixelService, MetaClientPixelService, MetaConversionsService, MetaConversionOutboxService, MetaOAuthService, MetaAssetDiscoveryService, MetaLeadAdsService],
