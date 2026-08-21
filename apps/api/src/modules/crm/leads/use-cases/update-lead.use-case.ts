@@ -23,6 +23,7 @@ export class UpdateLeadUseCase {
   async execute(
     id: string,
     data: {
+      name?: string; phone?: string; email?: string; company?: string;
       status?: string; notes?: string; fitStatus?: string; discardReason?: string;
       tags?: string[]; estimatedAmount?: number; assignedTo?: string | null;
       source?: string; clientId?: string | null;
@@ -53,6 +54,14 @@ export class UpdateLeadUseCase {
     if (data.fitStatus && Object.values(LeadFitStatus).includes(data.fitStatus as LeadFitStatus)) {
       lead.fitStatus = data.fitStatus as LeadFitStatus;
     }
+    /*
+     * Identidad y contacto. Se recorta el espacio sobrante y una cadena vacía deja el campo en
+     * nulo: guardar «   » como teléfono es guardar un dato que parece existir y no sirve.
+     */
+    if (data.name !== undefined && data.name.trim()) lead.name = data.name.trim();
+    if (data.phone !== undefined) lead.phone = data.phone.trim() || null;
+    if (data.email !== undefined) lead.email = data.email.trim() || null;
+    if (data.company !== undefined) lead.company = data.company.trim() || null;
     if (data.notes !== undefined) lead.notes = data.notes;
     if (data.discardReason !== undefined) lead.discardReason = data.discardReason;
     if (data.tags !== undefined) lead.tags = data.tags;

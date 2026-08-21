@@ -50,12 +50,20 @@ export const RESERVATION_STATUS_OPTIONS: StatusOption[] = [
   { value: 'cancelled_business', color: CYCLE_COLORS.cancelled_business, icon: '⊗', label: 'Cancelada (empresa)' },
 ];
 
-/** Estados que puede tomar un contacto de campaña en el CRM de clientes. */
+/**
+ * Estados que puede tomar un contacto de campaña en el CRM de clientes.
+ *
+ * Son los mismos que acepta el servidor para el dominio `audience`, y tienen que serlo: un
+ * estado válido en la API pero ausente de esta lista deja al lead sin columna donde aparecer.
+ * Pasó con «Descartado» —el servidor lo aceptaba y el tablero no lo dibujaba—, así que los
+ * contactos descartados desaparecían de la pantalla sin haberse borrado.
+ */
 export const CONTACT_STATUS_OPTIONS: StatusOption[] = [
   { value: 'new', color: CYCLE_COLORS.new, icon: '●', label: 'Nuevo' },
   { value: 'reserved', color: CYCLE_COLORS.reserved, icon: '●', label: 'Reservó' },
   { value: 'attended', color: CYCLE_COLORS.attended, icon: '✓', label: 'Asistió' },
   { value: 'no_show', color: CYCLE_COLORS.no_show, icon: '✕', label: 'No asistió' },
+  { value: 'lost', color: CYCLE_COLORS.cancelled, icon: '⊗', label: 'Descartado' },
 ];
 
 /**

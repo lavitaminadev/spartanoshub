@@ -8,6 +8,7 @@ var LeadStatus;
     LeadStatus["CONTACTED"] = "contacted";
     LeadStatus["MEETING_SCHEDULED"] = "meeting_scheduled";
     LeadStatus["QUOTE_SENT"] = "quote_sent";
+    LeadStatus["VISITED"] = "visited";
     LeadStatus["NEGOTIATION"] = "negotiation";
     LeadStatus["RESERVED"] = "reserved";
     LeadStatus["ATTENDED"] = "attended";
@@ -21,8 +22,9 @@ exports.STATUSES_BY_DOMAIN = {
     commercial: [
         LeadStatus.NEW,
         LeadStatus.CONTACTED,
-        LeadStatus.MEETING_SCHEDULED,
         LeadStatus.QUOTE_SENT,
+        LeadStatus.MEETING_SCHEDULED,
+        LeadStatus.VISITED,
         LeadStatus.NEGOTIATION,
         LeadStatus.WON,
         LeadStatus.LOST,

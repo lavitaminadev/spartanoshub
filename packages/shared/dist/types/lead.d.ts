@@ -5,7 +5,7 @@
  * Etapas del pipeline comercial. El equipo las mueve a mano y son ordenadas:
  * el orden de este arreglo es el orden de las columnas del tablero.
  */
-export declare const LEAD_PIPELINE_STAGES: readonly ["new", "contacted", "meeting_scheduled", "quote_sent", "negotiation"];
+export declare const LEAD_PIPELINE_STAGES: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "visited", "negotiation"];
 /**
  * Resultados del ciclo de reserva. Los escribe el sistema, no el equipo:
  * `reserved` al crearse la reserva y `attended` / `no_show` al registrar la
@@ -21,7 +21,7 @@ export declare const LEAD_CLOSING_STAGES: readonly ["won", "lost"];
  * del backend y las columnas del tablero derivan de aca para que no se
  * desincronicen.
  */
-export declare const LEAD_STATUSES: readonly ["new", "contacted", "meeting_scheduled", "quote_sent", "negotiation", "reserved", "attended", "no_show", "won", "lost"];
+export declare const LEAD_STATUSES: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "visited", "negotiation", "reserved", "attended", "no_show", "won", "lost"];
 /**
  * Lead funnel status.
  */

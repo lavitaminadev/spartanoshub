@@ -161,15 +161,55 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     queryClient.invalidateQueries({ queryKey: ['crm-leads-board'] }),
     // También el inicio: sus avisos se calculan sobre estos mismos estados y quedarían viejos.
     queryClient.invalidateQueries({ queryKey: ['crm-home'] }),
+    /*
+     * Y la bitácora del lead, que el servidor acaba de escribir.
+     *
+     * Cada movimiento queda registrado con la etapa que deja, la que toma y cuánto duró en la
+     * anterior. Sin invalidar esto, arrastrar una tarjeta y abrir su ficha enseguida mostraba el
+     * recorrido sin el paso recién hecho: el dato estaba guardado y la pantalla no lo pedía de
+     * nuevo, así que parecía que mover no dejaba rastro.
+     */
+    queryClient.invalidateQueries({ queryKey: ['crm-lead-historial'] }),
+    queryClient.invalidateQueries({ queryKey: ['lead'] }),
+    // El panel cuenta por etapa: mover una tarjeta cambia sus barras.
+    queryClient.invalidateQueries({ queryKey: ['crm-dashboard'] }),
   ]);
 
+  /** Clave exacta del embudo que se está mirando, para tocar solo esa caché y no la de otra empresa. */
+  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId] as const;
+
+  /**
+   * Cambio de etapa de una tarjeta.
+   *
+   * La tarjeta se mueve **antes** de que el servidor conteste y vuelve sola si falla. Antes se
+   * esperaba a la respuesta y al refresco de la lista completa, así que soltar la tarjeta la
+   * dejaba de vuelta en su columna original durante ese tiempo: se veía como que el arrastre no
+   * había funcionado, y la reacción natural era volver a arrastrarla.
+   *
+   * El refresco sigue ocurriendo al terminar: el servidor puede haber cambiado algo más —la
+   * fecha de actualización, la marca de enfriamiento— y la vista adelantada solo mueve la
+   * tarjeta de columna.
+   */
   const mover = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.put(`/crm/leads/${id}`, { status }),
-    onSuccess: async () => {
-      await refrescar();
-      setAviso({ tono: 'success', texto: 'Lead movido' });
+    onMutate: async ({ id, status }) => {
+      // Se cancela lo que esté en vuelo: una respuesta anterior llegando después pisaría el
+      // adelanto y devolvería la tarjeta a su columna vieja.
+      await queryClient.cancelQueries({ queryKey: claveDelTablero });
+      const previo = queryClient.getQueryData<{ data: Lead[] }>(claveDelTablero);
+      queryClient.setQueryData<{ data: Lead[] }>(claveDelTablero, (actual) => (actual
+        ? { ...actual, data: actual.data.map((lead) => (lead.id === id ? { ...lead, status } : lead)) }
+        : actual));
+      return { previo };
     },
-    onError: (err: Error) => setAviso({ tono: 'error', texto: err.message || 'No se pudo mover el lead' }),
+    onError: (err: Error, _variables, contexto) => {
+      if (contexto?.previo) queryClient.setQueryData(claveDelTablero, contexto.previo);
+      setAviso({ tono: 'error', texto: err.message || 'No se pudo mover el lead' });
+    },
+    onSuccess: () => setAviso({ tono: 'success', texto: 'Lead movido' }),
+    // En ambos casos: al fallar, para recuperar el estado real; al acertar, para traer lo que el
+    // servidor haya cambiado además de la etapa.
+    onSettled: () => refrescar(),
   });
 
   /**

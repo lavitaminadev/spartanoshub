@@ -3,6 +3,20 @@ import { LeadStatus } from '../lead-status.enum';
 import { LeadFitStatus } from '../lead-fit-status.enum';
 
 export class UpdateLeadDto {
+  /**
+   * Identidad y contacto del lead.
+   *
+   * Se podían escribir al crear y al importar, y no corregir después: un nombre mal escrito o un
+   * teléfono con un dígito de más quedaban así para siempre, y ese teléfono es justamente el
+   * único camino para llamar. Cadena vacía borra el dato, que es distinto de omitir el campo.
+   */
+  @IsOptional() @IsString() @MaxLength(255) name?: string;
+  @IsOptional() @IsString() @MaxLength(20) phone?: string;
+  // Sin `@IsEmail`: entran leads con el correo mal escrito y esta es la pantalla donde se
+  // arregla. Rechazarlo aquí obligaría a corregir en la base justo el caso que hay que corregir.
+  @IsOptional() @IsString() @MaxLength(255) email?: string;
+  @IsOptional() @IsString() @MaxLength(255) company?: string;
+
   @IsOptional() @IsEnum(LeadStatus) status?: LeadStatus;
   @IsOptional() @IsEnum(LeadFitStatus) fitStatus?: LeadFitStatus;
   @IsOptional() @IsString() @MaxLength(2000) discardReason?: string;

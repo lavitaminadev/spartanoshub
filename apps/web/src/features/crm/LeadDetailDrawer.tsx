@@ -23,6 +23,7 @@ import { triggerToast } from '../../shared/toast-events';
 import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 import { roleLabel } from '../../core/role-labels';
 import { STAGES } from './stage-labels';
+import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
 import './lead-detail.css';
 
@@ -33,6 +34,8 @@ interface Lead {
   phone?: string | null;
   company?: string | null;
   status: string;
+  /** Embudo al que pertenece: decide qué estados admite. Lo manda el servidor con el lead. */
+  domain?: 'audience' | 'commercial';
   source?: string | null;
   sourceDetail?: string | null;
   campaignName?: string | null;
@@ -128,6 +131,16 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   // Las cuentas que esta persona alcanza, para poder mover el lead de empresa sin una consulta
   // propia: la barra ya las tiene resueltas.
   const scope = useCrmScope();
+  /*
+   * Estados a los que se puede mover este lead.
+   *
+   * Se decide por el dominio del propio lead y no por la empresa elegida arriba: la ficha se
+   * abre desde una lista que ya está acotada, pero un prospecto de la agencia y un contacto de
+   * campaña no admiten los mismos estados, y es el lead —no la barra— quien lo determina.
+   */
+  const etapasDelEmbudo = (leadInicial.domain ?? (scope.esAgencia ? 'commercial' : 'audience')) === 'commercial'
+    ? [...STAGES]
+    : CONTACT_STATUS_OPTIONS.map((opcion) => opcion.value);
 
   /*
     El lead llega ya cargado desde el listado y además se vuelve a pedir.
@@ -141,6 +154,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     placeholderData: leadInicial,
   });
 
+  const [nombre, setNombre] = useState(lead.name);
+  const [telefono, setTelefono] = useState(lead.phone ?? '');
+  const [correo, setCorreo] = useState(lead.email ?? '');
   const [nota, setNota] = useState(lead.notes ?? '');
   const [etapa, setEtapa] = useState(lead.status);
   const [responsable, setResponsable] = useState(lead.assignedTo ?? '');
@@ -159,6 +175,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   // El detalle puede llegar después del primer dibujo con valores que el listado no traía.
   // Sin esto, el monto y el responsable se quedaban en lo que mostraba la tabla.
   useEffect(() => {
+    setNombre(lead.name);
+    setTelefono(lead.phone ?? '');
+    setCorreo(lead.email ?? '');
     setNota(lead.notes ?? '');
     setEtapa(lead.status);
     setResponsable(lead.assignedTo ?? '');
@@ -169,8 +188,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setFuente(lead.source ?? '');
     setEmpresa(lead.clientId ?? '');
   }, [
-    lead.id, lead.notes, lead.status, lead.assignedTo, lead.estimatedAmount,
-    lead.fitStatus, lead.tags, lead.discardReason, lead.source, lead.clientId,
+    lead.id, lead.name, lead.phone, lead.email, lead.notes, lead.status, lead.assignedTo,
+    lead.estimatedAmount, lead.fitStatus, lead.tags, lead.discardReason, lead.source, lead.clientId,
   ]);
 
   const { data: historial, isLoading } = useQuery<Paso[]>({
@@ -214,6 +233,12 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
    */
   const guardar = useMutation({
     mutationFn: () => api.put(`/crm/leads/${lead.id}`, {
+      // Un lead entra por una integración o un archivo, y llega con lo que venía escrito. El
+      // teléfono con un dígito de más es el único camino para llamar, y hasta ahora no había
+      // dónde corregirlo: se editaba en la base o no se editaba.
+      name: nombre.trim(),
+      phone: telefono.trim(),
+      email: correo.trim(),
       notes: nota,
       status: etapa,
       // Cadena vacía significa devolverlo a la bandeja común; el servidor distingue `null` de
@@ -370,6 +395,10 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     .filter((fecha) => fecha <= new Date())
     .sort((a, b) => b.getTime() - a.getTime())[0];
   const sinCambios =
+    // Los campos nuevos entran acá o «Guardar» se quedaría apagado justo al corregir un nombre.
+    nombre === lead.name &&
+    telefono === (lead.phone ?? '') &&
+    correo === (lead.email ?? '') &&
     nota === (lead.notes ?? '') &&
     etapa === lead.status &&
     responsable === (lead.assignedTo ?? '') &&
@@ -448,10 +477,50 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
         </div>
 
         <div className="lead-detail-edicion">
+          {/*
+            Identidad y contacto, editables.
+
+            Un lead entra por una integración o por un archivo y llega con lo que venía escrito:
+            el nombre en mayúsculas, el teléfono con un dígito de más, el correo con un espacio.
+            Eso se veía en la ficha y no se podía corregir en ella.
+          */}
+          <label>
+            <span>Nombre</span>
+            <input className="input" value={nombre} onChange={(event) => setNombre(event.target.value)} />
+          </label>
+
+          <label>
+            <span>Teléfono</span>
+            <input
+              className="input"
+              value={telefono}
+              onChange={(event) => setTelefono(event.target.value)}
+              placeholder="Sin teléfono"
+            />
+          </label>
+
+          <label>
+            <span>Correo</span>
+            <input
+              className="input"
+              type="email"
+              value={correo}
+              onChange={(event) => setCorreo(event.target.value)}
+              placeholder="Sin correo"
+            />
+          </label>
+
           <label>
             <span>Etapa</span>
+            {/*
+              Las etapas son las del embudo de este lead, no siempre las comerciales.
+
+              Un contacto de campaña recorre el ciclo de una visita, y el servidor rechaza
+              cualquier otro estado. Ofreciendo las comerciales, la ficha dejaba elegir algo que
+              al guardar respondía 400 y se leía como que la pantalla estaba rota.
+            */}
             <select className="input" value={etapa} onChange={(event) => setEtapa(event.target.value)}>
-              {STAGES.map((stage) => (
+              {etapasDelEmbudo.map((stage) => (
                 // «Venta» exige haber convertido el lead en cliente: el servidor lo rechaza si
                 // no, así que se deshabilita en vez de dejar intentarlo y fallar.
                 <option key={stage} value={stage} disabled={stage === 'won' && !lead.convertedToClientId && lead.status !== 'won'}>
