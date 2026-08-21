@@ -40,6 +40,7 @@ import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
 import { useAuth } from '../../core/auth';
 import { useStageLabels } from './use-stage-labels';
+import { colorDePersona, whatsapp } from './contacto';
 import './leads-board.css';
 
 interface Lead {
@@ -131,6 +132,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const [importarAbierto, setImportarAbierto] = useState(false);
   const [crearAbierto, setCrearAbierto] = useState(false);
   const [metaAbierto, setMetaAbierto] = useState(false);
+  /** Lead cuyo cambio de etapa se está eligiendo por menú, en vez de arrastrando. */
+  const [moviendo, setMoviendo] = useState<Lead | null>(null);
   const [formulario, setFormulario] = useState({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '' });
   const [meta, setMeta] = useState({ pageId: '', leadgenId: '' });
 
@@ -505,7 +508,20 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   {/* Un hueco donde va el responsable se lee como un dato que falta; una
                       interrogación dice que nadie lo ha tomado, que es la información. */}
                   {responsable
-                    ? <span className="leads-board-avatar" title={`Lo está trabajando ${responsable}`}>{iniciales(responsable)}</span>
+                    ? (
+                      // El color sale del identificador, no de una lista fija: reconocer de quién
+                      // es una tarjeta al barrer la columna es más rápido que leer dos iniciales.
+                      <span
+                        className="leads-board-avatar"
+                        title={`Lo está trabajando ${responsable}`}
+                        style={{
+                          color: colorDePersona(lead.assignedTo),
+                          borderColor: colorDePersona(lead.assignedTo),
+                        }}
+                      >
+                        {iniciales(responsable)}
+                      </span>
+                    )
                     : <span className="leads-board-avatar es-libre" title="Nadie lo ha tomado todavía">?</span>}
                 </div>
                 {lead.phone ? <span className="leads-board-contacto">📞 {lead.phone}</span> : null}
@@ -533,6 +549,40 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     ? <span className={`leads-board-chip es-${lead.fitStatus}`}>{CALIDADES.find((c) => c.value === lead.fitStatus)?.label}</span>
                     : null}
                   {lead.openTasks ? <span className="leads-board-chip es-tarea" title="Tareas pendientes">✓ {lead.openTasks}</span> : null}
+                  {/*
+                    WhatsApp desde la tarjeta.
+
+                    Es el canal por el que de verdad se responde a un lead de campaña, y tenerlo
+                    solo en la ficha convertía «escribirle» en abrir, buscar y pulsar. `noreferrer`
+                    porque abre en otra pestaña.
+                  */}
+                  {whatsapp(lead.phone) ? (
+                    <a
+                      className="leads-board-wa"
+                      href={whatsapp(lead.phone)}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`Escribir por WhatsApp a ${lead.name}`}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      💬
+                    </a>
+                  ) : null}
+                  {/*
+                    Cambiar de etapa sin arrastrar.
+
+                    Arrastrar es cómodo con ratón y penoso en un teléfono, donde la columna se
+                    desplaza bajo el dedo. Este botón hace lo mismo por menú, y es además el
+                    camino accesible para quien no usa puntero.
+                  */}
+                  <button
+                    type="button"
+                    className="leads-board-mover"
+                    title="Mover de etapa"
+                    onClick={(event) => { event.stopPropagation(); setMoviendo(lead); }}
+                  >
+                    ⇄
+                  </button>
                   {!lead.assignedTo ? (
                     <button
                       type="button"
@@ -603,6 +653,36 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
 
       {abierto ? (
         <LeadDetailDrawer lead={abierto} nombreDe={nombreDe} etapaLabel={etapaLabel} onClose={() => setAbierto(null)} />
+      ) : null}
+
+      {/*
+        Cambiar de etapa por menú: lo mismo que arrastrar, para quien no puede o no quiere.
+
+        Ofrece solo las etapas del embudo de este lead, y no la que ya tiene: «mover a donde
+        está» no es una opción, es una forma de no hacer nada.
+      */}
+      {moviendo ? (
+        <Modal open onClose={() => setMoviendo(null)} title={`Mover a ${moviendo.name} de etapa`}>
+          <div className="modal-form">
+            <p>Está en <strong>{etapaLabel(moviendo.status)}</strong>.</p>
+            <div className="leads-board-mover-opciones">
+              {etapasDelEmbudo.filter((estado) => estado !== moviendo.status).map((estado) => (
+                <button
+                  key={estado}
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={mover.isPending}
+                  onClick={() => { mover.mutate({ id: moviendo.id, status: estado }); setMoviendo(null); }}
+                >
+                  {etapaLabel(estado)}
+                </button>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setMoviendo(null)}>Cancelar</button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
 
       <ImportLeadsModal open={importarAbierto} onClose={() => { setImportarAbierto(false); void refrescar(); }} />

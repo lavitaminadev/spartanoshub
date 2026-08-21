@@ -24,6 +24,7 @@ import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 import { roleLabel } from '../../core/role-labels';
 import { STAGES } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
+import { whatsapp } from './contacto';
 import { useCrmScope } from './crm-scope';
 import './lead-detail.css';
 
@@ -99,12 +100,6 @@ function duracion(horas?: number | string | null): string | null {
   if (valor < 1) return `${Math.round(valor * 60)} min`;
   if (valor < 48) return `${Math.round(valor)} h`;
   return `${Math.round(valor / 24)} días`;
-}
-
-/** Enlace de WhatsApp: `wa.me` solo acepta dígitos, sin `+` ni espacios. */
-function whatsapp(telefono?: string | null): string | undefined {
-  const digitos = telefono?.replace(/\D/g, '');
-  return digitos ? `https://wa.me/${digitos}` : undefined;
 }
 
 /**
