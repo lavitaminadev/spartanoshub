@@ -92,7 +92,7 @@ correcta y con su campaña — sin depender de que el escenario escriba bien nin
 | Método | `POST`, cuerpo JSON |
 | Cabecera | `Authorization: Bearer <llave>` |
 
-Cuerpo mínimo:
+Cuerpo:
 
 ```json
 {
@@ -100,9 +100,18 @@ Cuerpo mínimo:
   "telefono":    "{{phone_number}}",
   "email":       "{{email}}",
   "idExterno":   "{{leadgen_id}}",
-  "fechaOrigen": "{{created_time}}"
+  "fechaOrigen": "{{created_time}}",
+  "formId":      "{{form_id}}",
+  "campanaId":   "{{campaign_id}}",
+  "anuncioId":   "{{ad_id}}",
+  "paginaId":    "{{page_id}}"
 }
 ```
+
+Los cuatro últimos son la **atribución**: llenan las mismas columnas que el webhook firmado
+(`external_form_id`, `external_campaign_id`, `page_id` y `metadata.adId`). Sin ellos el lead
+entra igual, pero no se sabe qué anuncio lo trajo — y al cambiar al camino directo esa
+diferencia aparecería como un corte en los informes.
 
 - Acepta también `name`, `phone`, `correo`, `external_id`, `created_at` y varios más. Ver
   `normalizar-cuerpo-entrada.ts` para la lista completa.

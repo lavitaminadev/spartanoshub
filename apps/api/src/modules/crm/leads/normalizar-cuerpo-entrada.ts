@@ -22,6 +22,21 @@ const ALIAS = {
   campana: ['campana', 'campaign', 'utm_campaign', 'campaign_name'],
   mensaje: ['mensaje', 'message', 'notas', 'notes', 'comentario'],
   fechaOrigen: ['fechaOrigen', 'created_time', 'createdTime', 'created_at', 'fecha'],
+
+  /*
+    Atribución: de qué formulario, campaña, anuncio y página salió el lead.
+
+    El CRM ya guarda estas cuatro columnas y el webhook firmado de Meta las llena. El puente no
+    las mapeaba, así que un lead recibido por automatización quedaba sin saber qué anuncio lo
+    produjo y el mismo lead se veía distinto según por dónde hubiera entrado. Al cambiar de
+    camino, esa diferencia aparecería como un corte en los informes.
+
+    Ninguna es obligatoria: quien no las mande sigue funcionando igual.
+  */
+  formId: ['formId', 'form_id'],
+  campanaId: ['campanaId', 'campaign_id', 'campaignId'],
+  anuncioId: ['anuncioId', 'ad_id', 'adId'],
+  paginaId: ['paginaId', 'page_id', 'pageId'],
 } as const;
 
 /** Primer valor con contenido, recortado. Un texto en blanco cuenta como ausente. */

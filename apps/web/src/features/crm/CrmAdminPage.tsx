@@ -39,6 +39,24 @@ function cuando(fecha?: string | null): string {
   return fecha ? new Date(fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : 'sin uso aún';
 }
 
+/**
+ * Cuerpo que se pega en la automatización, con los nombres que trae Facebook Lead Ads.
+ *
+ * Se muestra literal y no descrito en prosa: quien configura el escenario copia y pega, y una
+ * descripción obliga a traducirla a mano, que es donde se cuela el campo mal escrito.
+ */
+const CUERPO_DE_EJEMPLO = `{
+  "nombre":      "{{full_name}}",
+  "telefono":    "{{phone_number}}",
+  "email":       "{{email}}",
+  "idExterno":   "{{leadgen_id}}",
+  "fechaOrigen": "{{created_time}}",
+  "formId":      "{{form_id}}",
+  "campanaId":   "{{campaign_id}}",
+  "anuncioId":   "{{ad_id}}",
+  "paginaId":    "{{page_id}}"
+}`;
+
 interface Campania {
   id: string;
   name: string;
@@ -153,11 +171,19 @@ export function CrmAdminPage(): JSX.Element {
           </dl>
 
           <p className="crm-admin-explica">
-            Cuerpo mínimo: <code>nombre</code>, y <code>telefono</code> o <code>email</code>.
-            Manda también <code>idExterno</code> —evita duplicados si la automatización
-            reintenta— y <code>fechaOrigen</code>, sin la cual todo entra con la fecha de hoy.
-            La cuenta y la campaña las pone la llave: no hace falta mandarlas.
+            Cuerpo del mensaje. Los dos primeros son obligatorios —<code>nombre</code>, y
+            <code> telefono</code> o <code>email</code>—; los demás no lo son para el servidor
+            pero sí en la práctica. <strong>La cuenta y la campaña las pone la llave</strong>, así
+            que no hace falta mandarlas.
           </p>
+
+          <pre className="crm-admin-llave-cuerpo"><code>{CUERPO_DE_EJEMPLO}</code></pre>
+
+          <ul className="crm-admin-explica">
+            <li><code>idExterno</code> — evita que un reintento de la automatización cree el lead dos veces.</li>
+            <li><code>fechaOrigen</code> — sin ella todo entra con la fecha de hoy y el gráfico por día muestra un pico que no existió.</li>
+            <li><code>formId</code>, <code>campanaId</code>, <code>anuncioId</code>, <code>paginaId</code> — para saber qué anuncio trajo cada contacto.</li>
+          </ul>
 
           <div className="crm-admin-llave-acciones">
             <button
@@ -166,6 +192,13 @@ export function CrmAdminPage(): JSX.Element {
               onClick={() => void navigator.clipboard?.writeText(`Authorization: Bearer ${llaveNueva}`)}
             >
               Copiar la cabecera
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => void navigator.clipboard?.writeText(CUERPO_DE_EJEMPLO)}
+            >
+              Copiar el cuerpo
             </button>
             <button type="button" className="btn btn-outline btn-sm" onClick={() => setLlaveNueva(null)}>Ya la copié</button>
           </div>
