@@ -225,13 +225,30 @@ const PATH_FEATURE: Record<string, string> = {
   // entrada es lo que hace que ese estado gobierne el menú: sin ella la ruta no pertenece a
   // ningún módulo y se muestra siempre, sea cual sea su fase.
   '/surveys': 'surveys',
+  /*
+    Las seis secciones de la barra del CRM responden a `crm`, y solo a `crm`.
+
+    Estaban repartidas entre `crm` y `commercialPipeline` porque el CRM eran dos —los contactos
+    de campaña de los clientes y el embudo propio de la agencia—, y cada uno tenía su módulo.
+    Al unificarlos en una sola barra con selector de empresa, ese reparto quedó partiendo la
+    misma barra en dos: encender solo `crm` dejaba Inicio, Calendario y Administración
+    funcionando mientras Tablero, Leads y Dashboard respondían 403.
+
+    Encender el CRM vuelve a ser una decisión, no dos que hay que acordarse de tomar juntas.
+  */
   '/crm': 'crm',
-  '/crm/tablero': 'commercialPipeline',
-  '/crm/dashboard': 'commercialPipeline',
+  '/crm/tablero': 'crm',
+  '/crm/dashboard': 'crm',
   '/crm/calendario': 'crm',
   '/crm/administracion': 'crm',
   '/crm/contacts': 'crm',
-  '/crm/leads': 'commercialPipeline',
+  '/crm/leads': 'crm',
+
+  /*
+    Oportunidades y actividad conservan `commercialPipeline`: son otras entidades, están fuera
+    de la barra y sus controladores ya declaran `@RequiresFeature('commercialPipeline')`.
+    Cambiarlas acá sin tocar el backend las dejaría ofrecidas en el menú y cerradas al abrirlas.
+  */
   '/crm/opportunities': 'commercialPipeline',
   // El tablero muestra las mismas oportunidades, así que responde al mismo módulo: quien no
   // puede ver el pipeline como tabla tampoco debe verlo como tablero.
