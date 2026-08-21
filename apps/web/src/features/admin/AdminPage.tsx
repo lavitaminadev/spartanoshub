@@ -24,6 +24,16 @@ import { StatusBadge } from '../../shared/StatusBadge';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { matchesSearch } from '../../shared/search';
 
+/**
+ * Lo que el CRM necesita encendido para funcionar entero.
+ *
+ * No es una lista de gustos sino de dependencias: `dashboard` es la pantalla de aterrizaje,
+ * `settings` es donde se deshace esto, `reports` alimenta el inicio, `clients` llena el selector
+ * de empresa y `users` permite asignar responsables desde la ficha. Quitar cualquiera deja una
+ * sección abriendo un error.
+ */
+const MODULOS_CRM: string[] = ['dashboard', 'settings', 'reports', 'crm', 'clients', 'users'];
+
 const LEVELS: PermissionLevel[] = ['none', 'view', 'edit', 'manage'];
 const LEVEL_LABELS: Record<PermissionLevel, string> = { none: 'Sin acceso', view: 'Ver', edit: 'Editar', manage: 'Administrar' };
 const LEVEL_COLORS: Record<PermissionLevel, string> = { none: '#706a73', view: '#1f6fb2', edit: '#9a5a00', manage: '#096f6b' };
@@ -261,6 +271,30 @@ export function AdminPage() {
     featuresMutation.mutate(buildAgencyCoreOrganizationFeatures());
   };
 
+  /**
+   * Deja encendido solo lo que el CRM necesita y apaga el resto.
+   *
+   * Existe porque hacerlo a mano son veinticinco interruptores, y equivocarse en uno se descubre
+   * en medio de una demostración. Los seis de `MODULOS_CRM` no son una preferencia: son las
+   * dependencias reales de esas pantallas —el inicio lee de informes, el selector de empresa lee
+   * de clientes, la ficha asigna responsables desde usuarios—, y quitar cualquiera deja una
+   * sección abriendo un error.
+   *
+   * Usa el interruptor de organización y no el ciclo de vida a propósito: es el único que
+   * también oculta el módulo al cargo de desarrollo, así que quien prepara la demostración ve
+   * exactamente lo mismo que verá su audiencia.
+   */
+  const applyCrmOnlyPreset = () => {
+    if (!window.confirm(
+      'Se dejará encendido solo lo que el CRM necesita —inicio, configuración, informes, CRM, clientes y usuarios— y se apagará todo lo demás para esta organización. Se puede volver a encender módulo por módulo.',
+    )) return;
+
+    const soloCrm = Object.fromEntries(
+      MODULE_CATALOG.map((module) => [module.key, MODULOS_CRM.includes(module.key)]),
+    ) as Partial<OrganizationFeatures>;
+    featuresMutation.mutate(soloCrm);
+  };
+
   const activateAllForReview = () => {
     if (!window.confirm('¿Encender todos los módulos y marcarlos como activos para esta organización? Podrás apagarlos individualmente después.')) return;
     const allFeatures = Object.fromEntries(MODULE_CATALOG.map((module) => [module.key, true])) as Partial<OrganizationFeatures>;
@@ -352,7 +386,10 @@ export function AdminPage() {
         </div>
         <div className="toolbar-actions">
           <button className="btn btn-outline" type="button" disabled={featuresMutation.isPending || lifecycleMutation.isPending} onClick={activateAllForReview}>Encender todo para revisar</button>
-          <button className="btn btn-primary" type="button" disabled={featuresMutation.isPending} onClick={applyAgencyCorePreset}>Usar solo operación base</button>
+          <button className="btn btn-outline" type="button" disabled={featuresMutation.isPending} onClick={applyAgencyCorePreset}>Usar solo operación base</button>
+          {/* Primero en importancia y por eso destacado: es el estado con el que se muestra el
+              producto, y armarlo a mano son veinticinco interruptores. */}
+          <button className="btn btn-primary" type="button" disabled={featuresMutation.isPending} onClick={applyCrmOnlyPreset}>Dejar solo el CRM</button>
         </div>
       </div>
       <div className="reservation-flow-switch module-lifecycle-summary" role="group" aria-label="Resumen por ciclo de vida">
