@@ -38,8 +38,14 @@ let ListLeadsUseCase = class ListLeadsUseCase {
             return { data: [], total: 0, limit, offset };
         if (scope !== undefined)
             where.clientId = scope;
+        const criterio = filters.onlyAssignedTo
+            ? [
+                { ...where, assignedTo: filters.onlyAssignedTo },
+                { ...where, assignedTo: (0, typeorm_2.IsNull)() },
+            ]
+            : where;
         const [data, total] = await this.repo.findAndCount({
-            where,
+            where: criterio,
             order: { createdAt: 'DESC' },
             skip: offset,
             take: limit,

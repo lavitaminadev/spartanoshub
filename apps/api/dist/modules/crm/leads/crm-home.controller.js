@@ -18,6 +18,7 @@ const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const crm_home_service_1 = require("./crm-home.service");
+const lead_visibility_1 = require("./lead-visibility");
 const crm_dashboard_service_1 = require("./crm-dashboard.service");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 let CrmHomeController = class CrmHomeController {
@@ -32,6 +33,7 @@ let CrmHomeController = class CrmHomeController {
         return this.home.home(req.organizationId, dias, {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: clientId || undefined,
+            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
         });
     }
     async panel(req, days, domain, clientId) {
@@ -40,6 +42,7 @@ let CrmHomeController = class CrmHomeController {
         return this.dashboard.dashboard(req.organizationId, ventana, {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: clientId || undefined,
+            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
         });
     }
 };

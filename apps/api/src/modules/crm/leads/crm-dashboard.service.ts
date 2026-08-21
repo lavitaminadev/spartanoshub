@@ -11,6 +11,14 @@ export interface ConteoPorClave { key: string; total: number }
 export interface Alcance {
   domain?: 'audience' | 'commercial';
   clientId?: string;
+  /**
+   * Persona a la que se acotan las cifras, cuando su cargo no alcanza el embudo completo.
+   *
+   * Cuenta lo asignado a ella y lo que no tiene dueño, igual que el listado. Las dos pantallas
+   * tienen que contar lo mismo: un total que incluya lo de los demás revela por arriba lo que el
+   * tablero oculta por abajo.
+   */
+  onlyAssignedTo?: string;
 }
 
 /**
@@ -45,6 +53,7 @@ export class CrmDashboardService {
       organizationId,
       domain,
       ...(alcance.clientId ? { clientId: alcance.clientId } : {}),
+      ...(alcance.onlyAssignedTo ? { onlyAssignedTo: alcance.onlyAssignedTo } : {}),
     };
 
     const [total, calificados, conVisita, ventas, porEtapa, porFuente, porDia, motivos] = await Promise.all([
@@ -196,6 +205,19 @@ export class CrmDashboardService {
       .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
       .andWhere('lead.domain = :domain', { domain: base.domain });
     if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+    /*
+     * Acotado a una persona, el panel cuenta lo suyo y lo que está libre.
+     *
+     * Es la misma regla del listado, y tiene que serlo: si el panel contara el embudo entero
+     * mientras el tablero muestra solo lo propio, las dos pantallas se contradirían y la de
+     * arriba estaría revelando el trabajo de los demás en forma de totales.
+     */
+    if (base.onlyAssignedTo) {
+      query.andWhere(
+        '(lead.assigned_to = :onlyAssignedTo OR lead.assigned_to IS NULL)',
+        { onlyAssignedTo: base.onlyAssignedTo },
+      );
+    }
     return query;
   }
 

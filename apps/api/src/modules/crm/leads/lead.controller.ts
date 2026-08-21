@@ -19,6 +19,7 @@ import type { AuthenticatedRequest } from '@shared/types/request';
 import { Reservation } from '../../reservations/domain/reservation.entity';
 import { Lead } from './lead.entity';
 import { LeadTaskSummaryService } from './lead-task-summary.service';
+import { veSoloLoSuyo } from './lead-visibility';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { ProcessHistoryService } from '../../../core/process-history/process-history.service';
@@ -97,6 +98,8 @@ export class LeadController {
       domain: query.domain,
       clientId: query.clientId,
       allowedClientIds,
+      // Segunda reja: qué empresas alcanza ya se resolvió arriba; esto decide cuánto ve dentro.
+      onlyAssignedTo: veSoloLoSuyo(req.user.role) ? req.user.id : undefined,
     });
 
     /*
@@ -165,6 +168,17 @@ export class LeadController {
    */
   private async assertLeadAccess(req: AuthenticatedRequest, lead: Lead | null): Promise<Lead> {
     if (!lead) throw new NotFoundException('Lead no encontrado');
+    /*
+     * Quien está acotado a lo suyo tampoco alcanza el de un compañero por identificador.
+     *
+     * Filtrar solo el listado dejaría la reja a medias: los identificadores aparecen en enlaces,
+     * en exportaciones y en la barra de direcciones, y el detalle de un lead trae su teléfono,
+     * su monto y sus notas. Se responde «no encontrado» y no «sin permiso», que es lo mismo que
+     * hace el filtro por cuenta: decir que existe ya es contar algo.
+     */
+    if (veSoloLoSuyo(req.user.role) && lead.assignedTo && lead.assignedTo !== req.user.id) {
+      throw new NotFoundException('Lead no encontrado');
+    }
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     if (allowedClientIds === undefined) return lead;
     if (!lead.clientId || !allowedClientIds.includes(lead.clientId)) {

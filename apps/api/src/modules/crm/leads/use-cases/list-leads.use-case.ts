@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
 import { RESERVATION_LEAD_SOURCES, isReservationLeadSource } from '@espartanos/shared';
 
@@ -26,6 +26,16 @@ export interface ListLeadsFilters {
    * que es el comportamiento esperado para un usuario sin cuentas asignadas.
    */
   allowedClientIds?: string[];
+  /**
+   * Persona a la que se acota el listado, dentro de las cuentas ya permitidas.
+   *
+   * Devuelve lo asignado a ella **más lo que no tiene dueño**: sin esto último, los leads nuevos
+   * solo los vería quien ya ve todo, que es justo quien no los va a trabajar.
+   *
+   * `undefined` no acota. Es una reja distinta de `allowedClientIds`: aquélla decide a qué
+   * empresas se entra, ésta cuánto se ve dentro de cada una.
+   */
+  onlyAssignedTo?: string;
 }
 
 /** Página de leads acompañada del total de coincidencias. */
@@ -68,8 +78,20 @@ export class ListLeadsUseCase {
     if (scope === EMPTY_SCOPE) return { data: [], total: 0, limit, offset };
     if (scope !== undefined) where.clientId = scope;
 
+    /*
+     * Acotar por persona obliga a dos criterios unidos por «o» —lo suyo, o lo que está libre—, y
+     * en TypeORM eso es un arreglo de condiciones completas. Se repite `where` entero en ambas:
+     * dejar fuera una condición en una de las dos ramas abriría por ahí lo que la otra cierra.
+     */
+    const criterio: FindOptionsWhere<Lead> | FindOptionsWhere<Lead>[] = filters.onlyAssignedTo
+      ? [
+        { ...where, assignedTo: filters.onlyAssignedTo },
+        { ...where, assignedTo: IsNull() },
+      ]
+      : where;
+
     const [data, total] = await this.repo.findAndCount({
-      where,
+      where: criterio,
       order: { createdAt: 'DESC' },
       skip: offset,
       take: limit,

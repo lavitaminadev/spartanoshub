@@ -6,6 +6,7 @@ import { ModuleScope } from '../../../core/authorization/module-scope.decorator'
 import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { CrmHomeService } from './crm-home.service';
+import { veSoloLoSuyo } from './lead-visibility';
 import { CrmDashboardService } from './crm-dashboard.service';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 
@@ -49,6 +50,8 @@ export class CrmHomeController {
     return this.home.home(req.organizationId!, dias, {
       domain: domain === 'audience' ? 'audience' : 'commercial',
       clientId: clientId || undefined,
+      // Quien no dirige ve su propio trabajo y lo que está libre, no el embudo del equipo.
+      onlyAssignedTo: veSoloLoSuyo(req.user.role) ? req.user.id : undefined,
     });
   }
 
@@ -69,6 +72,8 @@ export class CrmHomeController {
     return this.dashboard.dashboard(req.organizationId!, ventana, {
       domain: domain === 'audience' ? 'audience' : 'commercial',
       clientId: clientId || undefined,
+      // La misma regla del inicio y del listado: las tres pantallas deben contar lo mismo.
+      onlyAssignedTo: veSoloLoSuyo(req.user.role) ? req.user.id : undefined,
     });
   }
 }

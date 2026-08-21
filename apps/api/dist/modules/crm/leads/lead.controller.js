@@ -30,6 +30,7 @@ const import_leads_use_case_1 = require("./use-cases/import-leads.use-case");
 const list_leads_dto_1 = require("./dto/list-leads.dto");
 const reservation_entity_1 = require("../../reservations/domain/reservation.entity");
 const lead_task_summary_service_1 = require("./lead-task-summary.service");
+const lead_visibility_1 = require("./lead-visibility");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const process_history_service_1 = require("../../../core/process-history/process-history.service");
@@ -63,6 +64,7 @@ let LeadController = class LeadController {
             domain: query.domain,
             clientId: query.clientId,
             allowedClientIds,
+            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
         });
         const tareas = await this.leadTasks.porLead(req.organizationId, pagina.data.map((lead) => lead.id));
         return {
@@ -91,6 +93,9 @@ let LeadController = class LeadController {
     async assertLeadAccess(req, lead) {
         if (!lead)
             throw new common_1.NotFoundException('Lead no encontrado');
+        if ((0, lead_visibility_1.veSoloLoSuyo)(req.user.role) && lead.assignedTo && lead.assignedTo !== req.user.id) {
+            throw new common_1.NotFoundException('Lead no encontrado');
+        }
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         if (allowedClientIds === undefined)
             return lead;
