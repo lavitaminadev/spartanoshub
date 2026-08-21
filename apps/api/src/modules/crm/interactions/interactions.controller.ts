@@ -11,13 +11,12 @@ import { RequiresFeature } from '../../../core/authorization/requires-feature.de
 
 @Controller('crm/interactions')
 @UseGuards(AuthGuard('jwt'))
-@Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
+// Sin `@Roles`: la matriz de permisos decide quien entra. Ver `lead.controller.ts`.
 @RequiresFeature('commercialPipeline')
 export class InteractionsController {
   constructor(private service: InteractionsService) {}
 
   @Post()
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   create(@Body() dto: CreateInteractionDto, @Req() req: AuthenticatedRequest) {
     return this.service.create(dto, req.organizationId, req.user.id);
   }
@@ -33,13 +32,11 @@ export class InteractionsController {
   }
 
   @Put(':id')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   update(@Param('id') id: string, @Body() dto: UpdateInteractionDto, @Req() req: AuthenticatedRequest) {
     return this.service.update(id, dto, req.organizationId);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.service.remove(id, req.organizationId);
   }

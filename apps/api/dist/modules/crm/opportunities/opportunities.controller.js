@@ -23,8 +23,6 @@ const remove_opportunity_use_case_1 = require("./use-cases/remove-opportunity.us
 const create_opportunity_dto_1 = require("./dto/create-opportunity.dto");
 const update_opportunity_dto_1 = require("./dto/update-opportunity.dto");
 const list_opportunities_dto_1 = require("./dto/list-opportunities.dto");
-const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
-const user_role_enum_1 = require("../../organizations/user-role.enum");
 const requires_feature_decorator_1 = require("../../../core/authorization/requires-feature.decorator");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const process_templates_service_1 = require("../../process-templates/process-templates.service");
@@ -71,7 +69,6 @@ __decorate([
 ], OpportunitiesController.prototype, "stages", null);
 __decorate([
     (0, common_1.Post)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -96,7 +93,6 @@ __decorate([
 ], OpportunitiesController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Put)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
@@ -106,7 +102,6 @@ __decorate([
 ], OpportunitiesController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -116,7 +111,6 @@ __decorate([
 exports.OpportunitiesController = OpportunitiesController = __decorate([
     (0, common_1.Controller)('crm/opportunities'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, requires_feature_decorator_1.RequiresFeature)('commercialPipeline'),
     __metadata("design:paramtypes", [create_opportunity_use_case_1.CreateOpportunityUseCase,
         list_opportunities_use_case_1.ListOpportunitiesUseCase,

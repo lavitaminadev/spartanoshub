@@ -27,7 +27,19 @@ import { ProcessSubject } from '../../../core/process-history/process-stage-chan
 @Controller('crm/leads')
 @UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
-@Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
+/*
+  Sin `@Roles`: quién entra lo decide la matriz de permisos, y solo ella.
+
+  Había dos puertas para la misma pregunta. La matriz se abrió a todo el equipo y se dejó su
+  recorte en la pantalla de Configuración, pero estos decoradores seguían cerrando por cargo,
+  así que las direcciones creativa, de arte y audiovisual recibían 403 en el CRM por más que la
+  matriz les diera el módulo. Cambiar un acceso exigía tocar código, que es justo lo que se
+  quitó.
+
+  `PermissionGuard` sigue exigiendo el módulo `crm` con el nivel que pide el verbo, el alcance
+  por cuenta sigue acotando qué leads se ven, y el cargo de cliente no llega porque su perfil no
+  incluye este módulo. Quitar el decorador no abre nada que la matriz no conceda.
+*/
 @ModuleScope('crm')
 export class LeadController {
   constructor(
@@ -43,7 +55,6 @@ export class LeadController {
   ) {}
 
   @Post()
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Crear un nuevo lead' })
   create(@Body() dto: CreateLeadDto, @Req() req: AuthenticatedRequest) {
     return this.createLead.execute({ ...dto, organizationId: req.organizationId });
@@ -57,7 +68,6 @@ export class LeadController {
    * petición inválida, y responder un error dejaría a quien importa sin saber qué se guardó.
    */
   @Post('import')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Importar prospectos desde un archivo' })
   async import(@Body() dto: ImportLeadsDto, @Req() req: AuthenticatedRequest) {
     // La cuenta se comprueba antes de escribir una sola fila. Es un identificador que llega del
@@ -75,7 +85,6 @@ export class LeadController {
    * toda la organización.
    */
   @Get()
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Listar leads' })
   async list(@Query() query: ListLeadsQueryDto, @Req() req: AuthenticatedRequest) {
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -91,7 +100,6 @@ export class LeadController {
 
   /** Devuelve un lead, siempre que pertenezca a una cuenta accesible para el usuario. */
   @Get(':id')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Obtener un lead' })
   async getById(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const lead = await this.getLead.execute(id, req.organizationId);
@@ -107,7 +115,6 @@ export class LeadController {
    * al escribirse, así que la ficha no tiene que restar fechas para mostrarla.
    */
   @Get(':id/historial')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Historial de etapas de un lead' })
   async historial(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     // El mismo control de acceso que el detalle: conocer un identificador no debe alcanzar para
@@ -118,7 +125,6 @@ export class LeadController {
 
   /** Actualiza estado, calidad o etiquetas de un lead de una cuenta accesible. */
   @Put(':id')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Actualizar estado de un lead' })
   async update(@Param('id') id: string, @Body() dto: UpdateLeadDto, @Req() req: AuthenticatedRequest) {
     await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
@@ -155,7 +161,6 @@ export class LeadController {
    * persona puede haber reservado con varios clientes de la organización.
    */
   @Get(':id/reservations')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Historial de reservas de un lead' })
   async reservations(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
@@ -175,7 +180,6 @@ export class LeadController {
   }
 
   @Post(':id/convert')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Convertir lead a cliente' })
   convert(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.convertLead.execute(id, req.organizationId);

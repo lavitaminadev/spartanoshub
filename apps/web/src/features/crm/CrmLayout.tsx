@@ -36,6 +36,21 @@ import './crm-layout.css';
  * `end` en el inicio porque su ruta es prefijo de todas las demás: sin eso quedaría marcado
  * como activo estando en cualquier otra sección.
  */
+/*
+  Seis secciones y no nueve.
+
+  «Contactos», «Oportunidades» y «Actividad» salieron de la barra porque respondían preguntas
+  que ya responde otra sección o la propia ficha:
+
+  - Contactos mostraba el embudo `audience`, que ahora sale del selector de empresa: con una
+    cuenta elegida, «Leads» ya son sus contactos de campaña.
+  - Actividad listaba interacciones sueltas; se leen en la ficha del lead, que es donde
+    significan algo.
+  - Oportunidades es otra entidad y merece su propia decisión, no una pestaña más que se
+    confunde con el embudo de al lado.
+
+  Sus rutas siguen vivas —los enlaces que ya circulan no se rompen—, pero fuera de la barra.
+*/
 const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/crm', label: 'Inicio', end: true },
   // «Tablero» es el embudo por etapas y «Leads» la lista. Son dos formas del mismo dato, pero
@@ -43,9 +58,6 @@ const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
   // estaba mirando, y mezclar kanban y lista bajo un mismo rótulo confunde las dos cosas.
   { to: '/crm/tablero', label: 'Tablero' },
   { to: '/crm/leads', label: 'Leads' },
-  { to: '/crm/contacts', label: 'Contactos' },
-  { to: '/crm/opportunities', label: 'Oportunidades' },
-  { to: '/crm/interactions', label: 'Actividad' },
   { to: '/crm/dashboard', label: 'Dashboard' },
   { to: '/crm/calendario', label: 'Calendario' },
   { to: '/crm/administracion', label: 'Administración' },

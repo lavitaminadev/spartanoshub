@@ -18,8 +18,6 @@ const passport_1 = require("@nestjs/passport");
 const contacts_service_1 = require("./contacts.service");
 const update_contact_dto_1 = require("./dto/update-contact.dto");
 const list_contacts_dto_1 = require("./dto/list-contacts.dto");
-const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
-const user_role_enum_1 = require("../../organizations/user-role.enum");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 let ContactsController = class ContactsController {
@@ -73,7 +71,6 @@ __decorate([
 ], ContactsController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
@@ -84,7 +81,6 @@ __decorate([
 exports.ContactsController = ContactsController = __decorate([
     (0, common_1.Controller)('crm/contacts'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
     __metadata("design:paramtypes", [contacts_service_1.ContactsService,
         account_access_service_1.AccountAccessService])

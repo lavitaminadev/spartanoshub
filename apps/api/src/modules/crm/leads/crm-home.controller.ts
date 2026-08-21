@@ -7,6 +7,7 @@ import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { CrmHomeService } from './crm-home.service';
 import { CrmDashboardService } from './crm-dashboard.service';
+import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 
 /**
  * Lo que se ve al entrar al CRM.
@@ -20,18 +21,15 @@ import { CrmDashboardService } from './crm-dashboard.service';
 @ApiBearerAuth()
 // `DEV` incluido: es quien levanta y comprueba los módulos antes de encenderlos, así que tiene
 // que poder abrir la pantalla que va a habilitar. Faltaba, y el inicio del CRM le respondía 403.
-// Todos los cargos que entran al CRM, incluido community manager. Excluirlo obligaba a
-// publicar una segunda entrada de menú apuntando a otra pantalla, y esa entrada aparecía
-// duplicada —«CRM» dos veces— para quien alcanzaba las dos.
-@Roles(
-  UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR,
-  UserRole.DEV, UserRole.COMMUNITY_MANAGER,
-)
+// Sin `@Roles`: la matriz de permisos decide quién entra. Ver `lead.controller.ts` para el
+// razonamiento completo. Acá el efecto era el más visible: el inicio del CRM respondía 403 a
+// cargos que sí tenían el módulo, así que la sección existía en el menú y no se podía abrir.
 @ModuleScope('crm')
 export class CrmHomeController {
   constructor(
     private readonly home: CrmHomeService,
     private readonly dashboard: CrmDashboardService,
+    private readonly accountAccess: AccountAccessService,
   ) {}
 
   @Get()
@@ -45,10 +43,21 @@ export class CrmHomeController {
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Cifras del embudo comercial' })
-  async panel(@Req() req: AuthenticatedRequest, @Query('days') days?: string) {
+  async panel(
+    @Req() req: AuthenticatedRequest,
+    @Query('days') days?: string,
+    @Query('domain') domain?: string,
+    @Query('clientId') clientId?: string,
+  ) {
     // Entre un día y un año: una ventana mayor recorre toda la tabla para responder algo que
     // nadie compara, y una menor a un día no distingue nada.
     const ventana = Math.min(Math.max(Number(days) || 30, 1), 365);
-    return this.dashboard.dashboard(req.organizationId!, ventana);
+    // La cuenta se comprueba como en el resto del CRM: llega del navegador y decide de qué
+    // empresa son las cifras, así que pedir una ajena no puede devolver sus números.
+    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    return this.dashboard.dashboard(req.organizationId!, ventana, {
+      domain: domain === 'audience' ? 'audience' : 'commercial',
+      clientId: clientId || undefined,
+    });
   }
 }
