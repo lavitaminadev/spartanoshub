@@ -30,6 +30,7 @@ let CrmDashboardService = class CrmDashboardService {
             organizationId,
             domain,
             ...(alcance.clientId ? { clientId: alcance.clientId } : {}),
+            ...(alcance.onlyAssignedTo ? { onlyAssignedTo: alcance.onlyAssignedTo } : {}),
         };
         const [total, calificados, conVisita, ventas, porEtapa, porFuente, porDia, motivos] = await Promise.all([
             this.leads.count({ where: { ...base } }),
@@ -137,6 +138,9 @@ let CrmDashboardService = class CrmDashboardService {
             .andWhere('lead.domain = :domain', { domain: base.domain });
         if (base.clientId)
             query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+        if (base.onlyAssignedTo) {
+            query.andWhere('(lead.assigned_to = :onlyAssignedTo OR lead.assigned_to IS NULL)', { onlyAssignedTo: base.onlyAssignedTo });
+        }
         return query;
     }
     async agrupar(base, columna, status) {

@@ -38,6 +38,8 @@ interface Alert {
 interface TeamRow { userId: string; name: string; open: number; uncontacted: number; cooling: number }
 interface Home {
   month: { leads: number; ventas: number; monto: number };
+  /** El servidor avisa si acotó la respuesta a esta persona, para poder decirlo en pantalla. */
+  personalScope?: boolean;
   urgentCount: number;
   alerts: Alert[];
   team: TeamRow[];
@@ -132,6 +134,14 @@ export function CrmHomePage(): JSX.Element {
               : `Tienes ${urgentes} asuntos urgentes que atender primero.`}
         </p>
       </header>
+
+      {/*
+        Decir que la vista está acotada, en vez de dejar que parezca que no hay trabajo.
+        Un embudo con tres tarjetas se lee como un CRM vacío si nadie explica que son las tuyas.
+      */}
+      {data?.personalScope ? (
+        <p className="crm-home-alcance">Estás viendo tus leads y los que todavía no tienen dueño.</p>
+      ) : null}
 
       <section className="crm-home-kpis">
         <article>

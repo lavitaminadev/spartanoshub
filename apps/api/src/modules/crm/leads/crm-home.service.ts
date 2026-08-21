@@ -78,7 +78,11 @@ export class CrmHomeService {
    *   inicio respondía siempre por toda la organización, así que cambiar de empresa arriba
    *   dejaba los avisos y la carga del equipo mostrando lo de antes.
    */
-  async home(organizationId: string, coolingDays = 7, alcance: { domain?: 'audience' | 'commercial'; clientId?: string } = {}) {
+  async home(
+    organizationId: string,
+    coolingDays = 7,
+    alcance: { domain?: 'audience' | 'commercial'; clientId?: string; onlyAssignedTo?: string } = {},
+  ) {
     const inicioDeMes = new Date();
     inicioDeMes.setDate(1);
     inicioDeMes.setHours(0, 0, 0, 0);
@@ -94,10 +98,18 @@ export class CrmHomeService {
     const abierto = { ...base, status: In(this.openStatuses()) };
 
     const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, equipo] = await Promise.all([
-      this.leads.count({ where: { ...base, createdAt: MoreThanOrEqual(inicioDeMes) } as never }),
-      this.leads.count({ where: { ...base, status: LeadStatus.WON, updatedAt: MoreThanOrEqual(inicioDeMes) } as never }),
-      this.montoDelMes(base, inicioDeMes),
-      this.alert('sin_contactar', 'critico', { ...abierto, status: LeadStatus.NEW }),
+      // Las cifras del mes cuentan lo mismo que muestran los avisos y el tablero. Si contaran el
+      // embudo entero, el encabezado estaría diciendo por arriba lo que el filtro oculta abajo.
+      this.leads.count({ where: this.soloLoSuyo({ ...base, createdAt: MoreThanOrEqual(inicioDeMes) }, alcance.onlyAssignedTo) as never }),
+      this.leads.count({ where: this.soloLoSuyo({ ...base, status: LeadStatus.WON, updatedAt: MoreThanOrEqual(inicioDeMes) }, alcance.onlyAssignedTo) as never }),
+      this.montoDelMes({ ...base, onlyAssignedTo: alcance.onlyAssignedTo }, inicioDeMes),
+      this.alert('sin_contactar', 'critico', this.soloLoSuyo({ ...abierto, status: LeadStatus.NEW }, alcance.onlyAssignedTo)),
+      /*
+       * Lo que no tiene dueño lo ve todo el mundo, también quien está acotado a lo suyo.
+       *
+       * Es el único aviso que no se filtra por persona, y a propósito: ocultarlo dejaría los
+       * leads nuevos esperando a que los tome alguien que, por su cargo, no los va a trabajar.
+       */
       this.alert('sin_asignar', 'critico', { ...abierto, assignedTo: IsNull() }),
       /*
        * Calificado y todavía sin visita agendada.
@@ -106,17 +118,26 @@ export class CrmHomeService {
        * siguiente. Comprobar además que no exista una visita sería preguntar dos veces lo mismo,
        * y cualquier discrepancia entre ambas respuestas dejaría el aviso mintiendo.
        */
-      this.alert('calificados_sin_visita', 'alto', {
+      this.alert('calificados_sin_visita', 'alto', this.soloLoSuyo({
         ...base,
         status: LeadStatus.QUOTE_SENT,
-      }),
-      this.teamLoad(base, limiteFrio),
+      }, alcance.onlyAssignedTo)),
+      /*
+       * La carga del equipo solo la ve quien reparte trabajo.
+       *
+       * A quien está acotado a lo suyo se le devuelve vacía y la pantalla no dibuja la tabla:
+       * mostrarla con una sola fila —la propia— haría creer que el equipo es una persona, y
+       * mostrarla completa sería enseñar por otra vía justo lo que el filtro oculta.
+       */
+      alcance.onlyAssignedTo ? Promise.resolve([]) : this.teamLoad(base, limiteFrio),
     ]);
 
     const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
 
     return {
       month: { leads: delMes, ventas: ventasDelMes, monto: montoDelMes },
+      // La pantalla lo dice en una línea: sin avisarlo, un embudo acotado se lee como uno vacío.
+      personalScope: Boolean(alcance.onlyAssignedTo),
       /*
        * Cuántos leads urgen, no cuántos avisos hay.
        *
@@ -154,12 +175,33 @@ export class CrmHomeService {
       .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
       .andWhere('lead.domain = :domain', { domain: base.domain });
     if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+    // Lo suyo o lo que está libre, la misma regla que aplican los avisos y el listado.
+    if (base.onlyAssignedTo) {
+      query.andWhere(
+        '(lead.assigned_to = :onlyAssignedTo OR lead.assigned_to IS NULL)',
+        { onlyAssignedTo: base.onlyAssignedTo },
+      );
+    }
     return query;
   }
 
   /** Estados en los que el lead todavía espera algo de alguien. */
   private openStatuses(): LeadStatus[] {
     return Object.values(LeadStatus).filter((s) => !CLOSED_STATUSES.includes(s));
+  }
+
+  /**
+   * Acota un criterio a lo de una persona, más lo que no tiene dueño.
+   *
+   * Devuelve un arreglo porque es una disyunción, y en TypeORM eso son dos condiciones completas.
+   * Sin persona devuelve el criterio tal cual, para que quien ve todo no pague nada.
+   */
+  private soloLoSuyo(
+    where: Record<string, unknown>,
+    usuarioId?: string,
+  ): Record<string, unknown> | Array<Record<string, unknown>> {
+    if (!usuarioId) return where;
+    return [{ ...where, assignedTo: usuarioId }, { ...where, assignedTo: IsNull() }];
   }
 
   /**
@@ -174,7 +216,7 @@ export class CrmHomeService {
   private async alert(
     key: string,
     nivel: HomeAlert['level'],
-    where: Record<string, unknown>,
+    where: Record<string, unknown> | Array<Record<string, unknown>>,
   ): Promise<HomeAlert> {
     const [rows, count] = await this.leads.findAndCount({
       where: where as never,

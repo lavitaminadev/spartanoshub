@@ -84,3 +84,10 @@
 .crm-home-kpis article { min-width: 0; }
 .crm-home-kpis strong { overflow-wrap: anywhere; }
 .crm-home-alerts article { min-width: 0; }
+
+/* Aviso de alcance: explica por qué se ve poco, sin robarle sitio a lo que hay que atender. */
+.crm-home-alcance {
+  margin: 0; padding: 8px 12px;
+  background: var(--soft); border-left: 3px solid var(--cyan);
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--muted);
+}

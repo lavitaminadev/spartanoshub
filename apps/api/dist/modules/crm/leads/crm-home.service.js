@@ -38,20 +38,21 @@ let CrmHomeService = class CrmHomeService {
         };
         const abierto = { ...base, status: (0, typeorm_2.In)(this.openStatuses()) };
         const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, equipo] = await Promise.all([
-            this.leads.count({ where: { ...base, createdAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
-            this.leads.count({ where: { ...base, status: lead_status_enum_1.LeadStatus.WON, updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
-            this.montoDelMes(base, inicioDeMes),
-            this.alert('sin_contactar', 'critico', { ...abierto, status: lead_status_enum_1.LeadStatus.NEW }),
+            this.leads.count({ where: this.soloLoSuyo({ ...base, createdAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) }, alcance.onlyAssignedTo) }),
+            this.leads.count({ where: this.soloLoSuyo({ ...base, status: lead_status_enum_1.LeadStatus.WON, updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) }, alcance.onlyAssignedTo) }),
+            this.montoDelMes({ ...base, onlyAssignedTo: alcance.onlyAssignedTo }, inicioDeMes),
+            this.alert('sin_contactar', 'critico', this.soloLoSuyo({ ...abierto, status: lead_status_enum_1.LeadStatus.NEW }, alcance.onlyAssignedTo)),
             this.alert('sin_asignar', 'critico', { ...abierto, assignedTo: (0, typeorm_2.IsNull)() }),
-            this.alert('calificados_sin_visita', 'alto', {
+            this.alert('calificados_sin_visita', 'alto', this.soloLoSuyo({
                 ...base,
                 status: lead_status_enum_1.LeadStatus.QUOTE_SENT,
-            }),
-            this.teamLoad(base, limiteFrio),
+            }, alcance.onlyAssignedTo)),
+            alcance.onlyAssignedTo ? Promise.resolve([]) : this.teamLoad(base, limiteFrio),
         ]);
         const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
         return {
             month: { leads: delMes, ventas: ventasDelMes, monto: montoDelMes },
+            personalScope: Boolean(alcance.onlyAssignedTo),
             urgentCount: alerts
                 .filter((a) => a.level === 'critico')
                 .reduce((suma, a) => suma + a.count, 0),
@@ -74,10 +75,18 @@ let CrmHomeService = class CrmHomeService {
             .andWhere('lead.domain = :domain', { domain: base.domain });
         if (base.clientId)
             query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+        if (base.onlyAssignedTo) {
+            query.andWhere('(lead.assigned_to = :onlyAssignedTo OR lead.assigned_to IS NULL)', { onlyAssignedTo: base.onlyAssignedTo });
+        }
         return query;
     }
     openStatuses() {
         return Object.values(lead_status_enum_1.LeadStatus).filter((s) => !CLOSED_STATUSES.includes(s));
+    }
+    soloLoSuyo(where, usuarioId) {
+        if (!usuarioId)
+            return where;
+        return [{ ...where, assignedTo: usuarioId }, { ...where, assignedTo: (0, typeorm_2.IsNull)() }];
     }
     async alert(key, nivel, where) {
         const [rows, count] = await this.leads.findAndCount({
