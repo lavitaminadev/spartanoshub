@@ -47,6 +47,14 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
         if (data.fitStatus && Object.values(lead_fit_status_enum_1.LeadFitStatus).includes(data.fitStatus)) {
             lead.fitStatus = data.fitStatus;
         }
+        if (data.name !== undefined && data.name.trim())
+            lead.name = data.name.trim();
+        if (data.phone !== undefined)
+            lead.phone = data.phone.trim() || null;
+        if (data.email !== undefined)
+            lead.email = data.email.trim() || null;
+        if (data.company !== undefined)
+            lead.company = data.company.trim() || null;
         if (data.notes !== undefined)
             lead.notes = data.notes;
         if (data.discardReason !== undefined)

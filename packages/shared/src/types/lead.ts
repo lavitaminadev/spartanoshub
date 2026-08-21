@@ -9,8 +9,11 @@
 export const LEAD_PIPELINE_STAGES = [
   'new',
   'contacted',
-  'meeting_scheduled',
   'quote_sent',
+  'meeting_scheduled',
+  // Se agendo la visita y ademas ocurrio. Son dos hechos distintos y el equipo los trabaja
+  // distinto: uno espera a que llegue la fecha, el otro espera una respuesta.
+  'visited',
   'negotiation',
 ] as const
 

@@ -12,6 +12,7 @@ export enum LeadStatus {
   CONTACTED = 'contacted',
   MEETING_SCHEDULED = 'meeting_scheduled',
   QUOTE_SENT = 'quote_sent',
+  VISITED = 'visited',
   NEGOTIATION = 'negotiation',
   // Resultados del ciclo de reserva: los escribe el flujo de reservas, no el equipo.
   RESERVED = 'reserved',
@@ -50,8 +51,9 @@ export const STATUSES_BY_DOMAIN: Record<'commercial' | 'audience', readonly Lead
   commercial: [
     LeadStatus.NEW,
     LeadStatus.CONTACTED,
-    LeadStatus.MEETING_SCHEDULED,
     LeadStatus.QUOTE_SENT,
+    LeadStatus.MEETING_SCHEDULED,
+    LeadStatus.VISITED,
     LeadStatus.NEGOTIATION,
     LeadStatus.WON,
     LeadStatus.LOST,

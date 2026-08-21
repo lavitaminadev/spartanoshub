@@ -14,7 +14,7 @@ export declare const ClientStatuses: readonly ["onboarding", "active", "paused",
  * still satisfy `readonly LeadStatus[]` while missing entries — a subset satisfies the
  * type — so the compiler would not catch a stale copy.
  */
-export declare const LeadStatuses: readonly ["new", "contacted", "meeting_scheduled", "quote_sent", "negotiation", "reserved", "attended", "no_show", "won", "lost"];
+export declare const LeadStatuses: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "visited", "negotiation", "reserved", "attended", "no_show", "won", "lost"];
 /** All allowed piece statuses. */
 export declare const PieceStatuses: readonly ["backlog", "assigned", "in_progress", "internal_review", "client_validation", "correction", "approved", "delivered"];
 /** All allowed piece types. */
