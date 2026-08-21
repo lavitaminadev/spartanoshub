@@ -42,6 +42,7 @@ interface Lead {
   estimatedAmount?: number | string | null;
   qualityScore?: number;
   fitStatus?: 'qualified' | 'review' | 'discarded';
+  tags?: string[];
   consentCapturedAt?: string | null;
   convertedToClientId?: string | null;
   createdAt: string;
@@ -57,6 +58,8 @@ interface Paso {
   reason?: string | null;
   createdAt: string;
 }
+
+interface UserOption { id: string; name: string }
 
 interface Interaccion {
   id: string;
@@ -122,6 +125,10 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [etapa, setEtapa] = useState(lead.status);
   const [responsable, setResponsable] = useState(lead.assignedTo ?? '');
   const [monto, setMonto] = useState(montoInicial(lead.estimatedAmount));
+  const [calificacion, setCalificacion] = useState(lead.fitStatus ?? 'review');
+  const [etiquetas, setEtiquetas] = useState((lead.tags ?? []).join(', '));
+  const [motivo, setMotivo] = useState(lead.discardReason ?? '');
+  const [tarea, setTarea] = useState({ title: '', dueAt: '' });
   const [aviso, setAviso] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [confirmarAnonimizar, setConfirmarAnonimizar] = useState(false);
   const [actividadAbierta, setActividadAbierta] = useState(false);
@@ -134,7 +141,10 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setEtapa(lead.status);
     setResponsable(lead.assignedTo ?? '');
     setMonto(montoInicial(lead.estimatedAmount));
-  }, [lead.id, lead.notes, lead.status, lead.assignedTo, lead.estimatedAmount]);
+    setCalificacion(lead.fitStatus ?? 'review');
+    setEtiquetas((lead.tags ?? []).join(', '));
+    setMotivo(lead.discardReason ?? '');
+  }, [lead.id, lead.notes, lead.status, lead.assignedTo, lead.estimatedAmount, lead.fitStatus, lead.tags, lead.discardReason]);
 
   const { data: historial, isLoading } = useQuery<Paso[]>({
     queryKey: ['crm-lead-historial', lead.id],
@@ -146,10 +156,18 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     queryFn: () => api.get(`/crm/interactions?leadId=${lead.id}&limit=20`),
   });
 
-  const { data: usuarios } = useQuery<Array<{ id: string; name: string }>>({
+  /**
+   * Equipo al que se puede asignar el lead.
+   *
+   * `/users` responde a veces con el arreglo y a veces con `{ data }` según por dónde se pida,
+   * y el resto de la aplicación ya lo trata así. Dar por hecho una de las dos formas hacía que
+   * abrir cualquier ficha tumbara la pantalla completa con «.map is not a function».
+   */
+  const { data: usuariosResp } = useQuery<UserOption[] | { data: UserOption[] }>({
     queryKey: ['users'],
     queryFn: () => api.get('/users'),
   });
+  const usuarios = Array.isArray(usuariosResp) ? usuariosResp : usuariosResp?.data ?? [];
 
   const refrescar = async () => {
     await Promise.all([
@@ -175,11 +193,54 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       // omitido justamente para permitirlo.
       assignedTo: responsable || null,
       estimatedAmount: monto === '' ? undefined : Number(monto),
+      fitStatus: calificacion,
+      // Se separan por coma, como en la importación, para que la misma persona escriba igual en
+      // los dos sitios. Vacío limpia las etiquetas en vez de dejarlas como estaban.
+      tags: etiquetas.split(',').map((t) => t.trim()).filter(Boolean),
+      // Solo viaja si el lead queda descartado: un motivo guardado en un lead vivo reaparece
+      // como explicación de un cierre que no ocurrió.
+      discardReason: etapa === 'lost' ? motivo : '',
     }),
     onSuccess: async () => {
       setAviso({ tone: 'success', text: 'Ficha actualizada.' });
       await refrescar();
     },
+    onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
+  });
+
+  /**
+   * Tareas abiertas sobre este lead.
+   *
+   * Comparten módulo con las aprobaciones porque comparten forma —un pendiente con dueño y
+   * fecha—; lo que las distingue es cómo se cierran. Acá se muestran las de este registro, que
+   * es donde se deciden: anotar «llamar el martes» mientras se cuelga el teléfono, y no en una
+   * pantalla aparte a la que hay que acordarse de entrar.
+   */
+  const { data: tareas } = useQuery<Array<{ id: string; title: string; status: string; dueAt?: string | null }>>({
+    queryKey: ['lead-tasks', lead.id],
+    queryFn: () => api.get(`/tasks/lead/${lead.id}`),
+  });
+
+  const crearTarea = useMutation({
+    mutationFn: () => api.post('/tasks', {
+      title: tarea.title.trim(),
+      entityType: 'lead',
+      entityId: lead.id,
+      // La cuenta viaja cuando la hay: un prospecto de la agencia todavía no tiene cliente.
+      clientId: lead.clientId || undefined,
+      assignedTo: responsable || undefined,
+      dueAt: tarea.dueAt ? new Date(tarea.dueAt).toISOString() : undefined,
+    }),
+    onSuccess: async () => {
+      setTarea({ title: '', dueAt: '' });
+      await queryClient.invalidateQueries({ queryKey: ['lead-tasks', lead.id] });
+    },
+    onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
+  });
+
+  const completarTarea = useMutation({
+    mutationFn: (id: string) => api.put(`/tasks/${id}`, { status: 'done' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lead-tasks', lead.id] }),
     onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
   });
 
@@ -308,7 +369,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <span>Responsable</span>
             <select className="input" value={responsable} onChange={(event) => setResponsable(event.target.value)}>
               <option value="">Sin asignar</option>
-              {(usuarios ?? []).map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.name}</option>)}
+              {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.name}</option>)}
             </select>
           </label>
 
@@ -324,6 +385,39 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               placeholder="Sin estimar"
             />
           </label>
+
+          <label>
+            <span>Calificación</span>
+            <select className="input" value={calificacion} onChange={(event) => setCalificacion(event.target.value as Lead['fitStatus'])}>
+              <option value="review">Pendiente</option>
+              <option value="qualified">Calificado</option>
+              <option value="discarded">Descartado</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Etiquetas</span>
+            <input
+              className="input"
+              value={etiquetas}
+              onChange={(event) => setEtiquetas(event.target.value)}
+              placeholder="Sin etiquetas"
+            />
+          </label>
+
+          {/* Solo cuando la etapa es de cierre: preguntar por qué se perdió algo que sigue vivo
+              invita a rellenarlo, y ese campo alimenta el informe de por qué se pierden negocios. */}
+          {etapa === 'lost' ? (
+            <label>
+              <span>Motivo de descarte</span>
+              <input
+                className="input"
+                value={motivo}
+                onChange={(event) => setMotivo(event.target.value)}
+                placeholder="Precio, ubicación, no responde..."
+              />
+            </label>
+          ) : null}
         </div>
 
         <label className="lead-detail-nota">
@@ -345,6 +439,61 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <small>Crea la cuenta y habilita su onboarding. Es lo que permite marcarlo como venta.</small>
           </div>
         ) : null}
+
+        <section className="lead-detail-historial">
+          <h3>Tareas</h3>
+          <div className="lead-detail-tarea-nueva">
+            <input
+              className="input"
+              value={tarea.title}
+              onChange={(event) => setTarea({ ...tarea, title: event.target.value })}
+              placeholder="Nueva tarea… (ej. Llamar mañana)"
+            />
+            <input
+              className="input"
+              type="date"
+              value={tarea.dueAt}
+              onChange={(event) => setTarea({ ...tarea, dueAt: event.target.value })}
+            />
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              // El servidor exige tres caracteres: comprobarlo acá evita un error por algo que
+              // se ve en el propio campo.
+              disabled={crearTarea.isPending || tarea.title.trim().length < 3}
+              onClick={() => crearTarea.mutate()}
+            >
+              {crearTarea.isPending ? 'Añadiendo...' : 'Añadir'}
+            </button>
+          </div>
+
+          {!tareas?.length ? (
+            <p className="lead-detail-vacio">Sin tareas todavía.</p>
+          ) : (
+            <ul className="lead-detail-tareas">
+              {tareas.map((pendiente) => {
+                const cerrada = pendiente.status === 'done' || pendiente.status === 'cancelled';
+                const vencida = !cerrada && pendiente.dueAt && new Date(pendiente.dueAt) < new Date();
+                return (
+                  <li key={pendiente.id} className={cerrada ? 'esta-cerrada' : vencida ? 'esta-vencida' : ''}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={cerrada}
+                        disabled={cerrada || completarTarea.isPending}
+                        onChange={() => completarTarea.mutate(pendiente.id)}
+                      />
+                      <span>{pendiente.title}</span>
+                    </label>
+                    {pendiente.dueAt ? (
+                      <time>{new Date(pendiente.dueAt).toLocaleDateString('es-CL')}</time>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
         <section className="lead-detail-historial">
           <h3>Actividad comercial</h3>
