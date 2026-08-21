@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import type { AuthenticatedRequest } from '@shared/types/request';
+import { ModuleExempt } from '../../core/authorization/module-scope.decorator';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 
@@ -15,10 +16,27 @@ import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
  * Va bajo `/tasks` y no bajo `/approvals` aunque compartan tabla: son dos bandejas distintas
  * para dos públicos distintos, y mezclarlas llenaría la del cliente de trabajo interno.
  */
+/*
+  Sin módulo propio, y declarado.
+
+  `PermissionGuard` rechaza todo endpoint que no declare módulo ni exención: negar por omisión
+  es lo que hace que la pantalla de permisos gobierne de verdad. Este controlador no declaraba
+  ninguna de las dos cosas, así que **respondía 403 a todo el mundo, siempre** —incluido el
+  panel de tareas de la ficha del lead, que se dibujaba y no podía cargar ni una—.
+
+  La exención es la respuesta correcta y no un atajo: una tarea es trabajo asignado a una
+  persona sobre un registro que puede ser un lead, una oportunidad, una pieza o una sesión.
+  Atarla a un módulo obligaría a elegir uno de esos cinco, y las tareas de los otros cuatro
+  dejarían de funcionar cada vez que ese módulo se apagara.
+
+  El servicio acota por organización y por el registro pedido; quién puede abrir ese registro lo
+  gobierna el módulo de ese registro, que es donde corresponde.
+*/
 @ApiTags('Tareas')
 @Controller('tasks')
 @UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
+@ModuleExempt('Trabajo asignado sobre registros de cinco módulos distintos; no pertenece a ninguno')
 export class TasksController {
   constructor(private readonly tasks: TasksService) {}
 

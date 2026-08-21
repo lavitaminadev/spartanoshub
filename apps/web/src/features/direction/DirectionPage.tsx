@@ -1,6 +1,7 @@
 ﻿import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { PageHero } from '../../shared/PageHero';
 import { QueryErrorState } from '../../shared/QueryErrorState';
@@ -14,7 +15,31 @@ interface KpiData {
 const money = (value: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(value || 0);
 
 export function DirectionPage() {
-  const directionQuery = useQuery<KpiData>({ queryKey: ['direction'], queryFn: () => api.get('/reporting/kpi') });
+  /*
+    Esta pantalla es del módulo `direction` pero sus cifras vienen de `reporting`, que gobierna
+    `reports`. Con ese módulo apagado la consulta salía igual y respondía 403, y la pantalla lo
+    mostraba como «No pudimos cargar Dirección» con un botón de reintentar que no podía
+    funcionar. Es configuración, no una avería, y conviene que se lea como tal.
+  */
+  const user = useAuth((state) => state.user);
+  const nivelInformes = user?.permissions?.reports;
+  const puedeVerInformes = nivelInformes !== undefined && nivelInformes !== 'none';
+
+  const directionQuery = useQuery<KpiData>({
+    queryKey: ['direction'],
+    queryFn: () => api.get('/reporting/kpi'),
+    enabled: puedeVerInformes,
+  });
+
+  if (!puedeVerInformes) {
+    return (
+      <div className="alert alert-info">
+        <strong>Dirección necesita el módulo de informes.</strong>{' '}
+        Está apagado para esta organización, así que no hay indicadores que consolidar. Se
+        enciende en Accesos y seguridad, en el centro de módulos.
+      </div>
+    );
+  }
   if (directionQuery.isLoading) return <LoadingSpinner text="Consolidando indicadores estratégicos..." />;
   if (directionQuery.error) return <QueryErrorState title="No pudimos cargar Dirección" message={directionQuery.error.message} onRetry={() => directionQuery.refetch()} />;
   if (!directionQuery.data) return null;
