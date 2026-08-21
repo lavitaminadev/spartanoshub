@@ -21,6 +21,21 @@ import './crm-dashboard.css';
 
 interface Conteo { key: string; total: number }
 interface UserOption { id: string; name: string }
+
+interface Campania {
+  id: string;
+  name: string;
+  source: string;
+  investment: number;
+  status: string;
+  leads: number;
+  /** `null` mientras no haya llegado ningún lead: no es que salieran gratis. */
+  costPerLead: number | null;
+}
+
+const ESTADO_CAMPANIA: Record<string, string> = {
+  active: 'Activa', paused: 'Pausada', finished: 'Finalizada',
+};
 interface Panel {
   days: number;
   totals: {
@@ -116,6 +131,11 @@ export function CrmDashboardPage(): JSX.Element {
   });
   const usuarios = Array.isArray(usuariosResp) ? usuariosResp : usuariosResp?.data ?? [];
   const nombreDe = (id: string) => usuarios.find((u) => u.id === id)?.name ?? 'Sin nombre';
+
+  const { data: campanias } = useQuery<Campania[]>({
+    queryKey: ['crm-campaigns', scope.clientId],
+    queryFn: () => api.get(`/crm/campaigns${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`),
+  });
 
   const { data, isLoading, error, refetch } = useQuery<Panel>({
     // La empresa entra en la clave: cambiarla arriba trae otras cifras, no las mismas filtradas.
@@ -318,6 +338,51 @@ export function CrmDashboardPage(): JSX.Element {
           <p className="crm-dash-vacio">
             Ningún lead descartado tiene motivo anotado. Sin motivo no se puede saber qué corregir.
           </p>
+        )}
+      </section>
+
+      {/*
+        Costo por lead.
+
+        Es la única cifra del panel que no sale de la tabla de leads: ellos dicen de qué campaña
+        vinieron, pero no cuánto se invirtió. El cruce es por nombre, así que una campaña escrita
+        distinta a como llega de Meta aparece con cero leads —y se dice, en vez de mostrar un
+        costo que no significa nada—.
+      */}
+      <section className="crm-dash-panel">
+        <h2>Campañas y costo por lead</h2>
+        {!campanias?.length ? (
+          <p className="crm-dash-vacio">
+            Sin campañas registradas. Se dan de alta en Administración del CRM, y su nombre debe
+            escribirse igual que el que traen los leads.
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Campaña</th><th>Fuente</th><th>Inversión</th>
+                  <th>Leads</th><th>Costo por lead</th><th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campanias.map((campania) => (
+                  <tr key={campania.id}>
+                    <td data-label="Campaña">{campania.name}</td>
+                    <td data-label="Fuente">{campania.source}</td>
+                    <td data-label="Inversión">{dinero(campania.investment)}</td>
+                    <td data-label="Leads">{campania.leads}</td>
+                    <td data-label="Costo por lead">
+                      {campania.costPerLead === null
+                        ? <span className="text-muted">Sin leads aún</span>
+                        : dinero(campania.costPerLead)}
+                    </td>
+                    <td data-label="Estado">{ESTADO_CAMPANIA[campania.status] ?? campania.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>
