@@ -75,6 +75,14 @@ export class LeadIngestService {
         // refleje cuándo llegó la gente y no cuándo la integración logró entregarla.
         sourceCreatedAt: dto.fechaOrigen ? new Date(dto.fechaOrigen) : undefined,
         externalLeadId: identificadorExterno(source.source, dto.idExterno),
+        // Las mismas columnas que llena el webhook firmado, para que un lead se vea igual sin
+        // importar por cuál de los dos caminos entró.
+        externalFormId: dto.formId,
+        externalCampaignId: dto.campanaId,
+        pageId: dto.paginaId,
+        // El anuncio no tiene columna propia y sí la tiene el detalle de Meta: se guarda donde
+        // el camino directo ya lo guarda, y no se inventa una columna para un solo dato.
+        metadata: dto.anuncioId ? { adId: dto.anuncioId } : undefined,
       });
 
       // El contador y la fecha se actualizan aparte del lead: si esto fallara, el lead ya está

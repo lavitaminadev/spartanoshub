@@ -9,6 +9,10 @@ const ALIAS = {
     campana: ['campana', 'campaign', 'utm_campaign', 'campaign_name'],
     mensaje: ['mensaje', 'message', 'notas', 'notes', 'comentario'],
     fechaOrigen: ['fechaOrigen', 'created_time', 'createdTime', 'created_at', 'fecha'],
+    formId: ['formId', 'form_id'],
+    campanaId: ['campanaId', 'campaign_id', 'campaignId'],
+    anuncioId: ['anuncioId', 'ad_id', 'adId'],
+    paginaId: ['paginaId', 'page_id', 'pageId'],
 };
 function primeroConValor(cuerpo, claves) {
     for (const clave of claves) {

@@ -62,4 +62,18 @@ export class IngestLeadDto {
    */
   @IsOptional() @IsISO8601()
   fechaOrigen?: string;
+
+  /**
+   * Atribución del anuncio: formulario, campaña, anuncio y página que produjeron el lead.
+   *
+   * Son las mismas cuatro columnas que llena el webhook firmado de Meta. Aceptarlas por el
+   * puente hace que un lead se vea igual sin importar por cuál de los dos caminos entró, que es
+   * lo que permite cambiar de uno a otro sin un corte en los informes.
+   *
+   * Opcionales todas: sin ellas el lead entra igual, solo que sin saber qué anuncio lo trajo.
+   */
+  @IsOptional() @IsString() @MaxLength(255) formId?: string;
+  @IsOptional() @IsString() @MaxLength(255) campanaId?: string;
+  @IsOptional() @IsString() @MaxLength(255) anuncioId?: string;
+  @IsOptional() @IsString() @MaxLength(255) paginaId?: string;
 }

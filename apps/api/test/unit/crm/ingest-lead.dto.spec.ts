@@ -79,3 +79,38 @@ describe('Entrada de leads · el cuerpo que manda Meta', () => {
     expect(errores.map((e) => e.property)).toEqual(['email']);
   });
 });
+
+describe('Entrada de leads · atribución del anuncio', () => {
+  it('acepta formulario, campaña, anuncio y página con los nombres de Meta', () => {
+    const { dto, errores } = recibir({
+      full_name: 'Ana Rojas',
+      email: 'ana@correo.cl',
+      form_id: '987654321',
+      campaign_id: '2233445566',
+      ad_id: '6677889900',
+      page_id: '1122334455',
+    });
+
+    expect(errores).toEqual([]);
+    // Son las mismas cuatro columnas que llena el webhook firmado: un lead debe verse igual
+    // sin importar por cuál de los dos caminos entró.
+    expect(dto.formId).toBe('987654321');
+    expect(dto.campanaId).toBe('2233445566');
+    expect(dto.anuncioId).toBe('6677889900');
+    expect(dto.paginaId).toBe('1122334455');
+  });
+
+  it('acepta también los nombres en español y en camello', () => {
+    const { dto } = recibir({ nombre: 'Ana', email: 'a@b.cl', campanaId: 'c1', adId: 'a1' });
+
+    expect(dto.campanaId).toBe('c1');
+    expect(dto.anuncioId).toBe('a1');
+  });
+
+  it('sigue entrando sin atribución', () => {
+    const { dto, errores } = recibir({ nombre: 'Ana', email: 'a@b.cl' });
+
+    expect(errores).toEqual([]);
+    expect(dto.formId).toBeUndefined();
+  });
+});

@@ -37,3 +37,12 @@
   .crm-admin-llave-datos { grid-template-columns: 1fr; gap: 2px; }
   .crm-admin-llave-datos dt { margin-top: 8px; }
 }
+
+/* El cuerpo se muestra literal para copiar y pegar: describirlo en prosa obliga a traducirlo
+   a mano, que es donde se cuela el campo mal escrito. */
+.crm-admin-llave-cuerpo {
+  margin: 8px 0; padding: 10px 12px; overflow-x: auto;
+  border-radius: var(--radius-sm); background: rgba(0,0,0,.28);
+  font-size: 12px; line-height: 1.5;
+}
+.crm-admin-llave-cuerpo code { white-space: pre; }

@@ -50,6 +50,10 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 notes: dto.mensaje,
                 sourceCreatedAt: dto.fechaOrigen ? new Date(dto.fechaOrigen) : undefined,
                 externalLeadId: (0, identificador_externo_1.identificadorExterno)(source.source, dto.idExterno),
+                externalFormId: dto.formId,
+                externalCampaignId: dto.campanaId,
+                pageId: dto.paginaId,
+                metadata: dto.anuncioId ? { adId: dto.anuncioId } : undefined,
             });
             await this.sources.update(source.id, {
                 receivedCount: () => 'received_count + 1',

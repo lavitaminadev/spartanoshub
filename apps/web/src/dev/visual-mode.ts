@@ -411,6 +411,31 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     assignedTo: 'user-cm', assignedName: 'Valentina Rojas',
     createdAt: '2026-08-10T12:00:00Z', assignedAt: '2026-08-11T09:00:00Z',
   }])],
+  /*
+    Campañas con su costo por lead, y el alta que devuelve la llave recién emitida.
+
+    El alta va **antes** del listado en esta tabla porque las dos coinciden con la misma ruta y
+    gana la primera: sin este orden, crear una campaña devolvía la lista y la pantalla se
+    quedaba sin llave que mostrar. Fue justo lo que impidió comprobar ese aviso.
+  */
+  [/\/crm\/campaigns$/, (config) => {
+    if (config?.method?.toLowerCase() !== 'post') {
+      return [
+        { id: 'cmp1', name: 'Primavera', source: 'meta_lead_ads', clientId: null, investment: 450000, status: 'active', leads: 9, costPerLead: 50000 },
+        { id: 'cmp2', name: 'Verano', source: 'meta_lead_ads', clientId: null, investment: 300000, status: 'active', leads: 0, costPerLead: null },
+      ];
+    }
+    const body = typeof config?.data === 'string' ? JSON.parse(config.data) : config?.data;
+    return {
+      campaign: { id: 'cmp-nueva', name: body?.name ?? 'Campaña', source: body?.source ?? 'meta_lead_ads' },
+      integracion: {
+        url: '/api/public/ingest/leads',
+        method: 'POST',
+        header: 'Authorization: Bearer esp_in_ejemplo0000000000000000000000000000',
+        token: 'esp_in_ejemplo0000000000000000000000000000',
+      },
+    };
+  }],
   /* Resultado de una importación, con filas buenas y una rechazada. */
   [/\/crm\/leads\/import$/, (config) => {
     const body = typeof config?.data === 'string' ? JSON.parse(config.data) : config?.data;
