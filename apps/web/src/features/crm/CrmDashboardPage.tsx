@@ -16,15 +16,22 @@ import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { STAGE_LABEL } from './stage-labels';
+import { useCrmScope } from './crm-scope';
 import './crm-dashboard.css';
 
 interface Conteo { key: string; total: number }
+interface UserOption { id: string; name: string }
 interface Panel {
   days: number;
   totals: {
     leads: number; calificados: number; conVisita: number; ventas: number;
     montoVendido: number; pipelineAbierto: number; ticketPromedio: number; estancados: number;
   };
+  /** Días promedio de ingreso a venta. `null` mientras no haya ninguna cerrada. */
+  tiempoDeCierre: number | null;
+  /** Quien mejor convierte de los que tienen al menos tres leads. */
+  mejorSetter: { assignedTo: string; leads: number; ventas: number; conversion: number } | null;
+  comision: { tasa: number; ganada: number; proyectada: number };
   porEtapa: Conteo[];
   porFuente: Conteo[];
   porDia: Conteo[];
@@ -56,6 +63,9 @@ const ACENTO_PERDIDA = '#e2725b';
 
 /** Altura fija de los paneles: distintas alturas hacen que dos gráficos no se puedan comparar. */
 const ALTO = 240;
+
+/** Comisión que reconoce el negocio. Debe coincidir con `TASA_COMISION` del servidor. */
+const tasaComision = '2%';
 
 /**
  * Distribución en barras horizontales.
@@ -94,12 +104,25 @@ function Barras({ datos, etiqueta, color = ACENTO }: { datos: Conteo[]; etiqueta
 }
 
 export function CrmDashboardPage(): JSX.Element {
+  // De qué empresa son las cifras. Lo decide la barra del CRM, igual que el resto de secciones.
+  const scope = useCrmScope();
   const filtros = useUrlFilters(['dias']);
   const dias = filtros.values.dias || '30';
 
+  // El equipo, para poder nombrar al setter en vez de mostrar su identificador.
+  const { data: usuariosResp } = useQuery<UserOption[] | { data: UserOption[] }>({
+    queryKey: ['users'],
+    queryFn: () => api.get('/users'),
+  });
+  const usuarios = Array.isArray(usuariosResp) ? usuariosResp : usuariosResp?.data ?? [];
+  const nombreDe = (id: string) => usuarios.find((u) => u.id === id)?.name ?? 'Sin nombre';
+
   const { data, isLoading, error, refetch } = useQuery<Panel>({
-    queryKey: ['crm-dashboard', dias],
-    queryFn: () => api.get(`/crm/home/dashboard?days=${dias}`),
+    // La empresa entra en la clave: cambiarla arriba trae otras cifras, no las mismas filtradas.
+    queryKey: ['crm-dashboard', dias, scope.domain, scope.clientId],
+    queryFn: () => api.get(
+      `/crm/home/dashboard?days=${dias}&domain=${scope.domain}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+    ),
   });
 
   const totals = data?.totals ?? {
@@ -178,10 +201,52 @@ export function CrmDashboardPage(): JSX.Element {
           <small>Valor medio por negocio</small>
         </article>
         <article>
+          {/* Un guion y no un cero: cero días diría «se cierran el mismo día», que es una
+              afirmación muy distinta de no tener con qué calcularlo. */}
+          <strong>{data?.tiempoDeCierre === null || data?.tiempoDeCierre === undefined ? '—' : `${data.tiempoDeCierre} d`}</strong>
+          <span>Tiempo de cierre</span>
+          <small>Días de ingreso a venta</small>
+        </article>
+        <article>
           <strong>{totals.estancados}</strong>
           <span>Leads estancados</span>
           <small>Sin gestión hace +7 días</small>
         </article>
+        <article>
+          <strong>{dinero(data?.comision?.proyectada ?? 0)}</strong>
+          <span>Comisión proyectada</span>
+          <small>{tasaComision} del pipeline</small>
+        </article>
+        <article>
+          <strong>{dinero(data?.comision?.ganada ?? 0)}</strong>
+          <span>Comisión ganada</span>
+          <small>{tasaComision} de lo vendido</small>
+        </article>
+      </section>
+
+      {/*
+        Quién convierte mejor, no quién vende más.
+
+        Con volúmenes distintos el total premia a quien recibió más leads y no a quien los
+        trabaja mejor, que es lo contrario de lo que sirve para repartir la cartera.
+      */}
+      <section className="crm-dash-panel crm-dash-setter">
+        <h2>Setter con mayor conversión</h2>
+        {data?.mejorSetter ? (
+          <p className="crm-dash-setter-linea">
+            <strong>{nombreDe(data.mejorSetter.assignedTo)}</strong>
+            <span>
+              {porcentaje(data.mejorSetter.ventas, data.mejorSetter.leads)} ·{' '}
+              {data.mejorSetter.ventas}/{data.mejorSetter.leads} leads
+            </span>
+          </p>
+        ) : (
+          // Se dice el umbral en vez de mostrar un vacío: quien mira necesita saber si no hay
+          // datos o si el reparto todavía es demasiado chico para comparar.
+          <p className="crm-dash-vacio">
+            Nadie alcanza los 3 leads asignados que se piden para comparar conversiones.
+          </p>
+        )}
       </section>
 
       <section className="crm-dash-panel">

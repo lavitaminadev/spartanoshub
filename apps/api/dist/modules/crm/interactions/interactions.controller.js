@@ -19,8 +19,6 @@ const interactions_service_1 = require("./interactions.service");
 const create_interaction_dto_1 = require("./dto/create-interaction.dto");
 const update_interaction_dto_1 = require("./dto/update-interaction.dto");
 const list_interactions_dto_1 = require("./dto/list-interactions.dto");
-const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
-const user_role_enum_1 = require("../../organizations/user-role.enum");
 const requires_feature_decorator_1 = require("../../../core/authorization/requires-feature.decorator");
 let InteractionsController = class InteractionsController {
     constructor(service) {
@@ -45,7 +43,6 @@ let InteractionsController = class InteractionsController {
 exports.InteractionsController = InteractionsController;
 __decorate([
     (0, common_1.Post)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -70,7 +67,6 @@ __decorate([
 ], InteractionsController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Put)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
@@ -80,7 +76,6 @@ __decorate([
 ], InteractionsController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -90,7 +85,6 @@ __decorate([
 exports.InteractionsController = InteractionsController = __decorate([
     (0, common_1.Controller)('crm/interactions'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, requires_feature_decorator_1.RequiresFeature)('commercialPipeline'),
     __metadata("design:paramtypes", [interactions_service_1.InteractionsService])
 ], InteractionsController);

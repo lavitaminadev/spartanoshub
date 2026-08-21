@@ -18,7 +18,7 @@ import { COMMERCIAL_PIPELINE_TEMPLATE } from '../../process-templates/process-te
 
 @Controller('crm/opportunities')
 @UseGuards(AuthGuard('jwt'))
-@Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
+// Sin `@Roles`: la matriz de permisos decide quien entra. Ver `lead.controller.ts`.
 @RequiresFeature('commercialPipeline')
 export class OpportunitiesController {
   constructor(
@@ -48,7 +48,6 @@ export class OpportunitiesController {
   }
 
   @Post()
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   create(@Body() dto: CreateOpportunityDto, @Req() req: AuthenticatedRequest) {
     return this.createOpportunity.execute(dto, req.organizationId, req.user.id);
   }
@@ -66,13 +65,11 @@ export class OpportunitiesController {
   }
 
   @Put(':id')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto, @Req() req: AuthenticatedRequest) {
     return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.removeOpportunity.execute(id, req.organizationId);
   }

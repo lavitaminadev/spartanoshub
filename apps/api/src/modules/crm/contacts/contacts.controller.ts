@@ -21,7 +21,7 @@ import { ModuleScope } from '../../../core/authorization/module-scope.decorator'
  */
 @Controller('crm/contacts')
 @UseGuards(AuthGuard('jwt'))
-@Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
+// Sin `@Roles`: la matriz de permisos decide quien entra. Ver `lead.controller.ts`.
 @ModuleScope('crm')
 export class ContactsController {
   constructor(
@@ -51,7 +51,6 @@ export class ContactsController {
 
   /** Solo el papel en la cuenta y las notas. La identidad se edita en el lead. */
   @Patch(':id')
-  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN)
   async update(@Param('id') id: string, @Body() dto: UpdateContactDto, @Req() req: AuthenticatedRequest) {
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.service.update(id, dto, req.organizationId, allowed);
