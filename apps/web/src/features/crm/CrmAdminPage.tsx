@@ -55,7 +55,7 @@ export function CrmAdminPage(): JSX.Element {
   const scope = useCrmScope();
   const [llaveNueva, setLlaveNueva] = useState<string | null>(null);
   const [campaniaAbierta, setCampaniaAbierta] = useState(false);
-  const [formCampania, setFormCampania] = useState({ name: '', source: 'Meta Ads', investment: '0', status: 'active' });
+  const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active' });
 
   const campanias = useQuery<Campania[]>({
     queryKey: ['crm-campaigns', scope.clientId],
@@ -76,7 +76,7 @@ export function CrmAdminPage(): JSX.Element {
     }),
     onSuccess: async (respuesta: { integracion?: { header?: string; token?: string } }) => {
       setCampaniaAbierta(false);
-      setFormCampania({ name: '', source: 'Meta Ads', investment: '0', status: 'active' });
+      setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active' });
       // Se reutiliza el aviso de llave nueva: es la misma advertencia —cópiala ahora— y tener
       // dos formas de decir lo mismo invita a que una de las dos se quede sin decirlo.
       setLlaveNueva(respuesta?.integracion?.token ?? null);
@@ -129,11 +129,46 @@ export function CrmAdminPage(): JSX.Element {
         </div>
       </div>
 
+      {/*
+        La llave sola no sirve de nada.
+
+        Antes este aviso mostraba solo el valor, y quien lo recibía no tenía cómo saber a qué
+        dirección llamar ni en qué cabecera ponerlo: había que volver a preguntar. Se muestra el
+        conjunto completo porque es lo que se pega en la automatización, y porque es la única
+        oportunidad de verlo: la llave no se guarda en claro.
+      */}
       {llaveNueva ? (
         <div className="alert alert-success crm-admin-llave">
           <strong>Llave nueva. Cópiala ahora: no se puede volver a ver.</strong>
-          <code>{llaveNueva}</code>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => setLlaveNueva(null)}>Ya la copié</button>
+
+          <dl className="crm-admin-llave-datos">
+            <dt>Dirección</dt>
+            <dd><code>{`${window.location.origin}/api/public/ingest/leads`}</code></dd>
+
+            <dt>Método</dt>
+            <dd><code>POST</code> · cuerpo JSON</dd>
+
+            <dt>Cabecera</dt>
+            <dd><code>{`Authorization: Bearer ${llaveNueva}`}</code></dd>
+          </dl>
+
+          <p className="crm-admin-explica">
+            Cuerpo mínimo: <code>nombre</code>, y <code>telefono</code> o <code>email</code>.
+            Manda también <code>idExterno</code> —evita duplicados si la automatización
+            reintenta— y <code>fechaOrigen</code>, sin la cual todo entra con la fecha de hoy.
+            La cuenta y la campaña las pone la llave: no hace falta mandarlas.
+          </p>
+
+          <div className="crm-admin-llave-acciones">
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => void navigator.clipboard?.writeText(`Authorization: Bearer ${llaveNueva}`)}
+            >
+              Copiar la cabecera
+            </button>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => setLlaveNueva(null)}>Ya la copié</button>
+          </div>
         </div>
       ) : null}
 
@@ -234,11 +269,23 @@ export function CrmAdminPage(): JSX.Element {
             </label>
             <label>
               Fuente
-              <input
+              {/*
+                Lista cerrada y no texto libre. `meta_lead_ads` es el valor exacto que hace que
+                un lead recibido por automatización se reconozca con el que entra por el webhook
+                firmado de Meta; escribir «Meta Ads» produce un identificador distinto y el mismo
+                lead entraría dos veces al encender el camino directo.
+              */}
+              <select
                 className="input"
                 value={formCampania.source}
                 onChange={(event) => setFormCampania({ ...formCampania, source: event.target.value })}
-              />
+              >
+                <option value="meta_lead_ads">Meta Lead Ads</option>
+                <option value="google_ads">Google Ads</option>
+                <option value="sitio_web">Sitio web</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="referido">Referido</option>
+              </select>
             </label>
             <label>
               Inversión (CLP)
