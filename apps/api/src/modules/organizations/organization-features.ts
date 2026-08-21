@@ -22,7 +22,26 @@ export type OrganizationFeatures = Record<OrganizationFeatureKey, boolean>;
  * frontend muestra como 404. Los permisos por cargo y por persona siguen siendo la fuente de
  * verdad de quién puede usarlo; esta lista solo impide desactivar la puerta de entrada común.
  */
-export const REQUIRED_ORGANIZATION_FEATURE_KEYS = ['dashboard'] as const satisfies readonly OrganizationFeatureKey[];
+export const REQUIRED_ORGANIZATION_FEATURE_KEYS = [
+  'dashboard',
+  /*
+    `settings` gobierna `PUT /settings`, que es el único endpoint capaz de cambiar el ciclo de
+    vida de los módulos —incluido el suyo—. Apagarlo cierra la puerta por dentro: la pantalla
+    responde 403 a todo el mundo, también a desarrollo, y no queda forma de volver a encenderlo
+    sin entrar a la base de datos. Ocurrió en producción.
+  */
+  'settings',
+] as const satisfies readonly OrganizationFeatureKey[];
+
+/**
+ * Módulos cuyo ciclo de vida no se puede bajar por debajo de visible.
+ *
+ * Es la misma protección que `REQUIRED_ORGANIZATION_FEATURE_KEYS`, para el otro interruptor:
+ * el estado del producto bloquea igual que el de la organización, y `disabled` bloquea incluso
+ * a desarrollo. Sin esta lista se podía dejar el sistema sin pantalla de aterrizaje —`dashboard`
+ * en deshabilitado— o sin forma de deshacerlo —`settings`—.
+ */
+export const REQUIRED_LIFECYCLE_KEYS: readonly OrganizationFeatureKey[] = REQUIRED_ORGANIZATION_FEATURE_KEYS;
 
 /**
  * Valor inicial por organizacion.
