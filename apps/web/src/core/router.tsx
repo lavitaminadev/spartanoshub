@@ -115,17 +115,18 @@ export function AppRouter() {
               propia. Cada hija conserva su `ProtectedRoute`: la barra no decide quién entra. */}
           <Route element={<CrmLayout />}>
             <Route path="/crm" element={<ProtectedRoute path="/crm"><SafeSuspense><CrmHomePage /></SafeSuspense></ProtectedRoute>} />
-            {/* El tablero y la tabla de prospectos eran dos pantallas sobre la misma consulta y
-                ahora son una sola con dos vistas. La ruta antigua se conserva redirigiendo, para
-                no romper los enlaces que ya circulan. */}
-            <Route path="/crm/tablero" element={<Navigate to="/crm/leads" replace />} />
+            {/* Dos secciones con nombre propio sobre el mismo componente: «Tablero» es el
+                embudo por etapas con arrastre y «Leads» es la lista. Comparten código —una sola
+                consulta, una sola ficha— pero no comparten entrada de menú, porque un alternador
+                dentro de una pantalla dejaba ambiguo cuál de las dos se estaba mirando. */}
+            <Route path="/crm/tablero" element={<ProtectedRoute path="/crm/tablero"><SafeSuspense><LeadsBoardPage vista="tablero" /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/dashboard" element={<ProtectedRoute path="/crm/dashboard"><SafeSuspense><CrmDashboardPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/calendario" element={<ProtectedRoute path="/crm/calendario"><SafeSuspense><CrmCalendarPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/administracion" element={<ProtectedRoute path="/crm/administracion"><SafeSuspense><CrmAdminPage /></SafeSuspense></ProtectedRoute>} />
             {/* Estas cinco colgaban del layout general y no de la barra del CRM. El efecto era
                 que entrar a «Leads» desde la propia barra la hacía desaparecer: se navegaba
                 dentro del CRM y se salía de él sin haber pedido salir. */}
-            <Route path="/crm/leads" element={<ProtectedRoute path="/crm/leads"><SafeSuspense><LeadsBoardPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/crm/leads" element={<ProtectedRoute path="/crm/leads"><SafeSuspense><LeadsBoardPage vista="tabla" /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/opportunities" element={<ProtectedRoute path="/crm/opportunities"><SafeSuspense><OpportunitiesPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/pipeline" element={<ProtectedRoute path="/crm/pipeline"><SafeSuspense><PipelineBoardPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/crm/contacts" element={<ProtectedRoute path="/crm/contacts"><SafeSuspense><ContactsPage /></SafeSuspense></ProtectedRoute>} />

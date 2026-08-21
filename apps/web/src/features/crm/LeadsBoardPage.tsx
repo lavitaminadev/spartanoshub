@@ -77,12 +77,16 @@ function iniciales(nombre: string): string {
   return nombre.trim().split(/\s+/).slice(0, 2).map((parte) => parte[0]?.toUpperCase() ?? '').join('');
 }
 
-export function LeadsBoardPage(): JSX.Element {
+/**
+ *  vista - Forma en que se presenta el embudo. La decide la ruta y no un control interno:
+ *   «Tablero» y «Leads» son dos secciones con nombre propio en la barra, y un alternador dentro
+ *   de una sola pantalla dejaba ambiguo cuál se estaba mirando.
+ */
+export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const queryClient = useQueryClient();
   // De qué empresa es el CRM que se está mirando. Lo decide la barra, no esta pantalla.
   const scope = useCrmScope();
   const filtros = useUrlFilters(FILTER_KEYS);
-  const [vista, setVista] = useState<Vista>('tablero');
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
   const [abierto, setAbierto] = useState<Lead | null>(null);
   const [seleccion, setSeleccion] = useState<Set<string>>(() => new Set());
@@ -311,14 +315,9 @@ export function LeadsBoardPage(): JSX.Element {
         onClear={filtros.hasAny ? filtros.clear : undefined}
       />
 
-      {/* La forma de mirar, no dos pantallas: los filtros y la selección se conservan al cambiar. */}
-      <div className="leads-board-vistas" role="tablist" aria-label="Forma de ver el embudo">
-        <button type="button" role="tab" aria-selected={vista === 'tablero'} className={vista === 'tablero' ? 'activo' : ''} onClick={() => setVista('tablero')}>
-          Tablero
-        </button>
-        <button type="button" role="tab" aria-selected={vista === 'tabla'} className={vista === 'tabla' ? 'activo' : ''} onClick={() => setVista('tabla')}>
-          Tabla
-        </button>
+      {/* Sin alternador: la sección ya dice qué se está mirando. Queda el conteo, que es lo
+          único que ese bloque aportaba de información. */}
+      <div className="leads-board-vistas">
         <span className="leads-board-conteo">{leads.length} de {(data?.data ?? []).length}</span>
       </div>
 

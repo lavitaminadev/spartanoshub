@@ -20,7 +20,13 @@ import { CrmDashboardService } from './crm-dashboard.service';
 @ApiBearerAuth()
 // `DEV` incluido: es quien levanta y comprueba los módulos antes de encenderlos, así que tiene
 // que poder abrir la pantalla que va a habilitar. Faltaba, y el inicio del CRM le respondía 403.
-@Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
+// Todos los cargos que entran al CRM, incluido community manager. Excluirlo obligaba a
+// publicar una segunda entrada de menú apuntando a otra pantalla, y esa entrada aparecía
+// duplicada —«CRM» dos veces— para quien alcanzaba las dos.
+@Roles(
+  UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR,
+  UserRole.DEV, UserRole.COMMUNITY_MANAGER,
+)
 @ModuleScope('crm')
 export class CrmHomeController {
   constructor(
