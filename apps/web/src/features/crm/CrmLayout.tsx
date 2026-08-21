@@ -38,8 +38,12 @@ import './crm-layout.css';
  */
 const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/crm', label: 'Inicio', end: true },
-  { to: '/crm/leads', label: 'Tablero' },
-  { to: '/crm/contacts', label: 'Leads' },
+  // «Tablero» es el embudo por etapas y «Leads» la lista. Son dos formas del mismo dato, pero
+  // con nombre propio cada una: un alternador dentro de una pantalla dejaba ambiguo cuál se
+  // estaba mirando, y mezclar kanban y lista bajo un mismo rótulo confunde las dos cosas.
+  { to: '/crm/tablero', label: 'Tablero' },
+  { to: '/crm/leads', label: 'Leads' },
+  { to: '/crm/contacts', label: 'Contactos' },
   { to: '/crm/opportunities', label: 'Oportunidades' },
   { to: '/crm/interactions', label: 'Actividad' },
   { to: '/crm/dashboard', label: 'Dashboard' },
