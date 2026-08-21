@@ -36,6 +36,7 @@ import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { ImportLeadsModal } from './ImportLeadsModal';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
 import { STAGES, STAGE_ACCENT, STAGE_LABEL } from './stage-labels';
+import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
 import './leads-board.css';
 
@@ -161,7 +162,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         return;
       }
       setSeleccion(new Set());
-      setAviso({ tono: 'success', texto: `${resultado.actualizados} prospectos movidos a ${(STAGE_LABEL[variables.status] ?? variables.status).toLowerCase()}.` });
+      setAviso({ tono: 'success', texto: `${resultado.actualizados} prospectos movidos a ${etapaLabel(variables.status).toLowerCase()}.` });
     },
     onError: (err: Error) => setAviso({ tono: 'error', texto: err.message }),
   });
@@ -235,6 +236,31 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   };
 
   /*
+    Las columnas dependen del embudo que se está mirando, no son siempre las del comercial.
+
+    Un contacto de campaña recorre el ciclo de una visita —ingresa, reserva, asiste o no—, no el
+    embudo de venta de la agencia. Con las columnas del comercial en un CRM de cliente, arrastrar
+    una tarjeta pedía un estado que ese lead no admite y el servidor lo rechazaba con «el estado
+    "contacted" no corresponde a un lead de la audiencia de un local». La regla del servidor está
+    bien; era la pantalla la que ofrecía lo imposible.
+  */
+  /**
+   * Rótulo de un estado, del embudo que corresponda.
+   *
+   * Una sola función para toda la pantalla: el filtro, el cambio en lote, la tabla, la
+   * exportación y la ficha muestran lo mismo. Con el mapa del comercial aplicado a un contacto
+   * de campaña, «reserved» se imprimía crudo y «Calificado» aparecía donde no existe.
+   */
+  const etapaLabel = (estado: string) => (scope.esAgencia
+    ? STAGE_LABEL[estado] ?? estado
+    : CONTACT_STATUS_OPTIONS.find((opcion) => opcion.value === estado)?.label ?? estado);
+
+  /** Estados a los que se puede mover un lead del embudo que se está mirando. */
+  const etapasDelEmbudo = scope.esAgencia
+    ? [...STAGES]
+    : CONTACT_STATUS_OPTIONS.map((opcion) => opcion.value);
+
+  /*
    * El mismo documento alimenta el CSV y el PDF, así que no pueden divergir: agregar una columna
    * acá la agrega a los dos formatos. Exporta lo filtrado y no todo, que es lo que se está
    * mirando en pantalla, y el filtro queda anotado en el encabezado para que el archivo se
@@ -247,7 +273,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     meta: [
       { label: 'Cliente', value: cartera.find((c) => c.id === filtros.values.cliente)?.name ?? 'Todos' },
       { label: 'Responsable', value: nombreDe(filtros.values.responsable) ?? 'Todo el equipo' },
-      { label: 'Etapa', value: STAGE_LABEL[filtros.values.etapa ?? ''] ?? 'Todas' },
+      { label: 'Etapa', value: filtros.values.etapa ? etapaLabel(filtros.values.etapa) : 'Todas' },
       { label: 'Búsqueda', value: filtros.search || 'Sin filtrar' },
     ],
     columns: [
@@ -255,7 +281,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       { header: 'Empresa', value: (l) => l.company, width: 18 },
       { header: 'Teléfono', value: (l) => l.phone, width: 14 },
       { header: 'Correo', value: (l) => l.email, width: 22 },
-      { header: 'Etapa', value: (l) => STAGE_LABEL[l.status] ?? l.status, width: 13 },
+      { header: 'Etapa', value: (l) => etapaLabel(l.status), width: 13 },
       { header: 'Origen', value: (l) => l.campaignName || l.source, width: 15 },
       { header: 'Responsable', value: (l) => nombreDe(l.assignedTo) ?? 'Sin asignar', width: 14 },
     ],
@@ -264,8 +290,10 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   };
 
   const columnas = useMemo<KanbanColumn[]>(
-    () => STAGES.map((stage) => ({ id: stage, label: STAGE_LABEL[stage], accent: STAGE_ACCENT[stage] })),
-    [],
+    () => (scope.esAgencia
+      ? STAGES.map((stage) => ({ id: stage, label: STAGE_LABEL[stage], accent: STAGE_ACCENT[stage] }))
+      : CONTACT_STATUS_OPTIONS.map((estado) => ({ id: estado.value, label: estado.label, accent: estado.color }))),
+    [scope.esAgencia],
   );
 
   if (isLoading) return <LoadingSpinner text="Cargando el embudo..." />;
@@ -307,7 +335,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         filters={[
           { key: 'cliente', label: 'Cliente', allLabel: 'Todos los clientes', options: cartera.map((c) => ({ value: c.id, label: c.name })) },
           { key: 'responsable', label: 'Responsable', allLabel: 'Todo el equipo', options: equipo.map((u) => ({ value: u.id, label: u.name })) },
-          { key: 'etapa', label: 'Etapa', allLabel: 'Todas las etapas', options: STAGES.map((s) => ({ value: s, label: STAGE_LABEL[s] })) },
+          { key: 'etapa', label: 'Etapa', allLabel: 'Todas las etapas', options: etapasDelEmbudo.map((s) => ({ value: s, label: etapaLabel(s) })) },
           { key: 'calidad', label: 'Calidad', allLabel: 'Toda calidad', options: CALIDADES },
         ]}
         values={filtros.values}
@@ -327,7 +355,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           <select className="input" value={etapaEnLote} onChange={(event) => setEtapaEnLote(event.target.value)}>
             {/* «Venta» exige convertir cada prospecto en cliente, y eso no se puede hacer en
                 lote sin decidir uno por uno: se deja fuera en vez de fallar en la mitad. */}
-            {STAGES.filter((stage) => stage !== 'won').map((stage) => <option key={stage} value={stage}>{STAGE_LABEL[stage]}</option>)}
+            {etapasDelEmbudo.filter((stage) => stage !== 'won').map((stage) => <option key={stage} value={stage}>{etapaLabel(stage)}</option>)}
           </select>
           <button
             type="button"
@@ -419,7 +447,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   </td>
                   <td data-label="Empresa">{lead.company || '—'}</td>
                   <td data-label="Origen">{lead.campaignName || lead.source || '—'}</td>
-                  <td data-label="Etapa">{STAGE_LABEL[lead.status] ?? lead.status}</td>
+                  <td data-label="Etapa">{etapaLabel(lead.status)}</td>
                   <td data-label="Calidad">{lead.fitStatus ? <StatusBadge status={lead.fitStatus} /> : '—'}</td>
                   <td data-label="Responsable">{nombreDe(lead.assignedTo) ?? 'Sin asignar'}</td>
                   <td data-label="Ingreso">{new Date(lead.createdAt).toLocaleDateString('es-CL')}</td>
@@ -432,7 +460,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       )}
 
       {abierto ? (
-        <LeadDetailDrawer lead={abierto} nombreDe={nombreDe} etapaLabel={(s) => STAGE_LABEL[s] ?? s} onClose={() => setAbierto(null)} />
+        <LeadDetailDrawer lead={abierto} nombreDe={nombreDe} etapaLabel={etapaLabel} onClose={() => setAbierto(null)} />
       ) : null}
 
       <ImportLeadsModal open={importarAbierto} onClose={() => { setImportarAbierto(false); void refrescar(); }} />
