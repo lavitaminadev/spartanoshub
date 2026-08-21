@@ -34,6 +34,14 @@ export class LeadIngestSource {
   @Column({ type: 'varchar', length: 60 }) source: string;
 
   /**
+   * Campaña a la que pertenece esta llave.
+   *
+   * Cuando la tiene, manda sobre lo que traiga el cuerpo: quien configura el escenario no puede
+   * equivocarse al escribir el nombre, y el costo por lead deja de depender de eso.
+   */
+  @Column({ name: 'campaign_name', type: 'varchar', length: 180, nullable: true }) campaignName?: string | null;
+
+  /**
    * Huella de la llave, nunca la llave.
    *
    * Se guarda el hash por la misma razón que una contraseña: quien lea la base no debe poder

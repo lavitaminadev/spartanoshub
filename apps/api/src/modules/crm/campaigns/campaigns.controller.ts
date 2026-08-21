@@ -31,13 +31,33 @@ export class CampaignsController {
     return this.campaigns.list(req.organizationId, clientId || undefined);
   }
 
+  /**
+   * Registra la campaña y entrega su llave de entrada.
+   *
+   * La llave viaja **una sola vez, en esta respuesta**. En base queda su huella y no la llave,
+   * así que no hay ningún sitio del que volver a leerla: si se pierde, se rota desde la
+   * administración del CRM y la anterior deja de servir en el acto. Devolverla en el listado
+   * sería tener la contraseña de escritura de una cuenta a un `GET` de distancia.
+   */
   @Post()
-  @ApiOperation({ summary: 'Registrar una campaña' })
+  @ApiOperation({ summary: 'Registrar una campaña y emitir su llave de entrada' })
   async create(@Body() dto: SaveCampaignDto, @Req() req: AuthenticatedRequest) {
     // La cuenta llega del navegador y decide de qué empresa es el gasto: se comprueba antes de
     // escribir, como en el resto del CRM.
     await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-    return this.campaigns.create(req.organizationId, dto);
+    const { campaign, token } = await this.campaigns.create(req.organizationId, dto, req.user.id);
+
+    return {
+      campaign,
+      // Lo que hay que pegar en el escenario, ya armado: la cabecera es la forma correcta y
+      // escribirla a mano es donde se cuela el error que después cuesta media hora encontrar.
+      integracion: {
+        url: '/api/public/ingest/leads',
+        method: 'POST',
+        header: `Authorization: Bearer ${token}`,
+        token,
+      },
+    };
   }
 
   @Put(':id')

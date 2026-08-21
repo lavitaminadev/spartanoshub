@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Campaign } from './campaign.entity';
 import { Lead } from '../leads/lead.entity';
+import { LeadIngestSource } from '../leads/ingest-source.entity';
+import { LeadIngestService } from '../leads/lead-ingest.service';
 import type { SaveCampaignDto } from './dto/save-campaign.dto';
 
 /** Una campaña con lo que ya se puede medir de ella. */
@@ -33,6 +35,8 @@ export class CampaignsService {
   constructor(
     @InjectRepository(Campaign) private readonly campaigns: Repository<Campaign>,
     @InjectRepository(Lead) private readonly leads: Repository<Lead>,
+    @InjectRepository(LeadIngestSource) private readonly sources: Repository<LeadIngestSource>,
+    private readonly ingest: LeadIngestService,
   ) {}
 
   /**
@@ -71,8 +75,23 @@ export class CampaignsService {
     });
   }
 
-  async create(organizationId: string, dto: SaveCampaignDto): Promise<Campaign> {
-    return this.campaigns.save(this.campaigns.create({
+  /**
+   * Da de alta la campaña y **su llave de entrada**.
+   *
+   * Las dos cosas juntas y no en dos pasos: una campaña sin por dónde recibir leads no mide
+   * nada, y una llave sin campaña obliga a que quien configura el escenario escriba el nombre
+   * exactamente igual —el error que dejaba el costo por lead en nada—. Creadas juntas, la llave
+   * ya sabe a qué cuenta y a qué campaña pertenece lo que entre por ella.
+   *
+   * La llave se devuelve **una sola vez**. En base queda su huella, no la llave: si se pierde,
+   * se rota desde la administración del CRM y la anterior deja de servir en el acto.
+   */
+  async create(
+    organizationId: string,
+    dto: SaveCampaignDto,
+    createdBy?: string,
+  ): Promise<{ campaign: Campaign; token: string }> {
+    const campaign = await this.campaigns.save(this.campaigns.create({
       organizationId,
       name: dto.name.trim(),
       source: dto.source ?? 'Meta Ads',
@@ -82,6 +101,20 @@ export class CampaignsService {
       investment: dto.investment ?? 0,
       status: dto.status ?? 'active',
     }));
+
+    const { token } = await this.ingest.issueToken(this.sources.create({
+      organizationId,
+      clientId: campaign.clientId ?? null,
+      // El origen se llama como la campaña: es lo que se lee en la administración al revisar
+      // por qué no entran leads, y buscar por otro nombre es una traducción mental de más.
+      name: campaign.name,
+      source: campaign.source,
+      campaignName: campaign.name,
+      isActive: true,
+      createdBy: createdBy ?? null,
+    }));
+
+    return { campaign, token };
   }
 
   async update(id: string, organizationId: string, dto: SaveCampaignDto): Promise<Campaign> {

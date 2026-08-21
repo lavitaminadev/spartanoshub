@@ -35,6 +35,10 @@ __decorate([
     __metadata("design:type", String)
 ], LeadIngestSource.prototype, "source", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'campaign_name', type: 'varchar', length: 180, nullable: true }),
+    __metadata("design:type", Object)
+], LeadIngestSource.prototype, "campaignName", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'token_hash', type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], LeadIngestSource.prototype, "tokenHash", void 0);

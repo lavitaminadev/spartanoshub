@@ -58,7 +58,17 @@ export class LeadIngestService {
         phone: dto.telefono,
         email: dto.email,
         source: source.source,
-        campaignName: dto.campana,
+        /*
+          La campaña de la llave manda sobre la del cuerpo.
+
+          Antes dependía de que quien configura el escenario escribiera el nombre exactamente
+          igual al de la campaña registrada; un espacio de más y el lead entraba con una campaña
+          inexistente, la inversión no se repartía y el costo por lead quedaba en nada, sin que
+          nada fallara. Con la campaña en la llave no hay nada que escribir bien.
+
+          Las llaves creadas antes no la tienen, y ésas siguen tomando la del cuerpo.
+        */
+        campaignName: source.campaignName ?? dto.campana,
         notes: dto.mensaje,
         // La fecha del origen, no la de recepción: es lo que hace que el informe por período
         // refleje cuándo llegó la gente y no cuándo la integración logró entregarla.

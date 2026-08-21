@@ -74,10 +74,13 @@ export function CrmAdminPage(): JSX.Element {
       // desde el panel de esta sería justo la mezcla que el selector vino a evitar.
       clientId: scope.clientId || null,
     }),
-    onSuccess: async () => {
+    onSuccess: async (respuesta: { integracion?: { header?: string; token?: string } }) => {
       setCampaniaAbierta(false);
       setFormCampania({ name: '', source: 'Meta Ads', investment: '0', status: 'active' });
-      await refrescarCampanias();
+      // Se reutiliza el aviso de llave nueva: es la misma advertencia —cópiala ahora— y tener
+      // dos formas de decir lo mismo invita a que una de las dos se quede sin decirlo.
+      setLlaveNueva(respuesta?.integracion?.token ?? null);
+      await Promise.all([refrescarCampanias(), queryClient.invalidateQueries({ queryKey: ['lead-ingest-sources'] })]);
     },
   });
 
