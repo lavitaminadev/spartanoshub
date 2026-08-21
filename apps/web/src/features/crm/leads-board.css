@@ -125,3 +125,7 @@
 
 /* Las etapas de destino como botones y no como desplegable: son pocas y se elige una sola vez. */
 .leads-board-mover-opciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* El aviso y su cierre en la misma línea: el texto manda, el botón no lo empuja. */
+.leads-board .alert { display: flex; align-items: center; gap: 12px; }
+.leads-board .alert span { flex: 1; min-width: 0; }

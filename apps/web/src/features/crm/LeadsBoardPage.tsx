@@ -209,7 +209,12 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     },
     onError: (err: Error, _variables, contexto) => {
       if (contexto?.previo) queryClient.setQueryData(claveDelTablero, contexto.previo);
-      setAviso({ tono: 'error', texto: err.message || 'No se pudo mover el lead' });
+      setAviso({
+        tono: 'error',
+        texto: err.message
+          ? `No se pudo mover: ${err.message}`
+          : 'No se pudo mover el lead y el servidor no dijo por qué.',
+      });
     },
     onSuccess: () => setAviso({ tono: 'success', texto: 'Lead movido' }),
     // En ambos casos: al fallar, para recuperar el estado real; al acertar, para traer lo que el
@@ -429,7 +434,21 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         </div>
       </div>
 
-      {aviso ? <div className={`alert alert-${aviso.tono}`} role={aviso.tono === 'error' ? 'alert' : 'status'}>{aviso.texto}</div> : null}
+      {/*
+        El motivo del rechazo, con un botón para cerrarlo.
+
+        Cuando el servidor rechaza un movimiento, la tarjeta vuelve a su columna: sin leer el
+        motivo, eso se interpreta como que «no guarda», y lleva a repetir el mismo gesto en vez
+        de corregir la causa. El error se queda hasta que alguien lo cierra —un aviso que se
+        desvanece se pierde justo mientras se mira la tarjeta volver— y trae la palabra literal
+        del servidor, que es la única que dice qué falló.
+      */}
+      {aviso ? (
+        <div className={`alert alert-${aviso.tono}`} role={aviso.tono === 'error' ? 'alert' : 'status'}>
+          <span>{aviso.texto}</span>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => setAviso(null)}>Cerrar</button>
+        </div>
+      ) : null}
 
       <FilterBar
         search={filtros.search}
