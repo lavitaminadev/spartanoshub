@@ -113,3 +113,41 @@ describe('UpdateLeadUseCase · responsable del lead', () => {
     expect(guardado.assignedTo).toBe('user-1');
   });
 });
+
+describe('UpdateLeadUseCase · origen y empresa del lead', () => {
+  function useCaseFor(lead: Record<string, unknown>) {
+    const repo = {
+      findOne: vi.fn().mockResolvedValue(lead),
+      save: vi.fn().mockImplementation(async (value) => value),
+    };
+    return { useCase: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble()) };
+  }
+
+  it('corrige el origen de un lead que entró mal marcado', async () => {
+    const { useCase } = useCaseFor({ id: 'lead-1', domain: 'commercial', status: LeadStatus.NEW, source: 'manual' });
+
+    // Se podía fijar al crear y al importar, pero no enmendar: el informe por fuente arrastraba
+    // el error sin forma de corregirlo.
+    const guardado = await useCase.execute('lead-1', { source: 'Meta Ads' }, 'org-1');
+
+    expect(guardado.source).toBe('Meta Ads');
+  });
+
+  it('mueve el lead de empresa y admite dejarlo sin ninguna', async () => {
+    const { useCase } = useCaseFor({ id: 'lead-1', domain: 'audience', status: LeadStatus.NEW, clientId: 'client-1' });
+
+    const movido = await useCase.execute('lead-1', { clientId: 'client-2' }, 'org-1');
+    expect(movido.clientId).toBe('client-2');
+
+    const sinCuenta = await useCase.execute('lead-1', { clientId: null }, 'org-1');
+    expect(sinCuenta.clientId).toBeUndefined();
+  });
+
+  it('no toca la empresa cuando el campo no viene', async () => {
+    const { useCase } = useCaseFor({ id: 'lead-1', domain: 'audience', status: LeadStatus.NEW, clientId: 'client-1' });
+
+    const guardado = await useCase.execute('lead-1', { notes: 'Sin relación con la cuenta' }, 'org-1');
+
+    expect(guardado.clientId).toBe('client-1');
+  });
+});

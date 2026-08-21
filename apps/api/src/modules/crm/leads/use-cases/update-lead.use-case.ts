@@ -25,6 +25,7 @@ export class UpdateLeadUseCase {
     data: {
       status?: string; notes?: string; fitStatus?: string; discardReason?: string;
       tags?: string[]; estimatedAmount?: number; assignedTo?: string | null;
+      source?: string; clientId?: string | null;
     },
     organizationId: string,
     actorId?: string,
@@ -59,6 +60,9 @@ export class UpdateLeadUseCase {
     // `null` desasigna y `undefined` deja como está: son dos intenciones distintas y colapsarlas
     // haría imposible devolver un lead a la bandeja común desde la ficha.
     if (data.assignedTo !== undefined) lead.assignedTo = data.assignedTo ?? undefined;
+    if (data.source !== undefined) lead.source = data.source;
+    // Igual que el responsable: `null` lo deja sin cuenta y omitirlo no toca lo que había.
+    if (data.clientId !== undefined) lead.clientId = data.clientId ?? undefined;
 
     const guardado = await this.repo.save(lead);
 

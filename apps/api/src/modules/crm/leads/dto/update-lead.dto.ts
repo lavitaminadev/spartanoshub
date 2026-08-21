@@ -27,4 +27,25 @@ export class UpdateLeadDto {
    * común. Sin poder desasignar, un lead que cambia de manos queda con el dueño anterior.
    */
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsUUID() assignedTo?: string | null;
+
+  /**
+   * Origen del lead.
+   *
+   * Se podía fijar al crearlo y al importarlo, pero no corregir después. Un lead que entró con
+   * el origen equivocado —o sin origen, por un formulario que no lo mandaba— quedaba así para
+   * siempre, y el informe por fuente arrastraba ese error sin forma de enmendarlo.
+   */
+  @IsOptional() @IsString() @MaxLength(50) source?: string;
+
+  /**
+   * Cuenta a la que pertenece.
+   *
+   * Permite mover un contacto de campaña que entró a la cuenta equivocada, que hasta ahora
+   * había que corregir en la base. `null` lo deja sin cuenta, que es el estado natural de un
+   * prospecto del embudo de la agencia.
+   *
+   * El controlador comprueba que quien edita alcance la cuenta de destino: sin eso, cambiar
+   * este campo sería una forma de mover datos a una cuenta ajena.
+   */
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsUUID() clientId?: string | null;
 }

@@ -76,6 +76,7 @@ let LeadController = class LeadController {
     }
     async update(id, dto, req) {
         await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
         return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
     }
     async assertLeadAccess(req, lead) {
