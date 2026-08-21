@@ -38,6 +38,7 @@ import { ExportButtons, type ExportDocument } from '../../shared/export';
 import { STAGES, STAGE_ACCENT, STAGE_LABEL } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
+import { useStageLabels } from './use-stage-labels';
 import './leads-board.css';
 
 interface Lead {
@@ -53,6 +54,12 @@ interface Lead {
   assignedTo?: string | null;
   clientId?: string | null;
   fitStatus?: 'qualified' | 'review' | 'discarded';
+  tags?: string[] | null;
+  estimatedAmount?: number | null;
+  /** Tareas abiertas sobre el lead. Las cuenta el servidor al listar. */
+  openTasks?: number;
+  /** La tarea que vence antes: lo que falta hacer, no lo último que se hizo. */
+  nextStep?: { title: string; dueAt: string | null; overdue: boolean } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +74,31 @@ const COOLING_DAYS = 7;
 
 /** Forma en que se mira el embudo. Se recuerda en la URL, junto con los filtros. */
 type Vista = 'tablero' | 'tabla';
+
+/** Iconos de origen. Se reconoce de dónde vino la tarjeta sin leer la línea de texto. */
+const ICONO_ORIGEN: Record<string, string> = {
+  meta_lead_ads: '📣',
+  meta: '📣',
+  formulario: '🌐',
+  web: '🌐',
+  whatsapp: '💬',
+  telefono: '📞',
+  presencial: '🤝',
+  referido: '⭐',
+  manual: '✍️',
+  import: '⬆️',
+};
+
+/** Icono del origen, o un punto neutro para los que no tienen uno propio. */
+function iconoOrigen(origen?: string | null): string {
+  return ICONO_ORIGEN[String(origen ?? '').toLowerCase()] ?? '•';
+}
+
+/** Monto abreviado: en una tarjeta de 255 px, «$12,5M» cabe y «$12.500.000» no. */
+function montoCorto(valor: number): string {
+  if (valor >= 1_000_000) return `${(valor / 1_000_000).toLocaleString('es-CL', { maximumFractionDigits: 1 })}M`;
+  return `${valor.toLocaleString('es-CL')}`;
+}
 
 const CALIDADES: Array<{ value: string; label: string }> = [
   { value: 'qualified', label: 'Calificado' },
@@ -87,6 +119,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const queryClient = useQueryClient();
   // De qué empresa es el CRM que se está mirando. Lo decide la barra, no esta pantalla.
   const scope = useCrmScope();
+  // Cómo llama esta empresa a sus etapas. Vacío mientras carga: se ven los nombres de fábrica.
+  const rotulos = useStageLabels(scope.clientId);
   const filtros = useUrlFilters(FILTER_KEYS);
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
   const [abierto, setAbierto] = useState<Lead | null>(null);
@@ -251,9 +285,10 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * exportación y la ficha muestran lo mismo. Con el mapa del comercial aplicado a un contacto
    * de campaña, «reserved» se imprimía crudo y «Calificado» aparecía donde no existe.
    */
-  const etapaLabel = (estado: string) => (scope.esAgencia
-    ? STAGE_LABEL[estado] ?? estado
-    : CONTACT_STATUS_OPTIONS.find((opcion) => opcion.value === estado)?.label ?? estado);
+  const etapaLabel = (estado: string) => rotulos[estado]
+    ?? (scope.esAgencia
+      ? STAGE_LABEL[estado] ?? estado
+      : CONTACT_STATUS_OPTIONS.find((opcion) => opcion.value === estado)?.label ?? estado);
 
   /** Estados a los que se puede mover un lead del embudo que se está mirando. */
   const etapasDelEmbudo = scope.esAgencia
@@ -291,9 +326,13 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
 
   const columnas = useMemo<KanbanColumn[]>(
     () => (scope.esAgencia
-      ? STAGES.map((stage) => ({ id: stage, label: STAGE_LABEL[stage], accent: STAGE_ACCENT[stage] }))
-      : CONTACT_STATUS_OPTIONS.map((estado) => ({ id: estado.value, label: estado.label, accent: estado.color }))),
-    [scope.esAgencia],
+      ? STAGES.map((stage) => ({ id: stage, label: rotulos[stage] ?? STAGE_LABEL[stage], accent: STAGE_ACCENT[stage] }))
+      : CONTACT_STATUS_OPTIONS.map((estado) => ({
+        id: estado.value,
+        label: rotulos[estado.value] ?? estado.label,
+        accent: estado.color,
+      }))),
+    [scope.esAgencia, rotulos],
   );
 
   if (isLoading) return <LoadingSpinner text="Cargando el embudo..." />;
@@ -398,17 +437,43 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 }}
               >
                 <div className="leads-board-card-head">
-                  <strong>{lead.name}</strong>
-                  {responsable ? <span className="leads-board-avatar" title={responsable}>{iniciales(responsable)}</span> : null}
+                  <strong>
+                    <span className="leads-board-icono" title={lead.source ?? 'Sin origen'}>{iconoOrigen(lead.source)}</span>
+                    {lead.name}
+                  </strong>
+                  {/* Un hueco donde va el responsable se lee como un dato que falta; una
+                      interrogación dice que nadie lo ha tomado, que es la información. */}
+                  {responsable
+                    ? <span className="leads-board-avatar" title={`Lo está trabajando ${responsable}`}>{iniciales(responsable)}</span>
+                    : <span className="leads-board-avatar es-libre" title="Nadie lo ha tomado todavía">?</span>}
                 </div>
-                {lead.phone ? <span className="leads-board-contacto">{lead.phone}</span> : null}
+                {lead.phone ? <span className="leads-board-contacto">📞 {lead.phone}</span> : null}
+                {lead.estimatedAmount ? <span className="leads-board-monto">💰 {montoCorto(Number(lead.estimatedAmount))}</span> : null}
                 <span className="leads-board-origen">
                   {lead.campaignName || lead.source || 'Sin origen'} · {new Date(lead.createdAt).toLocaleDateString('es-CL')}
                 </span>
+                {/*
+                  Lo que falta hacer, no lo último que se hizo.
+
+                  Quien mira el tablero está decidiendo a quién llamar ahora, y para eso la última
+                  nota no sirve: sirve la tarea que vence antes, marcada si ya se pasó de fecha.
+                */}
+                {lead.nextStep ? (
+                  <span className={`leads-board-paso${lead.nextStep.overdue ? ' esta-vencido' : ''}`} title="Próximo paso">
+                    → {lead.nextStep.title}
+                    {lead.nextStep.dueAt ? ` · ${new Date(lead.nextStep.dueAt).toLocaleDateString('es-CL')}` : ''}
+                  </span>
+                ) : null}
                 {/* El aviso de frío va en la tarjeta y no solo en el informe: se actúa mirando el
                     tablero, no leyendo un número al final del mes. */}
                 {frio ? <span className="leads-board-frio">Sin movimiento hace +{COOLING_DAYS} días</span> : null}
-                {!lead.assignedTo ? <span className="leads-board-sin-duenio">Sin asignar</span> : null}
+                <div className="leads-board-pie">
+                  {lead.fitStatus
+                    ? <span className={`leads-board-chip es-${lead.fitStatus}`}>{CALIDADES.find((c) => c.value === lead.fitStatus)?.label}</span>
+                    : null}
+                  {lead.openTasks ? <span className="leads-board-chip es-tarea" title="Tareas pendientes">✓ {lead.openTasks}</span> : null}
+                  {!lead.assignedTo ? <span className="leads-board-sin-duenio">Sin asignar</span> : null}
+                </div>
               </div>
             );
           }}
@@ -426,8 +491,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     onChange={alternarTodos}
                   />
                 </th>
-                <th>Prospecto</th><th>Empresa</th><th>Origen</th><th>Etapa</th>
-                <th>Calidad</th><th>Responsable</th><th>Ingreso</th>
+                <th>Prospecto</th><th>Contacto</th><th>Empresa</th><th>Origen</th><th>Etapa</th>
+                <th>Etiqueta</th><th>Calidad</th><th>Responsable</th><th>Ingreso</th>
               </tr>
             </thead>
             <tbody>
@@ -443,11 +508,17 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   </td>
                   <td data-label="Prospecto">
                     <button type="button" className="link-button" onClick={() => setAbierto(lead)}>{lead.name}</button>
+                  </td>
+                  {/* Teléfono y correo juntos: para contactar se mira una sola celda, y separarlos
+                      en dos columnas obligaba a leer la fila de punta a punta. */}
+                  <td data-label="Contacto">
+                    {lead.phone || '—'}
                     {lead.email ? <small>{lead.email}</small> : null}
                   </td>
                   <td data-label="Empresa">{lead.company || '—'}</td>
                   <td data-label="Origen">{lead.campaignName || lead.source || '—'}</td>
                   <td data-label="Etapa">{etapaLabel(lead.status)}</td>
+                  <td data-label="Etiqueta">{lead.tags?.length ? lead.tags.join(' · ') : '—'}</td>
                   <td data-label="Calidad">{lead.fitStatus ? <StatusBadge status={lead.fitStatus} /> : '—'}</td>
                   <td data-label="Responsable">{nombreDe(lead.assignedTo) ?? 'Sin asignar'}</td>
                   <td data-label="Ingreso">{new Date(lead.createdAt).toLocaleDateString('es-CL')}</td>

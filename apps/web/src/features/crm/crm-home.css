@@ -16,7 +16,7 @@
 .crm-home-kpis article {
   display: grid; gap: 2px; padding: 18px 20px;
   background: var(--white); border: 1px solid var(--surface-sage);
-  border-top: 3px solid #17c78a; border-radius: var(--radius-md);
+  border-top: 3px solid var(--cyan); border-radius: var(--radius-md);
 }
 .crm-home-kpis strong { font-size: 34px; line-height: 1.1; color: var(--text-dark); font-variant-numeric: tabular-nums; }
 .crm-home-kpis span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
@@ -27,12 +27,33 @@
 .crm-home-alerts article {
   display: grid; gap: 12px; padding: 18px 20px;
   background: var(--white); border: 1px solid var(--surface-sage);
-  border-left: 3px solid #e2a33c; border-radius: var(--radius-md);
+  border-left: 3px solid var(--amber); border-radius: var(--radius-md);
 }
 .crm-home-alert-head { display: flex; gap: 14px; align-items: flex-start; }
-.crm-home-alert-head b { font-size: 30px; line-height: 1; color: #e2a33c; font-variant-numeric: tabular-nums; }
+.crm-home-alert-head b { font-size: 30px; line-height: 1; color: var(--amber-deep); font-variant-numeric: tabular-nums; }
 .crm-home-alert-head h3 { margin: 0; font-size: 15px; color: var(--text-dark); }
 .crm-home-alert-head p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
+
+/*
+ * Urgencia por color de borde.
+ *
+ * Crítico es lo que nadie está mirando —sin contactar, sin dueño—; alto ya tiene responsable y
+ * puede esperar al final del día. Es la única diferencia entre avisos, así que va en el borde y
+ * en el número, no en un rótulo que habría que leer.
+ */
+.crm-home-alert.es-critico { border-left-color: var(--pink); }
+.crm-home-alert.es-critico .crm-home-alert-head b { color: var(--pink); }
+
+/* Los nombres se listan sin separación entre sí: son una lista, no tarjetas sueltas. */
+.crm-home-alert-items { display: grid; gap: 6px; }
+.crm-home-alert-mas { margin: 2px 0 0; font-size: 12px; font-style: italic; color: var(--muted); }
+
+/* Sin avisos no se esconde la sección: que el hueco diga «al día» y no parezca que no cargó. */
+.crm-home-al-dia {
+  grid-column: 1 / -1; margin: 0; padding: 26px; text-align: center;
+  background: var(--cyan-soft); border: 1px solid var(--cyan);
+  border-radius: var(--radius-md); color: var(--cyan-deep); font-size: 14px;
+}
 
 /* El ejemplo concreto: sin él, el aviso manda a buscar a otra pantalla. */
 .crm-home-alert-sample {
@@ -55,7 +76,7 @@
 /* Insignia de alcance: decir por qué ves algo que otros no evita que se lea como un error. */
 .crm-home-solo {
   margin-left: 8px; padding: 2px 8px; border-radius: 999px;
-  background: #f8eeda; color: #855200;
+  background: var(--amber-soft); color: var(--amber-deep);
   font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
 }
 

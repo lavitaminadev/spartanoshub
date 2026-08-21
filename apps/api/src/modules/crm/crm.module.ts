@@ -43,11 +43,18 @@ import { InteractionsController } from './interactions/interactions.controller';
 import { InteractionsService } from './interactions/interactions.service';
 import { Client } from '../clients/client.entity';
 import { Reservation } from '../reservations/domain/reservation.entity';
+import { ApprovalRequest } from '../approvals/approval-request.entity';
+import { ParameterDefinition } from '../../core/parameters/parameter-definition.entity';
+import { ParameterValue } from '../../core/parameters/parameter-value.entity';
+import { StageLabelsService } from './leads/stage-labels.service';
+import { StageLabelsController } from './leads/stage-labels.controller';
+import { LeadTaskSummaryService } from './leads/lead-task-summary.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign]), AccountAccessModule, AuditModule, ProcessTemplatesModule],
-  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController],
+  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule],
+  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController],
   providers: [
+    LeadTaskSummaryService, StageLabelsService,
     CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, LeadIngestService, CrmHomeService, CrmDashboardService, CrmLeadAutomationService,
     ContactsService,
     OpportunityReferenceValidator, OpportunityStageHistoryService, CreateOpportunityUseCase, ListOpportunitiesUseCase, GetOpportunityUseCase, UpdateOpportunityUseCase, RemoveOpportunityUseCase,

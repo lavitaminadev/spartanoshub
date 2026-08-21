@@ -12,7 +12,7 @@
 .crm-dash-kpis article {
   display: grid; gap: 2px; padding: 18px 20px;
   background: var(--white); border: 1px solid var(--surface-sage);
-  border-top: 3px solid #17c78a; border-radius: var(--radius-md);
+  border-top: 3px solid var(--cyan); border-radius: var(--radius-md);
 }
 .crm-dash-kpis strong { font-size: 32px; line-height: 1.1; color: var(--text-dark); font-variant-numeric: tabular-nums; }
 .crm-dash-kpis span { margin-top: 6px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }

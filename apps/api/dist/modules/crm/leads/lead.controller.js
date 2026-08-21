@@ -29,12 +29,13 @@ const import_leads_dto_1 = require("./dto/import-leads.dto");
 const import_leads_use_case_1 = require("./use-cases/import-leads.use-case");
 const list_leads_dto_1 = require("./dto/list-leads.dto");
 const reservation_entity_1 = require("../../reservations/domain/reservation.entity");
+const lead_task_summary_service_1 = require("./lead-task-summary.service");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const process_history_service_1 = require("../../../core/process-history/process-history.service");
 const process_stage_change_entity_1 = require("../../../core/process-history/process-stage-change.entity");
 let LeadController = class LeadController {
-    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history) {
+    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks) {
         this.createLead = createLead;
         this.listLeads = listLeads;
         this.getLead = getLead;
@@ -44,6 +45,7 @@ let LeadController = class LeadController {
         this.reservationRepository = reservationRepository;
         this.accountAccess = accountAccess;
         this.history = history;
+        this.leadTasks = leadTasks;
     }
     create(dto, req) {
         return this.createLead.execute({ ...dto, organizationId: req.organizationId });
@@ -54,7 +56,7 @@ let LeadController = class LeadController {
     }
     async list(query, req) {
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.listLeads.execute(req.organizationId, query.limit, query.offset, {
+        const pagina = await this.listLeads.execute(req.organizationId, query.limit, query.offset, {
             status: query.status,
             fitStatus: query.fitStatus,
             source: query.source,
@@ -62,6 +64,15 @@ let LeadController = class LeadController {
             clientId: query.clientId,
             allowedClientIds,
         });
+        const tareas = await this.leadTasks.porLead(req.organizationId, pagina.data.map((lead) => lead.id));
+        return {
+            ...pagina,
+            data: pagina.data.map((lead) => ({
+                ...lead,
+                openTasks: tareas.get(lead.id)?.openTasks ?? 0,
+                nextStep: tareas.get(lead.id)?.nextStep ?? null,
+            })),
+        };
     }
     async getById(id, req) {
         const lead = await this.getLead.execute(id, req.organizationId);
@@ -205,5 +216,6 @@ exports.LeadController = LeadController = __decorate([
         import_leads_use_case_1.ImportLeadsUseCase,
         typeorm_2.Repository,
         account_access_service_1.AccountAccessService,
-        process_history_service_1.ProcessHistoryService])
+        process_history_service_1.ProcessHistoryService,
+        lead_task_summary_service_1.LeadTaskSummaryService])
 ], LeadController);

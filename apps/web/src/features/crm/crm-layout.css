@@ -45,8 +45,8 @@
 
 /* La sección activa se marca con línea y color, no solo con color: en pantallas con poco
    contraste el color solo es imperceptible. */
-.crm-nav-link.activo { color: #17c78a; border-bottom-color: #17c78a; }
-.crm-nav-link:focus-visible { outline: 2px solid #17c78a; outline-offset: -2px; border-radius: 2px; }
+.crm-nav-link.activo { color: var(--cyan); border-bottom-color: var(--cyan); }
+.crm-nav-link:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; border-radius: 2px; }
 
 .crm-nav-usuario { flex: 0 0 auto; font-size: 12px; color: var(--muted); }
 

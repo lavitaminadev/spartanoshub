@@ -27,6 +27,23 @@ interface ApiErrorPayload {
 
 export const API_ERROR_EVENT = 'espartanos:api-error';
 
+/**
+ * Una operación sensible pidió confirmar la contraseña.
+ *
+ * Va aparte del aviso de error porque no es un error: la petición fue correcta y quien la hizo
+ * tiene el cargo para hacerla; lo único que falta es reconfirmar quién está al teclado. Mostrado
+ * como un 403 más se leía como «no tienes permiso», que es justo lo contrario, y no ofrecía
+ * ninguna forma de continuar.
+ */
+export const REAUTH_EVENT = 'espartanos:reauth-required';
+
+export interface ReauthEventDetail {
+  /** Qué se estaba intentando, en las palabras del servidor. */
+  reason: string;
+  /** Minutos que dura la confirmación una vez hecha. */
+  windowMinutes?: number;
+}
+
 export interface ApiErrorEventDetail {
   title: string;
   message: string;
@@ -339,6 +356,21 @@ apiClient.interceptors.response.use(
       window.location.href = '/login?reason=session-expired';
     }
     const message = extractErrorMessage(error);
+    /*
+     * Un 403 que pide reconfirmar la contraseña no es una negativa.
+     *
+     * El servidor marca estas respuestas con `reauthRequired` porque la operación —restablecer
+     * la contraseña de otra persona, cambiarle el cargo— es tomar el control de una cuenta. Sin
+     * distinguirlo, la pantalla mostraba «Acceso no autorizado» a quien sí tenía permiso, sin
+     * decir que bastaba con volver a escribir su propia contraseña ni ofrecer dónde hacerlo.
+     */
+    const cuerpo = error.response?.data as (ApiErrorPayload & { reauthRequired?: boolean; windowMinutes?: number }) | undefined;
+    if (cuerpo?.reauthRequired && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent<ReauthEventDetail>(REAUTH_EVENT, {
+        detail: { reason: message, windowMinutes: cuerpo.windowMinutes },
+      }));
+      return Promise.reject(new ApiError(message, error.response?.status));
+    }
     if (error.response?.status !== 401 && !isLoginRequest && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent<ApiErrorEventDetail>(API_ERROR_EVENT, {
         detail: describeApiError(error, message),

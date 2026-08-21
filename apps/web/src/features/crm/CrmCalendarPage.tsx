@@ -46,8 +46,32 @@ function celdasDelMes(ancla: Date): Array<{ fecha: Date; delMes: boolean }> {
   });
 }
 
+/**
+ * Los siete días de la semana en que cae la fecha, empezando en lunes.
+ *
+ * La vista semanal existe porque el mes no sirve para trabajar el día: con celdas de un
+ * centímetro, tres visitas seguidas se ven como tres líneas cortadas. La semana da alto
+ * suficiente para leer a qué hora es cada una.
+ */
+function celdasDeLaSemana(ancla: Date): Array<{ fecha: Date; delMes: boolean }> {
+  const desplazamiento = (ancla.getDay() + 6) % 7;
+  const lunes = new Date(ancla);
+  lunes.setDate(ancla.getDate() - desplazamiento);
+
+  return Array.from({ length: 7 }, (_, indice) => {
+    const fecha = new Date(lunes);
+    fecha.setDate(lunes.getDate() + indice);
+    // En la semana todos los días son «del mes»: no hay vecinos que atenuar.
+    return { fecha, delMes: true };
+  });
+}
+
+/** Forma en que se mira la agenda. */
+type Vista = 'mes' | 'semana';
+
 export function CrmCalendarPage(): JSX.Element {
   const [ancla, setAncla] = useState(() => new Date());
+  const [vista, setVista] = useState<Vista>('mes');
 
   const { data, isLoading } = useQuery<Reunion[]>({
     queryKey: ['crm-calendario'],
@@ -65,14 +89,23 @@ export function CrmCalendarPage(): JSX.Element {
     return mapa;
   }, [data]);
 
-  const celdas = useMemo(() => celdasDelMes(ancla), [ancla]);
+  const celdas = useMemo(
+    () => (vista === 'mes' ? celdasDelMes(ancla) : celdasDeLaSemana(ancla)),
+    [ancla, vista],
+  );
   const hoy = claveDia(new Date());
 
-  const mover = (meses: number) => {
+  /** Las flechas avanzan lo que se está mirando: un mes en la vista mensual, una semana en la otra. */
+  const mover = (pasos: number) => {
     const siguiente = new Date(ancla);
-    siguiente.setMonth(ancla.getMonth() + meses);
+    if (vista === 'mes') siguiente.setMonth(ancla.getMonth() + pasos);
+    else siguiente.setDate(ancla.getDate() + pasos * 7);
     setAncla(siguiente);
   };
+
+  const titulo = vista === 'mes'
+    ? ancla.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+    : `Semana del ${celdas[0].fecha.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`;
 
   if (isLoading) return <LoadingSpinner text="Cargando el mes..." />;
 
@@ -84,14 +117,27 @@ export function CrmCalendarPage(): JSX.Element {
           <h1>Calendario</h1>
         </div>
         <div className="crm-cal-controles">
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => mover(-1)} aria-label="Mes anterior">‹</button>
-          <strong>{ancla.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}</strong>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => mover(1)} aria-label="Mes siguiente">›</button>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => mover(-1)} aria-label="Anterior">‹</button>
+          <strong>{titulo}</strong>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => mover(1)} aria-label="Siguiente">›</button>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => setAncla(new Date())}>Hoy</button>
+          <select
+            className="input"
+            aria-label="Forma de ver la agenda"
+            value={vista}
+            onChange={(evento) => setVista(evento.target.value as Vista)}
+          >
+            <option value="mes">Vista mensual</option>
+            <option value="semana">Vista semanal</option>
+          </select>
         </div>
       </div>
 
-      <div className="crm-cal-grilla" role="grid" aria-label="Calendario mensual">
+      <div
+        className={`crm-cal-grilla${vista === 'semana' ? ' es-semana' : ''}`}
+        role="grid"
+        aria-label={vista === 'mes' ? 'Calendario mensual' : 'Calendario semanal'}
+      >
         {DIAS.map((dia) => <span key={dia} className="crm-cal-cabecera">{dia}</span>)}
 
         {celdas.map(({ fecha, delMes }) => {
