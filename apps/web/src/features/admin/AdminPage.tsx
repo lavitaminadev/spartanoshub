@@ -343,10 +343,11 @@ export function AdminPage() {
           {/* Cuál oculta y cuál no era la pregunta que llevaba a cambiar a «piloto» esperando
               que desapareciera del menú, que es justo lo que piloto no hace. */}
           <p className="page-subtitle">
-            Controla si el producto muestra cada módulo y si esta organización puede usarlo.
-            <strong> Activo, piloto y mantenimiento se ven igual</strong>: los tres aparecen en el
-            menú. Para esconder uno usa <strong>En desarrollo</strong> —queda visible solo para
-            Desarrollo— o <strong>Deshabilitado</strong>, que lo oculta para todos.
+            Activo, piloto y mantenimiento se ven igual: los tres aparecen en el menú.
+            <strong> Para dejar algo fuera de una demostración, apágalo en «Acceso
+            organización»</strong> —el interruptor de abajo de cada tarjeta—: es lo único que
+            también te lo oculta a ti. «En desarrollo» lo esconde del resto del equipo pero
+            Desarrollo lo sigue viendo, así que desde tu sesión parece que no pasó nada.
           </p>
         </div>
         <div className="toolbar-actions">
@@ -366,11 +367,22 @@ export function AdminPage() {
           const lifecycle = lifecycleOf(module.key, module.lifecycle);
           const productVisible = isModuleLifecycleVisible(lifecycle);
           const orgEnabled = features?.[module.key] ?? module.defaultEnabled;
+          /*
+            Quién lo sigue viendo, dicho sin rodeos.
+
+            «En desarrollo» esconde el módulo para todos **menos para Desarrollo**, que es quien
+            lo está levantando. Visto desde una sesión de Desarrollo eso se lee como que el
+            cambio no hizo nada: la pantalla sigue en el menú y sigue abriéndose. Para dejar algo
+            fuera de una demostración hay que apagarlo en la organización o deshabilitarlo, que
+            son los dos estados que tampoco perdonan a Desarrollo.
+          */
           const availability = !orgEnabled
-            ? { label: 'Apagado en organización', detail: 'Actívalo para esta organización; después revisa su ciclo de vida.', tone: 'paused' }
-            : !productVisible
-              ? { label: 'Bloqueado por ciclo de vida', detail: 'Está encendido para la organización, pero seguirá oculto hasta promocionarlo a piloto, activo o mantenimiento.', tone: 'paused' }
-              : { label: 'Disponible por configuración', detail: 'Aparecerá sólo para los cargos que tengan permiso sobre este módulo.', tone: 'active' };
+            ? { label: 'Apagado en organización', detail: 'Oculto para todos, incluido Desarrollo. Es la forma segura de dejar algo fuera de una demostración.', tone: 'paused' }
+            : lifecycle === 'development'
+              ? { label: 'En desarrollo', detail: 'Oculto para el resto del equipo, pero Desarrollo lo sigue viendo. Si quieres comprobar cómo queda, apágalo en la organización.', tone: 'paused' }
+              : !productVisible
+                ? { label: 'Deshabilitado', detail: 'Oculto para todos, incluido Desarrollo.', tone: 'paused' }
+                : { label: 'Disponible por configuración', detail: 'Aparecerá sólo para los cargos que tengan permiso sobre este módulo.', tone: 'active' };
           return <article key={module.key} className="module-governance-card">
             <header>
               <div><span className={`status-dot ${availability.tone}`} /><div><h3>{module.key}</h3><small>{availability.label}</small></div></div>

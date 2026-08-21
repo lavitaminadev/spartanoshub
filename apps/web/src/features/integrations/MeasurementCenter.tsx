@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
 import type { ReservationForm } from '../reservations/types';
 
 interface ClientOption { id: string; name: string }
@@ -11,11 +12,35 @@ interface MetaPixelCatalog {
 }
 
 export function MeasurementCenter() {
-  const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
+  /*
+    Este panel vive en integraciones pero lee de otros dos módulos: `clients` y `reservations`.
+
+    Con reservas apagado —una decisión legítima: se puede usar el CRM sin reservas— la consulta
+    de formularios salía igual y respondía 403, así que abrir integraciones llenaba la consola
+    de «acceso no autorizado» por una sección que no tiene nada que mostrar.
+
+    Se comprueba antes de preguntar, y sin reservas la sección simplemente no se dibuja.
+  */
+  const user = useAuth((state) => state.user);
+  const alcanza = (modulo: string) => {
+    const nivel = user?.permissions?.[modulo];
+    return nivel !== undefined && nivel !== 'none';
+  };
+  const hayReservas = alcanza('reservations');
+
+  const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({
+    queryKey: ['clients'],
+    queryFn: () => api.get('/clients'),
+    enabled: alcanza('clients'),
+  });
   const clients = Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
   const clientName = (id: string) => clients.find((client) => client.id === id)?.name || 'Empresa no disponible';
 
-  const { data: forms = [] } = useQuery<ReservationForm[]>({ queryKey: ['reservation-forms', 'measurement-center'], queryFn: () => api.get('/reservations/forms') });
+  const { data: forms = [] } = useQuery<ReservationForm[]>({
+    queryKey: ['reservation-forms', 'measurement-center'],
+    queryFn: () => api.get('/reservations/forms'),
+    enabled: hayReservas,
+  });
   const { data: metaCatalog } = useQuery<MetaPixelCatalog>({ queryKey: ['meta-client-pixel-catalog'], queryFn: () => api.get('/integrations/meta/client-pixels/catalog') });
 
   const pixelUsage = useMemo(() => {

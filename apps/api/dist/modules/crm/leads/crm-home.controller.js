@@ -26,9 +26,13 @@ let CrmHomeController = class CrmHomeController {
         this.dashboard = dashboard;
         this.accountAccess = accountAccess;
     }
-    async get(req, coolingDays) {
+    async get(req, coolingDays, domain, clientId) {
         const dias = Math.min(Math.max(Number(coolingDays) || 7, 1), 90);
-        return this.home.home(req.organizationId, dias);
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        return this.home.home(req.organizationId, dias, {
+            domain: domain === 'audience' ? 'audience' : 'commercial',
+            clientId: clientId || undefined,
+        });
     }
     async panel(req, days, domain, clientId) {
         const ventana = Math.min(Math.max(Number(days) || 30, 1), 365);
@@ -45,8 +49,10 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Avisos y carga del equipo al entrar al CRM' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('coolingDays')),
+    __param(2, (0, common_1.Query)('domain')),
+    __param(3, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], CrmHomeController.prototype, "get", null);
 __decorate([

@@ -17,6 +17,7 @@ import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
+import { useCrmScope } from './crm-scope';
 import './crm-home.css';
 
 interface LeadPreview {
@@ -76,9 +77,14 @@ function desde(fecha: string): string {
 
 export function CrmHomePage(): JSX.Element {
   const { user } = useAuth();
+  // De qué empresa son los avisos. Sin esto el inicio respondía siempre por toda la
+  // organización, así que cambiar de empresa arriba dejaba los mismos avisos de antes.
+  const scope = useCrmScope();
   const { data, isLoading, error, refetch, isFetching } = useQuery<Home>({
-    queryKey: ['crm-home'],
-    queryFn: () => api.get('/crm/home'),
+    queryKey: ['crm-home', scope.domain, scope.clientId],
+    queryFn: () => api.get(
+      `/crm/home?domain=${scope.domain}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+    ),
   });
 
   if (isLoading) return <LoadingSpinner text="Revisando qué hay pendiente..." />;

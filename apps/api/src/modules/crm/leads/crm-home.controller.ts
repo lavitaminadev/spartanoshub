@@ -34,11 +34,22 @@ export class CrmHomeController {
 
   @Get()
   @ApiOperation({ summary: 'Avisos y carga del equipo al entrar al CRM' })
-  async get(@Req() req: AuthenticatedRequest, @Query('coolingDays') coolingDays?: string) {
+  async get(
+    @Req() req: AuthenticatedRequest,
+    @Query('coolingDays') coolingDays?: string,
+    @Query('domain') domain?: string,
+    @Query('clientId') clientId?: string,
+  ) {
     // El plazo se acota acá y no solo en la pantalla: un valor absurdo llegado por la dirección
     // no debe poder pedir un rango que recorra toda la tabla.
     const dias = Math.min(Math.max(Number(coolingDays) || 7, 1), 90);
-    return this.home.home(req.organizationId!, dias);
+    // La empresa se comprueba como en el resto del CRM: llega del navegador y decide de quién
+    // son los avisos, así que pedir una ajena no puede devolver los suyos.
+    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    return this.home.home(req.organizationId!, dias, {
+      domain: domain === 'audience' ? 'audience' : 'commercial',
+      clientId: clientId || undefined,
+    });
   }
 
   @Get('dashboard')
