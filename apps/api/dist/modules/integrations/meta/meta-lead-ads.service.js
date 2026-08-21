@@ -21,13 +21,27 @@ const integration_account_entity_1 = require("../integration-account.entity");
 const integration_account_type_enum_1 = require("../integration-account-type.enum");
 const lead_intake_service_1 = require("../../crm/leads/lead-intake.service");
 const meta_lead_webhook_event_entity_1 = require("./meta-lead-webhook-event.entity");
+const campaign_entity_1 = require("../../crm/campaigns/campaign.entity");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
 let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
-    constructor(accountsRepo, eventsRepo, leadIntake) {
+    constructor(accountsRepo, eventsRepo, campaignsRepo, leadIntake) {
         this.accountsRepo = accountsRepo;
         this.eventsRepo = eventsRepo;
+        this.campaignsRepo = campaignsRepo;
         this.leadIntake = leadIntake;
         this.logger = new common_1.Logger(MetaLeadAdsService_1.name);
+    }
+    async resolverEmpresa(organizationId, campaignName) {
+        if (!campaignName?.trim())
+            return null;
+        const campania = await this.campaignsRepo.findOne({
+            where: { organizationId, name: campaignName.trim() },
+        });
+        if (!campania)
+            return null;
+        return campania.clientId
+            ? { clientId: campania.clientId, domain: 'audience' }
+            : { domain: 'commercial' };
     }
     async processWebhook(payload, options) {
         const changes = this.extractLeadgenChanges(payload);
@@ -102,8 +116,19 @@ let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
                 }
                 const leadDetail = await this.retrieveLead(change.leadgenId, accessToken);
                 const normalized = this.normalizeLeadDetail(leadDetail);
+                const destino = await this.resolverEmpresa(pageAccount.integration.organizationId, leadDetail.campaign_name);
+                if (!destino) {
+                    event.processingStatus = 'error';
+                    event.errorMessage = leadDetail.campaign_name
+                        ? `La campaña "${leadDetail.campaign_name}" no está registrada en el CRM: no se puede saber de qué empresa es el lead.`
+                        : 'El lead llegó sin nombre de campaña: no se puede saber de qué empresa es.';
+                    await this.eventsRepo.save(event);
+                    continue;
+                }
                 await this.leadIntake.captureLead({
                     organizationId: pageAccount.integration.organizationId,
+                    clientId: destino.clientId,
+                    domain: destino.domain,
                     name: normalized.name,
                     email: normalized.email,
                     phone: normalized.phone,
@@ -233,7 +258,9 @@ exports.MetaLeadAdsService = MetaLeadAdsService = MetaLeadAdsService_1 = __decor
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(integration_account_entity_1.IntegrationAccount)),
     __param(1, (0, typeorm_1.InjectRepository)(meta_lead_webhook_event_entity_1.MetaLeadWebhookEvent)),
+    __param(2, (0, typeorm_1.InjectRepository)(campaign_entity_1.Campaign)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         lead_intake_service_1.LeadIntakeService])
 ], MetaLeadAdsService);

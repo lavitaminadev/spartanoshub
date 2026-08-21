@@ -16,13 +16,22 @@ const leadIntake = {
   captureLead: vi.fn(),
 };
 
+const campaignsRepo = {
+  findOne: vi.fn(),
+};
+
 describe('MetaLeadAdsService', () => {
   let service: MetaLeadAdsService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
-    service = new MetaLeadAdsService(accountsRepo as any, eventsRepo as any, leadIntake as any);
+    /*
+     * Un lead de Meta solo se guarda si su campaña está registrada en el CRM: es de ahí de donde
+     * sale a qué empresa pertenece. El doble devuelve la campaña que nombra el payload.
+     */
+    campaignsRepo.findOne.mockResolvedValue({ id: 'camp-1', clientId: null });
+    service = new MetaLeadAdsService(accountsRepo as any, eventsRepo as any, campaignsRepo as any, leadIntake as any);
     accountsRepo.find.mockResolvedValue([]);
     eventsRepo.find.mockResolvedValue([]);
     eventsRepo.create.mockImplementation((data) => data);

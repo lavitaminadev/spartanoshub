@@ -5,6 +5,7 @@ import { IntegrationAccount } from '../integration-account.entity';
 import { IntegrationAccountType } from '../integration-account-type.enum';
 import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
 import { MetaLeadWebhookEvent } from './meta-lead-webhook-event.entity';
+import { Campaign } from '../../crm/campaigns/campaign.entity';
 import { revealSecret } from '../../../shared/security/integration-secrets';
 
 interface MetaLeadgenPayload {
@@ -50,8 +51,37 @@ export class MetaLeadAdsService {
   constructor(
     @InjectRepository(IntegrationAccount) private readonly accountsRepo: Repository<IntegrationAccount>,
     @InjectRepository(MetaLeadWebhookEvent) private readonly eventsRepo: Repository<MetaLeadWebhookEvent>,
+    @InjectRepository(Campaign) private readonly campaignsRepo: Repository<Campaign>,
     private readonly leadIntake: LeadIntakeService,
   ) {}
+
+  /**
+   * A qué empresa y a qué embudo pertenece un lead de Meta.
+   *
+   * Meta manda el nombre de la campaña; la correspondencia con la empresa vive en las campañas
+   * registradas en el CRM, que es donde alguien ya declaró de quién es cada una. Se busca por
+   * nombre exacto porque es el mismo criterio con que el panel cruza inversión y leads: si acá
+   * se aceptara una coincidencia aproximada, un lead podría contarse en una empresa y su costo
+   * en otra.
+   *
+   * Una campaña sin cliente es de la agencia y su lead va al embudo comercial. Con cliente, va
+   * al de contactos de campaña de ese cliente.
+   *
+   * @returns `null` cuando no hay campaña registrada, que significa «no guardar».
+   */
+  private async resolverEmpresa(
+    organizationId: string,
+    campaignName?: string,
+  ): Promise<{ clientId?: string; domain: 'audience' | 'commercial' } | null> {
+    if (!campaignName?.trim()) return null;
+    const campania = await this.campaignsRepo.findOne({
+      where: { organizationId, name: campaignName.trim() },
+    });
+    if (!campania) return null;
+    return campania.clientId
+      ? { clientId: campania.clientId, domain: 'audience' }
+      : { domain: 'commercial' };
+  }
 
   async processWebhook(
     payload: MetaLeadgenPayload,
@@ -146,8 +176,37 @@ export class MetaLeadAdsService {
 
         const leadDetail = await this.retrieveLead(change.leadgenId, accessToken);
         const normalized = this.normalizeLeadDetail(leadDetail);
+
+        /*
+         * De quién es este lead.
+         *
+         * Meta entrega el nombre de la campaña, no la empresa. La correspondencia vive en las
+         * campañas registradas en el CRM, que es donde alguien ya declaró a qué cliente
+         * pertenece cada una y cuánto se invirtió.
+         *
+         * Sin campaña registrada **no se crea el lead**. Antes esta entrada guardaba sin empresa
+         * y en el embudo comercial, así que los contactos de un cliente aparecían entre los
+         * prospectos de la agencia: mezclados, y sin forma de saber después cuáles eran de quién.
+         * Es preferible un evento en error —visible, con su motivo, y reprocesable en cuanto se
+         * registre la campaña— que un lead callado en el sitio equivocado.
+         */
+        const destino = await this.resolverEmpresa(
+          pageAccount.integration.organizationId,
+          leadDetail.campaign_name,
+        );
+        if (!destino) {
+          event.processingStatus = 'error';
+          event.errorMessage = leadDetail.campaign_name
+            ? `La campaña "${leadDetail.campaign_name}" no está registrada en el CRM: no se puede saber de qué empresa es el lead.`
+            : 'El lead llegó sin nombre de campaña: no se puede saber de qué empresa es.';
+          await this.eventsRepo.save(event);
+          continue;
+        }
+
         await this.leadIntake.captureLead({
           organizationId: pageAccount.integration.organizationId,
+          clientId: destino.clientId,
+          domain: destino.domain,
           name: normalized.name,
           email: normalized.email,
           phone: normalized.phone,

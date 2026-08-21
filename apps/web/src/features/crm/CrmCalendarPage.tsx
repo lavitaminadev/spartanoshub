@@ -10,6 +10,7 @@ import { useMemo, useState, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { ExportButtons, type ExportDocument } from '../../shared/export';
 import './crm-calendar.css';
 
 interface Reunion {
@@ -107,6 +108,31 @@ export function CrmCalendarPage(): JSX.Element {
     ? ancla.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
     : `Semana del ${celdas[0].fecha.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`;
 
+  /** Lo que hay agendado dentro de la cuadrícula visible, en orden cronológico. */
+  const eventosDelPeriodo = useMemo(() => {
+    const claves = new Set(celdas.map(({ fecha }) => claveDia(fecha)));
+    return (data ?? [])
+      .filter((reunion) => reunion.scheduledAt && claves.has(claveDia(new Date(reunion.scheduledAt))))
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  }, [data, celdas]);
+
+  const documento: ExportDocument<Reunion> = {
+    fileName: vista === 'mes' ? 'agenda-mensual' : 'agenda-semanal',
+    title: `Agenda · ${titulo}`,
+    subtitle: `${eventosDelPeriodo.length} actividad(es) en el período`,
+    meta: [
+      { label: 'Período', value: titulo },
+      { label: 'Vista', value: vista === 'mes' ? 'Mensual' : 'Semanal' },
+    ],
+    columns: [
+      { header: 'Fecha', value: (r) => new Date(r.scheduledAt).toLocaleDateString('es-CL'), width: 12 },
+      { header: 'Hora', value: (r) => new Date(r.scheduledAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }), width: 8 },
+      { header: 'Actividad', value: (r) => r.title, width: 40 },
+    ],
+    rows: eventosDelPeriodo,
+    footer: 'Espartanos · CRM',
+  };
+
   if (isLoading) return <LoadingSpinner text="Cargando el mes..." />;
 
   return (
@@ -121,6 +147,15 @@ export function CrmCalendarPage(): JSX.Element {
           <strong>{titulo}</strong>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => mover(1)} aria-label="Siguiente">›</button>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => setAncla(new Date())}>Hoy</button>
+          {/*
+            La agenda impresa del período que se está mirando.
+
+            Se lleva a una reunión o se pega en la pared, y para eso hace falta en papel lo que
+            en pantalla se ve de un vistazo. Exporta exactamente lo que está en la cuadrícula
+            —mes o semana—, no un rango fijo: si se exportara siempre la semana, el archivo
+            diría algo distinto de lo que la persona tenía delante al pulsar.
+          */}
+          <ExportButtons document={documento} />
           <select
             className="input"
             aria-label="Forma de ver la agenda"

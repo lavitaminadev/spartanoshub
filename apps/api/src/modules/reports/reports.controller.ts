@@ -74,10 +74,23 @@ export class ReportingController {
     UserRole.AUDIOVISUAL,
   )
   @ApiOperation({ summary: 'Dashboard ejecutivo' })
-  async dashboard(@Req() req: AuthenticatedRequest) {
+  async dashboard(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const orgId = req.organizationId!;
     const personal = [UserRole.DESIGNER, UserRole.AUDIOVISUAL].includes(req.user.role as UserRole);
-    const clientIds = await this.accountAccess.allowedClientIds(orgId, req.user);
+    /*
+     * Una empresa concreta, o todas las que la persona alcanza.
+     *
+     * El alcance por cargo ya existía; lo que faltaba era poder elegir dentro de él. Sin eso,
+     * este panel respondía siempre por la organización entera y era el único sitio del sistema
+     * donde cambiar de empresa no cambiaba una sola cifra: al lado del CRM, que sí lo hace, se
+     * leía como que el dato estaba mal.
+     *
+     * La empresa pedida se comprueba igual que en el CRM: llega del navegador, así que pedir una
+     * ajena no puede devolver sus números.
+     */
+    await this.accountAccess.assertClient(orgId, req.user, clientId);
+    const permitidas = await this.accountAccess.allowedClientIds(orgId, req.user);
+    const clientIds = clientId ? [clientId] : permitidas;
     const clientScope = clientIds === undefined
       ? { sql: '', params: [] as string[] }
       : clientIds.length
