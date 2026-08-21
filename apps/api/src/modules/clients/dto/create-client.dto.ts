@@ -2,10 +2,21 @@ import { IsString, IsOptional, IsUUID, IsNumber, IsInt, MaxLength, MinLength, Mi
 import { Type } from 'class-transformer';
 import { CLIENT_INDUSTRY_VALUES } from '@espartanos/shared';
 
+/**
+ * Capacidades contratadas por la cuenta.
+ *
+ * Las cinco de `CLIENT_CAPABILITY_KEYS`, no un subconjunto. Faltaban `googleConversions` y
+ * `budgetVisibility`: la entidad las guarda y el panel las ofrece, pero al enviarlas la
+ * validación las rechazaba por no estar declaradas acá, así que editar una cuenta que las
+ * tuviera encendidas fallaba entera —y el mensaje señalaba el campo sin decir que el problema
+ * era del formulario y no del valor—.
+ */
 export class ClientCapabilitiesDto {
   @IsOptional() @IsBoolean() reservations?: boolean;
   @IsOptional() @IsBoolean() crm?: boolean;
   @IsOptional() @IsBoolean() metaConversions?: boolean;
+  @IsOptional() @IsBoolean() googleConversions?: boolean;
+  @IsOptional() @IsBoolean() budgetVisibility?: boolean;
 }
 
 export class CreateClientDto {

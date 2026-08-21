@@ -73,3 +73,28 @@
 @media (max-width: 560px) {
   .lead-detail-actividades li { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* Alta de tarea: título, fecha y botón en una línea, porque se escriben de corrido. */
+.lead-detail-tarea-nueva { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.lead-detail-tarea-nueva .input { flex: 1 1 200px; min-width: 0; }
+.lead-detail-tarea-nueva .input[type="date"] { flex: 0 0 auto; }
+
+.lead-detail-tareas { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lead-detail-tareas li {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--surface-sage); border-radius: 8px;
+}
+.lead-detail-tareas label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.lead-detail-tareas time { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* Una tarea cumplida se tacha en vez de desaparecer: lo hecho también es información. */
+.lead-detail-tareas .esta-cerrada { opacity: .55; }
+.lead-detail-tareas .esta-cerrada span { text-decoration: line-through; }
+
+/* Vencida en rojo y no solo en negrita: es lo único de esta lista que pide actuar hoy. */
+.lead-detail-tareas .esta-vencida { border-color: #e2725b; }
+.lead-detail-tareas .esta-vencida time { color: #e2725b; font-weight: 600; }
+
+@media (max-width: 560px) {
+  .lead-detail-tareas li { flex-wrap: wrap; }
+}
