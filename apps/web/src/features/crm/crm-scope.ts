@@ -9,13 +9,26 @@
 import { createContext, useContext } from 'react';
 
 export interface CrmScopeValue {
-  /** Cuenta elegida en la barra, o `''` cuando se están mirando todas. */
+  /**
+   * Cuenta cuyo CRM se está mirando. Vacío cuando es el de la agencia, que no tiene cuenta:
+   * sus prospectos **son** las empresas, no personas que pertenezcan a una.
+   */
   clientId: string;
   setClientId: (value: string) => void;
   /** Cuentas que esta persona alcanza, ya resueltas por el servidor. */
   clients: Array<{ id: string; name: string }>;
   /** Nombre de una cuenta, para no repetir el mapa en cada pantalla. */
   nombreDe: (clientId?: string | null) => string;
+  /**
+   * Embudo que toca consultar, derivado de la empresa elegida.
+   *
+   * Ninguna pantalla debería decidirlo por su cuenta: es lo que hacía que el CRM pareciera dos.
+   */
+  domain: 'audience' | 'commercial';
+  /** Si lo que se mira es el embudo propio de Espartanos. */
+  esAgencia: boolean;
+  /** Nombre de la empresa en pantalla, para los encabezados. */
+  empresa: string;
 }
 
 export const CrmScopeContext = createContext<CrmScopeValue | null>(null);

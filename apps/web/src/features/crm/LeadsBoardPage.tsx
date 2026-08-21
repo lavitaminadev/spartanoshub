@@ -36,6 +36,7 @@ import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { ImportLeadsModal } from './ImportLeadsModal';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
 import { STAGES, STAGE_ACCENT, STAGE_LABEL } from './stage-labels';
+import { useCrmScope } from './crm-scope';
 import './leads-board.css';
 
 interface Lead {
@@ -78,6 +79,8 @@ function iniciales(nombre: string): string {
 
 export function LeadsBoardPage(): JSX.Element {
   const queryClient = useQueryClient();
+  // De qué empresa es el CRM que se está mirando. Lo decide la barra, no esta pantalla.
+  const scope = useCrmScope();
   const filtros = useUrlFilters(FILTER_KEYS);
   const [vista, setVista] = useState<Vista>('tablero');
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
@@ -91,11 +94,15 @@ export function LeadsBoardPage(): JSX.Element {
   const [meta, setMeta] = useState({ pageId: '', leadgenId: '' });
 
   const { data, isLoading, error, refetch } = useQuery<{ data: Lead[] }>({
-    queryKey: ['crm-leads-board'],
+    // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
+    // filtrado, así que su resultado no puede reutilizar la caché del anterior.
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId],
     // Sin `limit` el backend pagina de a 20 y ocultaba en silencio los prospectos más antiguos.
     // El máximo del endpoint (100) sigue siendo una cota informal: si el embudo crece más allá,
     // esta pantalla necesita paginación real.
-    queryFn: () => api.get('/crm/leads?domain=commercial&limit=100'),
+    queryFn: () => api.get(
+      `/crm/leads?domain=${scope.domain}&limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+    ),
   });
 
   const { data: usuarios } = useQuery<{ data: UserOption[] }>({
@@ -268,12 +275,15 @@ export function LeadsBoardPage(): JSX.Element {
     <div className="page leads-board">
       <div className="page-header">
         <div>
-          <span className="crm-scope is-agency">CRM de Espartanos</span>
-          <span className="page-eyebrow">EMBUDO COMERCIAL</span>
-          <h1>Prospectos</h1>
+          {/* El encabezado sigue a la empresa elegida: es lo que evita mirar un embudo creyendo
+              que es el de otra, ahora que la misma pantalla sirve a las dos. */}
+          <span className={scope.esAgencia ? 'crm-scope is-agency' : 'crm-scope'}>{scope.empresa}</span>
+          <span className="page-eyebrow">{scope.esAgencia ? 'EMBUDO COMERCIAL' : 'CONTACTOS DE CAMPAÑA'}</span>
+          <h1>{scope.esAgencia ? 'Prospectos' : 'Leads'}</h1>
           <p className="page-subtitle">
-            Empresas que Espartanos quiere sumar como clientes. No son los contactos de campaña
-            de los clientes: esos viven en Contactos.
+            {scope.esAgencia
+              ? 'Empresas que Espartanos quiere sumar como clientes.'
+              : `Personas que llegaron por las campañas de ${scope.empresa}.`}
           </p>
         </div>
         <div className="page-header-actions">

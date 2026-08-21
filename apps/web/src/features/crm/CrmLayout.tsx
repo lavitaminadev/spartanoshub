@@ -21,47 +21,34 @@ import { CrmScopeContext, type CrmScopeValue } from './crm-scope';
 import './crm-layout.css';
 
 /**
- * A qué embudo pertenece cada sección.
+ * Secciones del CRM, en el orden en que se usan durante el día.
  *
- * No es decoración: son dos CRM con significados distintos que la base separa en `leads.domain`
- * desde la migración 0069. Presentarlos como una sola fila de nueve pestañas invita a leer
- * «Contactos» y «Oportunidades» como dos etapas del mismo recorrido, y no lo son.
- */
-type Grupo = 'general' | 'cliente' | 'agencia';
-
-const GRUPO_LABEL: Record<Grupo, string> = {
-  general: '',
-  cliente: 'Clientes',
-  agencia: 'Espartanos',
-};
-
-/**
- * Secciones, en el orden en que se usan durante el día.
+ * **Una sola lista, no dos.** Antes la barra las repartía en dos grupos —«Clientes» y
+ * «Espartanos»— porque la base separa dos embudos en `leads.domain`. En pantalla eso se leía
+ * como dos CRM conviviendo dentro de uno, que es exactamente lo que no es: hay un CRM y se
+ * mira una empresa a la vez.
  *
- * `end` en el inicio porque su ruta es prefijo de todas las demás: sin eso quedaría marcado como
- * activo estando en cualquier otra sección.
+ * Qué empresa se está mirando lo dice el selector de la derecha, y de ahí sale el embudo: la
+ * agencia ve sus propios prospectos, una cuenta ve los contactos que trajeron sus campañas.
+ * La separación de la base sigue intacta; lo que cambia es que deja de ser una decisión de
+ * navegación para volverse una de contexto.
+ *
+ * `end` en el inicio porque su ruta es prefijo de todas las demás: sin eso quedaría marcado
+ * como activo estando en cualquier otra sección.
  */
-const SECCIONES: Array<{ to: string; label: string; end?: boolean; grupo: Grupo }> = [
-  { to: '/crm', label: 'Inicio', end: true, grupo: 'general' },
-
-  // Contactos de campaña (`domain=audience`): pertenecen a una cuenta y el selector los acota.
-  // Es la única sección que consulta ese embudo; las demás son todas de la agencia.
-  { to: '/crm/contacts', label: 'Contactos', grupo: 'cliente' },
-
-  // Embudo propio de la agencia (`domain=commercial`): sus prospectos son empresas, no personas
-  // de una cuenta, así que el selector de cuenta no les aplica.
-  // Sin «Tablero» aparte: el tablero y la tabla son dos vistas de esta misma sección y se
-  // alternan dentro de ella. Como pestañas separadas eran dos entradas al mismo dato, y la
-  // barra marcaba una u otra como activa según por dónde se hubiera entrado.
-  { to: '/crm/leads', label: 'Prospectos', grupo: 'agencia' },
-  { to: '/crm/opportunities', label: 'Oportunidades', grupo: 'agencia' },
-  { to: '/crm/pipeline', label: 'Pipeline', grupo: 'agencia' },
-  { to: '/crm/interactions', label: 'Actividad', grupo: 'agencia' },
-
-  { to: '/crm/dashboard', label: 'Dashboard', grupo: 'general' },
-  { to: '/crm/calendario', label: 'Calendario', grupo: 'general' },
-  { to: '/crm/administracion', label: 'Administración', grupo: 'general' },
+const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
+  { to: '/crm', label: 'Inicio', end: true },
+  { to: '/crm/leads', label: 'Tablero' },
+  { to: '/crm/contacts', label: 'Leads' },
+  { to: '/crm/opportunities', label: 'Oportunidades' },
+  { to: '/crm/interactions', label: 'Actividad' },
+  { to: '/crm/dashboard', label: 'Dashboard' },
+  { to: '/crm/calendario', label: 'Calendario' },
+  { to: '/crm/administracion', label: 'Administración' },
 ];
+
+/** Valor del selector cuando se está mirando el embudo propio de la agencia. */
+export const CUENTA_AGENCIA = 'espartanos';
 
 
 export function CrmLayout(): JSX.Element {
@@ -80,14 +67,34 @@ export function CrmLayout(): JSX.Element {
 
   // Se recuerda por persona: quien atiende una sola cuenta no debería tener que elegirla cada
   // vez que entra, y quien las ve todas rara vez cambia de cuenta dentro de la misma jornada.
-  const scopeKey = storageKey('crm-cliente', user?.id ?? 'anon');
-  const [clientId, setClientIdState] = useState<string>(() => readStoredJson<string>(scopeKey, ''));
+  const scopeKey = storageKey('crm-cuenta', user?.id ?? 'anon');
+  const [clientId, setClientIdState] = useState<string>(() => readStoredJson<string>(scopeKey, CUENTA_AGENCIA));
   const setClientId = (value: string) => { setClientIdState(value); writeStoredJson(scopeKey, value); };
 
   const nombrePorId = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const nombreDe = (id?: string | null) => (id ? nombrePorId.get(id) ?? 'Cuenta no encontrada' : 'Sin cuenta');
 
-  const scope: CrmScopeValue = { clientId, setClientId, clients, nombreDe };
+  /**
+   * Embudo que corresponde a la empresa elegida.
+   *
+   * Es la traducción de «qué CRM estoy mirando» a lo que la base ya distingue: los prospectos
+   * de la agencia son empresas que Espartanos quiere sumar; los de una cuenta son las personas
+   * que trajeron sus campañas. Al derivarlo del selector, elegir la empresa es lo único que hay
+   * que hacer, y ninguna pantalla tiene que volver a preguntarlo.
+   */
+  const esAgencia = clientId === CUENTA_AGENCIA;
+  const domain: 'audience' | 'commercial' = esAgencia ? 'commercial' : 'audience';
+
+  const scope: CrmScopeValue = {
+    clientId: esAgencia ? '' : clientId,
+    setClientId,
+    clients,
+    nombreDe,
+    domain,
+    esAgencia,
+    /** Nombre de la empresa que se está mirando, para los encabezados de cada pantalla. */
+    empresa: esAgencia ? 'Espartanos' : nombreDe(clientId),
+  };
 
   /*
     Qué secciones ve cada persona lo decide la matriz de permisos, no una lista de cargos
@@ -106,9 +113,6 @@ export function CrmLayout(): JSX.Element {
     user?.role,
   ));
 
-  // El selector solo gobierna los contactos de campaña. Ofrecerlo a quien no alcanza esa
-  // sección sería un control que no cambia nada de lo que esa persona ve.
-  const mostrarSelector = visibles.some((seccion) => seccion.grupo === 'cliente');
 
   /*
     Sin secciones no hay barra.
@@ -129,41 +133,39 @@ export function CrmLayout(): JSX.Element {
       <div className="crm-shell">
         <nav className="crm-nav" aria-label="Secciones del CRM">
           <div className="crm-nav-secciones">
-            {visibles.map((seccion, indice) => {
-              // El rótulo del grupo se dibuja al empezar cada tramo, no en cada pestaña: separa
-              // los dos embudos sin convertir la barra en una lista de encabezados.
-              const anterior = visibles[indice - 1];
-              const abreGrupo = seccion.grupo !== anterior?.grupo && GRUPO_LABEL[seccion.grupo];
-
-              return (
-                <span className="crm-nav-item" key={seccion.to}>
-                  {abreGrupo ? <span className="crm-nav-grupo">{GRUPO_LABEL[seccion.grupo]}</span> : null}
-                  <NavLink
-                    to={seccion.to}
-                    end={seccion.end}
-                    className={({ isActive }) => (isActive ? 'crm-nav-link activo' : 'crm-nav-link')}
-                  >
-                    {seccion.label}
-                  </NavLink>
-                </span>
-              );
-            })}
+            {visibles.map((seccion) => (
+              <NavLink
+                key={seccion.to}
+                to={seccion.to}
+                end={seccion.end}
+                className={({ isActive }) => (isActive ? 'crm-nav-link activo' : 'crm-nav-link')}
+              >
+                {seccion.label}
+              </NavLink>
+            ))}
           </div>
 
           <div className="crm-nav-derecha">
             {/*
-              «Todas» es una opción legítima y no un estado sin elegir: la agencia necesita mirar
-              el conjunto tanto como una cuenta concreta. Por eso no arranca forzando una.
+              De qué empresa es el CRM que se está mirando.
+
+              No es un filtro sino el contexto: cambiarlo cambia el embudo, no acota una lista.
+              Por eso siempre hay una empresa elegida y no existe un «todas» —mirar el conjunto
+              de dos embudos con significados distintos no responde ninguna pregunta—.
+
+              Las opciones son las cuentas que esta persona alcanza, resueltas por el servidor,
+              más la propia agencia. Con eso, qué CRM ve cada quien sale de las cuentas que
+              maneja, sin una regla aparte que mantener de acuerdo.
             */}
-            <label className="crm-nav-cuenta" hidden={!mostrarSelector}>
-              <span className="crm-nav-cuenta-label">Cuenta</span>
+            <label className="crm-nav-cuenta">
+              <span className="crm-nav-cuenta-label">Empresa</span>
               <select
                 className="input"
-                aria-label="Acotar el CRM a una cuenta"
-                value={clientId}
+                aria-label="Empresa cuyo CRM se está mirando"
+                value={esAgencia ? CUENTA_AGENCIA : clientId}
                 onChange={(event) => setClientId(event.target.value)}
               >
-                <option value="">Todas las cuentas</option>
+                <option value={CUENTA_AGENCIA}>Espartanos</option>
                 {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
               </select>
             </label>
