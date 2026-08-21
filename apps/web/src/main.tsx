@@ -6,9 +6,19 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
+import { mantenerAlDia } from './core/actualizacion-app'
 
-// Reload once when a newly deployed service worker takes control.
-registerSW({ immediate: true })
+/*
+ * Que una recarga traiga de verdad la versión nueva.
+ *
+ * `registerSW` solo instala el service worker. Quien pregunta si hay una versión nueva —y quien
+ * recarga cuando entra— es `mantenerAlDia`: sin eso, una pestaña abierta desde hace horas
+ * seguía sirviendo la copia guardada contra un servidor ya actualizado.
+ */
+registerSW({
+  immediate: true,
+  onRegisteredSW: (_url, registro) => mantenerAlDia(registro),
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

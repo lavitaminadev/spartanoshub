@@ -12,20 +12,21 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StageLabelsService = exports.CLAVE_ROTULOS = void 0;
+exports.StageLabelsService = exports.CLAVE_VOCABULARIO = exports.CLAVE_ROTULOS = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const parameter_definition_entity_1 = require("../../../core/parameters/parameter-definition.entity");
 const parameter_value_entity_1 = require("../../../core/parameters/parameter-value.entity");
 exports.CLAVE_ROTULOS = 'crm.stage_labels';
+exports.CLAVE_VOCABULARIO = 'crm.vocabulary';
 let StageLabelsService = class StageLabelsService {
     constructor(definiciones, valores) {
         this.definiciones = definiciones;
         this.valores = valores;
     }
-    async get(organizationId, clientId) {
-        const definicion = await this.definiciones.findOne({ where: { key: exports.CLAVE_ROTULOS } });
+    async get(organizationId, clientId, clave = exports.CLAVE_ROTULOS) {
+        const definicion = await this.definiciones.findOne({ where: { key: clave } });
         if (!definicion)
             return {};
         const fila = await this.valores.findOne({
@@ -38,11 +39,11 @@ let StageLabelsService = class StageLabelsService {
         const guardado = fila?.valueJson?.value;
         return guardado && typeof guardado === 'object' ? guardado : {};
     }
-    async set(organizationId, clientId, rotulos) {
-        const definicion = await this.definiciones.findOne({ where: { key: exports.CLAVE_ROTULOS } })
+    async set(organizationId, clientId, rotulos, clave = exports.CLAVE_ROTULOS) {
+        const definicion = await this.definiciones.findOne({ where: { key: clave } })
             ?? await this.definiciones.save(this.definiciones.create({
-                key: exports.CLAVE_ROTULOS,
-                description: 'Cómo llama cada empresa a las etapas de su embudo. No cambia el estado guardado.',
+                key: clave,
+                description: 'Cómo llama cada empresa a las cosas del CRM. Solo cambia lo que se muestra.',
                 defaultValue: { value: {} },
             }));
         const limpios = {};

@@ -29,6 +29,24 @@ export default defineConfig(({ command }) => {
     optimizeDeps: { include: ['@espartanos/shared'] },
     plugins: [react(), VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        /*
+         * Borrar lo que dejó la versión anterior.
+         *
+         * Sin esto, cada despliegue suma una caché nueva y las viejas se quedan ocupando disco
+         * para siempre. Peor que el espacio: cuando algo falla, quedan varias generaciones de
+         * los mismos archivos y ya no se puede saber cuál está sirviendo el navegador.
+         */
+        cleanupOutdatedCaches: true,
+        /*
+         * La API nunca se sirve desde la caché de navegación.
+         *
+         * `navigateFallback` responde con el index para cualquier ruta que no encuentre, y eso
+         * incluiría una petición a `/api` que falle: la pantalla recibiría HTML donde espera
+         * JSON y el error saldría como «token inesperado <» en vez de decir qué pasó.
+         */
+        navigateFallbackDenylist: [new RegExp(String.raw`^/api/`)],
+      },
       includeAssets: [
         'favicon.svg',
         'icon-192x192.png',
