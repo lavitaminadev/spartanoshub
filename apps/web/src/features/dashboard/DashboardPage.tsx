@@ -65,6 +65,9 @@ const WIDGET_MODULE: Partial<Record<DashboardWidget, string>> = {
   pieces: 'production',
   attention: 'production',
   flow: 'production',
+  // El pulso lee de `/reporting/pulse`. Sin declararlo, la tarjeta se dibujaba con `reports`
+  // apagado y su consulta respondía 403 en la pantalla de aterrizaje.
+  pulse: 'reports',
 };
 
 const PIECE_COLORS: Record<string, string> = {

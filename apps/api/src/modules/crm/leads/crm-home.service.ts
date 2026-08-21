@@ -61,19 +61,29 @@ export class CrmHomeService {
    * @param coolingDays - Días sin movimiento tras los que un lead se considera enfriándose.
    *   Es configuración y no una constante porque el plazo razonable depende del negocio: en una
    *   venta de departamentos no es el mismo que en una consulta de agenda.
+   * @param alcance - Empresa cuyo CRM se está mirando, tal como la eligió la barra. Sin esto el
+   *   inicio respondía siempre por toda la organización, así que cambiar de empresa arriba
+   *   dejaba los avisos y la carga del equipo mostrando lo de antes.
    */
-  async home(organizationId: string, coolingDays = 7) {
+  async home(organizationId: string, coolingDays = 7, alcance: { domain?: 'audience' | 'commercial'; clientId?: string } = {}) {
     const inicioDeMes = new Date();
     inicioDeMes.setDate(1);
     inicioDeMes.setHours(0, 0, 0, 0);
 
     const limiteFrio = new Date(Date.now() - coolingDays * 86_400_000);
-    const abierto = { organizationId, status: In(this.openStatuses()) };
+    // Se compone una vez y se reparte: con seis consultas, repetir el filtro dejaba que alguna
+    // se olvidara y contara leads de otra empresa dentro del inicio de ésta.
+    const base = {
+      organizationId,
+      domain: alcance.domain ?? 'commercial',
+      ...(alcance.clientId ? { clientId: alcance.clientId } : {}),
+    };
+    const abierto = { ...base, status: In(this.openStatuses()) };
 
     const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, equipo] = await Promise.all([
-      this.leads.count({ where: { organizationId, createdAt: MoreThanOrEqual(inicioDeMes) } as never }),
-      this.leads.count({ where: { organizationId, status: LeadStatus.WON, updatedAt: MoreThanOrEqual(inicioDeMes) } as never }),
-      this.montoDelMes(organizationId, inicioDeMes),
+      this.leads.count({ where: { ...base, createdAt: MoreThanOrEqual(inicioDeMes) } as never }),
+      this.leads.count({ where: { ...base, status: LeadStatus.WON, updatedAt: MoreThanOrEqual(inicioDeMes) } as never }),
+      this.montoDelMes(base, inicioDeMes),
       this.alert('sin_contactar', { ...abierto, status: LeadStatus.NEW }),
       this.alert('sin_asignar', { ...abierto, assignedTo: IsNull() }),
       /*
@@ -84,10 +94,10 @@ export class CrmHomeService {
        * y cualquier discrepancia entre ambas respuestas dejaría el aviso mintiendo.
        */
       this.alert('calificados_sin_visita', {
-        organizationId,
+        ...base,
         status: LeadStatus.QUOTE_SENT,
       }),
-      this.teamLoad(organizationId, limiteFrio),
+      this.teamLoad(base, limiteFrio),
     ]);
 
     const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
@@ -104,14 +114,27 @@ export class CrmHomeService {
   }
 
   /** Suma vendida en el mes. Se usa COALESCE porque sin ventas la suma es nula, no cero. */
-  private async montoDelMes(organizationId: string, desde: Date): Promise<number> {
-    const fila = await this.leads.createQueryBuilder('lead')
+  private async montoDelMes(base: Record<string, unknown>, desde: Date): Promise<number> {
+    const fila = await this.acotar(this.leads.createQueryBuilder('lead'), base)
       .select('COALESCE(SUM(lead.estimated_amount), 0)', 'total')
-      .where('lead.organization_id = :organizationId', { organizationId })
       .andWhere('lead.status = :status', { status: LeadStatus.WON })
       .andWhere('lead.updated_at >= :desde', { desde })
       .getRawOne<{ total: string }>();
     return Number(fila?.total ?? 0);
+  }
+
+  /**
+   * Aplica el alcance —organización, embudo y empresa— a una consulta del inicio.
+   *
+   * En un solo sitio porque son seis: repetirlo dejaba que alguna se olvidara del filtro y
+   * contara leads de otra empresa dentro del inicio de ésta, sin que nada fallara.
+   */
+  private acotar<T extends import('typeorm').SelectQueryBuilder<Lead>>(query: T, base: Record<string, unknown>): T {
+    query
+      .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
+      .andWhere('lead.domain = :domain', { domain: base.domain });
+    if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+    return query;
   }
 
   /** Estados en los que el lead todavía espera algo de alguien. */
@@ -156,13 +179,12 @@ export class CrmHomeService {
    * Una sola consulta agrupada en vez de una por persona: con quince personas serían cuarenta y
    * cinco consultas para dibujar una tabla que se mira de reojo.
    */
-  private async teamLoad(organizationId: string, limiteFrio: Date): Promise<TeamLoadRow[]> {
-    const filas = await this.leads.createQueryBuilder('lead')
+  private async teamLoad(base: Record<string, unknown>, limiteFrio: Date): Promise<TeamLoadRow[]> {
+    const filas = await this.acotar(this.leads.createQueryBuilder('lead'), base)
       .select('lead.assigned_to', 'userId')
       .addSelect('COUNT(*)', 'open')
       .addSelect(`SUM(CASE WHEN lead.status = :nuevo THEN 1 ELSE 0 END)`, 'uncontacted')
       .addSelect(`SUM(CASE WHEN lead.updated_at < :limiteFrio THEN 1 ELSE 0 END)`, 'cooling')
-      .where('lead.organization_id = :organizationId', { organizationId })
       .andWhere('lead.assigned_to IS NOT NULL')
       .andWhere('lead.status NOT IN (:...cerrados)', { cerrados: CLOSED_STATUSES })
       .setParameters({ nuevo: LeadStatus.NEW, limiteFrio })

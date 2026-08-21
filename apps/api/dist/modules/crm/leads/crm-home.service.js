@@ -25,23 +25,28 @@ let CrmHomeService = class CrmHomeService {
         this.leads = leads;
         this.users = users;
     }
-    async home(organizationId, coolingDays = 7) {
+    async home(organizationId, coolingDays = 7, alcance = {}) {
         const inicioDeMes = new Date();
         inicioDeMes.setDate(1);
         inicioDeMes.setHours(0, 0, 0, 0);
         const limiteFrio = new Date(Date.now() - coolingDays * 86_400_000);
-        const abierto = { organizationId, status: (0, typeorm_2.In)(this.openStatuses()) };
+        const base = {
+            organizationId,
+            domain: alcance.domain ?? 'commercial',
+            ...(alcance.clientId ? { clientId: alcance.clientId } : {}),
+        };
+        const abierto = { ...base, status: (0, typeorm_2.In)(this.openStatuses()) };
         const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, equipo] = await Promise.all([
-            this.leads.count({ where: { organizationId, createdAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
-            this.leads.count({ where: { organizationId, status: lead_status_enum_1.LeadStatus.WON, updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
-            this.montoDelMes(organizationId, inicioDeMes),
+            this.leads.count({ where: { ...base, createdAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
+            this.leads.count({ where: { ...base, status: lead_status_enum_1.LeadStatus.WON, updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) } }),
+            this.montoDelMes(base, inicioDeMes),
             this.alert('sin_contactar', { ...abierto, status: lead_status_enum_1.LeadStatus.NEW }),
             this.alert('sin_asignar', { ...abierto, assignedTo: (0, typeorm_2.IsNull)() }),
             this.alert('calificados_sin_visita', {
-                organizationId,
+                ...base,
                 status: lead_status_enum_1.LeadStatus.QUOTE_SENT,
             }),
-            this.teamLoad(organizationId, limiteFrio),
+            this.teamLoad(base, limiteFrio),
         ]);
         const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
         return {
@@ -52,14 +57,21 @@ let CrmHomeService = class CrmHomeService {
             coolingDays,
         };
     }
-    async montoDelMes(organizationId, desde) {
-        const fila = await this.leads.createQueryBuilder('lead')
+    async montoDelMes(base, desde) {
+        const fila = await this.acotar(this.leads.createQueryBuilder('lead'), base)
             .select('COALESCE(SUM(lead.estimated_amount), 0)', 'total')
-            .where('lead.organization_id = :organizationId', { organizationId })
             .andWhere('lead.status = :status', { status: lead_status_enum_1.LeadStatus.WON })
             .andWhere('lead.updated_at >= :desde', { desde })
             .getRawOne();
         return Number(fila?.total ?? 0);
+    }
+    acotar(query, base) {
+        query
+            .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
+            .andWhere('lead.domain = :domain', { domain: base.domain });
+        if (base.clientId)
+            query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+        return query;
     }
     openStatuses() {
         return Object.values(lead_status_enum_1.LeadStatus).filter((s) => !CLOSED_STATUSES.includes(s));
@@ -87,13 +99,12 @@ let CrmHomeService = class CrmHomeService {
                 : null,
         };
     }
-    async teamLoad(organizationId, limiteFrio) {
-        const filas = await this.leads.createQueryBuilder('lead')
+    async teamLoad(base, limiteFrio) {
+        const filas = await this.acotar(this.leads.createQueryBuilder('lead'), base)
             .select('lead.assigned_to', 'userId')
             .addSelect('COUNT(*)', 'open')
             .addSelect(`SUM(CASE WHEN lead.status = :nuevo THEN 1 ELSE 0 END)`, 'uncontacted')
             .addSelect(`SUM(CASE WHEN lead.updated_at < :limiteFrio THEN 1 ELSE 0 END)`, 'cooling')
-            .where('lead.organization_id = :organizationId', { organizationId })
             .andWhere('lead.assigned_to IS NOT NULL')
             .andWhere('lead.status NOT IN (:...cerrados)', { cerrados: CLOSED_STATUSES })
             .setParameters({ nuevo: lead_status_enum_1.LeadStatus.NEW, limiteFrio })
