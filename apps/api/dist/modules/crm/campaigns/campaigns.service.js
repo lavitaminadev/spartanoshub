@@ -18,10 +18,14 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const campaign_entity_1 = require("./campaign.entity");
 const lead_entity_1 = require("../leads/lead.entity");
+const ingest_source_entity_1 = require("../leads/ingest-source.entity");
+const lead_ingest_service_1 = require("../leads/lead-ingest.service");
 let CampaignsService = class CampaignsService {
-    constructor(campaigns, leads) {
+    constructor(campaigns, leads, sources, ingest) {
         this.campaigns = campaigns;
         this.leads = leads;
+        this.sources = sources;
+        this.ingest = ingest;
     }
     async list(organizationId, clientId) {
         const campanias = await this.campaigns.find({
@@ -48,8 +52,8 @@ let CampaignsService = class CampaignsService {
             };
         });
     }
-    async create(organizationId, dto) {
-        return this.campaigns.save(this.campaigns.create({
+    async create(organizationId, dto, createdBy) {
+        const campaign = await this.campaigns.save(this.campaigns.create({
             organizationId,
             name: dto.name.trim(),
             source: dto.source ?? 'Meta Ads',
@@ -59,6 +63,16 @@ let CampaignsService = class CampaignsService {
             investment: dto.investment ?? 0,
             status: dto.status ?? 'active',
         }));
+        const { token } = await this.ingest.issueToken(this.sources.create({
+            organizationId,
+            clientId: campaign.clientId ?? null,
+            name: campaign.name,
+            source: campaign.source,
+            campaignName: campaign.name,
+            isActive: true,
+            createdBy: createdBy ?? null,
+        }));
+        return { campaign, token };
     }
     async update(id, organizationId, dto) {
         const campania = await this.campaigns.findOne({ where: { id, organizationId } });
@@ -100,6 +114,9 @@ exports.CampaignsService = CampaignsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(campaign_entity_1.Campaign)),
     __param(1, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
+    __param(2, (0, typeorm_1.InjectRepository)(ingest_source_entity_1.LeadIngestSource)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        lead_ingest_service_1.LeadIngestService])
 ], CampaignsService);

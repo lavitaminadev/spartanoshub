@@ -31,7 +31,16 @@ let CampaignsController = class CampaignsController {
     }
     async create(dto, req) {
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-        return this.campaigns.create(req.organizationId, dto);
+        const { campaign, token } = await this.campaigns.create(req.organizationId, dto, req.user.id);
+        return {
+            campaign,
+            integracion: {
+                url: '/api/public/ingest/leads',
+                method: 'POST',
+                header: `Authorization: Bearer ${token}`,
+                token,
+            },
+        };
     }
     async update(id, dto, req) {
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
@@ -54,7 +63,7 @@ __decorate([
 ], CampaignsController.prototype, "list", null);
 __decorate([
     (0, common_1.Post)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Registrar una campaña' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Registrar una campaña y emitir su llave de entrada' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),

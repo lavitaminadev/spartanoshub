@@ -45,7 +45,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 phone: dto.telefono,
                 email: dto.email,
                 source: source.source,
-                campaignName: dto.campana,
+                campaignName: source.campaignName ?? dto.campana,
                 notes: dto.mensaje,
                 sourceCreatedAt: dto.fechaOrigen ? new Date(dto.fechaOrigen) : undefined,
                 externalLeadId: dto.idExterno ? `${source.source}:${dto.idExterno}` : undefined,
