@@ -20,6 +20,8 @@ const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const update_organization_settings_dto_1 = require("./dto/update-organization-settings.dto");
 const organization_settings_service_1 = require("./organization-settings.service");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
+const organization_features_1 = require("../../modules/organizations/organization-features");
+const shared_1 = require("@espartanos/shared");
 let OrganizationSettingsController = class OrganizationSettingsController {
     constructor(settings) {
         this.settings = settings;
@@ -28,9 +30,19 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         return this.settings.list(request.organizationId || request.user.organizationId);
     }
     update(request, dto) {
-        const touchesModuleLifecycle = Object.keys(dto.values ?? {}).some((key) => key.startsWith('modules.lifecycle.'));
+        const valores = dto.values ?? {};
+        const touchesModuleLifecycle = Object.keys(valores).some((key) => key.startsWith('modules.lifecycle.'));
         if (touchesModuleLifecycle && request.user.role !== user_role_enum_1.UserRole.DEV) {
             throw new common_1.ForbiddenException('Solo desarrollo puede cambiar el ciclo de vida de módulos.');
+        }
+        const sinSalida = organization_features_1.REQUIRED_LIFECYCLE_KEYS
+            .filter((module) => {
+            const valor = valores[(0, shared_1.moduleLifecycleSettingKey)(module)];
+            return typeof valor === 'string' && !(0, shared_1.isModuleLifecycleVisible)(valor);
+        });
+        if (sinSalida.length) {
+            throw new common_1.BadRequestException(`No se puede esconder ${sinSalida.join(' ni ')}: son la puerta de entrada y el sitio donde se deshace este cambio. ` +
+                'Déjalos en activo, piloto o mantenimiento.');
         }
         return this.settings.update(request.organizationId || request.user.organizationId, request.user.id, dto.values);
     }
