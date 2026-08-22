@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, Repository } from 'typeorm';
+import { In, IsNull, LessThan, Repository } from 'typeorm';
 import { Lead } from './lead.entity';
 import { LeadStatus } from './lead-status.enum';
 
@@ -56,11 +56,23 @@ export class CrmDashboardService {
       ...(alcance.onlyAssignedTo ? { onlyAssignedTo: alcance.onlyAssignedTo } : {}),
     };
 
+    /*
+     * Cuatro de estas cifras se cuentan con un criterio por columnas y no con el constructor de
+     * consultas, así que `base` les llega como `where` literal. `onlyAssignedTo` no es una
+     * columna —es la persona a la que hay que acotar— y TypeORM respondía error del servidor al
+     * no encontrarla: el panel del CRM reventaba con un 500 para cualquiera que no dirija,
+     * mientras el resto del módulo funcionaba con normalidad.
+     *
+     * Se separan: `porColumnas` es lo que entiende un criterio literal, y la persona se aplica
+     * como disyunción —lo suyo o lo que está libre—, igual que en el listado y en el inicio.
+     */
+    const criterio = (extra: Record<string, unknown> = {}) => this.criterio(base, extra);
+
     const [total, calificados, conVisita, ventas, porEtapa, porFuente, porDia, motivos] = await Promise.all([
-      this.leads.count({ where: { ...base } as never }),
-      this.leads.count({ where: { ...base, status: LeadStatus.QUOTE_SENT } as never }),
-      this.leads.count({ where: { ...base, status: LeadStatus.MEETING_SCHEDULED } as never }),
-      this.leads.count({ where: { ...base, status: LeadStatus.WON } as never }),
+      this.leads.count({ where: criterio() as never }),
+      this.leads.count({ where: criterio({ status: LeadStatus.QUOTE_SENT }) as never }),
+      this.leads.count({ where: criterio({ status: LeadStatus.MEETING_SCHEDULED }) as never }),
+      this.leads.count({ where: criterio({ status: LeadStatus.WON }) as never }),
       this.agrupar(base, 'status'),
       this.agrupar(base, 'source'),
       this.porDia(base, desde),
@@ -71,11 +83,10 @@ export class CrmDashboardService {
       this.sumar(base, LeadStatus.WON),
       this.sumarAbiertos(base),
       this.leads.count({
-        where: {
-          ...base,
+        where: criterio({
           status: In([LeadStatus.CONTACTED, LeadStatus.QUOTE_SENT, LeadStatus.NEGOTIATION]),
           updatedAt: LessThan(new Date(Date.now() - 7 * 86_400_000)),
-        } as never,
+        }) as never,
       }),
     ]);
 
@@ -140,7 +151,7 @@ export class CrmDashboardService {
    */
   private async tiempoDeCierre(base: Record<string, unknown>): Promise<number | null> {
     const vendidos = await this.leads.find({
-      where: { ...base, status: LeadStatus.WON } as never,
+      where: this.criterio(base, { status: LeadStatus.WON }) as never,
       select: { createdAt: true, updatedAt: true } as never,
     });
     if (!vendidos.length) return null;
@@ -200,6 +211,29 @@ export class CrmDashboardService {
    * Vive en un solo sitio porque son seis consultas: repetirlo dejaba que una se olvidara del
    * filtro y devolviera cifras de otra empresa dentro del panel de esta, sin que nada fallara.
    */
+  /**
+   * Traduce el alcance a un criterio que entiende una consulta por columnas.
+   *
+   * `base` lleva la organización, el embudo, la empresa y —cuando corresponde— la persona a la
+   * que hay que acotar. Las tres primeras son columnas y se pueden pasar tal cual; la cuarta no
+   * lo es, y pasarla revienta la consulta: el panel del CRM respondía error del servidor a
+   * cualquiera que no dirija, mientras el resto del módulo funcionaba con normalidad.
+   *
+   * Acotado a una persona devuelve dos criterios unidos por «o» —lo suyo, o lo que está libre—,
+   * la misma regla que aplican el listado y el inicio.
+   */
+  private criterio(
+    base: Record<string, unknown>,
+    extra: Record<string, unknown> = {},
+  ): Record<string, unknown> | Array<Record<string, unknown>> {
+    const { onlyAssignedTo, ...porColumnas } = base as Record<string, unknown> & { onlyAssignedTo?: string };
+    if (!onlyAssignedTo) return { ...porColumnas, ...extra };
+    return [
+      { ...porColumnas, ...extra, assignedTo: onlyAssignedTo },
+      { ...porColumnas, ...extra, assignedTo: IsNull() },
+    ];
+  }
+
   private acotar<T extends import('typeorm').SelectQueryBuilder<Lead>>(query: T, base: Record<string, unknown>): T {
     query
       .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })

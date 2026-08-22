@@ -32,11 +32,12 @@ let CrmDashboardService = class CrmDashboardService {
             ...(alcance.clientId ? { clientId: alcance.clientId } : {}),
             ...(alcance.onlyAssignedTo ? { onlyAssignedTo: alcance.onlyAssignedTo } : {}),
         };
+        const criterio = (extra = {}) => this.criterio(base, extra);
         const [total, calificados, conVisita, ventas, porEtapa, porFuente, porDia, motivos] = await Promise.all([
-            this.leads.count({ where: { ...base } }),
-            this.leads.count({ where: { ...base, status: lead_status_enum_1.LeadStatus.QUOTE_SENT } }),
-            this.leads.count({ where: { ...base, status: lead_status_enum_1.LeadStatus.MEETING_SCHEDULED } }),
-            this.leads.count({ where: { ...base, status: lead_status_enum_1.LeadStatus.WON } }),
+            this.leads.count({ where: criterio() }),
+            this.leads.count({ where: criterio({ status: lead_status_enum_1.LeadStatus.QUOTE_SENT }) }),
+            this.leads.count({ where: criterio({ status: lead_status_enum_1.LeadStatus.MEETING_SCHEDULED }) }),
+            this.leads.count({ where: criterio({ status: lead_status_enum_1.LeadStatus.WON }) }),
             this.agrupar(base, 'status'),
             this.agrupar(base, 'source'),
             this.porDia(base, desde),
@@ -46,11 +47,10 @@ let CrmDashboardService = class CrmDashboardService {
             this.sumar(base, lead_status_enum_1.LeadStatus.WON),
             this.sumarAbiertos(base),
             this.leads.count({
-                where: {
-                    ...base,
+                where: criterio({
                     status: (0, typeorm_2.In)([lead_status_enum_1.LeadStatus.CONTACTED, lead_status_enum_1.LeadStatus.QUOTE_SENT, lead_status_enum_1.LeadStatus.NEGOTIATION]),
                     updatedAt: (0, typeorm_2.LessThan)(new Date(Date.now() - 7 * 86_400_000)),
-                },
+                }),
             }),
         ]);
         const [tiempoDeCierre, conversionPorSetter] = await Promise.all([
@@ -96,7 +96,7 @@ let CrmDashboardService = class CrmDashboardService {
     }
     async tiempoDeCierre(base) {
         const vendidos = await this.leads.find({
-            where: { ...base, status: lead_status_enum_1.LeadStatus.WON },
+            where: this.criterio(base, { status: lead_status_enum_1.LeadStatus.WON }),
             select: { createdAt: true, updatedAt: true },
         });
         if (!vendidos.length)
@@ -131,6 +131,15 @@ let CrmDashboardService = class CrmDashboardService {
             .andWhere('lead.status NOT IN (:...cerrados)', { cerrados: [lead_status_enum_1.LeadStatus.WON, lead_status_enum_1.LeadStatus.LOST] })
             .getRawOne();
         return Number(fila?.total ?? 0);
+    }
+    criterio(base, extra = {}) {
+        const { onlyAssignedTo, ...porColumnas } = base;
+        if (!onlyAssignedTo)
+            return { ...porColumnas, ...extra };
+        return [
+            { ...porColumnas, ...extra, assignedTo: onlyAssignedTo },
+            { ...porColumnas, ...extra, assignedTo: (0, typeorm_2.IsNull)() },
+        ];
     }
     acotar(query, base) {
         query

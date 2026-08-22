@@ -1,0 +1,32 @@
+# Matriz de acceso
+
+Generada por `test/e2e/matriz-de-acceso.e2e.spec.ts`. **No se edita a mano.**
+
+Qué responde cada ruta a cada cargo, con una sesión válida. `200` es que atiende;
+`403` es que el cargo, la empresa o el servicio contratado no alcanzan; `404` es que
+además se oculta la existencia.
+
+| Ruta | dev | admin | equipoUno | portalCrmUno | portalReservasUno |
+| --- | --- | --- | --- | --- | --- |
+| CRM · leads | 200 | 200 | 200 | 200 | 200 |
+| CRM · inicio | 200 | 200 | 200 | 200 | 200 |
+| CRM · panel | 200 | 200 | 200 | 200 | 200 |
+| CRM · rótulos de etapa | 200 | 200 | 200 | 200 | 200 |
+| Clientes | 200 | 200 | 200 | 200 | 200 |
+| Usuarios | 200 | 200 | 403 | 403 | 403 |
+| Reservas | 200 | 200 | 200 | 200 | 200 |
+| Reservas · formularios | 200 | 200 | 200 | 200 | 200 |
+| Aprobaciones | 200 | 200 | 200 | 200 | 200 |
+| Reuniones | 200 | 200 | 200 | 200 | 200 |
+| Contenido · grillas | 200 | 200 | 200 | 200 | 200 |
+| Informes · panel | 200 | 200 | 200 | 403 | 403 |
+| Tareas · mías | 200 | 200 | 200 | 200 | 200 |
+
+## Cómo leerla
+
+- **dev** y **admin** atraviesan la organización entera: es su trabajo.
+- **equipoUno** es un community manager sin cuentas asignadas en este escenario, así que
+  ve las pantallas que su cargo permite pero sin datos de ninguna empresa.
+- **portalCrmUno** y **portalReservasUno** son el mismo cargo (`client`) sobre empresas con
+  servicios distintos. Que respondan igual es lo correcto: lo que cambia entre ellos son los
+  datos, no los permisos.

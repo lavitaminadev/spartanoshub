@@ -121,6 +121,23 @@ como que el sistema está caído.
 Se conserva el valor de siempre como predeterminado —bajarlo protege contra el probador de
 contraseñas— y se hizo ajustable con `AUTH_THROTTLE_LIMIT`.
 
+### 4. El panel del CRM respondía con error del servidor a quien no dirige
+
+La matriz de acceso lo destapó: `GET /crm/home/dashboard` devolvía **500** a un community
+manager. El alcance por persona viajaba dentro del mismo objeto que la organización, el embudo y
+la empresa, y cuatro de las cifras del panel se cuentan con un criterio por columnas: `assignedTo`
+sí es columna, pero la clave que lo transportaba no, y la consulta reventaba.
+
+No lo veía nadie porque las pruebas anteriores usaban cargos que dirigen, y para esos el panel no
+lleva ese alcance. La corrección separa las dos cosas en un solo sitio del servicio.
+
+### 5. Cada ejecución de las pruebas dejaba su API viva
+
+En Windows, `npx` levanta un intérprete que a su vez levanta node: matar el padre deja al hijo
+escuchando. Se acumularon **noventa procesos** en una tarde, consumiendo conexiones hasta que la
+base dejaba de dar más y las pruebas fallaban por un motivo ajeno a lo que probaban. Ahora se
+cierra el árbol completo.
+
 ## Pendiente
 
 - Reservas creadas desde el **formulario público**, que exige un formulario publicado con su
