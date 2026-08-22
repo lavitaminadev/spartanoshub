@@ -59,5 +59,10 @@ describe('bandejas de salida', () => {
     // Sin esto la prueba pasaría igual si el recorrido dejara de encontrar procesadores.
     expect(procesadores.length).toBeGreaterThanOrEqual(2);
     expect(sinProgramar).toEqual([]);
-  });
+    /*
+     * Recorre los archivos de la aplicación, así que su costo crece con el proyecto y no con lo
+     * que comprueba. El plazo por defecto se le quedó corto y empezó a fallar por lentitud, que
+     * en una prueba de contenido se lee como si hubiera encontrado un procesador sin programar.
+     */
+  }, 30_000);
 });

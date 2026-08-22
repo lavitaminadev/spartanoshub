@@ -1,4 +1,5 @@
 import { createProcessHistoryDouble } from '../../helpers/process-history.double';
+import { createLeadCierreDouble } from '../../helpers/lead-cierre.double';
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { UpdateLeadUseCase } from '../../../src/modules/crm/leads/use-cases/update-lead.use-case';
@@ -17,7 +18,7 @@ function caso(lead: Record<string, unknown>) {
     findOne: vi.fn().mockResolvedValue(lead),
     save: vi.fn().mockImplementation(async (value) => value),
   };
-  return { uso: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble()), repo };
+  return { uso: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble()), repo };
 }
 
 describe('mover un lead de etapa', () => {
