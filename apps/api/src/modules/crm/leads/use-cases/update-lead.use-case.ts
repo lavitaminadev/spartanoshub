@@ -6,6 +6,7 @@ import { LeadStatus, isStatusInDomain } from '../lead-status.enum';
 import { LeadFitStatus } from '../lead-fit-status.enum';
 import { ProcessHistoryService } from '../../../../core/process-history/process-history.service';
 import { ProcessSubject } from '../../../../core/process-history/process-stage-change.entity';
+import { LeadCierreService } from '../lead-cierre.service';
 
 /** Nombre del dominio en los mensajes de error, para que digan algo accionable. */
 const DOMAIN_LABELS: Record<string, string> = {
@@ -18,6 +19,7 @@ export class UpdateLeadUseCase {
   constructor(
     @InjectRepository(Lead) private repo: Repository<Lead>,
     private readonly history: ProcessHistoryService,
+    private readonly cierre: LeadCierreService,
   ) {}
 
   async execute(
@@ -83,6 +85,9 @@ export class UpdateLeadUseCase {
       organizationId, ProcessSubject.LEAD, guardado.id,
       etapaPrevia, guardado.status, actorId, guardado.discardReason,
     );
+    // Y si con esto el lead llegó al final, se avisa a quien lo llevaba: hasta ahora un lead se
+    // cerraba en silencio y quien lo repartió no se enteraba nunca.
+    await this.cierre.avisar(guardado, etapaPrevia, actorId);
     return guardado;
   }
 }

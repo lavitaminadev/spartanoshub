@@ -1,4 +1,5 @@
 import { createProcessHistoryDouble } from '../../helpers/process-history.double';
+import { createLeadCierreDouble } from '../../helpers/lead-cierre.double';
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { UpdateLeadUseCase } from '../../../src/modules/crm/leads/use-cases/update-lead.use-case';
@@ -10,7 +11,7 @@ describe('UpdateLeadUseCase', () => {
       findOne: vi.fn().mockResolvedValue({ id: 'lead-1', status: LeadStatus.NEGOTIATION }),
       save: vi.fn(),
     };
-    const useCase = new UpdateLeadUseCase(repo as never, createProcessHistoryDouble());
+    const useCase = new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble());
 
     await expect(useCase.execute('lead-1', { status: LeadStatus.WON }, 'org-1')).rejects.toBeInstanceOf(BadRequestException);
     expect(repo.save).not.toHaveBeenCalled();
@@ -22,7 +23,7 @@ describe('UpdateLeadUseCase', () => {
       findOne: vi.fn().mockResolvedValue(lead),
       save: vi.fn().mockImplementation(async (value) => value),
     };
-    const useCase = new UpdateLeadUseCase(repo as never, createProcessHistoryDouble());
+    const useCase = new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble());
 
     const result = await useCase.execute('lead-1', { status: LeadStatus.WON }, 'org-1');
 
@@ -35,7 +36,7 @@ describe('CRM-09 · el estado corresponde al dominio del lead', () => {
         findOne: vi.fn().mockResolvedValue(lead),
         save: vi.fn().mockImplementation(async (value) => value),
       };
-      return { useCase: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble()), repo };
+      return { useCase: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble()), repo };
     }
 
     it('rechaza marcar a un comensal con un estado del embudo comercial', async () => {
@@ -82,7 +83,7 @@ describe('UpdateLeadUseCase · responsable del lead', () => {
       findOne: vi.fn().mockResolvedValue(lead),
       save: vi.fn().mockImplementation(async (value) => value),
     };
-    return { useCase: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble()), repo };
+    return { useCase: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble()), repo };
   }
 
   it('asigna el responsable que llega en la petición', async () => {
@@ -120,7 +121,7 @@ describe('UpdateLeadUseCase · origen y empresa del lead', () => {
       findOne: vi.fn().mockResolvedValue(lead),
       save: vi.fn().mockImplementation(async (value) => value),
     };
-    return { useCase: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble()) };
+    return { useCase: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble()) };
   }
 
   it('corrige el origen de un lead que entró mal marcado', async () => {
