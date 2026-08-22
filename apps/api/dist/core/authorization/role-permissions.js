@@ -160,6 +160,7 @@ const PERFIL_SUGERIDO = {
         clients: 'view',
         reports: 'view',
         clientMetricsPanel: 'view',
+        crm: 'view',
     },
 };
 function roleLevel(role, module) {

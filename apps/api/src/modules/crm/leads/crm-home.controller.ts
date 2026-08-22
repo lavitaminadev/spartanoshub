@@ -7,6 +7,7 @@ import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { CrmHomeService } from './crm-home.service';
 import { veSoloLoSuyo } from './lead-visibility';
+import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
 import { CrmDashboardService } from './crm-dashboard.service';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 
@@ -31,6 +32,7 @@ export class CrmHomeController {
     private readonly home: CrmHomeService,
     private readonly dashboard: CrmDashboardService,
     private readonly accountAccess: AccountAccessService,
+    private readonly capacidades: ClientCapabilityService,
   ) {}
 
   @Get()
@@ -47,6 +49,8 @@ export class CrmHomeController {
     // La empresa se comprueba como en el resto del CRM: llega del navegador y decide de quién
     // son los avisos, así que pedir una ajena no puede devolver los suyos.
     await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    // El inicio del CRM de una empresa que no lo contrató no existe: se dice, no se dibuja vacío.
+    await this.capacidades.assert(req.organizationId!, clientId, 'crm');
     return this.home.home(req.organizationId!, dias, {
       domain: domain === 'audience' ? 'audience' : 'commercial',
       clientId: clientId || undefined,
@@ -69,6 +73,7 @@ export class CrmHomeController {
     // La cuenta se comprueba como en el resto del CRM: llega del navegador y decide de qué
     // empresa son las cifras, así que pedir una ajena no puede devolver sus números.
     await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    await this.capacidades.assert(req.organizationId!, clientId, 'crm');
     return this.dashboard.dashboard(req.organizationId!, ventana, {
       domain: domain === 'audience' ? 'audience' : 'commercial',
       clientId: clientId || undefined,
