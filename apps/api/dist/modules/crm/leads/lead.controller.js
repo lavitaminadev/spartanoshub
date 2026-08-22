@@ -50,7 +50,9 @@ let LeadController = class LeadController {
         this.leadTasks = leadTasks;
         this.capacidades = capacidades;
     }
-    create(dto, req) {
+    async create(dto, req) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+        await this.capacidades.assert(req.organizationId, dto.clientId, 'crm');
         return this.createLead.execute({ ...dto, organizationId: req.organizationId });
     }
     async import(dto, req) {
@@ -151,7 +153,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_lead_dto_1.CreateLeadDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], LeadController.prototype, "create", null);
 __decorate([
     (0, common_1.Post)('import'),

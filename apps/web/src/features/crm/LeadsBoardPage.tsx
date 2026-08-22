@@ -275,6 +275,15 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
 
   const crear = useMutation({
     mutationFn: () => api.post('/crm/leads', {
+      /*
+       * Nace en la empresa y el embudo que se están mirando.
+       *
+       * Sin esto, crear un contacto desde el CRM de una empresa lo guardaba sin empresa y en el
+       * embudo comercial de la agencia: no fallaba nada, simplemente no aparecía donde se había
+       * creado y sí donde no correspondía.
+       */
+      clientId: scope.clientId || undefined,
+      domain: scope.domain,
       name: formulario.name.trim(),
       email: formulario.email.trim() || undefined,
       phone: formulario.phone.trim() || undefined,

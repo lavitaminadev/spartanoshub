@@ -57,3 +57,13 @@ __decorate([
     (0, class_validator_1.Max)(999999999999),
     __metadata("design:type", Number)
 ], CreateLeadDto.prototype, "estimatedAmount", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateLeadDto.prototype, "clientId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['audience', 'commercial']),
+    __metadata("design:type", String)
+], CreateLeadDto.prototype, "domain", void 0);

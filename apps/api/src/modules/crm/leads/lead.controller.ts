@@ -61,7 +61,14 @@ export class LeadController {
 
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo lead' })
-  create(@Body() dto: CreateLeadDto, @Req() req: AuthenticatedRequest) {
+  async create(@Body() dto: CreateLeadDto, @Req() req: AuthenticatedRequest) {
+    /*
+     * Las mismas dos comprobaciones que al importar, por el mismo motivo: la empresa llega del
+     * navegador y decide de quién es el contacto. Sin ellas, quien crea puede depositarlo en una
+     * cuenta que no alcanza con solo cambiar el valor enviado.
+     */
+    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+    await this.capacidades.assert(req.organizationId, dto.clientId, 'crm');
     return this.createLead.execute({ ...dto, organizationId: req.organizationId });
   }
 

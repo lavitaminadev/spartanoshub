@@ -16,6 +16,8 @@ export class CreateLeadUseCase {
     source?: string;
     sourceDetail?: string;
     notes?: string;
+    clientId?: string;
+    domain?: 'audience' | 'commercial';
   }) {
     return this.leadIntake.captureLead(data);
   }

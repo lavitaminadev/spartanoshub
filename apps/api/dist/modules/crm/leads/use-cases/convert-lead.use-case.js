@@ -38,6 +38,10 @@ let ConvertLeadUseCase = class ConvertLeadUseCase {
             if (lead.status === lead_status_enum_1.LeadStatus.WON || lead.convertedToClientId) {
                 throw new common_1.ConflictException('El lead ya fue convertido');
             }
+            if (lead.domain === 'audience') {
+                throw new common_1.BadRequestException('Un contacto de campaña no se convierte en empresa cliente: es una persona que respondió '
+                    + 'a la campaña de un local, no alguien a quien la agencia le presta servicios.');
+            }
             const client = manager.create(client_entity_1.Client, {
                 organizationId,
                 name: lead.name,
