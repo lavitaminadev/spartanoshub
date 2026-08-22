@@ -54,6 +54,15 @@ export class CrmHomeController {
     return this.home.home(req.organizationId!, dias, {
       domain: domain === 'audience' ? 'audience' : 'commercial',
       clientId: clientId || undefined,
+      /*
+       * Sin empresa elegida, la respuesta se acota a las que esta persona alcanza.
+       *
+       * Faltaba, y era la fuga más seria del módulo: el control comprobaba la empresa pedida, así
+       * que **no pedir ninguna** lo saltaba entero y la respuesta cubría toda la organización.
+       * Desde que el portal del cliente entra al CRM, eso significaba que una empresa veía las
+       * cifras y los nombres de las demás sin adivinar nada.
+       */
+      allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId!, req.user),
       // Quien no dirige ve su propio trabajo y lo que está libre, no el embudo del equipo.
       onlyAssignedTo: veSoloLoSuyo(req.user.role) ? req.user.id : undefined,
     });
@@ -77,6 +86,8 @@ export class CrmHomeController {
     return this.dashboard.dashboard(req.organizationId!, ventana, {
       domain: domain === 'audience' ? 'audience' : 'commercial',
       clientId: clientId || undefined,
+      // El mismo alcance que el inicio: las dos pantallas responden por lo mismo.
+      allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId!, req.user),
       // La misma regla del inicio y del listado: las tres pantallas deben contar lo mismo.
       onlyAssignedTo: veSoloLoSuyo(req.user.role) ? req.user.id : undefined,
     });

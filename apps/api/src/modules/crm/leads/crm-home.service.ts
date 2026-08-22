@@ -81,7 +81,17 @@ export class CrmHomeService {
   async home(
     organizationId: string,
     coolingDays = 7,
-    alcance: { domain?: 'audience' | 'commercial'; clientId?: string; onlyAssignedTo?: string } = {},
+    alcance: {
+      domain?: 'audience' | 'commercial';
+      clientId?: string;
+      onlyAssignedTo?: string;
+      /**
+       * Empresas que quien pregunta puede ver. `undefined` es «sin límite»; un arreglo vacío es
+       * «ninguna», y **no** es lo mismo que omitir el filtro: confundirlos es exactamente cómo un
+       * alcance vacío se convierte en acceso total.
+       */
+      allowedClientIds?: string[];
+    } = {},
   ) {
     const inicioDeMes = new Date();
     inicioDeMes.setDate(1);
@@ -93,7 +103,7 @@ export class CrmHomeService {
     const base = {
       organizationId,
       domain: alcance.domain ?? 'commercial',
-      ...(alcance.clientId ? { clientId: alcance.clientId } : {}),
+      ...this.alcanceDeCuentas(alcance),
     };
     const abierto = { ...base, status: In(this.openStatuses()) };
 
@@ -110,7 +120,9 @@ export class CrmHomeService {
        * Es el único aviso que no se filtra por persona, y a propósito: ocultarlo dejaría los
        * leads nuevos esperando a que los tome alguien que, por su cargo, no los va a trabajar.
        */
-      this.alert('sin_asignar', 'critico', { ...abierto, assignedTo: IsNull() }),
+      // Pasa por `paraCriterio` igual que los demás: no se filtra por persona, pero sí por las
+      // empresas alcanzables. Un lead sin dueño de una cuenta ajena tampoco es asunto de nadie.
+      this.alert('sin_asignar', 'critico', this.paraCriterio({ ...abierto, assignedTo: IsNull() })),
       /*
        * Calificado y todavía sin visita agendada.
        *
@@ -175,6 +187,11 @@ export class CrmHomeService {
       .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
       .andWhere('lead.domain = :domain', { domain: base.domain });
     if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+    // Una lista vacía no se omite: se traduce a una condición que no puede cumplirse.
+    const alcanzables = base.clientIds as string[] | undefined;
+    if (alcanzables !== undefined) {
+      query.andWhere(alcanzables.length ? 'lead.client_id IN (:...empresas)' : '1 = 0', { empresas: alcanzables });
+    }
     // Lo suyo o lo que está libre, la misma regla que aplican los avisos y el listado.
     if (base.onlyAssignedTo) {
       query.andWhere(
@@ -183,6 +200,29 @@ export class CrmHomeService {
       );
     }
     return query;
+  }
+
+  /**
+   * Traduce la empresa pedida y las alcanzables a una condición sobre `client_id`.
+   *
+   * Sin esto, el inicio respondía por **toda la organización** cuando no se pedía ninguna empresa:
+   * el control comprobaba la empresa solicitada, y sin solicitud no comprobaba nada. Con el portal
+   * del cliente entrando al CRM, eso significaba que una empresa veía las cifras y los nombres de
+   * las demás sin adivinar nada, solo omitiendo un parámetro.
+   */
+  private alcanceDeCuentas(
+    alcance: { clientId?: string; allowedClientIds?: string[] },
+  ): Record<string, unknown> {
+    // Una empresa concreta: el controlador ya comprobó que quien pregunta la alcanza.
+    if (alcance.clientId) return { clientId: alcance.clientId };
+    // Sin límite de cuentas: administración y direcciones.
+    if (alcance.allowedClientIds === undefined) return {};
+    /*
+     * Ninguna cuenta alcanzable es una condición imposible, no la ausencia de condición. Se
+     * guarda como lista y no como criterio de TypeORM porque `base` viaja a dos sitios que la
+     * entienden distinto: un `where` por columnas y el constructor de consultas.
+     */
+    return { clientIds: alcance.allowedClientIds };
   }
 
   /** Estados en los que el lead todavía espera algo de alguien. */
@@ -200,8 +240,25 @@ export class CrmHomeService {
     where: Record<string, unknown>,
     usuarioId?: string,
   ): Record<string, unknown> | Array<Record<string, unknown>> {
-    if (!usuarioId) return where;
-    return [{ ...where, assignedTo: usuarioId }, { ...where, assignedTo: IsNull() }];
+    const porColumnas = this.paraCriterio(where);
+    if (!usuarioId) return porColumnas;
+    return [
+      { ...porColumnas, assignedTo: usuarioId },
+      { ...porColumnas, assignedTo: IsNull() },
+    ];
+  }
+
+  /**
+   * Deja el criterio en la forma que entiende un `where` por columnas.
+   *
+   * `clientIds` es la lista de empresas alcanzables y no una columna: se traduce a `In(...)`, y
+   * vacía a una condición imposible. Pasarla tal cual haría que TypeORM no encontrara la columna
+   * y la consulta reventara.
+   */
+  private paraCriterio(where: Record<string, unknown>): Record<string, unknown> {
+    const { clientIds, ...resto } = where as Record<string, unknown> & { clientIds?: string[] };
+    if (clientIds === undefined) return resto;
+    return { ...resto, clientId: In(clientIds.length ? clientIds : ['']) };
   }
 
   /**

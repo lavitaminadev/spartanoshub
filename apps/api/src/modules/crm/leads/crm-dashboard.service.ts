@@ -19,6 +19,11 @@ export interface Alcance {
    * tablero oculta por abajo.
    */
   onlyAssignedTo?: string;
+  /**
+   * Empresas que quien pregunta puede ver. `undefined` es «sin límite»; un arreglo vacío es
+   * «ninguna», y no es lo mismo que omitir el filtro.
+   */
+  allowedClientIds?: string[];
 }
 
 /**
@@ -52,7 +57,9 @@ export class CrmDashboardService {
     const base = {
       organizationId,
       domain,
-      ...(alcance.clientId ? { clientId: alcance.clientId } : {}),
+      ...(alcance.clientId
+        ? { clientId: alcance.clientId }
+        : alcance.allowedClientIds === undefined ? {} : { clientIds: alcance.allowedClientIds }),
       ...(alcance.onlyAssignedTo ? { onlyAssignedTo: alcance.onlyAssignedTo } : {}),
     };
 
@@ -226,7 +233,19 @@ export class CrmDashboardService {
     base: Record<string, unknown>,
     extra: Record<string, unknown> = {},
   ): Record<string, unknown> | Array<Record<string, unknown>> {
-    const { onlyAssignedTo, ...porColumnas } = base as Record<string, unknown> & { onlyAssignedTo?: string };
+    const { onlyAssignedTo, clientIds, ...resto } = base as Record<string, unknown> & {
+      onlyAssignedTo?: string;
+      clientIds?: string[];
+    };
+    /*
+     * `clientIds` es la lista de empresas alcanzables, no una columna: se traduce a `In(...)`, y
+     * vacía a una condición imposible. Sin esta traducción, la consulta o revienta —si se pasa la
+     * clave tal cual— o responde por toda la organización —si se omite—, que es lo que hacía.
+     */
+    const porColumnas = clientIds === undefined
+      ? resto
+      : { ...resto, clientId: In(clientIds.length ? clientIds : ['']) };
+
     if (!onlyAssignedTo) return { ...porColumnas, ...extra };
     return [
       { ...porColumnas, ...extra, assignedTo: onlyAssignedTo },
@@ -239,6 +258,11 @@ export class CrmDashboardService {
       .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
       .andWhere('lead.domain = :domain', { domain: base.domain });
     if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+    // Una lista vacía no se omite: se traduce a una condición que no puede cumplirse.
+    const alcanzables = base.clientIds as string[] | undefined;
+    if (alcanzables !== undefined) {
+      query.andWhere(alcanzables.length ? 'lead.client_id IN (:...empresas)' : '1 = 0', { empresas: alcanzables });
+    }
     /*
      * Acotado a una persona, el panel cuenta lo suyo y lo que está libre.
      *
