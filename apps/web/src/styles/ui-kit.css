@@ -496,3 +496,6 @@ select.input {
 .workload-pct { font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; }
 @media (max-width: 600px) { .workload-person { grid-template-columns:34px 1fr; } .workload-pct { grid-column:2; } }
 
+
+/* Aviso de lo irreversible dentro de una confirmación: se lee antes de decidir, no después. */
+.confirmar-irreversible { color: var(--pink-dark); font-weight: 600; font-size: 13px; }

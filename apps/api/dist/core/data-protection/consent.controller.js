@@ -56,7 +56,7 @@ let ConsentController = class ConsentController {
             where: { organizationId: req.organizationId },
             order: { version: 'DESC' },
         });
-        return { items };
+        return { data: items, items };
     }
     async publish(req, dto) {
         const title = dto.title?.trim();

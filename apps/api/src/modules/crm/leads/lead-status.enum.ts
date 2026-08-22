@@ -1,4 +1,4 @@
-import type { LeadStatus as SharedLeadStatus } from '@espartanos/shared';
+import { LEAD_STATUSES_BY_DOMAIN, type LeadStatus as SharedLeadStatus } from '@espartanos/shared';
 
 /**
  * Estados de un lead.
@@ -48,23 +48,8 @@ void _leadStatusMatchesShared;
  * a concretarse se cierra igual que una venta que no se ganó.
  */
 export const STATUSES_BY_DOMAIN: Record<'commercial' | 'audience', readonly LeadStatus[]> = {
-  commercial: [
-    LeadStatus.NEW,
-    LeadStatus.CONTACTED,
-    LeadStatus.QUOTE_SENT,
-    LeadStatus.MEETING_SCHEDULED,
-    LeadStatus.VISITED,
-    LeadStatus.NEGOTIATION,
-    LeadStatus.WON,
-    LeadStatus.LOST,
-  ],
-  audience: [
-    LeadStatus.NEW,
-    LeadStatus.RESERVED,
-    LeadStatus.ATTENDED,
-    LeadStatus.NO_SHOW,
-    LeadStatus.LOST,
-  ],
+  commercial: LEAD_STATUSES_BY_DOMAIN.commercial as readonly LeadStatus[],
+  audience: LEAD_STATUSES_BY_DOMAIN.audience as readonly LeadStatus[],
 };
 
 /**

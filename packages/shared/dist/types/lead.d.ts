@@ -23,6 +23,24 @@ export declare const LEAD_CLOSING_STAGES: readonly ["won", "lost"];
  */
 export declare const LEAD_STATUSES: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "visited", "negotiation", "reserved", "attended", "no_show", "won", "lost"];
 /**
+ * Que estados admite cada embudo, en el orden en que se recorren.
+ *
+ * **Es la fuente unica.** El enum de la API, el reparto por dominio, las columnas del tablero y
+ * la paleta de estados derivan de aca. Estuvieron declarados por separado en cinco sitios, y esa
+ * duplicacion costo dos fallos silenciosos: faltaba 'visited' en el embudo comercial y 'lost' en
+ * el de campana, asi que los leads en esos estados no tenian columna donde dibujarse. No fallaba
+ * nada; simplemente desaparecian de la pantalla.
+ *
+ * Los dos embudos comparten 'new' y 'lost' a proposito: todo lead nace nuevo, y tanto una venta
+ * que no se gano como una visita que no ocurrio se cierran igual.
+ */
+export declare const LEAD_STATUSES_BY_DOMAIN: {
+    readonly commercial: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "visited", "negotiation", "won", "lost"];
+    readonly audience: readonly ["new", "reserved", "attended", "no_show", "lost"];
+};
+/** Embudo al que pertenece un lead. */
+export type LeadDomain = keyof typeof LEAD_STATUSES_BY_DOMAIN;
+/**
  * Lead funnel status.
  */
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
