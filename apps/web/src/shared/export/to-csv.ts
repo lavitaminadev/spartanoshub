@@ -38,6 +38,9 @@ export function buildCsv<T>(document: ExportDocument<T>): string {
 
   if (document.subtitle) lineas.push(escapar(document.subtitle));
   for (const dato of document.meta ?? []) lineas.push(`${escapar(dato.label)};${escapar(dato.value)}`);
+  // Cuándo se generó. Un archivo sin fecha no se puede comparar con otro del mismo nombre, que es
+  // exactamente lo que pasa cuando alguien exporta lo mismo dos semanas seguidas.
+  lineas.push(`${escapar('Generado')};${escapar(new Date().toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short' }))}`);
   if (lineas.length > 1) lineas.push('');
 
   lineas.push(document.columns.map((columna) => escapar(columna.header)).join(';'));

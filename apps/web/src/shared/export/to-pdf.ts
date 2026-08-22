@@ -30,38 +30,76 @@ function escaparHtml(valor: string): string {
  * llegue con columnas sin nombre. Y ninguna fila se parte a la mitad, que es lo que hace ilegible
  * una tabla larga impresa.
  */
+/**
+ * Colores de marca.
+ *
+ * Estaban en un verde que venía de la herramienta que se tomó como referencia, así que el archivo
+ * que se manda a un cliente no se parecía al resto del sistema. Un documento exportado circula
+ * fuera de la pantalla —se reenvía, se imprime, se adjunta— y es de las pocas cosas que el
+ * cliente ve con el membrete de la agencia.
+ */
+const ROSA = '#ec0b61';
+const CIAN = '#0fb9b1';
+const TINTA = '#151317';
+const GRIS = '#706a73';
+const LINEA = '#e7e1e5';
+
 const ESTILOS = `
-  @page { size: A4; margin: 1.6cm 1.4cm; }
+  @page { size: A4; margin: 1.5cm 1.4cm 1.8cm; }
   * { box-sizing: border-box; }
   body {
-    margin: 0; color: #14161c;
+    margin: 0; color: ${TINTA};
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
     font-size: 10pt; line-height: 1.45;
   }
-  header { border-bottom: 2px solid #17c78a; padding-bottom: 10px; margin-bottom: 14px; }
-  h1 { margin: 0; font-size: 16pt; letter-spacing: -.01em; }
-  .subtitulo { margin: 3px 0 0; color: #5a6470; font-size: 9.5pt; }
 
-  /* El contexto va arriba: el archivo se lee fuera de la pantalla que lo generó. */
-  .meta { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-top: 9px; }
-  .meta div { font-size: 8.5pt; }
-  .meta span { color: #7a838d; text-transform: uppercase; letter-spacing: .06em; font-size: 7.5pt; }
-  .meta b { display: block; font-weight: 600; }
+  /* Banda de marca: identifica el documento antes de leer una palabra. */
+  .banda { height: 4px; background: linear-gradient(90deg, ${ROSA}, ${CIAN}); border-radius: 2px; }
+
+  header { padding: 14px 0 12px; margin-bottom: 16px; border-bottom: 1px solid ${LINEA}; }
+  .marca {
+    font-size: 7.5pt; letter-spacing: .18em; text-transform: uppercase;
+    color: ${GRIS}; margin-bottom: 6px;
+  }
+  h1 { margin: 0; font-size: 18pt; letter-spacing: -.015em; font-weight: 700; }
+  .subtitulo { margin: 4px 0 0; color: ${GRIS}; font-size: 9.5pt; }
+
+  /*
+   * El contexto va arriba y en tarjetas.
+   *
+   * El archivo se lee semanas después y fuera de la pantalla que lo generó: sin el filtro
+   * anotado, nadie sabe si son todas las filas o solo las de un cliente.
+   */
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .meta div {
+    padding: 6px 10px; border: 1px solid ${LINEA}; border-radius: 6px;
+    background: #fbfafb; min-width: 110px;
+  }
+  .meta span {
+    display: block; color: ${GRIS}; text-transform: uppercase;
+    letter-spacing: .08em; font-size: 6.5pt; margin-bottom: 2px;
+  }
+  .meta b { font-weight: 600; font-size: 9pt; }
 
   table { width: 100%; border-collapse: collapse; }
   thead { display: table-header-group; }
   th {
-    padding: 6px 7px; text-align: left; border-bottom: 1.5px solid #14161c;
-    font-size: 7.5pt; text-transform: uppercase; letter-spacing: .07em; color: #4a545e;
+    padding: 8px 8px; text-align: left; background: #faf7f9;
+    border-bottom: 1.5px solid ${ROSA};
+    font-size: 7pt; text-transform: uppercase; letter-spacing: .08em; color: ${TINTA};
   }
-  td { padding: 5px 7px; border-bottom: .5px solid #d8dde1; vertical-align: top; }
+  td { padding: 6px 8px; border-bottom: .5px solid ${LINEA}; vertical-align: top; }
   tr { page-break-inside: avoid; }
-  /* Las filas alternas se distinguen sin líneas verticales, que ensucian al imprimir. */
-  tbody tr:nth-child(even) { background: #f5f7f8; }
+  /* Filas alternas sin líneas verticales: las verticales ensucian al imprimir. */
+  tbody tr:nth-child(even) { background: #fbfafb; }
   .der { text-align: right; font-variant-numeric: tabular-nums; }
 
-  footer { margin-top: 16px; padding-top: 8px; border-top: .5px solid #d8dde1; color: #7a838d; font-size: 8pt; }
-  .vacio { padding: 24px; text-align: center; color: #7a838d; }
+  footer {
+    margin-top: 18px; padding-top: 9px; border-top: 1px solid ${LINEA};
+    color: ${GRIS}; font-size: 7.5pt;
+    display: flex; justify-content: space-between; gap: 16px;
+  }
+  .vacio { padding: 28px; text-align: center; color: ${GRIS}; }
 `;
 
 /**
@@ -96,16 +134,23 @@ export function openPdf<T>(documento: ExportDocument<T>): boolean {
 
   const generado = new Date().toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short' });
 
+  const registros = documento.rows.length === 1 ? '1 registro' : `${documento.rows.length} registros`;
+
   ventana.document.write(`<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>${escaparHtml(documento.fileName)}</title><style>${ESTILOS}</style></head>
 <body>
+  <div class="banda"></div>
   <header>
+    <div class="marca">${escaparHtml(documento.footer ?? 'Espartanos')}</div>
     <h1>${escaparHtml(documento.title)}</h1>
     ${documento.subtitle ? `<p class="subtitulo">${escaparHtml(documento.subtitle)}</p>` : ''}
     ${meta ? `<div class="meta">${meta}</div>` : ''}
   </header>
   <table><thead><tr>${encabezados}</tr></thead><tbody>${filas}</tbody></table>
-  <footer>${escaparHtml(documento.footer ?? '')}${documento.footer ? ' · ' : ''}Generado el ${escaparHtml(generado)} · ${documento.rows.length} registro(s)</footer>
+  <footer>
+    <span>${escaparHtml(registros)}</span>
+    <span>Generado el ${escaparHtml(generado)}</span>
+  </footer>
 </body></html>`);
   ventana.document.close();
 
