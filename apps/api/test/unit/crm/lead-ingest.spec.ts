@@ -27,7 +27,16 @@ function crear(overrides: Record<string, unknown> = {}) {
     save: vi.fn(async (v: unknown) => v),
   };
   const intake = { captureLead: vi.fn().mockResolvedValue({ id: 'lead-1' }) };
-  return { service: new LeadIngestService(sources as never, intake as never), sources, intake, origen };
+  /*
+   * El repositorio de campañas solo se consulta para decir si la campaña del lead está
+   * registrada. Estas pruebas comprueban qué se guarda y con qué llave, no esa respuesta, así
+   * que basta con un doble que diga que no la conoce.
+   */
+  const campaigns = { exist: vi.fn().mockResolvedValue(false) };
+  return {
+    service: new LeadIngestService(sources as never, campaigns as never, intake as never),
+    sources, intake, origen, campaigns,
+  };
 }
 
 const LEAD = { nombre: 'Ana Pérez', telefono: '+56912345678' };
