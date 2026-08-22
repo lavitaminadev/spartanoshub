@@ -29,14 +29,36 @@ export class CronController {
     private readonly xp: CloseXpPeriodsJob,
   ) {}
 
+  /**
+   * Comprueba la clave que trae el disparador de tareas.
+   *
+   * Acepta **dos** claves: la vigente y la anterior, si está declarada. Con una sola, rotarla
+   * obligaba a cambiarla en el servidor de tareas y en el `.env` a la vez, y entre un cambio y el
+   * otro las tareas dejaban de correr: la cobranza no se manda, las conversiones no se entregan y
+   * los leads vencidos no se purgan, sin que nada avise porque un cron que no corre no da error.
+   *
+   * Con dos, la rotación es en tres pasos y sin corte: se mueve la vigente a `CRON_SECRET_PREVIOUS`
+   * y se pone la nueva en `CRON_SECRET`, se actualiza el disparador cuando se pueda, y se borra la
+   * anterior. Dejarla puesta para siempre desharía el sentido de rotar, así que el último paso
+   * hay que hacerlo.
+   *
+   * La comparación es en tiempo constante: una comparación normal filtra la clave carácter a
+   * carácter, midiendo cuánto tarda en fallar.
+   */
   private verifySecret(secret?: string): void {
-    const expected = process.env.CRON_SECRET;
-    if (!expected) throw new ForbiddenException('CRON_SECRET not configured');
-    const expectedBuf = Buffer.from(expected);
-    const secretBuf = Buffer.from(secret ?? '');
-    if (secretBuf.length !== expectedBuf.length || !timingSafeEqual(secretBuf, expectedBuf)) {
-      throw new ForbiddenException('Invalid cron secret');
-    }
+    const vigente = process.env.CRON_SECRET;
+    if (!vigente) throw new ForbiddenException('CRON_SECRET not configured');
+
+    const anterior = process.env.CRON_SECRET_PREVIOUS;
+    const candidatas = anterior ? [vigente, anterior] : [vigente];
+    const recibida = Buffer.from(secret ?? '');
+
+    const coincide = candidatas.some((clave) => {
+      const esperada = Buffer.from(clave);
+      return recibida.length === esperada.length && timingSafeEqual(recibida, esperada);
+    });
+
+    if (!coincide) throw new ForbiddenException('Invalid cron secret');
   }
 
   @Post('meta-capi')

@@ -13,7 +13,12 @@ let ResourceThrottlerGuard = class ResourceThrottlerGuard extends throttler_1.Th
     async getTracker(req) {
         const ip = req.ips?.length ? req.ips[0] : req.ip;
         const slug = req.params?.slug;
-        return slug ? `${ip}:${slug}` : String(ip);
+        if (slug)
+            return `${ip}:${slug}`;
+        const correo = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+        if (correo)
+            return `${ip}:${correo}`;
+        return String(ip);
     }
 };
 exports.ResourceThrottlerGuard = ResourceThrottlerGuard;
