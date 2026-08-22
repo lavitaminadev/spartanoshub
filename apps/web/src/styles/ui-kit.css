@@ -499,3 +499,12 @@ select.input {
 
 /* Aviso de lo irreversible dentro de una confirmación: se lee antes de decidir, no después. */
 .confirmar-irreversible { color: var(--pink-dark); font-weight: 600; font-size: 13px; }
+
+/* Aviso de versión nueva: visible sin tapar el trabajo, y por encima de los modales no. */
+.aviso-version {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; z-index: 90;
+  padding: 10px 14px; border-radius: 999px;
+  background: var(--white); border: 1px solid var(--cyan);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .12); font-size: 13px; color: var(--ink);
+}
