@@ -131,7 +131,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
   const [abierto, setAbierto] = useState<Lead | null>(null);
   const [seleccion, setSeleccion] = useState<Set<string>>(() => new Set());
-  const [etapaEnLote, setEtapaEnLote] = useState('contacted');
+  /*
+   * Etapa de destino del cambio en lote.
+   *
+   * Arranca en la primera del embudo que se está mirando y no en un valor fijo: `contacted` no
+   * existe en el ciclo de reserva, así que en el CRM de un cliente el desplegable aparecía sin
+   * selección coherente y «Mover etapa» mandaba un estado imposible para toda la tanda.
+   */
+  const [etapaEnLote, setEtapaEnLote] = useState('');
   const [importarAbierto, setImportarAbierto] = useState(false);
   const [crearAbierto, setCrearAbierto] = useState(false);
   const [metaAbierto, setMetaAbierto] = useState(false);
@@ -440,9 +447,17 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         </div>
         <div className="page-header-actions">
           <ExportButtons document={documento} />
-          <button type="button" className="btn btn-outline" onClick={() => setMetaAbierto(true)}>Traer de Meta</button>
-          <button type="button" className="btn btn-outline" onClick={() => setImportarAbierto(true)}>Importar CSV</button>
-          <button type="button" className="btn btn-primary" onClick={() => { setAviso(null); setCrearAbierto(true); }}>+ Nuevo prospecto</button>
+          {/* Escribir es del equipo. El portal del cliente mira: ofrecerle estos botones solo
+              serviría para que el servidor los rechace y parezca que la pantalla está rota. */}
+          {scope.puedeEditar ? (
+            <>
+              <button type="button" className="btn btn-outline" onClick={() => setMetaAbierto(true)}>Traer de Meta</button>
+              <button type="button" className="btn btn-outline" onClick={() => setImportarAbierto(true)}>Importar CSV</button>
+              <button type="button" className="btn btn-primary" onClick={() => { setAviso(null); setCrearAbierto(true); }}>
+                + Nuevo {termino(scope.esAgencia ? 'prospecto' : 'lead').toLowerCase()}
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -486,7 +501,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       {seleccionVisible.length > 0 ? (
         <div className="leads-board-lote">
           <strong>{seleccionVisible.length} seleccionado{seleccionVisible.length === 1 ? '' : 's'}</strong>
-          <select className="input" value={etapaEnLote} onChange={(event) => setEtapaEnLote(event.target.value)}>
+          <select
+            className="input"
+            // Vacío hasta que se elige: obliga a decidir a dónde se mueve la tanda en vez de
+            // aceptar un destino que nadie miró.
+            value={etapaEnLote}
+            onChange={(event) => setEtapaEnLote(event.target.value)}
+          >
+            <option value="">Mover a…</option>
             {/* «Venta» exige convertir cada prospecto en cliente, y eso no se puede hacer en
                 lote sin decidir uno por uno: se deja fuera en vez de fallar en la mitad. */}
             {etapasDelEmbudo.filter((stage) => stage !== 'won').map((stage) => <option key={stage} value={stage}>{etapaLabel(stage)}</option>)}
@@ -494,7 +516,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           <button
             type="button"
             className="btn btn-sm btn-accent"
-            disabled={moverEnLote.isPending}
+            disabled={moverEnLote.isPending || !etapaEnLote}
             onClick={() => moverEnLote.mutate({ ids: seleccionVisible, status: etapaEnLote })}
           >
             {moverEnLote.isPending ? 'Aplicando...' : 'Mover etapa'}
@@ -514,6 +536,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           items={leads}
           keyExtractor={(lead) => lead.id}
           columnOf={(lead) => lead.status}
+          readOnly={!scope.puedeEditar}
           onMove={(lead, stage) => mover.mutate({ id: lead.id, status: stage })}
           emptyMessage="Ningún prospecto calza con este filtro."
           renderCard={(lead) => {
@@ -606,15 +629,17 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     desplaza bajo el dedo. Este botón hace lo mismo por menú, y es además el
                     camino accesible para quien no usa puntero.
                   */}
-                  <button
-                    type="button"
-                    className="leads-board-mover"
-                    title="Mover de etapa"
-                    onClick={(event) => { event.stopPropagation(); setMoviendo(lead); }}
-                  >
-                    ⇄
-                  </button>
-                  {!lead.assignedTo ? (
+                  {scope.puedeEditar ? (
+                    <button
+                      type="button"
+                      className="leads-board-mover"
+                      title="Mover de etapa"
+                      onClick={(event) => { event.stopPropagation(); setMoviendo(lead); }}
+                    >
+                      ⇄
+                    </button>
+                  ) : null}
+                  {!lead.assignedTo && scope.puedeEditar ? (
                     <button
                       type="button"
                       className="leads-board-tomar"

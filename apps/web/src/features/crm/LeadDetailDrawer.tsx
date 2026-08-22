@@ -445,6 +445,10 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           {' · '}Ingresó el {fecha(lead.createdAt)}
         </p>
 
+        {/*
+          Llamar y escribir por WhatsApp se quedan para todos: no cambian nada del sistema.
+          Lo que escribe —registrar gestión, mover de etapa, editar— es del equipo.
+        */}
         <div className="lead-detail-acciones">
           {lead.phone ? <a className="btn btn-outline btn-sm" href={`tel:${lead.phone}`}>Llamar</a> : null}
           {enlaceWhatsapp ? (
@@ -468,7 +472,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           >
             Agendar visita
           </button>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => setActividadAbierta(true)}>Registrar actividad</button>
+          {scope.puedeEditar ? (
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => setActividadAbierta(true)}>Registrar actividad</button>
+          ) : null}
         </div>
 
         <div className="lead-detail-edicion">
@@ -749,6 +755,11 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           <ProcessCommentThread basePath={`/crm/leads/${lead.id}`} />
         </section>
 
+        {/*
+          Borrar los datos de una persona o llevárselos son decisiones de quien responde por
+          ellos ante la ley, y eso es la agencia. El portal del cliente los ve, no los administra.
+        */}
+        {scope.puedeEditar ? (
         <section className="lead-detail-privacidad">
           <h3>Datos personales</h3>
           <div className="lead-detail-acciones">
@@ -761,17 +772,20 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </div>
           <small>Anonimizar es irreversible: borra los datos de contacto y conserva las cifras agregadas.</small>
         </section>
+        ) : null}
 
         <div className="lead-detail-pie">
           <button type="button" className="btn btn-outline" onClick={onClose}>Cerrar</button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={guardar.isPending || sinCambios}
-            onClick={() => guardar.mutate()}
-          >
-            {guardar.isPending ? 'Guardando...' : 'Guardar cambios'}
-          </button>
+          {scope.puedeEditar ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={guardar.isPending || sinCambios}
+              onClick={() => guardar.mutate()}
+            >
+              {guardar.isPending ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          ) : null}
         </div>
       </div>
 

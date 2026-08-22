@@ -29,6 +29,18 @@ export interface CrmScopeValue {
   esAgencia: boolean;
   /** Nombre de la empresa en pantalla, para los encabezados. */
   empresa: string;
+  /**
+   * Si quien mira puede además escribir.
+   *
+   * El portal del cliente entra al CRM en solo lectura: ve lo que es suyo, y en qué etapa está
+   * cada contacto o quién lo trabaja son decisiones del equipo. La pantalla tiene que respetarlo
+   * escondiendo los controles, no ofreciéndolos para que el servidor los rechace: un botón que
+   * siempre falla se lee como que la pantalla está rota, no como que no corresponde.
+   *
+   * Vive en el contexto y no en cada pantalla para que la regla sea una sola. Repetirla en seis
+   * sitios garantiza que el séptimo se olvide.
+   */
+  puedeEditar: boolean;
 }
 
 export const CrmScopeContext = createContext<CrmScopeValue | null>(null);

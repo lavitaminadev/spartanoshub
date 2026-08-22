@@ -108,6 +108,8 @@ export function CrmLayout(): JSX.Element {
     nombreDe,
     domain,
     esAgencia,
+    // El portal del cliente mira y no mueve. Ver `puedeEditar` en `crm-scope.ts`.
+    puedeEditar: user?.role !== 'client',
     /** Nombre de la empresa que se está mirando, para los encabezados de cada pantalla. */
     empresa: esAgencia ? 'Espartanos' : nombreDe(clientId),
   };
@@ -181,7 +183,9 @@ export function CrmLayout(): JSX.Element {
                 value={esAgencia ? CUENTA_AGENCIA : clientId}
                 onChange={(event) => setClientId(event.target.value)}
               >
-                <option value={CUENTA_AGENCIA}>Espartanos</option>
+{/* El embudo propio de la agencia no es de nadie más: ofrecérselo al portal de un cliente
+                    lo lleva a una pantalla vacía con el nombre de la agencia en el encabezado. */}
+                {user?.role !== 'client' ? <option value={CUENTA_AGENCIA}>Espartanos</option> : null}
                 {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
               </select>
             </label>

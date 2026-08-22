@@ -10,6 +10,7 @@ import { useMemo, useState, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { useCrmScope } from './crm-scope';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
 import './crm-calendar.css';
 
@@ -73,10 +74,15 @@ type Vista = 'mes' | 'semana';
 export function CrmCalendarPage(): JSX.Element {
   const [ancla, setAncla] = useState(() => new Date());
   const [vista, setVista] = useState<Vista>('mes');
+  // De qué empresa es la agenda. Sin esto se veían —y se exportaban— reuniones de otras cuentas
+  // bajo el encabezado de la empresa elegida, que es la forma más silenciosa de mezclarlas.
+  const scope = useCrmScope();
 
   const { data, isLoading } = useQuery<Reunion[]>({
-    queryKey: ['crm-calendario'],
-    queryFn: () => api.get('/meetings'),
+    queryKey: ['crm-calendario', scope.clientId],
+    queryFn: () => api.get(
+      `/meetings${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+    ),
     retry: false,
   });
 

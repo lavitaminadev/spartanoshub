@@ -75,6 +75,16 @@ export function CrmAdminPage(): JSX.Element {
   const queryClient = useQueryClient();
   // La empresa cuyas campañas se administran; la elige la barra del CRM.
   const scope = useCrmScope();
+  /*
+   * Acciones sin vuelta atrás, esperando confirmación.
+   *
+   * Las dos estaban a un clic desde una lista densa: quitar una campaña borra su inversión, y con
+   * ella el costo por lead histórico del panel; rotar una llave deja sin entregar a toda
+   * automatización que la use, hasta que alguien pegue la nueva. No se pueden deshacer, así que
+   * se pregunta nombrando lo que va a pasar en vez de solo pedir un «sí».
+   */
+  const [porBorrar, setPorBorrar] = useState<{ id: string; nombre: string } | null>(null);
+  const [porRotar, setPorRotar] = useState<{ id: string; nombre: string } | null>(null);
   const [llaveNueva, setLlaveNueva] = useState<string | null>(null);
   const [campaniaAbierta, setCampaniaAbierta] = useState(false);
   const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active' });
@@ -288,7 +298,7 @@ export function CrmAdminPage(): JSX.Element {
                   type="button"
                   className="btn btn-outline btn-sm"
                   disabled={borrarCampania.isPending}
-                  onClick={() => borrarCampania.mutate(campania.id)}
+                  onClick={() => setPorBorrar({ id: campania.id, nombre: campania.name })}
                 >
                   Quitar
                 </button>
@@ -428,7 +438,7 @@ export function CrmAdminPage(): JSX.Element {
                           type="button"
                           className="btn btn-outline btn-sm"
                           disabled={rotar.isPending}
-                          onClick={() => rotar.mutate(origen.id)}
+                          onClick={() => setPorRotar({ id: origen.id, nombre: origen.name })}
                         >
                           Rotar llave
                         </button>
@@ -441,6 +451,58 @@ export function CrmAdminPage(): JSX.Element {
           </div>
         )}
       </section>
+
+      {/*
+        Confirmación de lo que no se puede deshacer.
+
+        Se nombra lo que va a pasar, no solo lo que se pulsó: «quitar Verano 2026» y «su inversión
+        deja de repartirse» son la misma acción contada de dos maneras, y la segunda es la que
+        deja decidir de verdad.
+      */}
+      {porBorrar ? (
+        <Modal open onClose={() => setPorBorrar(null)} title={`Quitar la campaña ${porBorrar.nombre}`}>
+          <div className="modal-form">
+            <p>
+              Se borra la campaña y su inversión registrada. Los leads que trajo se conservan, pero
+              su costo por lead deja de calcularse, también hacia atrás en el panel.
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setPorBorrar(null)}>Cancelar</button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={borrarCampania.isPending}
+                onClick={() => { borrarCampania.mutate(porBorrar.id); setPorBorrar(null); }}
+              >
+                {borrarCampania.isPending ? 'Quitando...' : 'Quitar la campaña'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {porRotar ? (
+        <Modal open onClose={() => setPorRotar(null)} title={`Rotar la llave de ${porRotar.nombre}`}>
+          <div className="modal-form">
+            <p>
+              La llave actual deja de servir en el momento en que se rota. Todo lo que la esté
+              usando —el escenario de Make, un formulario— deja de entregar leads hasta que pegues
+              la nueva. La nueva se muestra una sola vez.
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setPorRotar(null)}>Cancelar</button>
+              <button
+                type="button"
+                className="btn btn-accent"
+                disabled={rotar.isPending}
+                onClick={() => { rotar.mutate(porRotar.id); setPorRotar(null); }}
+              >
+                {rotar.isPending ? 'Rotando...' : 'Rotar la llave'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }
