@@ -36,6 +36,7 @@ let CrmHomeController = class CrmHomeController {
         return this.home.home(req.organizationId, dias, {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: clientId || undefined,
+            allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
             onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
         });
     }
@@ -46,6 +47,7 @@ let CrmHomeController = class CrmHomeController {
         return this.dashboard.dashboard(req.organizationId, ventana, {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: clientId || undefined,
+            allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
             onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
         });
     }

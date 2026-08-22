@@ -34,7 +34,7 @@ let CrmHomeService = class CrmHomeService {
         const base = {
             organizationId,
             domain: alcance.domain ?? 'commercial',
-            ...(alcance.clientId ? { clientId: alcance.clientId } : {}),
+            ...this.alcanceDeCuentas(alcance),
         };
         const abierto = { ...base, status: (0, typeorm_2.In)(this.openStatuses()) };
         const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, equipo] = await Promise.all([
@@ -42,7 +42,7 @@ let CrmHomeService = class CrmHomeService {
             this.leads.count({ where: this.soloLoSuyo({ ...base, status: lead_status_enum_1.LeadStatus.WON, updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) }, alcance.onlyAssignedTo) }),
             this.montoDelMes({ ...base, onlyAssignedTo: alcance.onlyAssignedTo }, inicioDeMes),
             this.alert('sin_contactar', 'critico', this.soloLoSuyo({ ...abierto, status: lead_status_enum_1.LeadStatus.NEW }, alcance.onlyAssignedTo)),
-            this.alert('sin_asignar', 'critico', { ...abierto, assignedTo: (0, typeorm_2.IsNull)() }),
+            this.alert('sin_asignar', 'critico', this.paraCriterio({ ...abierto, assignedTo: (0, typeorm_2.IsNull)() })),
             this.alert('calificados_sin_visita', 'alto', this.soloLoSuyo({
                 ...base,
                 status: lead_status_enum_1.LeadStatus.QUOTE_SENT,
@@ -75,18 +75,39 @@ let CrmHomeService = class CrmHomeService {
             .andWhere('lead.domain = :domain', { domain: base.domain });
         if (base.clientId)
             query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+        const alcanzables = base.clientIds;
+        if (alcanzables !== undefined) {
+            query.andWhere(alcanzables.length ? 'lead.client_id IN (:...empresas)' : '1 = 0', { empresas: alcanzables });
+        }
         if (base.onlyAssignedTo) {
             query.andWhere('(lead.assigned_to = :onlyAssignedTo OR lead.assigned_to IS NULL)', { onlyAssignedTo: base.onlyAssignedTo });
         }
         return query;
     }
+    alcanceDeCuentas(alcance) {
+        if (alcance.clientId)
+            return { clientId: alcance.clientId };
+        if (alcance.allowedClientIds === undefined)
+            return {};
+        return { clientIds: alcance.allowedClientIds };
+    }
     openStatuses() {
         return Object.values(lead_status_enum_1.LeadStatus).filter((s) => !CLOSED_STATUSES.includes(s));
     }
     soloLoSuyo(where, usuarioId) {
+        const porColumnas = this.paraCriterio(where);
         if (!usuarioId)
-            return where;
-        return [{ ...where, assignedTo: usuarioId }, { ...where, assignedTo: (0, typeorm_2.IsNull)() }];
+            return porColumnas;
+        return [
+            { ...porColumnas, assignedTo: usuarioId },
+            { ...porColumnas, assignedTo: (0, typeorm_2.IsNull)() },
+        ];
+    }
+    paraCriterio(where) {
+        const { clientIds, ...resto } = where;
+        if (clientIds === undefined)
+            return resto;
+        return { ...resto, clientId: (0, typeorm_2.In)(clientIds.length ? clientIds : ['']) };
     }
     async alert(key, nivel, where) {
         const [rows, count] = await this.leads.findAndCount({
