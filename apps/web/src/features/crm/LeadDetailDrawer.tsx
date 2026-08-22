@@ -616,7 +616,15 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           />
         </label>
 
-        {!lead.convertedToClientId ? (
+        {/*
+          Convertir crea una **empresa cliente**: alguien a quien la agencia presta servicios.
+
+          Un contacto de campaña es otra cosa —una persona que respondió a la campaña del local de
+          un cliente— y el botón se le ofrecía igual: pulsarlo metía a un comensal en la cartera
+          de la agencia con su nombre como razón social. El servidor ahora lo rechaza; acá se
+          esconde, porque ofrecer algo que siempre va a fallar es peor que no ofrecerlo.
+        */}
+        {!lead.convertedToClientId && (leadInicial.domain ?? 'commercial') === 'commercial' ? (
           <div className="lead-detail-convertir">
             <button type="button" className="btn btn-outline btn-sm" disabled={convertir.isPending} onClick={() => convertir.mutate()}>
               {convertir.isPending ? 'Convirtiendo...' : 'Convertir en cliente'}
