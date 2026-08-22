@@ -17,9 +17,9 @@ Cubiertas por `test/e2e/puertas-sin-sesion.e2e.spec.ts` (14 pruebas) y
 
 | Ruta | Quién llama | Cómo se autoriza | Límite |
 | --- | --- | --- | --- |
-| `POST /auth/login` · `register` | Una persona | Contraseña | 5/min |
+| `POST /auth/login` · `register` | Una persona | Contraseña | 5/min **por persona** |
 | `GET /health` | Monitorización | Nada. No devuelve datos | — |
-| `POST /cron/*` | El servidor de tareas | `CRON_SECRET` en cabecera | 6/min |
+| `POST /cron/*` | El servidor de tareas | `CRON_SECRET` (+ la anterior, al rotar) | 6/min |
 | `GET·POST /webhooks/meta` | Meta | Firma HMAC del cuerpo | — |
 | `POST /public/ingest/leads` | Make, Zapier | Llave por campaña | 120/min |
 | `POST /public/agency-crm/leads/submissions` | Visitante de la web | Ninguna + honeypot | 10/min |
@@ -32,11 +32,12 @@ Cubiertas por `test/e2e/puertas-sin-sesion.e2e.spec.ts` (14 pruebas) y
 
 ### `POST /auth/login` — el acceso
 
-Cinco intentos por minuto **por dirección de origen**, ajustable con `AUTH_THROTTLE_LIMIT`. Un
-token robado muere al cambiar la contraseña: `JwtStrategy` rechaza cualquier token emitido antes
-del último cambio. Cerrar sesión surte efecto de inmediato.
+Cinco intentos por minuto **por persona** —el cupo se cuenta por `IP + correo`—, ajustable con
+`AUTH_THROTTLE_LIMIT`. Un token robado muere al cambiar la contraseña: `JwtStrategy` rechaza
+cualquier token emitido antes del último cambio. Cerrar sesión surte efecto de inmediato.
 
-**Lo que hay que saber:** el límite es por IP, no por persona. Una oficina entera lo comparte.
+El freno contra quien prueba contraseñas es el **bloqueo de la cuenta**: cinco fallos y queda
+cerrada cinco minutos. Ver más abajo.
 
 ### `GET /health` — la salud del servicio
 
@@ -47,6 +48,9 @@ No devuelve datos del negocio: estado, hora y versión. Es correcto que no exija
 Clave compartida en `x-cron-secret`, comparada en **tiempo constante** (`timingSafeEqual`), que es
 lo correcto: una comparación normal filtra la clave carácter a carácter midiendo cuánto tarda en
 fallar. Sin `CRON_SECRET` configurado no atiende a nadie, en vez de atender a todos.
+
+Durante una rotación acepta también `CRON_SECRET_PREVIOUS`, para no dejar las tareas caídas entre
+el cambio en el servidor y el del disparador. Ver más abajo.
 
 ### `GET·POST /webhooks/meta` — el webhook
 
@@ -126,11 +130,36 @@ la encuesta no se publica solo por haberse añadido.
 
 ---
 
+## Dos cosas que sí se arreglaron
+
+### El cupo del acceso se reparte por persona
+
+Contando solo por IP, los cinco intentos por minuto se repartían **entre toda la oficina**: con el
+equipo llegando a la misma hora, al sexto le respondía «demasiadas peticiones» y lo leía como que
+el sistema estaba caído.
+
+Ahora el cupo se cuenta por `IP + correo`. Dos personas de la misma oficina no se lo quitan entre
+ellas, y la misma persona desde su casa tiene el suyo.
+
+**No debilita la protección contra quien prueba contraseñas**, porque el freno real ante eso no era
+este límite sino el **bloqueo de la cuenta**: cinco fallos y queda cerrada cinco minutos
+(`MAX_FAILED_LOGIN_ATTEMPTS` en `auth.service.ts`). Ese bloqueo actúa sobre la cuenta atacada y no
+sobre quien esté sentado al lado, que es exactamente lo que hay que hacer.
+
+### La clave de las tareas se puede rotar sin corte
+
+Con una sola clave, cambiarla obligaba a tocar el servidor de tareas y el `.env` a la vez. Entre
+un cambio y el otro las tareas dejaban de correr —la cobranza no se manda, las conversiones no se
+entregan, los leads vencidos no se purgan— y **nada avisaba**: un cron que no corre no da error, se
+descubre cuando alguien echa de menos un correo.
+
+Ahora se aceptan dos claves y la rotación es en tres pasos, sin ventana de caída:
+
+1. Mover la clave actual a `CRON_SECRET_PREVIOUS` y poner la nueva en `CRON_SECRET`. Desplegar.
+2. Actualizar el disparador de tareas con la nueva, cuando se pueda.
+3. **Borrar `CRON_SECRET_PREVIOUS`.** Dejarla puesta desharía el sentido de rotar.
+
 ## Lo que queda abierto
 
-- **El límite de acceso es por IP.** Una oficina lo comparte. Ajustable, pero el reparto sigue
-  siendo por origen.
 - **El formulario de la web no tiene captcha.** Hoy lo cubren el honeypot y el límite de 10/min.
   Si empieza a llegar basura, es lo siguiente que hay que poner.
-- **Las tareas programadas dependen de una sola clave compartida.** Rotarla exige tocar el
-  servidor de tareas y el `.env` a la vez.

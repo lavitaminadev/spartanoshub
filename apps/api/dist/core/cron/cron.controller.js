@@ -40,14 +40,18 @@ let CronController = class CronController {
         this.running = new Set();
     }
     verifySecret(secret) {
-        const expected = process.env.CRON_SECRET;
-        if (!expected)
+        const vigente = process.env.CRON_SECRET;
+        if (!vigente)
             throw new common_1.ForbiddenException('CRON_SECRET not configured');
-        const expectedBuf = Buffer.from(expected);
-        const secretBuf = Buffer.from(secret ?? '');
-        if (secretBuf.length !== expectedBuf.length || !(0, crypto_1.timingSafeEqual)(secretBuf, expectedBuf)) {
+        const anterior = process.env.CRON_SECRET_PREVIOUS;
+        const candidatas = anterior ? [vigente, anterior] : [vigente];
+        const recibida = Buffer.from(secret ?? '');
+        const coincide = candidatas.some((clave) => {
+            const esperada = Buffer.from(clave);
+            return recibida.length === esperada.length && (0, crypto_1.timingSafeEqual)(recibida, esperada);
+        });
+        if (!coincide)
             throw new common_1.ForbiddenException('Invalid cron secret');
-        }
     }
     async processMetaCapiPost(secret, limit) {
         this.verifySecret(secret);
