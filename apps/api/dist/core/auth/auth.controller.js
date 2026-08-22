@@ -42,6 +42,10 @@ function sessionDurationMs(value) {
     return Number(match[1]) * units[match[2]];
 }
 const REFRESH_COOKIE_MAX_AGE_MS = sessionDurationMs(config_1.config.jwt.refreshExpiresIn);
+const INTENTOS_DE_ACCESO = {
+    limit: Number(process.env.AUTH_THROTTLE_LIMIT ?? 5),
+    ttl: Number(process.env.AUTH_THROTTLE_TTL_MS ?? 60_000),
+};
 function readCookie(request, name) {
     const match = request.headers.cookie
         ?.split(';')
@@ -174,7 +178,7 @@ exports.AuthController = AuthController;
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('register'),
-    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    (0, throttler_1.Throttle)({ default: INTENTOS_DE_ACCESO }),
     (0, swagger_1.ApiOperation)({ summary: 'Registrar nuevo usuario' }),
     (0, swagger_1.ApiBody)({ type: register_dto_1.RegisterDto }),
     __param(0, (0, common_1.Body)()),
@@ -186,7 +190,7 @@ __decorate([
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('login'),
-    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    (0, throttler_1.Throttle)({ default: INTENTOS_DE_ACCESO }),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, swagger_1.ApiOperation)({ summary: 'Iniciar sesión' }),
     (0, swagger_1.ApiBody)({ type: login_dto_1.LoginDto }),

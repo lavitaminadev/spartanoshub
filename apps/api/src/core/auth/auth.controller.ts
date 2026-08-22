@@ -39,6 +39,23 @@ function sessionDurationMs(value: string): number {
 
 const REFRESH_COOKIE_MAX_AGE_MS = sessionDurationMs(config.jwt.refreshExpiresIn);
 
+/**
+ * Intentos de acceso permitidos por minuto.
+ *
+ * El límite es **por dirección de origen, no por persona**: una oficina entera comparte una sola
+ * salida a internet, así que cinco intentos por minuto se reparten entre todos los que estén
+ * entrando a la vez. Con el equipo llegando a la misma hora, al sexto le responde 429 y lo lee
+ * como que el sistema está caído.
+ *
+ * Se conserva el valor de siempre como predeterminado —bajarlo protege contra el probador de
+ * contraseñas, que es para lo que está— y se hace ajustable para las instalaciones donde ese
+ * reparto no da, y para las pruebas, que abren varias sesiones seguidas.
+ */
+const INTENTOS_DE_ACCESO = {
+  limit: Number(process.env.AUTH_THROTTLE_LIMIT ?? 5),
+  ttl: Number(process.env.AUTH_THROTTLE_TTL_MS ?? 60_000),
+};
+
 function readCookie(request: Request, name: string): string | undefined {
   const match = request.headers.cookie
     ?.split(';')
@@ -94,7 +111,7 @@ export class AuthController {
    */
   @Public()
   @Post('register')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: INTENTOS_DE_ACCESO })
   @ApiOperation({ summary: 'Registrar nuevo usuario' })
   @ApiBody({ type: RegisterDto })
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) response: Response) {
@@ -108,7 +125,7 @@ export class AuthController {
    */
   @Public()
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: INTENTOS_DE_ACCESO })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Iniciar sesión' })
   @ApiBody({ type: LoginDto })
