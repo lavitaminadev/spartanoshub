@@ -197,6 +197,24 @@ export function ContactsPage() {
     if (key === 'source') setSourceFilter(value);
     setPage(1); // El filtro redefine el conjunto, por lo que la paginación vuelve al inicio.
   };
+  /*
+   * Esta pantalla describe el ciclo de una visita: ingresó, reservó, asistió, no asistió.
+   *
+   * Con la agencia elegida en la barra, la tabla listaba prospectos comerciales y el semáforo
+   * ofrecía pasarlos a «reservó» o «asistió»: estados que el servidor rechaza para ese embudo,
+   * bajo un encabezado que decía «CRM de los clientes» sobre datos de la agencia. Se dice qué
+   * pantalla corresponde en vez de ofrecer una que solo puede fallar.
+   */
+  if (scope.esAgencia) {
+    return (
+      <div className="alert alert-info">
+        <strong>Los contactos de campaña son de una empresa cliente.</strong>{' '}
+        Elige una arriba para ver los suyos. Los prospectos de la agencia están en el Tablero y en
+        la lista de Leads, que siguen el embudo de venta y no el ciclo de una visita.
+      </div>
+    );
+  }
+
   if (contactsQuery.isLoading) return <LoadingSpinner text="Cargando contactos..." />;
 
   const saveTags = (contact: ReservationContact) => {

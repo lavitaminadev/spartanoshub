@@ -2,6 +2,7 @@ import { useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { api } from '../../core/api';
+import { useCrmScope } from './crm-scope';
 import { Modal } from '../../shared/Modal';
 import { guessMapping, type TargetField } from './import-field-mapping';
 
@@ -52,8 +53,17 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
   const [mapping, setMapping] = useState<Record<string, TargetField | ''>>({});
   const [source, setSource] = useState('importacion');
   const [sourceDetail, setSourceDetail] = useState('');
-  const [clientId, setClientId] = useState('');
-  const [domain, setDomain] = useState<'audience' | 'commercial'>('audience');
+  /*
+   * Empresa y embudo heredan lo que se está mirando.
+   *
+   * Estaban fijos en «contactos de campaña» sin mirar el contexto, así que importar desde el CRM
+   * de la agencia metía el lote entero en el embudo equivocado si nadie tocaba el selector. Se
+   * siguen pudiendo cambiar —a veces se importa a otra cuenta a propósito—, pero lo que se
+   * ofrece por defecto es donde está parado quien importa.
+   */
+  const scope = useCrmScope();
+  const [clientId, setClientId] = useState(scope.clientId);
+  const [domain, setDomain] = useState<'audience' | 'commercial'>(scope.domain);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
 
