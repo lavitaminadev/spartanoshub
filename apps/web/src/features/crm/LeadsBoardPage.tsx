@@ -40,6 +40,7 @@ import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
 import { useAuth } from '../../core/auth';
 import { useStageLabels } from './use-stage-labels';
+import { useVocabulario } from './use-vocabulario';
 import { colorDePersona, whatsapp } from './contacto';
 import './leads-board.css';
 
@@ -124,6 +125,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const { user } = useAuth();
   // Cómo llama esta empresa a sus etapas. Vacío mientras carga: se ven los nombres de fábrica.
   const rotulos = useStageLabels(scope.clientId);
+  // Cómo llama esta empresa a sus cosas. Devuelve el nombre de fábrica para lo que no renombró.
+  const { termino } = useVocabulario(scope.clientId);
   const filtros = useUrlFilters(FILTER_KEYS);
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
   const [abierto, setAbierto] = useState<Lead | null>(null);
@@ -419,7 +422,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               que es el de otra, ahora que la misma pantalla sirve a las dos. */}
           <span className={scope.esAgencia ? 'crm-scope is-agency' : 'crm-scope'}>{scope.empresa}</span>
           <span className="page-eyebrow">{scope.esAgencia ? 'EMBUDO COMERCIAL' : 'CONTACTOS DE CAMPAÑA'}</span>
-          <h1>{scope.esAgencia ? 'Prospectos' : 'Leads'}</h1>
+          <h1>{termino(scope.esAgencia ? 'prospectos' : 'leads')}</h1>
           <p className="page-subtitle">
             {scope.esAgencia
               ? 'Empresas que Espartanos quiere sumar como clientes.'
@@ -631,8 +634,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     onChange={alternarTodos}
                   />
                 </th>
-                <th>Prospecto</th><th>Contacto</th><th>Empresa</th><th>Origen</th><th>Etapa</th>
-                <th>Etiqueta</th><th>Calidad</th><th>Responsable</th><th>Ingreso</th>
+                <th>{termino(scope.esAgencia ? 'prospecto' : 'lead')}</th><th>Contacto</th>
+                <th>{termino('empresa')}</th><th>Origen</th><th>Etapa</th>
+                <th>Etiqueta</th><th>Calidad</th><th>{termino('responsable')}</th><th>Ingreso</th>
               </tr>
             </thead>
             <tbody>
