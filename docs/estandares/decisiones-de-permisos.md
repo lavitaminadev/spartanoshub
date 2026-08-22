@@ -1,84 +1,90 @@
-# Diez decisiones de permisos
+# Cómo se decide hoy quién entra a qué
 
-Diez controladores cierran su puerta con `@Roles` **a nivel de clase**: nadie fuera de esa lista
-entra, ni siquiera a leer. Y la matriz de permisos —la que se edita en Accesos y seguridad—
-concede su módulo a más cargos.
-
-El resultado se vive así: **concedes el módulo, la persona lo ve en el menú, entra y recibe 403.**
-El menú promete lo que el servidor no cumple.
-
-Esto no se arregla desde el código sin decidir antes: resolver cada una amplía o recorta el
-acceso de gente concreta. Aquí está cada caso con lo que recomiendo y por qué. Basta un sí o un
-no por fila.
-
-> Las otras 16 divergencias que detecta `fuentes-de-autorizacion.spec.ts` tienen el `@Roles` en
-> métodos sueltos —lectura abierta, escritura restringida—, que es lo correcto y no hay que tocar.
+Este documento decía otra cosa. Proponía diez cambios basados en una lectura equivocada del
+código, se intentaron, y una prueba los tumbó antes de llegar a producción. Lo que sigue es lo
+que el sistema hace de verdad.
 
 ---
 
-## Cómo se resuelve cada una
+## El hallazgo
 
-Hay dos formas, y casi siempre la correcta es la segunda:
+`role-permissions.ts` tiene dos cosas que parecen la misma y no lo son:
 
-1. **Quitar el `@Roles`** y dejar que mande la matriz. Amplía el acceso a quien tenga el módulo.
-2. **Cambiar el módulo que declara el controlador** por uno que describa mejor lo que hace. No
-   amplía nada: solo deja de prometer desde la pantalla lo que el código nunca iba a dar.
+```ts
+// El reparto documentado, cargo por cargo, con las razones de cada decisión.
+const PERFIL_SUGERIDO: Record<UserRole, RoleModuleMap> = { ... }
 
-La segunda es preferible cuando el problema es que el controlador se colgó de un módulo
-demasiado general —`settings` o `users`— que la matriz concede a casi todos para cosas básicas.
+// La matriz que se aplica de verdad.
+export const ROLE_PERMISSIONS = {
+  ...Object.fromEntries(CARGOS_INTERNOS.map((rol) => [rol, ACCESO_COMPLETO])),
+  [UserRole.CLIENT]: PERFIL_SUGERIDO[UserRole.CLIENT],
+}
+```
 
----
+**Todos los cargos internos nacen con el catálogo completo en `manage`.** `PERFIL_SUGERIDO` no se
+aplica: es el punto de partida documentado para cuando se recorte desde la pantalla.
 
-## Las diez
+La decisión está explicada en el propio archivo y tiene sentido: antes cada cargo nacía con una
+lista corta y ampliarla exigía desplegar, así que faltaban pantallas sin que nada dijera por qué.
 
-| # | Controlador | Módulo que declara | Deja fuera a | Recomiendo |
-| --- | --- | --- | --- | --- |
-| 1 | `core/audit` | `settings` | 7 cargos | **Cambiar a `governance`** |
-| 2 | `core/data-protection` | `governance` | 7 cargos | **Dejar cerrado**, quitar de la matriz |
-| 3 | `core/parameters/organization-settings` | `settings` | 8 cargos | **Dejar cerrado**, es la configuración |
-| 4 | `modules/organizations` | `settings` | 7 cargos | **Dejar cerrado** |
-| 5 | `modules/account-cycles` | `clients` | 7 + cliente | **Abrir a lectura** |
-| 6 | `modules/clients` | `clients` | 3 cargos | **Abrir a lectura** |
-| 7 | `modules/pods` | `users` | 8 cargos | **Abrir a lectura** |
-| 8 | `modules/process-templates` | `operations` | 8 cargos | **Abrir a lectura** |
-| 9 | `modules/service-requests` | `settings` | 9 cargos | **Abrir**, y cambiar a su propio módulo |
-| 10 | `modules/automations` | `crm` | 8 + cliente | **Decisión tuya** (ver abajo) |
+## La consecuencia, que es lo que importa
 
-### Por qué cada recomendación
+> **Las listas de `@Roles` no son una segunda reja redundante sobre la matriz. Son la reja.**
 
-**1 · Auditoría → `governance`.** El registro de auditoría dice quién hizo qué. No es
-configuración: es gobierno. Declarando `governance` la divergencia desaparece sin que nadie gane
-acceso, porque ese módulo ya está restringido a quien corresponde.
+Sin ellas, cualquier cargo interno alcanza cualquier módulo, porque la matriz se lo concede todo.
 
-**2, 3 y 4 · Protección de datos, ajustes de organización, organizaciones.** Son las tres palancas
-que pueden dejar a todo el mundo fuera o exponer datos personales. Quien las toca es
-administración. La divergencia se cierra **quitándolas de la matriz** para los cargos que hoy las
-reciben: la pantalla deja de prometerlas.
+Por eso las 26 «divergencias» que detecta `fuentes-de-autorizacion.spec.ts` no son un defecto a
+corregir: son la medida de cuánto está protegiendo cada controlador por su cuenta. Bajar ese
+número **abriendo accesos** sería exactamente lo contrario de lo que hay que hacer.
 
-**5 y 6 · Ciclos de cuenta y clientes.** Quien trabaja una cuenta necesita ver de qué cuenta se
-trata y en qué punto del ciclo está. El alcance por cuenta ya limita a las suyas, así que abrir
-la lectura no expone nada que no le corresponda. **La escritura sigue restringida.**
+## Qué se intentó, y qué lo detuvo
 
-**7 · Pods.** Saber con quién trabajas no es información sensible. Lectura para todo el equipo.
+Se quitaron las listas de siete controladores —auditoría, ajustes de organización, organizaciones,
+clientes, pods, plantillas de proceso y ciclos de cuenta— con el razonamiento de «que gobierne la
+matriz, y el nivel por método impedirá escribir».
 
-**8 · Plantillas de proceso.** Definen las etapas por las que pasa el trabajo. Todo el mundo las
-recorre; no poder ni leerlas obliga a preguntar por chat cómo se llama el paso siguiente.
+Una prueba de extremo a extremo comprobó el efecto real con un community manager:
 
-**9 · Solicitudes de servicio.** Pedirle algo al equipo tiene que poder hacerlo cualquiera del
-equipo. Además declara `settings`, que no describe lo que hace: merece su propio módulo.
+```
+× el registro de auditoría no lo mira cualquiera   → recibió 200
+× la configuración de la organización tampoco      → recibió 200
+```
 
-**10 · Automatizaciones.** Es el único donde no tengo criterio suficiente. Una automatización mal
-tocada manda correos a clientes reales o mueve leads en bloque. Si en tu equipo eso lo maneja
-solo dirección, se deja cerrado y se quita de la matriz; si un community manager arma sus propias
-automatizaciones, se abre. **Dímelo tú.**
+Un community manager entrando al registro de auditoría y a la configuración de la organización.
+Revertido en el momento.
 
----
+**La lección no es sobre permisos**: es que una prueba que comprueba el efecto —quién entra de
+verdad— atrapa lo que ninguna lectura del código habría atrapado. La intuición decía «esto no
+abre nada»; el sistema respondió 200.
 
-## Después de decidir
+## Entonces, ¿qué sí conviene hacer?
 
-Cada cambio se hace con su prueba de extremo a extremo: se crea una cuenta con ese cargo, se le
-concede el módulo, y se comprueba que entra —o que no—. Sin eso, «abrir a lectura» es una
-intención, no un hecho.
+**Nada urgente.** El sistema no tiene un agujero: tiene las rejas en un sitio distinto del que
+parecía. Lo que conviene, cuando haya tiempo y sin prisa:
 
-Y la cota de `fuentes-de-autorizacion.spec.ts` baja con cada una resuelta. Cuando llegue a cero,
-la pantalla de permisos gobierna de verdad todo el producto.
+1. **Renombrar `PERFIL_SUGERIDO`.** Su nombre invita a leerlo como la matriz vigente, y no lo es.
+   Algo como `REPARTO_DOCUMENTADO_SIN_APLICAR` es feo y no engaña a nadie.
+2. **Decidir si la apertura total sigue siendo lo que se quiere.** Se hizo para que la pantalla de
+   permisos pudiera recortar sin desplegar. Funciona, pero significa que **una organización nueva
+   nace con todo el equipo pudiendo tocar todo** hasta que alguien recorte. Si eso no es lo
+   deseado, el arreglo es que `ROLE_PERMISSIONS` aplique `PERFIL_SUGERIDO` —que ya está escrito y
+   razonado— y entonces sí sobrarían muchas listas de `@Roles`.
+3. **Dejar las listas donde están** mientras tanto. Son lo único que hoy separa a un diseñador del
+   registro de auditoría.
+
+El punto 2 es una decisión de producto con consecuencias reales: aplicarlo recorta de golpe lo que
+ve cada persona del equipo. No se hace sin avisar a quien va a notarlo.
+
+## Lo que queda vigilado
+
+`fuentes-de-autorizacion.spec.ts` mantiene dos cotas:
+
+- **6 controladores** sin módulo declarado. Los seis son de infraestructura —acceso, salud,
+  métricas, subidas, imágenes, avisos— y ninguno pertenece al producto. La cota vigila que no
+  aparezca un séptimo que sí lo sea.
+- **26 divergencias.** Mientras la matriz conceda todo, este número no debe bajar por las malas:
+  bajarlo quitando listas es abrir accesos. Bajará solo, y con sentido, si algún día se aplica
+  `PERFIL_SUGERIDO`.
+
+Y `permisos-gobiernan.e2e.spec.ts` fija el comportamiento con un cargo real, para que cualquier
+intento de simplificar esto —el mío incluido— falle ahí antes de llegar a producción.
