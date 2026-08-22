@@ -26,6 +26,15 @@
 /** Cada cuánto se pregunta si hay versión nueva. */
 const INTERVALO_MS = 60_000;
 
+/**
+ * Hay una versión nueva esperando y la pestaña está delante.
+ *
+ * Lo escucha el aviso que ofrece recargar. Va como evento y no como estado compartido porque
+ * quien lo emite es código sin React —el registro del service worker— y quien lo muestra es un
+ * componente: un evento del navegador es el único punto en que los dos se encuentran.
+ */
+export const VERSION_NUEVA_EVENT = 'espartanos:version-nueva';
+
 let recargando = false;
 
 /**
@@ -46,7 +55,24 @@ export function mantenerAlDia(registro?: ServiceWorkerRegistration): void {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (recargando) return;
     recargando = true;
-    window.location.reload();
+
+    /*
+     * Con la pestaña de fondo se recarga sola; con la pestaña delante, se avisa.
+     *
+     * Recargar en mitad de una escritura pierde lo escrito: quien está rellenando la ficha de un
+     * lead vería su trabajo desaparecer sin explicación, y eso es peor que seguir un rato más con
+     * la versión anterior. Si nadie está mirando, no hay nada que perder y se hace en silencio.
+     */
+    if (document.visibilityState === 'hidden') {
+      window.location.reload();
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(VERSION_NUEVA_EVENT));
+    // Y si se va a otra pestaña sin decidir, se aprovecha ese momento.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') window.location.reload();
+    }, { once: true });
   });
 
   if (!registro) return;

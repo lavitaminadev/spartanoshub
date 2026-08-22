@@ -22,7 +22,13 @@ import { localDateBoundsUtc } from './local-time';
 import './AgendaPage.css';
 
 interface Client { id: string; name: string }
-interface ReservationPage { items: Reservation[]; total: number; page: number; pageSize: number; pages: number }
+/**
+ * Página de reservas.
+ *
+ * `data` es el nombre canónico de las listas del sistema; `items` es el anterior y sigue
+ * viajando mientras queden pantallas que lo lean. Las dos claves apuntan al mismo arreglo.
+ */
+interface ReservationPage { data?: Reservation[]; items?: Reservation[]; total: number; page: number; pageSize: number; pages: number }
 
 const GENERAL_ZONE_ID = '__general__';
 const NO_SHOW_STATUSES = new Set(['no_show']);
@@ -84,7 +90,9 @@ export function AgendaPage() {
     queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, ...dayRange, pageSize: '100' })}`),
     enabled: Boolean(clientId && effectiveFormId),
   });
-  const reservations = Array.isArray(reservationPage?.items) ? reservationPage.items : EMPTY_RESERVATIONS;
+  // `data` es el nombre canónico; `items` se lee mientras siga viajando.
+  const filas = reservationPage?.data ?? reservationPage?.items;
+  const reservations = Array.isArray(filas) ? filas : EMPTY_RESERVATIONS;
 
   const zones = useMemo(() => {
     const configured = activeForm?.resourcesConfig ?? [];

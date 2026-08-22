@@ -20,6 +20,7 @@ import { ContextHelpDrawer } from './help/ContextHelpDrawer';
 import { useFocusTrap } from './useFocusTrap';
 import { VitaIcons } from './Icons';
 import { ReauthPrompt } from './ReauthPrompt';
+import { AvisoVersionNueva } from './AvisoVersionNueva';
 
 /**
  * Breakpoint en el que el sidebar pasa de fijo (desktop) a drawer superpuesto
@@ -119,6 +120,7 @@ export function Layout(): JSX.Element {
     <div className="app-layout">
       <ToastContainer />
       <ReauthPrompt />
+      <AvisoVersionNueva />
       <NotificationCenter />
       <CommandPalette />
       {!online && <div className="offline-banner" role="alert"><strong>Sin conexión</strong><span>Puedes revisar la pantalla actual, pero los cambios no se enviarán hasta recuperar internet.</span></div>}
