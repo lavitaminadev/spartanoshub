@@ -39,12 +39,8 @@ let PublicSurveysController = class PublicSurveysController {
             type: survey.type,
             questions: survey.questions ?? [],
             status: survey.status,
-            createdAt: survey.createdAt.toISOString(),
-            createdBy: survey.createdBy,
-            distribution: survey.distribution ?? undefined,
             publicUrl: publicSurveyUrl(survey.id),
             ga4MeasurementId: survey.ga4MeasurementId ?? null,
-            responses: survey.responseCount,
             designConfig: survey.designConfig ?? undefined,
             googleReview: survey.googleReview ?? undefined,
         };

@@ -24,6 +24,17 @@ export class PublicSurveysController {
     @InjectRepository(SurveyResponse) private readonly responses: Repository<SurveyResponse>,
   ) {}
 
+  /**
+   * Lo que ve quien va a responder, que es menos de lo que ve el equipo.
+   *
+   * Antes devolvía el contrato completo, y ahí viajaban tres cosas que no le incumben a quien
+   * abre el enlace: **quién de la agencia la creó** —un identificador de una persona real—,
+   * **cuántas respuestas lleva** y **a quién se distribuyó**. Nada de eso hace falta para
+   * contestar, y el recuento además informa a cualquiera de cómo le está yendo a esa campaña.
+   *
+   * Se arma explícitamente en vez de quitar campos del objeto completo: así, un campo nuevo en la
+   * encuesta no se publica solo por haberse añadido.
+   */
   private toContract(survey: Survey): SurveyContract {
     return {
       id: survey.id,
@@ -31,12 +42,9 @@ export class PublicSurveysController {
       type: survey.type,
       questions: survey.questions ?? [],
       status: survey.status,
-      createdAt: survey.createdAt.toISOString(),
-      createdBy: survey.createdBy,
-      distribution: survey.distribution ?? undefined,
       publicUrl: publicSurveyUrl(survey.id),
+      // Necesario para medir la respuesta desde la propia página, y no identifica a nadie.
       ga4MeasurementId: survey.ga4MeasurementId ?? null,
-      responses: survey.responseCount,
       designConfig: survey.designConfig ?? undefined,
       googleReview: survey.googleReview ?? undefined,
     } as SurveyContract;
