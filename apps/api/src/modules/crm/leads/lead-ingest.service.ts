@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { createHash, randomBytes } from 'node:crypto';
 import { LeadIngestSource } from './ingest-source.entity';
 import { LeadIntakeService } from './lead-intake.service';
+import { Campaign } from '../campaigns/campaign.entity';
 import { IngestLeadDto } from './dto/ingest-lead.dto';
 import { identificadorExterno } from './identificador-externo';
 
@@ -23,6 +24,7 @@ export class LeadIngestService {
 
   constructor(
     @InjectRepository(LeadIngestSource) private readonly sources: Repository<LeadIngestSource>,
+    @InjectRepository(Campaign) private readonly campaigns: Repository<Campaign>,
     private readonly intake: LeadIntakeService,
   ) {}
 
@@ -47,7 +49,18 @@ export class LeadIngestService {
    *   distingue ambos casos: decir «la llave existe pero está apagada» confirmaría a un tercero
    *   que acertó una llave válida.
    */
-  async ingest(token: string, dto: IngestLeadDto): Promise<{ leadId: string; source: string }> {
+  async ingest(token: string, dto: IngestLeadDto): Promise<{
+    leadId: string;
+    source: string;
+    /**
+     * Campaña del lead y si está registrada en el CRM.
+     *
+     * `null` cuando la entrada no trae ninguna. `recognized: false` no impide que el lead entre:
+     * avisa de que su inversión no se podrá repartir, que es un efecto silencioso y por eso hay
+     * que decirlo donde se lee, no solo dejarlo pasar.
+     */
+    campaign: { name: string; recognized: boolean; hint?: string } | null;
+  }> {
     const source = await this.sources.findOne({ where: { tokenHash: this.hash(token), isActive: true } });
     if (!source) throw new UnauthorizedException('Llave de integración no válida');
 
@@ -95,7 +108,41 @@ export class LeadIngestService {
         lastErrorAt: null,
       }).catch((err) => this.logger.warn(`No se pudo actualizar el contador de ${source.id}: ${err}`));
 
-      return { leadId: lead.id, source: source.source };
+      /*
+       * Si la campaña de este lead está registrada en el CRM.
+       *
+       * El lead entra igual: no reconocerla no es motivo para rechazarlo, y perder un lead por
+       * un nombre mal escrito sería peor que la cifra que se pierde. Pero se dice, porque el
+       * efecto de no reconocerla es silencioso: la inversión no se reparte, el costo por lead
+       * queda en blanco, y nadie se entera hasta que alguien mira el panel semanas después y no
+       * entiende por qué falta esa columna.
+       *
+       * Va en la respuesta porque es donde lo lee quien está configurando el escenario: Make y
+       * Zapier muestran el cuerpo en su historial de ejecuciones, así que el aviso aparece al
+       * lado de la petición que lo provocó.
+       */
+      const campana = source.campaignName ?? dto.campana;
+      const reconocida = campana
+        ? await this.campaigns.exist({
+          where: { organizationId: source.organizationId, name: campana },
+        })
+        : false;
+
+      return {
+        leadId: lead.id,
+        source: source.source,
+        campaign: campana
+          ? {
+            name: campana,
+            recognized: reconocida,
+            ...(reconocida ? {} : {
+              hint: 'Esta campaña no está registrada en el CRM: el lead entra igual, pero su '
+                + 'inversión y su costo por lead no se podrán calcular. Regístrala en '
+                + 'CRM → Administración → Campañas con este mismo nombre.',
+            }),
+          }
+          : null,
+      };
     } catch (err) {
       const motivo = err instanceof Error ? err.message : String(err);
       // Se deja anotado en el origen para que la pantalla explique por qué no entra un lead: sin

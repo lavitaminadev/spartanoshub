@@ -31,8 +31,8 @@ let LeadIngestController = class LeadIngestController {
         if (!dto.telefono && !dto.email) {
             throw new common_1.BadRequestException('El lead necesita teléfono o correo. Mapea al menos uno en tu Zap.');
         }
-        const { leadId, source } = await this.ingest.ingest(token, dto);
-        return { ok: true, leadId, source };
+        const { leadId, source, campaign } = await this.ingest.ingest(token, dto);
+        return { ok: true, leadId, source, campaign };
     }
     async validar(cuerpo) {
         const dto = (0, class_transformer_1.plainToInstance)(ingest_lead_dto_1.IngestLeadDto, cuerpo);
