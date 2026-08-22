@@ -72,6 +72,8 @@ export interface Banco {
     token?: string,
     cuerpo?: unknown,
   ) => Promise<Respuesta>;
+  /** Últimas líneas que escribió la API. Sirven para leer el error que hay detrás de un 500. */
+  registro: () => string;
   cerrar: () => Promise<void>;
 }
 
@@ -240,9 +242,10 @@ ${salida}`);
     cuentas,
     db,
     pedir,
+    registro: () => salida,
     cerrar: async () => {
       await db.end();
-      proceso.kill();
+      await detener(proceso);
     },
   };
 }
@@ -273,4 +276,26 @@ async function limpiar(db: mysql.Connection): Promise<void> {
 
 export async function cerrarBanco(banco: Banco): Promise<void> {
   await banco.cerrar();
+}
+
+/**
+ * Detiene la API arrancada por el banco, con todo lo que colgaba de ella.
+ *
+ * En Windows, `npx` levanta un intérprete de comandos que a su vez levanta node: matar el padre
+ * deja al hijo escuchando. Cada ejecución de las pruebas dejaba así una API viva, y en una tarde
+ * de trabajo se acumularon noventa: consumían conexiones hasta que la base dejaba de dar más y
+ * las pruebas empezaban a fallar por un motivo que no tenía nada que ver con lo que probaban.
+ *
+ * `taskkill /T` recorre el árbol completo. Fuera de Windows basta con matar el grupo.
+ */
+async function detener(proceso: ChildProcess): Promise<void> {
+  if (!proceso.pid) return;
+  if (process.platform === 'win32') {
+    const { spawnSync } = await import('node:child_process');
+    spawnSync('taskkill', ['/PID', String(proceso.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    proceso.kill('SIGTERM');
+  }
+  // Un momento para que suelte el puerto y las conexiones antes de que arranque el siguiente.
+  await new Promise((r) => setTimeout(r, 500));
 }
