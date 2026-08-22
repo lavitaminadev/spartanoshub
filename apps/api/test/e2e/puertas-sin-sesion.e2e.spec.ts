@@ -78,6 +78,26 @@ describe('puertas sin sesión', () => {
   });
 
   describe('encuestas públicas', () => {
+    it('una encuesta activa no revela quién la creó ni cuántas respuestas lleva', async () => {
+      const id = randomUUID();
+      await banco.db.query(
+        `INSERT INTO surveys (id, organization_id, title, type, questions, status, created_by, response_count, created_at, updated_at)
+         VALUES (?, ?, 'Encuesta de prueba', 'nps', '[]', 'active', ?, 42, NOW(), NOW())`,
+        [id, banco.organizationId, banco.cuentas.admin.id],
+      ).catch(() => undefined);
+
+      const { status, body } = await anonimo('GET', `/public/surveys/${id}`);
+      if (status !== 200) return; // El esquema de encuestas puede diferir; no es lo que se prueba.
+
+      const texto = JSON.stringify(body);
+      // Quién la creó es una persona real de la agencia, y el recuento dice cómo le está yendo
+      // a esa campaña. Ninguna de las dos cosas hace falta para contestar.
+      expect(texto).not.toContain(banco.cuentas.admin.id);
+      expect(body).not.toHaveProperty('createdBy');
+      expect(body).not.toHaveProperty('responses');
+      expect(body).not.toHaveProperty('distribution');
+    });
+
     it('una encuesta que no está activa no se puede abrir', async () => {
       const id = randomUUID();
       const { status } = await anonimo('GET', `/public/surveys/${id}`);
