@@ -129,7 +129,7 @@ export class LeadController {
       clientId: query.clientId,
       allowedClientIds: conCrm,
       // Segunda reja: qué empresas alcanza ya se resolvió arriba; esto decide cuánto ve dentro.
-      onlyAssignedTo: veSoloLoSuyo(req.user.role) ? req.user.id : undefined,
+      onlyAssignedTo: veSoloLoSuyo(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
     });
 
     /*
@@ -208,7 +208,7 @@ export class LeadController {
      * su monto y sus notas. Se responde «no encontrado» y no «sin permiso», que es lo mismo que
      * hace el filtro por cuenta: decir que existe ya es contar algo.
      */
-    if (veSoloLoSuyo(req.user.role) && lead.assignedTo && lead.assignedTo !== req.user.id) {
+    if (veSoloLoSuyo(req.user.role, req.user.crmProfile) && lead.assignedTo && lead.assignedTo !== req.user.id) {
       throw new NotFoundException('Lead no encontrado');
     }
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);

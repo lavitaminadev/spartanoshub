@@ -57,6 +57,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: user.role,
       organizationId: user.organizationId,
       clientId: user.clientId,
+      // Se lee del usuario y no del token: cambiar el perfil de alguien tiene que surtir efecto
+      // en su siguiente petición, no cuando le venza la sesión.
+      crmProfile: user.crmProfile,
       name: user.name,
       sessionId: payload.sid,
       tenantId: user.organizationId,

@@ -30,6 +30,29 @@ const VEN_TODO = new Set<UserRole>([
  * nuevos sin nadie que pudiera tomarlos: los vería solo quien ya ve todo, que es justo el que no
  * los va a trabajar.
  */
-export function veSoloLoSuyo(role: string | undefined): boolean {
+/**
+ * Formas de usar el CRM, con independencia del cargo.
+ *
+ * - `principal` — quien lleva el negocio: ve todo lo de las empresas que alcanza.
+ * - `venta` — quien atiende: ve lo suyo y lo que está libre.
+ *
+ * Existe porque el cargo no alcanza para decidirlo cuando cada empresa cliente tiene su propia
+ * gente: ahí «community manager» o «diseñador» no significan nada, y lo que hay son estas dos
+ * formas de trabajar. El cargo dice a qué módulos se entra; esto, cuánto se abarca dentro.
+ */
+export const PERFILES_CRM = ['principal', 'venta'] as const;
+export type PerfilCrm = (typeof PERFILES_CRM)[number];
+
+/**
+ * Si a esta persona el CRM debe mostrarle solo su propio trabajo.
+ *
+ * @param role - Cargo, que decide cuando no hay perfil fijado.
+ * @param perfil - Forma de usar el CRM elegida para esa persona. Ausente significa «lo que diga
+ *   el cargo», que es como funcionaba antes de que este campo existiera: así, ninguna cuenta
+ *   cambia de comportamiento por el solo hecho de añadirlo.
+ */
+export function veSoloLoSuyo(role: string | undefined, perfil?: string | null): boolean {
+  if (perfil === 'venta') return true;
+  if (perfil === 'principal') return false;
   return !VEN_TODO.has(role as UserRole);
 }

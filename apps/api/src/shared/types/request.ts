@@ -11,6 +11,8 @@ export interface AuthUser {
   role: UserRole;
   organizationId: string;
   clientId?: string;
+  /** Forma de usar el CRM. Ausente significa «lo que diga el cargo». Ver `lead-visibility.ts`. */
+  crmProfile?: string | null;
   /**
    * Sesión desde la que llega la petición.
    *

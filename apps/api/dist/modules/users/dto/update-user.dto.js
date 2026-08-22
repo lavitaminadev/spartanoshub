@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateUserDto = void 0;
 const class_validator_1 = require("class-validator");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
+const lead_visibility_1 = require("../../crm/leads/lead-visibility");
 class UpdateUserDto {
 }
 exports.UpdateUserDto = UpdateUserDto;
@@ -43,6 +44,12 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", Object)
 ], UpdateUserDto.prototype, "clientId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, value) => value !== null && value !== ''),
+    (0, class_validator_1.IsIn)([...lead_visibility_1.PERFILES_CRM]),
+    __metadata("design:type", Object)
+], UpdateUserDto.prototype, "crmProfile", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

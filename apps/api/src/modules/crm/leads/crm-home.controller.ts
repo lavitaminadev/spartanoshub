@@ -64,7 +64,7 @@ export class CrmHomeController {
        */
       allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId!, req.user),
       // Quien no dirige ve su propio trabajo y lo que está libre, no el embudo del equipo.
-      onlyAssignedTo: veSoloLoSuyo(req.user.role) ? req.user.id : undefined,
+      onlyAssignedTo: veSoloLoSuyo(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
     });
   }
 
@@ -89,7 +89,7 @@ export class CrmHomeController {
       // El mismo alcance que el inicio: las dos pantallas responden por lo mismo.
       allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId!, req.user),
       // La misma regla del inicio y del listado: las tres pantallas deben contar lo mismo.
-      onlyAssignedTo: veSoloLoSuyo(req.user.role) ? req.user.id : undefined,
+      onlyAssignedTo: veSoloLoSuyo(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
     });
   }
 }

@@ -74,7 +74,7 @@ let LeadController = class LeadController {
             domain: query.domain,
             clientId: query.clientId,
             allowedClientIds: conCrm,
-            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
+            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
         });
         const tareas = await this.leadTasks.porLead(req.organizationId, pagina.data.map((lead) => lead.id));
         return {
@@ -104,7 +104,7 @@ let LeadController = class LeadController {
     async assertLeadAccess(req, lead) {
         if (!lead)
             throw new common_1.NotFoundException('Lead no encontrado');
-        if ((0, lead_visibility_1.veSoloLoSuyo)(req.user.role) && lead.assignedTo && lead.assignedTo !== req.user.id) {
+        if ((0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) && lead.assignedTo && lead.assignedTo !== req.user.id) {
             throw new common_1.NotFoundException('Lead no encontrado');
         }
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);

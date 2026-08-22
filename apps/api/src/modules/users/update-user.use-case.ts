@@ -16,6 +16,7 @@ interface UpdateUserInput {
   phone?: string;
   role?: UserRole;
   clientId?: string | null;
+  crmProfile?: string | null;
   isActive?: boolean;
   password?: string;
   workMode?: 'presential' | 'hybrid' | 'remote';
@@ -63,6 +64,11 @@ export class UpdateUserUseCase {
       user.email = email;
     }
     if (typeof data.phone === 'string') user.phone = data.phone.replace(/[^\d+]/g, '') || undefined;
+    /*
+     * Vacío devuelve la decisión al cargo, que es distinto de no mandar el campo —eso lo deja
+     * como estaba— y es la única forma de deshacer sin recordar qué tenía antes.
+     */
+    if (data.crmProfile !== undefined) user.crmProfile = data.crmProfile || null;
     /*
      * Desactivar tiene que echar a quien esté dentro, no solo impedir el próximo ingreso.
      *

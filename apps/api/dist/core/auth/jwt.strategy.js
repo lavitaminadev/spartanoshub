@@ -47,6 +47,7 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
             role: user.role,
             organizationId: user.organizationId,
             clientId: user.clientId,
+            crmProfile: user.crmProfile,
             name: user.name,
             sessionId: payload.sid,
             tenantId: user.organizationId,
