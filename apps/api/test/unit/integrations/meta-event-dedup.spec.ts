@@ -54,7 +54,12 @@ describe('deduplicación de eventos de Meta', () => {
     // Sin esto la prueba pasaría igual si el recorrido dejara de encontrar archivos.
     expect(revisados).toBeGreaterThan(100);
     expect(sospechosas).toEqual([]);
-  });
+    /*
+     * Lee cada archivo de las dos aplicaciones, así que su costo crece con el proyecto y no con
+     * lo que comprueba. El plazo por defecto —cinco segundos— se le quedó corto y empezó a
+     * fallar por lentitud, que en una prueba de contenido se lee como si hubiera encontrado algo.
+     */
+  }, 30_000);
 });
 
 function archivosFuente(directorio: string): string[] {
