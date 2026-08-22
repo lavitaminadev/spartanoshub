@@ -64,8 +64,11 @@ export class LeadIngestController {
       throw new BadRequestException('El lead necesita teléfono o correo. Mapea al menos uno en tu Zap.');
     }
 
-    const { leadId, source } = await this.ingest.ingest(token, dto);
-    return { ok: true, leadId, source };
+    const { leadId, source, campaign } = await this.ingest.ingest(token, dto);
+    // `campaign` viaja en la respuesta porque Make y Zapier muestran el cuerpo en su historial:
+    // el aviso de campaña no registrada aparece al lado de la petición que lo provocó, que es
+    // donde lo va a leer quien está armando el escenario.
+    return { ok: true, leadId, source, campaign };
   }
 
   /**

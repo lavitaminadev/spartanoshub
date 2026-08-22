@@ -20,11 +20,13 @@ const typeorm_2 = require("typeorm");
 const node_crypto_1 = require("node:crypto");
 const ingest_source_entity_1 = require("./ingest-source.entity");
 const lead_intake_service_1 = require("./lead-intake.service");
+const campaign_entity_1 = require("../campaigns/campaign.entity");
 const identificador_externo_1 = require("./identificador-externo");
 const TOKEN_PREFIX = 'esp_in_';
 let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
-    constructor(sources, intake) {
+    constructor(sources, campaigns, intake) {
         this.sources = sources;
+        this.campaigns = campaigns;
         this.intake = intake;
         this.logger = new common_1.Logger(LeadIngestService_1.name);
     }
@@ -61,7 +63,27 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 lastError: null,
                 lastErrorAt: null,
             }).catch((err) => this.logger.warn(`No se pudo actualizar el contador de ${source.id}: ${err}`));
-            return { leadId: lead.id, source: source.source };
+            const campana = source.campaignName ?? dto.campana;
+            const reconocida = campana
+                ? await this.campaigns.exist({
+                    where: { organizationId: source.organizationId, name: campana },
+                })
+                : false;
+            return {
+                leadId: lead.id,
+                source: source.source,
+                campaign: campana
+                    ? {
+                        name: campana,
+                        recognized: reconocida,
+                        ...(reconocida ? {} : {
+                            hint: 'Esta campaña no está registrada en el CRM: el lead entra igual, pero su '
+                                + 'inversión y su costo por lead no se podrán calcular. Regístrala en '
+                                + 'CRM → Administración → Campañas con este mismo nombre.',
+                        }),
+                    }
+                    : null,
+            };
         }
         catch (err) {
             const motivo = err instanceof Error ? err.message : String(err);
@@ -78,6 +100,8 @@ exports.LeadIngestService = LeadIngestService;
 exports.LeadIngestService = LeadIngestService = LeadIngestService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(ingest_source_entity_1.LeadIngestSource)),
+    __param(1, (0, typeorm_1.InjectRepository)(campaign_entity_1.Campaign)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         lead_intake_service_1.LeadIntakeService])
 ], LeadIngestService);
