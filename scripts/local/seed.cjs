@@ -41,6 +41,15 @@ async function main() {
 
   const email = arg('email', DEFAULT_EMAIL).trim().toLowerCase();
   const password = arg('password', DEFAULT_PASSWORD);
+  /*
+   * Cargo de la cuenta sembrada.
+   *
+   * Por defecto `dev`, que es el único que ve el centro de módulos: en una base recién creada
+   * todo está por encender, y con `admin` había que entrar a la base a mano para poder hacerlo.
+   * Desde una cuenta `dev` se crean las demás —incluida una de cliente— sin salir de la
+   * aplicación, que es como se prueban los accesos de verdad.
+   */
+  const role = arg('role', 'dev').trim().toLowerCase();
   const connection = await connectDatabase();
 
   try {
@@ -71,8 +80,8 @@ async function main() {
     await connection.query(
       `INSERT INTO users (id, organization_id, name, email, password, role, is_active,
                           must_change_password, created_at, updated_at)
-       VALUES (?, ?, 'Administración', ?, ?, 'admin', 1, 0, NOW(), NOW())`,
-      [crypto.randomUUID(), organizationId, email, hash],
+       VALUES (?, ?, 'Desarrollo', ?, ?, ?, 1, 0, NOW(), NOW())`,
+      [crypto.randomUUID(), organizationId, email, hash, role],
     );
     await connection.commit();
 
@@ -80,6 +89,7 @@ async function main() {
     // cambiarla, pero acá eso solo agrega un paso entre arrancar y ver la aplicación.
     console.log('\nListo. Entra en http://localhost:5173 con:\n');
     console.log(`  Correo       ${email}`);
+    console.log(`  Cargo        ${role}`);
     console.log(`  Contraseña   ${password}`);
     console.log(`\nAGENCY_ORGANIZATION_ID=${organizationId}`);
     console.log('Copialo al .env si vas a probar el formulario publico de la agencia.\n');
