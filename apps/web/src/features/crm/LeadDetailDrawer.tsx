@@ -313,7 +313,19 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const registrarContacto = useMutation({
     mutationFn: async () => {
       await api.post('/crm/interactions', { leadId: lead.id, type: 'call', description: 'Contacto registrado desde la ficha' });
-      if (lead.status === 'new') await api.put(`/crm/leads/${lead.id}`, { status: 'contacted' });
+      /*
+       * El avance automático es del embudo comercial: `contacted` no existe en el ciclo de una
+       * visita. Sobre un contacto de campaña, la interacción quedaba registrada y el cambio de
+       * etapa fallaba después: gestión anotada, error en pantalla y el lead sin mover, que es la
+       * peor combinación —parece que no se guardó nada y sí se guardó la mitad—.
+       *
+       * En el ciclo de reserva no hay etapa equivalente a «contactado»: llamar a alguien no lo
+       * hace reservar. Así que ahí solo se registra la llamada, que es lo que ocurrió.
+       */
+      const esComercial = (leadInicial.domain ?? 'commercial') === 'commercial';
+      if (esComercial && lead.status === 'new') {
+        await api.put(`/crm/leads/${lead.id}`, { status: 'contacted' });
+      }
     },
     onSuccess: async () => {
       setAviso({ tone: 'success', text: 'Contacto registrado.' });
@@ -337,9 +349,19 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
         fecha. Solo avanza; si el lead ya iba más adelante no se le hace retroceder.
       */
       const futura = actividad.date && new Date(actividad.date) > new Date();
-      const avanza = ['new', 'contacted', 'quote_sent'].includes(lead.status);
+      /*
+       * Cada embudo tiene su forma de decir «hay algo agendado»: la agencia mueve a «visita
+       * agendada» y el local a «reservó». Antes se mandaba siempre la comercial, así que sobre
+       * un contacto de campaña la actividad quedaba escrita y el cambio de etapa fallaba.
+       */
+      const comercial = (leadInicial.domain ?? 'commercial') === 'commercial';
+      const avanza = comercial
+        ? ['new', 'contacted', 'quote_sent'].includes(lead.status)
+        : lead.status === 'new';
       if (actividad.type === 'meeting' && futura && avanza) {
-        await api.put(`/crm/leads/${lead.id}`, { status: 'meeting_scheduled' });
+        await api.put(`/crm/leads/${lead.id}`, {
+          status: comercial ? 'meeting_scheduled' : 'reserved',
+        });
       }
     },
     onSuccess: async () => {

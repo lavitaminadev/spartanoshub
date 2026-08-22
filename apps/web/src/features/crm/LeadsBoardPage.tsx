@@ -451,7 +451,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               serviría para que el servidor los rechace y parezca que la pantalla está rota. */}
           {scope.puedeEditar ? (
             <>
-              <button type="button" className="btn btn-outline" onClick={() => setMetaAbierto(true)}>Traer de Meta</button>
+              {/* Solo si la organización tiene integraciones encendidas: apagadas, este botón
+                  únicamente puede fallar, y el error no dice que sea configuración. */}
+              {user?.features?.integrations !== false ? (
+                <button type="button" className="btn btn-outline" onClick={() => setMetaAbierto(true)}>Traer de Meta</button>
+              ) : null}
               <button type="button" className="btn btn-outline" onClick={() => setImportarAbierto(true)}>Importar CSV</button>
               <button type="button" className="btn btn-primary" onClick={() => { setAviso(null); setCrearAbierto(true); }}>
                 + Nuevo {termino(scope.esAgencia ? 'prospecto' : 'lead').toLowerCase()}
