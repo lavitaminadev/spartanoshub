@@ -121,31 +121,30 @@ let PermissionsController = class PermissionsController {
             order: { createdAt: 'DESC' },
         });
         if (rows.length === 0)
-            return { items: [] };
+            return { data: [], items: [] };
         const owners = await this.users.find({
             where: { id: (0, typeorm_2.In)([...new Set(rows.map((row) => row.userId))]) },
             select: { id: true, name: true, role: true },
         });
         const ownerById = new Map(owners.map((owner) => [owner.id, owner]));
         const now = Date.now();
-        return {
-            items: rows.filter((row) => {
-                if (req.user.role === user_role_enum_1.UserRole.DEV)
-                    return true;
-                return ownerById.get(row.userId)?.role !== user_role_enum_1.UserRole.DEV;
-            }).map((row) => ({
-                id: row.id,
-                userId: row.userId,
-                userName: ownerById.get(row.userId)?.name ?? 'Usuario no disponible',
-                userRole: ownerById.get(row.userId)?.role,
-                module: row.module,
-                level: row.level,
-                reason: row.reason ?? undefined,
-                expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
-                status: row.expiresAt && row.expiresAt.getTime() <= now ? 'expired' : 'active',
-                createdAt: row.createdAt?.toISOString(),
-            })),
-        };
+        const excepciones = rows.filter((row) => {
+            if (req.user.role === user_role_enum_1.UserRole.DEV)
+                return true;
+            return ownerById.get(row.userId)?.role !== user_role_enum_1.UserRole.DEV;
+        }).map((row) => ({
+            id: row.id,
+            userId: row.userId,
+            userName: ownerById.get(row.userId)?.name ?? 'Usuario no disponible',
+            userRole: ownerById.get(row.userId)?.role,
+            module: row.module,
+            level: row.level,
+            reason: row.reason ?? undefined,
+            expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
+            status: row.expiresAt && row.expiresAt.getTime() <= now ? 'expired' : 'active',
+            createdAt: row.createdAt?.toISOString(),
+        }));
+        return { data: excepciones, items: excepciones };
     }
     async mine(req) {
         const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role);

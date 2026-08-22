@@ -162,7 +162,8 @@ export class PermissionsController {
       where: { organizationId: req.organizationId },
       order: { createdAt: 'DESC' },
     });
-    if (rows.length === 0) return { items: [] };
+    // `data` es el nombre canónico de las listas; `items` queda hasta que nadie lo lea.
+    if (rows.length === 0) return { data: [], items: [] };
 
     const owners = await this.users.find({
       where: { id: In([...new Set(rows.map((row) => row.userId))]) },
@@ -171,8 +172,7 @@ export class PermissionsController {
     const ownerById = new Map(owners.map((owner) => [owner.id, owner]));
     const now = Date.now();
 
-    return {
-      items: rows.filter((row) => {
+    const excepciones = rows.filter((row) => {
         if (req.user.role === UserRole.DEV) return true;
         return ownerById.get(row.userId)?.role !== UserRole.DEV;
       }).map((row) => ({
@@ -186,8 +186,10 @@ export class PermissionsController {
         expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
         status: row.expiresAt && row.expiresAt.getTime() <= now ? 'expired' : 'active',
         createdAt: row.createdAt?.toISOString(),
-      })),
-    };
+    }));
+
+    // `data` es el nombre canónico de las listas; `items` queda hasta que nadie lo lea.
+    return { data: excepciones, items: excepciones };
   }
 
   /**

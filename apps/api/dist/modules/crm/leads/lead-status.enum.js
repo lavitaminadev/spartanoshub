@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.STATUSES_BY_DOMAIN = exports.LeadStatus = void 0;
 exports.isStatusInDomain = isStatusInDomain;
+const shared_1 = require("@espartanos/shared");
 var LeadStatus;
 (function (LeadStatus) {
     LeadStatus["NEW"] = "new";
@@ -19,23 +20,8 @@ var LeadStatus;
 const _leadStatusMatchesShared = true;
 void _leadStatusMatchesShared;
 exports.STATUSES_BY_DOMAIN = {
-    commercial: [
-        LeadStatus.NEW,
-        LeadStatus.CONTACTED,
-        LeadStatus.QUOTE_SENT,
-        LeadStatus.MEETING_SCHEDULED,
-        LeadStatus.VISITED,
-        LeadStatus.NEGOTIATION,
-        LeadStatus.WON,
-        LeadStatus.LOST,
-    ],
-    audience: [
-        LeadStatus.NEW,
-        LeadStatus.RESERVED,
-        LeadStatus.ATTENDED,
-        LeadStatus.NO_SHOW,
-        LeadStatus.LOST,
-    ],
+    commercial: shared_1.LEAD_STATUSES_BY_DOMAIN.commercial,
+    audience: shared_1.LEAD_STATUSES_BY_DOMAIN.audience,
 };
 function isStatusInDomain(domain, status) {
     const allowed = exports.STATUSES_BY_DOMAIN[domain];

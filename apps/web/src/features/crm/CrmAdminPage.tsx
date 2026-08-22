@@ -17,6 +17,7 @@ import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { EmptyState } from '../../shared/EmptyState';
 import { Modal } from '../../shared/Modal';
+import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { useCrmScope } from './crm-scope';
 import { useStageLabels, type RotulosDeEtapa } from './use-stage-labels';
 import { useVocabulario, VOCABULARIO_BASE, type Vocabulario } from './use-vocabulario';
@@ -460,48 +461,36 @@ export function CrmAdminPage(): JSX.Element {
         deja decidir de verdad.
       */}
       {porBorrar ? (
-        <Modal open onClose={() => setPorBorrar(null)} title={`Quitar la campaña ${porBorrar.nombre}`}>
-          <div className="modal-form">
-            <p>
+        <ConfirmarAccion
+          titulo={`Quitar la campaña ${porBorrar.nombre}`}
+          consecuencia={
+            <>
               Se borra la campaña y su inversión registrada. Los leads que trajo se conservan, pero
               su costo por lead deja de calcularse, también hacia atrás en el panel.
-            </p>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-outline" onClick={() => setPorBorrar(null)}>Cancelar</button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={borrarCampania.isPending}
-                onClick={() => { borrarCampania.mutate(porBorrar.id); setPorBorrar(null); }}
-              >
-                {borrarCampania.isPending ? 'Quitando...' : 'Quitar la campaña'}
-              </button>
-            </div>
-          </div>
-        </Modal>
+            </>
+          }
+          confirmar="Quitar la campaña"
+          enCurso={borrarCampania.isPending}
+          onConfirmar={() => { borrarCampania.mutate(porBorrar.id); setPorBorrar(null); }}
+          onCancelar={() => setPorBorrar(null)}
+        />
       ) : null}
 
       {porRotar ? (
-        <Modal open onClose={() => setPorRotar(null)} title={`Rotar la llave de ${porRotar.nombre}`}>
-          <div className="modal-form">
-            <p>
+        <ConfirmarAccion
+          titulo={`Rotar la llave de ${porRotar.nombre}`}
+          consecuencia={
+            <>
               La llave actual deja de servir en el momento en que se rota. Todo lo que la esté
               usando —el escenario de Make, un formulario— deja de entregar leads hasta que pegues
               la nueva. La nueva se muestra una sola vez.
-            </p>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-outline" onClick={() => setPorRotar(null)}>Cancelar</button>
-              <button
-                type="button"
-                className="btn btn-accent"
-                disabled={rotar.isPending}
-                onClick={() => { rotar.mutate(porRotar.id); setPorRotar(null); }}
-              >
-                {rotar.isPending ? 'Rotando...' : 'Rotar la llave'}
-              </button>
-            </div>
-          </div>
-        </Modal>
+            </>
+          }
+          confirmar="Rotar la llave"
+          enCurso={rotar.isPending}
+          onConfirmar={() => { rotar.mutate(porRotar.id); setPorRotar(null); }}
+          onCancelar={() => setPorRotar(null)}
+        />
       ) : null}
     </div>
   );

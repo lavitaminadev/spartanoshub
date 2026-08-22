@@ -1,3 +1,5 @@
+import { LEAD_STATUSES_BY_DOMAIN } from '@espartanos/shared';
+
 /**
  * @fileoverview Nombre de cada etapa del embudo comercial.
  *
@@ -10,8 +12,14 @@
  * cambiar el rótulo no toca la base.
  */
 
-/** Etapas en el orden en que se recorre el embudo. */
-export const STAGES = ['new', 'contacted', 'quote_sent', 'meeting_scheduled', 'visited', 'negotiation', 'won', 'lost'] as const;
+/**
+ * Etapas del embudo comercial, en el orden en que se recorre.
+ *
+ * Derivadas del catálogo compartido y no escritas otra vez: estuvieron declaradas por separado y
+ * a esta lista le faltaba «Visitó», así que los leads en esa etapa no tenían columna donde
+ * dibujarse. No fallaba nada; desaparecían de la pantalla.
+ */
+export const STAGES = LEAD_STATUSES_BY_DOMAIN.commercial;
 
 export type Stage = (typeof STAGES)[number];
 

@@ -1,3 +1,5 @@
+import { LEAD_STATUSES_BY_DOMAIN } from '@espartanos/shared';
+
 /**
  * @fileoverview Fuente única de color para los estados del ciclo de reserva.
  *
@@ -58,13 +60,27 @@ export const RESERVATION_STATUS_OPTIONS: StatusOption[] = [
  * Pasó con «Descartado» —el servidor lo aceptaba y el tablero no lo dibujaba—, así que los
  * contactos descartados desaparecían de la pantalla sin haberse borrado.
  */
-export const CONTACT_STATUS_OPTIONS: StatusOption[] = [
-  { value: 'new', color: CYCLE_COLORS.new, icon: '●', label: 'Nuevo' },
-  { value: 'reserved', color: CYCLE_COLORS.reserved, icon: '●', label: 'Reservó' },
-  { value: 'attended', color: CYCLE_COLORS.attended, icon: '✓', label: 'Asistió' },
-  { value: 'no_show', color: CYCLE_COLORS.no_show, icon: '✕', label: 'No asistió' },
-  { value: 'lost', color: CYCLE_COLORS.cancelled, icon: '⊗', label: 'Descartado' },
-];
+const APARIENCIA_DE_CONTACTO: Record<string, Omit<StatusOption, 'value'>> = {
+  new: { color: CYCLE_COLORS.new, icon: '●', label: 'Nuevo' },
+  reserved: { color: CYCLE_COLORS.reserved, icon: '●', label: 'Reservó' },
+  attended: { color: CYCLE_COLORS.attended, icon: '✓', label: 'Asistió' },
+  no_show: { color: CYCLE_COLORS.no_show, icon: '✕', label: 'No asistió' },
+  lost: { color: CYCLE_COLORS.cancelled, icon: '⊗', label: 'Descartado' },
+};
+
+/**
+ * Los estados en el orden del catálogo compartido, cada uno con su apariencia.
+ *
+ * La lista sale de `LEAD_STATUSES_BY_DOMAIN` y no se escribe otra vez: cuando estaban separadas,
+ * a ésta le faltaba «Descartado», así que un contacto descartado no tenía columna donde
+ * dibujarse y desaparecía de la pantalla sin haberse borrado.
+ *
+ * Un estado sin apariencia declarada se muestra con su clave en gris, en vez de desaparecer: la
+ * pantalla queda fea y el lead sigue estando, que es el orden correcto de prioridades.
+ */
+export const CONTACT_STATUS_OPTIONS: StatusOption[] = LEAD_STATUSES_BY_DOMAIN.audience.map(
+  (value) => ({ value, ...(APARIENCIA_DE_CONTACTO[value] ?? { color: '#706a73', icon: '●', label: value }) }),
+);
 
 /**
  * Devuelve la opción que describe un estado, o `undefined` si no pertenece al conjunto.

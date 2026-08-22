@@ -78,7 +78,8 @@ export class ConsentController {
       where: { organizationId: req.organizationId },
       order: { version: 'DESC' },
     });
-    return { items };
+    // `data` es el nombre canónico de las listas; `items` queda hasta que nadie lo lea.
+    return { data: items, items };
   }
 
   /**
