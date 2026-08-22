@@ -12,6 +12,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const client_entity_1 = require("../../modules/clients/client.entity");
 const pod_member_entity_1 = require("../../modules/pods/pod-member.entity");
 const account_access_service_1 = require("./account-access.service");
+const client_capability_service_1 = require("./client-capability.service");
 const user_client_access_entity_1 = require("./user-client-access.entity");
 let AccountAccessModule = class AccountAccessModule {
 };
@@ -20,7 +21,7 @@ exports.AccountAccessModule = AccountAccessModule = __decorate([
     (0, common_1.Global)(),
     (0, common_1.Module)({
         imports: [typeorm_1.TypeOrmModule.forFeature([client_entity_1.Client, pod_member_entity_1.PodMember, user_client_access_entity_1.UserClientAccess])],
-        providers: [account_access_service_1.AccountAccessService],
-        exports: [account_access_service_1.AccountAccessService],
+        providers: [account_access_service_1.AccountAccessService, client_capability_service_1.ClientCapabilityService],
+        exports: [account_access_service_1.AccountAccessService, client_capability_service_1.ClientCapabilityService],
     })
 ], AccountAccessModule);

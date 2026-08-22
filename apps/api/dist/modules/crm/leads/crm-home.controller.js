@@ -19,17 +19,20 @@ const swagger_1 = require("@nestjs/swagger");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const crm_home_service_1 = require("./crm-home.service");
 const lead_visibility_1 = require("./lead-visibility");
+const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
 const crm_dashboard_service_1 = require("./crm-dashboard.service");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 let CrmHomeController = class CrmHomeController {
-    constructor(home, dashboard, accountAccess) {
+    constructor(home, dashboard, accountAccess, capacidades) {
         this.home = home;
         this.dashboard = dashboard;
         this.accountAccess = accountAccess;
+        this.capacidades = capacidades;
     }
     async get(req, coolingDays, domain, clientId) {
         const dias = Math.min(Math.max(Number(coolingDays) || 7, 1), 90);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capacidades.assert(req.organizationId, clientId, 'crm');
         return this.home.home(req.organizationId, dias, {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: clientId || undefined,
@@ -39,6 +42,7 @@ let CrmHomeController = class CrmHomeController {
     async panel(req, days, domain, clientId) {
         const ventana = Math.min(Math.max(Number(days) || 30, 1), 365);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capacidades.assert(req.organizationId, clientId, 'crm');
         return this.dashboard.dashboard(req.organizationId, ventana, {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: clientId || undefined,
@@ -76,5 +80,6 @@ exports.CrmHomeController = CrmHomeController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('crm'),
     __metadata("design:paramtypes", [crm_home_service_1.CrmHomeService,
         crm_dashboard_service_1.CrmDashboardService,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService])
 ], CrmHomeController);

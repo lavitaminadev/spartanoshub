@@ -247,6 +247,19 @@ const PERFIL_SUGERIDO: Record<UserRole, RoleModuleMap> = {
     clients: 'view',
     reports: 'view',
     clientMetricsPanel: 'view',
+    /*
+     * Los contactos que trajeron sus campañas.
+     *
+     * Una empresa que contrata el CRM no podía ver el suyo: el portal respondía «no tienes acceso
+     * a este módulo» sobre datos que son de ella. Se abre en **solo lectura**: quién de la
+     * agencia trabaja cada contacto, en qué etapa lo tiene y qué anotó son decisiones internas,
+     * y dejar que el cliente las mueva convertiría su portal en un segundo puesto de mando sobre
+     * el trabajo del equipo.
+     *
+     * Las otras dos rejas siguen puestas y hacen falta las tres: el alcance por cuenta lo limita
+     * a su empresa, y la capacidad contratada a que esa empresa tenga CRM.
+     */
+    crm: 'view',
   },
 };
 

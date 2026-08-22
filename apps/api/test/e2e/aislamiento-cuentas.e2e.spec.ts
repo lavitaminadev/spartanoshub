@@ -156,36 +156,101 @@ describe('aislamiento entre cuentas', () => {
       expect([200, 403], JSON.stringify(body)).toContain(status);
     });
 
-    it('una empresa sin CRM contratado no acumula leads en el CRM', async () => {
-      const enEmpresaSinCrm = await sembrarLead(banco.empresas.reservasUno, 'Contacto de local', 'audience');
+    it('pedir el CRM de una empresa que no lo contrató lo dice, en vez de devolverlo', async () => {
+      await sembrarLead(banco.empresas.reservasUno, 'Contacto de local', 'audience');
 
-      const { body } = await banco.pedir(
+      const { status, body } = await banco.pedir(
         'GET',
         `/crm/leads?domain=audience&limit=100&clientId=${banco.empresas.reservasUno}`,
         banco.cuentas.admin.token,
       );
 
-      // Documenta el comportamiento actual: la capacidad `crm` no se comprueba en ninguna parte,
-      // así que el lead aparece igual. Ver `docs/pruebas/aislamiento-de-cuentas.md`.
-      expect(ids(body)).toContain(enEmpresaSinCrm);
+      expect(status).toBe(403);
+      // El aviso nombra el servicio: quien lo lee tiene que poder distinguir «no lo contrataste»
+      // de «no tienes permiso», que se arreglan de formas distintas.
+      expect(String(body?.message ?? '')).toMatch(/CRM/i);
+    });
+
+    it('sin empresa elegida, el CRM no mezcla leads de empresas que no lo contrataron', async () => {
+      const deLocal = await sembrarLead(banco.empresas.reservasDos, 'Otro contacto de local', 'audience');
+      const deCliente = await sembrarLead(banco.empresas.crmUno, 'Contacto con CRM', 'audience');
+
+      const { status, body } = await banco.pedir(
+        'GET', '/crm/leads?domain=audience&limit=100', banco.cuentas.admin.token,
+      );
+
+      expect(status).toBe(200);
+      expect(ids(body)).toContain(deCliente);
+      expect(ids(body)).not.toContain(deLocal);
+    });
+
+    it('el embudo de la agencia no depende de ninguna capacidad contratada', async () => {
+      // Sus prospectos no tienen empresa: la agencia no se contrata servicios a sí misma, y
+      // acotar por capacidad los dejaría a todos fuera.
+      const prospecto = await sembrarLead(null, 'Prospecto propio', 'commercial');
+
+      const { status, body } = await banco.pedir(
+        'GET', '/crm/leads?domain=commercial&limit=100', banco.cuentas.admin.token,
+      );
+
+      expect(status).toBe(200);
+      expect(ids(body)).toContain(prospecto);
     });
   });
 
   describe('el portal del cliente', () => {
-    it('el rol cliente no alcanza hoy el CRM, ni el suyo', async () => {
-      await sembrarLead(banco.empresas.crmUno, 'Contacto del portal', 'audience');
+    it('ve los contactos de su empresa, y solo los de su empresa', async () => {
+      const propio = await sembrarLead(banco.empresas.crmUno, 'Contacto del portal', 'audience');
+      const ajeno = await sembrarLead(banco.empresas.crmDos, 'Contacto de la otra', 'audience');
 
-      const { status } = await banco.pedir(
+      const { status, body } = await banco.pedir(
         'GET', '/crm/leads?domain=audience&limit=100', banco.cuentas.portalCrmUno.token,
       );
 
+      expect(status, JSON.stringify(body)).toBe(200);
+      expect(ids(body)).toContain(propio);
+      expect(ids(body)).not.toContain(ajeno);
+    });
+
+    it('no ve el embudo comercial de la agencia', async () => {
+      const prospecto = await sembrarLead(null, 'Prospecto de la agencia', 'commercial');
+
+      const { body } = await banco.pedir(
+        'GET', '/crm/leads?domain=commercial&limit=100', banco.cuentas.portalCrmUno.token,
+      );
+
+      expect(ids(body)).not.toContain(prospecto);
+    });
+
+    it('mira pero no mueve: el portal no puede cambiar la etapa de un contacto', async () => {
+      const propio = await sembrarLead(banco.empresas.crmUno, 'Contacto que no debe moverse', 'audience');
+
+      const { status } = await banco.pedir(
+        'PUT', `/crm/leads/${propio}`, banco.cuentas.portalCrmUno.token, { status: 'reserved' },
+      );
+
       /*
-       * Comportamiento actual, no deseado: `client` no tiene el módulo `crm` en la matriz de
-       * permisos, así que una empresa que contrató CRM no puede ver el suyo desde su portal.
-       * Queda escrito para que el día que se decida abrirlo, esta prueba lo obligue a hacerse
-       * con el filtro por cuenta puesto.
+       * En qué etapa está cada contacto y quién lo trabaja son decisiones del equipo. Abrir el
+       * portal en lectura le muestra a la empresa lo que es suyo; dejarlo escribir lo convertiría
+       * en un segundo puesto de mando sobre el trabajo de la agencia.
        */
       expect(status).toBe(403);
+
+      const [filas]: any = await banco.db.query('SELECT status FROM leads WHERE id = ?', [propio]);
+      expect(filas[0].status).toBe('new');
+    });
+
+    it('una empresa que no contrató CRM no lo ve desde su portal', async () => {
+      await sembrarLead(banco.empresas.reservasUno, 'Contacto de local', 'audience');
+
+      const { status, body } = await banco.pedir(
+        'GET', '/crm/leads?domain=audience&limit=100', banco.cuentas.portalReservasUno.token,
+      );
+
+      // Sin empresa pedida la lista se acota a las que sí lo tienen: la suya no está, así que
+      // no hay nada que mostrar. Ni un error confuso ni datos de otra empresa.
+      expect(status).toBe(200);
+      expect(body?.data ?? []).toHaveLength(0);
     });
 
     it('el portal de una empresa no ve las reservas de otra', async () => {

@@ -25,3 +25,11 @@ process.env.DB_LOGGING = 'false';
  * la misma máquina, así que con el valor real la sexta cuenta no llegaría ni a entrar.
  */
 process.env.AUTH_THROTTLE_LIMIT = '500';
+/*
+ * Grupo de conexiones pequeño.
+ *
+ * Cada fichero de pruebas levanta su propia API, y todas comparten el mismo servidor de base de
+ * datos junto con la de desarrollo. Con el tamaño de producción se agotan las conexiones y la
+ * aplicación responde 503 a todo sin que nada esté mal.
+ */
+process.env.DB_CONNECTION_LIMIT = '3';

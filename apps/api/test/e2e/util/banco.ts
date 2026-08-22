@@ -25,10 +25,27 @@ import mysql from 'mysql2/promise';
 /** Contraseña de las cuentas del banco. Solo existe dentro de la base de pruebas. */
 export const CLAVE = 'PruebaAislamiento2026!';
 
-/** Puerto propio: no puede chocar con la API de desarrollo, que suele estar levantada. */
-const PUERTO = Number(process.env.E2E_PORT || 3111);
-const BASE_URL = `http://127.0.0.1:${PUERTO}/api`;
 const RAIZ = resolve(__dirname, '../../..');
+
+/**
+ * Un puerto libre distinto en cada ejecución.
+ *
+ * Con un puerto fijo, una API que quedó viva de una ejecución anterior seguía respondiendo y las
+ * pruebas hablaban con **el código de antes**: pasaban comprobando una corrección que no estaba
+ * puesta, que es la peor forma de fallar. Pedirle uno libre al sistema lo hace imposible.
+ */
+async function puertoLibre(): Promise<number> {
+  const { createServer } = await import('node:net');
+  return new Promise((resolver, rechazar) => {
+    const servidor = createServer();
+    servidor.on('error', rechazar);
+    servidor.listen(0, '127.0.0.1', () => {
+      const direccion = servidor.address();
+      const puerto = typeof direccion === 'object' && direccion ? direccion.port : 0;
+      servidor.close(() => resolver(puerto));
+    });
+  });
+}
 
 export interface CuentaDePrueba {
   id: string;
@@ -58,17 +75,24 @@ export interface Banco {
   cerrar: () => Promise<void>;
 }
 
-async function esperarPuerto(intentos = 150): Promise<void> {
+async function esperarPuerto(baseUrl: string, intentos = 150): Promise<void> {
   for (let i = 0; i < intentos; i += 1) {
     try {
-      const r = await fetch(`${BASE_URL}/health`);
-      if (r.ok) return;
+      const r = await fetch(`${baseUrl}/health`);
+      /*
+       * Basta con que conteste, aunque sea 503.
+       *
+       * El chequeo de salud consulta la base, y con varias instancias levantadas a la vez el
+       * grupo de conexiones se queda corto y responde 503 sin que la API esté mal: ya escucha y
+       * ya atiende. Esperar un 200 dejaba la prueba colgada por una condición que no comprueba.
+       */
+      if (r.status < 600) return;
     } catch {
       // Todavía no escucha.
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new Error(`La API no respondió en ${BASE_URL}/health`);
+  throw new Error(`La API no respondió en ${baseUrl}/health`);
 }
 
 /**
@@ -90,18 +114,40 @@ export async function levantarBanco(): Promise<Banco> {
 
   await limpiar(db);
 
+  const puerto = await puertoLibre();
+  const baseUrl = `http://127.0.0.1:${puerto}/api`;
+
   const proceso: ChildProcess = spawn(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     ['ts-node', 'src/main.ts'],
     {
       cwd: RAIZ,
-      env: { ...process.env, PORT: String(PUERTO), DB_DATABASE: base, NODE_ENV: 'test' },
-      stdio: 'ignore',
+      env: { ...process.env, PORT: String(puerto), DB_DATABASE: base, NODE_ENV: 'test' },
+      stdio: ['ignore', 'pipe', 'pipe'],
       shell: process.platform === 'win32',
     },
   );
 
-  await esperarPuerto();
+  /*
+   * La salida del arranque se guarda para poder contarla si no llega a escuchar.
+   *
+   * Sin esto, un fallo al arrancar —una entidad mal declarada, la base caída— se veía solo como
+   * «la API no respondió», que manda a buscar el problema en el sitio equivocado.
+   */
+  let salida = '';
+  const anotar = (trozo: Buffer) => { salida = (salida + trozo.toString()).slice(-4000); };
+  proceso.stdout?.on('data', anotar);
+  proceso.stderr?.on('data', anotar);
+
+  try {
+    await esperarPuerto(baseUrl);
+  } catch (error) {
+    proceso.kill();
+    await db.end();
+    throw new Error(`${(error as Error).message}
+--- salida de la API ---
+${salida}`);
+  }
 
   const organizationId = randomUUID();
   await db.query(
@@ -158,7 +204,7 @@ export async function levantarBanco(): Promise<Banco> {
   await crearCuenta('portalReservasUno', 'client', empresas.reservasUno);
 
   const pedir: Banco['pedir'] = async (metodo, ruta, token, cuerpo) => {
-    const respuesta = await fetch(`${BASE_URL}${ruta}`, {
+    const respuesta = await fetch(`${baseUrl}${ruta}`, {
       method: metodo,
       headers: {
         'Content-Type': 'application/json',

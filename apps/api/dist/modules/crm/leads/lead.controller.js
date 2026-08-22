@@ -31,12 +31,13 @@ const list_leads_dto_1 = require("./dto/list-leads.dto");
 const reservation_entity_1 = require("../../reservations/domain/reservation.entity");
 const lead_task_summary_service_1 = require("./lead-task-summary.service");
 const lead_visibility_1 = require("./lead-visibility");
+const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const process_history_service_1 = require("../../../core/process-history/process-history.service");
 const process_stage_change_entity_1 = require("../../../core/process-history/process-stage-change.entity");
 let LeadController = class LeadController {
-    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks) {
+    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, capacidades) {
         this.createLead = createLead;
         this.listLeads = listLeads;
         this.getLead = getLead;
@@ -47,23 +48,32 @@ let LeadController = class LeadController {
         this.accountAccess = accountAccess;
         this.history = history;
         this.leadTasks = leadTasks;
+        this.capacidades = capacidades;
     }
     create(dto, req) {
         return this.createLead.execute({ ...dto, organizationId: req.organizationId });
     }
     async import(dto, req) {
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+        await this.capacidades.assert(req.organizationId, dto.clientId, 'crm');
         return this.importLeads.execute(req.organizationId, dto);
     }
     async list(query, req) {
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        if (query.clientId) {
+            await this.capacidades.assert(req.organizationId, query.clientId, 'crm');
+        }
+        const acotarPorCapacidad = query.domain === 'audience' && !query.clientId;
+        const conCrm = acotarPorCapacidad
+            ? await this.capacidades.filtrar(req.organizationId, allowedClientIds, 'crm')
+            : allowedClientIds;
         const pagina = await this.listLeads.execute(req.organizationId, query.limit, query.offset, {
             status: query.status,
             fitStatus: query.fitStatus,
             source: query.source,
             domain: query.domain,
             clientId: query.clientId,
-            allowedClientIds,
+            allowedClientIds: conCrm,
             onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
         });
         const tareas = await this.leadTasks.porLead(req.organizationId, pagina.data.map((lead) => lead.id));
@@ -88,6 +98,7 @@ let LeadController = class LeadController {
     async update(id, dto, req) {
         await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
+        await this.capacidades.assert(req.organizationId, dto.clientId ?? undefined, 'crm');
         return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
     }
     async assertLeadAccess(req, lead) {
@@ -222,5 +233,6 @@ exports.LeadController = LeadController = __decorate([
         typeorm_2.Repository,
         account_access_service_1.AccountAccessService,
         process_history_service_1.ProcessHistoryService,
-        lead_task_summary_service_1.LeadTaskSummaryService])
+        lead_task_summary_service_1.LeadTaskSummaryService,
+        client_capability_service_1.ClientCapabilityService])
 ], LeadController);

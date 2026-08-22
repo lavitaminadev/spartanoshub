@@ -4,8 +4,8 @@ La agencia vende servicios sueltos: hay empresas que solo llevan el CRM y otras 
 reservas. Entre ellas no comparten nada —ni datos, ni personas, ni pantallas—. El equipo interno
 sí atraviesa varias, pero solo las que tiene asignadas.
 
-Este documento recoge lo que se comprueba de forma automática, lo que resistió y los huecos que
-la prueba destapó.
+Este documento recoge lo que se comprueba de forma automática, lo que resistió, y lo que hubo
+que corregir porque no resistía.
 
 ## Cómo se ejecuta
 
@@ -13,13 +13,27 @@ la prueba destapó.
 npm run test:e2e --workspace @espartanos/api
 ```
 
-Necesita MariaDB con una base `espartanos_test` migrada. Las pruebas arrancan **la API de
-verdad** en el puerto 3111, contra esa base, y hablan con ella por HTTP: recorren prefijo,
-validación, guardias, permisos y consultas. No hay dobles.
+Necesita MariaDB con una base `espartanos_test` migrada. Cada fichero arranca **la API de verdad**
+en un puerto libre, contra esa base, y habla con ella por HTTP: recorre prefijo, validación,
+guardias, permisos y consultas. No hay dobles, y se entra por el mismo inicio de sesión que
+cualquiera.
 
 > Las dos pruebas que antes vivían bajo `e2e` —`api.e2e.spec.ts` y `crud.e2e.spec.ts`— montaban
 > un servidor de mentira con `createServer` y comprobaban que ese servidor devolvía lo que ellas
-> mismas habían programado. Pasaban aunque el CRM entero estuviera roto.
+> mismas habían programado. Pasaban aunque el CRM entero estuviera roto. Se eliminaron.
+
+## Las tres rejas
+
+Un dato es visible solo si las tres dejan pasar. Son independientes y hacen falta las tres:
+
+| Reja | Pregunta que responde | Dónde vive |
+| --- | --- | --- |
+| **Rol** | ¿Este cargo alcanza este módulo? | `role-permissions.ts` + `PermissionGuard` |
+| **Cuenta** | ¿Esta persona alcanza esta empresa? | `AccountAccessService` |
+| **Capacidad** | ¿Esta empresa contrató este servicio? | `ClientCapabilityService` |
+
+El nivel se deriva del método: `GET` exige `view`, `POST`/`PUT`/`PATCH` exigen `edit`, `DELETE`
+exige `manage`.
 
 ## El escenario
 
@@ -35,45 +49,68 @@ Una organización —la agencia— con cuatro empresas cliente:
 Y seis cuentas: `dev`, `admin`, dos del equipo (`community_manager`) con asignaciones distintas,
 y dos portales de cliente atados a su empresa.
 
-Cada cuenta entra por el mismo inicio de sesión que cualquiera. No se firma ningún token a mano:
-hacerlo saltaría el propio acceso, que también es parte de lo que se comprueba.
+## Lo que se comprueba (31 pruebas)
 
-## Lo que resistió
+### Entre cuentas
 
-- **El equipo ve solo lo asignado.** Con una cuenta cada uno, ninguno ve los leads del otro.
-- **Pedir una cuenta ajena por parámetro no la abre.** `?clientId=` de otra empresa no devuelve
-  sus leads.
-- **El identificador no es una puerta.** Un lead ajeno responde `404` —no `403`— al leerlo y al
-  modificarlo. Decir que existe ya es contar algo.
-- **Escribir en una cuenta ajena no cambia nada.** Tras el intento, el estado del lead sigue
-  siendo el que era.
-- **Mover un lead propio no toca ninguno de otra cuenta**: ni su estado ni su fecha de
-  modificación.
-- **Los dos embudos no se mezclan.** Un prospecto de la agencia no aparece en el CRM de una
-  empresa, y un contacto de campaña no aparece en el embudo comercial.
-- **El portal de una empresa no ve reservas de otra.**
+- El equipo ve solo lo asignado: con una cuenta cada uno, ninguno ve los leads del otro.
+- Pedir una cuenta ajena por `?clientId=` no devuelve sus leads.
+- Un lead ajeno responde `404` —no `403`— al leerlo y al modificarlo. Decir que existe ya es
+  contar algo.
+- Escribir en una cuenta ajena no cambia nada: se comprueba en la base después del intento.
+- Mover un lead propio no toca ninguno de otra cuenta: ni su estado ni su fecha de modificación.
+- Los dos embudos no se mezclan en ninguna dirección.
 
-## Huecos encontrados
+### Por empresa
 
-### 1. La capacidad `crm` de una empresa no se comprueba en ninguna parte
+- Los contactos importados quedan en la empresa elegida y no aparecen en otra.
+- No se puede importar a una empresa que no se alcanza, y no se escribe ni una fila.
+- El inicio y el panel cuentan por empresa: con dos empresas distintas dan cifras distintas.
+- Los avisos del inicio nombran solo contactos de la empresa elegida.
+- Mover un contacto de una empresa no cambia las cifras de la otra.
+- El recorrido de un contacto queda en su lead: ninguna empresa vecina acumula pasos.
 
-`clients.capabilities` distingue `crm` y `reservations` por empresa. **Solo reservas la
-comprueba** (`reservations.service.ts`). El CRM no la mira: una empresa que contrató únicamente
-reservas acumula leads en el CRM igual que cualquier otra, y aparecen para quien tenga la cuenta
-asignada.
+### Reservas
 
-No es una fuga entre clientes —cada lead sigue en su empresa— pero sí una capacidad que se cobra
-y no se aplica.
+- Cada empresa ve sus reservas y no las de la vecina.
+- El portal de un local no ve las reservas de otro.
+- Una reserva no aparece como lead en el CRM de ninguna empresa.
+- Estar asignado al CRM de una empresa no da acceso a las reservas de un local.
+- Crear una reserva no crea ningún lead.
 
-### 2. El portal del cliente no alcanza su propio CRM
+### Portal del cliente
 
-El rol `client` no tiene el módulo `crm` en la matriz de permisos. Una empresa que contrató CRM
-**no puede ver el suyo** desde su portal: responde `403`.
+- Ve los contactos de su empresa, y solo los de su empresa.
+- No ve el embudo comercial de la agencia.
+- **Mira pero no mueve**: no puede cambiar la etapa de un contacto.
+- Una empresa que no contrató CRM no lo ve desde su portal.
 
-Abrirlo es una decisión de producto, no un arreglo: el CRM muestra montos estimados, responsables
-internos y notas del equipo. Si se abre, hay que decidir antes qué parte de la ficha ve el
-cliente. La prueba deja escrito el comportamiento de hoy para que el día que se cambie, sea con
-el filtro por cuenta puesto.
+## Lo que hubo que corregir
+
+### 1. La capacidad `crm` no se aplicaba en ninguna parte
+
+`clients.capabilities` distingue `crm` y `reservations` por empresa, pero **solo reservas lo
+comprobaba**. Una empresa que contrató únicamente reservas acumulaba leads en un CRM que no
+tiene, mezclados con los de las que sí lo llevan.
+
+Se añadió `ClientCapabilityService` y se aplica en el listado, la importación, el cambio de
+empresa de un lead, el inicio y el panel. Pedir el CRM de una empresa que no lo contrató responde
+`403` **nombrando el servicio**: quien lo lee tiene que poder distinguir «no lo contrataste» de
+«no tienes permiso», que se arreglan de formas distintas.
+
+Sin empresa elegida, la lista se acota a las que sí lo tienen en vez de negar todo. El embudo
+comercial queda fuera de esta reja: sus prospectos no tienen empresa, y la agencia no se contrata
+servicios a sí misma.
+
+### 2. El portal del cliente no alcanzaba su propio CRM
+
+El rol `client` no tenía el módulo `crm`: una empresa que contrató CRM recibía «no tienes acceso
+a este módulo» sobre datos que son suyos.
+
+Se abrió en **solo lectura** (`crm: 'view'`). En qué etapa está cada contacto y quién lo trabaja
+son decisiones del equipo; dejar que el cliente las mueva convertiría su portal en un segundo
+puesto de mando sobre el trabajo de la agencia. Las otras dos rejas siguen puestas: el alcance
+por cuenta lo limita a su empresa y la capacidad a que esa empresa tenga CRM.
 
 ### 3. El límite de acceso es por dirección de origen, no por persona
 
@@ -82,13 +119,11 @@ salida a internet: con el equipo llegando a la misma hora, al sexto le responde 
 como que el sistema está caído.
 
 Se conserva el valor de siempre como predeterminado —bajarlo protege contra el probador de
-contraseñas— y se hizo ajustable con `AUTH_THROTTLE_LIMIT` para las instalaciones donde ese
-reparto no dé.
+contraseñas— y se hizo ajustable con `AUTH_THROTTLE_LIMIT`.
 
-## Pendiente de cubrir
+## Pendiente
 
-- Importación de un archivo real de leads a la cuenta correcta.
-- Reservas creadas desde el formulario público y su llegada al CRM de la empresa correspondiente.
-- Que las acciones del CRM de una empresa no aparezcan en la bitácora ni en los avisos de la
-  cuenta principal.
-- El panel y el inicio del CRM por empresa, con las cifras acotadas.
+- Reservas creadas desde el **formulario público**, que exige un formulario publicado con su
+  horario. Las pruebas actuales siembran la reserva directamente.
+- El panel general de la lateral (`/reporting/dashboard`) por empresa.
+- Aprobaciones, contenido y reuniones: las mismas tres rejas, sin cubrir todavía.
