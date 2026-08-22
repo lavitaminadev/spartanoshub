@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PERFILES_CRM = void 0;
 exports.veSoloLoSuyo = veSoloLoSuyo;
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const VEN_TODO = new Set([
@@ -12,6 +13,11 @@ const VEN_TODO = new Set([
     user_role_enum_1.UserRole.AV_DIRECTOR,
     user_role_enum_1.UserRole.CLIENT,
 ]);
-function veSoloLoSuyo(role) {
+exports.PERFILES_CRM = ['principal', 'venta'];
+function veSoloLoSuyo(role, perfil) {
+    if (perfil === 'venta')
+        return true;
+    if (perfil === 'principal')
+        return false;
     return !VEN_TODO.has(role);
 }

@@ -96,6 +96,8 @@ let UpdateUserUseCase = class UpdateUserUseCase {
         }
         if (typeof data.phone === 'string')
             user.phone = data.phone.replace(/[^\d+]/g, '') || undefined;
+        if (data.crmProfile !== undefined)
+            user.crmProfile = data.crmProfile || null;
         if (typeof data.isActive === 'boolean') {
             const desactivando = user.isActive && data.isActive === false;
             user.isActive = data.isActive;

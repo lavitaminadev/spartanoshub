@@ -67,6 +67,10 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "clientId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'crm_profile', type: 'varchar', length: 20, nullable: true }),
+    __metadata("design:type", Object)
+], User.prototype, "crmProfile", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'work_mode', type: 'varchar', length: 20, nullable: true }),
     __metadata("design:type", String)
 ], User.prototype, "workMode", void 0);

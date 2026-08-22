@@ -40,6 +40,15 @@ export class User {
   @Column({ name: 'client_id', type: 'uuid', nullable: true })
   clientId?: string;
 
+  /**
+   * Forma de usar el CRM: `principal` abarca su empresa entera, `venta` solo lo suyo.
+   *
+   * Es independiente del cargo, que decide a qué módulos se entra. Nulo significa «lo que diga
+   * el cargo», que es como funcionaba antes de existir este campo.
+   */
+  @Column({ name: 'crm_profile', type: 'varchar', length: 20, nullable: true })
+  crmProfile?: string | null;
+
   @Column({ name: 'work_mode', type: 'varchar', length: 20, nullable: true })
   workMode?: 'presential' | 'hybrid' | 'remote';
 

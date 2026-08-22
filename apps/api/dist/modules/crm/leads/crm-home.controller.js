@@ -37,7 +37,7 @@ let CrmHomeController = class CrmHomeController {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: clientId || undefined,
             allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
-            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
+            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
         });
     }
     async panel(req, days, domain, clientId) {
@@ -48,7 +48,7 @@ let CrmHomeController = class CrmHomeController {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: clientId || undefined,
             allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
-            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role) ? req.user.id : undefined,
+            onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
         });
     }
 };
