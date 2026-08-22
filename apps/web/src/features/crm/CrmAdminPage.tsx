@@ -19,6 +19,7 @@ import { EmptyState } from '../../shared/EmptyState';
 import { Modal } from '../../shared/Modal';
 import { useCrmScope } from './crm-scope';
 import { useStageLabels, type RotulosDeEtapa } from './use-stage-labels';
+import { useVocabulario, VOCABULARIO_BASE, type Vocabulario } from './use-vocabulario';
 import { STAGES, STAGE_LABEL } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import './crm-admin.css';
@@ -213,6 +214,8 @@ export function CrmAdminPage(): JSX.Element {
         Va en Administración y no en el tablero porque cambia lo que ve todo el equipo a la vez.
       */}
       <NombresDeEtapa />
+
+      <NombresDeLasCosas />
 
       <div className="crm-admin-dos">
         <section className="crm-admin-panel">
@@ -505,6 +508,89 @@ function NombresDeEtapa(): JSX.Element {
               placeholder={etapa.base}
               maxLength={40}
               onChange={(event) => setBorrador({ ...valores, [etapa.value]: event.target.value })}
+            />
+          </label>
+        ))}
+      </div>
+      <div className="crm-admin-etapas-acciones">
+        <button
+          type="button"
+          className="btn btn-accent btn-sm"
+          disabled={borrador === null || guardar.isPending}
+          onClick={() => guardar.mutate(valores)}
+        >
+          {guardar.isPending ? 'Guardando...' : 'Guardar nombres'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          disabled={borrador === null || guardar.isPending}
+          onClick={() => { setBorrador(null); setAviso(null); }}
+        >
+          Descartar cambios
+        </button>
+        {aviso ? <span className="crm-admin-etapas-aviso">{aviso}</span> : null}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Renombrar las cosas del CRM, por empresa.
+ *
+ * Una inmobiliaria trabaja por proyectos, una agencia por clientes, una cadena por sucursales.
+ * Es la misma columna con tres nombres, y obligar a las tres al mismo hace que la pantalla se
+ * lea como de otro negocio: quien entra tiene que traducir cada rótulo antes de entender lo que
+ * ve. Solo cambia lo que se muestra; nada de lo guardado se mueve.
+ *
+ * Va aparte de los nombres de etapa aunque compartan mecanismo: son dos preguntas distintas
+ * —cómo se llama un paso del embudo y cómo se llama la unidad de negocio— y quien renombra una
+ * no está renombrando la otra.
+ */
+function NombresDeLasCosas(): JSX.Element {
+  const scope = useCrmScope();
+  const queryClient = useQueryClient();
+  const { propios } = useVocabulario(scope.clientId);
+  const [borrador, setBorrador] = useState<Vocabulario | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const valores = borrador ?? propios;
+
+  const guardar = useMutation({
+    mutationFn: (labels: Vocabulario) => api.put(
+      `/crm/stage-labels/vocabulary${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      { labels },
+    ),
+    onSuccess: async () => {
+      // Se invalidan los de todas las empresas: la pantalla anterior pudo quedar con los de otra
+      // en caché, y volver a ella mostraría los nombres viejos.
+      await queryClient.invalidateQueries({ queryKey: ['crm-vocabulario'] });
+      setBorrador(null);
+      setAviso('Nombres guardados. El equipo los verá al recargar.');
+    },
+    onError: (error: Error) => setAviso(error.message || 'No se pudieron guardar los nombres'),
+  });
+
+  return (
+    <section className="crm-admin-panel">
+      <header>
+        <h2>Nombres de las cosas</h2>
+        <span className="crm-admin-cuenta">{scope.empresa}</span>
+      </header>
+      <p className="crm-admin-ayuda">
+        Cambia cómo se llaman en pantalla. No mueve ni renombra nada de lo guardado: los informes,
+        el historial y las conexiones siguen igual. Deja el campo vacío para volver al original.
+      </p>
+      <div className="crm-admin-etapas">
+        {(Object.keys(VOCABULARIO_BASE) as Array<keyof typeof VOCABULARIO_BASE>).map((clave) => (
+          <label key={clave}>
+            <span>{VOCABULARIO_BASE[clave]}</span>
+            <input
+              className="input"
+              value={valores[clave] ?? ''}
+              placeholder={VOCABULARIO_BASE[clave]}
+              maxLength={40}
+              onChange={(evento) => setBorrador({ ...valores, [clave]: evento.target.value })}
             />
           </label>
         ))}
