@@ -23,6 +23,19 @@ import { readOffline, removeOffline, writeOffline } from './offline-store';
 /** Clave del almacén donde vive la copia de la caché. */
 const CACHE_KEY = 'query-cache';
 
+/**
+ * De quién es la caché guardada.
+ *
+ * Se guarda aparte del contenido para poder comprobarlo **antes** de volcar nada. Sin esto, la
+ * caché quedaba bajo una sola clave sin dueño: cerrar el navegador sin cerrar sesión —que es lo
+ * que hace todo el mundo— la dejaba en el equipo, y la siguiente persona que entrara veía los
+ * datos de la anterior hasta que cada consulta se revalidara sola.
+ *
+ * En un equipo compartido de la agencia eso significa ver la cartera, los montos y los contactos
+ * de otra persona. Con un cliente entrando desde el mismo computador, los de otra empresa.
+ */
+const OWNER_KEY = 'query-cache-owner';
+
 /** Antigüedad a partir de la cual la copia deja de usarse. */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -80,6 +93,22 @@ function snapshot(queryClient: QueryClient): PersistedQuery[] {
 export async function clearQueryCache(): Promise<void> {
   activeClient?.clear();
   await removeOffline(CACHE_KEY);
+  await removeOffline(OWNER_KEY);
+}
+
+/**
+ * Descarta lo guardado si pertenece a otra persona.
+ *
+ * Se llama al iniciar sesión, que es el momento en que por primera vez se sabe quién está al
+ * teclado. Si coincide, la caché se conserva y la aplicación abre con datos en pantalla; si no,
+ * se borra antes de que llegue a verse.
+ *
+ * @param userId - Quien acaba de entrar.
+ */
+export async function claimQueryCache(userId: string): Promise<void> {
+  const duenio = await readOffline<string>(OWNER_KEY, MAX_AGE_MS);
+  if (duenio !== userId) await clearQueryCache();
+  await writeOffline(OWNER_KEY, userId);
 }
 
 /**

@@ -162,8 +162,7 @@ export class PermissionsController {
       where: { organizationId: req.organizationId },
       order: { createdAt: 'DESC' },
     });
-    // `data` es el nombre canónico de las listas; `items` queda hasta que nadie lo lea.
-    if (rows.length === 0) return { data: [], items: [] };
+    if (rows.length === 0) return { data: [] };
 
     const owners = await this.users.find({
       where: { id: In([...new Set(rows.map((row) => row.userId))]) },
@@ -188,8 +187,8 @@ export class PermissionsController {
         createdAt: row.createdAt?.toISOString(),
     }));
 
-    // `data` es el nombre canónico de las listas; `items` queda hasta que nadie lo lea.
-    return { data: excepciones, items: excepciones };
+    // `data`, como todas las listas del sistema.
+    return { data: excepciones };
   }
 
   /**

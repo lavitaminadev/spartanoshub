@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 import type { AuthResponse, ModuleLifecycleStatus, UserRole } from '@espartanos/shared';
 import { api, setApiToken } from './api';
-import { clearQueryCache } from './query-persistence';
+import { claimQueryCache, clearQueryCache } from './query-persistence';
 
 type BrowserAuthResponse = Pick<AuthResponse, 'accessToken' | 'user'>;
 
@@ -142,6 +142,14 @@ export const useAuth = create<AuthState>((set) => ({
       const user = await loadProfile();
       if (generation !== authGeneration) return;
       set({ user, token: res.accessToken });
+      /*
+       * Si lo guardado en el equipo es de otra persona, se descarta antes de que se vea.
+       *
+       * Cerrar sesión ya vaciaba la caché, pero nadie cierra sesión: se cierra el navegador. Lo
+       * guardado quedaba en el equipo sin dueño anotado, y quien entrara después veía los datos
+       * de la sesión anterior hasta que cada consulta se revalidara sola.
+       */
+      void claimQueryCache(user.id);
       announceAuthChange('login', user.id);
     } catch (error) {
       if (generation !== authGeneration) return;
@@ -157,6 +165,7 @@ export const useAuth = create<AuthState>((set) => ({
     const res = await api.post<BrowserAuthResponse>('/auth/register', data);
     setApiToken(res.accessToken);
     set({ user: res.user as User, token: res.accessToken });
+    void claimQueryCache(res.user.id);
     announceAuthChange('login', res.user.id);
   },
 
@@ -192,6 +201,9 @@ export const useAuth = create<AuthState>((set) => ({
           setApiToken(session.accessToken);
           const user = await loadProfile();
           if (generation !== authGeneration) return;
+          // El caso más común de todos: abrir la aplicación con la sesión ya viva, sin pasar por
+          // el formulario. También acá hay que comprobar de quién es lo guardado en el equipo.
+          void claimQueryCache(user.id);
           set({ user, token: session.accessToken, loading: false });
         } catch {
           if (generation !== authGeneration) return;

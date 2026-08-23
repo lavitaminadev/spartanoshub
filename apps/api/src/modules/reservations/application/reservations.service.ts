@@ -1166,20 +1166,9 @@ export class ReservationsService {
     const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
     const conversions = await this.metaConversionStatus(organizationId, items);
     const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id) }));
-    /*
-     * `data` es el nombre con que responden las listas del sistema; `items` se conserva porque
-     * ocho pantallas lo leen y cambiarlas todas de golpe convertiría una estandarización en un
-     * despliegue arriesgado. Las dos claves apuntan al mismo arreglo, así que no pueden
-     * discrepar, y `items` se retira cuando no quede quien lo lea.
-     */
-    return {
-      data: withConversion,
-      items: withConversion,
-      total,
-      page,
-      pageSize,
-      pages: Math.ceil(total / pageSize),
-    };
+    // `data` es el nombre con que responden todas las listas del sistema. Convivió un tiempo con
+    // `items`, que era el nombre anterior de este módulo; se retiró al migrar las pantallas.
+    return { data: withConversion, total, page, pageSize, pages: Math.ceil(total / pageSize) };
   }
 
   /**
