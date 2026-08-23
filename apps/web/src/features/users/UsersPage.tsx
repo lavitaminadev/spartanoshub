@@ -115,7 +115,12 @@ export function UsersPage() {
     onSuccess: async () => {
       setCreatedPassword(String(form.password));
       setCreatedName(form.name);
-      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      // Cuando la cuenta crea también su empresa, la tabla se refresca antes de que el caché
+      // de clientes conozca ese id y mostraba falsamente «Empresa no disponible».
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['users'] }),
+        queryClient.invalidateQueries({ queryKey: ['clients'] }),
+      ]);
     },
     onError: (mutationError: Error) => setFeedback({ tone: 'error', text: mutationError.message }),
   });

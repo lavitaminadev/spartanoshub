@@ -185,8 +185,11 @@ export function ContactsPage() {
   const attendanceRate = attendanceRateOf(statusCounts.attended, statusCounts.no_show);
   // Segmentos calculados en el backend sobre el total de contactos (no solo la página cargada).
   const segmentsQuery = useQuery<ContactSegment[]>({
-    queryKey: ['crm-contact-segments', clientFilter],
-    queryFn: () => api.get(`/crm/contacts/segments${clientFilter ? `?clientId=${encodeURIComponent(clientFilter)}` : ''}`),
+    // La empresa de la barra es el alcance real de toda la pantalla. `clientFilter` era un
+    // filtro heredado que ya no se muestra, por lo que los KPI seguían contando toda la agencia
+    // mientras la tabla sí quedaba aislada.
+    queryKey: ['crm-contact-segments', scope.clientId],
+    queryFn: () => api.get(`/crm/contacts/segments${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`),
   });
   const segments = segmentsQuery.data ?? [];
   const segmentTotal = segments.find((segment) => segment.id === 'total')?.count ?? 0;
