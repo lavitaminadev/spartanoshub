@@ -13,6 +13,7 @@ const mockOrgRepo = {
   // `me()` lee los modulos habilitados de la organizacion para devolverlos junto al perfil.
   findOne: vi.fn().mockResolvedValue({ id: 'org-1', features: null }),
 };
+const mockClientRepo = { findOne: vi.fn() };
 
 const mockJwtService = {
   sign: vi.fn(),
@@ -49,7 +50,7 @@ describe('Auth Integration', () => {
     vi.clearAllMocks();
     mockOrgRepo.findOne.mockResolvedValue({ id: 'org-1', features: null });
     authService = new AuthService(
-      mockUserRepo as any, mockOrgRepo as any, mockResetRepo as any,
+      mockUserRepo as any, mockOrgRepo as any, mockClientRepo as any, mockResetRepo as any,
       mockEmailService as any, mockJwtService as any, mockParameters as any, mockSessions as any,
     );
   });
