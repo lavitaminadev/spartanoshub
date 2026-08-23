@@ -12,13 +12,8 @@ import { browserDateBoundaryUtc } from './local-time';
 import { useUrlFilters } from '../../shared/use-url-filters';
 
 interface Client { id: string; name: string }
-/**
- * Página de reservas.
- *
- * `data` es el nombre canónico de las listas del sistema; `items` es el anterior y sigue
- * viajando mientras queden pantallas que lo lean. Las dos claves apuntan al mismo arreglo.
- */
-interface ReservationPage { data?: Reservation[]; items?: Reservation[]; total: number; page: number; pageSize: number; pages: number }
+/** Página de reservas. `data` es el nombre con que responden todas las listas del sistema. */
+interface ReservationPage { data: Reservation[]; total: number; page: number; pageSize: number; pages: number }
 
 /**
  * Expresa el tiempo transcurrido desde `createdAt` en una unidad legible (minutos u horas).
@@ -77,8 +72,7 @@ export function WaitlistPage() {
     queryFn: () => api.get(`/reservations?${query}`),
     placeholderData: (previous) => previous,
   });
-  const filas = waitlistPage?.data ?? waitlistPage?.items;
-  const items = Array.isArray(filas) ? filas : [];
+  const items = Array.isArray(waitlistPage?.data) ? waitlistPage.data : [];
 
   const detailLink = (item: Reservation) => `/reservations?tab=bookings&search=${encodeURIComponent(item.referenceCode || item.guestName)}`;
 

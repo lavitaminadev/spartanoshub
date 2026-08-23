@@ -63,13 +63,8 @@ function metaReadiness(form: ReservationForm, binding?: PixelBinding): { tone: '
   }
   return { tone: 'ok', label: 'Pixel listo', title: `Enviando conversiones al Pixel ${binding.pixelName || binding.pixelId}.` };
 }
-/**
- * Página de reservas.
- *
- * `data` es el nombre canónico de las listas del sistema; `items` es el anterior y sigue
- * viajando mientras queden pantallas que lo lean. Las dos claves apuntan al mismo arreglo.
- */
-interface ReservationPage { data?: Reservation[]; items?: Reservation[]; total: number; page: number; pageSize: number; pages: number }
+/** Página de reservas. `data` es el nombre con que responden todas las listas del sistema. */
+interface ReservationPage { data: Reservation[]; total: number; page: number; pageSize: number; pages: number }
 interface ReservationEvent { id: string; type: string; fromStatus?: string; toStatus?: string; actorType: string; metadata?: Record<string, string>; createdAt: string }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -235,7 +230,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   };
   const query = new URLSearchParams({ page: String(page), pageSize: '20', ...(clientFilter ? { clientId: clientFilter } : {}), ...(search ? { search } : {}), ...(filters.status ? { status: filters.status } : {}), ...(filters.formId ? { formId: filters.formId } : {}), ...dateRange });
   const { data: bookingPage, isFetching: loadingBookings, error: bookingsError, refetch: refetchBookings } = useQuery<ReservationPage>({ queryKey: ['reservations', page, clientFilter, search, filters.status, filters.formId, selectedFilterForm?.timezone, filters.from, filters.to], queryFn: () => api.get(`/reservations?${query}`), enabled: tab === 'bookings', placeholderData: (previous) => previous });
-  const bookingsData = bookingPage?.data ?? bookingPage?.items ?? [];
+  const bookingsData = bookingPage?.data ?? [];
   const bookings = Array.isArray(bookingsData) ? bookingsData : [];
   // Los contadores ignoran el filtro de estado a proposito: son el resumen del dia sobre
   // el que se filtra, no el resultado del filtro.
@@ -352,8 +347,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     onSuccess: (_data, vars) => { qc.invalidateQueries({ queryKey: ['coupons'] }); triggerToast(vars.active ? 'Cupón activado' : 'Cupón desactivado'); },
   });
   const { data: couponUsagesData } = useQuery<ReservationPage>({ queryKey: ['coupon-usages', viewingCouponCode], queryFn: () => api.get(`/reservations?couponCode=${encodeURIComponent(viewingCouponCode)}&pageSize=100`), enabled: Boolean(viewingCouponCode) });
-  const usos = couponUsagesData?.data ?? couponUsagesData?.items;
-  const couponUsages = Array.isArray(usos) ? usos : [];
+  const couponUsages = Array.isArray(couponUsagesData?.data) ? couponUsagesData.data : [];
   const filteredCoupons = coupons.filter((coupon) => {
     const needle = couponSearch.trim().toLocaleLowerCase('es');
     return !needle || coupon.code.toLocaleLowerCase('es').includes(needle);

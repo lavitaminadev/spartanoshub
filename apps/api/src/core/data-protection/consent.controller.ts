@@ -78,8 +78,8 @@ export class ConsentController {
       where: { organizationId: req.organizationId },
       order: { version: 'DESC' },
     });
-    // `data` es el nombre canónico de las listas; `items` queda hasta que nadie lo lea.
-    return { data: items, items };
+    // `data`, como todas las listas del sistema.
+    return { data: items };
   }
 
   /**
@@ -150,8 +150,9 @@ export class ConsentController {
       order: { name: 'ASC' },
     });
 
+    // `data`, como todas las listas del sistema.
     return {
-      items: people.map((person) => ({
+      data: people.map((person) => ({
         userId: person.id,
         userName: person.name,
         acceptedVersion: versionNumber(person.termsVersion),

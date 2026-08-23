@@ -1026,14 +1026,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
         const conversions = await this.metaConversionStatus(organizationId, items);
         const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id) }));
-        return {
-            data: withConversion,
-            items: withConversion,
-            total,
-            page,
-            pageSize,
-            pages: Math.ceil(total / pageSize),
-        };
+        return { data: withConversion, total, page, pageSize, pages: Math.ceil(total / pageSize) };
     }
     async metaConversionStatus(organizationId, items) {
         const result = new Map();

@@ -121,7 +121,7 @@ let PermissionsController = class PermissionsController {
             order: { createdAt: 'DESC' },
         });
         if (rows.length === 0)
-            return { data: [], items: [] };
+            return { data: [] };
         const owners = await this.users.find({
             where: { id: (0, typeorm_2.In)([...new Set(rows.map((row) => row.userId))]) },
             select: { id: true, name: true, role: true },
@@ -144,7 +144,7 @@ let PermissionsController = class PermissionsController {
             status: row.expiresAt && row.expiresAt.getTime() <= now ? 'expired' : 'active',
             createdAt: row.createdAt?.toISOString(),
         }));
-        return { data: excepciones, items: excepciones };
+        return { data: excepciones };
     }
     async mine(req) {
         const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role);

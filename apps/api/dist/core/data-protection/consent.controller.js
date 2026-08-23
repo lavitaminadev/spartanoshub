@@ -56,7 +56,7 @@ let ConsentController = class ConsentController {
             where: { organizationId: req.organizationId },
             order: { version: 'DESC' },
         });
-        return { data: items, items };
+        return { data: items };
     }
     async publish(req, dto) {
         const title = dto.title?.trim();
@@ -101,7 +101,7 @@ let ConsentController = class ConsentController {
             order: { name: 'ASC' },
         });
         return {
-            items: people.map((person) => ({
+            data: people.map((person) => ({
                 userId: person.id,
                 userName: person.name,
                 acceptedVersion: versionNumber(person.termsVersion),

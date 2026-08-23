@@ -120,9 +120,7 @@ export function AdminPage() {
   const consentUsersQuery = useQuery<{ items?: Array<{ userId: string; userName: string; acceptedVersion: number | null; acceptedAt?: string; status: 'accepted' | 'pending' | 'expired' }> }>({ queryKey: ['consent-users'], queryFn: () => api.get('/consent/users') });
 
   const matrix = permsQuery.data?.matrix;
-  // `data` es el nombre canónico de las listas; `items` se lee mientras siga viajando.
-  const exceptions = (exceptionsQuery.data as { data?: AccessException[]; items?: AccessException[] } | undefined)?.data
-    ?? (exceptionsQuery.data as { items?: AccessException[] } | undefined)?.items ?? [];
+  const exceptions = (exceptionsQuery.data as { data?: AccessException[] } | undefined)?.data ?? [];
   const rawUsers = usersQuery.data;
   const users = Array.isArray(rawUsers) ? rawUsers : (rawUsers as { data?: UserOption[] } | undefined)?.data ?? [];
   const features = featuresQuery.data?.features;
@@ -255,11 +253,9 @@ export function AdminPage() {
   });
 
   type VersionDeConsentimiento = { id: string; version: number; title: string; text: string; publishedAt: string; active: boolean };
-  const consentVersionsResp = consentVersionsQuery.data as { data?: VersionDeConsentimiento[]; items?: VersionDeConsentimiento[] } | undefined;
-  const consentVersions = consentVersionsResp?.data ?? consentVersionsResp?.items ?? [];
+  const consentVersions = (consentVersionsQuery.data as { data?: VersionDeConsentimiento[] } | undefined)?.data ?? [];
   type ConsentimientoDePersona = { userId: string; userName: string; acceptedVersion: number | null; acceptedAt?: string; status: 'accepted' | 'pending' | 'expired' };
-  const consentUsersResp = consentUsersQuery.data as { data?: ConsentimientoDePersona[]; items?: ConsentimientoDePersona[] } | undefined;
-  const consentUsers = consentUsersResp?.data ?? consentUsersResp?.items ?? [];
+  const consentUsers = (consentUsersQuery.data as { data?: ConsentimientoDePersona[] } | undefined)?.data ?? [];
   const activeConsent = consentVersions.find(v => v.active);
   const pendingConsent = consentUsers.filter(u => u.status === 'pending');
   const loading = (canManagePermissions && permsQuery.isLoading) || exceptionsQuery.isLoading || usersQuery.isLoading || (canManageModules && featuresQuery.isLoading) || settingsQuery.isLoading || consentVersionsQuery.isLoading || consentUsersQuery.isLoading;
