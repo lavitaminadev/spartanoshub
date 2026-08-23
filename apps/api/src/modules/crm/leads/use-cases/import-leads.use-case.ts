@@ -65,6 +65,9 @@ export class ImportLeadsUseCase {
           // equipo son visibles.
           domain: dto.domain ?? 'commercial',
           clientId: dto.clientId,
+          // Una planilla la sube alguien del equipo con una lista que ya decidió trabajar. Vale
+          // lo mismo que el alta manual: se puntúa, pero no se descarta sola.
+          enteredByPerson: true,
           name: row.name,
           email: row.email,
           phone: row.phone,

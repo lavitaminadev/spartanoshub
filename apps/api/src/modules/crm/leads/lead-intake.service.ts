@@ -89,6 +89,13 @@ export interface LeadCaptureInput {
   /** Dominio de la captura. Por defecto `commercial`, que preserva el comportamiento previo. */
   domain?: LeadDomain;
   name: string;
+  /**
+   * La captura la escribió una persona con sesión, no un origen automático.
+   *
+   * Cambia el resultado del scoring: un prospecto anotado a mano nunca se descarta solo. Ver
+   * `qualifyLead`.
+   */
+  enteredByPerson?: boolean;
   email?: string;
   phone?: string;
   company?: string;
@@ -431,6 +438,14 @@ export class LeadIntakeService {
       return { qualityScore: 0, fitStatus: LeadFitStatus.REVIEW, scoringSignals: ['audience'] };
     }
 
+    // Un prospecto anotado a mano no se descarta solo. El puntaje mide señales que solo existen
+    // cuando el lead llega por su cuenta —correo corporativo, campaña de origen, palabras de
+    // intención—, y quien lo escribe desde el tablero no aporta ninguna: escribe un nombre y, con
+    // suerte, un teléfono. Puntuarlo con esa vara lo dejaba bajo el umbral y nacía «Descartado»,
+    // que además lo saca de la automatización comercial. Sigue pudiendo calificar por puntaje;
+    // lo que no puede es descartarse sin que nadie lo haya decidido.
+    const anotadoAMano = input.enteredByPerson === true;
+
     let qualityScore = 0;
     const signals: string[] = [];
     const haystack = [
@@ -482,8 +497,9 @@ export class LeadIntakeService {
     if (lowQualityHits.length > 0) {
       return {
         qualityScore: Math.max(qualityScore - 30, 0),
-        fitStatus: LeadFitStatus.DISCARDED,
-        discardReason: `Se detectaron señales de bajo encaje: ${lowQualityHits.slice(0, 3).join(', ')}`,
+        fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.DISCARDED,
+        // Un motivo de descarte en un lead que no está descartado se lee como si lo estuviera.
+        discardReason: anotadoAMano ? undefined : `Se detectaron señales de bajo encaje: ${lowQualityHits.slice(0, 3).join(', ')}`,
         scoringSignals: [...signals, `low_quality:${lowQualityHits.slice(0, 3).join(',')}`],
       };
     }
@@ -491,8 +507,8 @@ export class LeadIntakeService {
     if (!input.email && !input.phone) {
       return {
         qualityScore,
-        fitStatus: LeadFitStatus.DISCARDED,
-        discardReason: 'No dejó email ni teléfono para contacto comercial.',
+        fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.DISCARDED,
+        discardReason: anotadoAMano ? undefined : 'No dejó email ni teléfono para contacto comercial.',
         scoringSignals: [...signals, 'missing_contact_channel'],
       };
     }
@@ -507,8 +523,8 @@ export class LeadIntakeService {
 
     return {
       qualityScore,
-      fitStatus: LeadFitStatus.DISCARDED,
-      discardReason: 'Puntaje insuficiente para priorización comercial.',
+      fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.DISCARDED,
+      discardReason: anotadoAMano ? undefined : 'Puntaje insuficiente para priorización comercial.',
       scoringSignals: [...signals, 'low_score'],
     };
   }

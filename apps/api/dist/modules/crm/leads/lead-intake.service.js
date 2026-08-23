@@ -242,6 +242,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         if (domain === 'audience') {
             return { qualityScore: 0, fitStatus: lead_fit_status_enum_1.LeadFitStatus.REVIEW, scoringSignals: ['audience'] };
         }
+        const anotadoAMano = input.enteredByPerson === true;
         let qualityScore = 0;
         const signals = [];
         const haystack = [
@@ -286,16 +287,16 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         if (lowQualityHits.length > 0) {
             return {
                 qualityScore: Math.max(qualityScore - 30, 0),
-                fitStatus: lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
-                discardReason: `Se detectaron señales de bajo encaje: ${lowQualityHits.slice(0, 3).join(', ')}`,
+                fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
+                discardReason: anotadoAMano ? undefined : `Se detectaron señales de bajo encaje: ${lowQualityHits.slice(0, 3).join(', ')}`,
                 scoringSignals: [...signals, `low_quality:${lowQualityHits.slice(0, 3).join(',')}`],
             };
         }
         if (!input.email && !input.phone) {
             return {
                 qualityScore,
-                fitStatus: lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
-                discardReason: 'No dejó email ni teléfono para contacto comercial.',
+                fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
+                discardReason: anotadoAMano ? undefined : 'No dejó email ni teléfono para contacto comercial.',
                 scoringSignals: [...signals, 'missing_contact_channel'],
             };
         }
@@ -307,8 +308,8 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         }
         return {
             qualityScore,
-            fitStatus: lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
-            discardReason: 'Puntaje insuficiente para priorización comercial.',
+            fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
+            discardReason: anotadoAMano ? undefined : 'Puntaje insuficiente para priorización comercial.',
             scoringSignals: [...signals, 'low_score'],
         };
     }
