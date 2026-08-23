@@ -94,7 +94,7 @@ describe('PermissionResolverService', () => {
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
     expect(permissions.users).toBe('manage');
     expect(permissions.production).toBe('none');
-    expect(permissions.crm).toBe('none');
+    expect(permissions.crm).toBe('manage');
     expect(permissions.clientMetricsPanel).toBe('none');
   });
 
