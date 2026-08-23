@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Req, UseGuards,
+  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -13,6 +13,7 @@ import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
 import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto } from './dto/survey.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
 
 function publicSurveyUrl(id: string): string | undefined {
   const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
@@ -35,12 +36,14 @@ export class SurveysController {
     @InjectRepository(Survey) private readonly surveys: Repository<Survey>,
     @InjectRepository(SurveyResponse) private readonly responses: Repository<SurveyResponse>,
     private readonly dataSource: DataSource,
+    private readonly accountAccess: AccountAccessService,
   ) {}
 
   /** Traduce la fila a la forma que el frontend ya consume, con el conteo desnormalizado. */
   private toContract(survey: Survey): SurveyContract {
     return {
       id: survey.id,
+      clientId: survey.clientId ?? undefined,
       title: survey.title,
       type: survey.type,
       questions: survey.questions ?? [],
@@ -66,9 +69,10 @@ export class SurveysController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Listar encuestas' })
-  async list(@Req() req: AuthenticatedRequest) {
+  async list(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     const rows = await this.surveys.find({
-      where: { organizationId: req.organizationId },
+      where: { organizationId: req.organizationId, ...(clientId ? { clientId } : {}) },
       order: { createdAt: 'DESC' },
     });
     return rows.map((row) => this.toContract(row));
@@ -85,9 +89,13 @@ export class SurveysController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Crear una encuesta' })
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateSurveyDto) {
+    if (dto.type === 'customer' && !dto.clientId) throw new BadRequestException('Las encuestas de clientes requieren una empresa');
+    if (dto.type === 'internal' && dto.clientId) throw new BadRequestException('Las encuestas internas no se asignan a una empresa');
+    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
     this.assertUniqueQuestionIds(dto.questions);
     const saved = await this.surveys.save(this.surveys.create({
       organizationId: req.organizationId,
+      clientId: dto.clientId ?? null,
       title: dto.title,
       type: dto.type,
       questions: dto.questions,
@@ -121,6 +129,12 @@ export class SurveysController {
     }
     if (dto.title !== undefined) survey.title = dto.title;
     if (dto.type !== undefined) survey.type = dto.type;
+    if (dto.clientId !== undefined) {
+      await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+      survey.clientId = dto.clientId;
+    }
+    if (survey.type === 'customer' && !survey.clientId) throw new BadRequestException('Las encuestas de clientes requieren una empresa');
+    if (survey.type === 'internal' && survey.clientId) throw new BadRequestException('Las encuestas internas no se asignan a una empresa');
     if (dto.status !== undefined) survey.status = dto.status;
     if (dto.recipients !== undefined) survey.recipients = dto.recipients;
     if (dto.distribution !== undefined) survey.distribution = dto.distribution;

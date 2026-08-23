@@ -39,9 +39,10 @@ interface UserFormState {
   role: string;
   clientId: string;
   newClientName: string;
+  capabilities: { reservations: boolean; crm: boolean };
 }
 
-const EMPTY_FORM: UserFormState = { name: '', email: '', password: '', phone: '', accountType: 'client', role: 'client', clientId: '', newClientName: '' };
+const EMPTY_FORM: UserFormState = { name: '', email: '', password: '', phone: '', accountType: 'client', role: 'client', clientId: '', newClientName: '', capabilities: { reservations: true, crm: true } };
 
 const USER_ROLES = [
   'admin', 'commercial_director', 'creative_director', 'operations_director', 'art_director',
@@ -158,7 +159,7 @@ export function UsersPage() {
   const openEditModal = (row: UserRow) => {
     setFeedback(null);
     setEditing(row);
-    setForm({ name: row.name, email: row.email, password: '', phone: row.phone ?? '', accountType: row.role === 'client' ? 'client' : 'internal', role: row.role, clientId: row.clientId ?? '', newClientName: '' });
+    setForm({ name: row.name, email: row.email, password: '', phone: row.phone ?? '', accountType: row.role === 'client' ? 'client' : 'internal', role: row.role, clientId: row.clientId ?? '', newClientName: '', capabilities: { reservations: true, crm: true } });
     setModalOpen(true);
   };
 
@@ -181,9 +182,12 @@ export function UsersPage() {
       email: form.email.trim().toLowerCase(),
       phone: form.phone.trim() || undefined,
       role: form.accountType === 'client' ? 'client' : form.role,
-      clientId: form.accountType === 'client' ? clientId : null,
       newClientName: form.accountType === 'client' && form.clientId === NEW_CLIENT_VALUE ? form.newClientName.trim() : undefined,
+      capabilities: form.accountType === 'client' && form.clientId === NEW_CLIENT_VALUE ? form.capabilities : undefined,
     };
+    // Para una empresa nueva no existe aún un UUID. Enviar `clientId: ''` hace que la
+    // validación de UUID rechace la solicitud antes de que la transacción pueda crearla.
+    if (form.accountType === 'client' && clientId) body.clientId = clientId;
     if (form.password) body.password = form.password;
     if (editing) updateMutation.mutate({ id: editing.id, body });
     else createMutation.mutate(body);
@@ -333,7 +337,8 @@ export function UsersPage() {
             </select></label>
           </div>
           {requiresNewClientName && <label htmlFor="user-new-client">Nombre de la empresa nueva<input id="user-new-client" className="input" value={form.newClientName} onChange={(event) => setForm({ ...form, newClientName: event.target.value })} minLength={2} maxLength={255} required /></label>}
-          <div className="alert alert-info">La capacidad, pods y permisos especiales se configuran después desde Gobernanza o Administración.</div>
+          {requiresNewClientName && <fieldset className="form-choice-group"><legend>Servicios contratados</legend><label className="toggle-row"><input type="checkbox" checked={form.capabilities.reservations} onChange={(event) => setForm({ ...form, capabilities: { ...form.capabilities, reservations: event.target.checked } })} /> Reservas</label><label className="toggle-row"><input type="checkbox" checked={form.capabilities.crm} onChange={(event) => setForm({ ...form, capabilities: { ...form.capabilities, crm: event.target.checked } })} /> CRM</label><small>Solo se mostrarán y autorizarán los servicios seleccionados para esta empresa.</small></fieldset>}
+          <div className="alert alert-info">Pods y permisos especiales se configuran después desde Gobernanza o Administración.</div>
           <label htmlFor="user-password">{editing ? 'Nueva contraseña temporal (opcional)' : 'Contraseña temporal'}<div className="password-generator"><input id="user-password" className="input" type="text" autoComplete="new-password" minLength={8} maxLength={128} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required={!editing} /><button type="button" className="btn btn-outline btn-sm" onClick={generatePassword}>Generar segura</button></div><small>Se solicitará una clave personal en el primer ingreso.</small></label>
           <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={closeModal}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={isSaving || creatingClient || (clientRequired && !form.clientId) || (requiresNewClientName && form.newClientName.trim().length < 2)}>{isSaving || creatingClient ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear usuario'}</button></div>
         </form>

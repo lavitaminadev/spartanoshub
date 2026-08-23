@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { User } from './user.entity';
 import { UserRole } from '../organizations/user-role.enum';
 import { Client } from '../clients/client.entity';
+import { ClientCapabilities, normalizeClientCapabilities } from '../clients/client-capabilities';
 
 /**
  * Datos requeridos para crear un usuario.
@@ -18,6 +19,7 @@ interface CreateUserInput {
   phone?: string;
   clientId?: string;
   newClientName?: string;
+  capabilities?: Partial<ClientCapabilities>;
   workMode?: 'presential' | 'hybrid' | 'remote';
   weeklyCapacityUd?: number;
   actorRole: UserRole;
@@ -65,7 +67,11 @@ export class CreateUserUseCase {
         ? await this.resolveClientId(data.organizationId, normalizedRole, data.clientId)
         : undefined;
       if (normalizedRole === UserRole.CLIENT && !clientId && newClientName) {
-        const client = manager.create(Client, { organizationId: data.organizationId, name: newClientName });
+        const client = manager.create(Client, {
+          organizationId: data.organizationId,
+          name: newClientName,
+          capabilities: normalizeClientCapabilities(data.capabilities),
+        });
         const savedClient = await manager.save(Client, client);
         clientId = savedClient.id;
       }

@@ -83,7 +83,7 @@ function isRunning(pid) {
 }
 
 /** Indica si alguien está escuchando en el puerto. */
-function isPortOpen(port, host = '127.0.0.1') {
+function isPortOpen(port, host = 'localhost') {
   return new Promise((resolve) => {
     const socket = net.connect({ port, host });
     const settle = (value) => { socket.destroy(); resolve(value); };

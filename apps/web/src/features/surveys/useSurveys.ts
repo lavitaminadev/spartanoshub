@@ -101,8 +101,8 @@ export function useSurvey(id: string | undefined) {
 export interface CreateSurveyInput {
   title: string;
   type: SurveyType;
+  clientId?: string;
   questions: SurveyQuestion[];
-  createdBy: string;
   recipients?: string[];
   distribution?: Survey['distribution'];
   ga4MeasurementId?: string | null;

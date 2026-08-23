@@ -1,5 +1,8 @@
 import { IsString, IsEmail, Matches, MinLength, MaxLength, IsOptional, IsUUID, IsEnum, IsIn, IsNumber, Min, Max } from 'class-validator';
 import { UserRole } from '../../organizations/user-role.enum';
+import { ClientCapabilitiesDto } from '../../clients/dto/create-client.dto';
+import { Type } from 'class-transformer';
+import { ValidateNested } from 'class-validator';
 
 /**
  * DTO para crear un nuevo usuario dentro de la organización del solicitante.
@@ -25,6 +28,9 @@ export class CreateUserDto {
 
   /** Nombre de una empresa nueva; se crea junto con la cuenta cliente en una transacción. */
   @IsOptional() @IsString() @MinLength(2) @MaxLength(255) newClientName?: string;
+
+  /** Servicios contratados cuando la misma operación crea la empresa. */
+  @IsOptional() @ValidateNested() @Type(() => ClientCapabilitiesDto) capabilities?: ClientCapabilitiesDto;
 
   /** Modalidad de trabajo usada por operaciones y planificación de capacidad. */
   @IsOptional() @IsIn(['presential', 'hybrid', 'remote']) workMode?: 'presential' | 'hybrid' | 'remote';

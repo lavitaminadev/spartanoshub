@@ -29,23 +29,20 @@ describe('satisfies', () => {
   });
 });
 
-/**
- * El reparto por cargo dejó de vivir en código.
- *
- * Todos los cargos del equipo nacen con el catálogo completo y el recorte se hace desde la
- * pantalla de permisos, que guarda excepciones por cargo y por persona. Lo que se comprueba acá
- * ya no es qué módulos tiene cada cargo —eso es un dato editable— sino que la apertura sea
- * pareja para el equipo y que **no** alcance al cargo de cliente.
- */
 describe('roleLevel', () => {
-  const CARGOS_INTERNOS = Object.values(UserRole).filter((rol) => rol !== UserRole.CLIENT);
-
-  it('abre el catálogo completo a todos los cargos del equipo', () => {
-    for (const rol of CARGOS_INTERNOS) {
-      for (const modulo of ['users', 'billing', 'crm', 'clientMetricsPanel', 'reservations'] as const) {
-        expect(roleLevel(rol, modulo), `${rol} debería administrar ${modulo}`).toBe('manage');
-      }
+  it('reserva el catálogo completo para Desarrollo', () => {
+    for (const modulo of ['users', 'billing', 'crm', 'clientMetricsPanel', 'reservations'] as const) {
+      expect(roleLevel(UserRole.DEV, modulo), `dev debería administrar ${modulo}`).toBe('manage');
     }
+  });
+
+  it('no entrega administración total a los demás cargos internos', () => {
+    for (const rol of Object.values(UserRole).filter((rol) => ![UserRole.DEV, UserRole.CLIENT].includes(rol))) {
+      expect(roleLevel(rol, 'clientMetricsPanel'), `${rol} no debe administrar el sistema`).not.toBe('manage');
+    }
+    expect(roleLevel(UserRole.ADMIN, 'users')).toBe('manage');
+    expect(roleLevel(UserRole.COMMUNITY_MANAGER, 'reservations')).toBe('edit');
+    expect(roleLevel(UserRole.DESIGNER, 'crm')).toBe('none');
   });
 
   it('deja al cargo de cliente con su perfil acotado', () => {

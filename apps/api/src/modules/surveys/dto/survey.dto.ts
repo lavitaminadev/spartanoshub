@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsObject, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested,
+  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsObject, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength, ValidateNested,
 } from 'class-validator';
 import type { QuestionType, SurveyDistributionChannel, SurveyStatus, SurveyType } from '@espartanos/shared';
 
@@ -34,6 +34,10 @@ export class CreateSurveyDto {
   @IsIn(SURVEY_TYPES)
   type: SurveyType;
 
+  /** Obligatorio para encuestas de clientes nuevas; interno/agencia queda sin empresa. */
+  @IsOptional() @IsUUID()
+  clientId?: string;
+
   @IsArray() @ValidateNested({ each: true }) @Type(() => SurveyQuestionDto) @ArrayMaxSize(50)
   questions: SurveyQuestionDto[];
 
@@ -66,6 +70,9 @@ export class UpdateSurveyDto {
 
   @IsOptional() @IsIn(SURVEY_TYPES)
   type?: SurveyType;
+
+  @IsOptional() @IsUUID()
+  clientId?: string;
 
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => SurveyQuestionDto) @ArrayMaxSize(50)
   questions?: SurveyQuestionDto[];

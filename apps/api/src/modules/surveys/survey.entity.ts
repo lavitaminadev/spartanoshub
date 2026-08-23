@@ -13,10 +13,14 @@ import type { SurveyDistributionChannel, SurveyQuestion, SurveyStatus, SurveyTyp
  */
 @Entity('surveys')
 @Index('IDX_survey_org_status', ['organizationId', 'status'])
+@Index('IDX_survey_org_client', ['organizationId', 'clientId'])
 export class Survey {
   @PrimaryGeneratedColumn('uuid') id: string;
 
   @Column({ name: 'organization_id', length: 36 }) organizationId: string;
+
+  /** Nulo conserva encuestas históricas de agencia e internas. */
+  @Column({ name: 'client_id', type: 'varchar', length: 36, nullable: true }) clientId?: string | null;
 
   @Column({ length: 200 }) title: string;
 

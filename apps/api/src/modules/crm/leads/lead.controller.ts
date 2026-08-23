@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Req, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Req, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -23,6 +23,7 @@ import { AccountAccessService } from '../../../core/client-scope/account-access.
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { ProcessHistoryService } from '../../../core/process-history/process-history.service';
 import { ProcessSubject } from '../../../core/process-history/process-stage-change.entity';
+import { UserRole } from '../../organizations/user-role.enum';
 
 @ApiTags('CRM - Leads')
 @Controller('crm/leads')
@@ -100,6 +101,7 @@ export class LeadController {
   @Get()
   @ApiOperation({ summary: 'Listar leads' })
   async list(@Query() query: ListLeadsQueryDto, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     /*
      * Tercera reja: qué servicios tiene contratados la empresa.
@@ -159,6 +161,7 @@ export class LeadController {
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un lead' })
   async getById(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     const lead = await this.getLead.execute(id, req.organizationId);
     await this.assertLeadAccess(req, lead);
     return lead;
@@ -174,6 +177,7 @@ export class LeadController {
   @Get(':id/historial')
   @ApiOperation({ summary: 'Historial de etapas de un lead' })
   async historial(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     // El mismo control de acceso que el detalle: conocer un identificador no debe alcanzar para
     // leer por dónde pasó un lead de una cuenta ajena.
     await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
@@ -184,6 +188,7 @@ export class LeadController {
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar estado de un lead' })
   async update(@Param('id') id: string, @Body() dto: UpdateLeadDto, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
     // Se comprueban las dos cuentas, no solo la de origen: sin verificar el destino, mover un
     // lead a una cuenta ajena sería una forma de sacarlo del alcance de quien lo estaba viendo
@@ -224,6 +229,13 @@ export class LeadController {
     return lead;
   }
 
+  /** El portal toma la empresa de su sesión, nunca de un query string opcional. */
+  private async assertPortalCrm(req: AuthenticatedRequest): Promise<void> {
+    if (req.user.role !== UserRole.CLIENT) return;
+    if (!req.user.clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
+    await this.capacidades.assert(req.organizationId, req.user.clientId, 'crm');
+  }
+
   /**
    * Reservas asociadas a un lead.
    *
@@ -233,6 +245,7 @@ export class LeadController {
   @Get(':id/reservations')
   @ApiOperation({ summary: 'Historial de reservas de un lead' })
   async reservations(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
     const conditions: string[] = [];
     const params: Record<string, string> = { organizationId: req.organizationId };

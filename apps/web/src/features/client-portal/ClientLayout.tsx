@@ -19,16 +19,17 @@ import { PwaInstallButton } from '../../shared/PwaInstallButton';
  * restaurante que solo contrató Espartanos no debe encontrarse con tres secciones de algo que no
  * compró.
  */
-const CLIENT_NAV: Array<{ label: string; path: string; icon: string; module?: string }> = [
+const CLIENT_NAV: Array<{ label: string; path: string; icon: string; module?: string; capability?: string }> = [
   { label: 'Inicio', path: '/portal', icon: 'IN' },
-  { label: 'Reservas', path: '/portal/reservations', icon: 'RS', module: 'reservations' },
+  { label: 'Reservas', path: '/portal/reservations', icon: 'RS', module: 'reservations', capability: 'reservations' },
   { label: 'Grilla', path: '/portal/grid', icon: 'GR', module: 'content' },
   { label: 'Aprobaciones', path: '/portal/approvals', icon: 'AP', module: 'approvals' },
   { label: 'Reuniones', path: '/portal/meetings', icon: 'RE', module: 'meetings' },
   { label: 'Informes', path: '/portal/reports', icon: 'RP', module: 'reports' },
 ];
 
-function isClientNavItemVisible(item: { module?: string }, user: User | null): boolean {
+function isClientNavItemVisible(item: { module?: string; capability?: string }, user: User | null): boolean {
+  if (item.capability && user?.capabilities?.[item.capability] === false) return false;
   if (!item.module) return true;
   if (!isModuleInPhaseScope(item.module, user?.moduleLifecycle, user?.role)) return false;
   return user?.features?.[item.module] ?? true;

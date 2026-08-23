@@ -272,38 +272,19 @@ export function roleLevel(role: UserRole, module: OrganizationFeatureKey): Permi
   return ROLE_PERMISSIONS[role]?.[module] ?? 'none';
 }
 
-/** Acceso completo al catálogo. Es lo que ya tenía el cargo de desarrollo. */
+/** Acceso completo al catálogo. Solo Desarrollo administra la plataforma completa. */
 const ACCESO_COMPLETO: RoleModuleMap = Object.fromEntries(
   ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage' as PermissionLevel]),
 ) as RoleModuleMap;
 
 /**
- * Cargos del equipo de Espartanos. Todos menos el del cliente.
- *
- * La distinción no es de jerarquía sino de lado del muro: los de acá operan el sistema, y
- * `client` es quien contrata a la agencia y entra a su portal.
- */
-const CARGOS_INTERNOS = (Object.keys(REPARTO_NO_APLICADO) as UserRole[]).filter(
-  (rol) => rol !== UserRole.CLIENT,
-);
-
-/**
  * Acceso que cada cargo tiene a cada módulo.
  *
- * **Todo abierto para el equipo, y se recorta desde la pantalla de permisos.** Antes cada
- * cargo nacía con una lista corta de módulos y ampliarla exigía tocar este archivo y
- * desplegar; el resultado práctico era un sistema donde faltaban pantallas sin que nada
- * dijera por qué, y una matriz en Configuración que solo podía quitar.
- *
- * `REPARTO_NO_APLICADO` conserva el reparto anterior con las razones de cada decisión. No se
- * aplica solo: es el punto de partida documentado para cuando se decida ajustar quién ve qué,
- * y ese ajuste se hace en la pantalla, que es donde se puede revisar y revertir sin desplegar.
- *
- * El cargo de cliente **no** entra en la apertura y mantiene su perfil exacto. Es el único que
- * no pertenece a la agencia: darle el catálogo completo expondría los datos de unas cuentas a
- * las personas de otras, que es justo lo que el alcance por cuenta existe para impedir.
+ * Cada cargo parte del reparto de producto documentado arriba. Los ajustes operativos por
+ * organización siguen disponibles en Administración, pero no pueden convertir por defecto a
+ * cada integrante del equipo en administrador del sistema.
  */
 export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
-  ...Object.fromEntries(CARGOS_INTERNOS.map((rol) => [rol, ACCESO_COMPLETO])),
-  [UserRole.CLIENT]: REPARTO_NO_APLICADO[UserRole.CLIENT],
-} as Record<UserRole, RoleModuleMap>;
+  ...REPARTO_NO_APLICADO,
+  [UserRole.DEV]: ACCESO_COMPLETO,
+};

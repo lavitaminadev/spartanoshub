@@ -45,6 +45,26 @@ describe('gestión de cuentas', () => {
       empresaNueva = body.id;
     });
 
+    it('crea empresa y usuario portal con los servicios elegidos en una sola operación', async () => {
+      const email = 'portal.servicios@prueba.local';
+      const created = await banco.pedir('POST', '/users', banco.cuentas.admin.token, {
+        name: 'Portal Servicios',
+        email,
+        password: CLAVE,
+        role: 'client',
+        newClientName: 'Empresa creada junto al portal',
+        capabilities: { crm: false, reservations: true },
+      });
+      expect([200, 201], JSON.stringify(created.body)).toContain(created.status);
+      expect(created.body.clientId).toBeTruthy();
+
+      const acceso = await entrar(email);
+      expect(acceso.status).toBe(200);
+      const perfil = await banco.pedir('GET', '/auth/me', acceso.token);
+      expect(perfil.status).toBe(200);
+      expect(perfil.body.capabilities).toMatchObject({ crm: false, reservations: true });
+    });
+
     it('crea una persona del equipo, que nace sin ninguna cuenta asignada', async () => {
       const email = 'nueva.persona@prueba.local';
       const { status, body } = await banco.pedir('POST', '/users', banco.cuentas.admin.token, {
