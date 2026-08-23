@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, UseGuards, Req, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, UseGuards, Req, NotFoundException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,7 +9,7 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { UpdateOrganizationFeaturesDto } from './dto/update-organization-features.dto';
 import { Organization } from './organization.entity';
-import { normalizeOrganizationFeatures, REQUIRED_ORGANIZATION_FEATURE_KEYS } from './organization-features';
+import { normalizeOrganizationFeatures, REQUIRED_ORGANIZATION_FEATURE_KEYS, type OrganizationFeatures } from './organization-features';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { FeatureGuard } from '../../core/authorization/feature.guard';
 import { AuditService } from '../../core/audit/audit.service';
@@ -109,7 +109,20 @@ export class OrganizationsController {
     const organization = await this.organizations.findOne({ where: { id: organizationId } });
     if (!organization) throw new NotFoundException('Organización no encontrada');
     const features = normalizeOrganizationFeatures({ ...organization.features, ...dto.features });
-    await this.organizations.update(organizationId, { features });
+    // `update` informa éxito aunque la fila no se haya modificado y no ejecuta los hooks de
+    // la entidad. Guardamos la entidad y leemos nuevamente para no responder "actualizado"
+    // cuando el interruptor sigue en su valor anterior.
+    organization.features = features;
+    await this.organizations.save(organization);
+    const persisted = await this.organizations.findOne({
+      where: { id: organizationId },
+      select: ['id', 'features'],
+    });
+    const persistedFeatures = normalizeOrganizationFeatures(persisted?.features);
+    const rejectedKeys = Object.entries(dto.features).filter(([key, value]) => persistedFeatures[key as keyof OrganizationFeatures] !== value);
+    if (rejectedKeys.length > 0) {
+      throw new ServiceUnavailableException('No se pudo verificar el cambio de módulos. No se aplicó como actualizado; revisa la base de datos e inténtalo otra vez.');
+    }
     // El guard memoriza los módulos, por lo que el cambio debe invalidar su caché para
     // aplicarse de inmediato.
     this.featureGuard.invalidate(organizationId);
@@ -124,8 +137,8 @@ export class OrganizationsController {
       entityId: organizationId,
       action: 'updated',
       before: { features: organization.features },
-      after: { features },
+      after: { features: persistedFeatures },
     });
-    return { features };
+    return { features: persistedFeatures };
   }
 }
