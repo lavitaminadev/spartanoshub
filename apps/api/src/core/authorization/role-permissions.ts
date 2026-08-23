@@ -20,7 +20,7 @@ const TEAM_BASELINE: RoleModuleMap = {
   settings: 'view',
 };
 
-const PERFIL_SUGERIDO: Record<UserRole, RoleModuleMap> = {
+const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
   /**
    * Administración resuelve el uso cotidiano del sistema, no la configuración del producto.
    * La matriz base, módulos y lifecycle quedan reservados para Desarrollo.
@@ -283,7 +283,7 @@ const ACCESO_COMPLETO: RoleModuleMap = Object.fromEntries(
  * La distinción no es de jerarquía sino de lado del muro: los de acá operan el sistema, y
  * `client` es quien contrata a la agencia y entra a su portal.
  */
-const CARGOS_INTERNOS = (Object.keys(PERFIL_SUGERIDO) as UserRole[]).filter(
+const CARGOS_INTERNOS = (Object.keys(REPARTO_NO_APLICADO) as UserRole[]).filter(
   (rol) => rol !== UserRole.CLIENT,
 );
 
@@ -295,7 +295,7 @@ const CARGOS_INTERNOS = (Object.keys(PERFIL_SUGERIDO) as UserRole[]).filter(
  * desplegar; el resultado práctico era un sistema donde faltaban pantallas sin que nada
  * dijera por qué, y una matriz en Configuración que solo podía quitar.
  *
- * `PERFIL_SUGERIDO` conserva el reparto anterior con las razones de cada decisión. No se
+ * `REPARTO_NO_APLICADO` conserva el reparto anterior con las razones de cada decisión. No se
  * aplica solo: es el punto de partida documentado para cuando se decida ajustar quién ve qué,
  * y ese ajuste se hace en la pantalla, que es donde se puede revisar y revertir sin desplegar.
  *
@@ -305,5 +305,5 @@ const CARGOS_INTERNOS = (Object.keys(PERFIL_SUGERIDO) as UserRole[]).filter(
  */
 export const ROLE_PERMISSIONS: Record<UserRole, RoleModuleMap> = {
   ...Object.fromEntries(CARGOS_INTERNOS.map((rol) => [rol, ACCESO_COMPLETO])),
-  [UserRole.CLIENT]: PERFIL_SUGERIDO[UserRole.CLIENT],
+  [UserRole.CLIENT]: REPARTO_NO_APLICADO[UserRole.CLIENT],
 } as Record<UserRole, RoleModuleMap>;

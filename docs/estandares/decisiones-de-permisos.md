@@ -12,16 +12,16 @@ que el sistema hace de verdad.
 
 ```ts
 // El reparto documentado, cargo por cargo, con las razones de cada decisión.
-const PERFIL_SUGERIDO: Record<UserRole, RoleModuleMap> = { ... }
+const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = { ... }
 
 // La matriz que se aplica de verdad.
 export const ROLE_PERMISSIONS = {
   ...Object.fromEntries(CARGOS_INTERNOS.map((rol) => [rol, ACCESO_COMPLETO])),
-  [UserRole.CLIENT]: PERFIL_SUGERIDO[UserRole.CLIENT],
+  [UserRole.CLIENT]: REPARTO_NO_APLICADO[UserRole.CLIENT],
 }
 ```
 
-**Todos los cargos internos nacen con el catálogo completo en `manage`.** `PERFIL_SUGERIDO` no se
+**Todos los cargos internos nacen con el catálogo completo en `manage`.** `REPARTO_NO_APLICADO` no se
 aplica: es el punto de partida documentado para cuando se recorte desde la pantalla.
 
 La decisión está explicada en el propio archivo y tiene sentido: antes cada cargo nacía con una
@@ -62,12 +62,13 @@ abre nada»; el sistema respondió 200.
 **Nada urgente.** El sistema no tiene un agujero: tiene las rejas en un sitio distinto del que
 parecía. Lo que conviene, cuando haya tiempo y sin prisa:
 
-1. **Renombrar `PERFIL_SUGERIDO`.** Su nombre invita a leerlo como la matriz vigente, y no lo es.
-   Algo como `REPARTO_DOCUMENTADO_SIN_APLICAR` es feo y no engaña a nadie.
+1. ~~Renombrar la constante.~~ **Hecho.** Se llamaba `PERFIL_SUGERIDO`, y ese nombre invita a
+   leerla como la matriz vigente: es exactamente el error que se cometió acá. Ahora se llama
+   `REPARTO_NO_APLICADO`, que es feo y no engaña a nadie.
 2. **Decidir si la apertura total sigue siendo lo que se quiere.** Se hizo para que la pantalla de
    permisos pudiera recortar sin desplegar. Funciona, pero significa que **una organización nueva
    nace con todo el equipo pudiendo tocar todo** hasta que alguien recorte. Si eso no es lo
-   deseado, el arreglo es que `ROLE_PERMISSIONS` aplique `PERFIL_SUGERIDO` —que ya está escrito y
+   deseado, el arreglo es que `ROLE_PERMISSIONS` aplique `REPARTO_NO_APLICADO` —que ya está escrito y
    razonado— y entonces sí sobrarían muchas listas de `@Roles`.
 3. **Dejar las listas donde están** mientras tanto. Son lo único que hoy separa a un diseñador del
    registro de auditoría.
@@ -84,7 +85,7 @@ ve cada persona del equipo. No se hace sin avisar a quien va a notarlo.
   aparezca un séptimo que sí lo sea.
 - **26 divergencias.** Mientras la matriz conceda todo, este número no debe bajar por las malas:
   bajarlo quitando listas es abrir accesos. Bajará solo, y con sentido, si algún día se aplica
-  `PERFIL_SUGERIDO`.
+  `REPARTO_NO_APLICADO`.
 
 Y `permisos-gobiernan.e2e.spec.ts` fija el comportamiento con un cargo real, para que cualquier
 intento de simplificar esto —el mío incluido— falle ahí antes de llegar a producción.
