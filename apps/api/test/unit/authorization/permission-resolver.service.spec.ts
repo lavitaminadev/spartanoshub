@@ -65,7 +65,7 @@ describe('PermissionResolverService', () => {
   it('resuelve el nivel del cargo cuando el módulo está habilitado', async () => {
     const { resolver } = makeResolver({ reservations: true });
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.COMMUNITY_MANAGER);
-    expect(permissions.reservations).toBe('manage');
+    expect(permissions.reservations).toBe('edit');
   });
 
   it('devuelve none en un módulo deshabilitado, incluso para admin', async () => {
@@ -92,9 +92,10 @@ describe('PermissionResolverService', () => {
     // usarlos: una instalación nueva se veía incompleta sin que nada lo explicara.
     const { resolver } = makeResolver(null);
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.ADMIN);
-    expect(permissions.production).toBe('manage');
-    expect(permissions.crm).toBe('manage');
-    expect(permissions.clientMetricsPanel).toBe('manage');
+    expect(permissions.users).toBe('manage');
+    expect(permissions.production).toBe('none');
+    expect(permissions.crm).toBe('none');
+    expect(permissions.clientMetricsPanel).toBe('none');
   });
 
   it('un módulo visible y encendido usa el nivel del cargo', async () => {
@@ -140,9 +141,9 @@ describe('PermissionResolverService', () => {
 
   it('can compara contra el nivel exigido', async () => {
     const { resolver } = makeResolver({ reservations: true, billing: true });
-    // El equipo administra; el cargo de cliente es el que se queda corto, y por eso sirve para
-    // comprobar que la comparación de niveles distingue de verdad.
-    await expect(resolver.can('org-1', 'user-1', UserRole.COMMUNITY_MANAGER, 'reservations', 'manage')).resolves.toBe(true);
+    // Community manager edita Reservas, pero no obtiene administración total por defecto.
+    await expect(resolver.can('org-1', 'user-1', UserRole.COMMUNITY_MANAGER, 'reservations', 'edit')).resolves.toBe(true);
+    await expect(resolver.can('org-1', 'user-1', UserRole.COMMUNITY_MANAGER, 'reservations', 'manage')).resolves.toBe(false);
     await expect(resolver.can('org-1', 'user-1', UserRole.CLIENT, 'reservations', 'edit')).resolves.toBe(true);
     await expect(resolver.can('org-1', 'user-1', UserRole.CLIENT, 'reservations', 'manage')).resolves.toBe(false);
     await expect(resolver.can('org-1', 'user-1', UserRole.CLIENT, 'billing', 'view')).resolves.toBe(false);
