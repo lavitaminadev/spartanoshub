@@ -31,6 +31,10 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
     settings: 'manage',
     integrations: 'manage',
     governance: 'view',
+    // Administración opera los dos servicios comercializables; no obtiene por ello el resto
+    // del catálogo ni las facultades de Desarrollo.
+    crm: 'manage',
+    reservations: 'manage',
   },
 
   /**
