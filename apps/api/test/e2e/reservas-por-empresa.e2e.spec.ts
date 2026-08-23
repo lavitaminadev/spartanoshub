@@ -105,7 +105,7 @@ describe('reservas por empresa', () => {
 
     // Su empresa no contrató CRM: se niega explícitamente, no se disimula como una lista vacía.
     expect(status).toBe(403);
-    expect(body?.message).toMatch(/módulo/i);
+    expect(body?.message).toMatch(/CRM/i);
   });
 
   it('el equipo asignado a un CRM no ve por eso las reservas de un local', async () => {
