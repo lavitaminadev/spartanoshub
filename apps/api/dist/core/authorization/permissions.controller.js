@@ -339,6 +339,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('me/permissions'),
     (0, roles_decorator_1.Roles)(...Object.values(user_role_enum_1.UserRole)),
+    (0, module_scope_decorator_1.ModuleExempt)('Devuelve los permisos de quien pregunta; exigir un módulo para leerlos sería circular'),
     (0, swagger_1.ApiOperation)({ summary: 'Permisos efectivos del usuario autenticado' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),

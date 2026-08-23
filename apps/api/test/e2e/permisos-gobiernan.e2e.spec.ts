@@ -66,6 +66,40 @@ describe('la pantalla de permisos gobierna', () => {
     });
   });
 
+  describe('leer los propios permisos', () => {
+    /*
+     * Es la primera petición que hace la aplicación al arrancar: con ella arma el menú.
+     *
+     * Estaba colgada del módulo `users`, que el portal de un cliente no tiene, así que respondía
+     * 403 **antes de que se viera una sola pantalla** y el arranque se quedaba dando vueltas.
+     * Apareció al restablecer una contraseña y entrar como cliente.
+     *
+     * Exigir un módulo para leer los propios permisos es además circular: haría falta permiso
+     * para saber qué permisos se tienen.
+     */
+    it('cualquiera con sesión puede leer los suyos, sea cual sea su cargo', async () => {
+      for (const quien of ['dev', 'admin', 'equipoUno', 'portalCrmUno', 'portalReservasUno'] as const) {
+        const { status, body } = await banco.pedir('GET', '/me/permissions', banco.cuentas[quien].token);
+        expect(status, `${quien}: ${JSON.stringify(body)}`).toBe(200);
+        expect(body?.permissions, quien).toBeTruthy();
+      }
+    });
+
+    it('sin sesión no', async () => {
+      const { status } = await banco.pedir('GET', '/me/permissions');
+      expect(status).toBe(401);
+    });
+
+    it('devuelve los de quien pregunta, no los de otro', async () => {
+      const portal = await banco.pedir('GET', '/me/permissions', banco.cuentas.portalCrmUno.token);
+      const admin = await banco.pedir('GET', '/me/permissions', banco.cuentas.admin.token);
+
+      // La administración alcanza módulos que el portal no: si fueran iguales, alguien estaría
+      // recibiendo los permisos de otro.
+      expect(JSON.stringify(portal.body)).not.toBe(JSON.stringify(admin.body));
+    });
+  });
+
   describe('lo que sigue cerrado', () => {
     it('el registro de auditoría no lo mira cualquiera', async () => {
       const { status } = await banco.pedir('GET', '/audit', banco.cuentas.equipoUno.token);
