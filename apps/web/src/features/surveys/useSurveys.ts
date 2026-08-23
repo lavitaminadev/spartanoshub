@@ -101,8 +101,10 @@ export function useSurvey(id: string | undefined) {
 export interface CreateSurveyInput {
   title: string;
   type: SurveyType;
+  clientId?: string;
+  /** Solo sostiene el borrador local si se crea sin conexión; el servidor fija la autoría real. */
+  createdBy?: string;
   questions: SurveyQuestion[];
-  createdBy: string;
   recipients?: string[];
   distribution?: Survey['distribution'];
   ga4MeasurementId?: string | null;
@@ -118,7 +120,7 @@ function buildLocalSurvey(input: CreateSurveyInput): Survey {
     questions: input.questions,
     status: 'draft',
     createdAt: new Date().toISOString(),
-    createdBy: input.createdBy,
+    createdBy: input.createdBy ?? 'Usuario local',
     recipients: input.recipients,
     distribution: input.distribution,
     ga4MeasurementId: input.ga4MeasurementId,

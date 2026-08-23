@@ -53,6 +53,7 @@ const bcrypt = __importStar(require("bcryptjs"));
 const user_entity_1 = require("./user.entity");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const client_entity_1 = require("../clients/client.entity");
+const client_capabilities_1 = require("../clients/client-capabilities");
 let CreateUserUseCase = class CreateUserUseCase {
     constructor(repo, clientsRepo, dataSource) {
         this.repo = repo;
@@ -87,7 +88,11 @@ let CreateUserUseCase = class CreateUserUseCase {
                 ? await this.resolveClientId(data.organizationId, normalizedRole, data.clientId)
                 : undefined;
             if (normalizedRole === user_role_enum_1.UserRole.CLIENT && !clientId && newClientName) {
-                const client = manager.create(client_entity_1.Client, { organizationId: data.organizationId, name: newClientName });
+                const client = manager.create(client_entity_1.Client, {
+                    organizationId: data.organizationId,
+                    name: newClientName,
+                    capabilities: (0, client_capabilities_1.normalizeClientCapabilities)(data.capabilities),
+                });
                 const savedClient = await manager.save(client_entity_1.Client, client);
                 clientId = savedClient.id;
             }

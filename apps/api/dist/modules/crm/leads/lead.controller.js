@@ -36,6 +36,7 @@ const account_access_service_1 = require("../../../core/client-scope/account-acc
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const process_history_service_1 = require("../../../core/process-history/process-history.service");
 const process_stage_change_entity_1 = require("../../../core/process-history/process-stage-change.entity");
+const user_role_enum_1 = require("../../organizations/user-role.enum");
 let LeadController = class LeadController {
     constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, capacidades) {
         this.createLead = createLead;
@@ -61,6 +62,7 @@ let LeadController = class LeadController {
         return this.importLeads.execute(req.organizationId, dto);
     }
     async list(query, req) {
+        await this.assertPortalCrm(req);
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         if (query.clientId) {
             await this.capacidades.assert(req.organizationId, query.clientId, 'crm');
@@ -89,15 +91,18 @@ let LeadController = class LeadController {
         };
     }
     async getById(id, req) {
+        await this.assertPortalCrm(req);
         const lead = await this.getLead.execute(id, req.organizationId);
         await this.assertLeadAccess(req, lead);
         return lead;
     }
     async historial(id, req) {
+        await this.assertPortalCrm(req);
         await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
         return this.history.timeline(process_stage_change_entity_1.ProcessSubject.LEAD, id);
     }
     async update(id, dto, req) {
+        await this.assertPortalCrm(req);
         await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
         await this.capacidades.assert(req.organizationId, dto.clientId ?? undefined, 'crm');
@@ -117,7 +122,15 @@ let LeadController = class LeadController {
         }
         return lead;
     }
+    async assertPortalCrm(req) {
+        if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
+            return;
+        if (!req.user.clientId)
+            throw new common_1.ForbiddenException('La cuenta cliente no está asociada a una empresa');
+        await this.capacidades.assert(req.organizationId, req.user.clientId, 'crm');
+    }
     async reservations(id, req) {
+        await this.assertPortalCrm(req);
         const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
         const conditions = [];
         const params = { organizationId: req.organizationId };

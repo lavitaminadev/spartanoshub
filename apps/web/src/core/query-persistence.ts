@@ -104,11 +104,20 @@ export async function clearQueryCache(): Promise<void> {
  * se borra antes de que llegue a verse.
  *
  * @param userId - Quien acaba de entrar.
+ * @param capabilities - Servicios efectivos del portal, si corresponde.
  */
-export async function claimQueryCache(userId: string): Promise<void> {
+export async function claimQueryCache(userId: string, capabilities?: Record<string, boolean>): Promise<void> {
+  // El mismo usuario puede conservar la sesión cuando la agencia cambia su plan. La caché
+  // anterior no debe sobrevivir a ese cambio: podría restaurar datos de CRM o Reservas antes
+  // de que la revalidación reciba las nuevas capacidades.
+  const capabilitySignature = Object.entries(capabilities ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, enabled]) => `${name}:${enabled ? '1' : '0'}`)
+    .join(',');
+  const owner = `${userId}|${capabilitySignature}`;
   const duenio = await readOffline<string>(OWNER_KEY, MAX_AGE_MS);
-  if (duenio !== userId) await clearQueryCache();
-  await writeOffline(OWNER_KEY, userId);
+  if (duenio !== owner) await clearQueryCache();
+  await writeOffline(OWNER_KEY, owner);
 }
 
 /**

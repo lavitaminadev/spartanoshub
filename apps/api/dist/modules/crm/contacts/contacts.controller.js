@@ -20,26 +20,40 @@ const update_contact_dto_1 = require("./dto/update-contact.dto");
 const list_contacts_dto_1 = require("./dto/list-contacts.dto");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
+const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
+const user_role_enum_1 = require("../../organizations/user-role.enum");
 let ContactsController = class ContactsController {
-    constructor(service, accountAccess) {
+    constructor(service, accountAccess, capabilities) {
         this.service = service;
         this.accountAccess = accountAccess;
+        this.capabilities = capabilities;
+    }
+    async assertPortalCrm(req) {
+        if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
+            return;
+        if (!req.user.clientId)
+            throw new common_1.ForbiddenException('La cuenta cliente no está asociada a una empresa');
+        await this.capabilities.assert(req.organizationId, req.user.clientId, 'crm');
     }
     async findAll(query, req) {
+        await this.assertPortalCrm(req);
         await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed);
     }
     async segments(clientId, req) {
+        await this.assertPortalCrm(req);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.service.segments(req.organizationId, clientId, allowed);
     }
     async findOne(id, req) {
+        await this.assertPortalCrm(req);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.service.findOne(id, req.organizationId, allowed);
     }
     async update(id, dto, req) {
+        await this.assertPortalCrm(req);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.service.update(id, dto, req.organizationId, allowed);
     }
@@ -83,5 +97,6 @@ exports.ContactsController = ContactsController = __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
     __metadata("design:paramtypes", [contacts_service_1.ContactsService,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService])
 ], ContactsController);

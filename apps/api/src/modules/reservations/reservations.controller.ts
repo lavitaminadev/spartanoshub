@@ -6,6 +6,7 @@ import type { AuthenticatedRequest } from '@shared/types/request';
 import type { Response } from 'express';
 import { once } from 'node:events';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
+import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { AuditService } from '../../core/audit/audit.service';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
@@ -24,6 +25,7 @@ export class ReservationsController {
   constructor(
     private readonly service: ReservationsService,
     private readonly accountAccess: AccountAccessService,
+    private readonly capabilities: ClientCapabilityService,
     private readonly bulkImport: ReservationsBulkImportService,
     private readonly audit: AuditService,
   ) {}
@@ -45,6 +47,12 @@ export class ReservationsController {
   }
 
   private async scope(req: AuthenticatedRequest) {
+    // El identificador de empresa del portal viene exclusivamente de la sesión. Ningún
+    // parámetro de la URL puede convertir una cuenta sin Reservas en una con acceso.
+    if (req.user.role === UserRole.CLIENT) {
+      const clientId = this.client(req)!;
+      await this.capabilities.assert(req.organizationId, clientId, 'reservations');
+    }
     return {
       clientId: this.client(req),
       clientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),

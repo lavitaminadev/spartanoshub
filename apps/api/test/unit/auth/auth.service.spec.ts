@@ -20,6 +20,8 @@ const mockOrgRepo = {
   findOne: vi.fn(),
 };
 
+const mockClientRepo = { findOne: vi.fn() };
+
 /** Organizacion unica de la agencia; el registro se incorpora a ella y nunca crea otra. */
 const AGENCY_ORGANIZATION_ID = 'org-1';
 
@@ -74,7 +76,7 @@ describe('AuthService', () => {
     mockSessions.hasRecentAuth.mockResolvedValue(true);
     mockParameters.get.mockResolvedValue(null);
     mockUserRepo.manager.transaction.mockImplementation(async (callback) => callback(transactionManager));
-    service = new AuthService(mockUserRepo as any, mockOrgRepo as any, mockResetRepo as any, mockEmailService as any, mockJwtService as any, mockParameters as any, mockSessions as any);
+    service = new AuthService(mockUserRepo as any, mockOrgRepo as any, mockClientRepo as any, mockResetRepo as any, mockEmailService as any, mockJwtService as any, mockParameters as any, mockSessions as any);
   });
 
   describe('register', () => {

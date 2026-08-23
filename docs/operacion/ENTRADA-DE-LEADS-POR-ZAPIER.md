@@ -1,24 +1,26 @@
-# Entrada de leads desde Zapier y otras integraciones
+# Entrada de leads desde Make y otras integraciones
 
 Cómo conectar un portal, un formulario de terceros o una automatización para que sus leads
 entren al CRM.
 
 ## Antes de empezar: Meta no va por acá
 
-Los leads de Meta **entran directo**, sin Zapier de por medio, a `/integrations/meta/webhook`.
+Mientras se valida el webhook directo, los leads de Meta entran por **Make** a
+`/api/public/ingest/leads`. Cuando el webhook firmado esté validado, Meta podrá entrar directo a
+`/integrations/meta/webhook`.
 Ahí se comprueba la firma `X-Hub-Signature-256` contra el secreto de la aplicación, lo que
 demuestra que el lead viene de Meta de verdad.
 
-Pasarlos por Zapier cambiaría esa garantía por una llave compartida —que solo demuestra que quien
-llama la conoce— y sumaría un salto que puede caerse. **No lo hagas.**
+Make usa una llave por campaña/origen, deduplicación e historial de recepción. Es el puente
+operativo temporal; no se configura Zapier.
 
 Esta puerta es para todo lo demás: portales inmobiliarios, formularios de terceros, WhatsApp,
-planillas, o cualquier cosa que Zapier pueda leer.
+planillas, o cualquier origen que Make pueda leer.
 
 ## Una llave por origen
 
 Cada origen tiene la suya. No es burocracia: con una llave compartida, filtrarse obliga a rotarla
-en todas partes a la vez y a reconfigurar cada Zap. Con una por origen se revoca la afectada y las
+en todas partes a la vez y a reconfigurar cada escenario. Con una por origen se revoca la afectada y las
 demás siguen recibiendo sin que nadie toque nada.
 
 Y hay una segunda razón: **la llave determina la fuente del lead**. Quien llama no la declara. Si
@@ -28,9 +30,9 @@ costo por lead —que es lo que decide dónde se invierte— quedaría falseado 
 La llave se muestra **una sola vez**, al crearla. Después solo se puede rotar. Guardarla de forma
 recuperable la volvería tan insegura como no cifrarla.
 
-## Configurar el Zap
+## Configurar el escenario de Make
 
-**Acción:** *Webhooks by Zapier* → *POST*
+**Módulo:** *HTTP → Make a request* → `POST`
 
 | Campo | Valor |
 |---|---|
@@ -54,7 +56,7 @@ recuperable la volvería tan insegura como no cifrarla.
 **Solo `nombre` es obligatorio**, y hace falta al menos uno entre `telefono` y `email`: un lead sin
 forma de contactar no es un lead.
 
-Los nombres de campo son tolerantes a propósito, porque en Zapier se mapea a mano y equivocarse
+Los nombres de campo son tolerantes a propósito, porque en Make se mapea a mano y equivocarse
 cuesta una ronda de prueba y error:
 
 | Se guarda como | También se acepta |
@@ -68,7 +70,7 @@ cuesta una ronda de prueba y error:
 
 ### `idExterno` importa más de lo que parece
 
-**Zapier reintenta ante cualquier error de servidor.** Sin un identificador estable, un corte de
+**Make puede reintentar ante un error de servidor.** Sin un identificador estable, un corte de
 red de tres segundos convierte un lead en tres.
 
 Mapea el identificador del sistema de origen: el número de la fila, el id del formulario, lo que

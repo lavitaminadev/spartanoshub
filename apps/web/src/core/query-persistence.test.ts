@@ -32,11 +32,11 @@ describe('dueño de la caché guardada', () => {
 
     await claimQueryCache('ana');
 
-    expect(almacen.get('query-cache-owner')).toBe('ana');
+    expect(almacen.get('query-cache-owner')).toBe('ana|');
   });
 
   it('si vuelve la misma persona, su caché se conserva', async () => {
-    almacen.set('query-cache-owner', 'ana');
+    almacen.set('query-cache-owner', 'ana|');
     almacen.set('query-cache', [{ key: ['leads'], data: [1, 2, 3], updatedAt: Date.now() }]);
 
     await claimQueryCache('ana');
@@ -46,13 +46,13 @@ describe('dueño de la caché guardada', () => {
   });
 
   it('si entra otra persona, lo guardado se borra antes de que llegue a verse', async () => {
-    almacen.set('query-cache-owner', 'ana');
+    almacen.set('query-cache-owner', 'ana|');
     almacen.set('query-cache', [{ key: ['leads'], data: ['contactos de Ana'], updatedAt: Date.now() }]);
 
     await claimQueryCache('beto');
 
     expect(almacen.get('query-cache')).toBeUndefined();
-    expect(almacen.get('query-cache-owner')).toBe('beto');
+    expect(almacen.get('query-cache-owner')).toBe('beto|');
   });
 
   it('sin dueño anotado —lo guardado por una versión anterior— se descarta', async () => {
@@ -66,7 +66,7 @@ describe('dueño de la caché guardada', () => {
   });
 
   it('cerrar sesión borra el contenido y también el dueño', async () => {
-    almacen.set('query-cache-owner', 'ana');
+    almacen.set('query-cache-owner', 'ana|');
     almacen.set('query-cache', [{ key: ['leads'], data: [1], updatedAt: Date.now() }]);
 
     await clearQueryCache();
@@ -74,5 +74,15 @@ describe('dueño de la caché guardada', () => {
     expect(almacen.get('query-cache')).toBeUndefined();
     // Dejar el dueño haría que la siguiente sesión de Ana creyera tener caché válida y vacía.
     expect(almacen.get('query-cache-owner')).toBeUndefined();
+  });
+
+  it('si cambian los módulos de la misma persona, descarta la caché anterior', async () => {
+    almacen.set('query-cache-owner', 'ana|crm:1,reservations:0');
+    almacen.set('query-cache', [{ key: ['leads'], data: ['dato de CRM'], updatedAt: Date.now() }]);
+
+    await claimQueryCache('ana', { crm: false, reservations: true });
+
+    expect(almacen.get('query-cache')).toBeUndefined();
+    expect(almacen.get('query-cache-owner')).toBe('ana|crm:0,reservations:1');
   });
 });

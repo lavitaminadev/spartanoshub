@@ -14,6 +14,8 @@ import {
 } from '@espartanos/shared';
 import { User } from '../../modules/users/user.entity';
 import { Organization } from '../../modules/organizations/organization.entity';
+import { Client } from '../../modules/clients/client.entity';
+import { normalizeClientCapabilities } from '../../modules/clients/client-capabilities';
 import { OrganizationFeatures, normalizeOrganizationFeatures } from '../../modules/organizations/organization-features';
 import { UserRole } from '../../modules/organizations/user-role.enum';
 import { config } from '../../config';
@@ -108,6 +110,7 @@ export class AuthService {
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Organization) private readonly orgRepo: Repository<Organization>,
+    @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
     @InjectRepository(PasswordResetToken) private readonly resetRepo: Repository<PasswordResetToken>,
     private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
@@ -419,14 +422,19 @@ export class AuthService {
    * Los `features` viajan aca para que el frontend construya el menu con la misma verdad
    * que aplica el backend, en vez de una lista paralela que puede divergir.
    */
-  async me(userId: string): Promise<(User & { features: OrganizationFeatures; moduleLifecycle: OrganizationModuleLifecycleMap; mustAcceptTerms: boolean }) | null> {
+  async me(userId: string): Promise<(User & { features: OrganizationFeatures; moduleLifecycle: OrganizationModuleLifecycleMap; mustAcceptTerms: boolean; capabilities?: Record<string, boolean> }) | null> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) return null;
     const organization = await this.orgRepo.findOne({ where: { id: user.organizationId }, select: ['id', 'features'] });
+    const client = user.clientId
+      ? await this.clientRepo.findOne({ where: { id: user.clientId, organizationId: user.organizationId }, select: ['id', 'capabilities'] })
+      : null;
     return Object.assign(user, {
       features: normalizeOrganizationFeatures(organization?.features),
       moduleLifecycle: await this.organizationModuleLifecycle(user.organizationId),
       mustAcceptTerms: await this.termsPending(user),
+      // El menú del portal recibe la misma contratación que aplican los controladores.
+      capabilities: client ? normalizeClientCapabilities(client.capabilities) : undefined,
     });
   }
 

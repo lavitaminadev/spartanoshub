@@ -23,6 +23,7 @@ const consent_entity_1 = require("../data-protection/consent.entity");
 const parameters_module_1 = require("../parameters/parameters.module");
 const user_entity_1 = require("../../modules/users/user.entity");
 const organization_entity_1 = require("../../modules/organizations/organization.entity");
+const client_entity_1 = require("../../modules/clients/client.entity");
 const config_1 = require("../../config");
 const password_reset_token_entity_1 = require("./password-reset-token.entity");
 const user_session_entity_1 = require("./user-session.entity");
@@ -36,7 +37,7 @@ exports.AuthModule = AuthModule;
 exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, organization_entity_1.Organization, password_reset_token_entity_1.PasswordResetToken, consent_entity_1.DataConsent, user_session_entity_1.UserSession]),
+            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, organization_entity_1.Organization, client_entity_1.Client, password_reset_token_entity_1.PasswordResetToken, consent_entity_1.DataConsent, user_session_entity_1.UserSession]),
             parameters_module_1.ParametersModule,
             email_module_1.EmailModule,
             passport_1.PassportModule.register({ defaultStrategy: 'jwt' }),

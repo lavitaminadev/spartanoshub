@@ -14,6 +14,7 @@ import { DataConsent } from '../data-protection/consent.entity';
 import { ParametersModule } from '../parameters/parameters.module';
 import { User } from '../../modules/users/user.entity';
 import { Organization } from '../../modules/organizations/organization.entity';
+import { Client } from '../../modules/clients/client.entity';
 import { config } from '../../config';
 import { PasswordResetToken } from './password-reset-token.entity';
 import { UserSession } from './user-session.entity';
@@ -25,7 +26,7 @@ const ACCESS_TOKEN_EXPIRES_IN = config.jwt.expiresIn as JwtSignOptions['expiresI
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Organization, PasswordResetToken, DataConsent, UserSession]),
+    TypeOrmModule.forFeature([User, Organization, Client, PasswordResetToken, DataConsent, UserSession]),
     ParametersModule,
     EmailModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),

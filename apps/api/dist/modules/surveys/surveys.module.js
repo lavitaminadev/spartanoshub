@@ -13,12 +13,13 @@ const survey_entity_1 = require("./survey.entity");
 const survey_response_entity_1 = require("./survey-response.entity");
 const surveys_controller_1 = require("./surveys.controller");
 const public_surveys_controller_1 = require("./public-surveys.controller");
+const account_access_module_1 = require("../../core/client-scope/account-access.module");
 let SurveysModule = class SurveysModule {
 };
 exports.SurveysModule = SurveysModule;
 exports.SurveysModule = SurveysModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([survey_entity_1.Survey, survey_response_entity_1.SurveyResponse])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([survey_entity_1.Survey, survey_response_entity_1.SurveyResponse]), account_access_module_1.AccountAccessModule],
         controllers: [surveys_controller_1.SurveysController, public_surveys_controller_1.PublicSurveysController],
     })
 ], SurveysModule);

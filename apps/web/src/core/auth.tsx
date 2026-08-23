@@ -45,6 +45,8 @@ export interface User {
   avatarUrl?: string;
   organizationId?: string;
   clientId?: string;
+  /** Servicios contratados por la empresa de una cuenta portal. */
+  capabilities?: Record<string, boolean>;
   mustChangePassword?: boolean;
   /** Queda en `true` hasta que la persona completa sus propios datos en el primer ingreso. */
   mustCompleteProfile?: boolean;
@@ -149,7 +151,7 @@ export const useAuth = create<AuthState>((set) => ({
        * guardado quedaba en el equipo sin dueño anotado, y quien entrara después veía los datos
        * de la sesión anterior hasta que cada consulta se revalidara sola.
        */
-      void claimQueryCache(user.id);
+      void claimQueryCache(user.id, user.capabilities);
       announceAuthChange('login', user.id);
     } catch (error) {
       if (generation !== authGeneration) return;
@@ -165,7 +167,7 @@ export const useAuth = create<AuthState>((set) => ({
     const res = await api.post<BrowserAuthResponse>('/auth/register', data);
     setApiToken(res.accessToken);
     set({ user: res.user as User, token: res.accessToken });
-    void claimQueryCache(res.user.id);
+    void claimQueryCache(res.user.id, (res.user as User).capabilities);
     announceAuthChange('login', res.user.id);
   },
 
@@ -203,7 +205,7 @@ export const useAuth = create<AuthState>((set) => ({
           if (generation !== authGeneration) return;
           // El caso más común de todos: abrir la aplicación con la sesión ya viva, sin pasar por
           // el formulario. También acá hay que comprobar de quién es lo guardado en el equipo.
-          void claimQueryCache(user.id);
+          void claimQueryCache(user.id, user.capabilities);
           set({ user, token: session.accessToken, loading: false });
         } catch {
           if (generation !== authGeneration) return;

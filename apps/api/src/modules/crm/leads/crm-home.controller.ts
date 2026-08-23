@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
@@ -8,6 +8,7 @@ import { veSoloLoSuyo } from './lead-visibility';
 import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
 import { CrmDashboardService } from './crm-dashboard.service';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
+import { UserRole } from '../../organizations/user-role.enum';
 
 /**
  * Lo que se ve al entrar al CRM.
@@ -33,6 +34,12 @@ export class CrmHomeController {
     private readonly capacidades: ClientCapabilityService,
   ) {}
 
+  private async assertPortalCrm(req: AuthenticatedRequest): Promise<void> {
+    if (req.user.role !== UserRole.CLIENT) return;
+    if (!req.user.clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
+    await this.capacidades.assert(req.organizationId!, req.user.clientId, 'crm');
+  }
+
   @Get()
   @ApiOperation({ summary: 'Avisos y carga del equipo al entrar al CRM' })
   async get(
@@ -41,6 +48,7 @@ export class CrmHomeController {
     @Query('domain') domain?: string,
     @Query('clientId') clientId?: string,
   ) {
+    await this.assertPortalCrm(req);
     // El plazo se acota acá y no solo en la pantalla: un valor absurdo llegado por la dirección
     // no debe poder pedir un rango que recorra toda la tabla.
     const dias = Math.min(Math.max(Number(coolingDays) || 7, 1), 90);
@@ -74,6 +82,7 @@ export class CrmHomeController {
     @Query('domain') domain?: string,
     @Query('clientId') clientId?: string,
   ) {
+    await this.assertPortalCrm(req);
     // Entre un día y un año: una ventana mayor recorre toda la tabla para responder algo que
     // nadie compara, y una menor a un día no distingue nada.
     const ventana = Math.min(Math.max(Number(days) || 30, 1), 365);

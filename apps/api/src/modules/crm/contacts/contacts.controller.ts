@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, Req, UseGuards, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Patch, Body, Param, Req, UseGuards, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ContactsService } from './contacts.service';
 import { UpdateContactDto } from './dto/update-contact.dto';
@@ -6,6 +6,8 @@ import { ListContactsDto } from './dto/list-contacts.dto';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
+import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
+import { UserRole } from '../../organizations/user-role.enum';
 
 /**
  * Vínculos de personas con cuentas. **Solo lectura y anotación.**
@@ -25,10 +27,18 @@ export class ContactsController {
   constructor(
     private service: ContactsService,
     private readonly accountAccess: AccountAccessService,
+    private readonly capabilities: ClientCapabilityService,
   ) {}
+
+  private async assertPortalCrm(req: AuthenticatedRequest): Promise<void> {
+    if (req.user.role !== UserRole.CLIENT) return;
+    if (!req.user.clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
+    await this.capabilities.assert(req.organizationId, req.user.clientId, 'crm');
+  }
 
   @Get()
   async findAll(@Query() query: ListContactsDto, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed);
@@ -36,6 +46,7 @@ export class ContactsController {
 
   @Get('segments')
   async segments(@Query('clientId') clientId: string | undefined, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.service.segments(req.organizationId, clientId, allowed);
@@ -43,6 +54,7 @@ export class ContactsController {
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.service.findOne(id, req.organizationId, allowed);
   }
@@ -50,6 +62,7 @@ export class ContactsController {
   /** Solo el papel en la cuenta y las notas. La identidad se edita en el lead. */
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateContactDto, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.service.update(id, dto, req.organizationId, allowed);
   }

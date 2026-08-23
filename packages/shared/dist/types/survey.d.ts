@@ -36,6 +36,8 @@ export interface SurveyQuestion {
 /** Encuesta completa: definición, distribución y estado agregado. */
 export interface Survey {
     id: string;
+    /** Empresa dueña cuando es una encuesta de clientes; ausente para encuestas internas/agencia. */
+    clientId?: string;
     title: string;
     type: SurveyType;
     questions: SurveyQuestion[];

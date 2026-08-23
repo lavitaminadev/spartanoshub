@@ -240,17 +240,27 @@ describe('aislamiento entre cuentas', () => {
       expect(filas[0].status).toBe('new');
     });
 
-    it('una empresa que no contrató CRM no lo ve desde su portal', async () => {
-      await sembrarLead(banco.empresas.reservasUno, 'Contacto de local', 'audience');
+    it('una empresa que no contrató CRM recibe 403 en cada entrada de CRM', async () => {
+      const lead = await sembrarLead(banco.empresas.reservasUno, 'Contacto de local', 'audience');
 
-      const { status, body } = await banco.pedir(
+      const listado = await banco.pedir(
         'GET', '/crm/leads?domain=audience&limit=100', banco.cuentas.portalReservasUno.token,
       );
+      const detalle = await banco.pedir('GET', `/crm/leads/${lead}`, banco.cuentas.portalReservasUno.token);
+      const inicio = await banco.pedir('GET', '/crm/home', banco.cuentas.portalReservasUno.token);
 
-      // Sin empresa pedida la lista se acota a las que sí lo tienen: la suya no está, así que
-      // no hay nada que mostrar. Ni un error confuso ni datos de otra empresa.
-      expect(status).toBe(200);
-      expect(body?.data ?? []).toHaveLength(0);
+      for (const respuesta of [listado, detalle, inicio]) {
+        expect(respuesta.status, JSON.stringify(respuesta.body)).toBe(403);
+        expect(String(respuesta.body?.message ?? '')).toMatch(/CRM/i);
+      }
+    });
+
+    it('un portal sin reservas tampoco puede leerlas', async () => {
+      const { status, body } = await banco.pedir(
+        'GET', '/reservations', banco.cuentas.portalCrmUno.token,
+      );
+      expect(status, JSON.stringify(body)).toBe(403);
+      expect(String(body?.message ?? '')).toMatch(/reservas/i);
     });
 
     it('el portal de una empresa no ve las reservas de otra', async () => {

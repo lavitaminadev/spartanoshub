@@ -56,6 +56,8 @@ const crypto_1 = require("crypto");
 const shared_1 = require("@espartanos/shared");
 const user_entity_1 = require("../../modules/users/user.entity");
 const organization_entity_1 = require("../../modules/organizations/organization.entity");
+const client_entity_1 = require("../../modules/clients/client.entity");
+const client_capabilities_1 = require("../../modules/clients/client-capabilities");
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const config_1 = require("../../config");
@@ -83,9 +85,10 @@ function refreshLifetimeMs() {
     return Number(match[1]) * units[match[2]];
 }
 let AuthService = AuthService_1 = class AuthService {
-    constructor(userRepo, orgRepo, resetRepo, emailService, jwtService, parameters, sessions) {
+    constructor(userRepo, orgRepo, clientRepo, resetRepo, emailService, jwtService, parameters, sessions) {
         this.userRepo = userRepo;
         this.orgRepo = orgRepo;
+        this.clientRepo = clientRepo;
         this.resetRepo = resetRepo;
         this.emailService = emailService;
         this.jwtService = jwtService;
@@ -293,10 +296,14 @@ let AuthService = AuthService_1 = class AuthService {
         if (!user)
             return null;
         const organization = await this.orgRepo.findOne({ where: { id: user.organizationId }, select: ['id', 'features'] });
+        const client = user.clientId
+            ? await this.clientRepo.findOne({ where: { id: user.clientId, organizationId: user.organizationId }, select: ['id', 'capabilities'] })
+            : null;
         return Object.assign(user, {
             features: (0, organization_features_1.normalizeOrganizationFeatures)(organization?.features),
             moduleLifecycle: await this.organizationModuleLifecycle(user.organizationId),
             mustAcceptTerms: await this.termsPending(user),
+            capabilities: client ? (0, client_capabilities_1.normalizeClientCapabilities)(client.capabilities) : undefined,
         });
     }
     async organizationModuleLifecycle(organizationId) {
@@ -481,8 +488,10 @@ exports.AuthService = AuthService = AuthService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(1, (0, typeorm_1.InjectRepository)(organization_entity_1.Organization)),
-    __param(2, (0, typeorm_1.InjectRepository)(password_reset_token_entity_1.PasswordResetToken)),
+    __param(2, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
+    __param(3, (0, typeorm_1.InjectRepository)(password_reset_token_entity_1.PasswordResetToken)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,

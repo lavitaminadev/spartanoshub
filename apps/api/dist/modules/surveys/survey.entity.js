@@ -23,6 +23,10 @@ __decorate([
     __metadata("design:type", String)
 ], Survey.prototype, "organizationId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'client_id', type: 'varchar', length: 36, nullable: true }),
+    __metadata("design:type", Object)
+], Survey.prototype, "clientId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ length: 200 }),
     __metadata("design:type", String)
 ], Survey.prototype, "title", void 0);
@@ -76,5 +80,6 @@ __decorate([
 ], Survey.prototype, "updatedAt", void 0);
 exports.Survey = Survey = __decorate([
     (0, typeorm_1.Entity)('surveys'),
-    (0, typeorm_1.Index)('IDX_survey_org_status', ['organizationId', 'status'])
+    (0, typeorm_1.Index)('IDX_survey_org_status', ['organizationId', 'status']),
+    (0, typeorm_1.Index)('IDX_survey_org_client', ['organizationId', 'clientId'])
 ], Survey);

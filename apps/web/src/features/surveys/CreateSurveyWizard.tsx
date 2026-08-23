@@ -7,14 +7,15 @@
  */
 
 import { useEffect, useState, type JSX } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { WizardProgress, type WizardStepDescriptor } from '../../shared/WizardProgress';
 import { PageHero } from '../../shared/PageHero';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { ImageUpload } from '../../shared/ImageUpload';
-import { useAuth } from '../../core/auth';
 import { triggerToast } from '../../shared/toast-events';
 import { useCreateSurvey, useSurvey, useUpdateSurvey } from './useSurveys';
+import { api } from '../../core/api';
 import type { QuestionType, Survey, SurveyDistributionChannel, SurveyQuestion, SurveyType } from '@espartanos/shared';
 import './surveys.css';
 
@@ -46,6 +47,7 @@ function blankQuestion(): SurveyQuestion {
 interface WizardState {
   title: string;
   type: SurveyType;
+  clientId: string;
   questions: SurveyQuestion[];
   distribution: SurveyDistributionChannel[];
   recipients: string;
@@ -70,6 +72,7 @@ function blankState(): WizardState {
   return {
     title: '',
     type: 'customer',
+    clientId: '',
     questions: [blankQuestion()],
     distribution: [],
     recipients: '',
@@ -95,6 +98,7 @@ function stateFromSurvey(survey: Survey): WizardState {
   return {
     title: survey.title,
     type: survey.type,
+    clientId: survey.clientId ?? '',
     questions: survey.questions.length ? survey.questions : [blankQuestion()],
     distribution: survey.distribution ?? [],
     recipients: (survey.recipients ?? []).join(', '),
@@ -117,7 +121,10 @@ function stateFromSurvey(survey: Survey): WizardState {
 }
 
 /** Paso 1: a quién se dirige la encuesta. */
-function SurveyTypesSelector({ value, onChange }: { value: SurveyType; onChange: (type: SurveyType) => void }) {
+function SurveyTypesSelector({ value, clientId, clients, onChange, onClientChange }: {
+  value: SurveyType; clientId: string; clients: Array<{ id: string; name: string }>;
+  onChange: (type: SurveyType) => void; onClientChange: (clientId: string) => void;
+}) {
   return (
     <div className="wizard-step-body">
       <p className="page-subtitle">Elige el público: cambia el copy que verá quien responde y quién puede recibirla.</p>
@@ -131,6 +138,13 @@ function SurveyTypesSelector({ value, onChange }: { value: SurveyType; onChange:
           <span>Encuesta pública para clientes o asistentes, independiente de las reservas.</span>
         </button>
       </div>
+      {value === 'customer' && <label>Empresa dueña de la encuesta
+        <select className="input" value={clientId} onChange={(event) => onClientChange(event.target.value)} required>
+          <option value="">Selecciona una empresa</option>
+          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+        </select>
+        <small>La encuesta y sus resultados quedarán aislados para esta empresa.</small>
+      </label>}
     </div>
   );
 }
@@ -295,10 +309,13 @@ export function CreateSurveyWizard(): JSX.Element {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('id') ?? undefined;
-  const currentUser = useAuth((auth) => auth.user);
   const { data: existingSurvey, isLoading } = useSurvey(editId);
   const createMutation = useCreateSurvey();
   const updateMutation = useUpdateSurvey();
+  const { data: clientsResponse } = useQuery<{ data?: Array<{ id: string; name: string }> }>({
+    queryKey: ['clients'], queryFn: () => api.get('/clients'),
+  });
+  const clients = clientsResponse?.data ?? [];
 
   const [step, setStep] = useState(0);
   const [state, setState] = useState<WizardState>(blankState());
@@ -314,7 +331,7 @@ export function CreateSurveyWizard(): JSX.Element {
   if (editId && isLoading) return <LoadingSpinner text="Cargando encuesta..." />;
 
   const stepReady: boolean[] = [
-    Boolean(state.title.trim()),
+    Boolean(state.title.trim()) && (state.type !== 'customer' || Boolean(state.clientId)),
     state.questions.every((question) => question.question.trim() && (question.type !== 'multiple-choice' || (question.options ?? []).filter((option) => option.trim()).length >= 2)),
     true,
     true,
@@ -346,7 +363,7 @@ export function CreateSurveyWizard(): JSX.Element {
 
     if (editId) {
       updateMutation.mutate(
-        { id: editId, patch: { title: state.title.trim(), type: state.type, questions, distribution, recipients: recipients.length ? recipients : undefined, ga4MeasurementId: state.ga4MeasurementId.trim() || null, designConfig, googleReview } },
+        { id: editId, patch: { title: state.title.trim(), type: state.type, clientId: state.type === 'customer' ? state.clientId : undefined, questions, distribution, recipients: recipients.length ? recipients : undefined, ga4MeasurementId: state.ga4MeasurementId.trim() || null, designConfig, googleReview } },
         { onSuccess: () => { triggerToast('Encuesta actualizada'); navigate('/surveys'); } },
       );
       return;
@@ -355,13 +372,13 @@ export function CreateSurveyWizard(): JSX.Element {
       {
         title: state.title.trim(),
         type: state.type,
+        clientId: state.type === 'customer' ? state.clientId : undefined,
         questions,
         distribution,
         recipients: recipients.length ? recipients : undefined,
         ga4MeasurementId: state.ga4MeasurementId.trim() || null,
         designConfig,
         googleReview,
-        createdBy: currentUser?.name ?? currentUser?.email ?? 'Desconocido',
       },
       { onSuccess: () => { triggerToast('Encuesta creada'); navigate('/surveys'); } },
     );
@@ -392,7 +409,7 @@ export function CreateSurveyWizard(): JSX.Element {
           isStepDisabled={(index) => index > step && !stepReady.slice(0, index).every(Boolean)}
         />
 
-        {step === 0 && <SurveyTypesSelector value={state.type} onChange={(type) => setState((current) => ({ ...current, type }))} />}
+        {step === 0 && <SurveyTypesSelector value={state.type} clientId={state.clientId} clients={clients} onChange={(type) => setState((current) => ({ ...current, type, clientId: type === 'internal' ? '' : current.clientId }))} onClientChange={(clientId) => setState((current) => ({ ...current, clientId }))} />}
         {step === 0 && (
           <label>Nombre de la encuesta
             <input className="input" required value={state.title} onChange={(event) => setState((current) => ({ ...current, title: event.target.value }))} placeholder="Ej. Satisfacción clientes agosto" />
