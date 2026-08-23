@@ -4,8 +4,6 @@ import { InteractionsService } from './interactions.service';
 import { CreateInteractionDto } from './dto/create-interaction.dto';
 import { UpdateInteractionDto } from './dto/update-interaction.dto';
 import { ListInteractionsDto } from './dto/list-interactions.dto';
-import { Roles } from '../../../core/authorization/roles.decorator';
-import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { RequiresFeature } from '../../../core/authorization/requires-feature.decorator';
 

@@ -3,8 +3,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { ContactsService } from './contacts.service';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { ListContactsDto } from './dto/list-contacts.dto';
-import { Roles } from '../../../core/authorization/roles.decorator';
-import { UserRole } from '../../organizations/user-role.enum';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';

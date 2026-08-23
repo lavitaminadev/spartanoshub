@@ -13,8 +13,6 @@ import { UpdateLeadDto } from './dto/update-lead.dto';
 import { ImportLeadsDto } from './dto/import-leads.dto';
 import { ImportLeadsUseCase } from './use-cases/import-leads.use-case';
 import { ListLeadsQueryDto } from './dto/list-leads.dto';
-import { Roles } from '../../../core/authorization/roles.decorator';
-import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { Reservation } from '../../reservations/domain/reservation.entity';
 import { Lead } from './lead.entity';

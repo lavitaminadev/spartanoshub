@@ -4,18 +4,25 @@ name: Rama de despliegue
 # cPanel necesita para desplegar.
 #
 # El problema que resuelve: `.cpanel.yml` se detiene si no encuentra `apps/api/dist/main.js` y
-# `apps/web/dist/index.html`, pero `dist/` esta en `.gitignore` y por lo tanto nunca llega a
-# GitHub. Con `main` solo, el despliegue falla en el primer paso.
+# `apps/web/dist/index.html`. Compilar en el servidor no es opcion: la cuenta tiene 768 MB para
+# todos los procesos y `tsc` necesita unos 600 MB. Passenger mantiene los procesos viejos
+# atendiendo mientras corre el despliegue, asi que compilar alla puede matar a los que estan
+# atendiendo reservas. Por eso se compila aca, en una maquina que si tiene memoria.
 #
-# Compilar en el servidor no es opcion: la cuenta tiene 768 MB para todos los procesos y `tsc`
-# necesita unos 600 MB. Passenger mantiene los procesos viejos atendiendo mientras corre el
-# despliegue, asi que compilar alla puede matar a los que estan atendiendo reservas.
+# OJO AL LEER ESTE ARCHIVO
 #
-# Versionar `dist/` en `main` tampoco: son 1675 archivos que cambian en cada build, y cada
-# rebase se convertiria en un conflicto binario.
+# Este encabezado decia que `dist/` estaba en `.gitignore` y que versionarlo en `main` no era
+# opcion. **Las dos cosas dejaron de ser ciertas.** El `.gitignore` ahora versiona `dist/` a
+# proposito —lo explica ahi mismo— y `main` lleva unos 870 archivos compilados.
 #
-# Asi que se compila aca, en una maquina que si tiene memoria, y el resultado va a una rama
-# aparte. `main` queda limpio y cPanel recibe algo que puede desplegar.
+# La consecuencia practica es que hoy conviven dos caminos para lo mismo:
+#
+#   1. `main` ya contiene `dist/`, compilado antes de subir con `npm run build:cpanel`.
+#   2. Este workflow recompila y publica la rama `deploy`.
+#
+# El mecanismo sigue siendo correcto: `git add -f` sobre archivos ya versionados no molesta, y
+# recompilar garantiza que lo publicado corresponde al commit. Pero **es trabajo repetido**, y
+# vale la pena decidir con cual quedarse en vez de mantener los dos por inercia.
 #
 # En cPanel, `Git Version Control` debe apuntar a la rama `deploy`, no a `main`.
 
