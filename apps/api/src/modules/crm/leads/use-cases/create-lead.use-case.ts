@@ -19,6 +19,8 @@ export class CreateLeadUseCase {
     clientId?: string;
     domain?: 'audience' | 'commercial';
   }) {
-    return this.leadIntake.captureLead(data);
+    // Esta ruta solo se alcanza con sesión abierta: quien llega acá escribió el prospecto en el
+    // tablero. El scoring no debe descartarlo por no traer las señales de un origen automático.
+    return this.leadIntake.captureLead({ ...data, enteredByPerson: true });
   }
 }

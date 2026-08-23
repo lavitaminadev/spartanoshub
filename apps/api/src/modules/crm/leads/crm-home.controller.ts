@@ -1,9 +1,7 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Roles } from '../../../core/authorization/roles.decorator';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
-import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { CrmHomeService } from './crm-home.service';
 import { veSoloLoSuyo } from './lead-visibility';

@@ -4,18 +4,25 @@ name: Rama de despliegue
 # cPanel necesita para desplegar.
 #
 # El problema que resuelve: `.cpanel.yml` se detiene si no encuentra `apps/api/dist/main.js` y
-# `apps/web/dist/index.html`, pero `dist/` esta en `.gitignore` y por lo tanto nunca llega a
-# GitHub. Con `main` solo, el despliegue falla en el primer paso.
+# `apps/web/dist/index.html`. Compilar en el servidor no es opcion: la cuenta tiene 768 MB para
+# todos los procesos y `tsc` necesita unos 600 MB. Passenger mantiene los procesos viejos
+# atendiendo mientras corre el despliegue, asi que compilar alla puede matar a los que estan
+# atendiendo reservas. Por eso se compila aca, en una maquina que si tiene memoria.
 #
-# Compilar en el servidor no es opcion: la cuenta tiene 768 MB para todos los procesos y `tsc`
-# necesita unos 600 MB. Passenger mantiene los procesos viejos atendiendo mientras corre el
-# despliegue, asi que compilar alla puede matar a los que estan atendiendo reservas.
+# OJO AL LEER ESTE ARCHIVO
 #
-# Versionar `dist/` en `main` tampoco: son 1675 archivos que cambian en cada build, y cada
-# rebase se convertiria en un conflicto binario.
+# Este encabezado decia que `dist/` estaba en `.gitignore` y que versionarlo en `main` no era
+# opcion. **Las dos cosas dejaron de ser ciertas.** El `.gitignore` ahora versiona `dist/` a
+# proposito —lo explica ahi mismo— y `main` lleva unos 870 archivos compilados.
 #
-# Asi que se compila aca, en una maquina que si tiene memoria, y el resultado va a una rama
-# aparte. `main` queda limpio y cPanel recibe algo que puede desplegar.
+# La consecuencia practica es que hoy conviven dos caminos para lo mismo:
+#
+#   1. `main` ya contiene `dist/`, compilado antes de subir con `npm run build:cpanel`.
+#   2. Este workflow recompila y publica la rama `deploy`.
+#
+# El mecanismo sigue siendo correcto: `git add -f` sobre archivos ya versionados no molesta, y
+# recompilar garantiza que lo publicado corresponde al commit. Pero **es trabajo repetido**, y
+# vale la pena decidir con cual quedarse en vez de mantener los dos por inercia.
 #
 # En cPanel, `Git Version Control` debe apuntar a la rama `deploy`, no a `main`.
 
@@ -34,9 +41,34 @@ concurrency:
   group: deploy-branch
   cancel-in-progress: true
 
+# Como en `ci.yml`: las variables van en los pasos que las piden, no a nivel de workflow. Ver
+# la explicacion completa alla; en resumen, una clave de mas alcanzo a `test:api` y rompio seis
+# pruebas que no la necesitaban.
+
 jobs:
   publicar:
     runs-on: ubuntu-latest
+
+    # Este job tiene su propia puerta y no depende de que `ci.yml` haya terminado.
+    #
+    # Los dos se disparan a la vez con el `push` a `main`, asi que encadenarlos exigiria cambiar
+    # cuando se dispara el despliegue. Duplicar la comprobacion cuesta unos minutos de Actions y
+    # a cambio garantiza que **el job que genera `deploy` la haya hecho el mismo**, en vez de
+    # confiar en otro que corre en paralelo y podria no haber llegado.
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: espartanos_ci
+          MARIADB_DATABASE: espartanos_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -49,12 +81,45 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Confirmar el motor de base de datos
+        run: |
+          version=$(mysql -h 127.0.0.1 -P 3306 -uroot -pespartanos_ci -N -B -e 'SELECT VERSION()')
+          echo "Motor: $version"
+          case "$version" in
+            11.4*MariaDB*) ;;
+            *) echo "Se esperaba MariaDB 11.4 y respondio: $version"; exit 1 ;;
+          esac
+
+      - name: Migraciones sobre una base limpia
+        run: npm run migration:run
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_USERNAME: root
+          DB_PASSWORD: espartanos_ci
+          DB_DATABASE: espartanos_test
+
       # Las pruebas corren antes de compilar: una rama de despliegue con codigo que no pasa
       # las pruebas es peor que no tener rama, porque parece lista para subir.
-      - name: Pruebas
+      - name: Pruebas unitarias
         run: |
           npm run test:api
           npm run test:web
+
+      # Las de extremo a extremo son las que cubren el aislamiento entre empresas cliente, los
+      # permisos y las puertas publicas. Sin ellas aca, la rama podia generarse con una fuga de
+      # datos entre clientes intacta: las unitarias no la ven.
+      #
+      # Van en su propio paso porque son las unicas que necesitan la base, y asi las unitarias
+      # corren sin variables, igual que en cualquier maquina sin `.env`.
+      - name: Pruebas de extremo a extremo
+        run: npm run test:e2e
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_USERNAME: root
+          DB_PASSWORD: espartanos_ci
+          E2E_DB_DATABASE: espartanos_test
 
       - name: Compilar
         run: npm run build:cpanel

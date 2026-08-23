@@ -43,6 +43,7 @@ let ImportLeadsUseCase = ImportLeadsUseCase_1 = class ImportLeadsUseCase {
                     organizationId,
                     domain: dto.domain ?? 'commercial',
                     clientId: dto.clientId,
+                    enteredByPerson: true,
                     name: row.name,
                     email: row.email,
                     phone: row.phone,

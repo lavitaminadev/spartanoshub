@@ -17,7 +17,7 @@ let CreateLeadUseCase = class CreateLeadUseCase {
         this.leadIntake = leadIntake;
     }
     async execute(data) {
-        return this.leadIntake.captureLead(data);
+        return this.leadIntake.captureLead({ ...data, enteredByPerson: true });
     }
 };
 exports.CreateLeadUseCase = CreateLeadUseCase;

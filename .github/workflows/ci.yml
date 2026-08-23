@@ -4,9 +4,42 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+
+# Las variables van en los pasos que las necesitan, NO a nivel de workflow.
+#
+# Estuvieron acá arriba y rompieron la primera ejecucion: `INTEGRATION_ENCRYPTION_KEY` alcanzaba
+# tambien a `test:api`, que no la pedia. Fuera de produccion el codigo deriva esa clave solo
+# cuando la variable no existe; con una definida la valida, y la que habia no eran 32 bytes. Seis
+# pruebas de Meta y Google murieron al cifrar un secreto.
+#
+# La leccion no es sobre el valor: es que dar a un paso un entorno que no es el suyo cambia su
+# comportamiento de formas que no se ven al leer el diff. Cada paso recibe lo minimo que pide.
+
 jobs:
   quality:
     runs-on: ubuntu-latest
+
+    # MariaDB, no MySQL, y con la version de referencia.
+    #
+    # Las migraciones crean columnas `uuid` **nativas**, un tipo que MariaDB tiene desde 10.7 y
+    # que no existe en el catalogo de MySQL. Produccion y una migracion limpia coinciden en eso.
+    # Ver `docs/operacion/motor-de-base-de-datos.md`.
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: espartanos_ci
+          MARIADB_DATABASE: espartanos_test
+        ports:
+          - 3306:3306
+        # Sin esto los pasos arrancan contra un contenedor que todavia no acepta conexiones, y
+        # el fallo aparece como un error de migracion en vez de como lo que es.
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,12 +47,53 @@ jobs:
           node-version: 22.22.3
           cache: npm
           cache-dependency-path: package-lock.json
+
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
+
       - run: npm run lint:shared
       - run: npm run lint:api
       - run: npm run lint:web
+
+      - name: Confirmar el motor de base de datos
+        run: |
+          version=$(mysql -h 127.0.0.1 -P 3306 -uroot -pespartanos_ci -N -B -e 'SELECT VERSION()')
+          echo "Motor: $version"
+          case "$version" in
+            11.4*MariaDB*) ;;
+            *) echo "Se esperaba MariaDB 11.4 y respondio: $version"; exit 1 ;;
+          esac
+
+      # Desde una base vacia, no desde un volcado: es la unica forma de comprobar que el sistema
+      # se puede levantar de cero, que es lo que hara el proximo servidor.
+      - name: Migraciones sobre una base limpia
+        run: npm run migration:run
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_USERNAME: root
+          DB_PASSWORD: espartanos_ci
+          DB_DATABASE: espartanos_test
+
+      # Sin variables: se comportan igual que en cualquier maquina sin `.env`, que es como
+      # venian pasando.
       - run: npm run test:api
       - run: npm run test:web
+
+      # Toda la carpeta `test/e2e`, sin lista aparte: un archivo nuevo entra en la puerta de
+      # calidad por existir, sin que nadie tenga que acordarse de anotarlo en otro sitio.
+      #
+      # Solo los datos de conexion. `test/e2e/util/entorno.ts` fija por su cuenta `NODE_ENV`,
+      # el limite de conexiones y el cupo del limitador; lo demas tiene respaldo fuera de
+      # produccion y no debe declararse aca.
+      - name: Pruebas de extremo a extremo
+        run: npm run test:e2e
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_USERNAME: root
+          DB_PASSWORD: espartanos_ci
+          E2E_DB_DATABASE: espartanos_test
+
       - run: npm run build:api
       - run: npm run build:web

@@ -8,8 +8,6 @@ import { RemoveOpportunityUseCase } from './use-cases/remove-opportunity.use-cas
 import { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import { UpdateOpportunityDto } from './dto/update-opportunity.dto';
 import { ListOpportunitiesDto } from './dto/list-opportunities.dto';
-import { Roles } from '../../../core/authorization/roles.decorator';
-import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { RequiresFeature } from '../../../core/authorization/requires-feature.decorator';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
