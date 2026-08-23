@@ -18,7 +18,7 @@ import { isPermissionLevel, type PermissionLevel } from './permission-level';
 import { roleLevel } from './role-permissions';
 import { AuditService } from '../audit/audit.service';
 import type { AuthenticatedRequest } from '../../shared/types/request';
-import { ModuleScope } from '../authorization/module-scope.decorator';
+import { ModuleExempt, ModuleScope } from '../authorization/module-scope.decorator';
 import { AccountAccessService } from '../client-scope/account-access.service';
 import { UserClientAccess } from '../client-scope/user-client-access.entity';
 import { GrantClientAccessDto } from './dto/grant-client-access.dto';
@@ -199,6 +199,19 @@ export class PermissionsController {
    */
   @Get('me/permissions')
   @Roles(...Object.values(UserRole))
+  /*
+   * Sin módulo: son **los permisos de quien pregunta**, no los de nadie más.
+   *
+   * El controlador entero declara `users`, y esta ruta lo heredaba. El efecto era que cualquiera
+   * sin ese módulo —el portal de un cliente, o alguien a quien se le hubiera recortado— recibía
+   * 403 al arrancar la aplicación, **antes de ver una sola pantalla**: es la petición con la que
+   * el frontend arma el menú, así que sin ella no hay nada que dibujar y el arranque se queda
+   * dando vueltas.
+   *
+   * Exigir un módulo para leer los propios permisos es además circular: haría falta permiso para
+   * saber qué permisos se tienen.
+   */
+  @ModuleExempt('Devuelve los permisos de quien pregunta; exigir un módulo para leerlos sería circular')
   @ApiOperation({ summary: 'Permisos efectivos del usuario autenticado' })
   async mine(@Req() req: AuthenticatedRequest) {
     const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role as UserRole);
