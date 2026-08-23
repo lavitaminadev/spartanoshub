@@ -4,7 +4,7 @@ import { cerrarBanco, levantarBanco, type Banco } from './util/banco';
 /**
  * Qué alcanza de verdad un cargo del equipo, hoy.
  *
- * Conviene saber cómo está montado, porque no es lo que parece al leer `PERFIL_SUGERIDO`: la
+ * Conviene saber cómo está montado, porque no es lo que parece al leer `REPARTO_NO_APLICADO`: la
  * matriz efectiva **concede el catálogo completo a todos los cargos internos**, y se recorta
  * desde la pantalla de permisos. Lo que de verdad restringe es la lista de cargos que cada
  * controlador declara con `@Roles`.
