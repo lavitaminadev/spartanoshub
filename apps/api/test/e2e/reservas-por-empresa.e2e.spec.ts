@@ -103,9 +103,9 @@ describe('reservas por empresa', () => {
       'GET', '/crm/leads?domain=audience&limit=100', banco.cuentas.portalReservasUno.token,
     );
 
-    // Su empresa no contrató CRM: la lista se acota a las que sí lo tienen y no queda ninguna.
-    expect(status).toBe(200);
-    expect(body?.data ?? []).toHaveLength(0);
+    // Su empresa no contrató CRM: se niega explícitamente, no se disimula como una lista vacía.
+    expect(status).toBe(403);
+    expect(body?.message).toMatch(/módulo/i);
   });
 
   it('el equipo asignado a un CRM no ve por eso las reservas de un local', async () => {

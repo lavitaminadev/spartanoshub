@@ -132,21 +132,18 @@ ${banco.registro()}`,
     }).toEqual({ clientes: 0, usuarios: 0, leads: 0 });
   });
 
-  it('el portal de un local no alcanza más módulos que el de una empresa con CRM', () => {
-    /*
-     * Los dos son el mismo cargo con distinta empresa: si uno alcanzara algo que el otro no, la
-     * diferencia vendría de la empresa y no del cargo, que es justo lo que la capacidad
-     * contratada debe decidir, no el permiso.
-     */
-    const deUno = resultados.filter((r) => r.cargo === 'portalCrmUno');
-    const deOtro = resultados.filter((r) => r.cargo === 'portalReservasUno');
+  it('cada portal alcanza solo los servicios contratados por su empresa', () => {
+    const estado = (cargo: string, ruta: string) =>
+      resultados.find((fila) => fila.cargo === cargo && fila.ruta === ruta)?.status;
 
-    const diferencias = deUno
-      .map((fila, indice) => ({ fila, otro: deOtro[indice] }))
-      .filter(({ fila, otro }) => (fila.status === 403) !== (otro.status === 403))
-      .map(({ fila, otro }) => `${fila.ruta}: crmUno=${fila.status} reservasUno=${otro.status}`);
-
-    expect(diferencias, 'El mismo cargo responde distinto según la empresa').toEqual([]);
+    for (const ruta of ['CRM · leads', 'CRM · inicio', 'CRM · panel']) {
+      expect(estado('portalCrmUno', ruta), `CRM contratado: ${ruta}`).toBe(200);
+      expect(estado('portalReservasUno', ruta), `CRM no contratado: ${ruta}`).toBe(403);
+    }
+    for (const ruta of ['Reservas', 'Reservas · formularios']) {
+      expect(estado('portalCrmUno', ruta), `Reservas no contratadas: ${ruta}`).toBe(403);
+      expect(estado('portalReservasUno', ruta), `Reservas contratadas: ${ruta}`).toBe(200);
+    }
   });
 
   /** Deja la tabla en `docs`, para poder comparar una versión con la siguiente. */
@@ -182,8 +179,8 @@ ${banco.registro()}`,
       '- **equipoUno** es un community manager sin cuentas asignadas en este escenario, así que',
       '  ve las pantallas que su cargo permite pero sin datos de ninguna empresa.',
       '- **portalCrmUno** y **portalReservasUno** son el mismo cargo (`client`) sobre empresas con',
-      '  servicios distintos. Que respondan igual es lo correcto: lo que cambia entre ellos son los',
-      '  datos, no los permisos.',
+      '  servicios distintos. Sus respuestas de CRM y Reservas deben diferir: cada portal alcanza',
+      '  únicamente el servicio que su empresa contrató.',
       '',
     );
 
