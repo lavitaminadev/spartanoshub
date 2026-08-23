@@ -34,9 +34,47 @@ concurrency:
   group: deploy-branch
   cancel-in-progress: true
 
+# Las mismas de `ci.yml`, y por el mismo motivo: nada de esto es secreto, la base se destruye
+# al terminar el job.
+env:
+  DB_HOST: 127.0.0.1
+  DB_PORT: 3306
+  DB_USERNAME: root
+  DB_PASSWORD: espartanos_ci
+  DB_DATABASE: espartanos_test
+  E2E_DB_DATABASE: espartanos_test
+  DB_SSL: 'false'
+  NODE_ENV: test
+  JWT_SECRET: ci-jwt-secret-solo-para-integracion-continua
+  INTEGRATION_ENCRYPTION_KEY: ci-integration-key-solo-para-integracion
+  OAUTH_STATE_SECRET: ci-oauth-state-solo-para-integracion-continua
+  CRON_SECRET: ci-cron-secret-solo-para-integracion-continua
+  UPLOAD_DIR: /tmp/espartanos-uploads
+
 jobs:
   publicar:
     runs-on: ubuntu-latest
+
+    # Este job tiene su propia puerta y no depende de que `ci.yml` haya terminado.
+    #
+    # Los dos se disparan a la vez con el `push` a `main`, asi que encadenarlos exigiria cambiar
+    # cuando se dispara el despliegue. Duplicar la comprobacion cuesta unos minutos de Actions y
+    # a cambio garantiza que **el job que genera `deploy` la haya hecho el mismo**, en vez de
+    # confiar en otro que corre en paralelo y podria no haber llegado.
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: espartanos_ci
+          MARIADB_DATABASE: espartanos_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -49,12 +87,29 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Confirmar el motor de base de datos
+        run: |
+          version=$(mysql -h 127.0.0.1 -P 3306 -uroot -pespartanos_ci -N -B -e 'SELECT VERSION()')
+          echo "Motor: $version"
+          case "$version" in
+            11.4*MariaDB*) ;;
+            *) echo "Se esperaba MariaDB 11.4 y respondio: $version"; exit 1 ;;
+          esac
+
+      - name: Migraciones sobre una base limpia
+        run: npm run migration:run
+
       # Las pruebas corren antes de compilar: una rama de despliegue con codigo que no pasa
       # las pruebas es peor que no tener rama, porque parece lista para subir.
+      #
+      # Las de extremo a extremo son las que cubren el aislamiento entre empresas cliente, los
+      # permisos y las puertas publicas. Sin ellas aca, la rama podia generarse con una fuga de
+      # datos entre clientes intacta: las unitarias no la ven.
       - name: Pruebas
         run: |
           npm run test:api
           npm run test:web
+          npm run test:e2e
 
       - name: Compilar
         run: npm run build:cpanel

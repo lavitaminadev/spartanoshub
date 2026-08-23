@@ -27,6 +27,7 @@
     "lint:shared": "cd packages/shared && npm run lint",
     "test:api": "cd apps/api && npm run test",
     "test:web": "cd apps/web && npm run test",
+    "test:e2e": "cd apps/api && npm run test:e2e",
     "test": "npm run test:api && npm run test:web",
     "validate:env": "npm run build:api && npm run check:production-env",
     "deploy:web:cpanel": "powershell -NoProfile -Command \"$dest = Join-Path $HOME 'public_html/cuartel.espartanos.cl'; New-Item -ItemType Directory -Force -Path $dest | Out-Null; if (Test-Path (Join-Path $dest 'assets')) { Remove-Item -Recurse -Force (Join-Path $dest 'assets') }; Copy-Item -Recurse -Force apps/web/dist/* $dest\"",

@@ -159,6 +159,31 @@ Ahora se aceptan dos claves y la rotación es en tres pasos, sin ventana de caí
 2. Actualizar el disparador de tareas con la nueva, cuando se pueda.
 3. **Borrar `CRON_SECRET_PREVIOUS`.** Dejarla puesta desharía el sentido de rotar.
 
+## Una limitación que hay que tener presente
+
+**Todos los límites de esta página se cuentan por proceso, no por servicio.**
+
+El almacenamiento del limitador vive en memoria del proceso de Node. Passenger levanta varios y
+reparte las peticiones entre ellos, así que **el límite efectivo es el número de la tabla
+multiplicado por la cantidad de procesos**. Con cuatro procesos, «5 intentos por minuto» son en
+la práctica hasta 20 para quien tenga la mala suerte —o la intención— de caer en procesos
+distintos.
+
+No invalida ninguna de las protecciones descritas arriba, y conviene decir por qué:
+
+- Contra quien prueba contraseñas, el freno real **no es este límite** sino el bloqueo de la
+  cuenta —cinco fallos, cinco minutos—, que vive en la base y por lo tanto **sí es global**.
+- Contra el abuso de los formularios públicos, el tope alto es deliberado: frenarlos haría que
+  Make y Zapier reintentaran, duplicando.
+
+Se puede alinear sin desplegar, ajustando `THROTTLE_LIMIT` a la cantidad de procesos que tenga
+configurada la aplicación en cPanel. Un límite realmente compartido exigiría un almacén común
+—Redis o una tabla— y hoy no existe: es una dependencia operativa nueva que no se justifica por
+esto solo.
+
+Lo mismo vale para los contadores de `/metrics`: son de un proceso, no del servicio. Ver el
+comentario de cabecera de `metrics.service.ts`.
+
 ## Lo que queda abierto
 
 - **El formulario de la web no tiene captcha.** Hoy lo cubren el honeypot y el límite de 10/min.
