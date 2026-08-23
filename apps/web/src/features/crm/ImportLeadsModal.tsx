@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import { api } from '../../core/api';
 import { useCrmScope } from './crm-scope';
@@ -47,6 +48,7 @@ export interface ImportLeadsModalProps {
  * forma más rápida de meter cuatrocientos registros mal mapeados en el CRM.
  */
 export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.Element {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
@@ -137,7 +139,11 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
     }),
     onSuccess: async (data) => {
       setResult(data);
-      await queryClient.invalidateQueries({ queryKey: ['leads'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['leads'] }),
+        queryClient.invalidateQueries({ queryKey: ['crm-reservation-contacts'] }),
+        queryClient.invalidateQueries({ queryKey: ['crm-contact-segments'] }),
+      ]);
     },
     onError: (mutationError: Error) => setError(mutationError.message),
   });
@@ -165,7 +171,14 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
             ) : null}
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={reset}>Importar otro archivo</button>
-              <button type="button" className="btn btn-primary" onClick={() => { reset(); onClose(); }}>Cerrar</button>
+              <button type="button" className="btn btn-primary" onClick={() => {
+                reset();
+                onClose();
+                // El alta de audiencia pertenece a Contactos, no a la lista comercial desde
+                // donde se abrió el modal. Sin este salto el resultado decía «297 importados»
+                // y dejaba a la persona frente a un 0 de 0.
+                if (domain === 'audience') navigate('/crm/contacts');
+              }}>Cerrar</button>
             </div>
           </div>
         ) : (
