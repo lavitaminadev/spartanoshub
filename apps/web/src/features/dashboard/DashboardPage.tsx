@@ -108,7 +108,7 @@ export function DashboardPage() {
   const moduleAllowed = (module: string): boolean => {
     // El alcance de fase manda sobre el permiso: una tarjeta de un módulo que el producto
     // todavía no ofrece no se muestra aunque el usuario tenga acceso a ese módulo.
-    if (!isModuleInPhaseScope(module, user?.moduleLifecycle)) return false;
+    if (!isModuleInPhaseScope(module, user?.moduleLifecycle, user?.role)) return false;
     if (user?.permissions) return (user.permissions[module] ?? 'none') !== 'none';
     if (user?.features) return user.features[module] !== false;
     return true;
@@ -121,7 +121,7 @@ export function DashboardPage() {
    */
   const widgetAllowed = (widget: DashboardWidget): boolean => {
     const required = WIDGET_MODULE[widget];
-    if (!isModuleInPhaseScope(required, user?.moduleLifecycle)) return false;
+    if (!isModuleInPhaseScope(required, user?.moduleLifecycle, user?.role)) return false;
     return !required || moduleAllowed(required);
   };
   // Comparte clave de caché con el panel de resultados: montados juntos resuelven con una sola
@@ -146,7 +146,7 @@ export function DashboardPage() {
     Sin `reports` se muestran igual las tarjetas que no dependen de él, en vez de convertir la
     pantalla entera en un error.
   */
-  const puedeVerInformes = moduleAllowed('reports');
+  const puedeVerInformes = moduleAllowed('dashboard');
   /*
     Empresa por la que responde el panel.
 
@@ -158,7 +158,7 @@ export function DashboardPage() {
   const { data: cartera } = useQuery<{ data: Array<{ id: string; name: string }> }>({
     queryKey: ['clients-min'],
     queryFn: () => api.get('/clients'),
-    enabled: puedeVerInformes,
+    enabled: puedeVerInformes && moduleAllowed('clients'),
   });
   const empresas = cartera?.data ?? [];
 

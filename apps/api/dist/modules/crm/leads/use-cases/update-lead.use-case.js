@@ -37,9 +37,6 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
         if (!lead)
             throw new common_1.NotFoundException('Lead not found');
         const etapaPrevia = lead.status;
-        if (data.status === lead_status_enum_1.LeadStatus.WON && !lead.convertedToClientId) {
-            throw new common_1.BadRequestException('Para marcar un lead como ganado debes convertirlo en cliente');
-        }
         if (data.status && Object.values(lead_status_enum_1.LeadStatus).includes(data.status)) {
             if (!(0, lead_status_enum_1.isStatusInDomain)(lead.domain, data.status)) {
                 throw new common_1.BadRequestException(`El estado "${data.status}" no corresponde a un lead de ${DOMAIN_LABELS[lead.domain] ?? lead.domain}`);

@@ -55,16 +55,12 @@ describe('mover un lead de etapa', () => {
       .rejects.toBeInstanceOf(BadRequestException);
   });
 
-  /*
-   * Motivo 2: «Venta» exige haber convertido el lead en cliente.
-   *
-   * No es un fallo: es la regla que impide que exista una venta sin cliente al que facturarla.
-   * La pantalla ya deshabilita esa columna, así que solo aparece si se llega por otra vía.
-   */
-  it('no deja marcar «Venta» sin convertir antes el lead en cliente', async () => {
-    const { uso } = caso({ id: 'l1', domain: 'commercial', status: LeadStatus.NEGOTIATION });
-    await expect(uso.execute('l1', { status: LeadStatus.WON }, 'org-1'))
-      .rejects.toThrow(/convertirlo en cliente/);
+  it('marca «Venta» como éxito sin convertir a la persona en empresa cliente', async () => {
+    const { uso, repo } = caso({ id: 'l1', domain: 'commercial', status: LeadStatus.NEGOTIATION });
+    const resultado = await uso.execute('l1', { status: LeadStatus.WON }, 'org-1');
+    expect(resultado.status).toBe(LeadStatus.WON);
+    expect(resultado.convertedToClientId).toBeUndefined();
+    expect(repo.save).toHaveBeenCalled();
   });
 
   /*

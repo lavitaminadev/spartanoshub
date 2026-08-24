@@ -1,24 +1,24 @@
 /**
  * @fileoverview Calendario del CRM: el mes, con lo que hay agendado.
  *
- * Reutiliza las reuniones que ya existen en vez de crear una agenda propia: una visita comercial
- * es una reunión con fecha y cliente, que es exactamente lo que esa tabla guarda. Duplicar el
- * modelo habría dejado dos agendas que hay que mirar por separado para saber si alguien está libre.
+ * Usa las actividades del propio CRM. Así la agenda comparte alcance, empresa y permisos con el
+ * tablero, en vez de depender del módulo futuro de Reuniones y terminar en 403.
  */
 
 import { useMemo, useState, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useCrmScope } from './crm-scope';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
 import './crm-calendar.css';
 
-interface Reunion {
+interface Actividad {
   id: string;
-  title: string;
-  scheduledAt: string;
-  clientId?: string | null;
+  type: string;
+  description?: string;
+  date: string;
 }
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -78,20 +78,20 @@ export function CrmCalendarPage(): JSX.Element {
   // bajo el encabezado de la empresa elegida, que es la forma más silenciosa de mezclarlas.
   const scope = useCrmScope();
 
-  const { data, isLoading } = useQuery<Reunion[]>({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<{ data: Actividad[] }>({
     queryKey: ['crm-calendario', scope.clientId],
     queryFn: () => api.get(
-      `/meetings${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      `/crm/interactions?limit=500${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
     ),
     retry: false,
   });
 
   const porDia = useMemo(() => {
-    const mapa = new Map<string, Reunion[]>();
-    for (const reunion of data ?? []) {
-      if (!reunion.scheduledAt) continue;
-      const clave = claveDia(new Date(reunion.scheduledAt));
-      mapa.set(clave, [...(mapa.get(clave) ?? []), reunion]);
+    const mapa = new Map<string, Actividad[]>();
+    for (const actividad of data?.data ?? []) {
+      if (!actividad.date) continue;
+      const clave = claveDia(new Date(actividad.date));
+      mapa.set(clave, [...(mapa.get(clave) ?? []), actividad]);
     }
     return mapa;
   }, [data]);
@@ -117,12 +117,12 @@ export function CrmCalendarPage(): JSX.Element {
   /** Lo que hay agendado dentro de la cuadrícula visible, en orden cronológico. */
   const eventosDelPeriodo = useMemo(() => {
     const claves = new Set(celdas.map(({ fecha }) => claveDia(fecha)));
-    return (data ?? [])
-      .filter((reunion) => reunion.scheduledAt && claves.has(claveDia(new Date(reunion.scheduledAt))))
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    return (data?.data ?? [])
+      .filter((actividad) => actividad.date && claves.has(claveDia(new Date(actividad.date))))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [data, celdas]);
 
-  const documento: ExportDocument<Reunion> = {
+  const documento: ExportDocument<Actividad> = {
     fileName: vista === 'mes' ? 'agenda-mensual' : 'agenda-semanal',
     title: `Agenda · ${titulo}`,
     subtitle: `${eventosDelPeriodo.length} actividad(es) en el período`,
@@ -131,15 +131,17 @@ export function CrmCalendarPage(): JSX.Element {
       { label: 'Vista', value: vista === 'mes' ? 'Mensual' : 'Semanal' },
     ],
     columns: [
-      { header: 'Fecha', value: (r) => new Date(r.scheduledAt).toLocaleDateString('es-CL'), width: 12 },
-      { header: 'Hora', value: (r) => new Date(r.scheduledAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }), width: 8 },
-      { header: 'Actividad', value: (r) => r.title, width: 40 },
+      { header: 'Fecha', value: (r) => new Date(r.date).toLocaleDateString('es-CL'), width: 12 },
+      { header: 'Hora', value: (r) => new Date(r.date).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }), width: 8 },
+      { header: 'Tipo', value: (r) => r.type, width: 12 },
+      { header: 'Actividad', value: (r) => r.description || 'Actividad CRM', width: 40 },
     ],
     rows: eventosDelPeriodo,
     footer: 'Espartanos · CRM',
   };
 
   if (isLoading) return <LoadingSpinner text="Cargando el mes..." />;
+  if (error) return <QueryErrorState title="No pudimos cargar el calendario CRM" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page crm-cal">
@@ -161,7 +163,7 @@ export function CrmCalendarPage(): JSX.Element {
             —mes o semana—, no un rango fijo: si se exportara siempre la semana, el archivo
             diría algo distinto de lo que la persona tenía delante al pulsar.
           */}
-          <ExportButtons document={documento} />
+          <ExportButtons document={documento} csv={false} />
           <select
             className="input"
             aria-label="Forma de ver la agenda"
@@ -191,18 +193,18 @@ export function CrmCalendarPage(): JSX.Element {
             >
               <span className="crm-cal-numero">{fecha.getDate()}</span>
               {eventos.map((evento) => (
-                <span key={evento.id} className="crm-cal-evento" title={evento.title}>{evento.title}</span>
+                <span key={evento.id} className="crm-cal-evento" title={evento.description || evento.type}>{evento.description || evento.type}</span>
               ))}
             </div>
           );
         })}
       </div>
 
-      {!data?.length ? (
+      {!data?.data.length ? (
         // No es un error: puede no haber nada agendado, o el cargo puede no alcanzar las
         // reuniones. Decirlo evita que un mes vacío se lea como calendario roto.
         <p className="crm-cal-vacio">
-          No hay reuniones agendadas visibles para tu cargo. Se agendan desde Reuniones.
+          No hay actividades CRM agendadas visibles para esta empresa.
         </p>
       ) : null}
     </div>

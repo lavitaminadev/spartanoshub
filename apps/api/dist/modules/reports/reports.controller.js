@@ -25,6 +25,7 @@ const account_access_service_1 = require("../../core/client-scope/account-access
 const monthly_reports_service_1 = require("./monthly-reports.service");
 const monthly_report_dto_1 = require("./dto/monthly-report.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 let ReportingController = class ReportingController {
     constructor(dataSource, pulseService, accountAccess, monthlyReports) {
         this.dataSource = dataSource;
@@ -263,6 +264,7 @@ __decorate([
 ], ReportingController.prototype, "pulse", null);
 __decorate([
     (0, common_1.Get)('dashboard'),
+    (0, requires_permission_decorator_1.RequiresPermission)('dashboard', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL),
     (0, swagger_1.ApiOperation)({ summary: 'Dashboard ejecutivo' }),
     __param(0, (0, common_1.Req)()),

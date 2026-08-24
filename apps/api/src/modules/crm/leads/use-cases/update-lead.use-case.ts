@@ -39,9 +39,6 @@ export class UpdateLeadUseCase {
     // Se lee antes de pisarla: el registro necesita de dónde viene.
     const etapaPrevia = lead.status;
 
-    if (data.status === LeadStatus.WON && !lead.convertedToClientId) {
-      throw new BadRequestException('Para marcar un lead como ganado debes convertirlo en cliente');
-    }
     if (data.status && Object.values(LeadStatus).includes(data.status as LeadStatus)) {
       // El estado tiene que pertenecer al dominio del lead. El enumerado los contiene todos
       // porque la columna es una sola, pero un comensal no atraviesa el embudo comercial: sin

@@ -510,9 +510,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             onChange={(event) => setEtapaEnLote(event.target.value)}
           >
             <option value="">Mover a…</option>
-            {/* «Venta» exige convertir cada prospecto en cliente, y eso no se puede hacer en
-                lote sin decidir uno por uno: se deja fuera en vez de fallar en la mitad. */}
-            {etapasDelEmbudo.filter((stage) => stage !== 'won').map((stage) => <option key={stage} value={stage}>{etapaLabel(stage)}</option>)}
+            {etapasDelEmbudo.map((stage) => <option key={stage} value={stage}>{etapaLabel(stage)}</option>)}
           </select>
           <button
             type="button"

@@ -30,7 +30,17 @@ describe('InteractionsController · aislamiento por empresa', () => {
 
     await controller.findAll({ limit: 50, offset: 0 } as any, request);
 
-    expect(service.findAll).toHaveBeenCalledWith('org-1', 50, 0, undefined, ['client-1']);
+    expect(service.findAll).toHaveBeenCalledWith('org-1', 50, 0, undefined, ['client-1'], undefined);
+  });
+
+  it('valida y conserva la empresa elegida por el calendario CRM', async () => {
+    const { controller, service, accountAccess } = setup();
+    service.findAll.mockResolvedValue({ data: [], total: 0, limit: 500, offset: 0 });
+
+    await controller.findAll({ limit: 500, offset: 0, clientId: 'client-1' } as any, request);
+
+    expect(accountAccess.assertClient).toHaveBeenCalledWith('org-1', request.user, 'client-1');
+    expect(service.findAll).toHaveBeenCalledWith('org-1', 500, 0, undefined, ['client-1'], 'client-1');
   });
 
   it('no permite a una persona acotada crear actividad general sin empresa', async () => {

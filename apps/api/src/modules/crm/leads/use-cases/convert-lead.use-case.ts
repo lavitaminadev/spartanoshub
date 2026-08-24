@@ -22,7 +22,9 @@ export class ConvertLeadUseCase {
         lock: { mode: 'pessimistic_write' },
       });
       if (!lead) throw new NotFoundException('Lead no encontrado');
-      if (lead.status === LeadStatus.WON || lead.convertedToClientId) {
+      // Ganar una oportunidad y crear una empresa cliente son decisiones distintas. El lead
+      // puede haberse cerrado primero; solo una conversión previa impide repetir la operación.
+      if (lead.convertedToClientId) {
         throw new ConflictException('El lead ya fue convertido');
       }
 

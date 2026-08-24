@@ -6,15 +6,19 @@ import { UpdateLeadUseCase } from '../../../src/modules/crm/leads/use-cases/upda
 import { LeadStatus } from '../../../src/modules/crm/leads/lead-status.enum';
 
 describe('UpdateLeadUseCase', () => {
-  it('requires client conversion before marking a lead as won', async () => {
+  it('marks a lead as won without creating or requiring a client company', async () => {
+    const lead = { id: 'lead-1', domain: 'commercial', status: LeadStatus.NEGOTIATION };
     const repo = {
-      findOne: vi.fn().mockResolvedValue({ id: 'lead-1', status: LeadStatus.NEGOTIATION }),
-      save: vi.fn(),
+      findOne: vi.fn().mockResolvedValue(lead),
+      save: vi.fn().mockImplementation(async (value) => value),
     };
     const useCase = new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble());
 
-    await expect(useCase.execute('lead-1', { status: LeadStatus.WON }, 'org-1')).rejects.toBeInstanceOf(BadRequestException);
-    expect(repo.save).not.toHaveBeenCalled();
+    const result = await useCase.execute('lead-1', { status: LeadStatus.WON }, 'org-1');
+
+    expect(result.status).toBe(LeadStatus.WON);
+    expect(result.convertedToClientId).toBeUndefined();
+    expect(repo.save).toHaveBeenCalledWith(lead);
   });
 
   it('allows a converted lead to remain in the won stage', async () => {

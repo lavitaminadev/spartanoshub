@@ -28,11 +28,12 @@ export class InteractionsController {
 
   @Get()
   async findAll(@Query() query: ListInteractionsDto, @Req() req: AuthenticatedRequest) {
+    await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
     if (query.leadId) {
       await this.assertClientScope(req, await this.service.referenceClientId({ leadId: query.leadId }, req.organizationId));
     }
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed);
+    return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, query.clientId);
   }
 
   @Get(':id')

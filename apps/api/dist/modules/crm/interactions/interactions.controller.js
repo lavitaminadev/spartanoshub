@@ -31,11 +31,12 @@ let InteractionsController = class InteractionsController {
         return this.service.create(dto, req.organizationId, req.user.id);
     }
     async findAll(query, req) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
         if (query.leadId) {
             await this.assertClientScope(req, await this.service.referenceClientId({ leadId: query.leadId }, req.organizationId));
         }
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed);
+        return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, query.clientId);
     }
     async findOne(id, req) {
         const interaction = await this.service.findOne(id, req.organizationId);

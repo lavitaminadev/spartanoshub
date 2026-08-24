@@ -66,7 +66,7 @@ __decorate([
 ], StageLabelsController.prototype, "vocabulario", null);
 __decorate([
     (0, common_1.Put)('vocabulary'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Renombrar las cosas del CRM de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -77,7 +77,7 @@ __decorate([
 ], StageLabelsController.prototype, "guardarVocabulario", null);
 __decorate([
     (0, common_1.Put)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Renombrar las etapas de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),

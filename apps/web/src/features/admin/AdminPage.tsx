@@ -32,7 +32,7 @@ import { matchesSearch } from '../../shared/search';
  * de empresa y `users` permite asignar responsables desde la ficha. Quitar cualquiera deja una
  * sección abriendo un error.
  */
-const MODULOS_CRM: string[] = ['dashboard', 'settings', 'reports', 'crm', 'clients', 'users'];
+const MODULOS_CRM: string[] = ['dashboard', 'settings', 'reports', 'crm', 'clients', 'users', 'surveys'];
 
 /**
  * Lo que hace falta para mostrar además el portal del cliente y la vista de operaciones.
