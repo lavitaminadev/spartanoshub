@@ -199,14 +199,12 @@ describe('aislamiento entre cuentas', () => {
   });
 
   describe('el portal del cliente', () => {
-    it('solo recibe la ficha de su propia empresa al listar clientes', async () => {
+    it('no alcanza el catálogo de clientes fuera del alcance inicial', async () => {
       const { status, body } = await banco.pedir(
         'GET', '/clients?limit=100', banco.cuentas.portalCrmUno.token,
       );
 
-      expect(status, JSON.stringify(body)).toBe(200);
-      expect(ids(body)).toEqual([banco.empresas.crmUno]);
-      expect(body.total).toBe(1);
+      expect(status, JSON.stringify(body)).toBe(403);
     });
 
     it('ve los contactos de su empresa, y solo los de su empresa', async () => {
