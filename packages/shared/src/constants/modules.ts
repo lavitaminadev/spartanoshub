@@ -178,6 +178,7 @@ export const INITIAL_OPERATION_MODULES = new Set<string>([
   'crm',
   'reservations',
   'integrations',
+  'surveys',
 ]);
 
 /** Desarrollo conserva visibilidad total; los demás parten con CRM/Reservas mínimos. */
@@ -189,6 +190,7 @@ export function isModuleInInitialOperationScope(module: string | undefined, role
   if (['users', 'clients', 'integrations'].includes(module)) {
     return role === 'admin' || role === 'commercial_director';
   }
+  if (module === 'surveys') return role === 'commercial_director';
   return true;
 }
 
