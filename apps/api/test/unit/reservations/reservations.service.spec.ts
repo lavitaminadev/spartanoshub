@@ -63,6 +63,13 @@ describe('ReservationsService', () => {
     await expect(service.publicForm('evaluacion')).rejects.toThrow('Este formulario no está disponible');
   });
 
+  it('keeps a published public form available while its company is onboarding', async () => {
+    formQuery.getOne.mockResolvedValue(publishedForm());
+    dataSource.query.mockResolvedValue([{ status: 'onboarding', capabilities: { reservations: true, crm: true, metaConversions: false } }]);
+
+    await expect(service.publicForm('evaluacion')).resolves.toMatchObject({ publicSlug: 'evaluacion' });
+  });
+
   it('creates a unique public slug and checks client ownership', async () => {
     dataSource.query.mockResolvedValue([{ id: 'client-1' }]);
     forms.exist.mockResolvedValueOnce(true).mockResolvedValueOnce(false);

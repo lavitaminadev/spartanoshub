@@ -241,15 +241,15 @@ export class ReservationsService {
   }
 
   /**
-   * El enlace público pertenece a una empresa concreta. Si esa empresa deja de
-   * estar activa, no debe seguir capturando reservas, encuestas ni eventos de
-   * conversión. El equipo interno conserva acceso a su historial: esta puerta
-   * solo se aplica al recorrido público.
+   * El enlace público pertenece a una empresa concreta. Una incorporación aún
+   * puede tener formularios publicados mientras completa su puesta en marcha;
+   * pausar o cancelar el servicio, en cambio, corta de inmediato reservas,
+   * encuestas y conversiones. El equipo interno conserva su historial.
    */
-  private async assertPublicClientIsActive(organizationId: string, clientId: string, queryFn?: (sql: string, params?: unknown[]) => Promise<unknown[]>) {
+  private async assertPublicClientCanReceiveRequests(organizationId: string, clientId: string, queryFn?: (sql: string, params?: unknown[]) => Promise<unknown[]>) {
     const q = queryFn || this.dataSource.query.bind(this.dataSource);
     const rows = await q('SELECT status FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
-    if (!Array.isArray(rows) || rows[0]?.status !== 'active') {
+    if (!Array.isArray(rows) || ['paused', 'churned'].includes(rows[0]?.status)) {
       throw new NotFoundException('Este formulario no está disponible');
     }
   }
@@ -308,7 +308,7 @@ export class ReservationsService {
     const repo = manager?.getRepository(ReservationForm) || this.forms;
     const qb = repo.createQueryBuilder('form').where('form.public_slug = :slug AND form.status = :status', { slug, status: 'published' }); if (lock) qb.setLock('pessimistic_write');
     const form = await qb.getOne(); if (!form) throw new NotFoundException('Este formulario no está disponible');
-    await this.assertPublicClientIsActive(form.organizationId, form.clientId, manager?.query.bind(manager));
+    await this.assertPublicClientCanReceiveRequests(form.organizationId, form.clientId, manager?.query.bind(manager));
     const capabilities = await this.clientCapabilities(form.organizationId, form.clientId, manager?.query.bind(manager));
     if (!capabilities.reservations) throw new NotFoundException('Este formulario no está disponible');
     // Un formulario publicado con configuracion invalida no debe mostrarle un error de validacion

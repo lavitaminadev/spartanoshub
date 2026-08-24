@@ -241,10 +241,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             candidate = `${base}-${(0, crypto_1.randomBytes)(3).toString('hex')}`;
         return candidate;
     }
-    async assertPublicClientIsActive(organizationId, clientId, queryFn) {
+    async assertPublicClientCanReceiveRequests(organizationId, clientId, queryFn) {
         const q = queryFn || this.dataSource.query.bind(this.dataSource);
         const rows = await q('SELECT status FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
-        if (!Array.isArray(rows) || rows[0]?.status !== 'active') {
+        if (!Array.isArray(rows) || ['paused', 'churned'].includes(rows[0]?.status)) {
             throw new common_1.NotFoundException('Este formulario no está disponible');
         }
     }
@@ -315,7 +315,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const form = await qb.getOne();
         if (!form)
             throw new common_1.NotFoundException('Este formulario no está disponible');
-        await this.assertPublicClientIsActive(form.organizationId, form.clientId, manager?.query.bind(manager));
+        await this.assertPublicClientCanReceiveRequests(form.organizationId, form.clientId, manager?.query.bind(manager));
         const capabilities = await this.clientCapabilities(form.organizationId, form.clientId, manager?.query.bind(manager));
         if (!capabilities.reservations)
             throw new common_1.NotFoundException('Este formulario no está disponible');
