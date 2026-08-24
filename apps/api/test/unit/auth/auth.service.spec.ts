@@ -344,6 +344,22 @@ describe('AuthService', () => {
 
       expect(mockSessions.revokeAll).toHaveBeenCalledWith('user-1', expect.any(String));
     });
+
+    it('cierra la sesión persistida del navegador usando su refresh token', async () => {
+      mockSessions.findLive.mockResolvedValue({ id: 'session-1', userId: 'user-1' });
+
+      await service.logoutByRefreshToken('refresh-token');
+
+      expect(mockSessions.revoke).toHaveBeenCalledWith('session-1', 'user-1', expect.any(String));
+      expect(mockUserRepo.update).toHaveBeenCalledWith('user-1', { refreshToken: null });
+    });
+
+    it('trata una cookie vencida como una sesión ya cerrada', async () => {
+      mockSessions.findLive.mockResolvedValue(null);
+
+      await expect(service.logoutByRefreshToken('expired-token')).resolves.toBeUndefined();
+      expect(mockSessions.revoke).not.toHaveBeenCalled();
+    });
   });
 
     describe('acceptCurrentTerms', () => {

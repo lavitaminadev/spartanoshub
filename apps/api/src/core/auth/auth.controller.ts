@@ -211,6 +211,27 @@ export class AuthController {
   }
 
   /**
+   * Cierra la sesión persistida del navegador incluso cuando su access token ya venció.
+   *
+   * El refresh token vive en una cookie HttpOnly y, por eso, la interfaz no puede borrarlo por
+   * sí sola. Este endpoint siempre retira la cookie y revoca su sesión cuando aún existe. Así,
+   * salir no puede restaurar silenciosamente la cuenta anterior en el siguiente arranque.
+   */
+  @Public()
+  @Post('browser-logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({ summary: 'Cerrar la sesión persistida del navegador' })
+  async browserLogout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    const token = readRefreshCookie(request);
+    try {
+      if (token) await this.auth.logoutByRefreshToken(token);
+    } finally {
+      clearRefreshCookie(response);
+    }
+  }
+
+  /**
    * Sesiones abiertas de quien pregunta.
    *
    * Solo las propias: no hay parámetro de usuario, así que no existe el camino para mirar las

@@ -392,6 +392,14 @@ export class AuthService {
     await this.userRepo.update(userId, { refreshToken: null });
   }
 
+  /** Revoca la sesión representada por la cookie del navegador, sin requerir un access token. */
+  async logoutByRefreshToken(refreshToken: string): Promise<void> {
+    const session = await this.sessions.findLive(refreshToken);
+    if (!session) return;
+    await this.sessions.revoke(session.id, session.userId, REVOKE_REASONS.USER);
+    await this.userRepo.update(session.userId, { refreshToken: null });
+  }
+
   /** Sesiones abiertas de una persona, marcando cuál es la que pregunta. */
   async listSessions(userId: string, currentSessionId?: string): Promise<SessionSummary[]> {
     return this.sessions.listOpen(userId, currentSessionId);
