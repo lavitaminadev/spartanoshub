@@ -11,6 +11,7 @@ import { AccountAccessService } from '../../core/client-scope/account-access.ser
 import { MonthlyReportsService } from './monthly-reports.service';
 import { GenerateMonthlyReportDto, UpdateMonthlyReportDto } from './dto/monthly-report.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 
 interface PieceCountRow { status: string; count: number | string }
 interface MonthlyReportRow { month: string; revenue: number | string; ud: number | string }
@@ -61,6 +62,7 @@ export class ReportingController {
   }
 
   @Get('dashboard')
+  @RequiresPermission('dashboard', 'view')
   @Roles(
     UserRole.ADMIN,
     UserRole.COMMERCIAL_DIRECTOR,

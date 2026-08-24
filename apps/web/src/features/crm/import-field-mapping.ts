@@ -27,7 +27,9 @@ export type TargetField =
   /** Etiquetas, separadas por coma o punto y coma dentro de la celda. */
   | 'tags'
   /** Teléfono alternativo. Se guarda aparte para no pisar el principal. */
-  | 'altPhone';
+  | 'altPhone'
+  /** Fecha original del lead; evita que una importación parezca captada completa hoy. */
+  | 'sourceCreatedAt';
 
 /**
  * Reduce un encabezado a su forma comparable.
@@ -52,6 +54,7 @@ export function normalizeHeader(header: string): string {
  * que `name` porque «nombre de correo» contiene ambas palabras y pertenece al correo.
  */
 const ALIASES: Array<[TargetField, string[]]> = [
+  ['sourceCreatedAt', ['fechadecreacion', 'createdtime', 'createdat', 'leadcreatedtime', 'fechaorigen']],
   // Van antes que 'phone': 'numerodewhatsapp' contiene 'numero', que es alias del principal.
   ['altPhone', ['telefonosecundario', 'numerodetelefonosecundario', 'whatsapp', 'numerodewhatsapp', 'telefono2', 'telefonoalternativo']],
   ['campaignName', ['formulario', 'campana', 'campaign', 'formname', 'campaignname', 'adname', 'anuncio', 'adset', 'conjuntodeanuncios']],

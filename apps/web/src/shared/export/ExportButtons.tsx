@@ -13,17 +13,19 @@ import './export-buttons.css';
 
 interface Props<T> {
   document: ExportDocument<T>;
+  /** Oculta el CSV cuando el documento es para lectura o impresión, no para reprocesar datos. */
+  csv?: boolean;
   /** Oculta el PDF donde no aporta, por ejemplo en una lista que solo se lleva a una planilla. */
   pdf?: boolean;
 }
 
-export function ExportButtons<T>({ document, pdf = true }: Props<T>): JSX.Element {
+export function ExportButtons<T>({ document, csv = true, pdf = true }: Props<T>): JSX.Element {
   const [aviso, setAviso] = useState<string | null>(null);
   const vacio = document.rows.length === 0;
 
   return (
     <div className="export-botones">
-      <button
+      {csv ? <button
         type="button"
         className="btn btn-outline btn-sm"
         disabled={vacio}
@@ -33,7 +35,7 @@ export function ExportButtons<T>({ document, pdf = true }: Props<T>): JSX.Elemen
         onClick={() => downloadCsv(document)}
       >
         Exportar CSV
-      </button>
+      </button> : null}
 
       {pdf ? (
         <button

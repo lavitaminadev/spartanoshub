@@ -47,7 +47,7 @@ export class StageLabelsController {
   }
 
   @Put('vocabulary')
-  @Roles(UserRole.DEV, UserRole.ADMIN)
+  @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Renombrar las cosas del CRM de una empresa' })
   async guardarVocabulario(
     @Req() req: AuthenticatedRequest,
@@ -63,7 +63,7 @@ export class StageLabelsController {
   }
 
   @Put()
-  @Roles(UserRole.DEV, UserRole.ADMIN)
+  @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Renombrar las etapas de una empresa' })
   async put(
     @Req() req: AuthenticatedRequest,

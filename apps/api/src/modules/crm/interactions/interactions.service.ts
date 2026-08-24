@@ -37,14 +37,19 @@ export class InteractionsService {
     offset = 0,
     leadId?: string,
     allowedClientIds?: string[],
+    clientId?: string,
   ): Promise<{ data: Interaction[]; total: number; limit: number; offset: number }> {
-    if (allowedClientIds !== undefined) {
-      if (allowedClientIds.length === 0) return { data: [], total: 0, limit, offset };
+    if (allowedClientIds !== undefined || clientId) {
+      if (allowedClientIds !== undefined && allowedClientIds.length === 0) return { data: [], total: 0, limit, offset };
       const query = this.repo.createQueryBuilder('interaction')
         .leftJoin(Lead, 'lead', 'lead.id = interaction.lead_id AND lead.organization_id = interaction.organization_id')
         .leftJoin(Contact, 'contact', 'contact.id = interaction.contact_id AND contact.organization_id = interaction.organization_id')
-        .where('interaction.organization_id = :organizationId', { organizationId })
-        .andWhere('(lead.client_id IN (:...allowedClientIds) OR contact.client_id IN (:...allowedClientIds))', { allowedClientIds });
+        .where('interaction.organization_id = :organizationId', { organizationId });
+      if (clientId) {
+        query.andWhere('(lead.client_id = :clientId OR contact.client_id = :clientId)', { clientId });
+      } else if (allowedClientIds !== undefined) {
+        query.andWhere('(lead.client_id IN (:...allowedClientIds) OR contact.client_id IN (:...allowedClientIds))', { allowedClientIds });
+      }
       if (leadId) query.andWhere('interaction.lead_id = :leadId', { leadId });
       const [data, total] = await query.orderBy('interaction.date', 'DESC').skip(offset).take(limit).getManyAndCount();
       return { data, total, limit, offset };

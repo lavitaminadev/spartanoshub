@@ -77,6 +77,7 @@ describe('reconocimiento de columnas al importar', () => {
     expect(mapeo.Canal).toBe('sourceDetail');
     expect(mapeo.Etiquetas).toBe('tags');
     expect(mapeo['Número de teléfono secundario']).toBe('altPhone');
+    expect(mapeo['Fecha de creación']).toBe('sourceCreatedAt');
   });
 
   /** El secundario y el de WhatsApp no pueden pisar el principal. */

@@ -1,4 +1,4 @@
-import { useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
@@ -6,6 +6,7 @@ import { api } from '../../core/api';
 import { useCrmScope } from './crm-scope';
 import { Modal } from '../../shared/Modal';
 import { guessMapping, type TargetField } from './import-field-mapping';
+import { readExcelFile } from './import-spreadsheet';
 
 /** Campos del prospecto que la importación sabe llenar. */
 const TARGET_FIELDS = [
@@ -21,6 +22,7 @@ const TARGET_FIELDS = [
   { key: 'sourceDetail', label: 'Canal de contacto', required: false },
   { key: 'tags', label: 'Etiquetas', required: false },
   { key: 'altPhone', label: 'Teléfono alternativo', required: false },
+  { key: 'sourceCreatedAt', label: 'Fecha de creación', required: false },
 ] as const;
 
 /** Tope del servidor. Se comprueba acá para no mandar un archivo que va a ser rechazado entero. */
@@ -85,14 +87,39 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
    */
   const necesitaCliente = domain === 'audience';
 
+  useEffect(() => {
+    if (!open) return;
+    setClientId(scope.clientId);
+    setDomain(scope.domain);
+  }, [open, scope.clientId, scope.domain]);
+
   const reset = () => {
     setHeaders([]); setRows([]); setMapping({});
     setError(null); setResult(null); setSourceDetail('');
   };
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     setError(null);
     setResult(null);
+    if (/\.xlsx$/i.test(file.name)) {
+      try {
+        const parsed = await readExcelFile(file);
+        if (!parsed.headers.length) {
+          setError('El archivo no tiene encabezados. La primera fila debe nombrar las columnas.');
+          return;
+        }
+        if (parsed.rows.length > MAX_ROWS) {
+          setError(`El archivo trae ${parsed.rows.length} filas y el máximo por tanda es ${MAX_ROWS}. Divídelo y súbelo por partes.`);
+          return;
+        }
+        setHeaders(parsed.headers);
+        setRows(parsed.rows);
+        setMapping(guessMapping(parsed.headers));
+      } catch {
+        setError('No se pudo leer el Excel. Comprueba que sea un archivo .xlsx válido y que la primera hoja contenga los leads.');
+      }
+      return;
+    }
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
@@ -187,12 +214,12 @@ export function ImportLeadsModal({ open, onClose }: ImportLeadsModalProps): JSX.
               Archivo CSV
               <input
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="input"
-                onChange={(event) => { const file = event.target.files?.[0]; if (file) handleFile(file); }}
+                onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }}
               />
               <small className="field-hint">
-                La primera fila debe nombrar las columnas. El archivo se lee en tu navegador y no se sube.
+                Acepta CSV y Excel de Meta. La primera fila debe nombrar las columnas; el archivo se lee en tu navegador y no se sube.
               </small>
             </label>
 
