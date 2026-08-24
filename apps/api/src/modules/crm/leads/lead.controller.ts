@@ -103,6 +103,10 @@ export class LeadController {
   async list(@Query() query: ListLeadsQueryDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    // El portal no decide el tenant con un query string. Aunque mande otro `clientId`, se usa el
+    // que viene firmado en su sesión. Para el equipo interno la empresa elegida sigue siendo un
+    // filtro permitido, validado contra sus asignaciones por `ListLeadsUseCase`.
+    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : query.clientId;
     /*
      * Tercera reja: qué servicios tiene contratados la empresa.
      *
@@ -114,8 +118,8 @@ export class LeadController {
      * lista a las que sí lo tienen, en vez de negar todo: el embudo de la agencia —sin empresa—
      * sigue siendo visible, porque la agencia no se contrata servicios a sí misma.
      */
-    if (query.clientId) {
-      await this.capacidades.assert(req.organizationId, query.clientId, 'crm');
+    if (clientId) {
+      await this.capacidades.assert(req.organizationId, clientId, 'crm');
     }
     /*
      * Solo se acota el embudo de clientes.
@@ -124,7 +128,10 @@ export class LeadController {
      * empresas los dejaría a todos fuera, porque un identificador nulo no pertenece a ninguna
      * lista. La agencia no se contrata servicios a sí misma.
      */
-    const acotarPorCapacidad = query.domain === 'audience' && !query.clientId;
+    const esEmbudoAgencia = (query.domain ?? 'commercial') === 'commercial'
+      && !clientId
+      && allowedClientIds === undefined;
+    const acotarPorCapacidad = !esEmbudoAgencia && !clientId;
     const conCrm = acotarPorCapacidad
       ? await this.capacidades.filtrar(req.organizationId, allowedClientIds, 'crm')
       : allowedClientIds;
@@ -135,7 +142,8 @@ export class LeadController {
       search: query.search,
       assignedTo: query.assignedTo,
       domain: query.domain,
-      clientId: query.clientId,
+      clientId,
+      agencyOnly: esEmbudoAgencia,
       allowedClientIds: conCrm,
       // Segunda reja: qué empresas alcanza ya se resolvió arriba; esto decide cuánto ve dentro.
       onlyAssignedTo: veSoloLoSuyo(req.user.role, req.user.crmProfile) ? req.user.id : undefined,

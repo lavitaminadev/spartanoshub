@@ -11,6 +11,8 @@ export interface ConteoPorClave { key: string; total: number }
 export interface Alcance {
   domain?: 'audience' | 'commercial';
   clientId?: string;
+  /** Embudo propio de la agencia: leads comerciales sin empresa. */
+  agencyOnly?: boolean;
   /**
    * Persona a la que se acotan las cifras, cuando su cargo no alcanza el embudo completo.
    *
@@ -57,7 +59,9 @@ export class CrmDashboardService {
     const base = {
       organizationId,
       domain,
-      ...(alcance.clientId
+      ...(alcance.agencyOnly
+        ? { agencyOnly: true }
+        : alcance.clientId
         ? { clientId: alcance.clientId }
         : alcance.allowedClientIds === undefined ? {} : { clientIds: alcance.allowedClientIds }),
       ...(alcance.onlyAssignedTo ? { onlyAssignedTo: alcance.onlyAssignedTo } : {}),
@@ -180,13 +184,10 @@ export class CrmDashboardService {
   private async conversionPorSetter(
     base: Record<string, unknown>,
   ): Promise<Array<{ assignedTo: string; leads: number; ventas: number; conversion: number }>> {
-    const filas = await this.leads.createQueryBuilder('lead')
+    const filas = await this.acotar(this.leads.createQueryBuilder('lead'), base)
       .select('lead.assigned_to', 'assignedTo')
       .addSelect('COUNT(*)', 'leads')
       .addSelect(`SUM(CASE WHEN lead.status = '${LeadStatus.WON}' THEN 1 ELSE 0 END)`, 'ventas')
-      .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
-      .andWhere('lead.domain = :domain', { domain: base.domain })
-      .andWhere(base.clientId ? 'lead.client_id = :clientId' : '1 = 1', { clientId: base.clientId })
       .andWhere('lead.assigned_to IS NOT NULL')
       .groupBy('lead.assigned_to')
       .getRawMany<{ assignedTo: string; leads: string; ventas: string }>();
@@ -233,18 +234,21 @@ export class CrmDashboardService {
     base: Record<string, unknown>,
     extra: Record<string, unknown> = {},
   ): Record<string, unknown> | Array<Record<string, unknown>> {
-    const { onlyAssignedTo, clientIds, ...resto } = base as Record<string, unknown> & {
+    const { onlyAssignedTo, clientIds, agencyOnly, ...resto } = base as Record<string, unknown> & {
       onlyAssignedTo?: string;
       clientIds?: string[];
+      agencyOnly?: boolean;
     };
     /*
      * `clientIds` es la lista de empresas alcanzables, no una columna: se traduce a `In(...)`, y
      * vacía a una condición imposible. Sin esta traducción, la consulta o revienta —si se pasa la
      * clave tal cual— o responde por toda la organización —si se omite—, que es lo que hacía.
      */
-    const porColumnas = clientIds === undefined
-      ? resto
-      : { ...resto, clientId: In(clientIds.length ? clientIds : ['']) };
+    const porColumnas = agencyOnly
+      ? { ...resto, clientId: IsNull() }
+      : clientIds === undefined
+        ? resto
+        : { ...resto, clientId: In(clientIds.length ? clientIds : ['']) };
 
     if (!onlyAssignedTo) return { ...porColumnas, ...extra };
     return [
@@ -257,7 +261,8 @@ export class CrmDashboardService {
     query
       .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
       .andWhere('lead.domain = :domain', { domain: base.domain });
-    if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+    if (base.agencyOnly) query.andWhere('lead.client_id IS NULL');
+    else if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
     // Una lista vacía no se omite: se traduce a una condición que no puede cumplirse.
     const alcanzables = base.clientIds as string[] | undefined;
     if (alcanzables !== undefined) {

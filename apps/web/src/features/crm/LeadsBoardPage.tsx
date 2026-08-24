@@ -68,13 +68,11 @@ interface Lead {
 }
 
 interface UserOption { id: string; name: string }
-interface ClientOption { id: string; name: string }
-
 interface LeadsPage { data: Lead[]; total: number; limit: number; offset: number }
 
 const LEADS_PAGE_SIZE = 100;
 
-const FILTER_KEYS = ['cliente', 'responsable', 'etapa', 'calidad'] as const;
+const FILTER_KEYS = ['responsable', 'etapa', 'calidad'] as const;
 
 /** Días sin movimiento tras los que la tarjeta se marca. Coincide con el valor del inicio. */
 const COOLING_DAYS = 7;
@@ -167,7 +165,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // anterior podía mostrar un tablero vacío aunque la empresa sí tuviera prospectos.
   useEffect(() => {
     setPagina(1);
-  }, [scope.domain, scope.clientId, filtros.search, filtros.values.cliente, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad]);
+  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad]);
 
   const { data: usuarios } = useQuery<{ data: UserOption[] }>({
     queryKey: ['users-min'],
@@ -176,14 +174,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     // vista de solo lectura.
     enabled: user?.role !== 'client',
   });
-  const { data: clientes } = useQuery<{ data: ClientOption[] }>({
-    queryKey: ['clients-min'],
-    queryFn: () => api.get('/clients'),
-    enabled: user?.role !== 'client',
-  });
-
   const equipo = useMemo(() => usuarios?.data ?? [], [usuarios]);
-  const cartera = useMemo(() => clientes?.data ?? [], [clientes]);
   const nombreDe = (id?: string | null) => equipo.find((u) => u.id === id)?.name;
 
   const refrescar = () => Promise.all([
@@ -339,13 +330,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     onError: (err: Error) => setAviso({ tono: 'error', texto: err.message }),
   });
 
-  const leads = useMemo(() => {
-    const todos = data?.data ?? [];
-    return todos.filter((lead) => {
-      if (filtros.values.cliente && lead.clientId !== filtros.values.cliente) return false;
-      return true;
-    });
-  }, [data, filtros.values.cliente]);
+  // La empresa ya es el contexto del CRM, elegido en la barra superior. No vuelve a filtrarse
+  // acá: dos selectores de tenant permitían que la barra dijera una empresa y la lista otra.
+  const leads = useMemo(() => data?.data ?? [], [data]);
 
   const seleccionVisible = useMemo(() => leads.filter((lead) => seleccion.has(lead.id)).map((lead) => lead.id), [leads, seleccion]);
   const todosVisiblesSeleccionados = leads.length > 0 && seleccionVisible.length === leads.length;
@@ -405,7 +392,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     title: 'Prospectos del embudo comercial',
     subtitle: `${leads.length} mostrados de ${data?.total ?? 0} prospectos`,
     meta: [
-      { label: 'Cliente', value: cartera.find((c) => c.id === filtros.values.cliente)?.name ?? 'Todos' },
+      { label: 'Empresa', value: scope.empresa },
       { label: 'Responsable', value: nombreDe(filtros.values.responsable) ?? 'Todo el equipo' },
       { label: 'Etapa', value: filtros.values.etapa ? etapaLabel(filtros.values.etapa) : 'Todas' },
       { label: 'Búsqueda', value: filtros.search || 'Sin filtrar' },
@@ -497,7 +484,6 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         onSearchChange={filtros.setSearch}
         searchPlaceholder="Buscar por nombre, empresa, correo, teléfono o campaña..."
         filters={[
-          { key: 'cliente', label: 'Cliente', allLabel: 'Todos los clientes', options: cartera.map((c) => ({ value: c.id, label: c.name })) },
           { key: 'responsable', label: 'Responsable', allLabel: 'Todo el equipo', options: equipo.map((u) => ({ value: u.id, label: u.name })) },
           { key: 'etapa', label: 'Etapa', allLabel: 'Todas las etapas', options: etapasDelEmbudo.map((s) => ({ value: s, label: etapaLabel(s) })) },
           { key: 'calidad', label: 'Calidad', allLabel: 'Toda calidad', options: CALIDADES },

@@ -78,6 +78,87 @@ describe('el CRM responde por empresa', () => {
     });
   });
 
+  describe('embudo comercial multiempresa', () => {
+    it('la agencia y una empresa usan el mismo CRM sin compartir leads', async () => {
+      const agencia = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Prospecto propio Espartanos', domain: 'commercial', source: 'manual',
+      });
+      const empresa = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Prospecto CRM Empresa Uno', domain: 'commercial', source: 'manual',
+        clientId: banco.empresas.crmUno,
+      });
+      expect([200, 201]).toContain(agencia.status);
+      expect([200, 201]).toContain(empresa.status);
+
+      const listaAgencia = await banco.pedir(
+        'GET', '/crm/leads?domain=commercial&limit=100', banco.cuentas.admin.token,
+      );
+      const listaEmpresa = await banco.pedir(
+        'GET', `/crm/leads?domain=commercial&limit=100&clientId=${banco.empresas.crmUno}`,
+        banco.cuentas.admin.token,
+      );
+      const nombres = (body: any) => (body?.data ?? []).map((lead: { name: string }) => lead.name);
+      expect(nombres(listaAgencia.body)).toContain('Prospecto propio Espartanos');
+      expect(nombres(listaAgencia.body)).not.toContain('Prospecto CRM Empresa Uno');
+      expect(nombres(listaEmpresa.body)).toContain('Prospecto CRM Empresa Uno');
+      expect(nombres(listaEmpresa.body)).not.toContain('Prospecto propio Espartanos');
+
+      const inicioAgencia = await banco.pedir(
+        'GET', '/crm/home?domain=commercial', banco.cuentas.admin.token,
+      );
+      const inicioEmpresa = await banco.pedir(
+        'GET', `/crm/home?domain=commercial&clientId=${banco.empresas.crmUno}`,
+        banco.cuentas.admin.token,
+      );
+      const panelAgencia = await banco.pedir(
+        'GET', '/crm/home/dashboard?domain=commercial&days=30', banco.cuentas.admin.token,
+      );
+      const panelEmpresa = await banco.pedir(
+        'GET', `/crm/home/dashboard?domain=commercial&days=30&clientId=${banco.empresas.crmUno}`,
+        banco.cuentas.admin.token,
+      );
+      expect(inicioAgencia.body.month.leads).toBe(1);
+      expect(inicioEmpresa.body.month.leads).toBe(1);
+      expect(panelAgencia.body.totals.leads).toBe(1);
+      expect(panelEmpresa.body.totals.leads).toBe(1);
+    });
+
+    it('el portal usa la empresa de su sesión aunque manipule el query string', async () => {
+      const propia = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Visible solo portal CRM Uno', domain: 'commercial', source: 'manual',
+        clientId: banco.empresas.crmUno,
+      });
+      const ajena = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Oculta portal CRM Uno', domain: 'commercial', source: 'manual',
+        clientId: banco.empresas.crmDos,
+      });
+      expect([200, 201]).toContain(propia.status);
+      expect([200, 201]).toContain(ajena.status);
+
+      const manipulada = await banco.pedir(
+        'GET', `/crm/leads?domain=commercial&limit=100&clientId=${banco.empresas.crmDos}`,
+        banco.cuentas.portalCrmUno.token,
+      );
+      expect(manipulada.status, JSON.stringify(manipulada.body)).toBe(200);
+      const nombres = (manipulada.body?.data ?? []).map((lead: { name: string }) => lead.name);
+      expect(nombres).toContain('Visible solo portal CRM Uno');
+      expect(nombres).not.toContain('Oculta portal CRM Uno');
+
+      const inicioManipulado = await banco.pedir(
+        'GET', `/crm/home?domain=commercial&clientId=${banco.empresas.crmDos}`,
+        banco.cuentas.portalCrmUno.token,
+      );
+      const panelManipulado = await banco.pedir(
+        'GET', `/crm/home/dashboard?domain=commercial&days=30&clientId=${banco.empresas.crmDos}`,
+        banco.cuentas.portalCrmUno.token,
+      );
+      expect(inicioManipulado.status, JSON.stringify(inicioManipulado.body)).toBe(200);
+      expect(panelManipulado.status, JSON.stringify(panelManipulado.body)).toBe(200);
+      expect(inicioManipulado.body.month.leads).toBe(2);
+      expect(panelManipulado.body.totals.leads).toBe(2);
+    });
+  });
+
   describe('inicio y panel', () => {
     beforeAll(async () => {
       await importar(banco.empresas.crmUno, ['Uno A', 'Uno B', 'Uno C'], banco.cuentas.admin.token);
