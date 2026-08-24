@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -116,6 +116,20 @@ export class UpdateUserUseCase {
       throw new BadRequestException('Las cuentas cliente requieren una empresa asignada');
     }
 
-    return this.usersRepo.save(user);
+    const saved = await this.usersRepo.save(user);
+
+    // Un 200 solo es válido si el cambio crítico se puede leer de vuelta. Así
+    // evitamos que una respuesta optimista deje en pantalla una cuenta "activa"
+    // mientras la base conserva el estado anterior.
+    if (typeof data.isActive === 'boolean') {
+      const persisted = await this.usersRepo.findOne({
+        where: { id: user.id, organizationId: data.organizationId },
+        select: ['id', 'isActive'],
+      });
+      if (!persisted || persisted.isActive !== data.isActive) {
+        throw new ServiceUnavailableException('No se pudo confirmar el cambio de acceso. Intenta nuevamente.');
+      }
+    }
+    return saved;
   }
 }

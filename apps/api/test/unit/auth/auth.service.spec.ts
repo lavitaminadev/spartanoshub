@@ -174,6 +174,28 @@ describe('AuthService', () => {
 
       await expect(service.validateUser('no@user.com', 'pass')).rejects.toThrow(UnauthorizedException);
     });
+
+    it('rejects a portal account when its company is paused', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'portal-1', email: 'portal@empresa.cl', name: 'Portal', password: 'hashed',
+        role: 'client', organizationId: 'org-1', clientId: 'client-1', avatarUrl: null,
+      });
+      mockClientRepo.findOne.mockResolvedValue({ id: 'client-1', status: 'paused' });
+      (bcrypt.compare as any).mockResolvedValue(true);
+
+      await expect(service.validateUser('portal@empresa.cl', 'password123')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('allows a portal account to complete its company onboarding', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'portal-1', email: 'portal@empresa.cl', name: 'Portal', password: 'hashed',
+        role: 'client', organizationId: 'org-1', clientId: 'client-1', avatarUrl: null,
+      });
+      mockClientRepo.findOne.mockResolvedValue({ id: 'client-1', status: 'onboarding' });
+      (bcrypt.compare as any).mockResolvedValue(true);
+
+      await expect(service.validateUser('portal@empresa.cl', 'password123')).resolves.toMatchObject({ id: 'portal-1' });
+    });
   });
 
   describe('completeOnboarding', () => {

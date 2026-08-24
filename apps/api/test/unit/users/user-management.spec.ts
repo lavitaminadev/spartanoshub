@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { CreateUserUseCase } from '../../../src/modules/users/create-user.use-case';
 import { UpdateUserUseCase } from '../../../src/modules/users/update-user.use-case';
 import { UserRole } from '../../../src/modules/organizations/user-role.enum';
@@ -52,5 +52,17 @@ describe('User management security', () => {
     await expect(useCase.execute({
       id: 'user-1', organizationId: 'org-1', actorId: 'user-1', actorRole: UserRole.ADMIN, isActive: false,
     })).rejects.toThrow(BadRequestException);
+  });
+
+  it('does not report a successful activation that was not persisted', async () => {
+    const useCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never);
+    usersRepo.findOne
+      .mockResolvedValueOnce({ id: 'user-2', organizationId: 'org-1', role: UserRole.DESIGNER, isActive: false })
+      .mockResolvedValueOnce({ id: 'user-2', isActive: false });
+    usersRepo.save.mockResolvedValue({ id: 'user-2', isActive: true });
+
+    await expect(useCase.execute({
+      id: 'user-2', organizationId: 'org-1', actorId: 'admin-1', actorRole: UserRole.ADMIN, isActive: true,
+    })).rejects.toThrow(ServiceUnavailableException);
   });
 });

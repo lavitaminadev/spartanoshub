@@ -57,6 +57,7 @@ const shared_1 = require("@espartanos/shared");
 const user_entity_1 = require("../../modules/users/user.entity");
 const organization_entity_1 = require("../../modules/organizations/organization.entity");
 const client_entity_1 = require("../../modules/clients/client.entity");
+const client_status_enum_1 = require("../../modules/clients/client-status.enum");
 const client_capabilities_1 = require("../../modules/clients/client-capabilities");
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
@@ -119,7 +120,21 @@ let AuthService = AuthService_1 = class AuthService {
             await this.userRepo.update(user.id, { failedLoginAttempts: 0, lockedUntil: null });
         }
         await this.userRepo.update(user.id, { lastLoginAt: new Date() });
+        await this.assertClientPortalIsActive(user);
         return user;
+    }
+    async assertClientPortalIsActive(user) {
+        if (user.role !== user_role_enum_1.UserRole.CLIENT)
+            return;
+        if (!user.clientId)
+            throw new common_1.UnauthorizedException('Credenciales inválidas');
+        const client = await this.clientRepo.findOne({
+            where: { id: user.clientId, organizationId: user.organizationId },
+            select: ['id', 'status'],
+        });
+        if (!client || ![client_status_enum_1.ClientStatus.ONBOARDING, client_status_enum_1.ClientStatus.ACTIVE].includes(client.status)) {
+            throw new common_1.UnauthorizedException('Credenciales inválidas');
+        }
     }
     async registerFailedAttempt(user) {
         const attempts = (user.failedLoginAttempts ?? 0) + 1;
@@ -169,6 +184,7 @@ let AuthService = AuthService_1 = class AuthService {
             });
             if (!user)
                 throw new common_1.UnauthorizedException();
+            await this.assertClientPortalIsActive(user);
             const session = await this.sessions.findLive(token);
             if (!session || session.userId !== user.id) {
                 const legacyHash = hashRefreshToken(token);

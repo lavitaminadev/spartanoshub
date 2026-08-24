@@ -135,7 +135,17 @@ let UpdateUserUseCase = class UpdateUserUseCase {
         else if (!user.clientId) {
             throw new common_1.BadRequestException('Las cuentas cliente requieren una empresa asignada');
         }
-        return this.usersRepo.save(user);
+        const saved = await this.usersRepo.save(user);
+        if (typeof data.isActive === 'boolean') {
+            const persisted = await this.usersRepo.findOne({
+                where: { id: user.id, organizationId: data.organizationId },
+                select: ['id', 'isActive'],
+            });
+            if (!persisted || persisted.isActive !== data.isActive) {
+                throw new common_1.ServiceUnavailableException('No se pudo confirmar el cambio de acceso. Intenta nuevamente.');
+            }
+        }
+        return saved;
     }
 };
 exports.UpdateUserUseCase = UpdateUserUseCase;

@@ -4,6 +4,8 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../modules/users/user.entity';
+import { Client } from '../../modules/clients/client.entity';
+import { ClientStatus } from '../../modules/clients/client-status.enum';
 import { UserRole } from '../../modules/organizations/user-role.enum';
 import { config } from '../../config';
 import { SessionsService } from './sessions.service';
@@ -18,6 +20,7 @@ import { SessionsService } from './sessions.service';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
     private readonly sessions: SessionsService,
   ) {
     super({
@@ -37,6 +40,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: { sub: string; email: string; organizationId: string; role: UserRole; clientId?: string; sid?: string; iat?: number }) {
     const user = await this.userRepo.findOne({ where: { id: payload.sub, isActive: true } });
     if (!user) throw new UnauthorizedException();
+    if (user.role === UserRole.CLIENT) {
+      if (!user.clientId) throw new UnauthorizedException();
+      const client = await this.clientRepo.findOne({
+        where: { id: user.clientId, organizationId: user.organizationId },
+        select: ['id', 'status'],
+      });
+      if (!client || ![ClientStatus.ONBOARDING, ClientStatus.ACTIVE].includes(client.status)) throw new UnauthorizedException();
+    }
     // Un cambio/reset de contraseña revoca el refresh token, pero los access tokens
     // ya emitidos siguen funcionando hasta que expiran. Se rechaza cualquier access
     // token emitido antes del último cambio de contraseña para que un token robado
