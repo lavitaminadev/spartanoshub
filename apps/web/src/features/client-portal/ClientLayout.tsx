@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { useAuth, type User } from '../../core/auth';
-import { isModuleInPhaseScope } from '../../core/phase-scope';
+import { useAuth } from '../../core/auth';
 import { NavGlyph } from '../../shared/NavGlyph';
 import { BrandMark } from '../../shared/Brand';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { PwaInstallButton } from '../../shared/PwaInstallButton';
+import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
 
 /**
  * Navegación del portal del cliente.
@@ -15,26 +15,10 @@ import { PwaInstallButton } from '../../shared/PwaInstallButton';
  * depende cada entrada, y las que quedan fuera del alcance vigente o apagadas por dev no se
  * muestran. Sin `module`, la entrada es siempre visible porque pertenece al núcleo del producto.
  *
- * Grilla, Aprobaciones y Reuniones son servicios de agencia, no del producto de reservas: un
- * restaurante que solo contrató Espartanos no debe encontrarse con tres secciones de algo que no
- * compró.
+ * La operación inicial expone únicamente los servicios contratables que hoy están validados de
+ * punta a punta: CRM y Reservas. Los demás módulos siguen en el código, pero no pertenecen al
+ * portal hasta que se liberen expresamente como producto.
  */
-const CLIENT_NAV: Array<{ label: string; path: string; icon: string; module?: string; capability?: string }> = [
-  { label: 'Inicio', path: '/portal', icon: 'IN' },
-  { label: 'Reservas', path: '/portal/reservations', icon: 'RS', module: 'reservations', capability: 'reservations' },
-  { label: 'Grilla', path: '/portal/grid', icon: 'GR', module: 'content' },
-  { label: 'Aprobaciones', path: '/portal/approvals', icon: 'AP', module: 'approvals' },
-  { label: 'Reuniones', path: '/portal/meetings', icon: 'RE', module: 'meetings' },
-  { label: 'Informes', path: '/portal/reports', icon: 'RP', module: 'reports' },
-];
-
-function isClientNavItemVisible(item: { module?: string; capability?: string }, user: User | null): boolean {
-  if (item.capability && user?.capabilities?.[item.capability] === false) return false;
-  if (!item.module) return true;
-  if (!isModuleInPhaseScope(item.module, user?.moduleLifecycle, user?.role)) return false;
-  return user?.features?.[item.module] ?? true;
-}
-
 export function ClientLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();

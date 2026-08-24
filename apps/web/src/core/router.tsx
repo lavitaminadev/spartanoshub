@@ -57,10 +57,6 @@ const UsersPage = lazy(() => import('../features/users/UsersPage').then(m => ({ 
 const CatalogPage = lazy(() => import('../features/catalog/CatalogPage').then(m => ({ default: m.CatalogPage })));
 const KnowledgePage = lazy(() => import('../features/knowledge/KnowledgePage').then(m => ({ default: m.KnowledgePage })));
 const ClientDashboard = lazy(() => import('../features/client-portal/ClientDashboard').then(m => ({ default: m.ClientDashboard })));
-const ClientGrid = lazy(() => import('../features/client-portal/ClientGrid').then(m => ({ default: m.ClientGrid })));
-const ClientApprovals = lazy(() => import('../features/client-portal/ClientApprovals').then(m => ({ default: m.ClientApprovals })));
-const ClientMeetings = lazy(() => import('../features/client-portal/ClientMeetings').then(m => ({ default: m.ClientMeetings })));
-const ClientReports = lazy(() => import('../features/client-portal/ClientReports').then(m => ({ default: m.ClientReports })));
 const ClientLayout = lazy(() => import('../features/client-portal/ClientLayout').then(m => ({ default: m.ClientLayout })));
 const ReservationsPage = lazy(() => import('../features/reservations/ReservationsPage').then(m => ({ default: m.ReservationsPage })));
 const ReservationBuilderPage = lazy(() => import('../features/reservations/ReservationBuilderPage').then(m => ({ default: m.ReservationBuilderPage })));
@@ -186,10 +182,6 @@ export function AppRouter() {
         </Route>
         <Route path="/portal" element={<ClientRoute><SafeSuspense><ClientLayout /></SafeSuspense></ClientRoute>}>
           <Route index element={<SafeSuspense><ClientDashboard /></SafeSuspense>} />
-          <Route path="grid" element={<SafeSuspense><ClientGrid /></SafeSuspense>} />
-          <Route path="approvals" element={<SafeSuspense><ClientApprovals /></SafeSuspense>} />
-          <Route path="meetings" element={<SafeSuspense><ClientMeetings /></SafeSuspense>} />
-          <Route path="reports" element={<SafeSuspense><ClientReports /></SafeSuspense>} />
           <Route path="reservations" element={<SafeSuspense><ReservationsPage clientView /></SafeSuspense>} />
           <Route path="reservations/forms/:id" element={<SafeSuspense><ReservationBuilderPage /></SafeSuspense>} />
         </Route>
