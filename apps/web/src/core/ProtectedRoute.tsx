@@ -37,12 +37,15 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   if (!needsFirstAccess && path === '/first-access') {
     return <Navigate to={user.role === 'client' ? '/portal' : '/dashboard'} replace />;
   }
-  if (user.role === 'client' && path && !path.startsWith('/portal')) {
-    return <Navigate to="/portal" replace />;
-  }
   // Las rutas de módulos sin acceso se bloquean también por URL directa, no solo se ocultan
   // del menú.
   const isPersonalRoute = path === '/first-access' || path === '/change-password' || path === '/sesiones';
+  // El portal vive bajo `/portal`, salvo estas rutas personales. La comprobación debe ocurrir
+  // después de reconocerlas: una cuenta nueva necesita abrir `/first-access`; devolverla al
+  // portal desde ahí crea un bucle `/portal` -> `/first-access` -> `/portal` y deja todo blanco.
+  if (user.role === 'client' && path && !path.startsWith('/portal') && !isPersonalRoute) {
+    return <Navigate to="/portal" replace />;
+  }
   // El dashboard es la superficie base de cualquier cuenta interna. Si una respuesta
   // transitoria de permisos llega incompleta durante el arranque, no debemos redirigirlo
   // sobre sí mismo (ni convertir el inicio de sesión en un 404). Los módulos secundarios
