@@ -555,13 +555,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               al guardar respondía 400 y se leía como que la pantalla estaba rota.
             */}
             <select className="input" value={etapa} onChange={(event) => editar(setEtapa, event.target.value)} disabled={!scope.puedeEditar}>
-              {etapasDelEmbudo.map((stage) => (
-                // «Venta» exige haber convertido el lead en cliente: el servidor lo rechaza si
-                // no, así que se deshabilita en vez de dejar intentarlo y fallar.
-                <option key={stage} value={stage} disabled={stage === 'won' && !lead.convertedToClientId && lead.status !== 'won'}>
-                  {stage === 'won' && !lead.convertedToClientId ? 'Venta (requiere convertir)' : etapaLabel(stage)}
-                </option>
-              ))}
+              {etapasDelEmbudo.map((stage) => <option key={stage} value={stage}>{etapaLabel(stage)}</option>)}
             </select>
           </label>
 
@@ -674,7 +668,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <button type="button" className="btn btn-outline btn-sm" disabled={convertir.isPending} onClick={() => convertir.mutate()}>
               {convertir.isPending ? 'Convirtiendo...' : 'Convertir en cliente'}
             </button>
-            <small>Crea la cuenta y habilita su onboarding. Es lo que permite marcarlo como venta.</small>
+            <small>Crea una empresa cliente de Espartanos. Es una acción separada del cierre del lead.</small>
           </div>
         ) : null}
 

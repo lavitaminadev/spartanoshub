@@ -145,14 +145,16 @@ describe('módulos compartidos entre la agencia y el portal', () => {
   });
 
   describe('el panel general de la agencia', () => {
-    it('permanece cerrado hasta liberar reportes para la operación', async () => {
+    it('abre el resumen general y el de una empresa a la administración', async () => {
       const consolidado = await banco.pedir('GET', '/reporting/dashboard', banco.cuentas.admin.token);
       const porEmpresa = await banco.pedir(
         'GET', `/reporting/dashboard?clientId=${banco.empresas.crmUno}`, banco.cuentas.admin.token,
       );
 
-      expect(consolidado.status, JSON.stringify(consolidado.body)).toBe(403);
-      expect(porEmpresa.status, JSON.stringify(porEmpresa.body)).toBe(403);
+      expect(consolidado.status, JSON.stringify(consolidado.body)).toBe(200);
+      expect(porEmpresa.status, JSON.stringify(porEmpresa.body)).toBe(200);
+      expect(consolidado.body).toHaveProperty('activeClients');
+      expect(porEmpresa.body).toHaveProperty('activeClients');
     });
 
     it('no acepta una empresa que quien pregunta no alcanza', async () => {

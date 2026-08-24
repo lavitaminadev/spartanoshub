@@ -42,4 +42,20 @@ describe('ConvertLeadUseCase', () => {
 
     await expect(useCase.execute('lead-1', 'org-1')).rejects.toBeInstanceOf(ConflictException);
   });
+
+  it('allows explicitly converting a lead that was already marked as won', async () => {
+    const lead = { id: 'lead-1', name: 'Empresa ganada', domain: 'commercial', status: LeadStatus.WON };
+    const manager = {
+      findOne: vi.fn().mockResolvedValue(lead),
+      create: vi.fn((_entity, data) => data),
+      save: vi.fn(async (_entity, data) => data.id ? data : { ...data, id: 'client-1' }),
+    };
+    const repo = { manager: { transaction: vi.fn((work) => work(manager)) } };
+    const useCase = new ConvertLeadUseCase(repo as never, {} as never, { emit: vi.fn() } as never);
+
+    const result = await useCase.execute('lead-1', 'org-1');
+
+    expect(result.client.id).toBe('client-1');
+    expect(result.lead.convertedToClientId).toBe('client-1');
+  });
 });

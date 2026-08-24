@@ -50,6 +50,26 @@ describe('convertir un lead en empresa cliente', () => {
     expect(empresas[0].name).toBe('Estudio Jurídico Pérez');
   });
 
+  it('marcar ganado solo cierra el lead y no crea una empresa cliente', async () => {
+    const prospecto = await sembrarLead(null, 'commercial', 'Persona Ganada Sin Empresa');
+
+    const { status, body } = await banco.pedir(
+      'PUT', `/crm/leads/${prospecto}`, banco.cuentas.admin.token, { status: 'won' },
+    );
+
+    expect(status, JSON.stringify(body)).toBe(200);
+    const [leads]: any = await banco.db.query(
+      'SELECT status, converted_to_client_id FROM leads WHERE id = ?', [prospecto],
+    );
+    expect(leads[0].status).toBe('won');
+    expect(leads[0].converted_to_client_id).toBeNull();
+
+    const [empresas]: any = await banco.db.query(
+      'SELECT COUNT(*) AS n FROM clients WHERE lead_id = ?', [prospecto],
+    );
+    expect(Number(empresas[0].n)).toBe(0);
+  });
+
   it('un contacto de campaña no: es un comensal, no una empresa', async () => {
     const comensal = await sembrarLead(banco.empresas.crmUno, 'audience', 'María Comensal');
 
