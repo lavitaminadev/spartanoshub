@@ -26,12 +26,12 @@ let CampaignsController = class CampaignsController {
         this.accountAccess = accountAccess;
     }
     async list(req, clientId) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
-        return this.campaigns.list(req.organizationId, clientId || undefined);
+        const scope = await this.resolveScope(req, clientId);
+        return this.campaigns.list(req.organizationId, scope);
     }
     async create(dto, req) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-        const { campaign, token } = await this.campaigns.create(req.organizationId, dto, req.user.id);
+        const scope = await this.resolveScope(req, dto.clientId ?? undefined);
+        const { campaign, token } = await this.campaigns.create(req.organizationId, { ...dto, clientId: scope ?? null }, req.user.id);
         return {
             campaign,
             integracion: {
@@ -43,12 +43,30 @@ let CampaignsController = class CampaignsController {
         };
     }
     async update(id, dto, req) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-        return this.campaigns.update(id, req.organizationId, dto);
+        const current = await this.campaigns.findOne(id, req.organizationId);
+        await this.resolveScope(req, current.clientId ?? undefined);
+        const destination = dto.clientId === undefined
+            ? current.clientId ?? undefined
+            : await this.resolveScope(req, dto.clientId ?? undefined);
+        return this.campaigns.update(id, req.organizationId, { ...dto, clientId: destination ?? null });
     }
     async remove(id, req) {
+        const current = await this.campaigns.findOne(id, req.organizationId);
+        await this.resolveScope(req, current.clientId ?? undefined);
         await this.campaigns.remove(id, req.organizationId);
         return { success: true };
+    }
+    async resolveScope(req, requested) {
+        if (req.user.clientId) {
+            await this.accountAccess.assertClient(req.organizationId, req.user, req.user.clientId);
+            return req.user.clientId;
+        }
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        if (!requested && allowed !== undefined) {
+            throw new common_1.NotFoundException('Client not found');
+        }
+        await this.accountAccess.assertClient(req.organizationId, req.user, requested);
+        return requested;
     }
 };
 exports.CampaignsController = CampaignsController;

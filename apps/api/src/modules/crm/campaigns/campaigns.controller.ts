@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import type { AuthenticatedRequest } from '@shared/types/request';
@@ -27,8 +27,8 @@ export class CampaignsController {
   @Get()
   @ApiOperation({ summary: 'Campañas con su inversión y costo por lead' })
   async list(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
-    return this.campaigns.list(req.organizationId, clientId || undefined);
+    const scope = await this.resolveScope(req, clientId);
+    return this.campaigns.list(req.organizationId, scope);
   }
 
   /**
@@ -44,8 +44,12 @@ export class CampaignsController {
   async create(@Body() dto: SaveCampaignDto, @Req() req: AuthenticatedRequest) {
     // La cuenta llega del navegador y decide de qué empresa es el gasto: se comprueba antes de
     // escribir, como en el resto del CRM.
-    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-    const { campaign, token } = await this.campaigns.create(req.organizationId, dto, req.user.id);
+    const scope = await this.resolveScope(req, dto.clientId ?? undefined);
+    const { campaign, token } = await this.campaigns.create(
+      req.organizationId,
+      { ...dto, clientId: scope ?? null },
+      req.user.id,
+    );
 
     return {
       campaign,
@@ -63,14 +67,38 @@ export class CampaignsController {
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar una campaña' })
   async update(@Param('id') id: string, @Body() dto: SaveCampaignDto, @Req() req: AuthenticatedRequest) {
-    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-    return this.campaigns.update(id, req.organizationId, dto);
+    const current = await this.campaigns.findOne(id, req.organizationId);
+    await this.resolveScope(req, current.clientId ?? undefined);
+    const destination = dto.clientId === undefined
+      ? current.clientId ?? undefined
+      : await this.resolveScope(req, dto.clientId ?? undefined);
+    return this.campaigns.update(id, req.organizationId, { ...dto, clientId: destination ?? null });
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar una campaña' })
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const current = await this.campaigns.findOne(id, req.organizationId);
+    await this.resolveScope(req, current.clientId ?? undefined);
     await this.campaigns.remove(id, req.organizationId);
     return { success: true };
+  }
+
+  /**
+   * Resuelve la cuenta desde la sesión. Un portal nunca puede elegir otra y una persona del
+   * equipo acotada tampoco alcanza el embudo sin empresa omitiendo el query string.
+   */
+  private async resolveScope(req: AuthenticatedRequest, requested?: string): Promise<string | undefined> {
+    if (req.user.clientId) {
+      await this.accountAccess.assertClient(req.organizationId, req.user, req.user.clientId);
+      return req.user.clientId;
+    }
+    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    if (!requested && allowed !== undefined) {
+      // El 404 opaco no confirma que exista un embudo de agencia fuera de su cartera.
+      throw new NotFoundException('Client not found');
+    }
+    await this.accountAccess.assertClient(req.organizationId, req.user, requested);
+    return requested;
   }
 }

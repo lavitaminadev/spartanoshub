@@ -75,6 +75,13 @@ export class CampaignsService {
     });
   }
 
+  /** Obtiene la campaña dentro de la organización para autorizar su cuenta antes de mutarla. */
+  async findOne(id: string, organizationId: string): Promise<Campaign> {
+    const campaign = await this.campaigns.findOne({ where: { id, organizationId } });
+    if (!campaign) throw new NotFoundException('Campaña no encontrada');
+    return campaign;
+  }
+
   /**
    * Da de alta la campaña y **su llave de entrada**.
    *
@@ -118,8 +125,7 @@ export class CampaignsService {
   }
 
   async update(id: string, organizationId: string, dto: SaveCampaignDto): Promise<Campaign> {
-    const campania = await this.campaigns.findOne({ where: { id, organizationId } });
-    if (!campania) throw new NotFoundException('Campaña no encontrada');
+    const campania = await this.findOne(id, organizationId);
 
     campania.name = dto.name.trim();
     if (dto.source !== undefined) campania.source = dto.source;

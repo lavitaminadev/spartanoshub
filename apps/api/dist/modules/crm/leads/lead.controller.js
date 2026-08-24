@@ -154,7 +154,9 @@ let LeadController = class LeadController {
             .take(50)
             .getMany();
     }
-    convert(id, req) {
+    async convert(id, req) {
+        await this.assertPortalCrm(req);
+        await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
         return this.convertLead.execute(id, req.organizationId);
     }
 };
@@ -230,7 +232,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], LeadController.prototype, "convert", null);
 exports.LeadController = LeadController = __decorate([
     (0, swagger_1.ApiTags)('CRM - Leads'),

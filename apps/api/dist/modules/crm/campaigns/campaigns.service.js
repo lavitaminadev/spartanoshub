@@ -52,6 +52,12 @@ let CampaignsService = class CampaignsService {
             };
         });
     }
+    async findOne(id, organizationId) {
+        const campaign = await this.campaigns.findOne({ where: { id, organizationId } });
+        if (!campaign)
+            throw new common_1.NotFoundException('Campaña no encontrada');
+        return campaign;
+    }
     async create(organizationId, dto, createdBy) {
         const campaign = await this.campaigns.save(this.campaigns.create({
             organizationId,
@@ -75,9 +81,7 @@ let CampaignsService = class CampaignsService {
         return { campaign, token };
     }
     async update(id, organizationId, dto) {
-        const campania = await this.campaigns.findOne({ where: { id, organizationId } });
-        if (!campania)
-            throw new common_1.NotFoundException('Campaña no encontrada');
+        const campania = await this.findOne(id, organizationId);
         campania.name = dto.name.trim();
         if (dto.source !== undefined)
             campania.source = dto.source;
