@@ -56,7 +56,7 @@ describe('inicio del formulario hacia Meta', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dataSource.query.mockReset();
-    dataSource.query.mockResolvedValue([{ capabilities: { reservations: true, metaConversions: true } }]);
+    dataSource.query.mockResolvedValue([{ status: 'active', capabilities: { reservations: true, metaConversions: true } }]);
     formQuery.where.mockReturnValue(formQuery);
     formQuery.setLock.mockReturnValue(formQuery);
     formQuery.getOne.mockResolvedValue(formularioPublicado());
