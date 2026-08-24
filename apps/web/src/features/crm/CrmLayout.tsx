@@ -17,7 +17,7 @@ import { useAuth } from '../../core/auth';
 import { api } from '../../core/api';
 import { readStoredJson, storageKey, writeStoredJson } from '../../core/browser-storage';
 import { isPathEnabled } from '../../core/navigation.registry';
-import { CrmScopeContext, type CrmScopeValue } from './crm-scope';
+import { canEditCrm, CrmScopeContext, type CrmScopeValue } from './crm-scope';
 import './crm-layout.css';
 
 /**
@@ -125,8 +125,9 @@ export function CrmLayout(): JSX.Element {
     nombreDe,
     domain,
     esAgencia,
-    // El portal del cliente mira y no mueve. Ver `puedeEditar` en `crm-scope.ts`.
-    puedeEditar: user?.role !== 'client',
+    // La misma matriz que autoriza la API gobierna todos los controles de escritura. Derivarlo
+    // del cargo dejaba excepciones web sin efecto y mostraba drag-and-drop a personas `view`.
+    puedeEditar: canEditCrm(user?.permissions?.crm),
     /** Nombre de la empresa que se está mirando, para los encabezados de cada pantalla. */
     empresa: esAgencia ? 'Espartanos' : (esPortalCliente ? 'Tu empresa' : nombreDe(clientId)),
   };

@@ -188,6 +188,9 @@ let AuthController = class AuthController {
         clearRefreshCookie(response);
         return result;
     }
+    currentTerms(user) {
+        return this.auth.currentTerms(user.id);
+    }
     acceptTerms(user, dto, ipAddress) {
         return this.auth.acceptCurrentTerms(user.id, dto.acceptedConsents, ipAddress, dto.termsVersion);
     }
@@ -394,6 +397,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, onboarding_dto_1.CompleteOnboardingDto, String, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "completeOnboarding", null);
+__decorate([
+    (0, common_1.Get)('terms/current'),
+    (0, common_1.UseGuards)(auth_guard_1.JwtAuthGuard),
+    (0, roles_decorator_1.Roles)(...Object.values(user_role_enum_1.UserRole)),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Obtener las condiciones vigentes para la cuenta autenticada' }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "currentTerms", null);
 __decorate([
     (0, common_1.Post)('terms/accept'),
     (0, common_1.UseGuards)(auth_guard_1.JwtAuthGuard),

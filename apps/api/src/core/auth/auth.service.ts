@@ -23,6 +23,7 @@ import { config } from '../../config';
 import { PasswordResetToken } from './password-reset-token.entity';
 import { EmailService } from '../notifications/email.service';
 import { DataConsent } from '../data-protection/consent.entity';
+import { ConsentVersion } from '../data-protection/consent-version.entity';
 import { CompleteOnboardingDto, REQUIRED_CONSENTS, TERMS_VERSION } from './dto/onboarding.dto';
 import { ParameterResolver } from '../parameters/parameter-resolver.service';
 import { REAUTH_WINDOW_MINUTES, REVOKE_REASONS, SessionsService, type SessionSummary, ONBOARDING_AUTH_WINDOW_MINUTES } from './sessions.service';
@@ -45,6 +46,17 @@ const MAX_FAILED_LOGIN_ATTEMPTS = 5;
  * escribir mal su clave es una penalización que no protege de nada.
  */
 const LOCKOUT_MINUTES = 5;
+
+/** Aviso mínimo de respaldo para organizaciones que aún no publican una versión propia. */
+const MINIMUM_PRIVACY_NOTICE = [
+  'La plataforma trata los datos de identificación, contacto, acceso y actividad necesarios para crear y proteger la cuenta, prestar las funciones contratadas, atender solicitudes y mantener trazabilidad de seguridad.',
+  '',
+  'Los datos se limitan a lo necesario, se conservan mientras sean requeridos para esas finalidades o por obligaciones aplicables y pueden ser tratados por proveedores tecnológicos sujetos a instrucciones de servicio y confidencialidad.',
+  '',
+  'La información de cada empresa y sus usuarios se mantiene separada según sus permisos. No se autoriza por este acto el envío de publicidad ni el uso de datos para finalidades ajenas al servicio.',
+  '',
+  'La persona puede solicitar acceso, rectificación, eliminación, bloqueo u oposición cuando corresponda, mediante el canal de soporte o privacidad habilitado en la plataforma.',
+].join('\n');
 
 /**
  * Hash de descarte con el que se compara cuando el correo no existe.
@@ -113,11 +125,38 @@ export class AuthService {
     @InjectRepository(Organization) private readonly orgRepo: Repository<Organization>,
     @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
     @InjectRepository(PasswordResetToken) private readonly resetRepo: Repository<PasswordResetToken>,
+    @InjectRepository(ConsentVersion) private readonly consentVersionRepo: Repository<ConsentVersion>,
     private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
     private readonly parameters: ParameterResolver,
     private readonly sessions: SessionsService,
   ) {}
+
+  /** Texto y versión que una persona autenticada debe tener a la vista antes de aceptar. */
+  async currentTerms(userId: string): Promise<{ version: string; title: string; text: string }> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId, isActive: true },
+      select: ['id', 'organizationId'],
+    });
+    if (!user) throw new BadRequestException('Usuario no disponible');
+
+    const configuredVersion = String(
+      await this.parameters.get('compliance.terms_version', null, null, user.organizationId)
+        ?? TERMS_VERSION,
+    );
+    const numericVersion = /^v(\d+)$/.exec(configuredVersion)?.[1];
+    const published = numericVersion
+      ? await this.consentVersionRepo.findOne({
+          where: { organizationId: user.organizationId, version: Number(numericVersion), active: true },
+        })
+      : null;
+
+    return {
+      version: configuredVersion,
+      title: published?.title ?? 'Aviso de privacidad y uso de la plataforma',
+      text: published?.text ?? MINIMUM_PRIVACY_NOTICE,
+    };
+  }
 
   /**
    * Valida un par email/contraseña y devuelve el usuario si es válido.

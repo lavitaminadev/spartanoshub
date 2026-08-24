@@ -51,7 +51,7 @@ describe('Auth Integration', () => {
     mockOrgRepo.findOne.mockResolvedValue({ id: 'org-1', features: null });
     authService = new AuthService(
       mockUserRepo as any, mockOrgRepo as any, mockClientRepo as any, mockResetRepo as any,
-      mockEmailService as any, mockJwtService as any, mockParameters as any, mockSessions as any,
+      { findOne: vi.fn() } as any, mockEmailService as any, mockJwtService as any, mockParameters as any, mockSessions as any,
     );
   });
 
