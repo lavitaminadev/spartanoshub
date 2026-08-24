@@ -1,4 +1,4 @@
-import { ArgumentsHost } from '@nestjs/common';
+import { ArgumentsHost, ForbiddenException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HttpExceptionFilter } from '../../../src/core/errors/http-exception.filter';
@@ -44,5 +44,22 @@ describe('HttpExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Internal server error' }));
     expect(JSON.stringify(json.mock.calls)).not.toContain('password leaked');
+  });
+
+  it('preserves the reauthentication contract for sensitive operations', () => {
+    process.env.NODE_ENV = 'production';
+    const { host, status, json } = createHost();
+
+    new HttpExceptionFilter().catch(new ForbiddenException({
+      message: 'Confirma tu contraseña para restablecer la contraseña de otra persona',
+      reauthRequired: true,
+      windowMinutes: 15,
+    }), host);
+
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({
+      reauthRequired: true,
+      windowMinutes: 15,
+    }));
   });
 });

@@ -14,6 +14,9 @@ interface ErrorResponse {
   statusCode: number;
   message: string;
   errors?: { field: string; message: string }[];
+  /** Señales seguras que el frontend necesita para abrir la reconfirmación de contraseña. */
+  reauthRequired?: boolean;
+  windowMinutes?: number;
   timestamp: string;
   path: string;
   requestId: string;
@@ -33,6 +36,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let errors: { field: string; message: string }[] | undefined;
+    let reauthRequired: boolean | undefined;
+    let windowMinutes: number | undefined;
 
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
@@ -53,6 +58,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
         if (resp.errors && Array.isArray(resp.errors)) {
           errors = resp.errors as { field: string; message: string }[];
         }
+        // No es detalle interno: el cliente lo usa para abrir el diálogo de reconfirmación
+        // antes de repetir una acción sensible (roles, activaciones y reset de claves).
+        if (resp.reauthRequired === true) reauthRequired = true;
+        if (typeof resp.windowMinutes === 'number') windowMinutes = resp.windowMinutes;
       }
     } else if (exception instanceof QueryFailedError) {
       const driverError = exception.driverError as { code?: string; errno?: number };
@@ -90,6 +99,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (errors) {
       errorResponse.errors = errors;
     }
+    if (reauthRequired) errorResponse.reauthRequired = true;
+    if (windowMinutes !== undefined) errorResponse.windowMinutes = windowMinutes;
 
     if (!isProduction && exception instanceof Error) {
       errorResponse.stack = exception.stack;
