@@ -7,27 +7,14 @@ import { PasswordField } from './PasswordField';
 import { passwordRulesPassed } from './password-rules';
 import { clearProgress, loadProgress, saveProgress } from './first-access-progress';
 
-/**
- * Version del texto que esta pantalla muestra.
- *
- * Viaja con cada aceptacion para que el servidor pueda comprobar que lo que registra es lo que
- * la persona tuvo a la vista. Si la version vigente cambia mientras alguien tiene el formulario
- * abierto, el servidor responde 409 en vez de guardar un consentimiento que dice algo que nunca
- * se mostro.
- *
- * Al editar los textos de abajo hay que subir esta versión y también el parámetro
- * `compliance.terms_version`. Si solo se cambia una, nadie puede aceptar hasta que coincidan:
- * es preferible a registrar aceptaciones de un texto equivocado.
- */
-const TERMS_VERSION = 'v1';
-
-const TERMS = [
+const BASE_TERMS = [
   { key: 'terms', title: 'Términos y condiciones de uso', detail: 'Usaré Espartanos únicamente para las tareas y responsabilidades autorizadas de mi cuenta.' },
-  { key: 'dataTreatment', title: 'Tratamiento de datos personales', detail: 'Autorizo el tratamiento de mis datos para operar la plataforma y recibir comunicaciones de trabajo.' },
   { key: 'confidentiality', title: 'Confidencialidad', detail: 'Protegeré la información interna, estratégica y comercial de Espartanos y sus clientes.' },
   { key: 'properUse', title: 'Uso correcto de la plataforma', detail: 'No intentaré acceder a información, funciones o cuentas que no correspondan a mis permisos.' },
   { key: 'noDisclosure', title: 'No divulgación', detail: 'No compartiré credenciales, capturas, archivos ni información interna con personas no autorizadas.' },
 ] as const;
+
+type CurrentTerms = { version: string; title: string; text: string };
 
 type FirstAccessStep = 'welcome' | 'profile' | 'terms' | 'password';
 
@@ -45,9 +32,29 @@ export function FirstAccessPage() {
   const refreshProfile = useAuth((state) => state.refreshProfile);
   const clearLocalSession = useAuth((state) => state.clearLocalSession);
   const isTermsRenewal = Boolean(user?.mustAcceptTerms) && !user?.mustChangePassword && !user?.mustCompleteProfile;
+  const [currentTerms, setCurrentTerms] = useState<CurrentTerms | null>(null);
+  const [termsLoadError, setTermsLoadError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setTermsLoadError(false);
+    api.get<CurrentTerms>('/auth/terms/current')
+      .then((result) => { if (active) setCurrentTerms(result); })
+      .catch(() => { if (active) setTermsLoadError(true); });
+    return () => { active = false; };
+  }, []);
+  const termsVersion = currentTerms?.version ?? 'pending';
+  const terms = useMemo(() => [
+    BASE_TERMS[0],
+    {
+      key: 'dataTreatment' as const,
+      title: currentTerms?.title ?? 'Aviso de privacidad y tratamiento de datos',
+      detail: currentTerms?.text ?? 'Cargando el aviso vigente…',
+    },
+    ...BASE_TERMS.slice(1),
+  ], [currentTerms]);
   // Avance guardado de esta pestana. Se lee una sola vez al montar: releerlo en cada render
   // pisaria lo que la persona esta escribiendo justo ahora.
-  const guardado = useMemo(() => loadProgress(user?.id, TERMS_VERSION), [user?.id]);
+  const guardado = useMemo(() => loadProgress(user?.id, termsVersion), [user?.id, termsVersion]);
   const [step, setStep] = useState<FirstAccessStep>(
     (guardado?.step as FirstAccessStep) ?? (isTermsRenewal ? 'terms' : 'welcome'),
   );
@@ -57,20 +64,30 @@ export function FirstAccessPage() {
   const [password, setPassword] = useState({ next: '', confirmation: '' });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!currentTerms) return;
+    const restored = loadProgress(user?.id, currentTerms.version);
+    if (!restored) return;
+    setStep((restored.step as FirstAccessStep) ?? (isTermsRenewal ? 'terms' : 'welcome'));
+    setProfile({ name: restored.name ?? user?.name ?? '', phone: restored.phone ?? '' });
+    setReadTerms(restored.readTerms ?? {});
+    setAccepted(restored.accepted ?? {});
+  }, [currentTerms, isTermsRenewal, user?.id, user?.name]);
   // Se guarda en cada cambio y no al avanzar de paso: lo que se pierde al recargar es justo lo
   // que se acaba de escribir, y guardar solo en las transiciones dejaria fuera ese caso.
   useEffect(() => {
+    if (!currentTerms) return;
     saveProgress(user?.id, {
       step,
       name: profile.name,
       phone: profile.phone,
       readTerms,
       accepted,
-      termsVersion: TERMS_VERSION,
+      termsVersion,
     });
-  }, [user?.id, step, profile.name, profile.phone, readTerms, accepted]);
+  }, [user?.id, step, profile.name, profile.phone, readTerms, accepted, termsVersion, currentTerms]);
 
-  const allTermsAccepted = TERMS.every((term) => accepted[term.key]);
+  const allTermsAccepted = Boolean(currentTerms) && terms.every((term) => accepted[term.key]);
   const securePassword = useMemo(() => passwordRulesPassed(password.next), [password.next]);
 
   const leave = async () => {
@@ -91,7 +108,7 @@ export function FirstAccessPage() {
     setSaving(true);
     setFeedback(null);
     try {
-      await api.post('/auth/terms/accept', { acceptedConsents: TERMS.map((term) => term.key), termsVersion: TERMS_VERSION });
+      await api.post('/auth/terms/accept', { acceptedConsents: terms.map((term) => term.key), termsVersion });
       await refreshProfile();
       navigate(user?.role === 'client' ? '/portal' : '/dashboard', { replace: true });
     } catch (error) {
@@ -116,8 +133,8 @@ export function FirstAccessPage() {
     try {
       await api.post('/auth/onboarding', {
         newPassword: password.next,
-        acceptedConsents: TERMS.map((term) => term.key),
-        termsVersion: TERMS_VERSION,
+        acceptedConsents: terms.map((term) => term.key),
+        termsVersion,
         profile: { name: profile.name.trim(), phone: profile.phone.trim() || undefined },
       });
       clearProgress(user?.id);
@@ -200,9 +217,10 @@ export function FirstAccessPage() {
       {!isTermsRenewal && <StepProgress current={2} />}
       <span className="page-eyebrow">{isTermsRenewal ? 'CONDICIONES ACTUALIZADAS' : 'PASO 2 DE 3'}</span>
       <h1>Revisa y acepta las condiciones</h1>
-      <p>Los cinco consentimientos son obligatorios. Abre cada punto y léelo antes de marcarlo.</p>
+      <p>Revisa las condiciones de uso y el aviso de privacidad vigentes. No incluyen autorización para publicidad.</p>
+      {termsLoadError && <div className="alert alert-error" role="alert">No fue posible cargar el texto vigente. Recarga la página antes de continuar.</div>}
       <div className="terms-list">
-        {TERMS.map((term) => {
+        {terms.map((term) => {
           const opened = Boolean(readTerms[term.key]);
           return (
             <div key={term.key} className={`terms-item terms-collapsible ${accepted[term.key] ? 'accepted' : ''} ${opened ? 'is-open' : ''}`}>
@@ -213,7 +231,7 @@ export function FirstAccessPage() {
               {opened && (
                 <div className="terms-collapsible-body">
                   <p>{term.detail}</p>
-                  <label className={`toggle-row terms-accept ${readTerms[term.key] ? '' : 'is-locked'}`}><input type="checkbox" checked={Boolean(accepted[term.key])} disabled={!opened} onChange={(event) => setAccepted({ ...accepted, [term.key]: event.target.checked })} /> He leído y acepto este punto</label>
+                  <label className={`toggle-row terms-accept ${readTerms[term.key] ? '' : 'is-locked'}`}><input type="checkbox" checked={Boolean(accepted[term.key])} disabled={!opened || !currentTerms} onChange={(event) => setAccepted({ ...accepted, [term.key]: event.target.checked })} /> {term.key === 'dataTreatment' ? 'He leído y fui informado sobre este tratamiento' : 'He leído y acepto este punto'}</label>
                 </div>
               )}
             </div>

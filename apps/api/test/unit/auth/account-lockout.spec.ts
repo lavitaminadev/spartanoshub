@@ -27,7 +27,7 @@ describe('AuthService · bloqueo por intentos fallidos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     userRepo = { findOne: vi.fn(), update: vi.fn().mockResolvedValue(undefined) };
-    service = new AuthService(userRepo as never, {} as never, {} as never, {} as never, {} as never);
+    service = new AuthService(userRepo as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
   });
 
   it('suma un intento cuando la contraseña es incorrecta', async () => {

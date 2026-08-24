@@ -7,6 +7,12 @@
  */
 
 import { createContext, useContext } from 'react';
+import type { PermissionLevel } from '../../core/auth';
+
+/** La interfaz de escritura debe coincidir exactamente con el nivel que exige la API. */
+export function canEditCrm(level: PermissionLevel | undefined): boolean {
+  return level === 'edit' || level === 'manage';
+}
 
 export interface CrmScopeValue {
   /**
@@ -32,10 +38,10 @@ export interface CrmScopeValue {
   /**
    * Si quien mira puede además escribir.
    *
-   * El portal del cliente entra al CRM en solo lectura: ve lo que es suyo, y en qué etapa está
-   * cada contacto o quién lo trabaja son decisiones del equipo. La pantalla tiene que respetarlo
-   * escondiendo los controles, no ofreciéndolos para que el servidor los rechace: un botón que
-   * siempre falla se lee como que la pantalla está rota, no como que no corresponde.
+   * Sale del permiso efectivo `crm`: una excepción configurada por web puede habilitar o quitar
+   * escritura sin desplegar código. La pantalla tiene que respetarlo escondiendo los controles,
+   * no ofreciéndolos para que el servidor los rechace: un botón que siempre falla se lee como
+   * que la pantalla está rota, no como que no corresponde.
    *
    * Vive en el contexto y no en cada pantalla para que la regla sea una sola. Repetirla en seis
    * sitios garantiza que el séptimo se olvide.

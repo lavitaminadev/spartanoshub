@@ -375,6 +375,16 @@ export class AuthController {
     return result;
   }
 
+  /** El primer acceso obtiene del servidor el mismo texto/version que luego quedará registrado. */
+  @Get('terms/current')
+  @UseGuards(JwtAuthGuard)
+  @Roles(...Object.values(UserRole))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener las condiciones vigentes para la cuenta autenticada' })
+  currentTerms(@CurrentUser() user: AuthUser) {
+    return this.auth.currentTerms(user.id);
+  }
+
   /** Renovación: la cuenta ya está activa y solo debe aceptar el texto vigente. */
   @Post('terms/accept')
   @UseGuards(JwtAuthGuard)

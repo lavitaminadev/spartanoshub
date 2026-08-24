@@ -30,6 +30,7 @@ const mockJwtService = {
   verify: vi.fn(),
 };
 const mockResetRepo = { findOne: vi.fn(), create: vi.fn(), save: vi.fn(), update: vi.fn(), manager: { transaction: vi.fn() } };
+const mockConsentVersionRepo = { findOne: vi.fn() };
 const mockEmailService = { sendPasswordReset: vi.fn() };
 const mockParameters = { resolve: vi.fn(), get: vi.fn() };
 const mockSessions = {
@@ -76,7 +77,22 @@ describe('AuthService', () => {
     mockSessions.hasRecentAuth.mockResolvedValue(true);
     mockParameters.get.mockResolvedValue(null);
     mockUserRepo.manager.transaction.mockImplementation(async (callback) => callback(transactionManager));
-    service = new AuthService(mockUserRepo as any, mockOrgRepo as any, mockClientRepo as any, mockResetRepo as any, mockEmailService as any, mockJwtService as any, mockParameters as any, mockSessions as any);
+    service = new AuthService(mockUserRepo as any, mockOrgRepo as any, mockClientRepo as any, mockResetRepo as any, mockConsentVersionRepo as any, mockEmailService as any, mockJwtService as any, mockParameters as any, mockSessions as any);
+  });
+
+  describe('currentTerms', () => {
+    it('entrega al primer acceso la versión y el texto publicados por su organización', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1' });
+      mockParameters.get.mockResolvedValue('v3');
+      mockConsentVersionRepo.findOne.mockResolvedValue({ version: 3, title: 'Privacidad', text: 'Texto vigente' });
+
+      await expect(service.currentTerms('user-1')).resolves.toEqual({
+        version: 'v3', title: 'Privacidad', text: 'Texto vigente',
+      });
+      expect(mockConsentVersionRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({
+        where: { organizationId: 'org-1', version: 3, active: true },
+      }));
+    });
   });
 
   describe('register', () => {
