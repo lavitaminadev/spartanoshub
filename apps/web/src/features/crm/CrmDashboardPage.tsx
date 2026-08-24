@@ -12,6 +12,7 @@ import {
   Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
 import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
@@ -122,6 +123,7 @@ function Barras({ datos, etiqueta, color = ACENTO }: { datos: Conteo[]; etiqueta
 export function CrmDashboardPage(): JSX.Element {
   // De qué empresa son las cifras. Lo decide la barra del CRM, igual que el resto de secciones.
   const scope = useCrmScope();
+  const { user } = useAuth();
   const rotulos = useStageLabels(scope.clientId);
   const filtros = useUrlFilters(['dias']);
   const dias = filtros.values.dias || '30';
@@ -130,6 +132,7 @@ export function CrmDashboardPage(): JSX.Element {
   const { data: usuariosResp } = useQuery<UserOption[] | { data: UserOption[] }>({
     queryKey: ['users'],
     queryFn: () => api.get('/users'),
+    enabled: user?.role !== 'client',
   });
   const usuarios = Array.isArray(usuariosResp) ? usuariosResp : usuariosResp?.data ?? [];
   const nombreDe = (id: string) => usuarios.find((u) => u.id === id)?.name ?? 'Sin nombre';
@@ -175,6 +178,7 @@ export function CrmDashboardPage(): JSX.Element {
         <div>
           <span className="page-eyebrow">MEDICIÓN</span>
           <h1>Dashboard</h1>
+          <p className="page-subtitle">{scope.esAgencia ? 'Resultados comerciales de Espartanos.' : `Resultados comerciales de ${scope.empresa}.`}</p>
         </div>
         <select
           className="input"

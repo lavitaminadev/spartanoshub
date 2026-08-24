@@ -162,10 +162,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const { data: usuarios } = useQuery<{ data: UserOption[] }>({
     queryKey: ['users-min'],
     queryFn: () => api.get('/users'),
+    // El portal no administra personas. Evita una petición prohibida que no aporta nada a su
+    // vista de solo lectura.
+    enabled: user?.role !== 'client',
   });
   const { data: clientes } = useQuery<{ data: ClientOption[] }>({
     queryKey: ['clients-min'],
     queryFn: () => api.get('/clients'),
+    enabled: user?.role !== 'client',
   });
 
   const equipo = useMemo(() => usuarios?.data ?? [], [usuarios]);
@@ -374,12 +378,12 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * de campaña, «reserved» se imprimía crudo y «Calificado» aparecía donde no existe.
    */
   const etapaLabel = (estado: string) => rotulos[estado]
-    ?? (scope.esAgencia
+    ?? (scope.domain === 'commercial'
       ? STAGE_LABEL[estado] ?? estado
       : CONTACT_STATUS_OPTIONS.find((opcion) => opcion.value === estado)?.label ?? estado);
 
   /** Estados a los que se puede mover un lead del embudo que se está mirando. */
-  const etapasDelEmbudo = scope.esAgencia
+  const etapasDelEmbudo = scope.domain === 'commercial'
     ? [...STAGES]
     : CONTACT_STATUS_OPTIONS.map((opcion) => opcion.value);
 
@@ -413,14 +417,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   };
 
   const columnas = useMemo<KanbanColumn[]>(
-    () => (scope.esAgencia
+    () => (scope.domain === 'commercial'
       ? STAGES.map((stage) => ({ id: stage, label: rotulos[stage] ?? STAGE_LABEL[stage], accent: STAGE_ACCENT[stage] }))
       : CONTACT_STATUS_OPTIONS.map((estado) => ({
         id: estado.value,
         label: rotulos[estado.value] ?? estado.label,
         accent: estado.color,
       }))),
-    [scope.esAgencia, rotulos],
+    [scope.domain, rotulos],
   );
 
   if (isLoading) return <LoadingSpinner text="Cargando el embudo..." />;
@@ -437,12 +441,12 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           {/* El encabezado sigue a la empresa elegida: es lo que evita mirar un embudo creyendo
               que es el de otra, ahora que la misma pantalla sirve a las dos. */}
           <span className={scope.esAgencia ? 'crm-scope is-agency' : 'crm-scope'}>{scope.empresa}</span>
-          <span className="page-eyebrow">{scope.esAgencia ? 'EMBUDO COMERCIAL' : 'CONTACTOS DE CAMPAÑA'}</span>
-          <h1>{termino(scope.esAgencia ? 'prospectos' : 'leads')}</h1>
+          <span className="page-eyebrow">{scope.domain === 'commercial' ? 'EMBUDO COMERCIAL' : 'CONTACTOS DE CAMPAÑA'}</span>
+          <h1>{termino(scope.domain === 'commercial' ? 'prospectos' : 'leads')}</h1>
           <p className="page-subtitle">
             {scope.esAgencia
               ? 'Empresas que Espartanos quiere sumar como clientes.'
-              : `Personas que llegaron por las campañas de ${scope.empresa}.`}
+              : `Leads comerciales de ${scope.empresa}.`}
           </p>
         </div>
         <div className="page-header-actions">
@@ -458,7 +462,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               ) : null}
               <button type="button" className="btn btn-outline" onClick={() => setImportarAbierto(true)}>Importar CSV</button>
               <button type="button" className="btn btn-primary" onClick={() => { setAviso(null); setCrearAbierto(true); }}>
-                + Nuevo {termino(scope.esAgencia ? 'prospecto' : 'lead').toLowerCase()}
+                + Nuevo {termino(scope.domain === 'commercial' ? 'prospecto' : 'lead').toLowerCase()}
               </button>
             </>
           ) : null}
@@ -672,7 +676,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     onChange={alternarTodos}
                   />
                 </th>
-                <th>{termino(scope.esAgencia ? 'prospecto' : 'lead')}</th><th>Teléfono</th><th>Correo</th>
+                <th>{termino(scope.domain === 'commercial' ? 'prospecto' : 'lead')}</th><th>Teléfono</th><th>Correo</th>
                 <th>{termino('empresa')}</th><th>Origen</th><th>Etapa</th>
                 <th>Etiqueta</th><th>Calidad</th><th>{termino('responsable')}</th><th>Ingreso</th>
               </tr>
