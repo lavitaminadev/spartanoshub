@@ -23,7 +23,7 @@ export class GoogleController {
 
   @Get('auth-url')
   @ApiOperation({ summary: 'Get Google OAuth authorization URL' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   getAuthUrl(@Req() req: AuthenticatedRequest, @Query('redirect_uri') redirectUri?: string) {
     const uri = resolveOAuthRedirect('google', redirectUri);
     const state = createOAuthState('google', req.organizationId, uri);
@@ -32,7 +32,7 @@ export class GoogleController {
 
   @Get('status')
   @ApiOperation({ summary: 'Check Google integration configuration status' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   getStatus() {
     return {
       configured: this.oauth.isConfigured(),
@@ -44,7 +44,7 @@ export class GoogleController {
 
   @Post('callback')
   @ApiOperation({ summary: 'Handle Google OAuth callback' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   handleCallback(
     @Body() body: GoogleOAuthCallbackDto,
     @Req() req: AuthenticatedRequest,
@@ -56,34 +56,34 @@ export class GoogleController {
 
   @Post(':id/refresh')
   @ApiOperation({ summary: 'Refresh Google OAuth access token' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   refresh(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.oauth.refreshIntegration(id, req.organizationId).then(toIntegrationResponse);
   }
 
   @Post(':id/disconnect')
   @ApiOperation({ summary: 'Revoke Google access and clear local credentials' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   disconnect(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.oauth.disconnectIntegration(id, req.organizationId).then(toIntegrationResponse);
   }
 
   @Get(':id/accounts')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   listAccounts(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.data.listAccounts(id, req.organizationId!);
   }
 
   @Post(':id/ads/discover')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   discoverAds(@Param('id') id: string, @Req() req: AuthenticatedRequest) { return this.data.discoverAdsAccounts(id, req.organizationId!); }
 
   @Post(':id/analytics-properties')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   registerAnalytics(@Param('id') id: string, @Body() dto: RegisterAnalyticsPropertyDto, @Req() req: AuthenticatedRequest) { return this.data.registerAnalyticsProperty(id, req.organizationId!, dto.propertyId, dto.name, dto.clientId); }
 
   @Post(':id/data/sync')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @Throttle({ default: { limit: 4, ttl: 60000 } })
   syncData(@Param('id') id: string, @Req() req: AuthenticatedRequest) { return this.data.sync(id, req.organizationId!); }
 }

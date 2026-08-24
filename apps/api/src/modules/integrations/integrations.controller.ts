@@ -27,28 +27,28 @@ export class IntegrationsController {
   ) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Crear una nueva integración' })
   create(@Body() dto: CreateIntegrationDto, @Req() req: AuthenticatedRequest) {
     return this.createIntegration.execute({ ...dto, organizationId: req.organizationId, name: dto.name || dto.provider });
   }
 
   @Get()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Listar integraciones' })
   list(@Query('provider') provider: string, @Req() req: AuthenticatedRequest) {
     return this.listIntegrations.execute(req.organizationId, provider);
   }
 
   @Put(':id')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Actualizar estado de una integración' })
   update(@Param('id') id: string, @Body() dto: UpdateIntegrationDto, @Req() req: AuthenticatedRequest) {
     return this.updateIntegration.execute(id, dto, req.organizationId);
   }
 
   @Put('accounts/:accountId/client')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Asignar un activo externo a un cliente' })
   assignClient(@Param('accountId') accountId: string, @Body() dto: AssignIntegrationClientDto, @Req() req: AuthenticatedRequest) {
     return this.accounts.assignClient(accountId, dto.clientId, req.organizationId!);

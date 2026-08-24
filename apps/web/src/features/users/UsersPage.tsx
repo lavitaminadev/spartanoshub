@@ -148,11 +148,14 @@ export function UsersPage() {
 
   const users = Array.isArray(data) ? data : [];
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
-  const availableRoles = currentUser?.role === 'operations_director'
-    ? USER_ROLES.filter((role) => !['admin', 'operations_director', 'dev'].includes(role))
+  const availableRoles = ['operations_director', 'commercial_director'].includes(currentUser?.role ?? '')
+    ? USER_ROLES.filter((role) => !['admin', 'dev', 'operations_director', 'commercial_director'].includes(role))
     : [...USER_ROLES];
 
-  const canManage = (row: UserRow) => currentUser?.role === 'admin' || currentUser?.role === 'dev' || !['admin', 'operations_director'].includes(row.role);
+  const canManage = (row: UserRow) => currentUser?.role === 'admin'
+    || currentUser?.role === 'dev'
+    || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role);
+  const canResetPassword = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
 
   const openCreateModal = () => {
     setFeedback(null);
@@ -298,7 +301,7 @@ export function UsersPage() {
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
           { key: 'createdAt', label: 'Creado', sortable: true, render: (row) => new Date(row.createdAt).toLocaleDateString('es-CL') },
-          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button><button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button></div> },
+          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}</div> },
         ]}
         data={users}
         emptyMessage="No hay usuarios para los filtros seleccionados"

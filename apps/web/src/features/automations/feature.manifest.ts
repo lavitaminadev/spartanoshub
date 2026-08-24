@@ -4,17 +4,13 @@ registerFeature({
   id: 'automations',
   name: 'Automatizaciones',
   navigation: [
-    // Configurar una automatización es decidir que el sistema actúe solo sobre datos reales
-    // en nombre de una persona, así que queda en dirección y no en el uso cotidiano. Es el
-    // mismo criterio que aplica el controlador en el servidor.
+    // Automatizaciones todavía no forma parte de la operación liberada. Desarrollo la conserva
+    // para validar el producto sin exponerla a administración ni a las direcciones.
     {
-      // Los roles deben tener `crm` en la matriz de permisos, que es lo que el guardia de ruta
-      // comprueba de verdad. `admin` no lo tiene: declararlo acá prometía una pantalla que el
-      // guardia bloqueaba, y el menú nunca la mostraba.
       label: 'Automatizaciones',
       path: '/automations',
       icon: '⚡',
-      roles: ['dev', 'commercial_director', 'operations_director'],
+      roles: ['dev'],
     },
   ],
   routes: [],

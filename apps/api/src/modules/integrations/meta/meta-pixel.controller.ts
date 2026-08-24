@@ -77,20 +77,20 @@ export class MetaPixelController {
   }
 
   @Get(':id/client-pixels')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   listClientPixels(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.clientPixels.list(id, req.organizationId);
   }
 
   @Post(':id/client-pixels')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   configureClientPixel(@Param('id') id: string, @Body() dto: MetaClientPixelDto, @Req() req: AuthenticatedRequest) {
     return this.clientPixels.configure(id, req.organizationId, dto.clientId, dto.pixelId, dto.accessToken, dto.pixelName);
   }
 
   @Get('auth-url')
   @ApiOperation({ summary: 'Get Meta OAuth authorization URL' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   getAuthUrl(@Req() req: AuthenticatedRequest, @Query('redirect_uri') redirectUri?: string) {
     const uri = resolveOAuthRedirect('meta', redirectUri);
     const state = createOAuthState('meta', req.organizationId, uri);
@@ -99,7 +99,7 @@ export class MetaPixelController {
 
   @Get('status')
   @ApiOperation({ summary: 'Check Meta integration configuration status' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   getStatus() {
     return {
       configured: this.oauth.isConfigured(),
@@ -109,7 +109,7 @@ export class MetaPixelController {
 
   @Post('callback')
   @ApiOperation({ summary: 'Handle Meta OAuth callback' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   handleCallback(
     @Body() dto: MetaOAuthCallbackDto,
     @Req() req: AuthenticatedRequest,
@@ -121,7 +121,7 @@ export class MetaPixelController {
 
   @Post(':id/refresh')
   @ApiOperation({ summary: 'Refresh Meta access token' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   refresh(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.oauth.refreshIntegration(id, req.organizationId).then(toIntegrationResponse);
   }
@@ -131,34 +131,34 @@ export class MetaPixelController {
   @RequiresRecentAuth('desconectar la integración con Meta')
   @Post(':id/disconnect')
   @ApiOperation({ summary: 'Unsubscribe Meta pages and clear credentials' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   disconnect(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.oauth.disconnectIntegration(id, req.organizationId).then(toIntegrationResponse);
   }
 
   @Get(':id/assets')
   @ApiOperation({ summary: 'Discover available Meta assets and current selection' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   assets(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.assetDiscovery.discoverAssets(id, req.organizationId);
   }
 
   @Post(':id/assets')
   @ApiOperation({ summary: 'Persist selected Meta assets' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   saveAssets(@Param('id') id: string, @Body() dto: MetaAssetSelectionDto, @Req() req: AuthenticatedRequest) {
     return this.assetDiscovery.saveSelectedAssets(id, req.organizationId, dto);
   }
 
   @Get(':id/health')
   @ApiOperation({ summary: 'Get Meta integration health' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   health(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.oauth.getIntegrationHealth(id, req.organizationId);
   }
 
   @Post(':id/insights/sync')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @Throttle({ default: { limit: 4, ttl: 60000 } })
   @ApiOperation({ summary: 'Sincronizar 30 dias de Meta Ads Insights' })
   syncInsights(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
@@ -167,7 +167,7 @@ export class MetaPixelController {
 
   @Post('leads/sync')
   @ApiOperation({ summary: 'Manually sync a Meta lead by page and leadgen id' })
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @Throttle({ default: { limit: 12, ttl: 60000 } })
   syncLead(@Body() dto: MetaLeadSyncDto, @Req() req: AuthenticatedRequest) {
     const pageId = dto.pageId?.trim();
@@ -179,7 +179,7 @@ export class MetaPixelController {
   }
 
   @Post(':id/pixel/validate')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   async validate(
     @Param('id') id: string,
     @Body() dto: MetaPixelDto,
@@ -192,7 +192,7 @@ export class MetaPixelController {
   }
 
   @Post(':id/conversions/test')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async sendConversionTest(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const pixelId = await this.oauth.getPixelId(id, req.organizationId);

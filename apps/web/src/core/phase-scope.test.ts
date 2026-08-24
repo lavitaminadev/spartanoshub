@@ -14,6 +14,7 @@ describe('alcance de fase', () => {
     }
     for (const module of ['integrations', 'clients', 'users']) {
       expect(isModuleInPhaseScope(module, undefined, 'admin'), module).toBe(true);
+      expect(isModuleInPhaseScope(module, undefined, 'commercial_director'), module).toBe(true);
     }
   });
 
@@ -40,6 +41,12 @@ describe('alcance de fase', () => {
   });
 
   it('reserva el pipeline comercial para desarrollo', () => {
+    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'admin')).toBe(false);
+    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'dev')).toBe(true);
+  });
+
+  it('reserva Automatizaciones para desarrollo aunque Dirección Comercial administre el CRM', () => {
+    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'commercial_director')).toBe(false);
     expect(isModuleInPhaseScope('commercialPipeline', undefined, 'admin')).toBe(false);
     expect(isModuleInPhaseScope('commercialPipeline', undefined, 'dev')).toBe(true);
   });
@@ -93,6 +100,13 @@ describe('navegación bajo el alcance de fase', () => {
     for (const path of ['/crm/leads']) {
       expect(visible(path), path).toBe(true);
     }
+  });
+
+  it('no hereda Automatizaciones desde el permiso CRM', () => {
+    expect(getFeatureForPath('/automations')).toBe('commercialPipeline');
+    expect(visible('/automations', 'commercial_director')).toBe(false);
+    expect(visible('/automations', 'admin')).toBe(false);
+    expect(visible('/automations', 'dev')).toBe(true);
   });
 
   it('reserva oportunidades y mantiene la actividad dentro del CRM operativo', () => {

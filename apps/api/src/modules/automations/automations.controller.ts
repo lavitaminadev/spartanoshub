@@ -11,15 +11,13 @@ import { AccountAccessService } from '../../core/client-scope/account-access.ser
 /**
  * Administración de automatizaciones.
  *
- * Reservada a administración y a las direcciones comercial y de operaciones: una
- * automatización actúa sobre datos reales en nombre de una persona, así que configurarla es
- * una atribución de dirección y no de uso cotidiano.
+ * Reservada a Desarrollo mientras el módulo no forme parte de la operación liberada.
  */
 @ApiTags('Automatizaciones')
 @ApiBearerAuth()
 @Controller('automations')
-@Roles(UserRole.ADMIN, UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR, UserRole.OPERATIONS_DIRECTOR)
-@ModuleScope('crm')
+@Roles(UserRole.DEV)
+@ModuleScope('commercialPipeline')
 export class AutomationsController {
   constructor(
     private readonly automations: AutomationsService,
