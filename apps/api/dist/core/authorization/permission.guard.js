@@ -18,6 +18,7 @@ const requires_permission_decorator_1 = require("./requires-permission.decorator
 const module_scope_decorator_1 = require("./module-scope.decorator");
 const requires_feature_decorator_1 = require("./requires-feature.decorator");
 const permission_resolver_service_1 = require("./permission-resolver.service");
+const shared_1 = require("@espartanos/shared");
 const LEVEL_BY_METHOD = {
     GET: 'view',
     HEAD: 'view',
@@ -49,6 +50,9 @@ let PermissionGuard = PermissionGuard_1 = class PermissionGuard {
         if (!required) {
             this.logger.error(`Endpoint sin módulo declarado: ${request.method} ${request.url}`);
             throw new common_1.ForbiddenException('Este endpoint no tiene módulo declarado');
+        }
+        if (!(0, shared_1.isModuleInInitialOperationScope)(required.module, user.role)) {
+            throw new common_1.ForbiddenException('Este módulo aún no está disponible en la operación');
         }
         const allowed = await this.permissions.can(organizationId, user.id, user.role, required.module, required.level);
         if (!allowed)

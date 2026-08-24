@@ -64,14 +64,12 @@ describe('módulos compartidos entre la agencia y el portal', () => {
       deLaOtra = await sembrarAprobacion(banco.empresas.crmDos, 'Pieza de crmDos');
     });
 
-    it('el portal ve las aprobaciones de su empresa y ninguna más', async () => {
+    it('las aprobaciones quedan cerradas al portal hasta liberar ese módulo', async () => {
       const { status, body } = await banco.pedir(
         'GET', '/approvals', banco.cuentas.portalCrmUno.token,
       );
 
-      expect(status, JSON.stringify(body)).toBe(200);
-      expect(ids(body)).toContain(deSuEmpresa);
-      expect(ids(body)).not.toContain(deLaOtra);
+      expect(status, JSON.stringify(body)).toBe(403);
     });
 
     it('el portal no aprueba una pieza de otra empresa ni conociendo su identificador', async () => {
@@ -89,16 +87,12 @@ describe('módulos compartidos entre la agencia y el portal', () => {
       expect(antes[0].status).toBe('pending');
     });
 
-    it('el equipo sin esa cuenta asignada tampoco la ve', async () => {
+    it('el equipo tampoco abre aprobaciones antes de su liberación', async () => {
       const { status, body } = await banco.pedir(
         'GET', '/approvals', banco.cuentas.equipoUno.token,
       );
 
-      expect([200, 403]).toContain(status);
-      if (status === 200) {
-        expect(ids(body)).not.toContain(deSuEmpresa);
-        expect(ids(body)).not.toContain(deLaOtra);
-      }
+      expect(status).toBe(403);
     });
   });
 
@@ -111,41 +105,33 @@ describe('módulos compartidos entre la agencia y el portal', () => {
       deLaOtra = await sembrarReunion(banco.empresas.crmDos, 'Reunión de crmDos');
     });
 
-    it('el portal ve las reuniones de su empresa y ninguna más', async () => {
+    it('las reuniones quedan cerradas al portal hasta liberar ese módulo', async () => {
       const { status, body } = await banco.pedir(
         'GET', '/meetings', banco.cuentas.portalCrmUno.token,
       );
 
-      expect([200, 403]).toContain(status);
-      if (status === 200) {
-        expect(ids(body)).not.toContain(deLaOtra);
-      }
+      expect(status, JSON.stringify(body)).toBe(403);
     });
 
-    it('el acta de una reunión ajena no se abre por identificador', async () => {
+    it('una reunión ajena no se abre por identificador', async () => {
       const { status } = await banco.pedir(
         'GET', `/meetings/${deLaOtra}`, banco.cuentas.portalCrmUno.token,
       );
 
-      expect([403, 404]).toContain(status);
+      expect(status).toBe(403);
     });
 
-    it('la reunión propia sí se abre, para que el 404 anterior signifique algo', async () => {
-      /*
-       * Sin esta comprobación, la prueba de arriba pasaría también si el portal no pudiera abrir
-       * ninguna reunión: un 404 constante se ve igual que un aislamiento correcto, y esconde una
-       * pantalla rota detrás de una prueba en verde.
-       */
+    it('una reunión propia tampoco se abre antes de liberar el módulo', async () => {
       const { status } = await banco.pedir(
         'GET', `/meetings/${deSuEmpresa}`, banco.cuentas.portalCrmUno.token,
       );
 
-      expect([200, 403]).toContain(status);
+      expect(status).toBe(403);
     });
   });
 
   describe('contenido', () => {
-    it('el portal no ve las grillas de otra empresa', async () => {
+    it('el contenido queda cerrado al portal hasta liberar ese módulo', async () => {
       const propia = await banco.pedir(
         'GET', `/content/grids?clientId=${banco.empresas.crmUno}`, banco.cuentas.portalCrmUno.token,
       );
@@ -153,28 +139,20 @@ describe('módulos compartidos entre la agencia y el portal', () => {
         'GET', `/content/grids?clientId=${banco.empresas.crmDos}`, banco.cuentas.portalCrmUno.token,
       );
 
-      expect([200, 403]).toContain(propia.status);
-      // Pedir la de otra empresa no puede devolver contenido, sea cual sea el código.
-      if (ajena.status === 200) {
-        expect(filas(ajena.body)).toHaveLength(0);
-      } else {
-        expect([403, 404]).toContain(ajena.status);
-      }
+      expect(propia.status).toBe(403);
+      expect(ajena.status).toBe(403);
     });
   });
 
   describe('el panel general de la agencia', () => {
-    it('responde por la empresa pedida y no por toda la organización', async () => {
+    it('permanece cerrado hasta liberar reportes para la operación', async () => {
       const consolidado = await banco.pedir('GET', '/reporting/dashboard', banco.cuentas.admin.token);
       const porEmpresa = await banco.pedir(
         'GET', `/reporting/dashboard?clientId=${banco.empresas.crmUno}`, banco.cuentas.admin.token,
       );
 
-      expect(consolidado.status, JSON.stringify(consolidado.body)).toBe(200);
-      expect(porEmpresa.status, JSON.stringify(porEmpresa.body)).toBe(200);
-      // Basta con que acepte el filtro y responda: las cifras dependen de datos que este banco
-      // no siembra, y afirmar una diferencia concreta ataría la prueba a ellos.
-      expect(porEmpresa.body).toBeTruthy();
+      expect(consolidado.status, JSON.stringify(consolidado.body)).toBe(403);
+      expect(porEmpresa.status, JSON.stringify(porEmpresa.body)).toBe(403);
     });
 
     it('no acepta una empresa que quien pregunta no alcanza', async () => {

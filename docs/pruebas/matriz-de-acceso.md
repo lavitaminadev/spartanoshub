@@ -12,14 +12,14 @@ además se oculta la existencia.
 | CRM · inicio | 200 | 200 | 200 | 200 | 403 |
 | CRM · panel | 200 | 200 | 200 | 200 | 403 |
 | CRM · rótulos de etapa | 200 | 200 | 200 | 200 | 200 |
-| Clientes | 200 | 200 | 200 | 200 | 200 |
+| Clientes | 200 | 200 | 403 | 403 | 403 |
 | Usuarios | 200 | 200 | 403 | 403 | 403 |
 | Reservas | 200 | 200 | 200 | 403 | 200 |
 | Reservas · formularios | 200 | 200 | 200 | 403 | 200 |
-| Aprobaciones | 200 | 403 | 200 | 200 | 200 |
-| Reuniones | 200 | 403 | 200 | 200 | 200 |
-| Contenido · grillas | 200 | 403 | 200 | 200 | 200 |
-| Informes · panel | 200 | 200 | 200 | 403 | 403 |
+| Aprobaciones | 200 | 403 | 403 | 403 | 403 |
+| Reuniones | 200 | 403 | 403 | 403 | 403 |
+| Contenido · grillas | 200 | 403 | 403 | 403 | 403 |
+| Informes · panel | 200 | 403 | 403 | 403 | 403 |
 | Tareas · mías | 200 | 200 | 200 | 200 | 200 |
 
 ## Cómo leerla

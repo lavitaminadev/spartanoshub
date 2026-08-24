@@ -7,6 +7,7 @@ import { REQUIRES_FEATURE_KEY } from './requires-feature.decorator';
 import type { OrganizationFeatureKey } from '../../modules/organizations/organization-features';
 import { PermissionResolverService } from './permission-resolver.service';
 import { PermissionLevel } from './permission-level';
+import { isModuleInInitialOperationScope } from '@espartanos/shared';
 
 /**
  * Nivel que exige cada verbo cuando el endpoint no declara uno propio.
@@ -62,6 +63,13 @@ export class PermissionGuard implements CanActivate {
       // aplicación en vez de quedar como un 403 sin explicación.
       this.logger.error(`Endpoint sin módulo declarado: ${request.method} ${request.url}`);
       throw new ForbiddenException('Este endpoint no tiene módulo declarado');
+    }
+
+    // La superficie inicial se corta también en la puerta HTTP. El resolutor aplica la misma
+    // regla al construir el menú y los permisos efectivos; mantener este corte acá evita que
+    // un controlador nuevo o una caché mal invalidada expongan un módulo futuro por URL.
+    if (!isModuleInInitialOperationScope(required.module, user.role)) {
+      throw new ForbiddenException('Este módulo aún no está disponible en la operación');
     }
 
     const allowed = await this.permissions.can(organizationId, user.id, user.role, required.module, required.level);
