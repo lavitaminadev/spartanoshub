@@ -7,6 +7,7 @@ import compression from 'compression';
 import { Logger } from '@nestjs/common';
 import { parseCorsOrigins, validateEnvironment } from './config/environment';
 import type { Application } from 'express';
+import { privateApiCacheMiddleware } from './core/http/private-api-cache.middleware';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -17,6 +18,9 @@ async function bootstrap() {
     (app.getHttpAdapter().getInstance() as Application).set('trust proxy', trustProxyHops);
   }
 
+  // Las rutas tienen la misma URL para todas las empresas; ninguna respuesta de API puede
+  // quedar en una caché compartida que ignore el bearer token o la cookie de sesión.
+  app.use(privateApiCacheMiddleware);
   app.use(compression());
 
   app.use(helmet({
