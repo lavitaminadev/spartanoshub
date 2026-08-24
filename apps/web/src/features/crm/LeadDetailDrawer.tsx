@@ -133,7 +133,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
    * abre desde una lista que ya está acotada, pero un prospecto de la agencia y un contacto de
    * campaña no admiten los mismos estados, y es el lead —no la barra— quien lo determina.
    */
-  const etapasDelEmbudo = (leadInicial.domain ?? (scope.esAgencia ? 'commercial' : 'audience')) === 'commercial'
+  const etapasDelEmbudo = (leadInicial.domain ?? scope.domain) === 'commercial'
     ? [...STAGES]
     : CONTACT_STATUS_OPTIONS.map((opcion) => opcion.value);
 

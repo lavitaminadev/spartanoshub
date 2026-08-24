@@ -69,6 +69,7 @@ export const CUENTA_AGENCIA = 'espartanos';
 
 export function CrmLayout(): JSX.Element {
   const { user } = useAuth();
+  const esPortalCliente = user?.role === 'client';
 
   // El servidor ya devuelve solo las cuentas que la persona alcanza —pod, asignación directa o
   // ser su community manager—, así que la lista del selector no necesita filtrarse acá: una
@@ -76,6 +77,9 @@ export function CrmLayout(): JSX.Element {
   const { data: clientsResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
     queryKey: ['clients'],
     queryFn: () => api.get('/clients'),
+    // El portal no administra ni enumera empresas. Su empresa viene firmada en la sesión; pedir
+    // el listado acá convertía una respuesta 403 correcta en un CRM sin contexto.
+    enabled: !esPortalCliente,
   });
   // Memorizado para conservar la identidad del arreglo entre renders: `?? []` crea uno nuevo
   // cada vez, y con eso el `useMemo` del mapa de nombres se recalculaba siempre.
@@ -84,8 +88,15 @@ export function CrmLayout(): JSX.Element {
   // Se recuerda por persona: quien atiende una sola cuenta no debería tener que elegirla cada
   // vez que entra, y quien las ve todas rara vez cambia de cuenta dentro de la misma jornada.
   const scopeKey = storageKey('crm-cuenta', user?.id ?? 'anon');
-  const [clientId, setClientIdState] = useState<string>(() => readStoredJson<string>(scopeKey, CUENTA_AGENCIA));
-  const setClientId = (value: string) => { setClientIdState(value); writeStoredJson(scopeKey, value); };
+  const [cuentaElegida, setCuentaElegida] = useState<string>(() => readStoredJson<string>(scopeKey, CUENTA_AGENCIA));
+  // Nunca se toma la cuenta del portal desde localStorage ni desde la URL: ambos se pueden
+  // alterar en el navegador. La sesión es la única fuente para el tenant de un cliente.
+  const clientId = esPortalCliente ? (user?.clientId ?? '') : cuentaElegida;
+  const setClientId = (value: string) => {
+    if (esPortalCliente) return;
+    setCuentaElegida(value);
+    writeStoredJson(scopeKey, value);
+  };
 
   const nombrePorId = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const nombreDe = (id?: string | null) => (id ? nombrePorId.get(id) ?? 'Cuenta no encontrada' : 'Sin cuenta');
@@ -98,8 +109,14 @@ export function CrmLayout(): JSX.Element {
    * que trajeron sus campañas. Al derivarlo del selector, elegir la empresa es lo único que hay
    * que hacer, y ninguna pantalla tiene que volver a preguntarlo.
    */
-  const esAgencia = clientId === CUENTA_AGENCIA;
-  const domain: 'audience' | 'commercial' = esAgencia ? 'commercial' : 'audience';
+  const esAgencia = !esPortalCliente && clientId === CUENTA_AGENCIA;
+  /*
+   * CRM y reservas no son dos vistas del mismo dato. El CRM contratado por una empresa usa el
+   * embudo comercial completo y se acota por `clientId`; el ciclo audience queda para los
+   * contactos creados por reservas. Antes elegir una empresa forzaba audience y el tablero
+   * cambiaba a cuatro estados de reserva, aunque la empresa estuviera trabajando su CRM.
+   */
+  const domain: 'audience' | 'commercial' = 'commercial';
 
   const scope: CrmScopeValue = {
     clientId: esAgencia ? '' : clientId,
@@ -111,7 +128,7 @@ export function CrmLayout(): JSX.Element {
     // El portal del cliente mira y no mueve. Ver `puedeEditar` en `crm-scope.ts`.
     puedeEditar: user?.role !== 'client',
     /** Nombre de la empresa que se está mirando, para los encabezados de cada pantalla. */
-    empresa: esAgencia ? 'Espartanos' : nombreDe(clientId),
+    empresa: esAgencia ? 'Espartanos' : (esPortalCliente ? 'Tu empresa' : nombreDe(clientId)),
   };
 
   /*
@@ -175,20 +192,27 @@ export function CrmLayout(): JSX.Element {
               más la propia agencia. Con eso, qué CRM ve cada quien sale de las cuentas que
               maneja, sin una regla aparte que mantener de acuerdo.
             */}
-            <label className="crm-nav-cuenta">
-              <span className="crm-nav-cuenta-label">Empresa</span>
-              <select
-                className="input"
-                aria-label="Empresa cuyo CRM se está mirando"
-                value={esAgencia ? CUENTA_AGENCIA : clientId}
-                onChange={(event) => setClientId(event.target.value)}
-              >
+            {esPortalCliente ? (
+              <span className="crm-nav-cuenta" aria-label="Empresa asignada">
+                <span className="crm-nav-cuenta-label">Empresa</span>
+                <strong>Empresa asignada</strong>
+              </span>
+            ) : (
+              <label className="crm-nav-cuenta">
+                <span className="crm-nav-cuenta-label">Empresa</span>
+                <select
+                  className="input"
+                  aria-label="Empresa cuyo CRM se está mirando"
+                  value={esAgencia ? CUENTA_AGENCIA : clientId}
+                  onChange={(event) => setClientId(event.target.value)}
+                >
 {/* El embudo propio de la agencia no es de nadie más: ofrecérselo al portal de un cliente
                     lo lleva a una pantalla vacía con el nombre de la agencia en el encabezado. */}
-                {user?.role !== 'client' ? <option value={CUENTA_AGENCIA}>Espartanos</option> : null}
+                <option value={CUENTA_AGENCIA}>Espartanos</option>
                 {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-              </select>
-            </label>
+                </select>
+              </label>
+            )}
 
             {/* Quién está mirando: varias secciones cambian con el cargo, y verlo evita atribuir
                 a un fallo lo que es una diferencia de permisos. */}

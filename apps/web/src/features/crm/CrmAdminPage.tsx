@@ -517,7 +517,7 @@ function NombresDeEtapa(): JSX.Element {
   // Las etapas dependen del embudo: un contacto de campaña recorre el ciclo de una visita, no la
   // venta de la agencia. Ofrecer las siete comerciales en un CRM de cliente deja renombrar
   // estados que ahí no existen.
-  const etapas = scope.esAgencia
+  const etapas = scope.domain === 'commercial'
     ? STAGES.map((estado) => ({ value: estado as string, base: STAGE_LABEL[estado] }))
     : CONTACT_STATUS_OPTIONS.map((opcion) => ({ value: opcion.value, base: opcion.label }));
 
