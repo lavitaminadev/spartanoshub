@@ -89,9 +89,15 @@ describe('navegación bajo el alcance de fase', () => {
     }
   });
 
-  it('mantiene las rutas propias del CRM dentro de su módulo', () => {
-    for (const path of ['/crm/leads', '/crm/opportunities', '/crm/interactions']) {
+  it('mantiene contactos y leads dentro del CRM inicial', () => {
+    for (const path of ['/crm/leads']) {
       expect(visible(path), path).toBe(true);
+    }
+  });
+
+  it('reserva oportunidades e interacciones para el futuro pipeline comercial', () => {
+    for (const path of ['/crm/opportunities', '/crm/interactions']) {
+      expect(visible(path), path).toBe(false);
     }
   });
 
