@@ -264,7 +264,9 @@ export class LeadController {
 
   @Post(':id/convert')
   @ApiOperation({ summary: 'Convertir lead a cliente' })
-  convert(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+  async convert(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
+    await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
     return this.convertLead.execute(id, req.organizationId);
   }
 }
