@@ -14,29 +14,29 @@ describe('pantalla de acceso denegado', () => {
   const dibujar = (props: Parameters<typeof AccessDenied>[0]) =>
     render(<MemoryRouter><AccessDenied {...props} /></MemoryRouter>);
 
-  it('dice con qué cargo entró la persona', () => {
+  it('no revela el cargo con el que entró la persona', () => {
     dibujar({ path: '/admin', userRole: 'designer', reason: 'role' });
-    expect(screen.getByText('Diseño')).toBeTruthy();
+    expect(screen.queryByText('Diseño')).toBeNull();
   });
 
-  it('nombra los cargos que sí abren la pantalla', () => {
+  it('no enumera los cargos que sí abren la pantalla', () => {
     dibujar({ path: '/admin', userRole: 'designer', allowedRoles: ['admin', 'dev'], reason: 'role' });
-    expect(screen.getByText('Administración, Desarrollo')).toBeTruthy();
+    expect(screen.queryByText(/Administración, Desarrollo/)).toBeNull();
   });
 
-  it('muestra la ruta que se intentó abrir', () => {
+  it('no muestra la ruta que se intentó abrir', () => {
     dibujar({ path: '/governance', userRole: 'designer', reason: 'role' });
-    expect(screen.getByText('/governance')).toBeTruthy();
+    expect(screen.queryByText('/governance')).toBeNull();
   });
 
   /** Las dos salidas son distintas: una se pide como permiso, la otra se enciende. */
   it('distingue el módulo apagado del cargo sin permiso', () => {
     const { unmount } = dibujar({ path: '/x', userRole: 'designer', reason: 'module' });
-    expect(screen.getByText(/módulo está apagado/i)).toBeTruthy();
+    expect(screen.getByText(/no está disponible en tu servicio/i)).toBeTruthy();
     unmount();
 
     dibujar({ path: '/x', userRole: 'designer', reason: 'role' });
-    expect(screen.getByText(/asignada a otros cargos/i)).toBeTruthy();
+    expect(screen.getByText(/no tiene permiso/i)).toBeTruthy();
   });
 
   it('ofrece siempre una salida al inicio', () => {
@@ -44,10 +44,10 @@ describe('pantalla de acceso denegado', () => {
     expect(screen.getByRole('link', { name: /volver al inicio/i }).getAttribute('href')).toBe('/dashboard');
   });
 
-  /** Un cargo desconocido no debe aparecer como texto crudo del sistema. */
-  it('ignora cargos que no tienen nombre legible', () => {
+  /** Ningún rol recibido debe quedar expuesto, ni siquiera uno desconocido. */
+  it('no expone roles conocidos ni desconocidos', () => {
     dibujar({ path: '/x', userRole: 'designer', allowedRoles: ['admin', 'inventado'], reason: 'role' });
-    expect(screen.getByText('Administración')).toBeTruthy();
+    expect(screen.queryByText('Administración')).toBeNull();
     expect(screen.queryByText(/inventado/)).toBeNull();
   });
 });
