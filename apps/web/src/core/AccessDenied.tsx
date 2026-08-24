@@ -6,13 +6,11 @@
  * abre». La diferencia importa: lo primero se reporta como falla, lo segundo se resuelve
  * pidiendo el acceso a quien corresponde.
  *
- * Muestra tres datos y ninguno más: con qué cargo entraste, qué cargos abren esa pantalla, y qué
- * hacer al respecto.
+ * No expone la matriz interna ni rutas técnicas. Saber qué cargos abren una pantalla no ayuda a
+ * quien fue bloqueado y sí revela estructura operativa que no le corresponde ver.
  */
 
 import { Link } from 'react-router-dom';
-import { ROLE_LABELS, roleLabel } from './role-labels';
-
 interface AccessDeniedProps {
   /** Ruta que se intentó abrir, tal como aparece en la barra de direcciones. */
   path?: string;
@@ -29,48 +27,31 @@ interface AccessDeniedProps {
 }
 
 export function AccessDenied({ path, userRole, allowedRoles, reason }: AccessDeniedProps) {
-  const abren = (allowedRoles ?? [])
-    .filter((rol) => rol in ROLE_LABELS)
-    .map((rol) => ROLE_LABELS[rol]);
+  // Se mantienen en la firma por compatibilidad con las rutas ya montadas, pero no se muestran:
+  // un rechazo no debe enumerar cargos ni revelar la URL que activó la puerta.
+  void path;
+  void userRole;
+  void allowedRoles;
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <span className="page-eyebrow">SIN ACCESO</span>
-          <h2>Este cargo no abre esta pantalla</h2>
+          <h2>No tienes acceso a esta sección</h2>
           <p>
             {reason === 'module'
-              ? 'El módulo está apagado o todavía no se libera para uso general.'
-              : 'La pantalla existe y funciona, pero está asignada a otros cargos.'}
+              ? 'Esta sección no está disponible en tu servicio actual.'
+              : 'Tu cuenta no tiene permiso para abrir esta sección.'}
           </p>
         </div>
       </div>
 
       <div className="card">
-        <dl className="access-denied-detail">
-          <dt>Entraste como</dt>
-          <dd>{roleLabel(userRole) || 'Sin cargo asignado'}</dd>
-
-          {path ? (
-            <>
-              <dt>Pantalla</dt>
-              <dd><code>{path}</code></dd>
-            </>
-          ) : null}
-
-          {abren.length > 0 ? (
-            <>
-              <dt>La abren</dt>
-              <dd>{abren.join(', ')}</dd>
-            </>
-          ) : null}
-        </dl>
-
         <p className="access-denied-next">
           {reason === 'module'
-            ? 'Desarrollo puede encenderlo desde Accesos y seguridad.'
-            : 'Si necesitas entrar, pide el permiso a Desarrollo: se otorga por cargo o solo para tu cuenta, sin abrirlo a todo el equipo.'}
+            ? 'Si crees que deberías verla, contacta a tu administrador.'
+            : 'Si necesitas acceso, solicita autorización a tu administrador.'}
         </p>
 
         <Link to="/dashboard" className="btn btn-outline">Volver al inicio</Link>
