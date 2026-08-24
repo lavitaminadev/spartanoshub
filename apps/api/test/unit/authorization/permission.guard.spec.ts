@@ -55,57 +55,56 @@ describe('PermissionGuard', () => {
 
   it('deduce el nivel del verbo: consultar exige view', async () => {
     const resolver = resolverThatAnswers(true);
-    const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'clients' }), resolver);
+    const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'crm' }), resolver);
 
     await guard.canActivate(executionContext('GET'));
 
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'clients', 'view');
+    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'view');
   });
 
   it('deduce el nivel del verbo: modificar exige edit', async () => {
     const resolver = resolverThatAnswers(true);
-    const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'clients' }), resolver);
+    const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'crm' }), resolver);
 
     await guard.canActivate(executionContext('PATCH'));
 
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'clients', 'edit');
+    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'edit');
   });
 
   it('deduce el nivel del verbo: borrar exige manage', async () => {
     const resolver = resolverThatAnswers(true);
-    const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'clients' }), resolver);
+    const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'crm' }), resolver);
 
     await guard.canActivate(executionContext('DELETE'));
 
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'clients', 'manage');
+    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'manage');
   });
 
-  it('toma el módulo de @RequiresFeature cuando no hay @ModuleScope', async () => {
+  it('rechaza un módulo futuro antes de consultar permisos', async () => {
     const resolver = resolverThatAnswers(true);
     const guard = new PermissionGuard(reflectorWith({ [REQUIRES_FEATURE_KEY]: 'billing' }), resolver);
 
-    await guard.canActivate(executionContext('GET'));
-
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'billing', 'view');
+    await expect(guard.canActivate(executionContext('GET'))).rejects.toThrow(ForbiddenException);
+    expect(resolver.can).not.toHaveBeenCalled();
   });
 
   it('da precedencia al nivel explícito de @RequiresPermission sobre el verbo', async () => {
     const resolver = resolverThatAnswers(true);
     const guard = new PermissionGuard(
       reflectorWith({
-        [REQUIRES_PERMISSION_KEY]: { module: 'reports', level: 'manage' },
-        [MODULE_SCOPE_KEY]: 'clients',
+        [REQUIRES_PERMISSION_KEY]: { module: 'crm', level: 'manage' },
+        [MODULE_SCOPE_KEY]: 'reservations',
       }),
       resolver,
     );
 
     await guard.canActivate(executionContext('GET'));
 
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'reports', 'manage');
+    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'manage');
   });
 
   it('rechaza cuando el nivel resuelto no alcanza', async () => {
-    const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'billing' }), resolverThatAnswers(false));
+    const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'crm' }), resolverThatAnswers(false));
 
     await expect(guard.canActivate(executionContext('GET'))).rejects.toThrow(ForbiddenException);
   });
