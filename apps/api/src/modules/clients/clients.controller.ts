@@ -45,7 +45,12 @@ export class ClientsController {
   @Get()
   @ApiOperation({ summary: 'Listar clientes de la organizacion' })
   async list(@Query() pagination: PaginationDto, @Req() req: AuthenticatedRequest) {
-    const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    // Un portal representa exactamente una empresa. No delegamos este caso al alcance
+    // general: aunque cambien pods o excepciones internas, un token de cliente nunca puede
+    // transformar una lista de empresas en la cartera completa de la agencia.
+    const clientIds = req.user.role === UserRole.CLIENT
+      ? (req.user.clientId ? [req.user.clientId] : [])
+      : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.listClients.execute(req.organizationId, clientIds, pagination.limit, pagination.offset);
   }
 

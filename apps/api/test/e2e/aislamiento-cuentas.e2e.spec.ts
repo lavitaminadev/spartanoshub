@@ -199,6 +199,14 @@ describe('aislamiento entre cuentas', () => {
   });
 
   describe('el portal del cliente', () => {
+    it('no alcanza el catálogo de clientes fuera del alcance inicial', async () => {
+      const { status, body } = await banco.pedir(
+        'GET', '/clients?limit=100', banco.cuentas.portalCrmUno.token,
+      );
+
+      expect(status, JSON.stringify(body)).toBe(403);
+    });
+
     it('ve los contactos de su empresa, y solo los de su empresa', async () => {
       const propio = await sembrarLead(banco.empresas.crmUno, 'Contacto del portal', 'audience');
       const ajeno = await sembrarLead(banco.empresas.crmDos, 'Contacto de la otra', 'audience');

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -51,6 +51,32 @@ const BACKGROUND_POSITIONS = [
 const BACKGROUND_SIZES = [['cover', 'Cubrir pantalla'], ['contain', 'Mostrar completa'], ['auto', 'Tamaño original']] as const;
 const LAYOUT_POSITIONS = [['right', 'Formulario derecha'], ['center', 'Formulario centro'], ['left', 'Formulario izquierda']] as const;
 const LOGO_POSITIONS = [['left', 'Logo izquierda'], ['center', 'Logo centro'], ['right', 'Logo derecha']] as const;
+const NEW_FIELD_TRANSFER = 'application/x-espartanos-new-field';
+const EXISTING_FIELD_TRANSFER = 'application/x-espartanos-field';
+
+/**
+ * Los navegadores no tratan igual los tipos personalizados de DataTransfer. Guardamos además
+ * una copia con text/plain para que el constructor funcione en Chrome, Safari y controles web
+ * embebidos, sin confundir un campo nuevo con uno que se está reordenando.
+ */
+function beginNewFieldDrag(event: DragEvent<HTMLElement>, type: string) {
+  event.dataTransfer.effectAllowed = 'copy';
+  event.dataTransfer.setData(NEW_FIELD_TRANSFER, type);
+  event.dataTransfer.setData('text/plain', `new-field:${type}`);
+}
+
+function beginExistingFieldDrag(event: DragEvent<HTMLElement>, fieldId: string) {
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData(EXISTING_FIELD_TRANSFER, fieldId);
+  event.dataTransfer.setData('text/plain', `field:${fieldId}`);
+}
+
+function builderDragPayload(event: DragEvent<HTMLElement>) {
+  const plain = event.dataTransfer.getData('text/plain');
+  const newField = event.dataTransfer.getData(NEW_FIELD_TRANSFER) || (plain.startsWith('new-field:') ? plain.slice('new-field:'.length) : '');
+  const fieldId = event.dataTransfer.getData(EXISTING_FIELD_TRANSFER) || (plain.startsWith('field:') ? plain.slice('field:'.length) : '');
+  return { newField, fieldId };
+}
 
 function isSurveyMode(mode?: string) {
   return mode === 'survey' || mode === 'request';
@@ -324,15 +350,15 @@ export function ReservationBuilderPage() {
     {step === 0 && <Fragment>
       <div className="builder-grid">
         <aside className="field-library"><span className="page-eyebrow">BIBLIOTECA DE CAMPOS</span><h3>Agrega campos</h3><p>Arrastra al formulario o usa los botones.</p>
-          <div className="field-library-help field-library-meta"><strong>Campos que mejoran CAPI</strong><small>Nombre, teléfono, correo y consentimiento aumentan la calidad de coincidencia en Meta (EMQ). Cada campo que agregues sin estos reduce la tasa de match.</small></div>{fieldLibrary.map(([type, label]) => <button draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('new-field', type); }} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span>{label.slice(0, 2).toUpperCase()}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Recomendado para reservas' : 'Campo opcional'}</small></div><em>Agregar</em></button>)}</aside>
-        <main className={`builder-canvas ${canvasDragOver ? 'drag-over' : ''}`} onDragEnter={() => setCanvasDragOver(true)} onDragLeave={(event) => { if (event.currentTarget === event.target) setCanvasDragOver(false); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = event.dataTransfer.types.includes('new-field') ? 'copy' : 'move'; setCanvasDragOver(true); }} onDrop={(event) => { event.preventDefault(); setCanvasDragOver(false); const type = event.dataTransfer.getData('new-field'); if (type) { addField(type); return; } const from = event.dataTransfer.getData('field-id'); if (from && fields.length > 1) { const current = fields.find((field) => field.id === from); if (current && fields[fields.length - 1]?.id !== from) change({ fieldSchema: [...fields.filter((field) => field.id !== from), current] }); } }}>
+          <div className="field-library-help field-library-meta"><strong>Campos que mejoran CAPI</strong><small>Nombre, teléfono, correo y consentimiento aumentan la calidad de coincidencia en Meta (EMQ). Cada campo que agregues sin estos reduce la tasa de match.</small></div>{fieldLibrary.map(([type, label]) => <button draggable onDragStart={(event) => beginNewFieldDrag(event, type)} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span>{label.slice(0, 2).toUpperCase()}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Recomendado para reservas' : 'Campo opcional'}</small></div><em>Agregar</em></button>)}</aside>
+        <main className={`builder-canvas ${canvasDragOver ? 'drag-over' : ''}`} onDragEnter={() => setCanvasDragOver(true)} onDragLeave={(event) => { if (event.currentTarget === event.target) setCanvasDragOver(false); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setCanvasDragOver(true); }} onDrop={(event) => { event.preventDefault(); setCanvasDragOver(false); const { newField, fieldId } = builderDragPayload(event); if (newField) { addField(newField); return; } if (fieldId && fields.length > 1) { const current = fields.find((field) => field.id === fieldId); if (current && fields[fields.length - 1]?.id !== fieldId) change({ fieldSchema: [...fields.filter((field) => field.id !== fieldId), current] }); } }}>
           <div className="canvas-intro"><span>FORMULARIO</span><h2>{design.title || draft.name}</h2><p>{design.welcome}</p><small>Arrastra campos o usa los botones de cada fila.</small></div>
           {fields.length > RECOMMENDED_FIELD_COUNT && <div className="canvas-scope-hint" role="status">
             <strong>{fields.length} campos en el formulario</strong>
             <span>El alcance pide lo mínimo: nombre, teléfono, correo opcional y número de personas. La fecha y la hora las resuelve la agenda. Cada campo extra baja la tasa de reserva desde el celular, que es por donde llega casi todo el tráfico de los anuncios.</span>
           </div>}
-          {fields.map((field, index) => <article tabIndex={0} draggable onDragStart={(event) => event.dataTransfer.setData('field-id', field.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.stopPropagation(); const from = event.dataTransfer.getData('field-id'); if (from) reorder(from, field.id); }} className={`canvas-field ${selected === field.id ? 'selected' : ''}`} key={field.id} onClick={() => setSelected(field.id)} onFocus={() => setSelected(field.id)}>
-            <span className="drag-handle" aria-label="Arrastrar para ordenar">⠿</span><div><label>{field.label}{field.required && ' *'}{field.system && <em> Protegido</em>}</label><div className="field-preview-input">{field.placeholder || (['select', 'multi_select'].includes(field.type) ? 'Selecciona una opcion' : 'Respuesta del visitante')}</div></div><div className="field-actions">
+          {fields.map((field, index) => <article tabIndex={0} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.stopPropagation(); const { fieldId } = builderDragPayload(event); if (fieldId) reorder(fieldId, field.id); }} className={`canvas-field ${selected === field.id ? 'selected' : ''}`} key={field.id} onClick={() => setSelected(field.id)} onFocus={() => setSelected(field.id)}>
+            <span className="drag-handle" draggable onDragStart={(event) => beginExistingFieldDrag(event, field.id)} aria-label="Arrastrar para ordenar" title="Arrastrar para ordenar">⠿</span><div><label>{field.label}{field.required && ' *'}{field.system && <em> Protegido</em>}</label><div className="field-preview-input">{field.placeholder || (['select', 'multi_select'].includes(field.type) ? 'Selecciona una opcion' : 'Respuesta del visitante')}</div></div><div className="field-actions">
               <button type="button" className="btn btn-sm btn-outline" aria-label={`Editar ${field.label}`} onClick={(e) => { e.stopPropagation(); openEditor(field); }} title="Editar campo"><VitaIcons.edit /></button>
               {!field.system && <button type="button" className="btn btn-sm btn-outline btn-danger" aria-label={`Eliminar ${field.label}`} onClick={(e) => { e.stopPropagation(); setConfirmDeleteField(field.id); }} title="Eliminar campo"><VitaIcons.delete /></button>}
               <button type="button" className="btn btn-sm btn-outline" aria-label={`Subir ${field.label}`} disabled={index === 0} onClick={(e) => { e.stopPropagation(); moveField(field.id, -1); }} title="Subir">↑</button>
