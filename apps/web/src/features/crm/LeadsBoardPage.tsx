@@ -20,7 +20,7 @@
  * dónde hay gente, y dejaría de verse dónde se está atascando el trabajo.
  */
 
-import { useMemo, useState, type JSX } from 'react';
+import { useEffect, useMemo, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { KanbanBoard, type KanbanColumn } from '../../shared/KanbanBoard';
@@ -29,6 +29,7 @@ import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
+import { Pagination } from '../../shared/Pagination';
 import { Modal } from '../../shared/Modal';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { matchesSearch } from '../../shared/search';
@@ -69,6 +70,10 @@ interface Lead {
 
 interface UserOption { id: string; name: string }
 interface ClientOption { id: string; name: string }
+
+interface LeadsPage { data: Lead[]; total: number; limit: number; offset: number }
+
+const LEADS_PAGE_SIZE = 100;
 
 const FILTER_KEYS = ['cliente', 'responsable', 'etapa', 'calidad'] as const;
 
@@ -142,22 +147,28 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const [importarAbierto, setImportarAbierto] = useState(false);
   const [crearAbierto, setCrearAbierto] = useState(false);
   const [metaAbierto, setMetaAbierto] = useState(false);
+  const [pagina, setPagina] = useState(1);
   /** Lead cuyo cambio de etapa se está eligiendo por menú, en vez de arrastrando. */
   const [moviendo, setMoviendo] = useState<Lead | null>(null);
   const [formulario, setFormulario] = useState({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '' });
   const [meta, setMeta] = useState({ pageId: '', leadgenId: '' });
 
-  const { data, isLoading, error, refetch } = useQuery<{ data: Lead[] }>({
+  const { data, isLoading, error, refetch } = useQuery<LeadsPage>({
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
-    queryKey: ['crm-leads-board', scope.domain, scope.clientId],
-    // Sin `limit` el backend pagina de a 20 y ocultaba en silencio los prospectos más antiguos.
-    // El máximo del endpoint (100) sigue siendo una cota informal: si el embudo crece más allá,
-    // esta pantalla necesita paginación real.
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina],
+    // El servidor limita cada respuesta a 100, pero el tablero no: se navega de página en página.
+    // Así una empresa no pierde los contactos más antiguos cuando supera el primer centenar.
     queryFn: () => api.get(
-      `/crm/leads?domain=${scope.domain}&limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      `/crm/leads?domain=${scope.domain}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
     ),
   });
+
+  // Cambiar de empresa, embudo o filtro siempre vuelve a la primera página. Dejar el número
+  // anterior podía mostrar un tablero vacío aunque la empresa sí tuviera prospectos.
+  useEffect(() => {
+    setPagina(1);
+  }, [scope.domain, scope.clientId, filtros.search, filtros.values.cliente, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad]);
 
   const { data: usuarios } = useQuery<{ data: UserOption[] }>({
     queryKey: ['users-min'],
@@ -195,7 +206,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   ]);
 
   /** Clave exacta del embudo que se está mirando, para tocar solo esa caché y no la de otra empresa. */
-  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId] as const;
+  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId, pagina] as const;
 
   /**
    * Cambio de etapa de una tarjeta.
@@ -396,7 +407,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const documento: ExportDocument<Lead> = {
     fileName: 'prospectos',
     title: 'Prospectos del embudo comercial',
-    subtitle: `${leads.length} de ${(data?.data ?? []).length} prospectos`,
+    subtitle: `${leads.length} mostrados de ${data?.total ?? 0} prospectos`,
     meta: [
       { label: 'Cliente', value: cartera.find((c) => c.id === filtros.values.cliente)?.name ?? 'Todos' },
       { label: 'Responsable', value: nombreDe(filtros.values.responsable) ?? 'Todo el equipo' },
@@ -503,7 +514,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       {/* Sin alternador: la sección ya dice qué se está mirando. Queda el conteo, que es lo
           único que ese bloque aportaba de información. */}
       <div className="leads-board-vistas">
-        <span className="leads-board-conteo">{leads.length} de {(data?.data ?? []).length}</span>
+        <span className="leads-board-conteo">{leads.length} de {data?.total ?? 0}</span>
       </div>
 
       {seleccionVisible.length > 0 ? (
@@ -711,6 +722,13 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           {!leads.length ? <p className="crm-dash-vacio">Ningún prospecto calza con este filtro.</p> : null}
         </div>
       )}
+
+      <Pagination
+        page={pagina}
+        pageSize={LEADS_PAGE_SIZE}
+        total={data?.total ?? 0}
+        onPageChange={setPagina}
+      />
 
       {abierto ? (
         <LeadDetailDrawer lead={abierto} nombreDe={nombreDe} etapaLabel={etapaLabel} onClose={() => setAbierto(null)} />

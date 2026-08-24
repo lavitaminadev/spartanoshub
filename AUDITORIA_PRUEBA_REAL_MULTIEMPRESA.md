@@ -13,7 +13,7 @@ Estado: en curso. No se declara apto para producción hasta cerrar esta lista y 
 
 ## Hallazgos confirmados antes del recorrido de datos
 
-1. **P1 — Leads no escala más de 100 registros en tablero.** Confirmado visualmente: el CRM muestra “100 de 100” y no hay paginación. Una empresa con 1.000 o más contactos no verá el conjunto completo.
+1. **Corregido, pendiente de prueba de volumen — Leads sobre 100 registros.** El tablero ahora consume `total` y `offset` del API y permite recorrer páginas de 100 contactos. Falta cargar 1.000+ contactos sintéticos y verificar búsqueda, filtros, cambio de etapa y exportación en páginas posteriores.
 2. **Corregido/validado — Teléfono y correo en leads.** Producción muestra columnas individuales Teléfono y Correo; ya no se concatenan.
 3. **Corregido/validado — Módulos futuros bloqueados por URL.** Contenido, oportunidades y otras rutas fuera del alcance inicial responden una pantalla de denegación neutral: no expone cargo, URL ni lista de roles. El cierre quedó validado en producción y con CI verde en `6fac7a5a`.
 4. **P1 — La capacidad del hosting no está medida.** Los límites de 1.000/5.000/10.000 contactos y 5/10/20 operaciones concurrentes no se deben asumir: se medirán con datos de prueba y se registrarán tiempos, errores y consumo.
