@@ -19,7 +19,10 @@ import { AcceptTermsDto, CompleteOnboardingDto } from './dto/onboarding.dto';
 import { ReauthenticateDto } from './dto/reauthenticate.dto';
 import { ModuleExempt } from '../authorization/module-scope.decorator';
 
-const REFRESH_COOKIE = 'espartanos_refresh';
+// Nombre versionado: evita que una cookie de instalaciones anteriores con el mismo nombre pero
+// otra ruta restaure a la persona que usó el navegador antes. El login migra las anteriores sin
+// obligar a cada cliente a limpiar manualmente sus datos del navegador.
+const REFRESH_COOKIE = 'espartanos_refresh_v2';
 /**
  * Nombre anterior de la cookie, aceptado solo al leer.
  *
@@ -27,8 +30,9 @@ const REFRESH_COOKIE = 'espartanos_refresh';
  * como alternativa y el primer refresh la reemplaza por la nueva, de modo que nadie queda fuera
  * por un despliegue. Se puede retirar cuando haya pasado la vigencia de un refresh completo.
  */
-const LEGACY_REFRESH_COOKIE = 'vitahub_refresh';
+const LEGACY_REFRESH_COOKIES = ['espartanos_refresh', 'vitahub_refresh'] as const;
 const REFRESH_COOKIE_PATH = '/api/auth';
+const LEGACY_REFRESH_COOKIE_PATHS = ['/api/auth', '/api', '/'] as const;
 
 function sessionDurationMs(value: string): number {
   const match = /^(\d+)([smhd])$/.exec(value.trim());
@@ -71,30 +75,39 @@ function readCookie(request: Request, name: string): string | undefined {
 
 /** Token de refresh presentado por el navegador, sea con el nombre actual o el anterior. */
 function readRefreshCookie(request: Request): string | undefined {
-  return readCookie(request, REFRESH_COOKIE) ?? readCookie(request, LEGACY_REFRESH_COOKIE);
+  return readCookie(request, REFRESH_COOKIE)
+    ?? LEGACY_REFRESH_COOKIES.map((name) => readCookie(request, name)).find(Boolean);
+}
+
+function cookieOptions(path: string) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict' as const,
+    path,
+  };
+}
+
+function clearLegacyRefreshCookies(response: Response): void {
+  for (const name of LEGACY_REFRESH_COOKIES) {
+    for (const path of LEGACY_REFRESH_COOKIE_PATHS) {
+      response.clearCookie(name, cookieOptions(path));
+    }
+  }
 }
 
 function setRefreshCookie(response: Response, token: string): void {
   response.cookie(REFRESH_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: REFRESH_COOKIE_PATH,
+    ...cookieOptions(REFRESH_COOKIE_PATH),
     maxAge: REFRESH_COOKIE_MAX_AGE_MS,
   });
-  // Una sesión que venía con el nombre anterior queda con una sola cookie tras renovarse.
-  response.clearCookie(LEGACY_REFRESH_COOKIE, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: REFRESH_COOKIE_PATH });
+  // Una sesión que venía con un nombre o ruta anterior queda con una sola cookie tras renovarse.
+  clearLegacyRefreshCookies(response);
 }
 
 function clearRefreshCookie(response: Response): void {
-  for (const name of [REFRESH_COOKIE, LEGACY_REFRESH_COOKIE]) {
-    response.clearCookie(name, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: REFRESH_COOKIE_PATH,
-    });
-  }
+  response.clearCookie(REFRESH_COOKIE, cookieOptions(REFRESH_COOKIE_PATH));
+  clearLegacyRefreshCookies(response);
 }
 
 /**
