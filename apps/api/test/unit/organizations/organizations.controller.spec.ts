@@ -29,7 +29,7 @@ describe('OrganizationsController: módulos esenciales', () => {
 
   it('rechaza apagar dashboard: es la ruta de entrada de los cargos internos', async () => {
     await expect(controller.updateFeatures(request, { features: { dashboard: false } })).rejects.toBeInstanceOf(BadRequestException);
-    expect(organizations.update).not.toHaveBeenCalled();
+    expect(organizations.save).not.toHaveBeenCalled();
   });
 
   it('invalida las dos cachés al cambiar un módulo opcional', async () => {
