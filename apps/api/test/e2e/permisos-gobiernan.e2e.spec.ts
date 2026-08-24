@@ -27,13 +27,10 @@ describe('la pantalla de permisos gobierna', () => {
   });
 
   describe('un community manager con su módulo concedido', () => {
-    it('lee la cartera de clientes, acotada a las suyas', async () => {
+    it('no abre la cartera de clientes al equipo durante la operación inicial', async () => {
       const { status, body } = await banco.pedir('GET', '/clients', banco.cuentas.equipoUno.token);
 
-      expect(status, JSON.stringify(body)).toBe(200);
-      // Sin cuentas asignadas ve la lista vacía, no un 403: la diferencia importa, porque una es
-      // «no tienes nada» y la otra «no puedes mirar».
-      expect(body?.data ?? []).toHaveLength(0);
+      expect(status, JSON.stringify(body)).toBe(403);
     });
 
     it('no alcanza las plantillas de proceso: su controlador las cierra por cargo', async () => {
@@ -111,9 +108,9 @@ describe('la pantalla de permisos gobierna', () => {
       expect([401, 403, 404]).toContain(status);
     });
 
-    it('y quien administra sí entra, o el filtro sobraría', async () => {
+    it('la configuración avanzada queda reservada para desarrollo', async () => {
       const { status } = await banco.pedir('GET', '/settings', banco.cuentas.admin.token);
-      expect([200, 404]).toContain(status);
+      expect(status).toBe(403);
     });
   });
 });

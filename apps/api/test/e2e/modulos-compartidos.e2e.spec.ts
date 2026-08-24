@@ -164,17 +164,14 @@ describe('módulos compartidos entre la agencia y el portal', () => {
   });
 
   describe('el panel general de la agencia', () => {
-    it('responde por la empresa pedida y no por toda la organización', async () => {
+    it('permanece cerrado hasta liberar reportes para la operación', async () => {
       const consolidado = await banco.pedir('GET', '/reporting/dashboard', banco.cuentas.admin.token);
       const porEmpresa = await banco.pedir(
         'GET', `/reporting/dashboard?clientId=${banco.empresas.crmUno}`, banco.cuentas.admin.token,
       );
 
-      expect(consolidado.status, JSON.stringify(consolidado.body)).toBe(200);
-      expect(porEmpresa.status, JSON.stringify(porEmpresa.body)).toBe(200);
-      // Basta con que acepte el filtro y responda: las cifras dependen de datos que este banco
-      // no siembra, y afirmar una diferencia concreta ataría la prueba a ellos.
-      expect(porEmpresa.body).toBeTruthy();
+      expect(consolidado.status, JSON.stringify(consolidado.body)).toBe(403);
+      expect(porEmpresa.status, JSON.stringify(porEmpresa.body)).toBe(403);
     });
 
     it('no acepta una empresa que quien pregunta no alcanza', async () => {
