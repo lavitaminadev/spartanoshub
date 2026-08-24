@@ -31,9 +31,10 @@ const password_reset_dto_1 = require("./dto/password-reset.dto");
 const onboarding_dto_1 = require("./dto/onboarding.dto");
 const reauthenticate_dto_1 = require("./dto/reauthenticate.dto");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
-const REFRESH_COOKIE = 'espartanos_refresh';
-const LEGACY_REFRESH_COOKIE = 'vitahub_refresh';
+const REFRESH_COOKIE = 'espartanos_refresh_v2';
+const LEGACY_REFRESH_COOKIES = ['espartanos_refresh', 'vitahub_refresh'];
 const REFRESH_COOKIE_PATH = '/api/auth';
+const LEGACY_REFRESH_COOKIE_PATHS = ['/api/auth', '/api', '/'];
 function sessionDurationMs(value) {
     const match = /^(\d+)([smhd])$/.exec(value.trim());
     if (!match)
@@ -61,27 +62,34 @@ function readCookie(request, name) {
     }
 }
 function readRefreshCookie(request) {
-    return readCookie(request, REFRESH_COOKIE) ?? readCookie(request, LEGACY_REFRESH_COOKIE);
+    return readCookie(request, REFRESH_COOKIE)
+        ?? LEGACY_REFRESH_COOKIES.map((name) => readCookie(request, name)).find(Boolean);
 }
-function setRefreshCookie(response, token) {
-    response.cookie(REFRESH_COOKIE, token, {
+function cookieOptions(path) {
+    return {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        path: REFRESH_COOKIE_PATH,
+        path,
+    };
+}
+function clearLegacyRefreshCookies(response) {
+    for (const name of LEGACY_REFRESH_COOKIES) {
+        for (const path of LEGACY_REFRESH_COOKIE_PATHS) {
+            response.clearCookie(name, cookieOptions(path));
+        }
+    }
+}
+function setRefreshCookie(response, token) {
+    response.cookie(REFRESH_COOKIE, token, {
+        ...cookieOptions(REFRESH_COOKIE_PATH),
         maxAge: REFRESH_COOKIE_MAX_AGE_MS,
     });
-    response.clearCookie(LEGACY_REFRESH_COOKIE, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: REFRESH_COOKIE_PATH });
+    clearLegacyRefreshCookies(response);
 }
 function clearRefreshCookie(response) {
-    for (const name of [REFRESH_COOKIE, LEGACY_REFRESH_COOKIE]) {
-        response.clearCookie(name, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            path: REFRESH_COOKIE_PATH,
-        });
-    }
+    response.clearCookie(REFRESH_COOKIE, cookieOptions(REFRESH_COOKIE_PATH));
+    clearLegacyRefreshCookies(response);
 }
 let AuthController = class AuthController {
     constructor(auth) {
