@@ -127,7 +127,10 @@ export function ClientsPage() {
 
   const { data: clientsResp, isLoading, error } = useQuery<{ data: ClientRecord[] }>({
     queryKey: ['clients'],
-    queryFn: () => api.get('/clients'),
+    // La pantalla busca y filtra en el navegador. Debe cargar el mismo universo que usa la
+    // verificación posterior al alta; con el límite predeterminado, una empresa podía crearse
+    // correctamente y desaparecer de inmediato al reconciliar el listado.
+    queryFn: () => api.get('/clients?limit=100'),
   });
   const clients = (clientsResp as any)?.data ?? [];
 

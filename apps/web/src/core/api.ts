@@ -89,6 +89,10 @@ const apiClient = axios.create({
 let token: string | null = null;
 let refreshPromise: Promise<string> | null = null;
 let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+// Cada limpieza de sesión invalida las renovaciones que ya estaban viajando por la red.
+// Sin esta generación, una respuesta de refresh de la cuenta anterior podía llegar después
+// del logout o del siguiente login y volver a instalar su token en memoria.
+let sessionGeneration = 0;
 
 interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _sessionRetry?: boolean;
@@ -170,6 +174,12 @@ if (typeof document !== 'undefined') {
  * @param t - Access token JWT, o `null` para limpiar la sesión.
  */
 export function setApiToken(t: string | null): void {
+  if (t === null) {
+    sessionGeneration += 1;
+    // No se puede cancelar una petición que el navegador ya envió, pero sí impedir que su
+    // promesa se reutilice y que su respuesta vuelva a tomar control de la aplicación.
+    refreshPromise = null;
+  }
   token = t;
   scheduleProactiveRefresh(t);
 }
@@ -312,16 +322,23 @@ function describeApiError(error: AxiosError<ApiErrorPayload>, message: string): 
 
 async function renewAccessToken(): Promise<string> {
   if (!refreshPromise) {
-    refreshPromise = withRefreshLock(() =>
+    const generation = sessionGeneration;
+    const pendingRefresh = withRefreshLock(() =>
       apiClient.post<{ accessToken: string }>('/auth/refresh', {}),
     )
       .then((response) => {
+        if (generation !== sessionGeneration) {
+          throw new ApiError('La sesión cambió mientras se renovaban las credenciales', 401);
+        }
         setApiToken(response.data.accessToken);
         return response.data.accessToken;
       })
       .finally(() => {
-        refreshPromise = null;
+        // Una renovación invalidada puede terminar después de que la sesión nueva ya haya
+        // iniciado la suya. Solo la promesa que sigue vigente puede liberar este candado.
+        if (refreshPromise === pendingRefresh) refreshPromise = null;
       });
+    refreshPromise = pendingRefresh;
   }
   return refreshPromise;
 }
@@ -341,13 +358,14 @@ apiClient.interceptors.response.use(
         const accessToken = await renewAccessToken();
         config.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient.request(config);
-      } catch {
+      } catch (refreshError) {
         setApiToken(null);
         // Redirección dura (no navegación SPA) porque esto puede dispararse
         // fuera del árbol de render de React; el query param sobrevive al
         // reload para que LoginPage explique por qué el usuario llegó aquí
         // en vez de sacarlo silenciosamente en medio de un formulario.
         window.location.href = '/login?reason=session-expired';
+        return Promise.reject(refreshError);
       }
     }
 
