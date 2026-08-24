@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Like, Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
 import { RESERVATION_LEAD_SOURCES, isReservationLeadSource } from '@espartanos/shared';
 
@@ -9,6 +9,8 @@ export interface ListLeadsFilters {
   status?: string;
   fitStatus?: string;
   source?: string;
+  search?: string;
+  assignedTo?: string;
   /**
    * Embudo a listar. A diferencia de `source` (opcional, de mayor detalle), este filtro
    * tiene un valor por defecto obligatorio en `execute()`: sin él, una consulta sin
@@ -71,6 +73,7 @@ export class ListLeadsUseCase {
     if (filters.status) where.status = filters.status as Lead['status'];
     if (filters.fitStatus) where.fitStatus = filters.fitStatus as Lead['fitStatus'];
     if (filters.source) where.source = expandSourceFilter(filters.source);
+    if (filters.assignedTo) where.assignedTo = filters.assignedTo;
     const domain = filters.domain ?? 'commercial';
     if (domain !== 'all') where.domain = domain;
 
@@ -83,12 +86,20 @@ export class ListLeadsUseCase {
      * en TypeORM eso es un arreglo de condiciones completas. Se repite `where` entero en ambas:
      * dejar fuera una condición en una de las dos ramas abriría por ahí lo que la otra cierra.
      */
-    const criterio: FindOptionsWhere<Lead> | FindOptionsWhere<Lead>[] = filters.onlyAssignedTo
+    const alcancePersona: FindOptionsWhere<Lead>[] = filters.onlyAssignedTo
       ? [
         { ...where, assignedTo: filters.onlyAssignedTo },
         { ...where, assignedTo: IsNull() },
       ]
-      : where;
+      : [where];
+
+    const termino = filters.search?.trim();
+    const campos: Array<keyof Pick<Lead, 'name' | 'email' | 'phone' | 'company' | 'source' | 'sourceDetail' | 'campaignName'>> = [
+      'name', 'email', 'phone', 'company', 'source', 'sourceDetail', 'campaignName',
+    ];
+    const criterio: FindOptionsWhere<Lead> | FindOptionsWhere<Lead>[] = termino
+      ? alcancePersona.flatMap((base) => campos.map((campo) => ({ ...base, [campo]: Like(`%${termino}%`) })))
+      : alcancePersona.length === 1 ? alcancePersona[0] : alcancePersona;
 
     const [data, total] = await this.repo.findAndCount({
       where: criterio,

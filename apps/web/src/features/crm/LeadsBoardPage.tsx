@@ -32,7 +32,6 @@ import { EmptyState } from '../../shared/EmptyState';
 import { Pagination } from '../../shared/Pagination';
 import { Modal } from '../../shared/Modal';
 import { StatusBadge } from '../../shared/StatusBadge';
-import { matchesSearch } from '../../shared/search';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { ImportLeadsModal } from './ImportLeadsModal';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
@@ -156,11 +155,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const { data, isLoading, error, refetch } = useQuery<LeadsPage>({
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
-    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina],
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad],
     // El servidor limita cada respuesta a 100, pero el tablero no: se navega de página en página.
     // Así una empresa no pierde los contactos más antiguos cuando supera el primer centenar.
     queryFn: () => api.get(
-      `/crm/leads?domain=${scope.domain}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      `/crm/leads?domain=${scope.domain}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}`,
     ),
   });
 
@@ -206,7 +205,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   ]);
 
   /** Clave exacta del embudo que se está mirando, para tocar solo esa caché y no la de otra empresa. */
-  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId, pagina] as const;
+  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad] as const;
 
   /**
    * Cambio de etapa de una tarjeta.
@@ -344,12 +343,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     const todos = data?.data ?? [];
     return todos.filter((lead) => {
       if (filtros.values.cliente && lead.clientId !== filtros.values.cliente) return false;
-      if (filtros.values.responsable && lead.assignedTo !== filtros.values.responsable) return false;
-      if (filtros.values.etapa && lead.status !== filtros.values.etapa) return false;
-      if (filtros.values.calidad && lead.fitStatus !== filtros.values.calidad) return false;
-      return matchesSearch(filtros.search, [lead.name, lead.email, lead.phone, lead.company, lead.source, lead.sourceDetail, lead.campaignName]);
+      return true;
     });
-  }, [data, filtros.values.cliente, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.search]);
+  }, [data, filtros.values.cliente]);
 
   const seleccionVisible = useMemo(() => leads.filter((lead) => seleccion.has(lead.id)).map((lead) => lead.id), [leads, seleccion]);
   const todosVisiblesSeleccionados = leads.length > 0 && seleccionVisible.length === leads.length;

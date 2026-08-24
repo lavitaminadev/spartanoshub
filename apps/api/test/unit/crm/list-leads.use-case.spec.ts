@@ -46,4 +46,19 @@ describe('ListLeadsUseCase · alcance por persona', () => {
     expect(resultado.total).toBe(0);
     expect(repo.findAndCount).not.toHaveBeenCalled();
   });
+
+  it('busca en base sobre todos los campos sin perder el alcance de empresa', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 100, 0, { clientId: 'cliente-9', domain: 'audience', search: 'ana' });
+    const donde = criterio(repo) as Array<Record<string, unknown>>;
+    expect(donde).toHaveLength(7);
+    for (const rama of donde) {
+      expect(rama.organizationId).toBe('org-1');
+      expect(rama.clientId).toBe('cliente-9');
+      expect(rama.domain).toBe('audience');
+    }
+    expect(donde.some((rama) => rama.name)).toBe(true);
+    expect(donde.some((rama) => rama.email)).toBe(true);
+    expect(donde.some((rama) => rama.phone)).toBe(true);
+  });
 });

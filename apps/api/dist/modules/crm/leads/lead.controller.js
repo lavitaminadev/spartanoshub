@@ -75,6 +75,8 @@ let LeadController = class LeadController {
             status: query.status,
             fitStatus: query.fitStatus,
             source: query.source,
+            search: query.search,
+            assignedTo: query.assignedTo,
             domain: query.domain,
             clientId: query.clientId,
             allowedClientIds: conCrm,

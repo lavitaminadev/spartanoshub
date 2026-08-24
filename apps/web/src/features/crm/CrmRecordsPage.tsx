@@ -116,8 +116,8 @@ export function ContactsPage() {
     // La empresa sale de la barra, no de esta pantalla: es el contexto del CRM y no un filtro
     // más. Tenerlo en los dos sitios permitía mirar el encabezado de una empresa con la tabla
     // de otra, que es justo la confusión que se está quitando.
-    queryKey: ['crm-reservation-contacts', scope.domain, scope.clientId, statusFilter, sourceFilter, page],
-    queryFn: () => api.get(`/crm/leads?domain=${scope.domain}&limit=${CONTACTS_PAGE_SIZE}&offset=${(page - 1) * CONTACTS_PAGE_SIZE}${sourceFilter ? `&source=${encodeURIComponent(sourceFilter)}` : ''}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`),
+    queryKey: ['crm-reservation-contacts', scope.domain, scope.clientId, statusFilter, sourceFilter, search, page],
+    queryFn: () => api.get(`/crm/leads?domain=${scope.domain}&limit=${CONTACTS_PAGE_SIZE}&offset=${(page - 1) * CONTACTS_PAGE_SIZE}${sourceFilter ? `&source=${encodeURIComponent(sourceFilter)}` : ''}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
     placeholderData: (previous) => previous,
   });
   const { data: historyReservations = [], isLoading: historyLoading } = useQuery<Array<{ id: string; referenceCode: string; status: string; startsAt: string; partySize: number }>>({
@@ -158,7 +158,8 @@ export function ContactsPage() {
   );
   const loadedTotal = contactsQuery.data?.total ?? allContacts.length;
   const totalPages = Math.max(1, Math.ceil(loadedTotal / CONTACTS_PAGE_SIZE));
-  const contacts = allContacts.filter((contact) => matchesSearch(search, [contact.name, contact.email, contact.phone, contact.company, contact.sourceDetail, contact.campaignName, ...(contact.tags || [])]));
+  const contacts = allContacts;
+  useEffect(() => setPage(1), [search]);
   const clientNameById = useMemo(
     () => new Map<string, string>(clients.map((client) => [client.id, client.name])),
     [clients],

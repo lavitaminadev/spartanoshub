@@ -36,7 +36,19 @@ export class InteractionsService {
     limit = 50,
     offset = 0,
     leadId?: string,
+    allowedClientIds?: string[],
   ): Promise<{ data: Interaction[]; total: number; limit: number; offset: number }> {
+    if (allowedClientIds !== undefined) {
+      if (allowedClientIds.length === 0) return { data: [], total: 0, limit, offset };
+      const query = this.repo.createQueryBuilder('interaction')
+        .leftJoin(Lead, 'lead', 'lead.id = interaction.lead_id AND lead.organization_id = interaction.organization_id')
+        .leftJoin(Contact, 'contact', 'contact.id = interaction.contact_id AND contact.organization_id = interaction.organization_id')
+        .where('interaction.organization_id = :organizationId', { organizationId })
+        .andWhere('(lead.client_id IN (:...allowedClientIds) OR contact.client_id IN (:...allowedClientIds))', { allowedClientIds });
+      if (leadId) query.andWhere('interaction.lead_id = :leadId', { leadId });
+      const [data, total] = await query.orderBy('interaction.date', 'DESC').skip(offset).take(limit).getManyAndCount();
+      return { data, total, limit, offset };
+    }
     const where: Record<string, unknown> = { organizationId };
     if (leadId) where.leadId = leadId;
 
@@ -68,6 +80,36 @@ export class InteractionsService {
   async remove(id: string, organizationId: string): Promise<Interaction> {
     const interaction = await this.findOne(id, organizationId);
     return this.repo.remove(interaction);
+  }
+
+  /** Empresa a la que pertenecen las referencias propuestas para una interacción. */
+  async referenceClientId(
+    dto: { leadId?: string | null; contactId?: string | null },
+    organizationId: string,
+  ): Promise<string | undefined> {
+    const [lead, contact] = await Promise.all([
+      dto.leadId
+        ? this.leads.findOne({ where: { id: dto.leadId, organizationId }, select: { id: true, clientId: true } })
+        : null,
+      dto.contactId
+        ? this.contacts.findOne({ where: { id: dto.contactId, organizationId }, select: { id: true, clientId: true, leadId: true } })
+        : null,
+    ]);
+    if (dto.leadId && !lead) throw new NotFoundException('Interaction not found');
+    if (dto.contactId && !contact) throw new NotFoundException('Interaction not found');
+    return lead?.clientId ?? contact?.clientId;
+  }
+
+  /** Empresa efectiva de una interacción existente o de cómo quedaría tras actualizarla. */
+  async effectiveClientId(
+    interaction: Interaction,
+    dto: { leadId?: string | null; contactId?: string | null },
+    organizationId: string,
+  ): Promise<string | undefined> {
+    return this.referenceClientId({
+      leadId: dto.leadId !== undefined ? dto.leadId : interaction.leadId,
+      contactId: dto.contactId !== undefined ? dto.contactId : interaction.contactId,
+    }, organizationId);
   }
 
   private async validateReferences(
