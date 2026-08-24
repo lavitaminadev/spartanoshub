@@ -55,9 +55,8 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
    * rentabilidad por cliente, así que necesita lectura sobre operación, producción y
    * presupuesto aunque no los administre.
    *
-   * `reservations` en `edit` porque quien vende suele dejar configurada la disponibilidad del
-   * local durante el onboarding. Es el candidato más claro a recortar cuando se revise si
-   * cada cargo necesita todo lo que hoy alcanza.
+   * Reservas queda fuera: contratar y administrar empresas no equivale a operar su agenda.
+   * Encuestas sí pertenece a este cargo para medir y revisar la experiencia comercial.
    */
   [UserRole.COMMERCIAL_DIRECTOR]: {
     ...TEAM_BASELINE,
@@ -71,7 +70,6 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
     direction: 'manage',
     settings: 'edit',
     reports: 'view',
-    reservations: 'edit',
     surveys: 'manage',
     operations: 'view',
     production: 'view',

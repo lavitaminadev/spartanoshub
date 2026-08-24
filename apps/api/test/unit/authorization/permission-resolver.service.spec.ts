@@ -42,6 +42,8 @@ describe('roleLevel', () => {
     }
     expect(roleLevel(UserRole.ADMIN, 'users')).toBe('manage');
     expect(roleLevel(UserRole.COMMUNITY_MANAGER, 'reservations')).toBe('edit');
+    expect(roleLevel(UserRole.COMMERCIAL_DIRECTOR, 'reservations')).toBe('none');
+    expect(roleLevel(UserRole.COMMERCIAL_DIRECTOR, 'surveys')).toBe('manage');
     expect(roleLevel(UserRole.DESIGNER, 'crm')).toBe('none');
   });
 

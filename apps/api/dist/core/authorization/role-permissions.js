@@ -33,7 +33,6 @@ const REPARTO_NO_APLICADO = {
         direction: 'manage',
         settings: 'edit',
         reports: 'view',
-        reservations: 'edit',
         surveys: 'manage',
         operations: 'view',
         production: 'view',

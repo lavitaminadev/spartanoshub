@@ -160,6 +160,7 @@ exports.INITIAL_OPERATION_MODULES = new Set([
     'crm',
     'reservations',
     'integrations',
+    'surveys',
 ]);
 /** Desarrollo conserva visibilidad total; los demás parten con CRM/Reservas mínimos. */
 function isModuleInInitialOperationScope(module, role) {
@@ -172,6 +173,8 @@ function isModuleInInitialOperationScope(module, role) {
     if (['users', 'clients', 'integrations'].includes(module)) {
         return role === 'admin' || role === 'commercial_director';
     }
+    if (module === 'surveys')
+        return role === 'commercial_director';
     return true;
 }
 exports.PRODUCT_VISIBLE_LIFECYCLES = new Set(['active', 'pilot', 'maintenance']);

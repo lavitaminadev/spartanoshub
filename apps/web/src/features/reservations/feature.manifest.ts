@@ -12,7 +12,7 @@ registerFeature({
       label: 'Reservas',
       path: '/reservations',
       icon: '🗓️',
-      roles: ['admin', 'operations_director', 'commercial_director', 'community_manager'],
+      roles: ['admin', 'operations_director', 'community_manager'],
     },
   ],
   routes: [],

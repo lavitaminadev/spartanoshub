@@ -138,15 +138,17 @@ describe('navegación bajo el alcance de fase', () => {
     expect(getFeatureForPath('/production')).toBe('production');
   });
 
-  it('Encuestas queda reservada aunque el interruptor esté encendido', () => {
-    // El módulo dejó de estar en `development` cuando se publicó `SurveysController`. Ahora la
-    // ruta la gobierna el interruptor: sin él, la pantalla llamaría a una API que sí existe
-    // pero que la organización no contrató.
+  it('Encuestas queda disponible sólo para Dirección Comercial en la operación inicial', () => {
     expect(getFeatureForPath('/surveys')).toBe('surveys');
     expect(isPathEnabled('/surveys', { surveys: false }, undefined)).toBe(false);
-    expect(isPathEnabled('/surveys', { surveys: true }, undefined)).toBe(false);
-    expect(isPathEnabled('/surveys', undefined, { surveys: 'none' })).toBe(false);
-    expect(isPathEnabled('/surveys', undefined, { surveys: 'edit' })).toBe(false);
+    expect(isPathEnabled('/surveys', { surveys: true }, { surveys: 'manage' }, undefined, 'commercial_director')).toBe(true);
+    expect(isPathEnabled('/surveys', { surveys: true }, { surveys: 'manage' }, undefined, 'admin')).toBe(false);
+    expect(isPathEnabled('/surveys', undefined, { surveys: 'none' }, undefined, 'commercial_director')).toBe(false);
+  });
+
+  it('Dirección Comercial no recibe Reservas junto con Encuestas', () => {
+    expect(isRoleAllowedForPath(['admin', 'operations_director', 'community_manager'], 'commercial_director')).toBe(false);
+    expect(isModuleInPhaseScope('reservations', undefined, 'commercial_director')).toBe(true);
   });
 
   it('toda ruta fuera de alcance declara su módulo, sin lo cual no se podría ocultar', () => {
