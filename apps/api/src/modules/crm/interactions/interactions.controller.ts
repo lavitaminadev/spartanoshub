@@ -5,13 +5,15 @@ import { CreateInteractionDto } from './dto/create-interaction.dto';
 import { UpdateInteractionDto } from './dto/update-interaction.dto';
 import { ListInteractionsDto } from './dto/list-interactions.dto';
 import type { AuthenticatedRequest } from '@shared/types/request';
-import { RequiresFeature } from '../../../core/authorization/requires-feature.decorator';
+import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 
 @Controller('crm/interactions')
 @UseGuards(AuthGuard('jwt'))
 // Sin `@Roles`: la matriz de permisos decide quien entra. Ver `lead.controller.ts`.
-@RequiresFeature('commercialPipeline')
+// Las interacciones se crean y leen dentro de la ficha del lead. Son parte del CRM operativo,
+// no del módulo futuro de oportunidades: separarlas dejaba una ficha funcional a medias.
+@ModuleScope('crm')
 export class InteractionsController {
   constructor(
     private service: InteractionsService,

@@ -73,7 +73,9 @@ let CrmHomeService = class CrmHomeService {
         query
             .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
             .andWhere('lead.domain = :domain', { domain: base.domain });
-        if (base.clientId)
+        if (base.agencyOnly)
+            query.andWhere('lead.client_id IS NULL');
+        else if (base.clientId)
             query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
         const alcanzables = base.clientIds;
         if (alcanzables !== undefined) {
@@ -85,6 +87,8 @@ let CrmHomeService = class CrmHomeService {
         return query;
     }
     alcanceDeCuentas(alcance) {
+        if (alcance.agencyOnly)
+            return { agencyOnly: true };
         if (alcance.clientId)
             return { clientId: alcance.clientId };
         if (alcance.allowedClientIds === undefined)
@@ -104,7 +108,9 @@ let CrmHomeService = class CrmHomeService {
         ];
     }
     paraCriterio(where) {
-        const { clientIds, ...resto } = where;
+        const { clientIds, agencyOnly, ...resto } = where;
+        if (agencyOnly)
+            return { ...resto, clientId: (0, typeorm_2.IsNull)() };
         if (clientIds === undefined)
             return resto;
         return { ...resto, clientId: (0, typeorm_2.In)(clientIds.length ? clientIds : ['']) };

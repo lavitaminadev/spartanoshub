@@ -64,10 +64,14 @@ let LeadController = class LeadController {
     async list(query, req) {
         await this.assertPortalCrm(req);
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        if (query.clientId) {
-            await this.capacidades.assert(req.organizationId, query.clientId, 'crm');
+        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : query.clientId;
+        if (clientId) {
+            await this.capacidades.assert(req.organizationId, clientId, 'crm');
         }
-        const acotarPorCapacidad = query.domain === 'audience' && !query.clientId;
+        const esEmbudoAgencia = (query.domain ?? 'commercial') === 'commercial'
+            && !clientId
+            && allowedClientIds === undefined;
+        const acotarPorCapacidad = !esEmbudoAgencia && !clientId;
         const conCrm = acotarPorCapacidad
             ? await this.capacidades.filtrar(req.organizationId, allowedClientIds, 'crm')
             : allowedClientIds;
@@ -78,7 +82,8 @@ let LeadController = class LeadController {
             search: query.search,
             assignedTo: query.assignedTo,
             domain: query.domain,
-            clientId: query.clientId,
+            clientId,
+            agencyOnly: esEmbudoAgencia,
             allowedClientIds: conCrm,
             onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
         });

@@ -22,6 +22,13 @@ export interface ListLeadsFilters {
   /** Cliente concreto solicitado por quien consulta. */
   clientId?: string;
   /**
+   * Embudo propio de la agencia: solo registros que todavía no pertenecen a una empresa.
+   *
+   * No se representa dejando `clientId` vacío porque, para una consulta administrativa, vacío
+   * significaba históricamente "sin filtro" y terminaba incluyendo también los CRM de clientes.
+   */
+  agencyOnly?: boolean;
+  /**
    * Cuentas que el usuario tiene permitido ver.
    *
    * `undefined` habilita toda la organización. Un arreglo vacío no devuelve resultados,
@@ -117,7 +124,10 @@ export class ListLeadsUseCase {
    *   `EMPTY_SCOPE` cuando la combinación no puede devolver resultados.
    */
   private resolveClientScope(filters: ListLeadsFilters): FindOptionsWhere<Lead>['clientId'] | typeof EMPTY_SCOPE {
-    const { clientId, allowedClientIds } = filters;
+    const { clientId, allowedClientIds, agencyOnly } = filters;
+    // Esta vista solo existe para usuarios sin recorte de cuentas. Una persona acotada nunca
+    // obtiene el embudo de la agencia por omitir `clientId`.
+    if (agencyOnly) return allowedClientIds === undefined ? IsNull() : EMPTY_SCOPE;
     if (allowedClientIds === undefined) return clientId;
     if (allowedClientIds.length === 0) return EMPTY_SCOPE;
     if (clientId) return allowedClientIds.includes(clientId) ? clientId : EMPTY_SCOPE;

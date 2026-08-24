@@ -245,15 +245,14 @@ const PATH_FEATURE: Record<string, string> = {
   '/crm/leads': 'crm',
 
   /*
-    Oportunidades y actividad conservan `commercialPipeline`: son otras entidades, están fuera
-    de la barra y sus controladores ya declaran `@RequiresFeature('commercialPipeline')`.
-    Cambiarlas acá sin tocar el backend las dejaría ofrecidas en el menú y cerradas al abrirlas.
+    Oportunidades conserva `commercialPipeline`: es otra entidad y sigue fuera de la operación
+    inicial. Las interacciones, en cambio, viven dentro de la ficha del lead y responden a CRM.
   */
   '/crm/opportunities': 'commercialPipeline',
   // El tablero muestra las mismas oportunidades, así que responde al mismo módulo: quien no
   // puede ver el pipeline como tabla tampoco debe verlo como tablero.
   '/crm/pipeline': 'commercialPipeline',
-  '/crm/interactions': 'commercialPipeline',
+  '/crm/interactions': 'crm',
   // Debe coincidir con el `@ModuleScope('crm')` del controlador. Declararla sobre
   // `commercialPipeline` mientras el backend guardaba `crm` dejaba la pantalla fuera del menú
   // para dirección de operaciones, que sí tiene `crm` y es quien configura los flujos.

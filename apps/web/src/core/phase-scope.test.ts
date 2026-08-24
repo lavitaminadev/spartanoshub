@@ -95,10 +95,9 @@ describe('navegación bajo el alcance de fase', () => {
     }
   });
 
-  it('reserva oportunidades e interacciones para el futuro pipeline comercial', () => {
-    for (const path of ['/crm/opportunities', '/crm/interactions']) {
-      expect(visible(path), path).toBe(false);
-    }
+  it('reserva oportunidades y mantiene la actividad dentro del CRM operativo', () => {
+    expect(visible('/crm/opportunities')).toBe(false);
+    expect(visible('/crm/interactions')).toBe(true);
   });
 
   /**

@@ -104,7 +104,7 @@ const EMPTY_FORM: ClientFormState = {
 
 const CAPABILITY_OPTIONS: Array<{ key: keyof ClientCapabilities; label: string; description: string }> = [
   { key: 'reservations', label: 'Reservas', description: 'Agenda pública, disponibilidad, bloqueos y asistencia.' },
-  { key: 'crm', label: 'CRM de reservas', description: 'Crea o actualiza el contacto cuando ingresa una reserva.' },
+  { key: 'crm', label: 'CRM', description: 'Contactos, leads, tablero, seguimiento e importación de esta empresa.' },
   { key: 'metaConversions', label: 'Meta Pixel + CAPI', description: 'Envía Schedule y Reserva_Asistida al Pixel de esta empresa.' },
   { key: 'googleConversions', label: 'Google Ads (conversiones)', description: 'Sube la reserva y la asistencia como conversiones offline a Google Ads.' },
 ];
@@ -174,6 +174,13 @@ export function ClientsPage() {
       return { created, pixelWarning };
     },
     onSuccess: ({ created, pixelWarning }) => {
+      // La empresa recién creada queda disponible inmediatamente para crear su usuario o abrir
+      // su CRM. La invalidación posterior reconcilia el resultado con el servidor.
+      queryClient.setQueryData<{ data: ClientRecord[] }>(['clients'], (current) => ({
+        data: current?.data.some((client) => client.id === created.id)
+          ? current.data.map((client) => (client.id === created.id ? created : client))
+          : [...(current?.data ?? []), created],
+      }));
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['meta-client-pixel-catalog'] });
       setFeedback({ tone: pixelWarning ? 'error' : 'success', text: pixelWarning ? `Cliente creado correctamente, pero Meta quedó en alerta: ${pixelWarning}` : 'Cliente creado correctamente.' });

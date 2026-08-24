@@ -29,9 +29,11 @@ let CrmDashboardService = class CrmDashboardService {
         const base = {
             organizationId,
             domain,
-            ...(alcance.clientId
-                ? { clientId: alcance.clientId }
-                : alcance.allowedClientIds === undefined ? {} : { clientIds: alcance.allowedClientIds }),
+            ...(alcance.agencyOnly
+                ? { agencyOnly: true }
+                : alcance.clientId
+                    ? { clientId: alcance.clientId }
+                    : alcance.allowedClientIds === undefined ? {} : { clientIds: alcance.allowedClientIds }),
             ...(alcance.onlyAssignedTo ? { onlyAssignedTo: alcance.onlyAssignedTo } : {}),
         };
         const criterio = (extra = {}) => this.criterio(base, extra);
@@ -111,13 +113,10 @@ let CrmDashboardService = class CrmDashboardService {
         return Math.round(dias.reduce((suma, valor) => suma + valor, 0) / dias.length);
     }
     async conversionPorSetter(base) {
-        const filas = await this.leads.createQueryBuilder('lead')
+        const filas = await this.acotar(this.leads.createQueryBuilder('lead'), base)
             .select('lead.assigned_to', 'assignedTo')
             .addSelect('COUNT(*)', 'leads')
             .addSelect(`SUM(CASE WHEN lead.status = '${lead_status_enum_1.LeadStatus.WON}' THEN 1 ELSE 0 END)`, 'ventas')
-            .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
-            .andWhere('lead.domain = :domain', { domain: base.domain })
-            .andWhere(base.clientId ? 'lead.client_id = :clientId' : '1 = 1', { clientId: base.clientId })
             .andWhere('lead.assigned_to IS NOT NULL')
             .groupBy('lead.assigned_to')
             .getRawMany();
@@ -135,10 +134,12 @@ let CrmDashboardService = class CrmDashboardService {
         return Number(fila?.total ?? 0);
     }
     criterio(base, extra = {}) {
-        const { onlyAssignedTo, clientIds, ...resto } = base;
-        const porColumnas = clientIds === undefined
-            ? resto
-            : { ...resto, clientId: (0, typeorm_2.In)(clientIds.length ? clientIds : ['']) };
+        const { onlyAssignedTo, clientIds, agencyOnly, ...resto } = base;
+        const porColumnas = agencyOnly
+            ? { ...resto, clientId: (0, typeorm_2.IsNull)() }
+            : clientIds === undefined
+                ? resto
+                : { ...resto, clientId: (0, typeorm_2.In)(clientIds.length ? clientIds : ['']) };
         if (!onlyAssignedTo)
             return { ...porColumnas, ...extra };
         return [
@@ -150,7 +151,9 @@ let CrmDashboardService = class CrmDashboardService {
         query
             .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
             .andWhere('lead.domain = :domain', { domain: base.domain });
-        if (base.clientId)
+        if (base.agencyOnly)
+            query.andWhere('lead.client_id IS NULL');
+        else if (base.clientId)
             query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
         const alcanzables = base.clientIds;
         if (alcanzables !== undefined) {

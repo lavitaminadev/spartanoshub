@@ -39,25 +39,43 @@ let CrmHomeController = class CrmHomeController {
     }
     async get(req, coolingDays, domain, clientId) {
         await this.assertPortalCrm(req);
+        const effectiveClientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : clientId;
+        const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const agencyOnly = (domain === undefined || domain === 'commercial')
+            && !effectiveClientId
+            && allowedClientIds === undefined;
         const dias = Math.min(Math.max(Number(coolingDays) || 7, 1), 90);
-        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
-        await this.capacidades.assert(req.organizationId, clientId, 'crm');
+        await this.accountAccess.assertClient(req.organizationId, req.user, effectiveClientId);
+        await this.capacidades.assert(req.organizationId, effectiveClientId, 'crm');
+        const conCrm = !effectiveClientId && !agencyOnly
+            ? await this.capacidades.filtrar(req.organizationId, allowedClientIds, 'crm')
+            : allowedClientIds;
         return this.home.home(req.organizationId, dias, {
             domain: domain === 'audience' ? 'audience' : 'commercial',
-            clientId: clientId || undefined,
-            allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
+            clientId: effectiveClientId || undefined,
+            agencyOnly,
+            allowedClientIds: conCrm,
             onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
         });
     }
     async panel(req, days, domain, clientId) {
         await this.assertPortalCrm(req);
+        const effectiveClientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : clientId;
+        const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const agencyOnly = (domain === undefined || domain === 'commercial')
+            && !effectiveClientId
+            && allowedClientIds === undefined;
         const ventana = Math.min(Math.max(Number(days) || 30, 1), 365);
-        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
-        await this.capacidades.assert(req.organizationId, clientId, 'crm');
+        await this.accountAccess.assertClient(req.organizationId, req.user, effectiveClientId);
+        await this.capacidades.assert(req.organizationId, effectiveClientId, 'crm');
+        const conCrm = !effectiveClientId && !agencyOnly
+            ? await this.capacidades.filtrar(req.organizationId, allowedClientIds, 'crm')
+            : allowedClientIds;
         return this.dashboard.dashboard(req.organizationId, ventana, {
             domain: domain === 'audience' ? 'audience' : 'commercial',
-            clientId: clientId || undefined,
-            allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
+            clientId: effectiveClientId || undefined,
+            agencyOnly,
+            allowedClientIds: conCrm,
             onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
         });
     }

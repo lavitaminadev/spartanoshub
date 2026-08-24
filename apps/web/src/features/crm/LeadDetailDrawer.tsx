@@ -13,7 +13,7 @@
  * no cuál fue lo último.
  */
 
-import { useEffect, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
@@ -166,10 +166,18 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [confirmarAnonimizar, setConfirmarAnonimizar] = useState(false);
   const [actividadAbierta, setActividadAbierta] = useState(false);
   const [actividad, setActividad] = useState({ type: 'call', description: '', date: '' });
+  // Una respuesta tardía del detalle no puede sobrescribir lo que la persona ya empezó a
+  // corregir. Se vuelve a habilitar la sincronización después de un guardado confirmado.
+  const cambiosLocales = useRef(false);
+  const editar = <T,>(setter: (value: T) => void, value: T) => {
+    cambiosLocales.current = true;
+    setter(value);
+  };
 
   // El detalle puede llegar después del primer dibujo con valores que el listado no traía.
   // Sin esto, el monto y el responsable se quedaban en lo que mostraba la tabla.
   useEffect(() => {
+    if (cambiosLocales.current) return;
     setNombre(lead.name);
     setTelefono(lead.phone ?? '');
     setCorreo(lead.email ?? '');
@@ -227,7 +235,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
    * separados producen cuatro entradas en el recorrido para una sola conversación.
    */
   const guardar = useMutation({
-    mutationFn: () => api.put(`/crm/leads/${lead.id}`, {
+    mutationFn: () => api.put<Lead>(`/crm/leads/${lead.id}`, {
       // Un lead entra por una integración o un archivo, y llega con lo que venía escrito. El
       // teléfono con un dígito de más es el único camino para llamar, y hasta ahora no había
       // dónde corregirlo: se editaba en la base o no se editaba.
@@ -251,7 +259,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       // Vacío deja el lead sin cuenta, que es el estado natural de un prospecto de la agencia.
       clientId: empresa || null,
     }),
-    onSuccess: async () => {
+    onSuccess: async (actualizado) => {
+      cambiosLocales.current = false;
+      queryClient.setQueryData(['lead', lead.id], actualizado);
       setAviso({ tone: 'success', text: 'Ficha actualizada.' });
       await refrescar();
     },
@@ -509,7 +519,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           */}
           <label>
             <span>Nombre</span>
-            <input className="input" value={nombre} onChange={(event) => setNombre(event.target.value)} />
+            <input className="input" value={nombre} onChange={(event) => editar(setNombre, event.target.value)} disabled={!scope.puedeEditar} />
           </label>
 
           <label>
@@ -517,7 +527,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <input
               className="input"
               value={telefono}
-              onChange={(event) => setTelefono(event.target.value)}
+              onChange={(event) => editar(setTelefono, event.target.value)}
+              disabled={!scope.puedeEditar}
               placeholder="Sin teléfono"
             />
           </label>
@@ -528,7 +539,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               className="input"
               type="email"
               value={correo}
-              onChange={(event) => setCorreo(event.target.value)}
+              onChange={(event) => editar(setCorreo, event.target.value)}
+              disabled={!scope.puedeEditar}
               placeholder="Sin correo"
             />
           </label>
@@ -542,7 +554,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               cualquier otro estado. Ofreciendo las comerciales, la ficha dejaba elegir algo que
               al guardar respondía 400 y se leía como que la pantalla estaba rota.
             */}
-            <select className="input" value={etapa} onChange={(event) => setEtapa(event.target.value)}>
+            <select className="input" value={etapa} onChange={(event) => editar(setEtapa, event.target.value)} disabled={!scope.puedeEditar}>
               {etapasDelEmbudo.map((stage) => (
                 // «Venta» exige haber convertido el lead en cliente: el servidor lo rechaza si
                 // no, así que se deshabilita en vez de dejar intentarlo y fallar.
@@ -555,7 +567,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
 
           <label>
             <span>Responsable</span>
-            <select className="input" value={responsable} onChange={(event) => setResponsable(event.target.value)}>
+            <select className="input" value={responsable} onChange={(event) => editar(setResponsable, event.target.value)} disabled={!scope.puedeEditar}>
               <option value="">Sin asignar</option>
               {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.name}</option>)}
             </select>
@@ -569,14 +581,15 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               min={0}
               step="1000"
               value={monto}
-              onChange={(event) => setMonto(event.target.value)}
+              onChange={(event) => editar(setMonto, event.target.value)}
+              disabled={!scope.puedeEditar}
               placeholder="Sin estimar"
             />
           </label>
 
           <label>
             <span>Calificación</span>
-            <select className="input" value={calificacion} onChange={(event) => setCalificacion(event.target.value as Lead['fitStatus'])}>
+            <select className="input" value={calificacion} onChange={(event) => editar(setCalificacion, event.target.value as Lead['fitStatus'])} disabled={!scope.puedeEditar}>
               <option value="review">Pendiente</option>
               <option value="qualified">Calificado</option>
               <option value="discarded">Descartado</option>
@@ -588,7 +601,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <input
               className="input"
               value={etiquetas}
-              onChange={(event) => setEtiquetas(event.target.value)}
+              onChange={(event) => editar(setEtiquetas, event.target.value)}
+              disabled={!scope.puedeEditar}
               placeholder="Sin etiquetas"
             />
           </label>
@@ -602,7 +616,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               className="input"
               list="fuentes-conocidas"
               value={fuente}
-              onChange={(event) => setFuente(event.target.value)}
+              onChange={(event) => editar(setFuente, event.target.value)}
+              disabled={!scope.puedeEditar}
               placeholder="Sin origen"
             />
             <datalist id="fuentes-conocidas">
@@ -612,7 +627,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
 
           <label>
             <span>Empresa</span>
-            <select className="input" value={empresa} onChange={(event) => setEmpresa(event.target.value)}>
+            <select className="input" value={empresa} onChange={(event) => editar(setEmpresa, event.target.value)} disabled={!scope.puedeEditar}>
               <option value="">Sin empresa</option>
               {scope.clients.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{cuenta.name}</option>)}
             </select>
@@ -626,7 +641,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               <input
                 className="input"
                 value={motivo}
-                onChange={(event) => setMotivo(event.target.value)}
+                onChange={(event) => editar(setMotivo, event.target.value)}
+                disabled={!scope.puedeEditar}
                 placeholder="Precio, ubicación, no responde..."
               />
             </label>
@@ -639,7 +655,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             className="input"
             rows={3}
             value={nota}
-            onChange={(event) => setNota(event.target.value)}
+            onChange={(event) => editar(setNota, event.target.value)}
+            disabled={!scope.puedeEditar}
             placeholder="Qué se conversó, qué quedó pendiente..."
           />
         </label>
@@ -652,7 +669,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           de la agencia con su nombre como razón social. El servidor ahora lo rechaza; acá se
           esconde, porque ofrecer algo que siempre va a fallar es peor que no ofrecerlo.
         */}
-        {!lead.convertedToClientId && (leadInicial.domain ?? 'commercial') === 'commercial' ? (
+        {scope.puedeEditar && !lead.convertedToClientId && (leadInicial.domain ?? 'commercial') === 'commercial' ? (
           <div className="lead-detail-convertir">
             <button type="button" className="btn btn-outline btn-sm" disabled={convertir.isPending} onClick={() => convertir.mutate()}>
               {convertir.isPending ? 'Convirtiendo...' : 'Convertir en cliente'}
@@ -663,7 +680,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
 
         <section className="lead-detail-historial">
           <h3>Tareas</h3>
-          <div className="lead-detail-tarea-nueva">
+          {scope.puedeEditar ? <div className="lead-detail-tarea-nueva">
             <input
               className="input"
               value={tarea.title}
@@ -686,7 +703,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             >
               {crearTarea.isPending ? 'Añadiendo...' : 'Añadir'}
             </button>
-          </div>
+          </div> : null}
 
           {!tareas?.length ? (
             <p className="lead-detail-vacio">Sin tareas todavía.</p>
@@ -701,7 +718,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
                       <input
                         type="checkbox"
                         checked={cerrada}
-                        disabled={cerrada || completarTarea.isPending}
+                        disabled={!scope.puedeEditar || cerrada || completarTarea.isPending}
                         onChange={() => completarTarea.mutate(pendiente.id)}
                       />
                       <span>{pendiente.title}</span>
@@ -774,7 +791,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
 
         <section className="lead-detail-historial">
           <h3>Bitácora</h3>
-          <ProcessCommentThread basePath={`/crm/leads/${lead.id}`} />
+          <ProcessCommentThread basePath={`/crm/leads/${lead.id}`} canWrite={scope.puedeEditar} />
         </section>
 
         {/*

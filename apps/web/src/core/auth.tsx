@@ -173,6 +173,12 @@ export const useAuth = create<AuthState>((set) => ({
 
   logout: async (): Promise<void> => {
     ++authGeneration;
+    // La salida se refleja primero en pantalla. Esperar a la red dejaba varios segundos el menú
+    // y los datos de la cuenta anterior visibles, invitando a pulsar otra vez o recargar.
+    setApiToken(null);
+    announceAuthChange('logout');
+    set({ user: null, token: null });
+    const cacheCleanup = clearQueryCache();
     try {
       // La cookie HttpOnly debe poder retirarse aunque el access token ya haya vencido. El
       // endpoint de navegador identifica la sesión por esa cookie y siempre la elimina.
@@ -180,14 +186,14 @@ export const useAuth = create<AuthState>((set) => ({
     } catch {
       // La limpieza local igual procede si la sesión ya estaba expirada.
     }
-    setApiToken(null);
-    announceAuthChange('logout');
     // Lo guardado en el dispositivo es de la cuenta que lo generó: se borra acá para que no
     // siga siendo legible por quien use el mismo equipo después.
     // Vacía también la caché activa de React Query; limpiar sólo IndexedDB dejaba
     // datos de la cuenta anterior visibles hasta la siguiente revalidación.
-    void clearQueryCache();
-    set({ user: null, token: null });
+    await cacheCleanup.catch(() => undefined);
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.replace('/login?reason=logout');
+    }
   },
 
   checkAuth: async (): Promise<void> => {

@@ -18,6 +18,23 @@ describe('ListLeadsUseCase · alcance por persona', () => {
     expect(Array.isArray(criterio(repo))).toBe(false);
   });
 
+  it('el embudo de la agencia excluye cualquier lead asociado a una empresa', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, { domain: 'commercial', agencyOnly: true });
+    const donde = criterio(repo) as Record<string, any>;
+    expect(donde.domain).toBe('commercial');
+    expect(donde.clientId?._type).toBe('isNull');
+  });
+
+  it('una persona acotada nunca obtiene el embudo propio de la agencia', async () => {
+    const { uso, repo } = caso();
+    const resultado = await uso.execute('org-1', 20, 0, {
+      domain: 'commercial', agencyOnly: true, allowedClientIds: ['cliente-9'],
+    });
+    expect(resultado.total).toBe(0);
+    expect(repo.findAndCount).not.toHaveBeenCalled();
+  });
+
   it('acotado devuelve lo suyo o lo que no tiene dueño', async () => {
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, { onlyAssignedTo: 'user-7' });

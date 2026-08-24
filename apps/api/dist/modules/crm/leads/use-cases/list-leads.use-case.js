@@ -62,7 +62,9 @@ let ListLeadsUseCase = class ListLeadsUseCase {
         return { data, total, limit, offset };
     }
     resolveClientScope(filters) {
-        const { clientId, allowedClientIds } = filters;
+        const { clientId, allowedClientIds, agencyOnly } = filters;
+        if (agencyOnly)
+            return allowedClientIds === undefined ? (0, typeorm_2.IsNull)() : EMPTY_SCOPE;
         if (allowedClientIds === undefined)
             return clientId;
         if (allowedClientIds.length === 0)

@@ -49,17 +49,26 @@ export class CrmHomeController {
     @Query('clientId') clientId?: string,
   ) {
     await this.assertPortalCrm(req);
+    const effectiveClientId = req.user.role === UserRole.CLIENT ? req.user.clientId : clientId;
+    const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
+    const agencyOnly = (domain === undefined || domain === 'commercial')
+      && !effectiveClientId
+      && allowedClientIds === undefined;
     // El plazo se acota acá y no solo en la pantalla: un valor absurdo llegado por la dirección
     // no debe poder pedir un rango que recorra toda la tabla.
     const dias = Math.min(Math.max(Number(coolingDays) || 7, 1), 90);
     // La empresa se comprueba como en el resto del CRM: llega del navegador y decide de quién
     // son los avisos, así que pedir una ajena no puede devolver los suyos.
-    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    await this.accountAccess.assertClient(req.organizationId!, req.user, effectiveClientId);
     // El inicio del CRM de una empresa que no lo contrató no existe: se dice, no se dibuja vacío.
-    await this.capacidades.assert(req.organizationId!, clientId, 'crm');
+    await this.capacidades.assert(req.organizationId!, effectiveClientId, 'crm');
+    const conCrm = !effectiveClientId && !agencyOnly
+      ? await this.capacidades.filtrar(req.organizationId!, allowedClientIds, 'crm')
+      : allowedClientIds;
     return this.home.home(req.organizationId!, dias, {
       domain: domain === 'audience' ? 'audience' : 'commercial',
-      clientId: clientId || undefined,
+      clientId: effectiveClientId || undefined,
+      agencyOnly,
       /*
        * Sin empresa elegida, la respuesta se acota a las que esta persona alcanza.
        *
@@ -68,7 +77,7 @@ export class CrmHomeController {
        * Desde que el portal del cliente entra al CRM, eso significaba que una empresa veía las
        * cifras y los nombres de las demás sin adivinar nada.
        */
-      allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId!, req.user),
+      allowedClientIds: conCrm,
       // Quien no dirige ve su propio trabajo y lo que está libre, no el embudo del equipo.
       onlyAssignedTo: veSoloLoSuyo(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
     });
@@ -83,18 +92,27 @@ export class CrmHomeController {
     @Query('clientId') clientId?: string,
   ) {
     await this.assertPortalCrm(req);
+    const effectiveClientId = req.user.role === UserRole.CLIENT ? req.user.clientId : clientId;
+    const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
+    const agencyOnly = (domain === undefined || domain === 'commercial')
+      && !effectiveClientId
+      && allowedClientIds === undefined;
     // Entre un día y un año: una ventana mayor recorre toda la tabla para responder algo que
     // nadie compara, y una menor a un día no distingue nada.
     const ventana = Math.min(Math.max(Number(days) || 30, 1), 365);
     // La cuenta se comprueba como en el resto del CRM: llega del navegador y decide de qué
     // empresa son las cifras, así que pedir una ajena no puede devolver sus números.
-    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
-    await this.capacidades.assert(req.organizationId!, clientId, 'crm');
+    await this.accountAccess.assertClient(req.organizationId!, req.user, effectiveClientId);
+    await this.capacidades.assert(req.organizationId!, effectiveClientId, 'crm');
+    const conCrm = !effectiveClientId && !agencyOnly
+      ? await this.capacidades.filtrar(req.organizationId!, allowedClientIds, 'crm')
+      : allowedClientIds;
     return this.dashboard.dashboard(req.organizationId!, ventana, {
       domain: domain === 'audience' ? 'audience' : 'commercial',
-      clientId: clientId || undefined,
+      clientId: effectiveClientId || undefined,
+      agencyOnly,
       // El mismo alcance que el inicio: las dos pantallas responden por lo mismo.
-      allowedClientIds: await this.accountAccess.allowedClientIds(req.organizationId!, req.user),
+      allowedClientIds: conCrm,
       // La misma regla del inicio y del listado: las tres pantallas deben contar lo mismo.
       onlyAssignedTo: veSoloLoSuyo(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
     });

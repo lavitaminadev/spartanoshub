@@ -19,7 +19,7 @@ const interactions_service_1 = require("./interactions.service");
 const create_interaction_dto_1 = require("./dto/create-interaction.dto");
 const update_interaction_dto_1 = require("./dto/update-interaction.dto");
 const list_interactions_dto_1 = require("./dto/list-interactions.dto");
-const requires_feature_decorator_1 = require("../../../core/authorization/requires-feature.decorator");
+const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 let InteractionsController = class InteractionsController {
     constructor(service, accountAccess) {
@@ -105,7 +105,7 @@ __decorate([
 exports.InteractionsController = InteractionsController = __decorate([
     (0, common_1.Controller)('crm/interactions'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, requires_feature_decorator_1.RequiresFeature)('commercialPipeline'),
+    (0, module_scope_decorator_1.ModuleScope)('crm'),
     __metadata("design:paramtypes", [interactions_service_1.InteractionsService,
         account_access_service_1.AccountAccessService])
 ], InteractionsController);

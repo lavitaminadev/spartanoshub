@@ -333,8 +333,10 @@ export function UsersPage() {
           </fieldset>
           <div className="form-row">
             <label htmlFor="user-role">Rol<select id="user-role" className="input" value={clientRequired ? 'client' : form.role} disabled={clientRequired || editing?.id === currentUser?.id} onChange={(event) => setForm({ ...form, role: event.target.value })}>
-              {availableRoles.filter((role) => role !== 'client').map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
-              {!availableRoles.includes(form.role as (typeof USER_ROLES)[number]) && <option value={form.role}>{roleLabel(form.role)}</option>}
+              {clientRequired
+                ? <option value="client">Cliente</option>
+                : availableRoles.filter((role) => role !== 'client').map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
+              {!clientRequired && !availableRoles.includes(form.role as (typeof USER_ROLES)[number]) && <option value={form.role}>{roleLabel(form.role)}</option>}
             </select></label>
             <label htmlFor="user-client">Empresa<select id="user-client" className="input" value={form.clientId} disabled={!clientRequired} required={clientRequired} onChange={(event) => setForm({ ...form, clientId: event.target.value })}>
               <option value="">Selecciona una empresa</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}

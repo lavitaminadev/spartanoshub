@@ -84,6 +84,7 @@ export class CrmHomeService {
     alcance: {
       domain?: 'audience' | 'commercial';
       clientId?: string;
+      agencyOnly?: boolean;
       onlyAssignedTo?: string;
       /**
        * Empresas que quien pregunta puede ver. `undefined` es «sin límite»; un arreglo vacío es
@@ -186,7 +187,8 @@ export class CrmHomeService {
     query
       .where('lead.organization_id = :organizationId', { organizationId: base.organizationId })
       .andWhere('lead.domain = :domain', { domain: base.domain });
-    if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
+    if (base.agencyOnly) query.andWhere('lead.client_id IS NULL');
+    else if (base.clientId) query.andWhere('lead.client_id = :clientId', { clientId: base.clientId });
     // Una lista vacía no se omite: se traduce a una condición que no puede cumplirse.
     const alcanzables = base.clientIds as string[] | undefined;
     if (alcanzables !== undefined) {
@@ -211,8 +213,9 @@ export class CrmHomeService {
    * las demás sin adivinar nada, solo omitiendo un parámetro.
    */
   private alcanceDeCuentas(
-    alcance: { clientId?: string; allowedClientIds?: string[] },
+    alcance: { clientId?: string; allowedClientIds?: string[]; agencyOnly?: boolean },
   ): Record<string, unknown> {
+    if (alcance.agencyOnly) return { agencyOnly: true };
     // Una empresa concreta: el controlador ya comprobó que quien pregunta la alcanza.
     if (alcance.clientId) return { clientId: alcance.clientId };
     // Sin límite de cuentas: administración y direcciones.
@@ -256,7 +259,11 @@ export class CrmHomeService {
    * y la consulta reventara.
    */
   private paraCriterio(where: Record<string, unknown>): Record<string, unknown> {
-    const { clientIds, ...resto } = where as Record<string, unknown> & { clientIds?: string[] };
+    const { clientIds, agencyOnly, ...resto } = where as Record<string, unknown> & {
+      clientIds?: string[];
+      agencyOnly?: boolean;
+    };
+    if (agencyOnly) return { ...resto, clientId: IsNull() };
     if (clientIds === undefined) return resto;
     return { ...resto, clientId: In(clientIds.length ? clientIds : ['']) };
   }
