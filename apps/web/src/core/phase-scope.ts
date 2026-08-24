@@ -2,6 +2,7 @@ import {
   buildDefaultOrganizationModuleLifecycleMap,
   ORGANIZATION_MODULE_CATALOG,
   WEB_ONLY_MODULE_CATALOG,
+  isModuleInInitialOperationScope,
   isModuleLifecycleVisible,
   type ProductModuleKey,
   type ModuleLifecycleStatus,
@@ -54,6 +55,7 @@ export function isModuleInPhaseScope(
 ): boolean {
   if (!PHASE_SCOPE_ENABLED) return true;
   if (!module) return true;
+  if (!isModuleInInitialOperationScope(module, userRole)) return false;
   const lifecycle = (organizationLifecycle?.[module]
     ?? buildDefaultOrganizationModuleLifecycleMap()[module as keyof ReturnType<typeof buildDefaultOrganizationModuleLifecycleMap>]
     ?? MODULE_LIFECYCLE[module as ProductModuleKey]) as ModuleLifecycleStatus | undefined;

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   buildDefaultOrganizationModuleLifecycleMap,
+  isModuleInInitialOperationScope,
   isModuleLifecycleVisible,
   moduleLifecycleSettingKey,
   type ModuleLifecycleStatus,
@@ -108,7 +109,7 @@ export class PermissionResolverService {
     const permissions = Object.fromEntries(
       ORGANIZATION_FEATURE_KEYS.map((module) => [
         module,
-        this.alcanzaElModulo(role, lifecycleMap[module], features[module])
+        this.alcanzaElModulo(role, module, lifecycleMap[module], features[module])
           ? overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? roleLevel(role, module)
           : 'none',
       ]),
@@ -139,7 +140,8 @@ export class PermissionResolverService {
    * corrección, que desarrollo pueda operarla igual es cómo se corrompen los datos que se estaban
    * arreglando.
    */
-  private alcanzaElModulo(role: UserRole, lifecycle: ModuleLifecycleStatus, moduleEnabled: boolean): boolean {
+  private alcanzaElModulo(role: UserRole, module: string, lifecycle: ModuleLifecycleStatus, moduleEnabled: boolean): boolean {
+    if (!isModuleInInitialOperationScope(module, role)) return false;
     if (!moduleEnabled) return false;
     if (isModuleLifecycleVisible(lifecycle)) return true;
     return role === UserRole.DEV && lifecycle === 'development';
@@ -164,7 +166,7 @@ export class PermissionResolverService {
       const moduleDisabled = !features[module];
       // Se usa la misma funcion que decide de verdad: si la pantalla de permisos calculara
       // aparte, mostraria un nivel distinto del que el servidor aplica.
-      const productHidden = !this.alcanzaElModulo(role, lifecycleMap[module], features[module]) && features[module];
+      const productHidden = !this.alcanzaElModulo(role, module, lifecycleMap[module], features[module]) && features[module];
       const base = adjusted ?? roleLevel(role, module);
       return {
         module,

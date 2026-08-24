@@ -10,8 +10,9 @@
  * El frontend lo usa para decidir si un modulo puede mostrarse siquiera.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PRODUCT_VISIBLE_LIFECYCLES = exports.WEB_ONLY_MODULE_CATALOG = exports.AGENCY_CORE_MODULE_KEYS = exports.ORGANIZATION_MODULE_CATALOG = exports.MODULE_LIFECYCLE_LABELS = exports.MODULE_LIFECYCLE_STATUSES = void 0;
+exports.PRODUCT_VISIBLE_LIFECYCLES = exports.INITIAL_OPERATION_MODULES = exports.WEB_ONLY_MODULE_CATALOG = exports.AGENCY_CORE_MODULE_KEYS = exports.ORGANIZATION_MODULE_CATALOG = exports.MODULE_LIFECYCLE_LABELS = exports.MODULE_LIFECYCLE_STATUSES = void 0;
 exports.buildAgencyCoreOrganizationFeatures = buildAgencyCoreOrganizationFeatures;
+exports.isModuleInInitialOperationScope = isModuleInInitialOperationScope;
 exports.isModuleLifecycleVisible = isModuleLifecycleVisible;
 exports.getOrganizationModuleLifecycle = getOrganizationModuleLifecycle;
 exports.isOrganizationModuleVisible = isOrganizationModuleVisible;
@@ -146,6 +147,32 @@ function buildAgencyCoreOrganizationFeatures() {
 exports.WEB_ONLY_MODULE_CATALOG = [
     { key: 'adsInsights', lifecycle: 'active' },
 ];
+/**
+ * Superficie operativa inicial. El código de los demás módulos permanece en
+ * el producto, pero no se entrega a los cargos operativos hasta que Desarrollo
+ * decida liberarlo. Esta puerta no sustituye los permisos: los recorta antes
+ * de que el menú o la API puedan ofrecer una ruta por accidente.
+ */
+exports.INITIAL_OPERATION_MODULES = new Set([
+    'dashboard',
+    'users',
+    'clients',
+    'crm',
+    'reservations',
+    'integrations',
+]);
+/** Desarrollo conserva visibilidad total; los demás parten con CRM/Reservas mínimos. */
+function isModuleInInitialOperationScope(module, role) {
+    if (!module || role === 'dev')
+        return true;
+    if (!exports.INITIAL_OPERATION_MODULES.has(module))
+        return false;
+    // Gestión de empresas, cuentas e integraciones es administrativa, no una
+    // pantalla de ejecución para el equipo.
+    if (['users', 'clients', 'integrations'].includes(module))
+        return role === 'admin';
+    return true;
+}
 exports.PRODUCT_VISIBLE_LIFECYCLES = new Set(['active', 'pilot', 'maintenance']);
 function isModuleLifecycleVisible(lifecycle) {
     return exports.PRODUCT_VISIBLE_LIFECYCLES.has(lifecycle);

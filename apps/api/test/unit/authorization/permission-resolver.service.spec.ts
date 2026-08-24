@@ -106,11 +106,11 @@ describe('PermissionResolverService', () => {
 
   it('la excepción del usuario reemplaza el nivel del cargo', async () => {
     const { resolver } = makeResolver(
-      { reports: true },
-      [{ module: 'reports', level: 'manage' }],
+      { crm: true },
+      [{ module: 'crm', level: 'manage' }],
     );
     const permissions = await resolver.permissionsFor('org-1', 'user-1', UserRole.DESIGNER);
-    expect(permissions.reports).toBe('manage');
+    expect(permissions.crm).toBe('manage');
   });
 
   it('la excepción none deniega lo que el cargo concede', async () => {
@@ -157,12 +157,12 @@ describe('PermissionResolverService', () => {
 
   it('explain distingue lo heredado del cargo de la excepción', async () => {
     const { resolver } = makeResolver(
-      { reports: true, reservations: true, production: false },
-      [{ module: 'reports', level: 'manage' }],
+      { crm: true, reservations: true, production: false },
+      [{ module: 'crm', level: 'manage' }],
     );
     const modules = await resolver.explain('org-1', 'user-1', UserRole.DESIGNER);
     const byModule = new Map(modules.map((item) => [item.module, item]));
-    expect(byModule.get('reports')).toMatchObject({
+    expect(byModule.get('crm')).toMatchObject({
       level: 'manage',
       source: 'override',
       moduleDisabled: false,
@@ -257,12 +257,12 @@ describe('control de liberación', () => {
     expect((await enPausa.permissionsFor('org-1', 'dev-1', UserRole.DEV)).production).toBe('none');
   });
 
-  it('un módulo activo se comporta igual para todos, sin trato especial de desarrollo', async () => {
+  it('un módulo futuro permanece reservado a desarrollo aunque esté activo', async () => {
     const resolver = makeResolverConEstado('production', 'active');
     const dev = await resolver.permissionsFor('org-1', 'dev-1', UserRole.DEV);
     const director = await resolver.permissionsFor('org-1', 'u1', UserRole.ART_DIRECTOR);
     expect(dev.production).not.toBe('none');
-    expect(director.production).not.toBe('none');
+    expect(director.production).toBe('none');
   });
 
   it('la pantalla de permisos muestra lo mismo que aplica el servidor', async () => {
@@ -275,7 +275,7 @@ describe('control de liberación', () => {
   });
 });
 
-describe('Intake se libera aparte de Producción', () => {
+describe('módulos futuros fuera de la operación inicial', () => {
   /** Resolutor con un estado distinto para cada módulo, que es el caso que motivó separarlos. */
   function conEstados(estados: Record<string, string>) {
     const organizations = { findOne: vi.fn().mockResolvedValue({ id: 'org-1', features: { intake: true, production: true } }) };
@@ -294,31 +294,26 @@ describe('Intake se libera aparte de Producción', () => {
     );
   }
 
-  it('Intake activo con Producción en desarrollo: se ve la bandeja y no el tablero', async () => {
-    // Es la razón de existir de la separación: recibir y coordinar solicitudes está listo,
-    // el tablero de piezas con su presupuesto y su XP todavía no.
+  it('Intake activo no se libera al equipo antes de su lanzamiento explícito', async () => {
     const resolver = conEstados({ intake: 'active', production: 'development' });
     const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.OPERATIONS_DIRECTOR);
 
-    expect(permisos.intake).not.toBe('none');
+    expect(permisos.intake).toBe('none');
     expect(permisos.production).toBe('none');
   });
 
-  it('Intake tiene su propio interruptor, independiente del de Producción', async () => {
+  it('Producción activa tampoco se filtra al equipo antes de su lanzamiento', async () => {
     const resolver = conEstados({ intake: 'development', production: 'active' });
     const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.OPERATIONS_DIRECTOR);
 
     expect(permisos.intake).toBe('none');
-    expect(permisos.production).not.toBe('none');
+    expect(permisos.production).toBe('none');
   });
 
-  it('los cargos conservan sobre Intake el nivel que tenían sobre Producción', async () => {
-    // La separación es de liberación, no de autorización: nadie debe ganar ni perder acceso
-    // por haberla hecho.
+  it('desarrollo conserva acceso para validar ambos módulos antes de liberarlos', async () => {
     const resolver = conEstados({ intake: 'active', production: 'active' });
-    for (const role of [UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.DESIGNER]) {
-      const permisos = await resolver.permissionsFor('org-1', `u-${role}`, role);
-      expect(permisos.intake, role).toBe(permisos.production);
-    }
+    const permisos = await resolver.permissionsFor('org-1', 'dev-1', UserRole.DEV);
+    expect(permisos.intake).not.toBe('none');
+    expect(permisos.production).not.toBe('none');
   });
 });

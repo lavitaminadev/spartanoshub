@@ -165,6 +165,31 @@ export const WEB_ONLY_MODULE_CATALOG = [
 export type WebOnlyModuleKey = (typeof WEB_ONLY_MODULE_CATALOG)[number]['key'];
 export type ProductModuleKey = OrganizationModuleKey | WebOnlyModuleKey;
 
+/**
+ * Superficie operativa inicial. El código de los demás módulos permanece en
+ * el producto, pero no se entrega a los cargos operativos hasta que Desarrollo
+ * decida liberarlo. Esta puerta no sustituye los permisos: los recorta antes
+ * de que el menú o la API puedan ofrecer una ruta por accidente.
+ */
+export const INITIAL_OPERATION_MODULES = new Set<string>([
+  'dashboard',
+  'users',
+  'clients',
+  'crm',
+  'reservations',
+  'integrations',
+]);
+
+/** Desarrollo conserva visibilidad total; los demás parten con CRM/Reservas mínimos. */
+export function isModuleInInitialOperationScope(module: string | undefined, role?: string): boolean {
+  if (!module || role === 'dev') return true;
+  if (!INITIAL_OPERATION_MODULES.has(module)) return false;
+  // Gestión de empresas, cuentas e integraciones es administrativa, no una
+  // pantalla de ejecución para el equipo.
+  if (['users', 'clients', 'integrations'].includes(module)) return role === 'admin';
+  return true;
+}
+
 export const PRODUCT_VISIBLE_LIFECYCLES = new Set<ModuleLifecycleStatus>(['active', 'pilot', 'maintenance']);
 
 export function isModuleLifecycleVisible(lifecycle: ModuleLifecycleStatus): boolean {

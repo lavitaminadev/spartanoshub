@@ -8,9 +8,12 @@ import {
 import { getFeatureForPath, isPathEnabled, isRoleAllowedForPath } from './navigation.registry';
 
 describe('alcance de fase', () => {
-  it('deja pasar los módulos del circuito de reservas y conversiones', () => {
-    for (const module of ['reservations', 'crm', 'integrations', 'clients', 'reports']) {
-      expect(isModuleInPhaseScope(module), module).toBe(true);
+  it('deja pasar el circuito mínimo a quien corresponde', () => {
+    for (const module of ['reservations', 'crm']) {
+      expect(isModuleInPhaseScope(module, undefined, 'designer'), module).toBe(true);
+    }
+    for (const module of ['integrations', 'clients', 'users']) {
+      expect(isModuleInPhaseScope(module, undefined, 'admin'), module).toBe(true);
     }
   });
 
@@ -28,17 +31,17 @@ describe('alcance de fase', () => {
    * al alcance de fase», con un ciclo de vida guardado en configuración—; lo que desapareció es que
    * venga impuesto desde el código.
    */
-  it('el catálogo no esconde ningún módulo: la decisión vive en configuración', () => {
+  it('la operación inicial reserva los módulos futuros para desarrollo', () => {
     expect(OUT_OF_SCOPE_MODULES).toEqual({});
     for (const module of ['content', 'billing', 'gamification', 'adsInsights']) {
-      expect(isModuleInPhaseScope(module), module).toBe(true);
+      expect(isModuleInPhaseScope(module, undefined, 'admin'), module).toBe(false);
+      expect(isModuleInPhaseScope(module, undefined, 'dev'), module).toBe(true);
     }
   });
 
-  it('mantiene visible el pipeline comercial por decisión explícita', () => {
-    // El brief lo excluye de lo que hay que *construir*, no de lo que se muestra. Si algún día
-    // se decide ocultarlo, mover la clave y actualizar esta expectativa.
-    expect(isModuleInPhaseScope('commercialPipeline')).toBe(true);
+  it('reserva el pipeline comercial para desarrollo', () => {
+    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'admin')).toBe(false);
+    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'dev')).toBe(true);
   });
 
   it('no clasifica un módulo en las dos listas a la vez', () => {
@@ -46,8 +49,9 @@ describe('alcance de fase', () => {
     expect(duplicated).toEqual([]);
   });
 
-  it('deja visible un módulo desconocido, para que registrar una feature no la esconda', () => {
-    expect(isModuleInPhaseScope('modulo-que-todavia-no-existe')).toBe(true);
+  it('falla cerrado ante un módulo desconocido y no oculta la ruta sin módulo', () => {
+    expect(isModuleInPhaseScope('modulo-que-todavia-no-existe', undefined, 'admin')).toBe(false);
+    expect(isModuleInPhaseScope('modulo-que-todavia-no-existe', undefined, 'dev')).toBe(true);
     expect(isModuleInPhaseScope(undefined)).toBe(true);
   });
 
@@ -59,10 +63,10 @@ describe('alcance de fase', () => {
 });
 
 describe('navegación bajo el alcance de fase', () => {
-  const visible = (path: string) => isPathEnabled(path, undefined, undefined);
+  const visible = (path: string, role = 'admin') => isPathEnabled(path, undefined, undefined, undefined, role);
 
   it('mantiene las rutas del alcance aunque el usuario tenga todos los permisos', () => {
-    for (const path of ['/dashboard', '/reservations', '/crm/contacts', '/clients', '/integrations', '/reports']) {
+    for (const path of ['/dashboard', '/reservations', '/crm/contacts', '/clients', '/integrations']) {
       expect(visible(path), path).toBe(true);
     }
   });
@@ -75,17 +79,17 @@ describe('navegación bajo el alcance de fase', () => {
    * más abajo: `surveys` con su interruptor, y el bloque de Desarrollo con el ciclo de vida
    * guardado en configuración.
    */
-  it('ninguna ruta queda fuera de alcance por el catálogo', () => {
+  it('las rutas futuras quedan fuera de alcance para administración', () => {
     const antesOcultas = ['/content', '/approvals', '/briefs', '/audiovisual',
       '/meetings', '/billing', '/contracts', '/catalog', '/gamification', '/knowledge',
       '/onboarding', '/direction', '/operations', '/documents'];
 
     for (const path of antesOcultas) {
-      expect(visible(path), path).toBe(true);
+      expect(visible(path), path).toBe(false);
     }
   });
 
-  it('deja visibles las rutas del pipeline comercial', () => {
+  it('mantiene las rutas propias del CRM dentro de su módulo', () => {
     for (const path of ['/crm/leads', '/crm/opportunities', '/crm/interactions']) {
       expect(visible(path), path).toBe(true);
     }
@@ -100,14 +104,14 @@ describe('navegación bajo el alcance de fase', () => {
   it('el permiso explícito no alcanza para reabrir una ruta cerrada en configuración', () => {
     expect(isPathEnabled('/content', { content: true }, { content: 'manage' }, { content: 'development' }, 'admin')).toBe(false);
     // Y con el módulo abierto, el permiso vuelve a mandar.
-    expect(isPathEnabled('/content', { content: true }, { content: 'manage' }, { content: 'active' }, 'admin')).toBe(true);
+    expect(isPathEnabled('/content', { content: true }, { content: 'manage' }, { content: 'active' }, 'admin')).toBe(false);
   });
 
-  it('deja visibles la puerta de entrada a producción y su tablero', () => {
+  it('reserva la puerta de entrada a producción y su tablero', () => {
     // Decisión del 2026-08-09: el plan de plataforma pone las solicitudes como primer
     // entregable. Si se vuelve a ocultar, mover la clave y actualizar esta expectativa.
     for (const path of ['/intake', '/production']) {
-      expect(visible(path), path).toBe(true);
+      expect(visible(path), path).toBe(false);
     }
     // `/intake` pasó a su propio módulo: recibir y coordinar solicitudes se libera antes que el
     // tablero de piezas, y mientras compartían clave no se podía liberar lo uno sin lo otro.
@@ -115,15 +119,15 @@ describe('navegación bajo el alcance de fase', () => {
     expect(getFeatureForPath('/production')).toBe('production');
   });
 
-  it('Encuestas depende del interruptor de la organización, no de la fase', () => {
+  it('Encuestas queda reservada aunque el interruptor esté encendido', () => {
     // El módulo dejó de estar en `development` cuando se publicó `SurveysController`. Ahora la
     // ruta la gobierna el interruptor: sin él, la pantalla llamaría a una API que sí existe
     // pero que la organización no contrató.
     expect(getFeatureForPath('/surveys')).toBe('surveys');
     expect(isPathEnabled('/surveys', { surveys: false }, undefined)).toBe(false);
-    expect(isPathEnabled('/surveys', { surveys: true }, undefined)).toBe(true);
+    expect(isPathEnabled('/surveys', { surveys: true }, undefined)).toBe(false);
     expect(isPathEnabled('/surveys', undefined, { surveys: 'none' })).toBe(false);
-    expect(isPathEnabled('/surveys', undefined, { surveys: 'edit' })).toBe(true);
+    expect(isPathEnabled('/surveys', undefined, { surveys: 'edit' })).toBe(false);
   });
 
   it('toda ruta fuera de alcance declara su módulo, sin lo cual no se podría ocultar', () => {
