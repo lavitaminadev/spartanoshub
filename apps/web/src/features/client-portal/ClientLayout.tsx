@@ -5,6 +5,7 @@ import { NavGlyph } from '../../shared/NavGlyph';
 import { BrandMark } from '../../shared/Brand';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { PwaInstallButton } from '../../shared/PwaInstallButton';
+import { AvisoVersionNueva } from '../../shared/AvisoVersionNueva';
 import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
 
 /**
@@ -25,6 +26,7 @@ export function ClientLayout() {
   const [open, setOpen] = useState(false);
   return (
     <div className="app-layout">
+      <AvisoVersionNueva />
       <button className="sidebar-toggle" onClick={() => setOpen(!open)} aria-label="Abrir navegación" aria-expanded={open}>☰</button>
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-header"><BrandMark decorative /><div><h2>Mi cuenta</h2><span>Espartanos</span></div></div>

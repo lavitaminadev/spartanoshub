@@ -39,6 +39,28 @@ export default defineConfig(({ command }) => {
          */
         cleanupOutdatedCaches: true,
         /*
+         * El HTML nunca debe quedar fijado a la versión con que se instaló la PWA.
+         *
+         * El fallback precargado de Workbox responde `index.html` antes de consultar al
+         * servidor. En producción eso dejó una cuenta portal ejecutando un bundle anterior
+         * aunque cPanel ya había desplegado el nuevo. Las rutas SPA ya tienen fallback en
+         * Apache; el service worker consulta primero la red y conserva la última respuesta
+         * únicamente para poder abrir sin conexión.
+         */
+        navigateFallback: null,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'espartanos-navigation',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 20, maxAgeSeconds: 24 * 60 * 60 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
+        /*
          * La API nunca se sirve desde la caché de navegación.
          *
          * `navigateFallback` responde con el index para cualquier ruta que no encuentre, y eso
