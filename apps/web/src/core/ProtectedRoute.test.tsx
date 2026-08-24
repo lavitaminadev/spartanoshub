@@ -27,6 +27,9 @@ function dibujar(path: string, user: User) {
         <Route path="/portal" element={
           <ProtectedRoute path="/portal"><div>Portal</div></ProtectedRoute>
         } />
+        <Route path="/crm" element={
+          <ProtectedRoute path="/crm"><div>CRM cliente</div></ProtectedRoute>
+        } />
       </Routes>
     </MemoryRouter>,
   );
@@ -44,5 +47,17 @@ describe('rutas personales de una cuenta cliente', () => {
   it('envía al primer acceso cuando la cuenta nueva intenta abrir el portal', () => {
     dibujar('/portal', portalNuevo);
     expect(screen.getByText('Primer acceso visible')).toBeTruthy();
+  });
+
+  it('abre el CRM canónico cuando la cuenta cliente ya completó su ingreso', () => {
+    dibujar('/crm', {
+      ...portalNuevo,
+      mustChangePassword: false,
+      mustCompleteProfile: false,
+      mustAcceptTerms: false,
+      features: { crm: true },
+      permissions: { crm: 'view' },
+    });
+    expect(screen.getByText('CRM cliente')).toBeTruthy();
   });
 });

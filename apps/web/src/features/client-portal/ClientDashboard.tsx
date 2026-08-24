@@ -2,33 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { PulsoEspartano } from '../pulse/PulsoEspartano';
 import { PageHero } from '../../shared/PageHero';
-
-const PORTAL_CARDS = [
-  {
-    title: 'Mi parrilla',
-    description: 'Contenido planificado y ventanas.',
-    link: '/portal/grid',
-    action: 'Ver parrilla',
-  },
-  {
-    title: 'Aprobaciones',
-    description: 'Aprueba o rechaza piezas pendientes.',
-    link: '/portal/approvals',
-    action: 'Revisar piezas',
-  },
-  {
-    title: 'Reuniones',
-    description: 'Próximos encuentros y enlaces.',
-    link: '/portal/meetings',
-    action: 'Ver reuniones',
-  },
-  {
-    title: 'Mis informes',
-    description: 'Resultados y métricas de performance.',
-    link: '/portal/reports',
-    action: 'Ver reportes',
-  },
-];
+import { activePortalCards } from './client-portal-scope';
 
 export function ClientDashboard() {
   const { user } = useAuth();
@@ -45,7 +19,7 @@ export function ClientDashboard() {
       <PulsoEspartano compact />
 
       <div className="card-grid">
-        {PORTAL_CARDS.map((card) => (
+        {activePortalCards(user).map((card) => (
           <div key={card.link} className="card portal-home-card">
             <h3>{card.title}</h3>
             <p>{card.description}</p>

@@ -43,7 +43,11 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   // El portal vive bajo `/portal`, salvo estas rutas personales. La comprobación debe ocurrir
   // después de reconocerlas: una cuenta nueva necesita abrir `/first-access`; devolverla al
   // portal desde ahí crea un bucle `/portal` -> `/first-access` -> `/portal` y deja todo blanco.
-  if (user.role === 'client' && path && !path.startsWith('/portal') && !isPersonalRoute) {
+  // El CRM contratado conserva sus rutas canónicas: duplicarlo bajo `/portal/crm` obligaría a
+  // mantener dos árboles de enlaces y terminaría separando la vista del cliente del mismo dato.
+  // La matriz efectiva sigue siendo la puerta: un cliente sin CRM recibe el bloqueo normal.
+  const isClientCrmRoute = path === '/crm' || path?.startsWith('/crm/');
+  if (user.role === 'client' && path && !path.startsWith('/portal') && !isPersonalRoute && !isClientCrmRoute) {
     return <Navigate to="/portal" replace />;
   }
   // El dashboard es la superficie base de cualquier cuenta interna. Si una respuesta
