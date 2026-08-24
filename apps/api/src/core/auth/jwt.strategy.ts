@@ -46,7 +46,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         where: { id: user.clientId, organizationId: user.organizationId },
         select: ['id', 'status'],
       });
-      if (!client || client.status !== ClientStatus.ACTIVE) throw new UnauthorizedException();
+      if (!client || ![ClientStatus.ONBOARDING, ClientStatus.ACTIVE].includes(client.status)) throw new UnauthorizedException();
     }
     // Un cambio/reset de contraseña revoca el refresh token, pero los access tokens
     // ya emitidos siguen funcionando hasta que expiran. Se rechaza cualquier access

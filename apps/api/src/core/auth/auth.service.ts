@@ -160,7 +160,11 @@ export class AuthService {
     return user;
   }
 
-  /** Las cuentas de portal solo operan mientras su empresa tenga servicio activo. */
+  /**
+   * Una cuenta portal puede entrar durante el onboarding para terminar la
+   * puesta en marcha de su empresa. Pausada o terminada no puede conservar
+   * acceso; el formulario público, en cambio, exige `active` estrictamente.
+   */
   private async assertClientPortalIsActive(user: Pick<User, 'role' | 'clientId' | 'organizationId'>): Promise<void> {
     if (user.role !== UserRole.CLIENT) return;
     if (!user.clientId) throw new UnauthorizedException('Credenciales inválidas');
@@ -168,7 +172,7 @@ export class AuthService {
       where: { id: user.clientId, organizationId: user.organizationId },
       select: ['id', 'status'],
     });
-    if (!client || client.status !== ClientStatus.ACTIVE) {
+    if (!client || ![ClientStatus.ONBOARDING, ClientStatus.ACTIVE].includes(client.status)) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
   }
