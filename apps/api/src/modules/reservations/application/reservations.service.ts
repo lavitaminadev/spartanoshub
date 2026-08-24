@@ -221,7 +221,7 @@ export class ReservationsService {
 
   private async clientCapabilities(organizationId: string, clientId: string, queryFn?: (sql: string, params?: unknown[]) => Promise<unknown[]>) {
     const q = queryFn || this.dataSource.query.bind(this.dataSource);
-    const rows = await q('SELECT capabilities FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
+    const rows = await q('SELECT capabilities, status FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
     if (!Array.isArray(rows) || rows.length === 0) throw new ForbiddenException('El cliente no pertenece a esta organización');
     const raw = rows[0]?.capabilities;
     let parsed: unknown;
@@ -238,6 +238,20 @@ export class ReservationsService {
     const base = this.slug(baseValue) || 'reservas'; let candidate = base;
     while (await this.forms.exist({ where: { publicSlug: candidate } })) candidate = `${base}-${randomBytes(3).toString('hex')}`;
     return candidate;
+  }
+
+  /**
+   * El enlace público pertenece a una empresa concreta. Si esa empresa deja de
+   * estar activa, no debe seguir capturando reservas, encuestas ni eventos de
+   * conversión. El equipo interno conserva acceso a su historial: esta puerta
+   * solo se aplica al recorrido público.
+   */
+  private async assertPublicClientIsActive(organizationId: string, clientId: string, queryFn?: (sql: string, params?: unknown[]) => Promise<unknown[]>) {
+    const q = queryFn || this.dataSource.query.bind(this.dataSource);
+    const rows = await q('SELECT status FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
+    if (!Array.isArray(rows) || rows[0]?.status !== 'active') {
+      throw new NotFoundException('Este formulario no está disponible');
+    }
   }
 
   async createForm(organizationId: string, userId: string, dto: CreateReservationFormDto) {
@@ -294,6 +308,7 @@ export class ReservationsService {
     const repo = manager?.getRepository(ReservationForm) || this.forms;
     const qb = repo.createQueryBuilder('form').where('form.public_slug = :slug AND form.status = :status', { slug, status: 'published' }); if (lock) qb.setLock('pessimistic_write');
     const form = await qb.getOne(); if (!form) throw new NotFoundException('Este formulario no está disponible');
+    await this.assertPublicClientIsActive(form.organizationId, form.clientId, manager?.query.bind(manager));
     const capabilities = await this.clientCapabilities(form.organizationId, form.clientId, manager?.query.bind(manager));
     if (!capabilities.reservations) throw new NotFoundException('Este formulario no está disponible');
     // Un formulario publicado con configuracion invalida no debe mostrarle un error de validacion

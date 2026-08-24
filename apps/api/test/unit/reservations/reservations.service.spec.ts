@@ -42,7 +42,7 @@ describe('ReservationsService', () => {
     // mockReset descarta las colas de mockResolvedValueOnce que un test previo haya dejado sin
     // consumir: clearAllMocks solo limpia las llamadas y esas colas se filtran al test siguiente.
     dataSource.query.mockReset();
-    dataSource.query.mockResolvedValue([{ capabilities: { reservations: true, crm: true, metaConversions: false } }]);
+    dataSource.query.mockResolvedValue([{ status: 'active', capabilities: { reservations: true, crm: true, metaConversions: false } }]);
     formQuery.where.mockReturnValue(formQuery); formQuery.setLock.mockReturnValue(formQuery);
     service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, leadIntake as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
   });
@@ -54,6 +54,13 @@ describe('ReservationsService', () => {
     expect(result).not.toHaveProperty('clientId');
     expect(result).not.toHaveProperty('campaignId');
     expect(result.fieldSchema).toEqual([{ id: 'name', type: 'text', label: 'Nombre', required: true }, { id: 'consent', type: 'consent', label: 'Acepto', required: true }]);
+  });
+
+  it('hides a public form when its company is no longer active', async () => {
+    formQuery.getOne.mockResolvedValue(publishedForm());
+    dataSource.query.mockResolvedValue([{ status: 'paused' }]);
+
+    await expect(service.publicForm('evaluacion')).rejects.toThrow('Este formulario no está disponible');
   });
 
   it('creates a unique public slug and checks client ownership', async () => {
@@ -166,6 +173,7 @@ describe('ReservationsService', () => {
     formQuery.getOne.mockResolvedValue(publishedForm());
     formQuery.setLock.mockReturnValue(formQuery);
     dataSource.query
+      .mockResolvedValueOnce([{ status: 'active' }])
       .mockResolvedValueOnce([{ capabilities: { reservations: true, crm: true, metaConversions: false } }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
@@ -226,7 +234,10 @@ describe('ReservationsService', () => {
         { ...publishedForm(), dailyCapacity: 10 },
         [{ startsAt, endsAt: startsAt, partySize: 1 }, { startsAt, endsAt: startsAt, partySize: 1 }],
       );
-      dataSource.query.mockResolvedValue([{ daily_reservation_cap: 2 }]);
+      dataSource.query
+        .mockResolvedValueOnce([{ status: 'active' }])
+        .mockResolvedValueOnce([{ capabilities: { reservations: true, crm: true, metaConversions: false } }])
+        .mockResolvedValueOnce([{ daily_reservation_cap: 2 }]);
 
       const result = await service.slots('evaluacion', day, 1);
 

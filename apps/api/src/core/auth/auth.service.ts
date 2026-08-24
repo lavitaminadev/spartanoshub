@@ -15,6 +15,7 @@ import {
 import { User } from '../../modules/users/user.entity';
 import { Organization } from '../../modules/organizations/organization.entity';
 import { Client } from '../../modules/clients/client.entity';
+import { ClientStatus } from '../../modules/clients/client-status.enum';
 import { normalizeClientCapabilities } from '../../modules/clients/client-capabilities';
 import { OrganizationFeatures, normalizeOrganizationFeatures } from '../../modules/organizations/organization-features';
 import { UserRole } from '../../modules/organizations/user-role.enum';
@@ -155,7 +156,21 @@ export class AuthService {
       await this.userRepo.update(user.id, { failedLoginAttempts: 0, lockedUntil: null });
     }
     await this.userRepo.update(user.id, { lastLoginAt: new Date() });
+    await this.assertClientPortalIsActive(user);
     return user;
+  }
+
+  /** Las cuentas de portal solo operan mientras su empresa tenga servicio activo. */
+  private async assertClientPortalIsActive(user: Pick<User, 'role' | 'clientId' | 'organizationId'>): Promise<void> {
+    if (user.role !== UserRole.CLIENT) return;
+    if (!user.clientId) throw new UnauthorizedException('Credenciales inválidas');
+    const client = await this.clientRepo.findOne({
+      where: { id: user.clientId, organizationId: user.organizationId },
+      select: ['id', 'status'],
+    });
+    if (!client || client.status !== ClientStatus.ACTIVE) {
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
   }
 
   /**
@@ -231,6 +246,7 @@ export class AuthService {
         select: ['id', 'refreshToken', 'email', 'role', 'organizationId', 'clientId'],
       });
       if (!user) throw new UnauthorizedException();
+      await this.assertClientPortalIsActive(user);
 
       const session = await this.sessions.findLive(token);
       if (!session || session.userId !== user.id) {
