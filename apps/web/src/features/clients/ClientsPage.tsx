@@ -158,6 +158,13 @@ export function ClientsPage() {
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const created = await api.post<ClientRecord>('/clients', body);
+      // Un 201 no basta: la siguiente lectura debe encontrar a la empresa creada. De lo
+      // contrario la interfaz cerraba el formulario con un éxito falso y la operación no
+      // tenía forma de continuar con usuarios, servicios ni reservas de esa cuenta.
+      const readback = await api.get<{ data: ClientRecord[] }>('/clients?limit=100');
+      if (!readback.data.some((client) => client.id === created.id)) {
+        throw new Error('La empresa fue aceptada, pero no apareció al verificar el listado. No continúes creando cuentas hasta revisar la persistencia del servidor.');
+      }
       let pixelWarning: string | null = null;
       try {
         await configurePixel(created.id);

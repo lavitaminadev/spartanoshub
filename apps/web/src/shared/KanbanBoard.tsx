@@ -2,7 +2,7 @@ import { useMemo, useState, type JSX, type ReactNode } from 'react';
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners,
   useDroppable, useSensor, useSensors,
-  type DragEndEvent, type DragStartEvent,
+  type DragCancelEvent, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
 
@@ -87,12 +87,17 @@ export function KanbanBoard<T>({
     onMove(item, destino);
   };
 
+  const handleDragCancel = (_event: DragCancelEvent) => {
+    setDragging(null);
+  };
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className="kanban-board">
         {columns.map((column) => {

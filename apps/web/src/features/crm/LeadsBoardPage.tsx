@@ -672,7 +672,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     onChange={alternarTodos}
                   />
                 </th>
-                <th>{termino(scope.esAgencia ? 'prospecto' : 'lead')}</th><th>Contacto</th>
+                <th>{termino(scope.esAgencia ? 'prospecto' : 'lead')}</th><th>Teléfono</th><th>Correo</th>
                 <th>{termino('empresa')}</th><th>Origen</th><th>Etapa</th>
                 <th>Etiqueta</th><th>Calidad</th><th>{termino('responsable')}</th><th>Ingreso</th>
               </tr>
@@ -691,12 +691,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   <td data-label="Prospecto">
                     <button type="button" className="link-button" onClick={() => setAbierto(lead)}>{lead.name}</button>
                   </td>
-                  {/* Teléfono y correo juntos: para contactar se mira una sola celda, y separarlos
-                      en dos columnas obligaba a leer la fila de punta a punta. */}
-                  <td data-label="Contacto">
-                    {lead.phone || '—'}
-                    {lead.email ? <small>{lead.email}</small> : null}
-                  </td>
+                  <td data-label="Teléfono">{lead.phone || '—'}</td>
+                  <td data-label="Correo">{lead.email || '—'}</td>
                   <td data-label="Empresa">{lead.company || '—'}</td>
                   <td data-label="Origen">{lead.campaignName || lead.source || '—'}</td>
                   <td data-label="Etapa">{etapaLabel(lead.status)}</td>
