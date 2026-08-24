@@ -288,6 +288,13 @@ let AuthService = AuthService_1 = class AuthService {
         }
         await this.userRepo.update(userId, { refreshToken: null });
     }
+    async logoutByRefreshToken(refreshToken) {
+        const session = await this.sessions.findLive(refreshToken);
+        if (!session)
+            return;
+        await this.sessions.revoke(session.id, session.userId, sessions_service_1.REVOKE_REASONS.USER);
+        await this.userRepo.update(session.userId, { refreshToken: null });
+    }
     async listSessions(userId, currentSessionId) {
         return this.sessions.listOpen(userId, currentSessionId);
     }

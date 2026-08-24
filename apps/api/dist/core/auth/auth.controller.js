@@ -136,6 +136,16 @@ let AuthController = class AuthController {
         await this.auth.logout(user.id, user.sessionId);
         clearRefreshCookie(response);
     }
+    async browserLogout(request, response) {
+        const token = readRefreshCookie(request);
+        try {
+            if (token)
+                await this.auth.logoutByRefreshToken(token);
+        }
+        finally {
+            clearRefreshCookie(response);
+        }
+    }
     async listSessions(user) {
         return this.auth.listSessions(user.id, user.sessionId);
     }
@@ -242,6 +252,18 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "logout", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('browser-logout'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.NO_CONTENT),
+    (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),
+    (0, swagger_1.ApiOperation)({ summary: 'Cerrar la sesión persistida del navegador' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "browserLogout", null);
 __decorate([
     (0, common_1.Get)('sessions'),
     (0, common_1.UseGuards)(auth_guard_1.JwtAuthGuard),

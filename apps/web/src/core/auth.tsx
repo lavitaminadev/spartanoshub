@@ -174,7 +174,9 @@ export const useAuth = create<AuthState>((set) => ({
   logout: async (): Promise<void> => {
     ++authGeneration;
     try {
-      await api.post('/auth/logout');
+      // La cookie HttpOnly debe poder retirarse aunque el access token ya haya vencido. El
+      // endpoint de navegador identifica la sesión por esa cookie y siempre la elimina.
+      await api.post('/auth/browser-logout');
     } catch {
       // La limpieza local igual procede si la sesión ya estaba expirada.
     }

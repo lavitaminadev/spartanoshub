@@ -9,6 +9,7 @@ const auth = {
   login: vi.fn(),
   refreshToken: vi.fn(),
   logout: vi.fn(),
+  logoutByRefreshToken: vi.fn(),
   me: vi.fn(),
   updateProfile: vi.fn(),
 };
@@ -116,5 +117,27 @@ describe('AuthController browser sessions', () => {
     // Tambien se retira la del nombre anterior: si no, una sesion abierta antes del cambio
     // seguiria presentando una cookie valida despues de cerrar sesion.
     expect(response.clearCookie).toHaveBeenCalledWith('vitahub_refresh', expect.any(Object));
+  });
+
+  it('clears the browser cookie even when there is no valid access token', async () => {
+    await controller.browserLogout(
+      { headers: { cookie: 'espartanos_refresh=refresh-token' } } as Request,
+      response,
+    );
+
+    expect(auth.logoutByRefreshToken).toHaveBeenCalledWith('refresh-token');
+    expect(response.clearCookie).toHaveBeenCalledWith('espartanos_refresh', expect.any(Object));
+    expect(response.clearCookie).toHaveBeenCalledWith('vitahub_refresh', expect.any(Object));
+  });
+
+  it('still clears the cookie when revoking the persisted session fails', async () => {
+    auth.logoutByRefreshToken.mockRejectedValueOnce(new Error('database unavailable'));
+
+    await expect(controller.browserLogout(
+      { headers: { cookie: 'espartanos_refresh=refresh-token' } } as Request,
+      response,
+    )).rejects.toThrow('database unavailable');
+
+    expect(response.clearCookie).toHaveBeenCalledWith('espartanos_refresh', expect.any(Object));
   });
 });
