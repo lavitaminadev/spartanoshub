@@ -1,4 +1,9 @@
 Options -MultiViews
+
+# Chrome exige un MIME de manifiesto válido; con `nosniff`, application/octet-stream
+# impide reconocer la PWA aunque el service worker esté disponible.
+AddType application/manifest+json .webmanifest
+
 RewriteEngine On
 
 # cPanel/Apache: all public traffic must use TLS before the SPA is served.
