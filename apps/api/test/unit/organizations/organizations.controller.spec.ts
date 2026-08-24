@@ -7,7 +7,7 @@ import { UserRole } from '../../../src/modules/organizations/user-role.enum';
 describe('OrganizationsController: módulos esenciales', () => {
   const createOrg = { execute: vi.fn(), executeUpdate: vi.fn() };
   const listOrgs = { execute: vi.fn() };
-  const organizations = { findOne: vi.fn(), update: vi.fn() };
+  const organizations = { findOne: vi.fn(), save: vi.fn() };
   const featureGuard = { invalidate: vi.fn() };
   const permissionResolver = { invalidateOrganization: vi.fn() };
   const audit = { log: vi.fn() };
@@ -29,17 +29,23 @@ describe('OrganizationsController: módulos esenciales', () => {
 
   it('rechaza apagar dashboard: es la ruta de entrada de los cargos internos', async () => {
     await expect(controller.updateFeatures(request, { features: { dashboard: false } })).rejects.toBeInstanceOf(BadRequestException);
-    expect(organizations.update).not.toHaveBeenCalled();
+    expect(organizations.save).not.toHaveBeenCalled();
   });
 
   it('invalida las dos cachés al cambiar un módulo opcional', async () => {
-    organizations.findOne.mockResolvedValue({ id: 'org-1', features: { dashboard: true, reservations: true } });
-    organizations.update.mockResolvedValue(undefined);
+    organizations.findOne
+      .mockResolvedValueOnce({ id: 'org-1', features: { dashboard: true, reservations: true } })
+      .mockResolvedValueOnce({ id: 'org-1', features: { dashboard: true, reservations: false } });
+    organizations.save.mockResolvedValue(undefined);
     audit.log.mockResolvedValue(undefined);
 
     await controller.updateFeatures(request, { features: { reservations: false } });
 
     expect(featureGuard.invalidate).toHaveBeenCalledWith('org-1');
     expect(permissionResolver.invalidateOrganization).toHaveBeenCalledWith('org-1');
+    expect(organizations.save).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'org-1',
+      features: expect.objectContaining({ reservations: false }),
+    }));
   });
 });
