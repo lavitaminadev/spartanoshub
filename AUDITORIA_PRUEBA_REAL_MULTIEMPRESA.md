@@ -35,6 +35,7 @@ Estado: en curso. No se declara apto para producción hasta cerrar esta lista y 
 20. **P1 — PWA instalable no validable.** El service worker está publicado, pero `manifest.webmanifest` responde `application/octet-stream` junto a `nosniff`. El navegador puede rechazar el manifiesto; se debe servir como `application/manifest+json` (o JSON compatible), comprobar instalación en Chrome y repetir cierre de sesión y cambio de cuenta con la PWA instalada.
 21. **P1 — Alcance visual de operación incompleto para Desarrollo.** Aun en la fase CRM/Reservas, Desarrollo ve y abre Automatizaciones, y Reservas enlaza a Encuestas. La API sí bloquea módulos futuros, pero debe definirse el preset definitivo: ocultar/apagar lo no operativo para clientes/equipo y dejar a Desarrollo únicamente las dependencias administrativas indispensables.
 22. **Validado — Flujo público a operación interna de Reservas.** Una reserva sintética recorrió enlace público, disponibilidad, consentimiento, confirmación y apareció una sola vez al buscarla en Reservas internas de la empresa dueña. Agenda y Resultados también cargan sin error bajo Desarrollo. Falta repetir con cuenta portal de Reservas y concurrencia.
+23. **P1 — Inicio visible sin capacidad de funcionar.** Desarrollo abre Inicio, pero el contenido indica que requiere Informes y este módulo está apagado. El preset debe resolverlo de forma coherente: encender su dependencia para Desarrollo o sustituir Inicio por un tablero mínimo que no dependa de un módulo fuera de fase.
 
 ## Arrastrar y soltar a validar
 
