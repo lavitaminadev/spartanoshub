@@ -45,6 +45,21 @@ describe('User management security', () => {
     })).rejects.toThrow(ForbiddenException);
   });
 
+  it('prevents commercial directors from creating or modifying privileged accounts', async () => {
+    const createUseCase = new CreateUserUseCase(usersRepo as never, clientsRepo as never);
+    await expect(createUseCase.execute({
+      organizationId: 'org-1', actorRole: UserRole.COMMERCIAL_DIRECTOR, role: UserRole.ADMIN,
+      name: 'Admin Nuevo', email: 'admin2@empresa.cl', password: 'secure123',
+    })).rejects.toThrow(ForbiddenException);
+
+    const updateUseCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never);
+    usersRepo.findOne.mockResolvedValue({ id: 'director-1', organizationId: 'org-1', role: UserRole.COMMERCIAL_DIRECTOR, isActive: true });
+    await expect(updateUseCase.execute({
+      id: 'director-1', organizationId: 'org-1', actorId: 'commercial-1',
+      actorRole: UserRole.COMMERCIAL_DIRECTOR, isActive: false,
+    })).rejects.toThrow(ForbiddenException);
+  });
+
   it('prevents administrators from disabling their own account', async () => {
     const useCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never);
     usersRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1', role: UserRole.ADMIN, isActive: true });

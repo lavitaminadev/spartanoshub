@@ -65,8 +65,9 @@ let CreateUserUseCase = class CreateUserUseCase {
         const normalizedEmail = data.email.trim().toLowerCase();
         const normalizedName = data.name.trim();
         const normalizedPhone = data.phone?.replace(/[^\d+]/g, '');
-        if (data.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR && [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(normalizedRole)) {
-            throw new common_1.ForbiddenException('Operations directors cannot create administrators or operations directors');
+        if ([user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(data.actorRole)
+            && [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(normalizedRole)) {
+            throw new common_1.ForbiddenException('Este cargo no puede crear cuentas de administración, desarrollo o dirección');
         }
         if (normalizedRole === user_role_enum_1.UserRole.DEV) {
             if (data.actorRole !== user_role_enum_1.UserRole.ADMIN)

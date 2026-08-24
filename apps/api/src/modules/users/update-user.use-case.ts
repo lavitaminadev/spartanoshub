@@ -34,11 +34,12 @@ export class UpdateUserUseCase {
     const user = await this.usersRepo.findOne({ where: { id: data.id, organizationId: data.organizationId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
-    if (data.actorRole === UserRole.OPERATIONS_DIRECTOR) {
-      if ([UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR].includes(user.role)) {
+    if ([UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR].includes(data.actorRole)) {
+      const protectedRoles = [UserRole.ADMIN, UserRole.DEV, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR];
+      if (protectedRoles.includes(user.role)) {
         throw new ForbiddenException('No puedes administrar esta cuenta');
       }
-      if (data.role && [UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR].includes(data.role)) {
+      if (data.role && protectedRoles.includes(data.role)) {
         throw new ForbiddenException('No puedes asignar este nivel de acceso');
       }
     }

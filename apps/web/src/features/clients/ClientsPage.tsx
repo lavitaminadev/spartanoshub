@@ -122,6 +122,7 @@ export function ClientsPage() {
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
   const [pendingBulkStatus, setPendingBulkStatus] = useState<{ rows: ClientRecord[]; status: 'active' | 'paused' } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ClientRecord | null>(null);
   const [bulkStatusPending, setBulkStatusPending] = useState(false);
   const queryClient = useQueryClient();
 
@@ -196,6 +197,16 @@ export function ClientsPage() {
       setForm(EMPTY_FORM);
     },
     onError: (mutationError: Error) => setFeedback({ tone: 'error', text: mutationError.message }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/clients/${id}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['clients'] });
+      setFeedback({ tone: 'success', text: 'Empresa eliminada correctamente.' });
+      setPendingDelete(null);
+    },
+    onError: (deleteError: Error) => setFeedback({ tone: 'error', text: deleteError.message }),
   });
 
   const updateMutation = useMutation({
@@ -377,6 +388,7 @@ export function ClientsPage() {
               <div className="actions-cell">
                 <Link className="btn btn-primary btn-sm" to={`/clients/${row.id}`}>Ver ficha 360</Link>
                 {canManage && <button type="button" className="btn btn-outline btn-sm" onClick={() => openEdit(row)}>Editar</button>}
+                {canManage && <button type="button" className="btn btn-danger btn-sm" onClick={() => setPendingDelete(row)}>Eliminar</button>}
               </div>
             ),
           },
@@ -539,6 +551,15 @@ export function ClientsPage() {
         pending={bulkStatusPending}
         onClose={() => setPendingBulkStatus(null)}
         onConfirm={() => void confirmBulkStatus()}
+      />
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Eliminar empresa"
+        description={pendingDelete ? `Se eliminará "${pendingDelete.name}" sólo si no tiene cuentas, CRM, reservas u otros datos asociados. Si ya operó, debes desactivarla.` : ''}
+        confirmLabel="Eliminar empresa"
+        pending={deleteMutation.isPending}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => { if (pendingDelete) deleteMutation.mutate(pendingDelete.id); }}
       />
     </div>
   );

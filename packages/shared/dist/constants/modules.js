@@ -167,10 +167,11 @@ function isModuleInInitialOperationScope(module, role) {
         return true;
     if (!exports.INITIAL_OPERATION_MODULES.has(module))
         return false;
-    // Gestión de empresas, cuentas e integraciones es administrativa, no una
-    // pantalla de ejecución para el equipo.
-    if (['users', 'clients', 'integrations'].includes(module))
-        return role === 'admin';
+    // Administración conserva el control general. Dirección comercial opera el alta de empresas,
+    // sus cuentas y conexiones, sin que eso abra ninguno de los módulos futuros.
+    if (['users', 'clients', 'integrations'].includes(module)) {
+        return role === 'admin' || role === 'commercial_director';
+    }
     return true;
 }
 exports.PRODUCT_VISIBLE_LIFECYCLES = new Set(['active', 'pilot', 'maintenance']);

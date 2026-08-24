@@ -23,6 +23,7 @@ const REPARTO_NO_APLICADO = {
     [user_role_enum_1.UserRole.DEV]: Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage'])),
     [user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR]: {
         ...TEAM_BASELINE,
+        users: 'manage',
         clients: 'manage',
         crm: 'manage',
         commercialPipeline: 'manage',

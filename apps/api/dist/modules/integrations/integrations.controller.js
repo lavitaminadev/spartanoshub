@@ -49,7 +49,7 @@ let IntegrationsController = class IntegrationsController {
 exports.IntegrationsController = IntegrationsController;
 __decorate([
     (0, common_1.Post)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Crear una nueva integración' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -59,7 +59,7 @@ __decorate([
 ], IntegrationsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Listar integraciones' }),
     __param(0, (0, common_1.Query)('provider')),
     __param(1, (0, common_1.Req)()),
@@ -69,7 +69,7 @@ __decorate([
 ], IntegrationsController.prototype, "list", null);
 __decorate([
     (0, common_1.Put)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar estado de una integración' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -80,7 +80,7 @@ __decorate([
 ], IntegrationsController.prototype, "update", null);
 __decorate([
     (0, common_1.Put)('accounts/:accountId/client'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Asignar un activo externo a un cliente' }),
     __param(0, (0, common_1.Param)('accountId')),
     __param(1, (0, common_1.Body)()),

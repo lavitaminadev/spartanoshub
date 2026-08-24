@@ -62,11 +62,12 @@ let UpdateUserUseCase = class UpdateUserUseCase {
         const user = await this.usersRepo.findOne({ where: { id: data.id, organizationId: data.organizationId } });
         if (!user)
             throw new common_1.NotFoundException('Usuario no encontrado');
-        if (data.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR) {
-            if ([user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(user.role)) {
+        if ([user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(data.actorRole)) {
+            const protectedRoles = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR];
+            if (protectedRoles.includes(user.role)) {
                 throw new common_1.ForbiddenException('No puedes administrar esta cuenta');
             }
-            if (data.role && [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(data.role)) {
+            if (data.role && protectedRoles.includes(data.role)) {
                 throw new common_1.ForbiddenException('No puedes asignar este nivel de acceso');
             }
         }

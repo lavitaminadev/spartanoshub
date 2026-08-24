@@ -17,6 +17,7 @@ import { AccountAccessService } from '../../core/client-scope/account-access.ser
 import { ClientOverviewService } from './client-overview.service';
 import { PaginationDto } from '../../shared/dto/pagination.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { RequiresRecentAuth } from '../../core/auth/requires-recent-auth.decorator';
 
 @ApiTags('Clientes')
 @Controller('clients')
@@ -103,11 +104,16 @@ export class ClientsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
+  @RequiresRecentAuth('eliminar una empresa')
   @ApiOperation({ summary: 'Eliminar un cliente' })
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const client = await this.repo.findOne({ where: { id, organizationId: req.organizationId } });
     if (!client) throw new NotFoundException('Client not found');
-    return this.repo.remove(client);
+    try {
+      return await this.repo.remove(client);
+    } catch {
+      throw new BadRequestException('La empresa tiene datos asociados. Desactívala para conservar CRM, reservas y trazabilidad.');
+    }
   }
 }
