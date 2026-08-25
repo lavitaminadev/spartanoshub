@@ -71,6 +71,7 @@ export class LeadIngestService {
         name: dto.nombre,
         phone: dto.telefono,
         email: dto.email,
+        company: dto.empresa,
         source: source.source,
         /*
           La campaña de la llave manda sobre la del cuerpo.
@@ -95,7 +96,9 @@ export class LeadIngestService {
         pageId: dto.paginaId,
         // El anuncio no tiene columna propia y sí la tiene el detalle de Meta: se guarda donde
         // el camino directo ya lo guarda, y no se inventa una columna para un solo dato.
-        metadata: dto.anuncioId ? { adId: dto.anuncioId } : undefined,
+        metadata: dto.anuncioId || dto.metadata
+          ? { ...(dto.metadata ?? {}), ...(dto.anuncioId ? { adId: dto.anuncioId } : {}) }
+          : undefined,
       });
 
       // El contador y la fecha se actualizan aparte del lead: si esto fallara, el lead ya está

@@ -52,6 +52,20 @@ describe('entrada de leads por integración', () => {
     }));
   });
 
+  it('conserva empresa y contexto permitido de Make', async () => {
+    const { service, intake } = crear();
+    await service.ingest(LLAVE, {
+      ...LEAD,
+      empresa: 'Franquicias Club',
+      anuncioId: 'ad-1',
+      metadata: { pageName: 'Franquicias GRDS', answers: [{ question: 'Región', answer: 'Coquimbo' }] },
+    });
+    expect(intake.captureLead).toHaveBeenCalledWith(expect.objectContaining({
+      company: 'Franquicias Club',
+      metadata: expect.objectContaining({ adId: 'ad-1', pageName: 'Franquicias GRDS' }),
+    }));
+  });
+
   /** Quien llama no elige su fuente: si pudiera, el costo por lead dejaría de ser confiable. */
   it('ignora una fuente enviada en el cuerpo', async () => {
     const { service, intake } = crear();

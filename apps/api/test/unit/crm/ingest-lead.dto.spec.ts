@@ -114,3 +114,49 @@ describe('Entrada de leads · atribución del anuncio', () => {
     expect(dto.formId).toBeUndefined();
   });
 });
+
+describe('Entrada de leads · archivo real de Make', () => {
+  it('acepta lead_id, empresa, atribución y preguntas sin copiar las columnas de respuesta', () => {
+    const { dto, errores } = recibir({
+      lead_id: '1779446166725792',
+      created_time: '2026-08-25T03:04:46.000Z',
+      full_name: 'Majito', phone_number: '56930184241', email: 'MAJITO@EXAMPLE.CL',
+      company_name: 'Franquicias Club', campaign_name: 'GRDS - GENERAL-2026 / COMUNAS',
+      page_id: '463865946806267', page_name: 'Franquicias GRDS', form_id: '120239539053020756',
+      form_name: 'GRDS Agosto', adset_id: '120243882165450756', adset_name: 'Comunas',
+      ad_id: '120249719180550756', ad_name: 'Franquicias mayo', platform: 'ig', is_organic: 'FALSE',
+      pregunta_1: '¿Experiencia previa?', respuesta_1: 'He invertido',
+      make_scenario: 'Leads Facebook a Sheets y API', api_ok: 'true', api_lead_id: 'respuesta-vieja',
+      raw_lead_json: '{"email":"no-duplicar@example.cl"}',
+    });
+
+    expect(errores).toEqual([]);
+    expect(dto.idExterno).toBe('1779446166725792');
+    expect(dto.empresa).toBe('Franquicias Club');
+    expect(dto.email).toBe('majito@example.cl');
+    expect(dto.metadata).toMatchObject({
+      pageName: 'Franquicias GRDS', formName: 'GRDS Agosto', adsetName: 'Comunas',
+      platform: 'ig', makeScenario: 'Leads Facebook a Sheets y API',
+      answers: [{ question: '¿Experiencia previa?', answer: 'He invertido' }],
+    });
+    expect(dto.metadata).not.toHaveProperty('api_ok');
+    expect(dto.metadata).not.toHaveProperty('raw_lead_json');
+  });
+
+  it('compone el nombre cuando Make solo trae first_name y last_name', () => {
+    const { dto, errores } = recibir({ first_name: 'Fabiola', last_name: 'Altamirano', work_email: 'fabiola@example.cl' });
+    expect(errores).toEqual([]);
+    expect(dto.nombre).toBe('Fabiola Altamirano');
+    expect(dto.email).toBe('fabiola@example.cl');
+  });
+
+  it('tolera custom_fields_json como secuencia de objetos sin corchetes', () => {
+    const { dto } = recibir({
+      full_name: 'Melany', email: 'melany@example.cl',
+      custom_fields_json: '{"name":"región","value":"metropolitana"}, {"name":"inversión","value":"80MM"}',
+    });
+    expect(dto.metadata).toMatchObject({ customFields: [
+      { name: 'región', value: 'metropolitana' }, { name: 'inversión', value: '80MM' },
+    ] });
+  });
+});
