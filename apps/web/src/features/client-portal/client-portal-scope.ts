@@ -35,7 +35,9 @@ export const PORTAL_CARDS = [
 ];
 
 export function isClientNavItemVisible(item: ClientPortalEntry, user: User | null): boolean {
-  if (item.capability && user?.capabilities?.[item.capability] === false) return false;
+  // En el portal la ausencia no significa «sí». Una sesión antigua, incompleta o una empresa
+  // sin el servicio explícitamente activo debe fallar cerrada y no anunciar algo no contratado.
+  if (item.capability && user?.capabilities?.[item.capability] !== true) return false;
   if (!item.module) return true;
   if (!isModuleInPhaseScope(item.module, user?.moduleLifecycle, user?.role)) return false;
   if (user?.features?.[item.module] === false) return false;
@@ -44,8 +46,15 @@ export function isClientNavItemVisible(item: ClientPortalEntry, user: User | nul
 
 export function activePortalCards(user: User | null) {
   return PORTAL_CARDS.filter((card) => (
-    user?.capabilities?.[card.capability] !== false
+    user?.capabilities?.[card.capability] === true
     && user?.features?.[card.module] !== false
     && (user?.permissions?.[card.module] ?? 'none') !== 'none'
   ));
+}
+
+/** El pulso pertenece a Reportes; no se consulta ni se anuncia mientras ese módulo no exista para el portal. */
+export function isPortalPulseVisible(user: User | null): boolean {
+  return isModuleInPhaseScope('reports', user?.moduleLifecycle, user?.role)
+    && user?.features?.reports === true
+    && (user?.permissions?.reports ?? 'none') !== 'none';
 }

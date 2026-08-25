@@ -57,7 +57,22 @@ describe('rutas personales de una cuenta cliente', () => {
       mustAcceptTerms: false,
       features: { crm: true },
       permissions: { crm: 'view' },
+      capabilities: { crm: true, reservations: false },
     });
     expect(screen.getByText('CRM cliente')).toBeTruthy();
+  });
+
+  it('bloquea el CRM por URL directa cuando la empresa no lo contrató', () => {
+    dibujar('/crm', {
+      ...portalNuevo,
+      mustChangePassword: false,
+      mustCompleteProfile: false,
+      mustAcceptTerms: false,
+      features: { crm: true },
+      permissions: { crm: 'view' },
+      capabilities: { crm: false, reservations: true },
+    });
+    expect(screen.getByText('No tienes acceso a esta sección')).toBeTruthy();
+    expect(screen.queryByText('CRM cliente')).toBeNull();
   });
 });

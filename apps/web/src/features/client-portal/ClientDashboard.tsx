@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { PulsoEspartano } from '../pulse/PulsoEspartano';
 import { PageHero } from '../../shared/PageHero';
-import { activePortalCards } from './client-portal-scope';
+import { activePortalCards, isPortalPulseVisible } from './client-portal-scope';
 
 export function ClientDashboard() {
   const { user } = useAuth();
@@ -16,7 +16,7 @@ export function ClientDashboard() {
         subtitle="Tu panel de avances y decisiones."
         footer={<div className="portal-pulse"><span><i className="online-dot" />Cuenta activa</span><span>Actualizado hoy</span></div>}
       />
-      <PulsoEspartano compact />
+      {isPortalPulseVisible(user) ? <PulsoEspartano compact /> : null}
 
       <div className="card-grid">
         {activePortalCards(user).map((card) => (
