@@ -106,6 +106,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
             sourceCreatedAt: match.lead?.sourceCreatedAt ?? normalized.sourceCreatedAt ?? null,
             qualityScore: qualification.qualityScore,
             fitStatus: qualification.fitStatus,
+            trafficLight: normalized.trafficLight ?? match.lead?.trafficLight ?? null,
             discardReason: qualification.discardReason,
             retentionReviewAt: normalized.retentionReviewAt ?? retentionReviewAt,
             metadata: {
@@ -287,7 +288,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         if (lowQualityHits.length > 0) {
             return {
                 qualityScore: Math.max(qualityScore - 30, 0),
-                fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
+                fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
                 discardReason: anotadoAMano ? undefined : `Se detectaron señales de bajo encaje: ${lowQualityHits.slice(0, 3).join(', ')}`,
                 scoringSignals: [...signals, `low_quality:${lowQualityHits.slice(0, 3).join(',')}`],
             };
@@ -295,7 +296,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         if (!input.email && !input.phone) {
             return {
                 qualityScore,
-                fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
+                fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
                 discardReason: anotadoAMano ? undefined : 'No dejó email ni teléfono para contacto comercial.',
                 scoringSignals: [...signals, 'missing_contact_channel'],
             };
@@ -308,7 +309,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         }
         return {
             qualityScore,
-            fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.DISCARDED,
+            fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
             discardReason: anotadoAMano ? undefined : 'Puntaje insuficiente para priorización comercial.',
             scoringSignals: [...signals, 'low_score'],
         };

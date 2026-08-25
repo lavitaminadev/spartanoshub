@@ -56,18 +56,31 @@ const crypto_1 = require("crypto");
 const shared_1 = require("@espartanos/shared");
 const user_entity_1 = require("../../modules/users/user.entity");
 const organization_entity_1 = require("../../modules/organizations/organization.entity");
+const client_entity_1 = require("../../modules/clients/client.entity");
+const client_status_enum_1 = require("../../modules/clients/client-status.enum");
+const client_capabilities_1 = require("../../modules/clients/client-capabilities");
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const config_1 = require("../../config");
 const password_reset_token_entity_1 = require("./password-reset-token.entity");
 const email_service_1 = require("../notifications/email.service");
 const consent_entity_1 = require("../data-protection/consent.entity");
+const consent_version_entity_1 = require("../data-protection/consent-version.entity");
 const onboarding_dto_1 = require("./dto/onboarding.dto");
 const parameter_resolver_service_1 = require("../parameters/parameter-resolver.service");
 const sessions_service_1 = require("./sessions.service");
 const REFRESH_TOKEN_EXPIRES_IN = config_1.config.jwt.refreshExpiresIn;
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 5;
+const MINIMUM_PRIVACY_NOTICE = [
+    'La plataforma trata los datos de identificación, contacto, acceso y actividad necesarios para crear y proteger la cuenta, prestar las funciones contratadas, atender solicitudes y mantener trazabilidad de seguridad.',
+    '',
+    'Los datos se limitan a lo necesario, se conservan mientras sean requeridos para esas finalidades o por obligaciones aplicables y pueden ser tratados por proveedores tecnológicos sujetos a instrucciones de servicio y confidencialidad.',
+    '',
+    'La información de cada empresa y sus usuarios se mantiene separada según sus permisos. No se autoriza por este acto el envío de publicidad ni el uso de datos para finalidades ajenas al servicio.',
+    '',
+    'La persona puede solicitar acceso, rectificación, eliminación, bloqueo u oposición cuando corresponda, mediante el canal de soporte o privacidad habilitado en la plataforma.',
+].join('\n');
 const ABSENT_USER_HASH = '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
 function toSharedRole(role) {
     return role;
@@ -83,15 +96,38 @@ function refreshLifetimeMs() {
     return Number(match[1]) * units[match[2]];
 }
 let AuthService = AuthService_1 = class AuthService {
-    constructor(userRepo, orgRepo, resetRepo, emailService, jwtService, parameters, sessions) {
+    constructor(userRepo, orgRepo, clientRepo, resetRepo, consentVersionRepo, emailService, jwtService, parameters, sessions) {
         this.userRepo = userRepo;
         this.orgRepo = orgRepo;
+        this.clientRepo = clientRepo;
         this.resetRepo = resetRepo;
+        this.consentVersionRepo = consentVersionRepo;
         this.emailService = emailService;
         this.jwtService = jwtService;
         this.parameters = parameters;
         this.sessions = sessions;
         this.logger = new common_1.Logger(AuthService_1.name);
+    }
+    async currentTerms(userId) {
+        const user = await this.userRepo.findOne({
+            where: { id: userId, isActive: true },
+            select: ['id', 'organizationId'],
+        });
+        if (!user)
+            throw new common_1.BadRequestException('Usuario no disponible');
+        const configuredVersion = String(await this.parameters.get('compliance.terms_version', null, null, user.organizationId)
+            ?? onboarding_dto_1.TERMS_VERSION);
+        const numericVersion = /^v(\d+)$/.exec(configuredVersion)?.[1];
+        const published = numericVersion
+            ? await this.consentVersionRepo.findOne({
+                where: { organizationId: user.organizationId, version: Number(numericVersion), active: true },
+            })
+            : null;
+        return {
+            version: configuredVersion,
+            title: published?.title ?? 'Aviso de privacidad y uso de la plataforma',
+            text: published?.text ?? MINIMUM_PRIVACY_NOTICE,
+        };
     }
     async validateUser(email, password) {
         const normalizedEmail = email.trim().toLowerCase();
@@ -116,7 +152,21 @@ let AuthService = AuthService_1 = class AuthService {
             await this.userRepo.update(user.id, { failedLoginAttempts: 0, lockedUntil: null });
         }
         await this.userRepo.update(user.id, { lastLoginAt: new Date() });
+        await this.assertClientPortalIsActive(user);
         return user;
+    }
+    async assertClientPortalIsActive(user) {
+        if (user.role !== user_role_enum_1.UserRole.CLIENT)
+            return;
+        if (!user.clientId)
+            throw new common_1.UnauthorizedException('Credenciales inválidas');
+        const client = await this.clientRepo.findOne({
+            where: { id: user.clientId, organizationId: user.organizationId },
+            select: ['id', 'status'],
+        });
+        if (!client || ![client_status_enum_1.ClientStatus.ONBOARDING, client_status_enum_1.ClientStatus.ACTIVE].includes(client.status)) {
+            throw new common_1.UnauthorizedException('Credenciales inválidas');
+        }
     }
     async registerFailedAttempt(user) {
         const attempts = (user.failedLoginAttempts ?? 0) + 1;
@@ -166,6 +216,7 @@ let AuthService = AuthService_1 = class AuthService {
             });
             if (!user)
                 throw new common_1.UnauthorizedException();
+            await this.assertClientPortalIsActive(user);
             const session = await this.sessions.findLive(token);
             if (!session || session.userId !== user.id) {
                 const legacyHash = hashRefreshToken(token);
@@ -269,6 +320,13 @@ let AuthService = AuthService_1 = class AuthService {
         }
         await this.userRepo.update(userId, { refreshToken: null });
     }
+    async logoutByRefreshToken(refreshToken) {
+        const session = await this.sessions.findLive(refreshToken);
+        if (!session)
+            return;
+        await this.sessions.revoke(session.id, session.userId, sessions_service_1.REVOKE_REASONS.USER);
+        await this.userRepo.update(session.userId, { refreshToken: null });
+    }
     async listSessions(userId, currentSessionId) {
         return this.sessions.listOpen(userId, currentSessionId);
     }
@@ -293,10 +351,14 @@ let AuthService = AuthService_1 = class AuthService {
         if (!user)
             return null;
         const organization = await this.orgRepo.findOne({ where: { id: user.organizationId }, select: ['id', 'features'] });
+        const client = user.clientId
+            ? await this.clientRepo.findOne({ where: { id: user.clientId, organizationId: user.organizationId }, select: ['id', 'capabilities'] })
+            : null;
         return Object.assign(user, {
             features: (0, organization_features_1.normalizeOrganizationFeatures)(organization?.features),
             moduleLifecycle: await this.organizationModuleLifecycle(user.organizationId),
             mustAcceptTerms: await this.termsPending(user),
+            capabilities: client ? (0, client_capabilities_1.normalizeClientCapabilities)(client.capabilities) : undefined,
         });
     }
     async organizationModuleLifecycle(organizationId) {
@@ -481,8 +543,12 @@ exports.AuthService = AuthService = AuthService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(1, (0, typeorm_1.InjectRepository)(organization_entity_1.Organization)),
-    __param(2, (0, typeorm_1.InjectRepository)(password_reset_token_entity_1.PasswordResetToken)),
+    __param(2, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
+    __param(3, (0, typeorm_1.InjectRepository)(password_reset_token_entity_1.PasswordResetToken)),
+    __param(4, (0, typeorm_1.InjectRepository)(consent_version_entity_1.ConsentVersion)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,

@@ -37,7 +37,25 @@ let InteractionsService = class InteractionsService {
         });
         return this.repo.save(interaction);
     }
-    async findAll(organizationId, limit = 50, offset = 0, leadId) {
+    async findAll(organizationId, limit = 50, offset = 0, leadId, allowedClientIds, clientId) {
+        if (allowedClientIds !== undefined || clientId) {
+            if (allowedClientIds !== undefined && allowedClientIds.length === 0)
+                return { data: [], total: 0, limit, offset };
+            const query = this.repo.createQueryBuilder('interaction')
+                .leftJoin(lead_entity_1.Lead, 'lead', 'lead.id = interaction.lead_id AND lead.organization_id = interaction.organization_id')
+                .leftJoin(contact_entity_1.Contact, 'contact', 'contact.id = interaction.contact_id AND contact.organization_id = interaction.organization_id')
+                .where('interaction.organization_id = :organizationId', { organizationId });
+            if (clientId) {
+                query.andWhere('(lead.client_id = :clientId OR contact.client_id = :clientId)', { clientId });
+            }
+            else if (allowedClientIds !== undefined) {
+                query.andWhere('(lead.client_id IN (:...allowedClientIds) OR contact.client_id IN (:...allowedClientIds))', { allowedClientIds });
+            }
+            if (leadId)
+                query.andWhere('interaction.lead_id = :leadId', { leadId });
+            const [data, total] = await query.orderBy('interaction.date', 'DESC').skip(offset).take(limit).getManyAndCount();
+            return { data, total, limit, offset };
+        }
         const where = { organizationId };
         if (leadId)
             where.leadId = leadId;
@@ -70,6 +88,27 @@ let InteractionsService = class InteractionsService {
     async remove(id, organizationId) {
         const interaction = await this.findOne(id, organizationId);
         return this.repo.remove(interaction);
+    }
+    async referenceClientId(dto, organizationId) {
+        const [lead, contact] = await Promise.all([
+            dto.leadId
+                ? this.leads.findOne({ where: { id: dto.leadId, organizationId }, select: { id: true, clientId: true } })
+                : null,
+            dto.contactId
+                ? this.contacts.findOne({ where: { id: dto.contactId, organizationId }, select: { id: true, clientId: true, leadId: true } })
+                : null,
+        ]);
+        if (dto.leadId && !lead)
+            throw new common_1.NotFoundException('Interaction not found');
+        if (dto.contactId && !contact)
+            throw new common_1.NotFoundException('Interaction not found');
+        return lead?.clientId ?? contact?.clientId;
+    }
+    async effectiveClientId(interaction, dto, organizationId) {
+        return this.referenceClientId({
+            leadId: dto.leadId !== undefined ? dto.leadId : interaction.leadId,
+            contactId: dto.contactId !== undefined ? dto.contactId : interaction.contactId,
+        }, organizationId);
     }
     async validateReferences(dto, organizationId) {
         if (dto.leadId) {

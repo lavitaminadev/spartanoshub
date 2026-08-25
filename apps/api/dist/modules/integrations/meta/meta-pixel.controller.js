@@ -172,7 +172,7 @@ __decorate([
 ], MetaPixelController.prototype, "setupClientPixel", null);
 __decorate([
     (0, common_1.Get)(':id/client-pixels'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -181,7 +181,7 @@ __decorate([
 ], MetaPixelController.prototype, "listClientPixels", null);
 __decorate([
     (0, common_1.Post)(':id/client-pixels'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
@@ -192,7 +192,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('auth-url'),
     (0, swagger_1.ApiOperation)({ summary: 'Get Meta OAuth authorization URL' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('redirect_uri')),
     __metadata("design:type", Function),
@@ -202,7 +202,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('status'),
     (0, swagger_1.ApiOperation)({ summary: 'Check Meta integration configuration status' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
@@ -210,7 +210,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('callback'),
     (0, swagger_1.ApiOperation)({ summary: 'Handle Meta OAuth callback' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -220,7 +220,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)(':id/refresh'),
     (0, swagger_1.ApiOperation)({ summary: 'Refresh Meta access token' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -231,7 +231,7 @@ __decorate([
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('desconectar la integración con Meta'),
     (0, common_1.Post)(':id/disconnect'),
     (0, swagger_1.ApiOperation)({ summary: 'Unsubscribe Meta pages and clear credentials' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -241,7 +241,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id/assets'),
     (0, swagger_1.ApiOperation)({ summary: 'Discover available Meta assets and current selection' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -251,7 +251,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)(':id/assets'),
     (0, swagger_1.ApiOperation)({ summary: 'Persist selected Meta assets' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
@@ -262,7 +262,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id/health'),
     (0, swagger_1.ApiOperation)({ summary: 'Get Meta integration health' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -271,7 +271,7 @@ __decorate([
 ], MetaPixelController.prototype, "health", null);
 __decorate([
     (0, common_1.Post)(':id/insights/sync'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, throttler_1.Throttle)({ default: { limit: 4, ttl: 60000 } }),
     (0, swagger_1.ApiOperation)({ summary: 'Sincronizar 30 dias de Meta Ads Insights' }),
     __param(0, (0, common_1.Param)('id')),
@@ -283,7 +283,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('leads/sync'),
     (0, swagger_1.ApiOperation)({ summary: 'Manually sync a Meta lead by page and leadgen id' }),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, throttler_1.Throttle)({ default: { limit: 12, ttl: 60000 } }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -293,7 +293,7 @@ __decorate([
 ], MetaPixelController.prototype, "syncLead", null);
 __decorate([
     (0, common_1.Post)(':id/pixel/validate'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
@@ -303,7 +303,7 @@ __decorate([
 ], MetaPixelController.prototype, "validate", null);
 __decorate([
     (0, common_1.Post)(':id/conversions/test'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),

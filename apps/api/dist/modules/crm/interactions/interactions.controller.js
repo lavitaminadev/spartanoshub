@@ -19,25 +19,51 @@ const interactions_service_1 = require("./interactions.service");
 const create_interaction_dto_1 = require("./dto/create-interaction.dto");
 const update_interaction_dto_1 = require("./dto/update-interaction.dto");
 const list_interactions_dto_1 = require("./dto/list-interactions.dto");
-const requires_feature_decorator_1 = require("../../../core/authorization/requires-feature.decorator");
+const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
+const account_access_service_1 = require("../../../core/client-scope/account-access.service");
+const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
 let InteractionsController = class InteractionsController {
-    constructor(service) {
+    constructor(service, accountAccess, capabilities) {
         this.service = service;
+        this.accountAccess = accountAccess;
+        this.capabilities = capabilities;
     }
-    create(dto, req) {
+    async create(dto, req) {
+        await this.assertClientScope(req, await this.service.referenceClientId(dto, req.organizationId));
         return this.service.create(dto, req.organizationId, req.user.id);
     }
-    findAll(query, req) {
-        return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId);
+    async findAll(query, req) {
+        const clientId = req.user.role === 'client' ? req.user.clientId : query.clientId;
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capabilities.assert(req.organizationId, clientId, 'crm');
+        if (query.leadId) {
+            await this.assertClientScope(req, await this.service.referenceClientId({ leadId: query.leadId }, req.organizationId));
+        }
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, clientId);
     }
-    findOne(id, req) {
-        return this.service.findOne(id, req.organizationId);
+    async findOne(id, req) {
+        const interaction = await this.service.findOne(id, req.organizationId);
+        await this.assertClientScope(req, await this.service.effectiveClientId(interaction, {}, req.organizationId));
+        return interaction;
     }
-    update(id, dto, req) {
+    async update(id, dto, req) {
+        const interaction = await this.service.findOne(id, req.organizationId);
+        await this.assertClientScope(req, await this.service.effectiveClientId(interaction, {}, req.organizationId));
+        await this.assertClientScope(req, await this.service.effectiveClientId(interaction, dto, req.organizationId));
         return this.service.update(id, dto, req.organizationId);
     }
-    remove(id, req) {
+    async remove(id, req) {
+        const interaction = await this.service.findOne(id, req.organizationId);
+        await this.assertClientScope(req, await this.service.effectiveClientId(interaction, {}, req.organizationId));
         return this.service.remove(id, req.organizationId);
+    }
+    async assertClientScope(req, clientId) {
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        if (!clientId && allowed !== undefined)
+            throw new common_1.NotFoundException('Interaction not found');
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capabilities.assert(req.organizationId, clientId, 'crm');
     }
 };
 exports.InteractionsController = InteractionsController;
@@ -47,7 +73,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_interaction_dto_1.CreateInteractionDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], InteractionsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
@@ -55,7 +81,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [list_interactions_dto_1.ListInteractionsDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], InteractionsController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)(':id'),
@@ -63,7 +89,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], InteractionsController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Put)(':id'),
@@ -72,7 +98,7 @@ __decorate([
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, update_interaction_dto_1.UpdateInteractionDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], InteractionsController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
@@ -80,11 +106,13 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], InteractionsController.prototype, "remove", null);
 exports.InteractionsController = InteractionsController = __decorate([
     (0, common_1.Controller)('crm/interactions'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, requires_feature_decorator_1.RequiresFeature)('commercialPipeline'),
-    __metadata("design:paramtypes", [interactions_service_1.InteractionsService])
+    (0, module_scope_decorator_1.ModuleScope)('crm'),
+    __metadata("design:paramtypes", [interactions_service_1.InteractionsService,
+        account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService])
 ], InteractionsController);

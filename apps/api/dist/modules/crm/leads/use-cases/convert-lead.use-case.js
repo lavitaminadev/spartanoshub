@@ -35,7 +35,7 @@ let ConvertLeadUseCase = class ConvertLeadUseCase {
             });
             if (!lead)
                 throw new common_1.NotFoundException('Lead no encontrado');
-            if (lead.status === lead_status_enum_1.LeadStatus.WON || lead.convertedToClientId) {
+            if (lead.convertedToClientId) {
                 throw new common_1.ConflictException('El lead ya fue convertido');
             }
             if (lead.domain === 'audience') {

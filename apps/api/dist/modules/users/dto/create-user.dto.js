@@ -12,6 +12,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateUserDto = void 0;
 const class_validator_1 = require("class-validator");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
+const create_client_dto_1 = require("../../clients/dto/create-client.dto");
+const class_transformer_1 = require("class-transformer");
+const class_validator_2 = require("class-validator");
 class CreateUserDto {
 }
 exports.CreateUserDto = CreateUserDto;
@@ -55,6 +58,12 @@ __decorate([
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "newClientName", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_2.ValidateNested)(),
+    (0, class_transformer_1.Type)(() => create_client_dto_1.ClientCapabilitiesDto),
+    __metadata("design:type", create_client_dto_1.ClientCapabilitiesDto)
+], CreateUserDto.prototype, "capabilities", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(['presential', 'hybrid', 'remote']),

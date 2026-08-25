@@ -20,18 +20,19 @@ const module_scope_decorator_1 = require("../../../core/authorization/module-sco
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const campaigns_service_1 = require("./campaigns.service");
 const save_campaign_dto_1 = require("./dto/save-campaign.dto");
+const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
 let CampaignsController = class CampaignsController {
     constructor(campaigns, accountAccess) {
         this.campaigns = campaigns;
         this.accountAccess = accountAccess;
     }
     async list(req, clientId) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
-        return this.campaigns.list(req.organizationId, clientId || undefined);
+        const scope = await this.resolveScope(req, clientId);
+        return this.campaigns.list(req.organizationId, scope);
     }
     async create(dto, req) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-        const { campaign, token } = await this.campaigns.create(req.organizationId, dto, req.user.id);
+        const scope = await this.resolveScope(req, dto.clientId ?? undefined);
+        const { campaign, token } = await this.campaigns.create(req.organizationId, { ...dto, clientId: scope ?? null }, req.user.id);
         return {
             campaign,
             integracion: {
@@ -43,12 +44,30 @@ let CampaignsController = class CampaignsController {
         };
     }
     async update(id, dto, req) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-        return this.campaigns.update(id, req.organizationId, dto);
+        const current = await this.campaigns.findOne(id, req.organizationId);
+        await this.resolveScope(req, current.clientId ?? undefined);
+        const destination = dto.clientId === undefined
+            ? current.clientId ?? undefined
+            : await this.resolveScope(req, dto.clientId ?? undefined);
+        return this.campaigns.update(id, req.organizationId, { ...dto, clientId: destination ?? null });
     }
     async remove(id, req) {
+        const current = await this.campaigns.findOne(id, req.organizationId);
+        await this.resolveScope(req, current.clientId ?? undefined);
         await this.campaigns.remove(id, req.organizationId);
         return { success: true };
+    }
+    async resolveScope(req, requested) {
+        if (req.user.clientId) {
+            await this.accountAccess.assertClient(req.organizationId, req.user, req.user.clientId);
+            return req.user.clientId;
+        }
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        if (!requested && allowed !== undefined) {
+            throw new common_1.NotFoundException('Client not found');
+        }
+        await this.accountAccess.assertClient(req.organizationId, req.user, requested);
+        return requested;
     }
 };
 exports.CampaignsController = CampaignsController;
@@ -63,6 +82,7 @@ __decorate([
 ], CampaignsController.prototype, "list", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Registrar una campaña y emitir su llave de entrada' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -72,6 +92,7 @@ __decorate([
 ], CampaignsController.prototype, "create", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar una campaña' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -82,6 +103,7 @@ __decorate([
 ], CampaignsController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar una campaña' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),

@@ -31,9 +31,10 @@ const password_reset_dto_1 = require("./dto/password-reset.dto");
 const onboarding_dto_1 = require("./dto/onboarding.dto");
 const reauthenticate_dto_1 = require("./dto/reauthenticate.dto");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
-const REFRESH_COOKIE = 'espartanos_refresh';
-const LEGACY_REFRESH_COOKIE = 'vitahub_refresh';
+const REFRESH_COOKIE = 'espartanos_refresh_v2';
+const LEGACY_REFRESH_COOKIES = ['espartanos_refresh', 'vitahub_refresh'];
 const REFRESH_COOKIE_PATH = '/api/auth';
+const LEGACY_REFRESH_COOKIE_PATHS = ['/api/auth', '/api', '/'];
 function sessionDurationMs(value) {
     const match = /^(\d+)([smhd])$/.exec(value.trim());
     if (!match)
@@ -61,27 +62,34 @@ function readCookie(request, name) {
     }
 }
 function readRefreshCookie(request) {
-    return readCookie(request, REFRESH_COOKIE) ?? readCookie(request, LEGACY_REFRESH_COOKIE);
+    return readCookie(request, REFRESH_COOKIE)
+        ?? LEGACY_REFRESH_COOKIES.map((name) => readCookie(request, name)).find(Boolean);
 }
-function setRefreshCookie(response, token) {
-    response.cookie(REFRESH_COOKIE, token, {
+function cookieOptions(path) {
+    return {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        path: REFRESH_COOKIE_PATH,
+        path,
+    };
+}
+function clearLegacyRefreshCookies(response) {
+    for (const name of LEGACY_REFRESH_COOKIES) {
+        for (const path of LEGACY_REFRESH_COOKIE_PATHS) {
+            response.clearCookie(name, cookieOptions(path));
+        }
+    }
+}
+function setRefreshCookie(response, token) {
+    response.cookie(REFRESH_COOKIE, token, {
+        ...cookieOptions(REFRESH_COOKIE_PATH),
         maxAge: REFRESH_COOKIE_MAX_AGE_MS,
     });
-    response.clearCookie(LEGACY_REFRESH_COOKIE, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: REFRESH_COOKIE_PATH });
+    clearLegacyRefreshCookies(response);
 }
 function clearRefreshCookie(response) {
-    for (const name of [REFRESH_COOKIE, LEGACY_REFRESH_COOKIE]) {
-        response.clearCookie(name, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            path: REFRESH_COOKIE_PATH,
-        });
-    }
+    response.clearCookie(REFRESH_COOKIE, cookieOptions(REFRESH_COOKIE_PATH));
+    clearLegacyRefreshCookies(response);
 }
 let AuthController = class AuthController {
     constructor(auth) {
@@ -136,6 +144,16 @@ let AuthController = class AuthController {
         await this.auth.logout(user.id, user.sessionId);
         clearRefreshCookie(response);
     }
+    async browserLogout(request, response) {
+        const token = readRefreshCookie(request);
+        try {
+            if (token)
+                await this.auth.logoutByRefreshToken(token);
+        }
+        finally {
+            clearRefreshCookie(response);
+        }
+    }
     async listSessions(user) {
         return this.auth.listSessions(user.id, user.sessionId);
     }
@@ -169,6 +187,9 @@ let AuthController = class AuthController {
         const result = await this.auth.completeOnboarding(user.id, user.sessionId, dto, ipAddress);
         clearRefreshCookie(response);
         return result;
+    }
+    currentTerms(user) {
+        return this.auth.currentTerms(user.id);
     }
     acceptTerms(user, dto, ipAddress) {
         return this.auth.acceptCurrentTerms(user.id, dto.acceptedConsents, ipAddress, dto.termsVersion);
@@ -242,6 +263,18 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "logout", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('browser-logout'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.NO_CONTENT),
+    (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),
+    (0, swagger_1.ApiOperation)({ summary: 'Cerrar la sesión persistida del navegador' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "browserLogout", null);
 __decorate([
     (0, common_1.Get)('sessions'),
     (0, common_1.UseGuards)(auth_guard_1.JwtAuthGuard),
@@ -364,6 +397,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, onboarding_dto_1.CompleteOnboardingDto, String, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "completeOnboarding", null);
+__decorate([
+    (0, common_1.Get)('terms/current'),
+    (0, common_1.UseGuards)(auth_guard_1.JwtAuthGuard),
+    (0, roles_decorator_1.Roles)(...Object.values(user_role_enum_1.UserRole)),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Obtener las condiciones vigentes para la cuenta autenticada' }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "currentTerms", null);
 __decorate([
     (0, common_1.Post)('terms/accept'),
     (0, common_1.UseGuards)(auth_guard_1.JwtAuthGuard),

@@ -27,8 +27,8 @@ export function CommandPalette() {
   const [taskMode, setTaskMode] = useState(false);
   const [taskForm, setTaskForm] = useState({ meetingId: '', description: '' });
   const navigation = useMemo(
-    () => getNavigation(user?.role, user?.features, user?.permissions, user?.moduleLifecycle),
-    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle],
+    () => getNavigation(user?.role, user?.features, user?.permissions, user?.moduleLifecycle, user?.capabilities),
+    [user?.role, user?.features, user?.permissions, user?.moduleLifecycle, user?.capabilities],
   );
   /**
    * Indica si una ruta concreta se puede abrir.
@@ -39,8 +39,8 @@ export function CommandPalette() {
    * peor que no ofrecer el resultado.
    */
   const canOpen = useCallback(
-    (path: string) => isPathEnabled(path, user?.features, user?.permissions, user?.moduleLifecycle, user?.role),
-    [user?.features, user?.permissions, user?.moduleLifecycle, user?.role],
+    (path: string) => isPathEnabled(path, user?.features, user?.permissions, user?.moduleLifecycle, user?.role, user?.capabilities),
+    [user?.features, user?.permissions, user?.moduleLifecycle, user?.role, user?.capabilities],
   );
 
   useEffect(() => {

@@ -25,19 +25,22 @@ const user_role_enum_1 = require("../organizations/user-role.enum");
 const survey_entity_1 = require("./survey.entity");
 const survey_response_entity_1 = require("./survey-response.entity");
 const survey_dto_1 = require("./dto/survey.dto");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 function publicSurveyUrl(id) {
     const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
 }
 let SurveysController = class SurveysController {
-    constructor(surveys, responses, dataSource) {
+    constructor(surveys, responses, dataSource, accountAccess) {
         this.surveys = surveys;
         this.responses = responses;
         this.dataSource = dataSource;
+        this.accountAccess = accountAccess;
     }
     toContract(survey) {
         return {
             id: survey.id,
+            clientId: survey.clientId ?? undefined,
             title: survey.title,
             type: survey.type,
             questions: survey.questions ?? [],
@@ -59,9 +62,10 @@ let SurveysController = class SurveysController {
             throw new common_1.NotFoundException('La encuesta no existe');
         return survey;
     }
-    async list(req) {
+    async list(req, clientId) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         const rows = await this.surveys.find({
-            where: { organizationId: req.organizationId },
+            where: { organizationId: req.organizationId, ...(clientId ? { clientId } : {}) },
             order: { createdAt: 'DESC' },
         });
         return rows.map((row) => this.toContract(row));
@@ -70,9 +74,15 @@ let SurveysController = class SurveysController {
         return this.toContract(await this.findOwned(id, req.organizationId));
     }
     async create(req, dto) {
+        if (dto.type === 'customer' && !dto.clientId)
+            throw new common_1.BadRequestException('Las encuestas de clientes requieren una empresa');
+        if (dto.type === 'internal' && dto.clientId)
+            throw new common_1.BadRequestException('Las encuestas internas no se asignan a una empresa');
+        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
         this.assertUniqueQuestionIds(dto.questions);
         const saved = await this.surveys.save(this.surveys.create({
             organizationId: req.organizationId,
+            clientId: dto.clientId ?? null,
             title: dto.title,
             type: dto.type,
             questions: dto.questions,
@@ -100,6 +110,14 @@ let SurveysController = class SurveysController {
             survey.title = dto.title;
         if (dto.type !== undefined)
             survey.type = dto.type;
+        if (dto.clientId !== undefined) {
+            await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+            survey.clientId = dto.clientId;
+        }
+        if (survey.type === 'customer' && !survey.clientId)
+            throw new common_1.BadRequestException('Las encuestas de clientes requieren una empresa');
+        if (survey.type === 'internal' && survey.clientId)
+            throw new common_1.BadRequestException('Las encuestas internas no se asignan a una empresa');
         if (dto.status !== undefined)
             survey.status = dto.status;
         if (dto.recipients !== undefined)
@@ -179,8 +197,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Listar encuestas' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], SurveysController.prototype, "list", null);
 __decorate([
@@ -255,5 +274,6 @@ exports.SurveysController = SurveysController = __decorate([
     __param(1, (0, typeorm_1.InjectRepository)(survey_response_entity_1.SurveyResponse)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.DataSource])
+        typeorm_2.DataSource,
+        account_access_service_1.AccountAccessService])
 ], SurveysController);

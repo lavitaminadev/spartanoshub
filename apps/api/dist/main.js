@@ -11,6 +11,7 @@ const helmet_1 = __importDefault(require("helmet"));
 const compression_1 = __importDefault(require("compression"));
 const common_1 = require("@nestjs/common");
 const environment_1 = require("./config/environment");
+const private_api_cache_middleware_1 = require("./core/http/private-api-cache.middleware");
 async function bootstrap() {
     const logger = new common_1.Logger('Bootstrap');
     (0, environment_1.validateEnvironment)();
@@ -19,6 +20,7 @@ async function bootstrap() {
     if (trustProxyHops > 0) {
         app.getHttpAdapter().getInstance().set('trust proxy', trustProxyHops);
     }
+    app.use(private_api_cache_middleware_1.privateApiCacheMiddleware);
     app.use((0, compression_1.default)());
     app.use((0, helmet_1.default)({
         contentSecurityPolicy: {

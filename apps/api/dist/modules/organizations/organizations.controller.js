@@ -69,7 +69,17 @@ let OrganizationsController = class OrganizationsController {
         if (!organization)
             throw new common_1.NotFoundException('Organización no encontrada');
         const features = (0, organization_features_1.normalizeOrganizationFeatures)({ ...organization.features, ...dto.features });
-        await this.organizations.update(organizationId, { features });
+        organization.features = features;
+        await this.organizations.save(organization);
+        const persisted = await this.organizations.findOne({
+            where: { id: organizationId },
+            select: ['id', 'features'],
+        });
+        const persistedFeatures = (0, organization_features_1.normalizeOrganizationFeatures)(persisted?.features);
+        const rejectedKeys = Object.entries(dto.features).filter(([key, value]) => persistedFeatures[key] !== value);
+        if (rejectedKeys.length > 0) {
+            throw new common_1.ServiceUnavailableException('No se pudo verificar el cambio de módulos. No se aplicó como actualizado; revisa la base de datos e inténtalo otra vez.');
+        }
         this.featureGuard.invalidate(organizationId);
         this.permissionResolver.invalidateOrganization(organizationId);
         await this.audit.log({
@@ -79,9 +89,9 @@ let OrganizationsController = class OrganizationsController {
             entityId: organizationId,
             action: 'updated',
             before: { features: organization.features },
-            after: { features },
+            after: { features: persistedFeatures },
         });
-        return { features };
+        return { features: persistedFeatures };
     }
 };
 exports.OrganizationsController = OrganizationsController;

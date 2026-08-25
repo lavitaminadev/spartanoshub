@@ -64,7 +64,7 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   if (user.role === 'client' && isClientCrmRoute && user.capabilities?.crm !== true) {
     return <AccessDenied path={path} userRole={user.role} allowedRoles={roles} reason="module" />;
   }
-  if (path && !isPersonalRoute && !isInternalDashboard && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle, user.role)) {
+  if (path && !isPersonalRoute && !isInternalDashboard && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle, user.role, user.capabilities)) {
     return <AccessDenied path={path} userRole={user.role} allowedRoles={roles} reason="module" />;
   }
   if (!isRoleAllowedForPath(roles, user.role)) {

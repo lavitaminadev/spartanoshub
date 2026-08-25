@@ -15,6 +15,7 @@ export class CreateLeadUseCase {
     company?: string;
     source?: string;
     sourceDetail?: string;
+    campaignName?: string;
     notes?: string;
     estimatedAmount?: number;
     trafficLight?: 'green' | 'yellow' | 'red';

@@ -30,6 +30,10 @@ let ListLeadsUseCase = class ListLeadsUseCase {
             where.fitStatus = filters.fitStatus;
         if (filters.source)
             where.source = expandSourceFilter(filters.source);
+        if (filters.campaignName)
+            where.campaignName = filters.campaignName;
+        if (filters.assignedTo)
+            where.assignedTo = filters.assignedTo;
         const domain = filters.domain ?? 'commercial';
         if (domain !== 'all')
             where.domain = domain;
@@ -38,12 +42,19 @@ let ListLeadsUseCase = class ListLeadsUseCase {
             return { data: [], total: 0, limit, offset };
         if (scope !== undefined)
             where.clientId = scope;
-        const criterio = filters.onlyAssignedTo
+        const alcancePersona = filters.onlyAssignedTo
             ? [
                 { ...where, assignedTo: filters.onlyAssignedTo },
                 { ...where, assignedTo: (0, typeorm_2.IsNull)() },
             ]
-            : where;
+            : [where];
+        const termino = filters.search?.trim();
+        const campos = [
+            'name', 'email', 'phone', 'company', 'source', 'sourceDetail', 'campaignName',
+        ];
+        const criterio = termino
+            ? alcancePersona.flatMap((base) => campos.map((campo) => ({ ...base, [campo]: (0, typeorm_2.Like)(`%${termino}%`) })))
+            : alcancePersona.length === 1 ? alcancePersona[0] : alcancePersona;
         const [data, total] = await this.repo.findAndCount({
             where: criterio,
             order: { createdAt: 'DESC' },
@@ -53,7 +64,9 @@ let ListLeadsUseCase = class ListLeadsUseCase {
         return { data, total, limit, offset };
     }
     resolveClientScope(filters) {
-        const { clientId, allowedClientIds } = filters;
+        const { clientId, allowedClientIds, agencyOnly } = filters;
+        if (agencyOnly)
+            return allowedClientIds === undefined ? (0, typeorm_2.IsNull)() : EMPTY_SCOPE;
         if (allowedClientIds === undefined)
             return clientId;
         if (allowedClientIds.length === 0)

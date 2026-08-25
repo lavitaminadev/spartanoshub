@@ -17,6 +17,7 @@ import { attendanceRateOf } from '../../shared/attendance';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useSearchParams } from 'react-router-dom';
 import { useCrmScope } from './crm-scope';
+import { useVocabulario } from './use-vocabulario';
 
 interface PageResult<T> { data: T[]; total: number }
 interface LeadOption { id: string; name: string; company?: string; createdAt?: string; status?: string }
@@ -78,6 +79,8 @@ export function ContactsPage() {
   const user = useAuth((state) => state.user);
   // La empresa cuyo CRM se está mirando; la elige la barra, no esta pantalla.
   const scope = useCrmScope();
+  // Cómo llama esta empresa a sus cosas. De fábrica para lo que no haya renombrado.
+  const { termino } = useVocabulario(scope.clientId);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -228,7 +231,7 @@ export function ContactsPage() {
   };
 
   return <div className="page">
-  <div className="page-header"><div><span className="crm-scope is-client">CRM de los clientes</span><span className="page-eyebrow">CONTACTOS DE CAMPAÑAS</span><h1>Contactos</h1><p className="page-subtitle">Personas que llegaron desde las campañas de cada cliente, incluidas las que reservaron. Es el CRM que la agencia opera para sus clientes; los prospectos propios de Espartanos están en Comercial.</p></div></div>
+  <div className="page-header"><div><span className="crm-scope is-client">CRM de los clientes</span><span className="page-eyebrow">CONTACTOS DE CAMPAÑAS</span><h1>{termino('leads')}</h1><p className="page-subtitle">Personas que llegaron desde las campañas de cada cliente, incluidas las que reservaron. Es el CRM que la agencia opera para sus clientes; los prospectos propios de Espartanos están en Comercial.</p></div></div>
 
   <div className="segment-cards" role="group" aria-label="Segmentos de contactos">
     {segmentsQuery.isLoading && <LoadingSpinner text="Cargando segmentos..." />}

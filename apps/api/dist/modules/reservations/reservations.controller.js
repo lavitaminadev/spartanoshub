@@ -19,6 +19,7 @@ const swagger_1 = require("@nestjs/swagger");
 const throttler_1 = require("@nestjs/throttler");
 const node_events_1 = require("node:events");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
+const client_capability_service_1 = require("../../core/client-scope/client-capability.service");
 const audit_service_1 = require("../../core/audit/audit.service");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
@@ -28,9 +29,10 @@ const bulk_import_service_1 = require("./application/bulk-import.service");
 const reservation_dto_1 = require("./dto/reservation.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 let ReservationsController = class ReservationsController {
-    constructor(service, accountAccess, bulkImport, audit) {
+    constructor(service, accountAccess, capabilities, bulkImport, audit) {
         this.service = service;
         this.accountAccess = accountAccess;
+        this.capabilities = capabilities;
         this.bulkImport = bulkImport;
         this.audit = audit;
     }
@@ -50,6 +52,10 @@ let ReservationsController = class ReservationsController {
         return req.user.clientId;
     }
     async scope(req) {
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
+            const clientId = this.client(req);
+            await this.capabilities.assert(req.organizationId, clientId, 'reservations');
+        }
         return {
             clientId: this.client(req),
             clientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
@@ -450,6 +456,7 @@ exports.ReservationsController = ReservationsController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('reservations'),
     __metadata("design:paramtypes", [reservations_service_1.ReservationsService,
         account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService,
         bulk_import_service_1.ReservationsBulkImportService,
         audit_service_1.AuditService])
 ], ReservationsController);

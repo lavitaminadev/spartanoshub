@@ -124,11 +124,12 @@ export function getNavigation(
   features?: Record<string, boolean>,
   permissions?: Record<string, string>,
   moduleLifecycle?: Record<string, ModuleLifecycleStatus>,
+  capabilities?: Record<string, boolean>,
 ): FeatureManifest['navigation'] {
   const roleAwareItems = getFeatures(userRole)
     .flatMap((f) => f.navigation)
     .filter((item) => isRoleAllowedForPath(item.roles, userRole))
-    .filter((item) => isPathEnabled(item.path, features, permissions, moduleLifecycle, userRole));
+    .filter((item) => isPathEnabled(item.path, features, permissions, moduleLifecycle, userRole, capabilities));
 
   const orderMap = new Map(NAVIGATION_ORDER.map((p, i) => [p, i]));
   return roleAwareItems
@@ -158,8 +159,9 @@ export function getNavigationSections(
   features?: Record<string, boolean>,
   permissions?: Record<string, string>,
   moduleLifecycle?: Record<string, ModuleLifecycleStatus>,
+  capabilities?: Record<string, boolean>,
 ): NavigationSection[] {
-  const items = getNavigation(userRole, features, permissions, moduleLifecycle) ?? [];
+  const items = getNavigation(userRole, features, permissions, moduleLifecycle, capabilities) ?? [];
   const byPath = new Map(items.map((item) => [item.path, item]));
   const assigned = new Set<string>();
 
@@ -305,6 +307,7 @@ export function isPathEnabled(
   permissions?: Record<string, string>,
   moduleLifecycle?: Record<string, ModuleLifecycleStatus>,
   userRole?: string,
+  capabilities?: Record<string, boolean>,
 ): boolean {
   const required = getFeatureForPath(path);
   // El alcance de fase se evalúa antes que permisos y capacidades: un módulo que el producto
@@ -312,6 +315,19 @@ export function isPathEnabled(
   // La excepción es el cargo de desarrollo, único por organización, que es quien los levanta.
   if (!isModuleInPhaseScope(required, moduleLifecycle, userRole)) return false;
   if (!required) return true;
+  /*
+   * Servicios contratados por la empresa del portal.
+   *
+   * Es una reja distinta del permiso: el permiso dice qué puede hacer alguien dentro de un
+   * módulo, y la capacidad dice si su empresa lo tiene contratado. El cargo cliente trae
+   * `reservations` y `crm` en la matriz para todas las empresas por igual, así que sin esto una
+   * empresa que solo contrató CRM veía Reservas en el menú y llegaba a una pantalla que la API
+   * rechaza al pedir datos: se lee como sistema roto en vez de como servicio no contratado.
+   *
+   * Solo aplica cuando hay capacidades —es decir, a un portal—. Un módulo que no es un servicio
+   * contratable no aparece en el mapa y no se ve afectado.
+   */
+  if (capabilities && required in capabilities && capabilities[required] !== true) return false;
   if (permissions) return permissions[required] !== undefined && permissions[required] !== 'none';
   if (features) return features[required] !== false;
   return true;

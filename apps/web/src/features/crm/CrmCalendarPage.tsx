@@ -1,5 +1,9 @@
 /**
- * @fileoverview Calendario del CRM: el mes, con lo que hay agendado.
+ * @fileoverview Calendario del CRM: mes, semana o día, con lo que hay agendado.
+ *
+ * Las tres vistas responden preguntas distintas y por eso conviven: el mes dice cómo viene el
+ * período, la semana permite leer las horas, y el día es a lo que se entra por la mañana para
+ * saber qué toca. Cada una exporta exactamente lo que se está mirando.
  *
  * Usa las actividades del propio CRM. Así la agenda comparte alcance, empresa y permisos con el
  * tablero, en vez de depender del módulo futuro de Reuniones y terminar en 403.
@@ -11,6 +15,7 @@ import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useCrmScope } from './crm-scope';
+import { useVocabulario } from './use-vocabulario';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
 import './crm-calendar.css';
 
@@ -68,8 +73,47 @@ function celdasDeLaSemana(ancla: Date): Array<{ fecha: Date; delMes: boolean }> 
   });
 }
 
+/**
+ * El día en que cae la fecha, como única celda.
+ *
+ * El mes responde «cómo viene la semana que entra» y el día responde «qué hago ahora». Con
+ * cuatro visitas el mismo martes, la celda del mes las recorta y ni la semana da alto para
+ * leerlas completas: se veían cuatro líneas cortadas sin hora.
+ */
+function celdasDelDia(ancla: Date): Array<{ fecha: Date; delMes: boolean }> {
+  return [{ fecha: new Date(ancla), delMes: true }];
+}
+
+/** Cómo se lee cada tipo de actividad. La clave es la que guarda el servidor. */
+const TIPO_LABEL: Record<string, string> = {
+  call: 'Llamada',
+  email: 'Correo',
+  meeting: 'Reunión',
+  whatsapp: 'WhatsApp',
+  note: 'Nota',
+  visit: 'Visita',
+};
+
+/** Hora local de una actividad, sin la fecha: la fecha ya la da la celda donde está. */
+function horaDe(fecha: string): string {
+  return new Date(fecha).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Cómo se titula una actividad en la cuadrícula.
+ *
+ * La descripción entera no cabe en una celda de mes y se cortaba a media palabra, así que la
+ * celda mostraba un párrafo truncado en vez de decir qué era. Acá se toma la primera línea y,
+ * cuando no hay descripción, el tipo: «Reunión» dice más que un hueco. El texto completo sigue
+ * disponible en el `title` y en la exportación.
+ */
+function tituloDe(actividad: Actividad): string {
+  const primera = actividad.description?.split('\n')[0]?.trim();
+  return primera || TIPO_LABEL[actividad.type] || 'Actividad';
+}
+
 /** Forma en que se mira la agenda. */
-type Vista = 'mes' | 'semana';
+type Vista = 'mes' | 'semana' | 'dia';
 
 export function CrmCalendarPage(): JSX.Element {
   const [ancla, setAncla] = useState(() => new Date());
@@ -77,6 +121,8 @@ export function CrmCalendarPage(): JSX.Element {
   // De qué empresa es la agenda. Sin esto se veían —y se exportaban— reuniones de otras cuentas
   // bajo el encabezado de la empresa elegida, que es la forma más silenciosa de mezclarlas.
   const scope = useCrmScope();
+  // Cómo llama esta empresa a sus cosas. De fábrica para lo que no haya renombrado.
+  const { termino } = useVocabulario(scope.clientId);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<{ data: Actividad[] }>({
     queryKey: ['crm-calendario', scope.clientId],
@@ -96,23 +142,27 @@ export function CrmCalendarPage(): JSX.Element {
     return mapa;
   }, [data]);
 
-  const celdas = useMemo(
-    () => (vista === 'mes' ? celdasDelMes(ancla) : celdasDeLaSemana(ancla)),
-    [ancla, vista],
-  );
+  const celdas = useMemo(() => {
+    if (vista === 'mes') return celdasDelMes(ancla);
+    if (vista === 'semana') return celdasDeLaSemana(ancla);
+    return celdasDelDia(ancla);
+  }, [ancla, vista]);
   const hoy = claveDia(new Date());
 
-  /** Las flechas avanzan lo que se está mirando: un mes en la vista mensual, una semana en la otra. */
+  /** Las flechas avanzan lo que se está mirando: un mes, una semana o un día. */
   const mover = (pasos: number) => {
     const siguiente = new Date(ancla);
     if (vista === 'mes') siguiente.setMonth(ancla.getMonth() + pasos);
-    else siguiente.setDate(ancla.getDate() + pasos * 7);
+    else if (vista === 'semana') siguiente.setDate(ancla.getDate() + pasos * 7);
+    else siguiente.setDate(ancla.getDate() + pasos);
     setAncla(siguiente);
   };
 
   const titulo = vista === 'mes'
     ? ancla.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
-    : `Semana del ${celdas[0].fecha.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`;
+    : vista === 'semana'
+      ? `Semana del ${celdas[0].fecha.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+      : ancla.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
 
   /** Lo que hay agendado dentro de la cuadrícula visible, en orden cronológico. */
   const eventosDelPeriodo = useMemo(() => {
@@ -123,12 +173,12 @@ export function CrmCalendarPage(): JSX.Element {
   }, [data, celdas]);
 
   const documento: ExportDocument<Actividad> = {
-    fileName: vista === 'mes' ? 'agenda-mensual' : 'agenda-semanal',
+    fileName: vista === 'mes' ? 'agenda-mensual' : vista === 'semana' ? 'agenda-semanal' : 'agenda-del-dia',
     title: `Agenda · ${titulo}`,
     subtitle: `${eventosDelPeriodo.length} actividad(es) en el período`,
     meta: [
       { label: 'Período', value: titulo },
-      { label: 'Vista', value: vista === 'mes' ? 'Mensual' : 'Semanal' },
+      { label: 'Vista', value: vista === 'mes' ? 'Mensual' : vista === 'semana' ? 'Semanal' : 'Diaria' },
     ],
     columns: [
       { header: 'Fecha', value: (r) => new Date(r.date).toLocaleDateString('es-CL'), width: 12 },
@@ -172,29 +222,55 @@ export function CrmCalendarPage(): JSX.Element {
           >
             <option value="mes">Vista mensual</option>
             <option value="semana">Vista semanal</option>
+            <option value="dia">Vista diaria</option>
           </select>
         </div>
       </div>
 
       <div
-        className={`crm-cal-grilla${vista === 'semana' ? ' es-semana' : ''}`}
+        className={`crm-cal-grilla${vista === 'semana' ? ' es-semana' : ''}${vista === 'dia' ? ' es-dia' : ''}`}
         role="grid"
-        aria-label={vista === 'mes' ? 'Calendario mensual' : 'Calendario semanal'}
+        aria-label={`Calendario ${vista === 'mes' ? 'mensual' : vista === 'semana' ? 'semanal' : 'diario'}`}
       >
-        {DIAS.map((dia) => <span key={dia} className="crm-cal-cabecera">{dia}</span>)}
+        {/*
+          La fila de días de la semana solo tiene sentido cuando hay varias columnas. En la vista
+          diaria hay una, y el encabezado ya dice qué día es: repetir siete rótulos sobre una
+          sola columna sugiere una cuadrícula que no está.
+        */}
+        {vista === 'dia' ? null : DIAS.map((dia) => <span key={dia} className="crm-cal-cabecera">{dia}</span>)}
 
         {celdas.map(({ fecha, delMes }) => {
           const clave = claveDia(fecha);
-          const eventos = porDia.get(clave) ?? [];
+          // En orden de reloj: una agenda que no va de la mañana a la tarde no es una agenda.
+          const eventos = [...(porDia.get(clave) ?? [])]
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
           return (
             <div
               key={clave}
               className={`crm-cal-celda${delMes ? '' : ' fuera'}${clave === hoy ? ' hoy' : ''}`}
             >
               <span className="crm-cal-numero">{fecha.getDate()}</span>
+              {/*
+                Hora primero y después qué es.
+
+                Antes la celda volcaba la descripción completa, así que en el mes se leía un
+                párrafo cortado a media palabra y no se veía a qué hora era nada —que es lo
+                único que se busca al mirar la agenda—. El texto entero sigue en el `title` y
+                en la exportación.
+              */}
               {eventos.map((evento) => (
-                <span key={evento.id} className="crm-cal-evento" title={evento.description || evento.type}>{evento.description || evento.type}</span>
+                <span
+                  key={evento.id}
+                  className={`crm-cal-evento tipo-${evento.type}`}
+                  title={`${horaDe(evento.date)} · ${evento.description || TIPO_LABEL[evento.type] || evento.type}`}
+                >
+                  <time>{horaDe(evento.date)}</time>
+                  <b>{tituloDe(evento)}</b>
+                </span>
               ))}
+              {vista === 'dia' && !eventos.length ? (
+                <p className="crm-cal-dia-vacio">Nada agendado este día.</p>
+              ) : null}
             </div>
           );
         })}
@@ -204,7 +280,7 @@ export function CrmCalendarPage(): JSX.Element {
         // No es un error: puede no haber nada agendado, o el cargo puede no alcanzar las
         // reuniones. Decirlo evita que un mes vacío se lea como calendario roto.
         <p className="crm-cal-vacio">
-          No hay actividades CRM agendadas visibles para esta empresa.
+          No hay actividades agendadas visibles para esta {termino('empresa').toLowerCase()}.
         </p>
       ) : null}
     </div>

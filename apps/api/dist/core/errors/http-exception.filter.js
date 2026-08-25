@@ -22,6 +22,8 @@ let HttpExceptionFilter = HttpExceptionFilter_1 = class HttpExceptionFilter {
         let statusCode = common_1.HttpStatus.INTERNAL_SERVER_ERROR;
         let message = 'Internal server error';
         let errors;
+        let reauthRequired;
+        let windowMinutes;
         if (exception instanceof common_1.HttpException) {
             statusCode = exception.getStatus();
             const exceptionResponse = exception.getResponse();
@@ -40,6 +42,10 @@ let HttpExceptionFilter = HttpExceptionFilter_1 = class HttpExceptionFilter {
                 if (resp.errors && Array.isArray(resp.errors)) {
                     errors = resp.errors;
                 }
+                if (resp.reauthRequired === true)
+                    reauthRequired = true;
+                if (typeof resp.windowMinutes === 'number')
+                    windowMinutes = resp.windowMinutes;
             }
         }
         else if (exception instanceof typeorm_1.QueryFailedError) {
@@ -78,6 +84,10 @@ let HttpExceptionFilter = HttpExceptionFilter_1 = class HttpExceptionFilter {
         if (errors) {
             errorResponse.errors = errors;
         }
+        if (reauthRequired)
+            errorResponse.reauthRequired = true;
+        if (windowMinutes !== undefined)
+            errorResponse.windowMinutes = windowMinutes;
         if (!isProduction && exception instanceof Error) {
             errorResponse.stack = exception.stack;
         }

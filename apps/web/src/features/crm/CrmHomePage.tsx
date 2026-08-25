@@ -18,6 +18,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
 import { useCrmScope } from './crm-scope';
+import { useVocabulario } from './use-vocabulario';
 import './crm-home.css';
 
 interface LeadPreview {
@@ -88,6 +89,8 @@ export function CrmHomePage(): JSX.Element {
   // De qué empresa son los avisos. Sin esto el inicio respondía siempre por toda la
   // organización, así que cambiar de empresa arriba dejaba los mismos avisos de antes.
   const scope = useCrmScope();
+  // Cómo llama esta empresa a sus cosas. De fábrica para lo que no haya renombrado.
+  const { termino } = useVocabulario(scope.clientId);
   const queryClient = useQueryClient();
 
   /** Hacerse cargo de un lead sin dueño, desde el aviso que pide que alguien lo haga. */
@@ -156,7 +159,7 @@ export function CrmHomePage(): JSX.Element {
       <section className="crm-home-kpis">
         <article>
           <strong>{leadsEnCartera}</strong>
-          <span>Leads del mes</span>
+          <span>{termino('leads')} del mes</span>
           <small>ingresados</small>
         </article>
         <article>
@@ -244,7 +247,7 @@ export function CrmHomePage(): JSX.Element {
               <thead>
                 <tr>
                   <th>Ejecutivo</th>
-                  <th>Leads abiertos</th>
+                  <th>{termino('leads')} abiertos</th>
                   <th>Sin contactar</th>
                   <th>Enfriándose</th>
                 </tr>

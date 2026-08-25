@@ -15,10 +15,15 @@ const REPARTO_NO_APLICADO = {
         settings: 'manage',
         integrations: 'manage',
         governance: 'view',
+        clients: 'manage',
+        reports: 'view',
+        crm: 'manage',
+        reservations: 'manage',
     },
     [user_role_enum_1.UserRole.DEV]: Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage'])),
     [user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR]: {
         ...TEAM_BASELINE,
+        users: 'manage',
         clients: 'manage',
         crm: 'manage',
         commercialPipeline: 'manage',
@@ -28,7 +33,6 @@ const REPARTO_NO_APLICADO = {
         direction: 'manage',
         settings: 'edit',
         reports: 'view',
-        reservations: 'edit',
         surveys: 'manage',
         operations: 'view',
         production: 'view',
@@ -160,15 +164,14 @@ const REPARTO_NO_APLICADO = {
         clients: 'view',
         reports: 'view',
         clientMetricsPanel: 'view',
-        crm: 'view',
+        crm: 'edit',
     },
 };
 function roleLevel(role, module) {
     return exports.ROLE_PERMISSIONS[role]?.[module] ?? 'none';
 }
 const ACCESO_COMPLETO = Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage']));
-const CARGOS_INTERNOS = Object.keys(REPARTO_NO_APLICADO).filter((rol) => rol !== user_role_enum_1.UserRole.CLIENT);
 exports.ROLE_PERMISSIONS = {
-    ...Object.fromEntries(CARGOS_INTERNOS.map((rol) => [rol, ACCESO_COMPLETO])),
-    [user_role_enum_1.UserRole.CLIENT]: REPARTO_NO_APLICADO[user_role_enum_1.UserRole.CLIENT],
+    ...REPARTO_NO_APLICADO,
+    [user_role_enum_1.UserRole.DEV]: ACCESO_COMPLETO,
 };

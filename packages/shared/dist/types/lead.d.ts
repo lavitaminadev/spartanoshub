@@ -44,8 +44,58 @@ export type LeadDomain = keyof typeof LEAD_STATUSES_BY_DOMAIN;
  * Lead funnel status.
  */
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
-export declare const LEAD_FIT_STATUSES: readonly ["qualified", "review", "discarded"];
+export declare const LEAD_FIT_STATUSES: readonly ["qualified", "review", "unqualified"];
 export type LeadFitStatus = (typeof LEAD_FIT_STATUSES)[number];
+/** Prioridad manual. No se deriva del puntaje automático. */
+export declare const LEAD_TRAFFIC_LIGHTS: readonly ["green", "yellow", "red"];
+export type LeadTrafficLight = (typeof LEAD_TRAFFIC_LIGHTS)[number];
+/**
+ * Orígenes por los que puede entrar un lead.
+ *
+ * La clave y el rótulo se declaran por separado a propósito. La clave es lo que se guarda en
+ * `leads.source` y lo que ya usan las integraciones —`meta_lead_ads` lo escribe el webhook de
+ * Meta—, así que renombrarla dejaría los leads antiguos en un origen que ningún informe
+ * reconoce. El rótulo es lo único que se lee en pantalla y puede cambiar sin tocar la base.
+ *
+ * La lista es cerrada para que agrupar por origen signifique algo: con texto libre, «Meta Ads»,
+ * «meta ads» y «Meta» eran tres orígenes distintos en el mismo panel.
+ */
+export declare const LEAD_SOURCES: readonly [{
+    readonly value: "meta_lead_ads";
+    readonly label: "Meta Ads";
+}, {
+    readonly value: "formulario_web";
+    readonly label: "Formulario web";
+}, {
+    readonly value: "portal_inmobiliario";
+    readonly label: "Portal inmobiliario";
+}, {
+    readonly value: "whatsapp";
+    readonly label: "WhatsApp";
+}, {
+    readonly value: "telefono";
+    readonly label: "Teléfono";
+}, {
+    readonly value: "presencial";
+    readonly label: "Presencial";
+}, {
+    readonly value: "referido";
+    readonly label: "Referido";
+}, {
+    readonly value: "otro";
+    readonly label: "Otro";
+}];
+export type LeadSource = (typeof LEAD_SOURCES)[number]['value'];
+/**
+ * Cómo se lee un origen en pantalla.
+ *
+ * Un valor fuera del catálogo se devuelve tal cual y no se traduce a «Otro»: los leads que ya
+ * existen traen orígenes que ningún catálogo declara, y mostrarlos todos como «Otro» borraría
+ * la única pista de por dónde entraron.
+ */
+export declare function etiquetaDeFuente(value?: string | null): string;
+/** Catálogo de descarte usado por el flujo comercial de referencia MMT. */
+export declare const LEAD_DISCARD_REASONS: readonly ["Precio fuera de presupuesto", "Sin financiamiento / no calificó crédito", "Compró en otro proyecto", "Nunca respondió", "Datos de contacto erróneos", "Ubicación no le acomoda", "Solo consultaba (sin intención)", "No es el perfil buscado", "Otro"];
 /**
  * Lead response returned by CRM endpoints.
  */
@@ -66,6 +116,7 @@ export interface LeadResponse {
     status: LeadStatus;
     fitStatus: LeadFitStatus;
     qualityScore: number;
+    trafficLight?: LeadTrafficLight;
     discardReason?: string;
     assignedTo?: string;
     notes?: string;

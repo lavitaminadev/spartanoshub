@@ -69,7 +69,7 @@ __decorate([
 ], Lead.prototype, "sourceDetail", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'client_id', type: 'uuid', nullable: true }),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], Lead.prototype, "clientId", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'json', nullable: true }),
@@ -108,12 +108,16 @@ __decorate([
     __metadata("design:type", Number)
 ], Lead.prototype, "qualityScore", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'traffic_light', type: 'varchar', length: 10, nullable: true }),
+    __metadata("design:type", Object)
+], Lead.prototype, "trafficLight", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'discard_reason', type: 'text', nullable: true }),
     __metadata("design:type", String)
 ], Lead.prototype, "discardReason", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'assigned_to', type: 'uuid', nullable: true }),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], Lead.prototype, "assignedTo", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'text', nullable: true }),

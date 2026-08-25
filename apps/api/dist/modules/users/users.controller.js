@@ -78,7 +78,7 @@ let UsersController = class UsersController {
 exports.UsersController = UsersController;
 __decorate([
     (0, common_1.Post)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Crear un nuevo usuario' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -88,7 +88,7 @@ __decorate([
 ], UsersController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Listar usuarios' }),
     __param(0, (0, common_1.Query)('role')),
     __param(1, (0, common_1.Query)('clientId')),
@@ -101,7 +101,7 @@ __decorate([
 ], UsersController.prototype, "list", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('cambiar los datos o el cargo de una persona'),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar usuario' }),
     __param(0, (0, common_1.Param)('id')),

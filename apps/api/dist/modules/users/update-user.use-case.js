@@ -62,11 +62,12 @@ let UpdateUserUseCase = class UpdateUserUseCase {
         const user = await this.usersRepo.findOne({ where: { id: data.id, organizationId: data.organizationId } });
         if (!user)
             throw new common_1.NotFoundException('Usuario no encontrado');
-        if (data.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR) {
-            if ([user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(user.role)) {
+        if ([user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(data.actorRole)) {
+            const protectedRoles = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR];
+            if (protectedRoles.includes(user.role)) {
                 throw new common_1.ForbiddenException('No puedes administrar esta cuenta');
             }
-            if (data.role && [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(data.role)) {
+            if (data.role && protectedRoles.includes(data.role)) {
                 throw new common_1.ForbiddenException('No puedes asignar este nivel de acceso');
             }
         }
@@ -135,7 +136,17 @@ let UpdateUserUseCase = class UpdateUserUseCase {
         else if (!user.clientId) {
             throw new common_1.BadRequestException('Las cuentas cliente requieren una empresa asignada');
         }
-        return this.usersRepo.save(user);
+        const saved = await this.usersRepo.save(user);
+        if (typeof data.isActive === 'boolean') {
+            const persisted = await this.usersRepo.findOne({
+                where: { id: user.id, organizationId: data.organizationId },
+                select: ['id', 'isActive'],
+            });
+            if (!persisted || persisted.isActive !== data.isActive) {
+                throw new common_1.ServiceUnavailableException('No se pudo confirmar el cambio de acceso. Intenta nuevamente.');
+            }
+        }
+        return saved;
     }
 };
 exports.UpdateUserUseCase = UpdateUserUseCase;

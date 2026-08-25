@@ -19,22 +19,36 @@ const passport_jwt_1 = require("passport-jwt");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../../modules/users/user.entity");
+const client_entity_1 = require("../../modules/clients/client.entity");
+const client_status_enum_1 = require("../../modules/clients/client-status.enum");
+const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const config_1 = require("../../config");
 const sessions_service_1 = require("./sessions.service");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
-    constructor(userRepo, sessions) {
+    constructor(userRepo, clientRepo, sessions) {
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
             secretOrKey: config_1.config.jwt.secret,
         });
         this.userRepo = userRepo;
+        this.clientRepo = clientRepo;
         this.sessions = sessions;
     }
     async validate(payload) {
         const user = await this.userRepo.findOne({ where: { id: payload.sub, isActive: true } });
         if (!user)
             throw new common_1.UnauthorizedException();
+        if (user.role === user_role_enum_1.UserRole.CLIENT) {
+            if (!user.clientId)
+                throw new common_1.UnauthorizedException();
+            const client = await this.clientRepo.findOne({
+                where: { id: user.clientId, organizationId: user.organizationId },
+                select: ['id', 'status'],
+            });
+            if (!client || ![client_status_enum_1.ClientStatus.ONBOARDING, client_status_enum_1.ClientStatus.ACTIVE].includes(client.status))
+                throw new common_1.UnauthorizedException();
+        }
         if (user.passwordChangedAt && payload.iat && payload.iat * 1000 < user.passwordChangedAt.getTime()) {
             throw new common_1.UnauthorizedException('Session invalidated by a password change');
         }
@@ -58,6 +72,8 @@ exports.JwtStrategy = JwtStrategy;
 exports.JwtStrategy = JwtStrategy = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         sessions_service_1.SessionsService])
 ], JwtStrategy);

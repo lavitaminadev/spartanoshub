@@ -19,21 +19,57 @@ const passport_1 = require("@nestjs/passport");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const tasks_service_1 = require("./tasks.service");
 const task_dto_1 = require("./dto/task.dto");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
+const lead_entity_1 = require("../crm/leads/lead.entity");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
+const client_capability_service_1 = require("../../core/client-scope/client-capability.service");
+const permission_resolver_service_1 = require("../../core/authorization/permission-resolver.service");
 let TasksController = class TasksController {
-    constructor(tasks) {
+    constructor(tasks, leads, accountAccess, capabilities, permissions) {
         this.tasks = tasks;
+        this.leads = leads;
+        this.accountAccess = accountAccess;
+        this.capabilities = capabilities;
+        this.permissions = permissions;
     }
     mine(req, limit) {
         return this.tasks.listMine(req.organizationId, req.user.id, limit ? Number(limit) : undefined);
     }
-    forEntity(entityType, entityId, req) {
+    async forEntity(entityType, entityId, req) {
+        await this.assertEntityAccess(req, entityType, entityId, 'view');
         return this.tasks.listForEntity(req.organizationId, entityType, entityId);
     }
-    create(dto, req) {
-        return this.tasks.create(req.organizationId, req.user.id, dto);
+    async create(dto, req) {
+        const clientId = await this.assertEntityAccess(req, dto.entityType, dto.entityId, 'edit');
+        return this.tasks.create(req.organizationId, req.user.id, { ...dto, clientId });
     }
-    update(id, dto, req) {
+    async update(id, dto, req) {
+        const task = await this.tasks.findOne(req.organizationId, id);
+        await this.assertEntityAccess(req, task.entityType, task.entityId, 'edit');
         return this.tasks.update(req.organizationId, id, dto);
+    }
+    async assertEntityAccess(req, entityType, entityId, level) {
+        if (entityType !== 'lead') {
+            if (req.user.role === 'client')
+                throw new common_1.ForbiddenException('El portal solo administra tareas de su CRM');
+            return undefined;
+        }
+        const lead = await this.leads.findOne({
+            where: { id: entityId, organizationId: req.organizationId }, select: { id: true, clientId: true },
+        });
+        if (!lead)
+            throw new common_1.NotFoundException('Lead not found');
+        if (!await this.permissions.can(req.organizationId, req.user.id, req.user.role, 'crm', level)) {
+            throw new common_1.ForbiddenException('No tienes acceso al CRM');
+        }
+        const clientId = lead.clientId ?? undefined;
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        if (!clientId && allowed !== undefined)
+            throw new common_1.NotFoundException('Lead not found');
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capabilities.assert(req.organizationId, clientId, 'crm');
+        return clientId;
     }
 };
 exports.TasksController = TasksController;
@@ -54,7 +90,7 @@ __decorate([
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], TasksController.prototype, "forEntity", null);
 __decorate([
     (0, common_1.Post)(),
@@ -63,7 +99,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [task_dto_1.CreateTaskDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], TasksController.prototype, "create", null);
 __decorate([
     (0, common_1.Put)(':id'),
@@ -73,7 +109,7 @@ __decorate([
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, task_dto_1.UpdateTaskDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], TasksController.prototype, "update", null);
 exports.TasksController = TasksController = __decorate([
     (0, swagger_1.ApiTags)('Tareas'),
@@ -81,5 +117,10 @@ exports.TasksController = TasksController = __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, module_scope_decorator_1.ModuleExempt)('Trabajo asignado sobre registros de cinco módulos distintos; no pertenece a ninguno'),
-    __metadata("design:paramtypes", [tasks_service_1.TasksService])
+    __param(1, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
+    __metadata("design:paramtypes", [tasks_service_1.TasksService,
+        typeorm_2.Repository,
+        account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService,
+        permission_resolver_service_1.PermissionResolverService])
 ], TasksController);

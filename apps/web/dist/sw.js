@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
+define(['./workbox-3d8c9f1b'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -78,90 +78,90 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "4b244cc414a66d248303cc4f4fe6b478"
+    "revision": "32b5af6d7d2b3dd9cc76619be7037cf7"
   }, {
     "url": "assets/WorkflowTimeline-D8fl8gya.css",
     "revision": null
   }, {
-    "url": "assets/WorkflowTimeline-9oA73Ky9.js",
+    "url": "assets/WorkflowTimeline-BwBWOrYV.js",
     "revision": null
   }, {
-    "url": "assets/WorkDetailPage-B5URQJMX.js",
+    "url": "assets/WorkDetailPage-CGhkhXQn.js",
     "revision": null
   }, {
-    "url": "assets/WaitlistPage-BW8XLsg7.js",
+    "url": "assets/WaitlistPage-B_V-EvSZ.js",
     "revision": null
   }, {
-    "url": "assets/vendor-router-LIqX4SvP.js",
+    "url": "assets/vendor-router-vxbNh6zt.js",
     "revision": null
   }, {
-    "url": "assets/vendor-react-Ba6dYXiN.js",
+    "url": "assets/vendor-react-CTxsT8bC.js",
     "revision": null
   }, {
-    "url": "assets/vendor-query-DV7fVZ5d.js",
+    "url": "assets/vendor-query-DG2EDnOU.js",
     "revision": null
   }, {
     "url": "assets/vendor-DLioOiRN.css",
     "revision": null
   }, {
-    "url": "assets/vendor-charts-LSrdfIUX.js",
+    "url": "assets/vendor-charts-DdMi_JhM.js",
     "revision": null
   }, {
-    "url": "assets/vendor-BMWf1Gk2.js",
+    "url": "assets/vendor-1KNK0yt2.js",
     "revision": null
   }, {
-    "url": "assets/useSurveys-9UPg_WAU.js",
+    "url": "assets/useSurveys-DVnFuKIQ.js",
     "revision": null
   }, {
-    "url": "assets/UsersPage-ESJjr03K.js",
+    "url": "assets/UsersPage-DVWTE7OG.js",
     "revision": null
   }, {
-    "url": "assets/use-vocabulario-UbGLnOYZ.js",
+    "url": "assets/use-vocabulario-D_u-I3EF.js",
     "revision": null
   }, {
-    "url": "assets/use-url-filters-LCwOh8DV.js",
+    "url": "assets/use-url-filters-CKOgJSt3.js",
     "revision": null
   }, {
-    "url": "assets/use-pipeline-stages-7Ikx2qwE.js",
+    "url": "assets/use-pipeline-stages-0NKCt-m9.js",
     "revision": null
   }, {
-    "url": "assets/Tooltip-BmTiu9uD.js",
+    "url": "assets/Tooltip-BhikuC34.js",
     "revision": null
   }, {
-    "url": "assets/Timeline-dNN0YZnV.js",
+    "url": "assets/Timeline-B-akliCS.js",
     "revision": null
   }, {
-    "url": "assets/SurveysPage-WRbo-XDS.js",
+    "url": "assets/SurveysPage-DpOXezUq.js",
     "revision": null
   }, {
     "url": "assets/surveys-D9ZMDVjH.css",
     "revision": null
   }, {
-    "url": "assets/SurveyResultsPage-Cevd5WSZ.js",
+    "url": "assets/SurveyResultsPage-DFgLXEm3.js",
     "revision": null
   }, {
-    "url": "assets/StatusBadge-DH1wlGlK.js",
+    "url": "assets/StatusBadge-CrG6CQqz.js",
     "revision": null
   }, {
-    "url": "assets/status-palette-D7NGFNU8.js",
+    "url": "assets/status-palette-Dx_-I5Q6.js",
     "revision": null
   }, {
     "url": "assets/status-labels-k5826si5.js",
     "revision": null
   }, {
-    "url": "assets/stage-labels-Bd03ttZA.js",
+    "url": "assets/stage-labels-TQpnZpLj.js",
     "revision": null
   }, {
-    "url": "assets/SolicitudesPage-DvuaNciQ.js",
+    "url": "assets/SolicitudesPage-BETv78uJ.js",
     "revision": null
   }, {
-    "url": "assets/SettingsPage-iMJ5T2hV.js",
+    "url": "assets/SettingsPage-x_LUxn8T.js",
     "revision": null
   }, {
-    "url": "assets/SessionsPage-zOli2SbG.js",
+    "url": "assets/SessionsPage-lBu_fUr1.js",
     "revision": null
   }, {
-    "url": "assets/SecurityPage-8CqSnZiT.js",
+    "url": "assets/SecurityPage-RtA705lL.js",
     "revision": null
   }, {
     "url": "assets/search-C-ELg2fg.js",
@@ -176,163 +176,163 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/role-access-DjNaJx-y.js",
     "revision": null
   }, {
-    "url": "assets/ResetPasswordPage-C4CdhTF7.js",
+    "url": "assets/ResetPasswordPage-pAdIKE0N.js",
     "revision": null
   }, {
-    "url": "assets/ReservationsPage-DOnAHjU0.js",
+    "url": "assets/ReservationsPage-DqR4ZBHt.js",
     "revision": null
   }, {
     "url": "assets/ReservationsPage-CmUBKqEa.css",
     "revision": null
   }, {
+    "url": "assets/ReservationsLayout-DjBwhUho.js",
+    "revision": null
+  }, {
     "url": "assets/ReservationsLayout-D1HiBnGw.css",
     "revision": null
   }, {
-    "url": "assets/ReservationsLayout-BM5QGvZG.js",
+    "url": "assets/ReservationsAnalyticsPage-BFL7VaHf.js",
     "revision": null
   }, {
-    "url": "assets/ReservationsAnalyticsPage-DJbhZapj.js",
+    "url": "assets/ReservationResults--Krrsw64.js",
     "revision": null
   }, {
-    "url": "assets/ReservationResults-C2SyjoTK.js",
+    "url": "assets/ReservationBuilderPage-BM1DDcIt.js",
     "revision": null
   }, {
-    "url": "assets/ReservationBuilderPage-Br9DhKfo.js",
+    "url": "assets/ReportsPage-cc69kR6W.js",
     "revision": null
   }, {
-    "url": "assets/ReportsPage-RoLLnZH6.js",
+    "url": "assets/QueryErrorState-DsphCnpK.js",
     "revision": null
   }, {
-    "url": "assets/QueryErrorState-BydVvbaP.js",
+    "url": "assets/PulsoEspartano-BowT4C26.js",
     "revision": null
   }, {
-    "url": "assets/PulsoEspartano-DXr1h6zv.js",
+    "url": "assets/PublicSurveyPage-DvBSFxiY.js",
     "revision": null
   }, {
-    "url": "assets/PublicSurveyPage-CnyV2UH3.js",
-    "revision": null
-  }, {
-    "url": "assets/PublicReservationPage-CRNA1Sba.js",
+    "url": "assets/PublicReservationPage-sjGavZ8-.js",
     "revision": null
   }, {
     "url": "assets/PublicReservationPage-B2riEtaj.css",
     "revision": null
   }, {
-    "url": "assets/ProductionPage-D5n09H2K.js",
+    "url": "assets/ProductionPage-C0-FiZgO.js",
     "revision": null
   }, {
-    "url": "assets/ProcessCommentThread-8-RQMQgB.js",
+    "url": "assets/ProcessCommentThread-BM8J6Q-B.js",
     "revision": null
   }, {
-    "url": "assets/PipelineBoardPage-mICVeiKD.js",
+    "url": "assets/PipelineBoardPage-CWw5qCco.js",
     "revision": null
   }, {
-    "url": "assets/PasswordField-CvGNCQTY.js",
+    "url": "assets/PasswordField-DTsnisDG.js",
     "revision": null
   }, {
-    "url": "assets/PageHero-Ddtp3G51.js",
+    "url": "assets/Pagination-CK8Q3Ma8.js",
+    "revision": null
+  }, {
+    "url": "assets/PageHero-C93cQnUu.js",
     "revision": null
   }, {
     "url": "assets/PageHero-BFu4a6CR.css",
     "revision": null
   }, {
-    "url": "assets/organization-settings-GoCL6laU.js",
+    "url": "assets/organization-settings-BrWqb71H.js",
     "revision": null
   }, {
-    "url": "assets/OperationsPage-IvIbgWll.js",
+    "url": "assets/OperationsPage-5gPxVqUT.js",
     "revision": null
   }, {
-    "url": "assets/OnboardingPage-Dk_f3Rs2.js",
+    "url": "assets/OnboardingPage-CJlcBcWq.js",
     "revision": null
   }, {
-    "url": "assets/OAuthCallbackPage-Co7cPxp9.js",
+    "url": "assets/OAuthCallbackPage-9yWlyZgU.js",
     "revision": null
   }, {
-    "url": "assets/MonthlyReportCard-CTW60zgg.js",
+    "url": "assets/MeetingsPage-DCxnnoAV.js",
     "revision": null
   }, {
-    "url": "assets/MeetingsPage-DCQ3VHn1.js",
-    "revision": null
-  }, {
-    "url": "assets/LoginPage-D2hVp2g4.js",
+    "url": "assets/LoginPage-DUVSXa5N.js",
     "revision": null
   }, {
     "url": "assets/local-time-CDXSxa83.js",
     "revision": null
   }, {
-    "url": "assets/LeadsBoardPage-GQUcZNR9.js",
+    "url": "assets/LeadsBoardPage-vUIAv5YZ.css",
     "revision": null
   }, {
-    "url": "assets/LeadsBoardPage-CHTY4N8D.css",
+    "url": "assets/LeadsBoardPage-BTYzTtSf.js",
     "revision": null
   }, {
-    "url": "assets/KnowledgePage-DnRsgjW9.js",
+    "url": "assets/KnowledgePage-CXV6b22Y.js",
     "revision": null
   }, {
-    "url": "assets/KanbanBoard-BDnUCn1I.js",
+    "url": "assets/KanbanBoard-BTXPv6qQ.js",
     "revision": null
   }, {
-    "url": "assets/IntegrationsPage-e2aVJjGG.js",
+    "url": "assets/IntegrationsPage-DNx4shMI.js",
     "revision": null
   }, {
-    "url": "assets/IntakePage-B2elw_4A.js",
+    "url": "assets/IntakePage-DhBnrFjj.js",
     "revision": null
   }, {
     "url": "assets/index-Dcvnu2qv.css",
     "revision": null
   }, {
-    "url": "assets/index-D-UmutQ0.js",
+    "url": "assets/index-BWE783qQ.js",
     "revision": null
   }, {
-    "url": "assets/ImageUpload-BLFRs-QB.js",
+    "url": "assets/ImageUpload-nd3GjpoL.js",
     "revision": null
   }, {
-    "url": "assets/GovernancePage-Dm_SGV1D.js",
+    "url": "assets/GovernancePage-BCZD6Yxo.js",
     "revision": null
   }, {
-    "url": "assets/GamificationPage-1Hg0yMZo.js",
+    "url": "assets/GamificationPage-0nzB4EGC.js",
     "revision": null
   }, {
-    "url": "assets/ga4-events-bfQKrHuS.js",
+    "url": "assets/ga4-events-BB0gTTJ_.js",
     "revision": null
   }, {
-    "url": "assets/ForgotPasswordPage-BXpnGpyq.js",
+    "url": "assets/ForgotPasswordPage-h8yOjxrN.js",
     "revision": null
   }, {
-    "url": "assets/ForbiddenState-BKtrvIq6.js",
+    "url": "assets/ForbiddenState-CZa3DmXo.js",
     "revision": null
   }, {
-    "url": "assets/FirstAccessPage-CYopCQOW.js",
+    "url": "assets/FirstAccessPage-BT_yDJ3d.js",
     "revision": null
   }, {
-    "url": "assets/FilterBar-Ci_UqgMr.js",
+    "url": "assets/FilterBar-CRmk1zMk.js",
+    "revision": null
+  }, {
+    "url": "assets/export-lpjHrM6U.js",
     "revision": null
   }, {
     "url": "assets/export-DgEFKCJ5.css",
     "revision": null
   }, {
-    "url": "assets/export-BQie0AM3.js",
+    "url": "assets/EmptyState-BVHWMAX7.js",
     "revision": null
   }, {
-    "url": "assets/EmptyState-DD1NBmVy.js",
+    "url": "assets/DocumentsPage-DT9CTRay.js",
     "revision": null
   }, {
-    "url": "assets/DocumentsPage-DlboajMh.js",
+    "url": "assets/DirectionPage-v14bMFC0.js",
     "revision": null
   }, {
-    "url": "assets/DirectionPage-CrE4jjwe.js",
+    "url": "assets/DataTable-RhI0t6jQ.js",
     "revision": null
   }, {
-    "url": "assets/DataTable-Bk1pDdQt.js",
+    "url": "assets/DashboardPage-Bq58BUjT.js",
     "revision": null
   }, {
-    "url": "assets/DashboardPage-DEwZLZb3.js",
+    "url": "assets/CrmRecordsPage-fKHT_kvM.js",
     "revision": null
   }, {
-    "url": "assets/CrmRecordsPage-Djb8GBD5.js",
-    "revision": null
-  }, {
-    "url": "assets/CrmLayout-R5-NsT0t.js",
+    "url": "assets/CrmLayout-BxlWXZfw.js",
     "revision": null
   }, {
     "url": "assets/CrmLayout-B0e4Y8gq.css",
@@ -341,133 +341,124 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/CrmHomePage-vxHeKC3i.css",
     "revision": null
   }, {
-    "url": "assets/CrmHomePage-akxzZ0LE.js",
+    "url": "assets/CrmHomePage-DZiJPXKf.js",
+    "revision": null
+  }, {
+    "url": "assets/CrmDashboardPage-Dkumq_JY.js",
     "revision": null
   }, {
     "url": "assets/CrmDashboardPage-DEYi0G0f.css",
     "revision": null
   }, {
-    "url": "assets/CrmDashboardPage-CK7tbzJA.js",
+    "url": "assets/CrmCalendarPage-CpmMslzD.js",
     "revision": null
   }, {
-    "url": "assets/CrmCalendarPage-DX38vv-4.css",
-    "revision": null
-  }, {
-    "url": "assets/CrmCalendarPage-CykLE-Yl.js",
+    "url": "assets/CrmCalendarPage-COe8Zbig.css",
     "revision": null
   }, {
     "url": "assets/CrmAdminPage-xQJRXQLe.css",
     "revision": null
   }, {
-    "url": "assets/CrmAdminPage-nTcjS_Mh.js",
+    "url": "assets/CrmAdminPage-DeqNDOQb.js",
     "revision": null
   }, {
-    "url": "assets/crm-scope-DnpJ5G8w.js",
-    "revision": null
-  }, {
-    "url": "assets/CreateSurveyWizard-gCMrXn3y.js",
+    "url": "assets/crm-scope-7pGKMUU-.js",
     "revision": null
   }, {
     "url": "assets/CreateSurveyWizard-D3jzy4Fi.css",
     "revision": null
   }, {
-    "url": "assets/ContractsPage-DiZxeBKl.js",
+    "url": "assets/CreateSurveyWizard-BHC98BuM.js",
     "revision": null
   }, {
-    "url": "assets/ContentGridPage--NeiJjYn.js",
+    "url": "assets/ContractsPage-DZi4oyCW.js",
     "revision": null
   }, {
-    "url": "assets/ConfirmDialog-CIW63WjS.js",
+    "url": "assets/ContentGridPage-CuE6HHT-.js",
     "revision": null
   }, {
-    "url": "assets/CloudinaryConfigModal-CKMKczQm.js",
+    "url": "assets/ConfirmDialog-CIxofbgR.js",
     "revision": null
   }, {
-    "url": "assets/ClientsPage-D-3h-gFB.js",
+    "url": "assets/CloudinaryConfigModal-0_XN-YyU.js",
+    "revision": null
+  }, {
+    "url": "assets/ClientsPage-B-WbNslL.js",
     "revision": null
   }, {
     "url": "assets/ClientsPage-5vXbh_F2.css",
     "revision": null
   }, {
-    "url": "assets/ClientReports-BDC9vwH_.js",
+    "url": "assets/ClientLayout-BPj2kpSP.js",
     "revision": null
   }, {
-    "url": "assets/ClientMeetings-BZpPVyGk.js",
+    "url": "assets/ClientDetailPage-CEApws3Q.js",
     "revision": null
   }, {
-    "url": "assets/ClientLayout-Bzt9xCBI.js",
+    "url": "assets/ClientDashboard-Dw98jQ3m.js",
     "revision": null
   }, {
-    "url": "assets/ClientGrid-DDpREwIx.js",
+    "url": "assets/client-portal-scope-BZH5W6yz.js",
     "revision": null
   }, {
-    "url": "assets/ClientDetailPage-Bu67_fKq.js",
+    "url": "assets/ChangePasswordPage-fQATIbk_.js",
     "revision": null
   }, {
-    "url": "assets/ClientDashboard-DQIewXTe.js",
+    "url": "assets/CatalogPage-D_PRZIZo.js",
     "revision": null
   }, {
-    "url": "assets/ClientApprovals-D5wDm7uT.js",
-    "revision": null
-  }, {
-    "url": "assets/ChangePasswordPage-DwgjJtMe.js",
-    "revision": null
-  }, {
-    "url": "assets/CatalogPage-DUugerh2.js",
-    "revision": null
-  }, {
-    "url": "assets/Card-CfdB6tpN.js",
+    "url": "assets/Card-CKy4wAZ1.js",
     "revision": null
   }, {
     "url": "assets/browser-storage-B9UsxX0B.js",
     "revision": null
   }, {
-    "url": "assets/BriefsPage-DnZniTZI.js",
+    "url": "assets/BriefsPage-JifpEbJ2.js",
     "revision": null
   }, {
     "url": "assets/booking-utils-DfHGxcnP.js",
     "revision": null
   }, {
-    "url": "assets/BillingPage-B_U7IeYR.js",
+    "url": "assets/BillingPage-DwRE6SFn.js",
     "revision": null
   }, {
     "url": "assets/AvailabilityCalendarPage-rG-YTosR.css",
     "revision": null
   }, {
-    "url": "assets/AvailabilityCalendarPage-C3GH8az7.js",
+    "url": "assets/AvailabilityCalendarPage-Hg0fKL4M.js",
     "revision": null
   }, {
-    "url": "assets/AutomationsPage-zC1yPsMf.js",
+    "url": "assets/AutomationsPage-jg7nX8ab.js",
     "revision": null
   }, {
-    "url": "assets/AutomationRunsPage-Bv0CJn9k.js",
+    "url": "assets/AutomationRunsPage-Bk7dCOVe.js",
     "revision": null
   }, {
-    "url": "assets/AutomationEditorPage-BhSqfLFE.js",
+    "url": "assets/AutomationEditorPage-wRQJfXgI.js",
     "revision": null
   }, {
-    "url": "assets/AuditPanel-BC15LDO6.js",
+    "url": "assets/AuditPanel-C8KOOHIW.js",
     "revision": null
   }, {
-    "url": "assets/AudiovisualPage-CVO4PT3Q.js",
+    "url": "assets/AudiovisualPage-DI4AprCJ.js",
     "revision": null
   }, {
-    "url": "assets/attendance-DEeru8xc.js",
+    "url": "assets/attendance-B_K6m21L.js",
     "revision": null
   }, {
     "url": "assets/attendance-Byko9tlR.css",
     "revision": null
   }, {
-    "url": "assets/ApprovalsPage-DJpjhHFV.js",
+    "url": "assets/ApprovalsPage-CZxftA6G.js",
     "revision": null
   }, {
     "url": "assets/AgendaPage-Y83Y1SoO.css",
     "revision": null
   }, {
-    "url": "assets/AgendaPage-usOUgrLy.js",
+    "url": "assets/AgendaPage-DrbFrxvR.js",
     "revision": null
   }, {
-    "url": "assets/AdminPage-rFyzNCW6.js",
+    "url": "assets/AdminPage-BKcMi_Ol.js",
     "revision": null
   }, {
     "url": "favicon.svg",
@@ -498,8 +489,17 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "revision": "5e4ebab5a95e7df65224bbb2f0fb66e7"
   }], {});
   workbox.cleanupOutdatedCaches();
-  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
-    denylist: [/^\/api\//]
-  }));
+  workbox.registerRoute(({
+    request
+  }) => request.mode === "navigate", new workbox.NetworkFirst({
+    "cacheName": "espartanos-navigation",
+    "networkTimeoutSeconds": 4,
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 20,
+      maxAgeSeconds: 86400
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [200]
+    })]
+  }), 'GET');
 
 }));

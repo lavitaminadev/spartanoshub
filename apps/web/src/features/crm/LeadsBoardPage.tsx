@@ -41,7 +41,8 @@ import { useCrmScope } from './crm-scope';
 import { useAuth } from '../../core/auth';
 import { useStageLabels } from './use-stage-labels';
 import { useVocabulario } from './use-vocabulario';
-import { colorDePersona, whatsapp } from './contacto';
+import { LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
+import { colorDePersona, mensajeDePrimerContacto, whatsapp } from './contacto';
 import './leads-board.css';
 
 interface Lead {
@@ -74,7 +75,7 @@ interface LeadsPage { data: Lead[]; total: number; limit: number; offset: number
 
 const LEADS_PAGE_SIZE = 100;
 
-const FILTER_KEYS = ['responsable', 'etapa', 'calidad'] as const;
+const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana'] as const;
 
 /** Días sin movimiento tras los que la tarjeta se marca. Coincide con el valor del inicio. */
 const COOLING_DAYS = 7;
@@ -86,8 +87,10 @@ type Vista = 'tablero' | 'tabla';
 const ICONO_ORIGEN: Record<string, string> = {
   meta_lead_ads: '📣',
   meta: '📣',
+  formulario_web: '🌐',
   formulario: '🌐',
   web: '🌐',
+  portal_inmobiliario: '🏢',
   whatsapp: '💬',
   telefono: '📞',
   presencial: '🤝',
@@ -149,17 +152,17 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const [pagina, setPagina] = useState(1);
   /** Lead cuyo cambio de etapa se está eligiendo por menú, en vez de arrastrando. */
   const [moviendo, setMoviendo] = useState<Lead | null>(null);
-  const [formulario, setFormulario] = useState({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '', estimatedAmount: '', trafficLight: '' });
+  const [formulario, setFormulario] = useState({ name: '', email: '', phone: '', company: '', source: 'otro', campaignName: '', notes: '', estimatedAmount: '', trafficLight: '' });
   const [meta, setMeta] = useState({ pageId: '', leadgenId: '' });
 
   const { data, isLoading, error, refetch } = useQuery<LeadsPage>({
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
-    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad],
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana],
     // El servidor limita cada respuesta a 100, pero el tablero no: se navega de página en página.
     // Así una empresa no pierde los contactos más antiguos cuando supera el primer centenar.
     queryFn: () => api.get(
-      `/crm/leads?domain=${scope.domain}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}`,
+      `/crm/leads?domain=${scope.domain}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}`,
     ),
   });
 
@@ -167,7 +170,24 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // anterior podía mostrar un tablero vacío aunque la empresa sí tuviera prospectos.
   useEffect(() => {
     setPagina(1);
-  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad]);
+  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana]);
+
+  /**
+   * Campañas de la empresa que se está mirando.
+   *
+   * Alimentan el filtro y las sugerencias del alta manual. Se piden acá y no por cada control
+   * porque son la misma lista para los dos, y cambian de mes en mes: se comparte la caché de
+   * `crm-campaigns`, que es la misma clave que usa Administración.
+   */
+  const { data: campanasResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
+    queryKey: ['crm-campaigns', scope.clientId],
+    queryFn: () => api.get(`/crm/campaigns${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`),
+    // Sin campañas dadas de alta el filtro simplemente no ofrece opciones; no es un error.
+    retry: false,
+  });
+  // Memorizado para conservar la identidad del arreglo: `?? []` crea uno nuevo en cada render y
+  // con eso el filtro se rearmaba entero cada vez.
+  const campanas = useMemo(() => campanasResp?.data ?? [], [campanasResp]);
 
   const { data: usuarios } = useQuery<{ data: UserOption[] }>({
     queryKey: ['users-min'],
@@ -198,7 +218,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   ]);
 
   /** Clave exacta del embudo que se está mirando, para tocar solo esa caché y no la de otra empresa. */
-  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad] as const;
+  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana] as const;
 
   /**
    * Cambio de etapa de una tarjeta.
@@ -303,13 +323,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       phone: formulario.phone.trim() || undefined,
       company: formulario.company.trim() || undefined,
       source: formulario.source,
+      campaignName: formulario.campaignName.trim() || undefined,
       notes: formulario.notes.trim() || undefined,
       estimatedAmount: formulario.estimatedAmount === '' ? undefined : Number(formulario.estimatedAmount),
       trafficLight: formulario.trafficLight || undefined,
     }),
     onSuccess: async () => {
       setCrearAbierto(false);
-      setFormulario({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '', estimatedAmount: '', trafficLight: '' });
+      setFormulario({ name: '', email: '', phone: '', company: '', source: 'otro', campaignName: '', notes: '', estimatedAmount: '', trafficLight: '' });
       setAviso({ tono: 'success', texto: 'Prospecto creado y agregado al embudo.' });
       await refrescar();
     },
@@ -407,7 +428,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       { header: 'Teléfono', value: (l) => l.phone, width: 14 },
       { header: 'Correo', value: (l) => l.email, width: 22 },
       { header: 'Etapa', value: (l) => etapaLabel(l.status), width: 13 },
-      { header: 'Origen', value: (l) => l.campaignName || l.source, width: 15 },
+      { header: 'Origen', value: (l) => l.campaignName || etiquetaDeFuente(l.source), width: 15 },
       { header: 'Responsable', value: (l) => nombreDe(l.assignedTo) ?? 'Sin asignar', width: 14 },
     ],
     rows: leads,
@@ -491,6 +512,12 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           { key: 'responsable', label: 'Responsable', allLabel: 'Todo el equipo', options: equipo.map((u) => ({ value: u.id, label: u.name })) },
           { key: 'etapa', label: 'Etapa', allLabel: 'Todas las etapas', options: etapasDelEmbudo.map((s) => ({ value: s, label: etapaLabel(s) })) },
           { key: 'calidad', label: 'Calidad', allLabel: 'Toda calidad', options: CALIDADES },
+          /*
+            Las campañas son las de la empresa que se está mirando, no las de toda la
+            organización: dos empresas pueden llamar igual a la suya, y ofrecer ambas dejaría
+            elegir una que no devuelve nada.
+          */
+          { key: 'campana', label: termino('campana'), allLabel: 'Todas', options: campanas.map((campana) => ({ value: campana.name, label: campana.name })) },
         ]}
         values={filtros.values}
         onFilterChange={filtros.setValue}
@@ -559,7 +586,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               >
                 <div className="leads-board-card-head">
                   <strong>
-                    <span className="leads-board-icono" title={lead.source ?? 'Sin origen'}>{iconoOrigen(lead.source)}</span>
+                    <span className="leads-board-icono" title={etiquetaDeFuente(lead.source) || 'Sin origen'}>{iconoOrigen(lead.source)}</span>
                     {lead.name}
                   </strong>
                   {/* Un hueco donde va el responsable se lee como un dato que falta; una
@@ -591,9 +618,10 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     <i /> {lead.trafficLight === 'green' ? 'Verde' : lead.trafficLight === 'yellow' ? 'Amarillo' : 'Rojo'}
                   </span>
                 ) : null}
-                {typeof lead.qualityScore === 'number' ? <span className="leads-board-puntaje">Puntaje {lead.qualityScore}/100</span> : null}
+                {/* Sin puntaje en la tarjeta: el semáforo de al lado ya dice la prioridad, y
+                    dos escalas para lo mismo obligan a decidir cuál se cree. */}
                 <span className="leads-board-origen">
-                  {lead.campaignName || lead.source || 'Sin origen'} · {new Date(lead.createdAt).toLocaleDateString('es-CL')}
+                  {lead.campaignName || etiquetaDeFuente(lead.source) || 'Sin origen'} · {new Date(lead.createdAt).toLocaleDateString('es-CL')}
                 </span>
                 {/*
                   Lo que falta hacer, no lo último que se hizo.
@@ -625,7 +653,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   {whatsapp(lead.phone) ? (
                     <a
                       className="leads-board-wa"
-                      href={whatsapp(lead.phone)}
+                      href={whatsapp(lead.phone, mensajeDePrimerContacto({
+                        nombre: lead.name,
+                        empresa: scope.empresa,
+                        interes: lead.campaignName || lead.company,
+                      }))}
                       target="_blank"
                       rel="noreferrer"
                       title={`Escribir por WhatsApp a ${lead.name}`}
@@ -702,7 +734,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   <td data-label="Teléfono">{lead.phone || '—'}</td>
                   <td data-label="Correo">{lead.email || '—'}</td>
                   <td data-label="Empresa">{lead.company || '—'}</td>
-                  <td data-label="Origen">{lead.campaignName || lead.source || '—'}</td>
+                  <td data-label="Origen">{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}</td>
                   <td data-label="Etapa">{etapaLabel(lead.status)}</td>
                   <td data-label="Etiqueta">{lead.tags?.length ? lead.tags.join(' · ') : '—'}</td>
                   <td data-label="Calidad">{lead.fitStatus ? <StatusBadge status={lead.fitStatus} /> : '—'}</td>
@@ -766,8 +798,16 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             <label>Empresa<input className="input" value={formulario.company} onChange={(e) => setFormulario({ ...formulario, company: e.target.value })} /></label>
             <label>Correo<input className="input" type="email" value={formulario.email} onChange={(e) => setFormulario({ ...formulario, email: e.target.value })} /></label>
             <label>Teléfono<input className="input" value={formulario.phone} onChange={(e) => setFormulario({ ...formulario, phone: e.target.value })} /></label>
-            <label>Origen<input className="input" list="fuentes-nuevo-lead" value={formulario.source} onChange={(e) => setFormulario({ ...formulario, source: e.target.value })} /></label>
-            <datalist id="fuentes-nuevo-lead"><option value="manual" /><option value="Meta Ads" /><option value="Google Ads" /><option value="referido" /><option value="sitio web" /></datalist>
+            <label>Origen<select className="input" value={formulario.source} onChange={(e) => setFormulario({ ...formulario, source: e.target.value })}>
+              {LEAD_SOURCES.map((fuente) => <option key={fuente.value} value={fuente.value}>{fuente.label}</option>)}
+            </select></label>
+            <label>Campaña<input className="input" list="campanas-nuevo-lead" value={formulario.campaignName} onChange={(e) => setFormulario({ ...formulario, campaignName: e.target.value })} placeholder="Opcional" /></label>
+            {/* Sugerencias y no lista cerrada: una campaña recién lanzada todavía no está dada
+                de alta en Administración, y no poder escribirla obliga a dejar el lead sin
+                campaña justo cuando más importa atribuirlo. */}
+            <datalist id="campanas-nuevo-lead">
+              {campanas.map((campana) => <option key={campana.id} value={campana.name} />)}
+            </datalist>
             <label>Monto estimado<input className="input" type="number" min={0} step="1000" value={formulario.estimatedAmount} onChange={(e) => setFormulario({ ...formulario, estimatedAmount: e.target.value })} placeholder="Opcional" /></label>
             <label>Semáforo<select className="input" value={formulario.trafficLight} onChange={(e) => setFormulario({ ...formulario, trafficLight: e.target.value })}><option value="">Sin etiqueta</option><option value="green">Verde</option><option value="yellow">Amarillo</option><option value="red">Rojo</option></select></label>
             <label>Notas<textarea className="input" rows={3} value={formulario.notes} onChange={(e) => setFormulario({ ...formulario, notes: e.target.value })} /></label>

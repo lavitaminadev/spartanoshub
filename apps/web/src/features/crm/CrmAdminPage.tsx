@@ -90,7 +90,7 @@ export function CrmAdminPage(): JSX.Element {
   const [porRotar, setPorRotar] = useState<{ id: string; nombre: string } | null>(null);
   const [llaveNueva, setLlaveNueva] = useState<string | null>(null);
   const [campaniaAbierta, setCampaniaAbierta] = useState(false);
-  const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active' });
+  const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId });
 
   const campanias = useQuery<Campania[]>({
     queryKey: ['crm-campaigns', scope.clientId],
@@ -105,13 +105,13 @@ export function CrmAdminPage(): JSX.Element {
       source: formCampania.source.trim() || undefined,
       investment: Number(formCampania.investment) || 0,
       status: formCampania.status,
-      // La cuenta sale del contexto y no de un campo: administrar campañas de otra empresa
-      // desde el panel de esta sería justo la mezcla que el selector vino a evitar.
-      clientId: scope.clientId || null,
+      // Lo elegido en el formulario. El servidor vuelve a comprobar que quien guarda alcance esa
+      // empresa, y a un portal le impone la suya ignorando este valor.
+      clientId: formCampania.clientId || null,
     }),
     onSuccess: async (respuesta: { integracion?: { header?: string; token?: string } }) => {
       setCampaniaAbierta(false);
-      setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active' });
+      setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId });
       // Se reutiliza el aviso de llave nueva: es la misma advertencia —cópiala ahora— y tener
       // dos formas de decir lo mismo invita a que una de las dos se quede sin decirlo.
       setLlaveNueva(respuesta?.integracion?.token ?? null);
@@ -325,6 +325,35 @@ export function CrmAdminPage(): JSX.Element {
                 placeholder="Tal como llega en los leads"
               />
             </label>
+            {/*
+              Empresa dueña de la campaña.
+
+              Arranca en la del selector superior, que es el caso normal, pero se puede cambiar:
+              las campañas son de los clientes y quien las da de alta no siempre está mirando el
+              CRM de esa empresa en ese momento. Antes la cuenta se tomaba del contexto sin
+              preguntar, así que dar de alta la campaña de un cliente obligaba a cambiar de
+              empresa arriba, volver, y recordar hacerlo —o la campaña quedaba en la agencia y
+              sus leads no se le atribuían a nadie—.
+
+              El servidor no confía en este campo: `resolveScope` comprueba que quien guarda
+              alcance la empresa elegida, y a un portal le impone la suya sea cual sea el valor
+              enviado. El desplegable solo se ofrece a quien administra varias cuentas.
+            */}
+            {listaClientes.length ? (
+              <label>
+                Empresa
+                <select
+                  className="input"
+                  value={formCampania.clientId}
+                  onChange={(event) => setFormCampania({ ...formCampania, clientId: event.target.value })}
+                >
+                  <option value="">Espartanos (campaña propia)</option>
+                  {listaClientes.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id}>{cliente.name}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label>
               Fuente
               {/*

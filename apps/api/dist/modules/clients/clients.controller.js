@@ -31,6 +31,7 @@ const account_access_service_1 = require("../../core/client-scope/account-access
 const client_overview_service_1 = require("./client-overview.service");
 const pagination_dto_1 = require("../../shared/dto/pagination.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const requires_recent_auth_decorator_1 = require("../../core/auth/requires-recent-auth.decorator");
 let ClientsController = class ClientsController {
     constructor(repo, users, accountAccess, overviewService, createClient, listClients, getClient) {
         this.repo = repo;
@@ -45,7 +46,9 @@ let ClientsController = class ClientsController {
         return this.createClient.execute({ ...dto, organizationId: req.organizationId });
     }
     async list(pagination, req) {
-        const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const clientIds = req.user.role === user_role_enum_1.UserRole.CLIENT
+            ? (req.user.clientId ? [req.user.clientId] : [])
+            : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.listClients.execute(req.organizationId, clientIds, pagination.limit, pagination.offset);
     }
     managerOptions(req) {
@@ -87,7 +90,12 @@ let ClientsController = class ClientsController {
         const client = await this.repo.findOne({ where: { id, organizationId: req.organizationId } });
         if (!client)
             throw new common_1.NotFoundException('Client not found');
-        return this.repo.remove(client);
+        try {
+            return await this.repo.remove(client);
+        }
+        catch {
+            throw new common_1.BadRequestException('La empresa tiene datos asociados. Desactívala para conservar CRM, reservas y trazabilidad.');
+        }
     }
 };
 exports.ClientsController = ClientsController;
@@ -150,7 +158,8 @@ __decorate([
 ], ClientsController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
+    (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('eliminar una empresa'),
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar un cliente' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),

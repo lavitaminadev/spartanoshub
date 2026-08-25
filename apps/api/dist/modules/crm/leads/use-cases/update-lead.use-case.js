@@ -37,9 +37,6 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
         if (!lead)
             throw new common_1.NotFoundException('Lead not found');
         const etapaPrevia = lead.status;
-        if (data.status === lead_status_enum_1.LeadStatus.WON && !lead.convertedToClientId) {
-            throw new common_1.BadRequestException('Para marcar un lead como ganado debes convertirlo en cliente');
-        }
         if (data.status && Object.values(lead_status_enum_1.LeadStatus).includes(data.status)) {
             if (!(0, lead_status_enum_1.isStatusInDomain)(lead.domain, data.status)) {
                 throw new common_1.BadRequestException(`El estado "${data.status}" no corresponde a un lead de ${DOMAIN_LABELS[lead.domain] ?? lead.domain}`);
@@ -65,12 +62,14 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.tags = data.tags;
         if (data.estimatedAmount !== undefined)
             lead.estimatedAmount = data.estimatedAmount;
+        if (data.trafficLight !== undefined)
+            lead.trafficLight = data.trafficLight;
         if (data.assignedTo !== undefined)
-            lead.assignedTo = data.assignedTo ?? undefined;
+            lead.assignedTo = data.assignedTo;
         if (data.source !== undefined)
             lead.source = data.source;
         if (data.clientId !== undefined)
-            lead.clientId = data.clientId ?? undefined;
+            lead.clientId = data.clientId;
         const guardado = await this.repo.save(lead);
         await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.LEAD, guardado.id, etapaPrevia, guardado.status, actorId, guardado.discardReason);
         await this.cierre.avisar(guardado, etapaPrevia, actorId);

@@ -25,6 +25,12 @@ let TasksService = class TasksService {
         this.repo = repo;
         this.users = users;
     }
+    async findOne(organizationId, id) {
+        const task = await this.repo.findOne({ where: { id, organizationId, kind: approval_request_status_enum_1.PendingKind.TASK } });
+        if (!task)
+            throw new common_1.NotFoundException('Tarea no encontrada');
+        return task;
+    }
     async create(organizationId, requestedBy, dto) {
         if (!exports.TASK_ENTITY_TYPES.includes(dto.entityType)) {
             throw new common_1.BadRequestException(`No se pueden crear tareas sobre un registro de tipo "${dto.entityType}"`);
@@ -69,9 +75,7 @@ let TasksService = class TasksService {
         });
     }
     async update(organizationId, id, dto) {
-        const task = await this.repo.findOne({ where: { id, organizationId, kind: approval_request_status_enum_1.PendingKind.TASK } });
-        if (!task)
-            throw new common_1.NotFoundException('Tarea no encontrada');
+        const task = await this.findOne(organizationId, id);
         if (dto.status) {
             const permitidos = [
                 approval_request_status_enum_1.ApprovalRequestStatus.PENDING,

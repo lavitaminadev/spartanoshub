@@ -58,7 +58,7 @@ let LeadConvertedHandler = LeadConvertedHandler_1 = class LeadConvertedHandler {
                     organizationId: client.organizationId,
                     step: step.label,
                     status: 'pending',
-                    assignedTo: index === 0 ? lead.assignedTo : undefined,
+                    assignedTo: index === 0 ? (lead.assignedTo ?? undefined) : undefined,
                     notes: step.slaHours ? `SLA sugerido: ${step.slaHours} horas${step.responsibleRole ? ` · Responsable: ${step.responsibleRole}` : ''}` : undefined,
                 })));
             }

@@ -9,6 +9,8 @@ export interface ListLeadsFilters {
   status?: string;
   fitStatus?: string;
   source?: string;
+  /** Campaña exacta. Acota «cuántos trajo esta campaña», que la búsqueda de texto no responde. */
+  campaignName?: string;
   search?: string;
   assignedTo?: string;
   /**
@@ -80,6 +82,9 @@ export class ListLeadsUseCase {
     if (filters.status) where.status = filters.status as Lead['status'];
     if (filters.fitStatus) where.fitStatus = filters.fitStatus as Lead['fitStatus'];
     if (filters.source) where.source = expandSourceFilter(filters.source);
+    // La entidad recorta la campaña al guardarla, así que comparar el valor tal cual basta y no
+    // hace falta normalizar acá.
+    if (filters.campaignName) where.campaignName = filters.campaignName;
     if (filters.assignedTo) where.assignedTo = filters.assignedTo;
     const domain = filters.domain ?? 'commercial';
     if (domain !== 'all') where.domain = domain;

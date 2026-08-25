@@ -47,6 +47,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 name: dto.nombre,
                 phone: dto.telefono,
                 email: dto.email,
+                company: dto.empresa,
                 source: source.source,
                 campaignName: source.campaignName ?? dto.campana,
                 notes: dto.mensaje,
@@ -55,7 +56,9 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 externalFormId: dto.formId,
                 externalCampaignId: dto.campanaId,
                 pageId: dto.paginaId,
-                metadata: dto.anuncioId ? { adId: dto.anuncioId } : undefined,
+                metadata: dto.anuncioId || dto.metadata
+                    ? { ...(dto.metadata ?? {}), ...(dto.anuncioId ? { adId: dto.anuncioId } : {}) }
+                    : undefined,
             });
             await this.sources.update(source.id, {
                 receivedCount: () => 'received_count + 1',
@@ -66,7 +69,11 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
             const campana = source.campaignName ?? dto.campana;
             const reconocida = campana
                 ? await this.campaigns.exist({
-                    where: { organizationId: source.organizationId, name: campana },
+                    where: {
+                        organizationId: source.organizationId,
+                        name: campana,
+                        clientId: source.clientId ?? (0, typeorm_2.IsNull)(),
+                    },
                 })
                 : false;
             return {

@@ -37,6 +37,12 @@ __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
+], CreateLeadDto.prototype, "campaignName", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
 ], CreateLeadDto.prototype, "company", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -57,6 +63,11 @@ __decorate([
     (0, class_validator_1.Max)(999999999999),
     __metadata("design:type", Number)
 ], CreateLeadDto.prototype, "estimatedAmount", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['green', 'yellow', 'red']),
+    __metadata("design:type", String)
+], CreateLeadDto.prototype, "trafficLight", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsUUID)(),
