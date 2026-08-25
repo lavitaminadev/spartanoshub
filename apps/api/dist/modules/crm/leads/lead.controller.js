@@ -31,6 +31,7 @@ const list_leads_dto_1 = require("./dto/list-leads.dto");
 const reservation_entity_1 = require("../../reservations/domain/reservation.entity");
 const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
 const lead_task_summary_service_1 = require("./lead-task-summary.service");
+const responsables_del_crm_service_1 = require("./responsables-del-crm.service");
 const lead_visibility_1 = require("./lead-visibility");
 const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
@@ -39,7 +40,7 @@ const process_history_service_1 = require("../../../core/process-history/process
 const process_stage_change_entity_1 = require("../../../core/process-history/process-stage-change.entity");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 let LeadController = class LeadController {
-    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, capacidades) {
+    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, capacidades, responsablesDelCrm) {
         this.createLead = createLead;
         this.listLeads = listLeads;
         this.getLead = getLead;
@@ -51,6 +52,7 @@ let LeadController = class LeadController {
         this.history = history;
         this.leadTasks = leadTasks;
         this.capacidades = capacidades;
+        this.responsablesDelCrm = responsablesDelCrm;
     }
     async create(dto, req) {
         const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : dto.clientId;
@@ -109,6 +111,14 @@ let LeadController = class LeadController {
                 nextStep: tareas.get(lead.id)?.nextStep ?? null,
             })),
         };
+    }
+    async responsables(req, solicitado) {
+        await this.assertPortalCrm(req);
+        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : solicitado;
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        if (clientId)
+            await this.capacidades.assert(req.organizationId, clientId, 'crm');
+        return this.responsablesDelCrm.execute(req.organizationId, clientId);
     }
     async getById(id, req) {
         await this.assertPortalCrm(req);
@@ -216,6 +226,15 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LeadController.prototype, "list", null);
 __decorate([
+    (0, common_1.Get)('responsables'),
+    (0, swagger_1.ApiOperation)({ summary: 'Personas asignables en el CRM de una empresa' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], LeadController.prototype, "responsables", null);
+__decorate([
     (0, common_1.Get)(':id'),
     (0, swagger_1.ApiOperation)({ summary: 'Obtener un lead' }),
     __param(0, (0, common_1.Param)('id')),
@@ -279,5 +298,6 @@ exports.LeadController = LeadController = __decorate([
         account_access_service_1.AccountAccessService,
         process_history_service_1.ProcessHistoryService,
         lead_task_summary_service_1.LeadTaskSummaryService,
-        client_capability_service_1.ClientCapabilityService])
+        client_capability_service_1.ClientCapabilityService,
+        responsables_del_crm_service_1.ResponsablesDelCrmService])
 ], LeadController);

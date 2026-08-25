@@ -13,7 +13,7 @@
  * no cuál fue lo último.
  */
 
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { api } from '../../core/api';
@@ -27,6 +27,7 @@ import { STAGES } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { mensajeDePrimerContacto, whatsapp } from './contacto';
 import { useCrmScope } from './crm-scope';
+import { useVocabulario } from './use-vocabulario';
 import './lead-detail.css';
 
 interface Lead {
@@ -145,6 +146,10 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   // Las cuentas que esta persona alcanza, para poder mover el lead de empresa sin una consulta
   // propia: la barra ya las tiene resueltas.
   const scope = useCrmScope();
+  // Cómo llama esta empresa a sus cosas. De fábrica para lo que no haya renombrado.
+  const { termino } = useVocabulario(scope.clientId);
+  // El portal no elige cuenta ni equipo: su empresa viene firmada en la sesión.
+  const esPortalCliente = currentUser?.role === 'client';
   /*
    * Estados a los que se puede mover este lead.
    *
@@ -182,6 +187,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [motivoOtro, setMotivoOtro] = useState(motivoInicial(lead.discardReason).detalle);
   const [tarea, setTarea] = useState({ title: '', dueAt: '' });
   const [fuente, setFuente] = useState(lead.source ?? '');
+  /** La empresa donde trabaja el contacto, distinta de la cuenta de Espartanos que lo tiene. */
+  const [empresaDelContacto, setEmpresaDelContacto] = useState(lead.company ?? '');
+  const [campana, setCampana] = useState(lead.campaignName ?? '');
   const [empresa, setEmpresa] = useState(lead.clientId ?? '');
   const [aviso, setAviso] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [confirmarAnonimizar, setConfirmarAnonimizar] = useState(false);
@@ -205,6 +213,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setNota(lead.notes ?? '');
     setEtapa(lead.status);
     setResponsable(lead.assignedTo ?? '');
+    setEmpresaDelContacto(lead.company ?? '');
+    setCampana(lead.campaignName ?? '');
     setMonto(montoInicial(lead.estimatedAmount));
     setCalificacion(lead.fitStatus ?? 'review');
     setSemaforo(lead.trafficLight ?? '');
@@ -215,6 +225,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setEmpresa(lead.clientId ?? '');
   }, [
     lead.id, lead.name, lead.phone, lead.email, lead.notes, lead.status, lead.assignedTo,
+    lead.company, lead.campaignName,
     lead.estimatedAmount, lead.fitStatus, lead.trafficLight, lead.tags, lead.discardReason, lead.source, lead.clientId,
   ]);
 
@@ -229,22 +240,56 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   });
 
   /**
-   * Equipo al que se puede asignar el lead.
+   * Quién puede hacerse cargo del lead.
    *
-   * `/users` responde a veces con el arreglo y a veces con `{ data }` según por dónde se pida,
-   * y el resto de la aplicación ya lo trata así. Dar por hecho una de las dos formas hacía que
-   * abrir cualquier ficha tumbara la pantalla completa con «.map is not a function».
+   * Sale de `/crm/leads/responsables` y no de `/users`. Aquél lista la organización entera, así
+   * que el CRM de una empresa ofrecía como responsables a personas de otra: el lead quedaba
+   * asignado a alguien que no lo iba a ver nunca, porque su alcance de cuenta no llega ahí.
+   * Además devolvía correo, cargo y teléfono de todo el equipo para llenar un desplegable, y
+   * por eso estaba cerrado al portal.
+   *
+   * La empresa la resuelve el servidor: al portal le impone la suya y para el equipo interno
+   * comprueba que alcance la que pide. Ya no hace falta apagar la consulta por cargo.
    */
-  const { data: usuariosResp } = useQuery<UserOption[] | { data: UserOption[] }>({
-    queryKey: ['users'],
-    queryFn: () => api.get('/users'),
-    // El portal no administra el equipo de Espartanos. Evita un 403 ruidoso y le deja como
-    // únicas opciones tomar el lead para sí o devolverlo a «Sin asignar».
-    enabled: currentUser?.role !== 'client',
+  const { data: usuariosResp } = useQuery<UserOption[]>({
+    queryKey: ['crm-responsables', scope.clientId],
+    queryFn: () => api.get(
+      `/crm/leads/responsables${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+    ),
+    // Sin responsables asignables la ficha sigue sirviendo: se guarda «Sin asignar».
+    retry: false,
   });
-  const usuarios = currentUser?.role === 'client' && currentUser
-    ? [{ id: currentUser.id, name: currentUser.name }]
-    : Array.isArray(usuariosResp) ? usuariosResp : usuariosResp?.data ?? [];
+  const asignables = usuariosResp ?? [];
+
+  /**
+   * Campañas dadas de alta para esta empresa, más la que el lead ya trae.
+   *
+   * Comparte la clave `crm-campaigns` con Administración y el tablero, así que dar de alta una
+   * campaña la deja disponible aquí sin recargar.
+   */
+  const { data: campanasResp } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ['crm-campaigns', scope.clientId],
+    queryFn: () => api.get(`/crm/campaigns${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`),
+    retry: false,
+  });
+  const campanasDisponibles = useMemo(() => {
+    const nombres = (campanasResp ?? []).map((campana) => campana.name);
+    // La del lead va primero y solo si falta: las de Meta entran por importación con nombres que
+    // nadie dio de alta, y sin esto guardar cualquier otro campo se las borraba.
+    return lead.campaignName && !nombres.includes(lead.campaignName)
+      ? [lead.campaignName, ...nombres]
+      : nombres;
+  }, [campanasResp, lead.campaignName]);
+  /*
+   * Quien ya lo tiene se conserva como opción aunque no esté en la lista.
+   *
+   * Hay leads asignados desde antes de que la lista se acotara por empresa. Sin esto, abrir uno
+   * de ésos mostraba el desplegable en «Sin asignar» y bastaba con guardar cualquier otro campo
+   * para desasignarlo sin que nadie lo pidiera.
+   */
+  const usuarios = lead.assignedTo && !asignables.some((persona) => persona.id === lead.assignedTo)
+    ? [{ id: lead.assignedTo, name: `${nombreDe(lead.assignedTo)} (fuera de esta empresa)` }, ...asignables]
+    : asignables;
 
   const refrescar = async () => {
     await Promise.all([
@@ -287,6 +332,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
         ? (motivoCatalogo === 'Otro' ? `Otro: ${motivoOtro.trim()}` : motivoCatalogo)
         : '',
       source: fuente.trim(),
+      company: empresaDelContacto.trim(),
+      campaignName: campana.trim(),
       // Vacío deja el lead sin cuenta, que es el estado natural de un prospecto de la agencia.
       clientId: empresa || null,
     }),
@@ -450,6 +497,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     && semaforo === (lead.trafficLight ?? '')
     && etiquetas === (lead.tags ?? []).join(', ')
     && fuente === (lead.source ?? '')
+    && empresaDelContacto === (lead.company ?? '')
+    && campana === (lead.campaignName ?? '')
     && empresa === (lead.clientId ?? '')
     && motivoCatalogo === motivoActual.catalogo
     && motivoOtro === motivoActual.detalle;
@@ -651,13 +700,65 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             </select>
           </label>
 
+          {/*
+            La empresa de la persona, escrita por quien la registra.
+
+            Antes este rótulo cubría otra cosa: era el desplegable de cuentas de Espartanos, es
+            decir «de quién es este CRM». Dos ideas distintas bajo la misma palabra —dónde
+            trabaja el contacto, y qué cliente de la agencia lo tiene— y en pantalla se leía como
+            si el contacto perteneciera a una empresa de la cartera de Espartanos. El dato propio
+            del lead no tenía dónde escribirse: entraba por importación y no se podía corregir.
+          */}
           <label>
             <span>Empresa</span>
-            <select className="input" value={empresa} onChange={(event) => editar(setEmpresa, event.target.value)} disabled={!scope.puedeEditar}>
-              <option value="">Sin empresa</option>
-              {scope.clients.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{cuenta.name}</option>)}
+            <input
+              className="input"
+              value={empresaDelContacto}
+              onChange={(event) => editar(setEmpresaDelContacto, event.target.value)}
+              disabled={!scope.puedeEditar}
+              placeholder="Dónde trabaja o qué representa"
+            />
+          </label>
+
+          {/*
+            Campaña que lo trajo.
+
+            Se elige de las dadas de alta en Administración para esta empresa, no se escribe
+            libre: de que el nombre coincida depende que el costo por lead cuente algo, y
+            «Verano» escrito de dos formas son dos campañas con la mitad de los leads cada una.
+            La que el lead ya trae se conserva como opción aunque no esté dada de alta —así
+            entran las de la importación de Meta— para que guardar no se la borre.
+          */}
+          <label>
+            <span>{termino('campana')}</span>
+            <select
+              className="input"
+              value={campana}
+              onChange={(event) => editar(setCampana, event.target.value)}
+              disabled={!scope.puedeEditar}
+            >
+              <option value="">Sin {termino('campana').toLowerCase()}</option>
+              {campanasDisponibles.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
             </select>
           </label>
+
+          {/*
+            De qué cuenta de Espartanos es este contacto.
+
+            No se ofrece en el portal: su empresa viene firmada en la sesión y el servidor
+            rechaza moverlo fuera de ella, así que un desplegable ahí solo prometería algo
+            imposible. Para el equipo interno sigue siendo editable, que es como se corrige un
+            contacto que entró a la cuenta equivocada.
+          */}
+          {!esPortalCliente && scope.clients.length ? (
+            <label>
+              <span>Cuenta de Espartanos</span>
+              <select className="input" value={empresa} onChange={(event) => editar(setEmpresa, event.target.value)} disabled={!scope.puedeEditar}>
+                <option value="">Prospecto de la agencia</option>
+                {scope.clients.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{cuenta.name}</option>)}
+              </select>
+            </label>
+          ) : null}
 
           {/* Solo cuando la etapa es de cierre: preguntar por qué se perdió algo que sigue vivo
               invita a rellenarlo, y ese campo alimenta el informe de por qué se pierden negocios. */}

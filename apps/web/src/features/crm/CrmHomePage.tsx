@@ -94,6 +94,22 @@ export function CrmHomePage(): JSX.Element {
   const queryClient = useQueryClient();
 
   /** Hacerse cargo de un lead sin dueño, desde el aviso que pide que alguien lo haga. */
+  /*
+   * Si quien mira puede quedar a cargo de un lead de este CRM.
+   *
+   * Es la misma lista que llena el desplegable de la ficha y el filtro del tablero. Sin esto,
+   * alguien de otra empresa se tomaba un lead desde el aviso y dejaba de verlo enseguida: su
+   * alcance de cuenta no llega a esa empresa, y el lead quedaba a nombre de quien no lo atiende.
+   */
+  const { data: asignables } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ['crm-responsables', scope.clientId],
+    queryFn: () => api.get(
+      `/crm/leads/responsables${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+    ),
+    retry: false,
+  });
+  const puedeTomar = Boolean(user?.id) && (asignables ?? []).some((persona) => persona.id === user?.id);
+
   const tomar = useMutation({
     mutationFn: (id: string) => api.put(`/crm/leads/${id}`, { assignedTo: user?.id }),
     onSuccess: () => Promise.all([
@@ -218,7 +234,7 @@ export function CrmHomePage(): JSX.Element {
                       otra pantalla a hacerlo convierte un gesto en un recado. Solo aparece en
                       ese aviso: en los demás el lead ya tiene dueño.
                     */}
-                    {alert.key === 'sin_asignar' ? (
+                    {alert.key === 'sin_asignar' && puedeTomar ? (
                       <button
                         type="button"
                         className="btn btn-accent btn-sm"

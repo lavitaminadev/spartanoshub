@@ -17,6 +17,17 @@ export class UpdateLeadDto {
   @IsOptional() @IsString() @MaxLength(255) email?: string;
   @IsOptional() @IsString() @MaxLength(255) company?: string;
 
+  /**
+   * Campaña que trajo al contacto.
+   *
+   * Se podía fijar al crear y al importar, y no corregir después: un lead que entró sin campaña
+   * —o con la equivocada— quedaba así para siempre, y el costo por lead de esa campaña contaba
+   * un contacto de menos sin que nada fallara.
+   *
+   * Cadena vacía lo deja sin campaña, que es distinto de omitir el campo.
+   */
+  @IsOptional() @IsString() @MaxLength(255) campaignName?: string;
+
   @IsOptional() @IsEnum(LeadStatus) status?: LeadStatus;
   @IsOptional() @IsEnum(LeadFitStatus) fitStatus?: LeadFitStatus;
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsIn(['green', 'yellow', 'red'])
