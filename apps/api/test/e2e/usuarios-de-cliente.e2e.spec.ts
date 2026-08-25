@@ -38,7 +38,7 @@ describe('varias personas dentro de una empresa cliente', () => {
     const id = randomUUID();
     await banco.db.query(
       `INSERT INTO leads (id, organization_id, client_id, name, status, domain, assigned_to, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'new', 'audience', ?, NOW(), NOW())`,
+       VALUES (?, ?, ?, ?, 'new', 'commercial', ?, NOW(), NOW())`,
       [id, banco.organizationId, clientId, nombre, duenio ?? null],
     );
     return id;
@@ -63,7 +63,7 @@ describe('varias personas dentro de una empresa cliente', () => {
 
     for (const quien of ['duenia', 'vendedora'] as const) {
       const { status, body } = await banco.pedir(
-        'GET', '/crm/leads?domain=audience&limit=100', cuentas[quien].token,
+        'GET', '/crm/leads?domain=commercial&limit=100', cuentas[quien].token,
       );
       expect(status, `${quien}: ${JSON.stringify(body)}`).toBe(200);
       expect(ids(body), quien).toContain(propio);
@@ -75,8 +75,8 @@ describe('varias personas dentro de una empresa cliente', () => {
     const deLaVendedora = await sembrarLead(banco.empresas.crmUno, 'Suyo', cuentas.vendedora.id);
     const deOtroDeLaCasa = await sembrarLead(banco.empresas.crmUno, 'De un compañero', cuentas.duenia.id);
 
-    const duenia = await banco.pedir('GET', '/crm/leads?domain=audience&limit=100', cuentas.duenia.token);
-    const vendedora = await banco.pedir('GET', '/crm/leads?domain=audience&limit=100', cuentas.vendedora.token);
+    const duenia = await banco.pedir('GET', '/crm/leads?domain=commercial&limit=100', cuentas.duenia.token);
+    const vendedora = await banco.pedir('GET', '/crm/leads?domain=commercial&limit=100', cuentas.vendedora.token);
 
     // Quien lleva el negocio ve todo lo de su empresa.
     expect(ids(duenia.body)).toContain(deLaVendedora);
@@ -87,18 +87,18 @@ describe('varias personas dentro de una empresa cliente', () => {
     expect(ids(vendedora.body)).not.toContain(deOtroDeLaCasa);
   });
 
-  it('ninguna de las dos puede escribir: el portal mira', async () => {
-    const lead = await sembrarLead(banco.empresas.crmUno, 'No debe moverse');
+  it('las dos trabajan su CRM y el cambio persiste', async () => {
+    const lead = await sembrarLead(banco.empresas.crmUno, 'Debe poder moverse');
 
     for (const quien of ['duenia', 'vendedora'] as const) {
       const { status } = await banco.pedir(
-        'PUT', `/crm/leads/${lead}`, cuentas[quien].token, { status: 'reserved' },
+        'PUT', `/crm/leads/${lead}`, cuentas[quien].token, { status: 'contacted' },
       );
-      expect(status, quien).toBe(403);
+      expect(status, quien).toBe(200);
     }
 
     const [filas]: any = await banco.db.query('SELECT status FROM leads WHERE id = ?', [lead]);
-    expect(filas[0].status).toBe('new');
+    expect(filas[0].status).toBe('contacted');
   });
 
   it('una persona de otra empresa no alcanza esta ni conociendo el identificador', async () => {

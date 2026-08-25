@@ -230,22 +230,19 @@ describe('aislamiento entre cuentas', () => {
       expect(ids(body)).not.toContain(prospecto);
     });
 
-    it('mira pero no mueve: el portal no puede cambiar la etapa de un contacto', async () => {
-      const propio = await sembrarLead(banco.empresas.crmUno, 'Contacto que no debe moverse', 'audience');
+    it('trabaja su contacto y el cambio queda dentro de su empresa', async () => {
+      const propio = await sembrarLead(banco.empresas.crmUno, 'Contacto que puede moverse', 'commercial');
 
       const { status } = await banco.pedir(
-        'PUT', `/crm/leads/${propio}`, banco.cuentas.portalCrmUno.token, { status: 'reserved' },
+        'PUT', `/crm/leads/${propio}`, banco.cuentas.portalCrmUno.token, { status: 'contacted' },
       );
 
-      /*
-       * En qué etapa está cada contacto y quién lo trabaja son decisiones del equipo. Abrir el
-       * portal en lectura le muestra a la empresa lo que es suyo; dejarlo escribir lo convertiría
-       * en un segundo puesto de mando sobre el trabajo de la agencia.
-       */
-      expect(status).toBe(403);
+      // Contrató el CRM para trabajarlo. La reja importante es la empresa, no convertirlo en
+      // una pantalla de solo lectura.
+      expect(status).toBe(200);
 
       const [filas]: any = await banco.db.query('SELECT status FROM leads WHERE id = ?', [propio]);
-      expect(filas[0].status).toBe('new');
+      expect(filas[0].status).toBe('contacted');
     });
 
     it('una empresa que no contrató CRM recibe 403 en cada entrada de CRM', async () => {

@@ -67,9 +67,17 @@ export class LeadController {
      * navegador y decide de quién es el contacto. Sin ellas, quien crea puede depositarlo en una
      * cuenta que no alcanza con solo cambiar el valor enviado.
      */
-    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
-    await this.capacidades.assert(req.organizationId, dto.clientId, 'crm');
-    return this.createLead.execute({ ...dto, organizationId: req.organizationId });
+    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : dto.clientId;
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    await this.capacidades.assert(req.organizationId, clientId, 'crm');
+    return this.createLead.execute({
+      ...dto,
+      // La sesión manda sobre el cuerpo: omitir o falsificar el campo no saca el lead de la
+      // empresa del portal.
+      clientId,
+      domain: req.user.role === UserRole.CLIENT ? 'commercial' : dto.domain,
+      organizationId: req.organizationId,
+    });
   }
 
   /**
@@ -85,11 +93,16 @@ export class LeadController {
     // La cuenta se comprueba antes de escribir una sola fila. Es un identificador que llega del
     // navegador y decide a qué cliente quedan atribuidos cientos de contactos: sin esto, quien
     // importa puede escribir en una cuenta que no alcanza con solo cambiar el valor enviado.
-    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : dto.clientId;
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     // Y que esa empresa tenga CRM: importar cuatrocientos contactos a una que solo lleva
     // reservas los deja en un módulo que esa empresa no tiene, sin nadie que los trabaje.
-    await this.capacidades.assert(req.organizationId, dto.clientId, 'crm');
-    return this.importLeads.execute(req.organizationId, dto);
+    await this.capacidades.assert(req.organizationId, clientId, 'crm');
+    return this.importLeads.execute(req.organizationId, {
+      ...dto,
+      clientId,
+      domain: req.user.role === UserRole.CLIENT ? 'commercial' : dto.domain,
+    });
   }
 
   /**
