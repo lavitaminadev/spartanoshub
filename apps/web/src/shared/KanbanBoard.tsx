@@ -1,7 +1,9 @@
-import { useMemo, useState, type JSX, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type JSX, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners,
+  DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, pointerWithin,
   useDroppable, useSensor, useSensors,
+  type CollisionDetection,
   type DragCancelEvent, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
@@ -51,6 +53,7 @@ export function KanbanBoard<T>({
   readOnly = false, emptyMessage = 'Sin tarjetas', columnSummary,
 }: KanbanBoardProps<T>): JSX.Element {
   const [dragging, setDragging] = useState<T | null>(null);
+  const [overlaySize, setOverlaySize] = useState<{ width: number; height: number } | null>(null);
 
   // El sensor exige recorrer unos píxeles antes de considerar que hay arrastre. Sin ese
   // margen, un clic para abrir el detalle se interpretaba como el comienzo de un arrastre y
@@ -69,13 +72,26 @@ export function KanbanBoard<T>({
     return grouped;
   }, [columns, items, columnOf]);
 
+  /*
+   * Con raton interesa la columna que esta realmente bajo el puntero. `closestCorners` puede
+   * elegir una columna vecina cuando el tablero tiene scroll horizontal; se conserva como
+   * respaldo para el sensor de teclado, que no tiene coordenadas de puntero.
+   */
+  const collisionDetection: CollisionDetection = (args) => {
+    const debajoDelPuntero = pointerWithin(args);
+    return debajoDelPuntero.length ? debajoDelPuntero : closestCorners(args);
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const item = items.find((candidate) => keyExtractor(candidate) === String(event.active.id));
     setDragging(item ?? null);
+    const rect = event.active.rect.current.initial;
+    setOverlaySize(rect ? { width: rect.width, height: rect.height } : null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     setDragging(null);
+    setOverlaySize(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -89,12 +105,17 @@ export function KanbanBoard<T>({
 
   const handleDragCancel = (_event: DragCancelEvent) => {
     setDragging(null);
+    setOverlaySize(null);
   };
+
+  const overlayStyle: CSSProperties | undefined = overlaySize
+    ? { width: overlaySize.width, height: overlaySize.height }
+    : undefined;
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
@@ -125,9 +146,16 @@ export function KanbanBoard<T>({
 
       {/* La superposición sigue al puntero mientras se arrastra. Sin ella la tarjeta parece
           quedarse quieta y no se ve qué se está moviendo. */}
-      <DragOverlay>
-        {dragging ? <div className="kanban-card is-overlay">{renderCard(dragging)}</div> : null}
-      </DragOverlay>
+      {typeof document !== 'undefined' ? createPortal(
+        <DragOverlay dropAnimation={null}>
+          {dragging ? (
+            <div className="kanban-card is-overlay" style={overlayStyle}>
+              {renderCard(dragging)}
+            </div>
+          ) : null}
+        </DragOverlay>,
+        document.body,
+      ) : null}
     </DndContext>
   );
 }
