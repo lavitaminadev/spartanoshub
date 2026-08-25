@@ -186,6 +186,16 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [motivoCatalogo, setMotivoCatalogo] = useState(motivoInicial(lead.discardReason).catalogo);
   const [motivoOtro, setMotivoOtro] = useState(motivoInicial(lead.discardReason).detalle);
   const [tarea, setTarea] = useState({ title: '', dueAt: '' });
+  /**
+   * Resultado del alta de una tarea, junto al formulario que la crea.
+   *
+   * Aparte del aviso general de la ficha a propósito: aquél se dibuja en la cabecera y las
+   * tareas viven al final de un panel que scrollea, así que al pulsar «Añadir» el mensaje
+   * —tanto el error como la confirmación— salía trescientas líneas más arriba, fuera de la
+   * vista. Sin respuesta donde ocurre la acción, una tarea que el servidor rechazó y una que
+   * se guardó bien se ven exactamente igual: como que no pasó nada.
+   */
+  const [avisoTarea, setAvisoTarea] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [fuente, setFuente] = useState(lead.source ?? '');
   /** La empresa donde trabaja el contacto, distinta de la cuenta de Espartanos que lo tiene. */
   const [empresaDelContacto, setEmpresaDelContacto] = useState(lead.company ?? '');
@@ -371,20 +381,24 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     }),
     onSuccess: async () => {
       setTarea({ title: '', dueAt: '' });
-      setAviso({ tone: 'success', text: 'Tarea guardada.' });
+      setAvisoTarea({ tone: 'success', text: 'Tarea guardada.' });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['lead-tasks', lead.id] }),
         queryClient.invalidateQueries({ queryKey: ['crm-leads-board'] }),
         queryClient.invalidateQueries({ queryKey: ['tasks-mine'] }),
       ]);
     },
-    onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
+    // El motivo tal como lo da el servidor —«La persona indicada no está activa», por ejemplo—:
+    // decir «no se pudo» deja a quien lo lee sin nada que corregir.
+    onError: (error: Error) => setAvisoTarea({ tone: 'error', text: error.message }),
   });
 
   const completarTarea = useMutation({
     mutationFn: (id: string) => api.put(`/tasks/${id}`, { status: 'done' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lead-tasks', lead.id] }),
-    onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
+    // Junto a la lista y no en la cabecera, por lo mismo: marcar una casilla que el servidor
+    // rechaza la devolvía a su sitio sin ninguna explicación a la vista.
+    onError: (error: Error) => setAvisoTarea({ tone: 'error', text: error.message }),
   });
 
   const convertir = useMutation({
@@ -836,6 +850,16 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               {crearTarea.isPending ? 'Añadiendo...' : 'Añadir'}
             </button>
           </div> : null}
+
+          {/* La respuesta, donde ocurrió la acción. Ver `avisoTarea`. */}
+          {avisoTarea ? (
+            <div
+              className={`alert alert-${avisoTarea.tone}`}
+              role={avisoTarea.tone === 'error' ? 'alert' : 'status'}
+            >
+              {avisoTarea.text}
+            </div>
+          ) : null}
 
           {!tareas?.length ? (
             <p className="lead-detail-vacio">Sin tareas todavía.</p>
