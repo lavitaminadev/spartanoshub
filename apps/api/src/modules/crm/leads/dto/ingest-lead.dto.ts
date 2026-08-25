@@ -1,4 +1,4 @@
-import { IsEmail, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsISO8601, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /**
  * Lead que entra por integración.
@@ -51,6 +51,9 @@ export class IngestLeadDto {
   @IsOptional() @IsString() @MaxLength(2000)
   mensaje?: string;
 
+  @IsOptional() @IsString() @MaxLength(180)
+  empresa?: string;
+
   /**
    * Cuándo ocurrió en el origen, en formato ISO.
    *
@@ -76,4 +79,12 @@ export class IngestLeadDto {
   @IsOptional() @IsString() @MaxLength(255) campanaId?: string;
   @IsOptional() @IsString() @MaxLength(255) anuncioId?: string;
   @IsOptional() @IsString() @MaxLength(255) paginaId?: string;
+
+  /**
+   * Datos variables del formulario y de atribución que no justifican columnas propias.
+   * El normalizador construye este objeto desde una lista permitida; nunca acepta `metadata`
+   * directamente del llamador ni copia las columnas `api_*` que Make usa para la respuesta.
+   */
+  @IsOptional() @IsObject()
+  metadata?: Record<string, unknown>;
 }

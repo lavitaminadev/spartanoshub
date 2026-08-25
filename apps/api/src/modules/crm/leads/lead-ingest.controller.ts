@@ -78,7 +78,7 @@ export class LeadIngestController {
    * todavía trae los nombres de Meta. El mensaje conserva el formato del resto de la API para
    * que quien arma el escenario lea lo mismo que leería en cualquier otro error.
    */
-  private async validar(cuerpo: Record<string, string>): Promise<IngestLeadDto> {
+  private async validar(cuerpo: Record<string, unknown>): Promise<IngestLeadDto> {
     const dto = plainToInstance(IngestLeadDto, cuerpo);
     const errores = await validate(dto, { whitelist: true });
     if (!errores.length) return dto;

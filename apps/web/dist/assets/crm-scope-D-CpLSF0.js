@@ -1,1 +1,0 @@
-import{r as e}from"./rolldown-runtime-QTnfLwEv.js";import{mn as t}from"./vendor-kytm9r6D.js";var n=e(t(),1);function r(e){return e===`edit`||e===`manage`}var i=(0,n.createContext)(null);function a(){let e=(0,n.useContext)(i);if(!e)throw Error(`useCrmScope solo puede usarse dentro de CrmLayout`);return e}export{r as n,a as r,i as t};
