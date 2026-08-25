@@ -216,6 +216,49 @@ describe('el CRM responde por empresa', () => {
     });
   });
 
+  describe('calendario del portal', () => {
+    it('muestra las actividades de su CRM y nunca las de otra empresa', async () => {
+      const propia = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Reunión propia del portal', domain: 'commercial', source: 'manual',
+        clientId: banco.empresas.crmUno,
+      });
+      const ajena = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Reunión de empresa vecina', domain: 'commercial', source: 'manual',
+        clientId: banco.empresas.crmDos,
+      });
+      expect([200, 201]).toContain(propia.status);
+      expect([200, 201]).toContain(ajena.status);
+
+      const actividadPropia = await banco.pedir('POST', '/crm/interactions', banco.cuentas.admin.token, {
+        leadId: propia.body.id, type: 'meeting', description: 'Agenda visible del cliente',
+        date: '2026-08-24T15:00:00.000Z',
+      });
+      const actividadAjena = await banco.pedir('POST', '/crm/interactions', banco.cuentas.admin.token, {
+        leadId: ajena.body.id, type: 'meeting', description: 'Agenda de otra empresa',
+        date: '2026-08-24T16:00:00.000Z',
+      });
+      expect([200, 201], JSON.stringify(actividadPropia.body)).toContain(actividadPropia.status);
+      expect([200, 201], JSON.stringify(actividadAjena.body)).toContain(actividadAjena.status);
+
+      // Aunque el navegador mande otra empresa, la API toma la firmada en la sesión.
+      const calendario = await banco.pedir(
+        'GET', `/crm/interactions?limit=500&clientId=${banco.empresas.crmDos}`,
+        banco.cuentas.portalCrmUno.token,
+      );
+      expect(calendario.status, JSON.stringify(calendario.body)).toBe(200);
+      const descripciones = (calendario.body?.data ?? []).map((item: { description?: string }) => item.description);
+      expect(descripciones).toContain('Agenda visible del cliente');
+      expect(descripciones).not.toContain('Agenda de otra empresa');
+    });
+
+    it('el portal consulta el calendario pero no fabrica actividades internas', async () => {
+      const intento = await banco.pedir('POST', '/crm/interactions', banco.cuentas.portalCrmUno.token, {
+        type: 'meeting', description: 'Actividad inventada por el portal',
+      });
+      expect(intento.status).toBe(403);
+    });
+  });
+
   describe('lo que pasa en el CRM de una empresa no sale de ahí', () => {
     it('mover un contacto de una empresa no cambia las cifras de la otra', async () => {
       const antes = await banco.pedir(

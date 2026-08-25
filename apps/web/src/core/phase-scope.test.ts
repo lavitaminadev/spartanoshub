@@ -97,9 +97,20 @@ describe('navegación bajo el alcance de fase', () => {
   });
 
   it('mantiene contactos y leads dentro del CRM inicial', () => {
-    for (const path of ['/crm/leads']) {
+    for (const path of ['/crm/leads', '/crm/calendario']) {
       expect(visible(path), path).toBe(true);
     }
+  });
+
+  it('el calendario pertenece al CRM del cliente, no al módulo interno de reuniones', () => {
+    expect(getFeatureForPath('/crm/calendario')).toBe('crm');
+    expect(isPathEnabled(
+      '/crm/calendario',
+      { crm: true },
+      { crm: 'view', meetings: 'none' },
+      { crm: 'active' },
+      'client',
+    )).toBe(true);
   });
 
   it('no hereda Automatizaciones desde el permiso CRM', () => {

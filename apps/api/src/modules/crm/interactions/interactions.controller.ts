@@ -7,6 +7,7 @@ import { ListInteractionsDto } from './dto/list-interactions.dto';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
+import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
 
 @Controller('crm/interactions')
 @UseGuards(AuthGuard('jwt'))
@@ -18,6 +19,7 @@ export class InteractionsController {
   constructor(
     private service: InteractionsService,
     private readonly accountAccess: AccountAccessService,
+    private readonly capabilities: ClientCapabilityService,
   ) {}
 
   @Post()
@@ -28,12 +30,16 @@ export class InteractionsController {
 
   @Get()
   async findAll(@Query() query: ListInteractionsDto, @Req() req: AuthenticatedRequest) {
-    await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
+    // El portal toma la empresa de la sesión. El query string es controlable por el navegador y
+    // no puede bloquear su propio calendario ni utilizarse para consultar la empresa vecina.
+    const clientId = req.user.role === 'client' ? req.user.clientId : query.clientId;
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    await this.capabilities.assert(req.organizationId, clientId, 'crm');
     if (query.leadId) {
       await this.assertClientScope(req, await this.service.referenceClientId({ leadId: query.leadId }, req.organizationId));
     }
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, query.clientId);
+    return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, clientId);
   }
 
   @Get(':id')
@@ -62,5 +68,6 @@ export class InteractionsController {
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     if (!clientId && allowed !== undefined) throw new NotFoundException('Interaction not found');
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    await this.capabilities.assert(req.organizationId, clientId, 'crm');
   }
 }
