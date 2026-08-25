@@ -242,7 +242,7 @@ describe('el CRM responde por empresa', () => {
 
       // Aunque el navegador mande otra empresa, la API toma la firmada en la sesión.
       const calendario = await banco.pedir(
-        'GET', `/crm/interactions?limit=500&clientId=${banco.empresas.crmDos}`,
+        'GET', `/crm/interactions?limit=100&clientId=${banco.empresas.crmDos}`,
         banco.cuentas.portalCrmUno.token,
       );
       expect(calendario.status, JSON.stringify(calendario.body)).toBe(200);

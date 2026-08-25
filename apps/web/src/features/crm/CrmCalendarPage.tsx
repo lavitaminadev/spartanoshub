@@ -81,7 +81,7 @@ export function CrmCalendarPage(): JSX.Element {
   const { data, isLoading, error, refetch, isFetching } = useQuery<{ data: Actividad[] }>({
     queryKey: ['crm-calendario', scope.clientId],
     queryFn: () => api.get(
-      `/crm/interactions?limit=500${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      `/crm/interactions?limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
     ),
     retry: false,
   });
