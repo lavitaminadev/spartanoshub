@@ -190,7 +190,20 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
   [UserRole.COMMUNITY_MANAGER]: {
     ...TEAM_BASELINE,
     content: 'manage',
-    crm: 'edit',
+    /*
+     * Administra el CRM de las cuentas que lleva.
+     *
+     * Estuvo en `edit`, que opera el embudo pero no abre Administración: quien atiende una
+     * cuenta a diario es justo quien da de alta sus campañas, rota sus llaves cuando una se
+     * filtra y ajusta el vocabulario a su negocio, y con `edit` tenía que pedírselo cada vez a
+     * dirección.
+     *
+     * `manage` incluye además convertir un prospecto en empresa cliente. No es un descuido: es
+     * una acción de la agencia, y el alcance por cuenta sigue decidiendo sobre qué prospectos
+     * puede ejercerla. Lo que no cambia es a qué empresas llega —eso lo gobierna su asignación,
+     * no este nivel—.
+     */
+    crm: 'manage',
     reservations: 'edit',
     surveys: 'edit',
     meetings: 'edit',

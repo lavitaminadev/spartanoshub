@@ -121,7 +121,7 @@ const REPARTO_NO_APLICADO = {
     [user_role_enum_1.UserRole.COMMUNITY_MANAGER]: {
         ...TEAM_BASELINE,
         content: 'manage',
-        crm: 'edit',
+        crm: 'manage',
         reservations: 'edit',
         surveys: 'edit',
         meetings: 'edit',
