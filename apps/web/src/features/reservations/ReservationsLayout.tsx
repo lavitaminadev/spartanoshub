@@ -40,6 +40,7 @@ export function ReservationsLayout(): JSX.Element {
     user?.permissions,
     user?.moduleLifecycle,
     user?.role,
+    user?.capabilities,
   ));
 
   // Sin secciones visibles no se dibuja un marco que promete una navegación que no existe para

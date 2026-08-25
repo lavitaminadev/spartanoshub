@@ -30,6 +30,8 @@ let ListLeadsUseCase = class ListLeadsUseCase {
             where.fitStatus = filters.fitStatus;
         if (filters.source)
             where.source = expandSourceFilter(filters.source);
+        if (filters.campaignName)
+            where.campaignName = filters.campaignName;
         if (filters.assignedTo)
             where.assignedTo = filters.assignedTo;
         const domain = filters.domain ?? 'commercial';

@@ -19,14 +19,41 @@
 .crm-cal-celda.hoy { border-color: var(--cyan); box-shadow: inset 0 0 0 1px var(--cyan); }
 
 .crm-cal-numero { font-size: 12px; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+
+/* Hora y título en una línea. La hora no se encoge: es lo que se busca al mirar la agenda, y
+   dejarla competir por el ancho la convertía en lo primero que se recortaba. */
 .crm-cal-evento {
+  display: flex; align-items: baseline; gap: 5px;
   padding: 2px 5px; border-radius: 3px; background: var(--cyan-soft); color: var(--cyan-deep);
-  font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; overflow: hidden;
+}
+.crm-cal-evento time { flex: 0 0 auto; font-variant-numeric: tabular-nums; opacity: .75; }
+.crm-cal-evento b {
+  min-width: 0; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+/* El color separa una llamada de una visita sin obligar a leer. Los tipos sin color propio
+   conservan el de fondo: es preferible un evento sin distintivo a uno mal etiquetado. */
+.crm-cal-evento.tipo-meeting { background: #fbeccd; color: #8a5a12; }
+.crm-cal-evento.tipo-visit { background: #d8f0e4; color: #0f6b4a; }
+.crm-cal-evento.tipo-call { background: #dbeeff; color: #14548c; }
+.crm-cal-evento.tipo-whatsapp { background: #dcf4dc; color: #216b32; }
+
 .crm-cal-vacio { margin: 0; font-size: 13px; color: var(--muted); }
+.crm-cal-dia-vacio { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
 
 @media (max-width: 640px) { .crm-cal-celda { min-height: 62px; } .crm-cal-evento { display: none; } }
 
 /* La semana da alto para leer la hora; el mes solo alcanza para saber que hay algo. */
 .crm-cal-grilla.es-semana .crm-cal-celda { min-height: 200px; }
+
+/* Un solo día: una columna que ocupa el ancho y respira, porque acá sí se lee cada actividad
+   entera en vez de saber que existe. Los eventos se muestran también en pantalla angosta —es
+   justo la vista a la que se entra desde el teléfono para ver qué toca hoy—. */
+.crm-cal-grilla.es-dia { grid-template-columns: 1fr; }
+.crm-cal-grilla.es-dia .crm-cal-celda { min-height: 240px; gap: 6px; padding: 12px; }
+.crm-cal-grilla.es-dia .crm-cal-evento { display: flex; font-size: 13px; padding: 6px 10px; }
+@media (max-width: 640px) {
+  .crm-cal-grilla.es-dia .crm-cal-celda { min-height: 200px; }
+}

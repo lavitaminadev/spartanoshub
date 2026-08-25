@@ -15,18 +15,17 @@
 
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LEAD_DISCARD_REASONS } from '@espartanos/shared';
+import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { triggerToast } from '../../shared/toast-events';
-import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 import { roleLabel } from '../../core/role-labels';
 import { useAuth } from '../../core/auth';
 import { STAGES } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
-import { whatsapp } from './contacto';
+import { mensajeDePrimerContacto, whatsapp } from './contacto';
 import { useCrmScope } from './crm-scope';
 import './lead-detail.css';
 
@@ -85,8 +84,18 @@ interface Props {
   onClose: () => void;
 }
 
-/** Orígenes que ya se usan, como sugerencia. No es una lista cerrada. */
-const FUENTES_SUGERIDAS = ['Meta Ads', 'Google Ads', 'manual', 'importacion', 'referido', 'sitio web'];
+/**
+ * Opciones de origen para un lead concreto.
+ *
+ * Al catálogo se le antepone el valor que ese lead ya trae cuando no está declarado. Sin eso,
+ * abrir un lead antiguo lo mostraba con el primer origen de la lista y bastaba con guardar
+ * cualquier otro campo para reescribirle el origen sin que nadie lo pidiera.
+ */
+function fuentesPara(actual?: string | null): Array<{ value: string; label: string }> {
+  const catalogo = LEAD_SOURCES.map((fuente) => ({ value: fuente.value, label: fuente.label }));
+  if (!actual || catalogo.some((fuente) => fuente.value === actual)) return catalogo;
+  return [{ value: actual, label: `${actual} (origen anterior)` }, ...catalogo];
+}
 
 const TIPOS_ACTIVIDAD: Array<{ value: string; label: string }> = [
   { value: 'call', label: 'Llamada' },
@@ -408,7 +417,13 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     onError: (error: Error) => triggerToast(error.message, 'error'),
   });
 
-  const enlaceWhatsapp = whatsapp(lead.phone);
+  // El interés sale de la campaña que lo trajo y, si no la hay, de su empresa: es lo que la
+  // persona reconoce como el motivo por el que dejó sus datos.
+  const enlaceWhatsapp = whatsapp(lead.phone, mensajeDePrimerContacto({
+    nombre: lead.name,
+    empresa: scope.empresa,
+    interes: lead.campaignName || lead.company,
+  }));
 
   /**
    * Cuándo se habló por última vez con esta persona.
@@ -454,20 +469,19 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           {lead.company ? (<><dt>Empresa</dt><dd>{lead.company}</dd></>) : null}
 
           <dt>Origen</dt>
-          <dd>{lead.campaignName || lead.source || '—'}{lead.sourceDetail ? ` · ${lead.sourceDetail}` : ''}</dd>
+          <dd>{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}{lead.sourceDetail ? ` · ${lead.sourceDetail}` : ''}</dd>
 
           {lead.fitStatus ? (<><dt>Calidad</dt><dd><StatusBadge status={lead.fitStatus} /></dd></>) : null}
 
-          {typeof lead.qualityScore === 'number' ? (
-            <>
-              <dt>Puntaje</dt>
-              <dd>
-                <span className={`lead-score ${lead.qualityScore >= 70 ? 'lead-score-good' : lead.qualityScore >= 35 ? 'lead-score-mid' : 'lead-score-bad'}`}>
-                  {lead.qualityScore} / 100
-                </span>
-              </dd>
-            </>
-          ) : null}
+          {/*
+            El puntaje automático no se muestra.
+
+            Convivía con el semáforo diciendo lo mismo con dos escalas distintas —un número de
+            cero a cien y tres colores—, y cuando discrepaban no había forma de saber cuál
+            mandaba. La prioridad la pone quien atiende, y esa es el semáforo. La columna
+            `quality_score` se sigue calculando para ordenar y para los informes; lo que se
+            retira es el número en pantalla, no el dato.
+          */}
 
           <dt>Consentimiento</dt>
           <dd>{lead.consentCapturedAt ? new Date(lead.consentCapturedAt).toLocaleString('es-CL') : 'No registrado'}</dd>
@@ -620,20 +634,21 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
 
           <label>
             <span>Fuente</span>
-            {/* Texto con sugerencias y no una lista cerrada: `source` es libre en la base y ya
-                guarda valores que ningún catálogo declara. Cerrarlo acá dejaría sin poder
-                corregir justamente los leads que llegaron con un origen raro. */}
-            <input
+            {/* Lista cerrada y no texto libre: agrupar por origen solo significa algo si
+                «Meta Ads» se escribe de una sola forma. Los orígenes que ya existen fuera del
+                catálogo se conservan como opción propia, así que un lead antiguo se puede
+                seguir corrigiendo sin que guardar le cambie el origen solo. */}
+            <select
               className="input"
-              list="fuentes-conocidas"
               value={fuente}
               onChange={(event) => editar(setFuente, event.target.value)}
               disabled={!scope.puedeEditar}
-              placeholder="Sin origen"
-            />
-            <datalist id="fuentes-conocidas">
-              {FUENTES_SUGERIDAS.map((valor) => <option key={valor} value={valor} />)}
-            </datalist>
+            >
+              <option value="">Sin origen</option>
+              {fuentesPara(lead.source).map((opcion) => (
+                <option key={opcion.value} value={opcion.value}>{opcion.label}</option>
+              ))}
+            </select>
           </label>
 
           <label>
@@ -805,10 +820,17 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           )}
         </section>
 
-        <section className="lead-detail-historial">
-          <h3>Bitácora</h3>
-          <ProcessCommentThread basePath={`/crm/leads/${lead.id}`} canWrite={scope.puedeEditar} />
-        </section>
+        {/*
+          Sin hilo de comentarios en la ficha de un lead.
+
+          A un lead lo atiende una persona, así que el hilo repetía lo que ya dicen las notas y
+          el historial de gestiones, y obligaba a decidir en cuál de los tres escribir. Se
+          conserva donde sí hay varios interlocutores —trabajos y sesiones—, que es para lo que
+          existe: ahí lo escrito es una conversación y acá era una nota con otro nombre.
+
+          El hilo no se borra: `/crm/leads/:id/comments` sigue en pie y lo ya escrito se
+          conserva. Lo que se retira es el tercer sitio donde escribir lo mismo.
+        */}
 
         {/*
           Borrar los datos de una persona o llevárselos son decisiones de quien responde por

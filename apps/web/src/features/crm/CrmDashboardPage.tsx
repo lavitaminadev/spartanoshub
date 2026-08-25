@@ -19,6 +19,7 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { STAGE_LABEL } from './stage-labels';
 import { useCrmScope } from './crm-scope';
 import { useStageLabels } from './use-stage-labels';
+import { useVocabulario } from './use-vocabulario';
 import './crm-dashboard.css';
 
 interface Conteo { key: string; total: number }
@@ -125,6 +126,8 @@ export function CrmDashboardPage(): JSX.Element {
   const scope = useCrmScope();
   const { user } = useAuth();
   const rotulos = useStageLabels(scope.clientId);
+  // Cómo llama esta empresa a sus cosas. De fábrica para lo que no haya renombrado.
+  const { termino } = useVocabulario(scope.clientId);
   const filtros = useUrlFilters(['dias']);
   const dias = filtros.values.dias || '30';
 
@@ -193,7 +196,7 @@ export function CrmDashboardPage(): JSX.Element {
       <section className="crm-dash-kpis">
         <article>
           <strong>{totals.leads}</strong>
-          <span>Leads del período</span>
+          <span>{termino('leads')} del período</span>
           <small>{porDiaPromedio} por día</small>
         </article>
         <article>
@@ -235,7 +238,7 @@ export function CrmDashboardPage(): JSX.Element {
         </article>
         <article>
           <strong>{totals.estancados}</strong>
-          <span>Leads estancados</span>
+          <span>{termino('leads')} estancados</span>
           <small>Sin gestión hace +7 días</small>
         </article>
         <article>
@@ -288,7 +291,7 @@ export function CrmDashboardPage(): JSX.Element {
 
       <div className="crm-dash-dos">
         <section className="crm-dash-panel">
-          <h2>Leads por día</h2>
+          <h2>{termino('leads')} por día</h2>
           {porDia.length ? (
             /* Barras verticales y no una línea: con pocos días una línea sugiere continuidad
                entre puntos que son conteos sueltos, no una serie que evolucione. */
@@ -327,7 +330,7 @@ export function CrmDashboardPage(): JSX.Element {
         </section>
 
         <section className="crm-dash-panel">
-          <h2>Leads por fuente</h2>
+          <h2>{termino('leads')} por fuente</h2>
           {porFuente.length ? (
             <Barras datos={porFuente} etiqueta={(key) => key} />
           ) : (

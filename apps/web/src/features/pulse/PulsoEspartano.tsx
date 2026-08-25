@@ -59,7 +59,7 @@ export function PulsoEspartano({ compact = false }: { compact?: boolean }) {
   // aquí producía acciones que terminaban en 404.
   const visibleActions = data.actions
     .filter((action) => !compact || action.owner === 'client')
-    .filter((action) => !user || isPathEnabled(action.route, user.features, user.permissions, user.moduleLifecycle, user.role));
+    .filter((action) => !user || isPathEnabled(action.route, user.features, user.permissions, user.moduleLifecycle, user.role, user.capabilities));
 
   return <section className={`pulse-shell ${compact ? 'is-compact' : ''}`}>
     <header className="pulse-header"><div><span className="page-eyebrow">METODOLOGÍA PROPIA · PULSO VITAMINA</span><h2>El pulso de {compact ? 'tu marca' : 'la operación'}</h2><p>Avances, bloqueos y próximos pasos.</p></div><span className={`pulse-status is-${data.status}`}>{statusLabel}</span></header>

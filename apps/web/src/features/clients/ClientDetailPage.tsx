@@ -107,7 +107,7 @@ export function ClientDetailPage() {
   const visibleQuickLinks = quickLinks.filter((item) => {
     const roles = getAllowedRolesForPath(item.to);
     const allowedByRole = !roles?.length || hasRoleAccess(user?.role, roles);
-    return allowedByRole && isPathEnabled(item.to, user?.features, user?.permissions, user?.moduleLifecycle);
+    return allowedByRole && isPathEnabled(item.to, user?.features, user?.permissions, user?.moduleLifecycle, user?.role, user?.capabilities);
   });
   /** Módulos de agencia que alimentan los paneles de esta ficha. */
   const showProduction = isModuleInPhaseScope('production', user?.moduleLifecycle);

@@ -3,7 +3,8 @@
  * @fileoverview Lead domain types.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LEAD_DISCARD_REASONS = exports.LEAD_TRAFFIC_LIGHTS = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
+exports.LEAD_DISCARD_REASONS = exports.LEAD_SOURCES = exports.LEAD_TRAFFIC_LIGHTS = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
+exports.etiquetaDeFuente = etiquetaDeFuente;
 /**
  * Etapas del pipeline comercial. El equipo las mueve a mano y son ordenadas:
  * el orden de este arreglo es el orden de las columnas del tablero.
@@ -61,6 +62,39 @@ exports.LEAD_STATUSES_BY_DOMAIN = {
 exports.LEAD_FIT_STATUSES = ['qualified', 'review', 'unqualified'];
 /** Prioridad manual. No se deriva del puntaje automático. */
 exports.LEAD_TRAFFIC_LIGHTS = ['green', 'yellow', 'red'];
+/**
+ * Orígenes por los que puede entrar un lead.
+ *
+ * La clave y el rótulo se declaran por separado a propósito. La clave es lo que se guarda en
+ * `leads.source` y lo que ya usan las integraciones —`meta_lead_ads` lo escribe el webhook de
+ * Meta—, así que renombrarla dejaría los leads antiguos en un origen que ningún informe
+ * reconoce. El rótulo es lo único que se lee en pantalla y puede cambiar sin tocar la base.
+ *
+ * La lista es cerrada para que agrupar por origen signifique algo: con texto libre, «Meta Ads»,
+ * «meta ads» y «Meta» eran tres orígenes distintos en el mismo panel.
+ */
+exports.LEAD_SOURCES = [
+    { value: 'meta_lead_ads', label: 'Meta Ads' },
+    { value: 'formulario_web', label: 'Formulario web' },
+    { value: 'portal_inmobiliario', label: 'Portal inmobiliario' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'telefono', label: 'Teléfono' },
+    { value: 'presencial', label: 'Presencial' },
+    { value: 'referido', label: 'Referido' },
+    { value: 'otro', label: 'Otro' },
+];
+/**
+ * Cómo se lee un origen en pantalla.
+ *
+ * Un valor fuera del catálogo se devuelve tal cual y no se traduce a «Otro»: los leads que ya
+ * existen traen orígenes que ningún catálogo declara, y mostrarlos todos como «Otro» borraría
+ * la única pista de por dónde entraron.
+ */
+function etiquetaDeFuente(value) {
+    if (!value)
+        return '';
+    return exports.LEAD_SOURCES.find((fuente) => fuente.value === value)?.label ?? value;
+}
 /** Catálogo de descarte usado por el flujo comercial de referencia MMT. */
 exports.LEAD_DISCARD_REASONS = [
     'Precio fuera de presupuesto',

@@ -91,6 +91,7 @@ let LeadController = class LeadController {
             status: query.status,
             fitStatus: query.fitStatus,
             source: query.source,
+            campaignName: query.campaignName,
             search: query.search,
             assignedTo: query.assignedTo,
             domain: query.domain,

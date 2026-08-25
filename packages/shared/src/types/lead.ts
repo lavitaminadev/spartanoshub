@@ -77,6 +77,42 @@ export type LeadFitStatus = (typeof LEAD_FIT_STATUSES)[number]
 export const LEAD_TRAFFIC_LIGHTS = ['green', 'yellow', 'red'] as const
 export type LeadTrafficLight = (typeof LEAD_TRAFFIC_LIGHTS)[number]
 
+/**
+ * Orígenes por los que puede entrar un lead.
+ *
+ * La clave y el rótulo se declaran por separado a propósito. La clave es lo que se guarda en
+ * `leads.source` y lo que ya usan las integraciones —`meta_lead_ads` lo escribe el webhook de
+ * Meta—, así que renombrarla dejaría los leads antiguos en un origen que ningún informe
+ * reconoce. El rótulo es lo único que se lee en pantalla y puede cambiar sin tocar la base.
+ *
+ * La lista es cerrada para que agrupar por origen signifique algo: con texto libre, «Meta Ads»,
+ * «meta ads» y «Meta» eran tres orígenes distintos en el mismo panel.
+ */
+export const LEAD_SOURCES = [
+  { value: 'meta_lead_ads', label: 'Meta Ads' },
+  { value: 'formulario_web', label: 'Formulario web' },
+  { value: 'portal_inmobiliario', label: 'Portal inmobiliario' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'telefono', label: 'Teléfono' },
+  { value: 'presencial', label: 'Presencial' },
+  { value: 'referido', label: 'Referido' },
+  { value: 'otro', label: 'Otro' },
+] as const
+
+export type LeadSource = (typeof LEAD_SOURCES)[number]['value']
+
+/**
+ * Cómo se lee un origen en pantalla.
+ *
+ * Un valor fuera del catálogo se devuelve tal cual y no se traduce a «Otro»: los leads que ya
+ * existen traen orígenes que ningún catálogo declara, y mostrarlos todos como «Otro» borraría
+ * la única pista de por dónde entraron.
+ */
+export function etiquetaDeFuente(value?: string | null): string {
+  if (!value) return ''
+  return LEAD_SOURCES.find((fuente) => fuente.value === value)?.label ?? value
+}
+
 /** Catálogo de descarte usado por el flujo comercial de referencia MMT. */
 export const LEAD_DISCARD_REASONS = [
   'Precio fuera de presupuesto',

@@ -90,14 +90,14 @@ export function Layout(): JSX.Element {
   // de Desarrollo; para verificar otro cargo se usa una cuenta real de ese cargo.
   const effectiveRole = user?.role;
   const navItems = useMemo(
-    () => getNavigation(effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle),
-    [effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle],
+    () => getNavigation(effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle, user?.capabilities),
+    [effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle, user?.capabilities],
   );
   // Las secciones viven en el registro junto al orden del sidebar: mantenerlas acá hacía
   // que una ruta no listada desapareciera del menú sin aviso.
   const groupedNavItems = useMemo(
-    () => getNavigationSections(effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle),
-    [effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle],
+    () => getNavigationSections(effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle, user?.capabilities),
+    [effectiveRole, user?.features, user?.permissions, user?.moduleLifecycle, user?.capabilities],
   );
 
   const toggleSidebar = useCallback(() => setSidebarOpen((open) => !open), []);

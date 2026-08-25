@@ -7,6 +7,14 @@ export class ListLeadsQueryDto extends PaginationDto {
   @IsOptional() @IsEnum(LeadStatus) status?: LeadStatus;
   @IsOptional() @IsEnum(LeadFitStatus) fitStatus?: LeadFitStatus;
   @IsOptional() @IsString() source?: string;
+  /**
+   * Campaña exacta por la que se acota.
+   *
+   * Distinto de `search`, que además de la campaña mira nombre, correo, teléfono, empresa y
+   * origen: buscar «Verano» por texto devolvía también a quien se apellida así. Acá la
+   * coincidencia es exacta, que es lo que permite leer «cuántos trajo esta campaña».
+   */
+  @IsOptional() @IsString() @MaxLength(255) campaignName?: string;
   /** Búsqueda real sobre toda la cuenta; no solo sobre la página que ya cargó el navegador. */
   @IsOptional() @IsString() @MaxLength(120) search?: string;
   @IsOptional() @IsUUID() assignedTo?: string;

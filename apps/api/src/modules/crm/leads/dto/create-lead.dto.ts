@@ -4,6 +4,15 @@ export class CreateLeadDto {
   @IsString() @MinLength(2) @MaxLength(255) name: string;
   @IsOptional() @IsEmail() @MaxLength(255) email?: string;
   @IsOptional() @IsString() @MaxLength(50) source?: string;
+
+  /**
+   * Campaña que trajo al contacto.
+   *
+   * Un lead creado a mano no la tenía dónde ponerse, así que quedaba fuera de todo informe por
+   * campaña y del costo por lead: la inversión contaba ese contacto como si no existiera. Es
+   * texto y no un identificador porque una campaña recién lanzada todavía no está dada de alta.
+   */
+  @IsOptional() @IsString() @MaxLength(255) campaignName?: string;
   @IsOptional() @IsString() @MaxLength(255) company?: string;
   @IsOptional() @Matches(/^[\d+\-\s()]+$/, { message: 'Invalid phone format' }) @MaxLength(50) phone?: string;
   @IsOptional() @IsString() @MaxLength(10000) notes?: string;

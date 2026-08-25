@@ -142,15 +142,28 @@ export function CrmLayout(): JSX.Element {
     general: mismo módulo, mismos permisos efectivos, misma respuesta en las dos.
   */
   const visibles = SECCIONES.filter((seccion) => {
-    // El portal trabaja sus leads, calendario y resultados. La configuración de campañas,
-    // llaves y vocabulario pertenece a Espartanos y no se ofrece como una falsa pantalla vacía.
-    if (esPortalCliente && seccion.to === '/crm/administracion') return false;
+    /*
+      Administración exige administrar el CRM, no solo operarlo.
+
+      El portal nunca la ve: la configuración de campañas, llaves y vocabulario pertenece a
+      Espartanos y ofrecérsela sería una pantalla vacía con su nombre en el encabezado.
+
+      Para el equipo interno la reja es el nivel `manage` y no una lista de cargos. Con solo
+      comprobar que el CRM esté habilitado, la veía cualquiera que pudiera editar leads —un
+      ejecutivo con `edit`—, y desde ahí se rotan llaves de campaña y se renombra el vocabulario
+      de una empresa entera. Quién tiene `manage` se ajusta en Configuración, sin desplegar.
+    */
+    if (seccion.to === '/crm/administracion') {
+      if (esPortalCliente) return false;
+      if (user?.permissions?.crm !== 'manage') return false;
+    }
     return isPathEnabled(
       seccion.to,
       user?.features,
       user?.permissions,
       user?.moduleLifecycle,
       user?.role,
+      user?.capabilities,
     );
   });
 
