@@ -14,9 +14,11 @@ import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { ProductionModule } from '../production/production.module';
+import { Lead } from '../crm/leads/lead.entity';
+import { AuthorizationModule } from '../../core/authorization/authorization.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ApprovalRequest, Piece, PieceVersion, Correction, Client, User]), ParametersModule, ProductionModule],
+  imports: [TypeOrmModule.forFeature([ApprovalRequest, Piece, PieceVersion, Correction, Client, User, Lead]), ParametersModule, ProductionModule, AuthorizationModule],
   controllers: [ApprovalsController, TasksController],
   providers: [ListApprovalsUseCase, UpdateApprovalStatusUseCase, PieceRulesService, TasksService],
   // Lo exporta para el disparador de tareas vencidas del motor de automatizaciones.

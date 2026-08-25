@@ -256,15 +256,15 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
      * Los contactos que trajeron sus campañas.
      *
      * Una empresa que contrata el CRM no podía ver el suyo: el portal respondía «no tienes acceso
-     * a este módulo» sobre datos que son de ella. Se abre en **solo lectura**: quién de la
-     * agencia trabaja cada contacto, en qué etapa lo tiene y qué anotó son decisiones internas,
-     * y dejar que el cliente las mueva convertiría su portal en un segundo puesto de mando sobre
-     * el trabajo del equipo.
+     * a este módulo» sobre datos que son de ella. Se abre en edición porque el CRM contratado
+     * es una herramienta de trabajo de la empresa: sus usuarios deben mover etapas, registrar
+     * gestiones y mantener sus contactos. El alcance firmado por cuenta evita que eso abra el
+     * CRM de Espartanos o el de otra empresa.
      *
      * Las otras dos rejas siguen puestas y hacen falta las tres: el alcance por cuenta lo limita
      * a su empresa, y la capacidad contratada a que esa empresa tenga CRM.
      */
-    crm: 'view',
+    crm: 'edit',
   },
 };
 

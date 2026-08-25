@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsOptional, IsString, MaxLength, IsNumber, Min, Max, IsUUID, ValidateIf } from 'class-validator';
+import { IsArray, IsEnum, IsIn, IsOptional, IsString, MaxLength, IsNumber, Min, Max, IsUUID, ValidateIf } from 'class-validator';
 import { LeadStatus } from '../lead-status.enum';
 import { LeadFitStatus } from '../lead-fit-status.enum';
 
@@ -19,6 +19,8 @@ export class UpdateLeadDto {
 
   @IsOptional() @IsEnum(LeadStatus) status?: LeadStatus;
   @IsOptional() @IsEnum(LeadFitStatus) fitStatus?: LeadFitStatus;
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsIn(['green', 'yellow', 'red'])
+  trafficLight?: 'green' | 'yellow' | 'red' | null;
   @IsOptional() @IsString() @MaxLength(2000) discardReason?: string;
   @IsOptional() @IsString() @MaxLength(10000) notes?: string;
 

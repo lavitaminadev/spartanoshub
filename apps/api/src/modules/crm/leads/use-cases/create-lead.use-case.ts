@@ -16,6 +16,8 @@ export class CreateLeadUseCase {
     source?: string;
     sourceDetail?: string;
     notes?: string;
+    estimatedAmount?: number;
+    trafficLight?: 'green' | 'yellow' | 'red';
     clientId?: string;
     domain?: 'audience' | 'commercial';
   }) {

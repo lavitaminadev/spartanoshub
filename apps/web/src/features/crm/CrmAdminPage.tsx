@@ -13,7 +13,7 @@
 import { useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { api } from '../../core/api';
+import { API_BASE, api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { EmptyState } from '../../shared/EmptyState';
 import { Modal } from '../../shared/Modal';
@@ -31,6 +31,8 @@ interface Origen {
   id: string;
   name: string;
   source: string;
+  clientId?: string | null;
+  campaignName?: string | null;
   isActive: boolean;
   tokenHint: string;
   receivedCount: number;
@@ -176,7 +178,7 @@ export function CrmAdminPage(): JSX.Element {
 
           <dl className="crm-admin-llave-datos">
             <dt>Dirección</dt>
-            <dd><code>{`${window.location.origin}/api/public/ingest/leads`}</code></dd>
+            <dd><code>{`${API_BASE.replace(/\/$/, '')}/public/ingest/leads`}</code></dd>
 
             <dt>Método</dt>
             <dd><code>POST</code> · cuerpo JSON</dd>
@@ -402,6 +404,8 @@ export function CrmAdminPage(): JSX.Element {
               <thead>
                 <tr>
                   <th>Origen</th>
+                  <th>Empresa</th>
+                  <th>Campaña</th>
                   <th>Llave</th>
                   <th>Recibidos</th>
                   <th>Último</th>
@@ -416,6 +420,10 @@ export function CrmAdminPage(): JSX.Element {
                       <strong>{origen.name}</strong>
                       <small>{origen.source}</small>
                     </td>
+                    <td data-label="Empresa">
+                      {listaClientes.find((cliente) => cliente.id === origen.clientId)?.name ?? (origen.clientId ? 'Empresa no disponible' : 'Agencia')}
+                    </td>
+                    <td data-label="Campaña">{origen.campaignName || 'Sin campaña fija'}</td>
                     <td data-label="Llave"><code>{origen.tokenHint}</code></td>
                     <td data-label="Recibidos">{origen.receivedCount}</td>
                     <td data-label="Último">

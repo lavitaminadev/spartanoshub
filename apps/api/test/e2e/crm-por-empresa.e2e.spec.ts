@@ -157,6 +157,60 @@ describe('el CRM responde por empresa', () => {
       expect(inicioManipulado.body.month.leads).toBe(2);
       expect(panelManipulado.body.totals.leads).toBe(2);
     });
+
+    it('el portal trabaja su CRM, pero no mueve el contacto fuera de su empresa', async () => {
+      const creado = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Contacto operado por su empresa', domain: 'commercial', source: 'manual',
+        clientId: banco.empresas.crmUno,
+      });
+      expect([200, 201], JSON.stringify(creado.body)).toContain(creado.status);
+
+      const movido = await banco.pedir(
+        'PUT', `/crm/leads/${creado.body.id}`, banco.cuentas.portalCrmUno.token, { status: 'contacted' },
+      );
+      expect(movido.status, JSON.stringify(movido.body)).toBe(200);
+      expect(movido.body.status).toBe('contacted');
+      expect(movido.body.clientId).toBe(banco.empresas.crmUno);
+
+      const venta = await banco.pedir(
+        'PUT', `/crm/leads/${creado.body.id}`, banco.cuentas.portalCrmUno.token, { status: 'won' },
+      );
+      expect(venta.status, JSON.stringify(venta.body)).toBe(200);
+      expect(venta.body.status).toBe('won');
+
+      const conversionIndebida = await banco.pedir(
+        'POST', `/crm/leads/${creado.body.id}/convert`, banco.cuentas.portalCrmUno.token,
+      );
+      expect(conversionIndebida.status).toBe(403);
+
+      const fuga = await banco.pedir(
+        'PUT', `/crm/leads/${creado.body.id}`, banco.cuentas.portalCrmUno.token, { clientId: null },
+      );
+      expect(fuga.status).toBe(403);
+    });
+
+    it('permite devolver un lead tomado a Sin asignar y lo persiste en la base', async () => {
+      const creado = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Lead que cambia de responsable', domain: 'commercial', source: 'manual',
+      });
+      expect([200, 201], JSON.stringify(creado.body)).toContain(creado.status);
+
+      const asignado = await banco.pedir(
+        'PUT', `/crm/leads/${creado.body.id}`, banco.cuentas.admin.token,
+        { assignedTo: banco.cuentas.admin.id },
+      );
+      expect(asignado.status, JSON.stringify(asignado.body)).toBe(200);
+      expect(asignado.body.assignedTo).toBe(banco.cuentas.admin.id);
+
+      const liberado = await banco.pedir(
+        'PUT', `/crm/leads/${creado.body.id}`, banco.cuentas.admin.token, { assignedTo: null },
+      );
+      expect(liberado.status, JSON.stringify(liberado.body)).toBe(200);
+      expect(liberado.body.assignedTo).toBeNull();
+
+      const [filas]: any = await banco.db.query('SELECT assigned_to FROM leads WHERE id = ?', [creado.body.id]);
+      expect(filas[0].assigned_to).toBeNull();
+    });
   });
 
   describe('inicio y panel', () => {
@@ -251,11 +305,53 @@ describe('el CRM responde por empresa', () => {
       expect(descripciones).not.toContain('Agenda de otra empresa');
     });
 
-    it('el portal consulta el calendario pero no fabrica actividades internas', async () => {
-      const intento = await banco.pedir('POST', '/crm/interactions', banco.cuentas.portalCrmUno.token, {
-        type: 'meeting', description: 'Actividad inventada por el portal',
+    it('el portal registra actividades únicamente sobre contactos de su empresa', async () => {
+      const propia = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Actividad propia del portal', domain: 'commercial', source: 'manual',
+        clientId: banco.empresas.crmUno,
       });
-      expect(intento.status).toBe(403);
+      const ajena = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Actividad vedada al portal', domain: 'commercial', source: 'manual',
+        clientId: banco.empresas.crmDos,
+      });
+
+      const registrada = await banco.pedir('POST', '/crm/interactions', banco.cuentas.portalCrmUno.token, {
+        leadId: propia.body.id, type: 'meeting', description: 'Seguimiento del propio cliente',
+      });
+      expect([200, 201], JSON.stringify(registrada.body)).toContain(registrada.status);
+
+      const intentoAjeno = await banco.pedir('POST', '/crm/interactions', banco.cuentas.portalCrmUno.token, {
+        leadId: ajena.body.id, type: 'meeting', description: 'No debe guardarse',
+      });
+      expect([403, 404]).toContain(intentoAjeno.status);
+    });
+
+    it('las tareas del portal persisten solo en leads de su empresa', async () => {
+      const propia = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Tarea CRM propia', domain: 'commercial', source: 'manual', clientId: banco.empresas.crmUno,
+      });
+      const ajena = await banco.pedir('POST', '/crm/leads', banco.cuentas.admin.token, {
+        name: 'Tarea CRM ajena', domain: 'commercial', source: 'manual', clientId: banco.empresas.crmDos,
+      });
+
+      const creada = await banco.pedir('POST', '/tasks', banco.cuentas.portalCrmUno.token, {
+        title: 'Llamar mañana', entityType: 'lead', entityId: propia.body.id,
+        // El servidor debe ignorar este alcance falsificado y derivarlo del lead.
+        clientId: banco.empresas.crmDos,
+      });
+      expect([200, 201], JSON.stringify(creada.body)).toContain(creada.status);
+      expect(creada.body.clientId).toBe(banco.empresas.crmUno);
+
+      const recargada = await banco.pedir(
+        'GET', `/tasks/lead/${propia.body.id}`, banco.cuentas.portalCrmUno.token,
+      );
+      expect(recargada.status, JSON.stringify(recargada.body)).toBe(200);
+      expect(recargada.body.some((task: { title: string }) => task.title === 'Llamar mañana')).toBe(true);
+
+      const intentoAjeno = await banco.pedir('POST', '/tasks', banco.cuentas.portalCrmUno.token, {
+        title: 'No debe existir', entityType: 'lead', entityId: ajena.body.id,
+      });
+      expect([403, 404]).toContain(intentoAjeno.status);
     });
   });
 

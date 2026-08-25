@@ -41,6 +41,9 @@ export class LeadIngestSource {
    */
   @Column({ name: 'campaign_name', type: 'varchar', length: 180, nullable: true }) campaignName?: string | null;
 
+  /** Vínculo estable: el nombre puede editarse, el identificador de campaña no. */
+  @Column({ name: 'campaign_id', type: 'uuid', nullable: true }) campaignId?: string | null;
+
   /**
    * Huella de la llave, nunca la llave.
    *

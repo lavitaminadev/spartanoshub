@@ -55,7 +55,7 @@ describe('prospecto anotado a mano', () => {
       email: 'aurora@gmail.com',
     });
 
-    expect(lead.fitStatus).toBe(LeadFitStatus.DISCARDED);
+    expect(lead.fitStatus).toBe(LeadFitStatus.UNQUALIFIED);
   });
 
   it('sin correo ni teléfono sigue en revisión: el vendedor puede tener solo el nombre', async () => {

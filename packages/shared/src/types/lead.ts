@@ -69,9 +69,26 @@ export type LeadDomain = keyof typeof LEAD_STATUSES_BY_DOMAIN
  */
 export type LeadStatus = (typeof LEAD_STATUSES)[number]
 
-export const LEAD_FIT_STATUSES = ['qualified', 'review', 'discarded'] as const
+export const LEAD_FIT_STATUSES = ['qualified', 'review', 'unqualified'] as const
 
 export type LeadFitStatus = (typeof LEAD_FIT_STATUSES)[number]
+
+/** Prioridad manual. No se deriva del puntaje automático. */
+export const LEAD_TRAFFIC_LIGHTS = ['green', 'yellow', 'red'] as const
+export type LeadTrafficLight = (typeof LEAD_TRAFFIC_LIGHTS)[number]
+
+/** Catálogo de descarte usado por el flujo comercial de referencia MMT. */
+export const LEAD_DISCARD_REASONS = [
+  'Precio fuera de presupuesto',
+  'Sin financiamiento / no calificó crédito',
+  'Compró en otro proyecto',
+  'Nunca respondió',
+  'Datos de contacto erróneos',
+  'Ubicación no le acomoda',
+  'Solo consultaba (sin intención)',
+  'No es el perfil buscado',
+  'Otro',
+] as const
 
 /**
  * Lead response returned by CRM endpoints.
@@ -93,6 +110,7 @@ export interface LeadResponse {
   status: LeadStatus
   fitStatus: LeadFitStatus
   qualityScore: number
+  trafficLight?: LeadTrafficLight
   discardReason?: string
   assignedTo?: string
   notes?: string

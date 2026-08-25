@@ -6,6 +6,7 @@ import { ModuleScope } from '../../../core/authorization/module-scope.decorator'
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { CampaignsService } from './campaigns.service';
 import { SaveCampaignDto } from './dto/save-campaign.dto';
+import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
 
 /**
  * Campañas de captación y su costo por lead.
@@ -40,6 +41,7 @@ export class CampaignsController {
    * sería tener la contraseña de escritura de una cuenta a un `GET` de distancia.
    */
   @Post()
+  @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Registrar una campaña y emitir su llave de entrada' })
   async create(@Body() dto: SaveCampaignDto, @Req() req: AuthenticatedRequest) {
     // La cuenta llega del navegador y decide de qué empresa es el gasto: se comprueba antes de
@@ -65,6 +67,7 @@ export class CampaignsController {
   }
 
   @Put(':id')
+  @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Actualizar una campaña' })
   async update(@Param('id') id: string, @Body() dto: SaveCampaignDto, @Req() req: AuthenticatedRequest) {
     const current = await this.campaigns.findOne(id, req.organizationId);
@@ -76,6 +79,7 @@ export class CampaignsController {
   }
 
   @Delete(':id')
+  @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Eliminar una campaña' })
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const current = await this.campaigns.findOne(id, req.organizationId);

@@ -28,7 +28,7 @@ export class PurgeExpiredLeadsJob {
     const expiredLeads = await this.leadRepo.find({
       where: {
         retentionReviewAt: LessThan(now),
-        fitStatus: 'discarded',
+        fitStatus: 'unqualified',
       },
       order: { retentionReviewAt: 'ASC' },
       take: 200,

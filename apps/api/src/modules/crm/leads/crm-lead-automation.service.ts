@@ -32,7 +32,7 @@ export class CrmLeadAutomationService {
 
     await this.ensureIntakeInteraction(lead, manager);
 
-    if (lead.fitStatus === LeadFitStatus.DISCARDED) {
+    if (lead.fitStatus === LeadFitStatus.UNQUALIFIED) {
       await this.ensureDiscardInteraction(lead, manager);
       return;
     }
@@ -45,8 +45,8 @@ export class CrmLeadAutomationService {
     }
 
     await this.ensureContact(lead, manager);
-    await this.ensureOpportunity(lead, ownerId ?? lead.assignedTo, manager);
-    await this.ensureQualifiedInteraction(lead, ownerId ?? lead.assignedTo, manager);
+    await this.ensureOpportunity(lead, ownerId ?? lead.assignedTo ?? undefined, manager);
+    await this.ensureQualifiedInteraction(lead, ownerId ?? lead.assignedTo ?? undefined, manager);
   }
 
   /**

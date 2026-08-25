@@ -1,6 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { createHash, randomBytes } from 'node:crypto';
 import { LeadIngestSource } from './ingest-source.entity';
 import { LeadIntakeService } from './lead-intake.service';
@@ -127,7 +127,11 @@ export class LeadIngestService {
       const campana = source.campaignName ?? dto.campana;
       const reconocida = campana
         ? await this.campaigns.exist({
-          where: { organizationId: source.organizationId, name: campana },
+          where: {
+            organizationId: source.organizationId,
+            name: campana,
+            clientId: source.clientId ?? IsNull(),
+          },
         })
         : false;
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Req, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Body, Param, Query, UseGuards, Req, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -16,6 +16,7 @@ import { ListLeadsQueryDto } from './dto/list-leads.dto';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { Reservation } from '../../reservations/domain/reservation.entity';
 import { Lead } from './lead.entity';
+import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
 import { LeadTaskSummaryService } from './lead-task-summary.service';
 import { veSoloLoSuyo } from './lead-visibility';
 import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
@@ -199,13 +200,17 @@ export class LeadController {
   @ApiOperation({ summary: 'Actualizar estado de un lead' })
   async update(@Param('id') id: string, @Body() dto: UpdateLeadDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
-    await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+    const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
     // Se comprueban las dos cuentas, no solo la de origen: sin verificar el destino, mover un
     // lead a una cuenta ajena sería una forma de sacarlo del alcance de quien lo estaba viendo
     // —o de meterlo en el de otro equipo— con un solo campo.
-    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
+    if (req.user.role === UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== req.user.clientId) {
+      throw new ForbiddenException('El portal no puede mover contactos fuera de su empresa');
+    }
+    const clientIdDestino = dto.clientId !== undefined ? (dto.clientId ?? undefined) : (lead.clientId ?? undefined);
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
     // Mover un lead a una empresa sin CRM lo haría desaparecer de toda pantalla salvo la base.
-    await this.capacidades.assert(req.organizationId, dto.clientId ?? undefined, 'crm');
+    await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
     return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
   }
 
@@ -273,10 +278,14 @@ export class LeadController {
   }
 
   @Post(':id/convert')
+  @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Convertir lead a cliente' })
   async convert(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
-    await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+    const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+    if (lead.clientId) {
+      throw new BadRequestException('Los contactos de una empresa se cierran como venta; no crean empresas de Espartanos');
+    }
     return this.convertLead.execute(id, req.organizationId);
   }
 }

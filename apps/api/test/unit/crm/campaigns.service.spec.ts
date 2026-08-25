@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CampaignsService } from '../../../src/modules/crm/campaigns/campaigns.service';
 
-function servicio(campanias: Array<Record<string, unknown>> = [], conteos: Array<{ name: string; total: string }> = []) {
+function servicio(
+  campanias: Array<Record<string, unknown>> = [],
+  conteos: Array<{ name: string; total: string }> = [],
+  source: Record<string, unknown> | null = null,
+) {
   const campaigns = {
     find: vi.fn().mockResolvedValue(campanias),
     save: vi.fn().mockImplementation(async (value) => ({ id: 'camp-1', ...value })),
@@ -19,7 +23,11 @@ function servicio(campanias: Array<Record<string, unknown>> = [], conteos: Array
       getRawMany: vi.fn().mockResolvedValue(conteos),
     }),
   };
-  const sources = { create: vi.fn().mockImplementation((value) => value) };
+  const sources = {
+    create: vi.fn().mockImplementation((value) => value),
+    findOne: vi.fn().mockResolvedValue(source),
+    save: vi.fn().mockImplementation(async (value) => value),
+  };
   const ingest = { issueToken: vi.fn().mockResolvedValue({ source: {}, token: 'lk_secreta' }) };
 
   return {
@@ -80,5 +88,33 @@ describe('CampaignsService · la llave nace atada a su campaña', () => {
     await service.create('org-1', { name: 'Prospección propia' });
 
     expect(sources.create).toHaveBeenCalledWith(expect.objectContaining({ clientId: null, campaignName: 'Prospección propia' }));
+  });
+
+  it('mantiene la llave vinculada cuando cambia el nombre o la empresa', async () => {
+    const source = { id: 'source-1', campaignId: 'c1', campaignName: 'Antes', clientId: 'client-1', isActive: true };
+    const { service, sources } = servicio(
+      [{ id: 'c1', name: 'Antes', source: 'meta_lead_ads', clientId: 'client-1', status: 'active' }],
+      [],
+      source,
+    );
+
+    await service.update('c1', 'org-1', { name: 'Después', clientId: 'client-2', status: 'paused' });
+
+    expect(sources.save).toHaveBeenCalledWith(expect.objectContaining({
+      campaignId: 'c1', campaignName: 'Después', clientId: 'client-2', isActive: false,
+    }));
+  });
+
+  it('apaga la llave antes de eliminar la campaña', async () => {
+    const source = { id: 'source-1', campaignId: 'c1', campaignName: 'Verano', isActive: true };
+    const { service, sources } = servicio(
+      [{ id: 'c1', name: 'Verano', source: 'meta_lead_ads', clientId: null, status: 'active' }],
+      [],
+      source,
+    );
+
+    await service.remove('c1', 'org-1');
+
+    expect(sources.save).toHaveBeenCalledWith(expect.objectContaining({ isActive: false }));
   });
 });

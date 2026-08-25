@@ -15,6 +15,7 @@ export class CreateLeadDto {
    * panel quedaban en cero para siempre sin que nada fallara.
    */
   @IsOptional() @IsNumber() @Min(0) @Max(999999999999) estimatedAmount?: number;
+  @IsOptional() @IsIn(['green', 'yellow', 'red']) trafficLight?: 'green' | 'yellow' | 'red';
 
   /**
    * Empresa a la que pertenece el contacto.

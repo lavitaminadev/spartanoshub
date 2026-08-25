@@ -32,6 +32,12 @@ export class TasksService {
     @InjectRepository(User) private readonly users: Repository<User>,
   ) {}
 
+  async findOne(organizationId: string, id: string): Promise<ApprovalRequest> {
+    const task = await this.repo.findOne({ where: { id, organizationId, kind: PendingKind.TASK } });
+    if (!task) throw new NotFoundException('Tarea no encontrada');
+    return task;
+  }
+
   /**
    * Abre una tarea sobre un registro.
    *
@@ -96,8 +102,7 @@ export class TasksService {
    * dejaría tareas en un estado que ninguna pantalla de tareas sabe mostrar.
    */
   async update(organizationId: string, id: string, dto: UpdateTaskDto): Promise<ApprovalRequest> {
-    const task = await this.repo.findOne({ where: { id, organizationId, kind: PendingKind.TASK } });
-    if (!task) throw new NotFoundException('Tarea no encontrada');
+    const task = await this.findOne(organizationId, id);
 
     if (dto.status) {
       const permitidos: ApprovalRequestStatus[] = [

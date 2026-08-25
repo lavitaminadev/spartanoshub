@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LEAD_DISCARD_REASONS } from '@espartanos/shared';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -22,6 +23,7 @@ import { StatusBadge } from '../../shared/StatusBadge';
 import { triggerToast } from '../../shared/toast-events';
 import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
 import { roleLabel } from '../../core/role-labels';
+import { useAuth } from '../../core/auth';
 import { STAGES } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { whatsapp } from './contacto';
@@ -46,7 +48,8 @@ interface Lead {
   clientId?: string | null;
   estimatedAmount?: number | string | null;
   qualityScore?: number;
-  fitStatus?: 'qualified' | 'review' | 'discarded';
+  fitStatus?: 'qualified' | 'review' | 'unqualified';
+  trafficLight?: 'green' | 'yellow' | 'red' | null;
   tags?: string[];
   consentCapturedAt?: string | null;
   convertedToClientId?: string | null;
@@ -93,6 +96,12 @@ const TIPOS_ACTIVIDAD: Array<{ value: string; label: string }> = [
   { value: 'note', label: 'Nota' },
 ];
 
+function motivoInicial(valor?: string | null): { catalogo: string; detalle: string } {
+  if (!valor) return { catalogo: '', detalle: '' };
+  if ((LEAD_DISCARD_REASONS as readonly string[]).includes(valor)) return { catalogo: valor, detalle: '' };
+  return { catalogo: 'Otro', detalle: valor.replace(/^Otro:\s*/i, '') };
+}
+
 /** Horas a una unidad que se lee de un vistazo. */
 function duracion(horas?: number | string | null): string | null {
   const valor = Number(horas);
@@ -123,6 +132,7 @@ function montoInicial(valor?: number | string | null): string {
 
 export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onClose }: Props): JSX.Element {
   const queryClient = useQueryClient();
+  const currentUser = useAuth((state) => state.user);
   // Las cuentas que esta persona alcanza, para poder mover el lead de empresa sin una consulta
   // propia: la barra ya las tiene resueltas.
   const scope = useCrmScope();
@@ -157,8 +167,10 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [responsable, setResponsable] = useState(lead.assignedTo ?? '');
   const [monto, setMonto] = useState(montoInicial(lead.estimatedAmount));
   const [calificacion, setCalificacion] = useState(lead.fitStatus ?? 'review');
+  const [semaforo, setSemaforo] = useState(lead.trafficLight ?? '');
   const [etiquetas, setEtiquetas] = useState((lead.tags ?? []).join(', '));
-  const [motivo, setMotivo] = useState(lead.discardReason ?? '');
+  const [motivoCatalogo, setMotivoCatalogo] = useState(motivoInicial(lead.discardReason).catalogo);
+  const [motivoOtro, setMotivoOtro] = useState(motivoInicial(lead.discardReason).detalle);
   const [tarea, setTarea] = useState({ title: '', dueAt: '' });
   const [fuente, setFuente] = useState(lead.source ?? '');
   const [empresa, setEmpresa] = useState(lead.clientId ?? '');
@@ -186,13 +198,15 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setResponsable(lead.assignedTo ?? '');
     setMonto(montoInicial(lead.estimatedAmount));
     setCalificacion(lead.fitStatus ?? 'review');
+    setSemaforo(lead.trafficLight ?? '');
     setEtiquetas((lead.tags ?? []).join(', '));
-    setMotivo(lead.discardReason ?? '');
+    setMotivoCatalogo(motivoInicial(lead.discardReason).catalogo);
+    setMotivoOtro(motivoInicial(lead.discardReason).detalle);
     setFuente(lead.source ?? '');
     setEmpresa(lead.clientId ?? '');
   }, [
     lead.id, lead.name, lead.phone, lead.email, lead.notes, lead.status, lead.assignedTo,
-    lead.estimatedAmount, lead.fitStatus, lead.tags, lead.discardReason, lead.source, lead.clientId,
+    lead.estimatedAmount, lead.fitStatus, lead.trafficLight, lead.tags, lead.discardReason, lead.source, lead.clientId,
   ]);
 
   const { data: historial, isLoading } = useQuery<Paso[]>({
@@ -215,8 +229,13 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const { data: usuariosResp } = useQuery<UserOption[] | { data: UserOption[] }>({
     queryKey: ['users'],
     queryFn: () => api.get('/users'),
+    // El portal no administra el equipo de Espartanos. Evita un 403 ruidoso y le deja como
+    // únicas opciones tomar el lead para sí o devolverlo a «Sin asignar».
+    enabled: currentUser?.role !== 'client',
   });
-  const usuarios = Array.isArray(usuariosResp) ? usuariosResp : usuariosResp?.data ?? [];
+  const usuarios = currentUser?.role === 'client' && currentUser
+    ? [{ id: currentUser.id, name: currentUser.name }]
+    : Array.isArray(usuariosResp) ? usuariosResp : usuariosResp?.data ?? [];
 
   const refrescar = async () => {
     await Promise.all([
@@ -249,12 +268,15 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       assignedTo: responsable || null,
       estimatedAmount: monto === '' ? undefined : Number(monto),
       fitStatus: calificacion,
+      trafficLight: semaforo || null,
       // Se separan por coma, como en la importación, para que la misma persona escriba igual en
       // los dos sitios. Vacío limpia las etiquetas en vez de dejarlas como estaban.
       tags: etiquetas.split(',').map((t) => t.trim()).filter(Boolean),
       // Solo viaja si el lead queda descartado: un motivo guardado en un lead vivo reaparece
       // como explicación de un cierre que no ocurrió.
-      discardReason: etapa === 'lost' ? motivo : '',
+      discardReason: etapa === 'lost'
+        ? (motivoCatalogo === 'Otro' ? `Otro: ${motivoOtro.trim()}` : motivoCatalogo)
+        : '',
       source: fuente.trim(),
       // Vacío deja el lead sin cuenta, que es el estado natural de un prospecto de la agencia.
       clientId: empresa || null,
@@ -293,7 +315,12 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     }),
     onSuccess: async () => {
       setTarea({ title: '', dueAt: '' });
-      await queryClient.invalidateQueries({ queryKey: ['lead-tasks', lead.id] });
+      setAviso({ tone: 'success', text: 'Tarea guardada.' });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['lead-tasks', lead.id] }),
+        queryClient.invalidateQueries({ queryKey: ['crm-leads-board'] }),
+        queryClient.invalidateQueries({ queryKey: ['tasks-mine'] }),
+      ]);
     },
     onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
   });
@@ -309,37 +336,6 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     onSuccess: async (resultado) => {
       setAviso({ tone: 'success', text: `${resultado.client.name} quedó creado como cliente y ya puede iniciar onboarding.` });
       await Promise.all([refrescar(), queryClient.invalidateQueries({ queryKey: ['clients'] })]);
-    },
-    onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
-  });
-
-  /**
-   * Deja constancia de que se habló con esta persona.
-   *
-   * Escribe la interacción y, si el lead seguía en «Nuevo», lo mueve a «Contactado». Son dos
-   * cosas que siempre ocurrían juntas y que había que hacer por separado, de modo que la
-   * bandeja de «sin contactar» seguía acusando a leads que ya se habían llamado.
-   */
-  const registrarContacto = useMutation({
-    mutationFn: async () => {
-      await api.post('/crm/interactions', { leadId: lead.id, type: 'call', description: 'Contacto registrado desde la ficha' });
-      /*
-       * El avance automático es del embudo comercial: `contacted` no existe en el ciclo de una
-       * visita. Sobre un contacto de campaña, la interacción quedaba registrada y el cambio de
-       * etapa fallaba después: gestión anotada, error en pantalla y el lead sin mover, que es la
-       * peor combinación —parece que no se guardó nada y sí se guardó la mitad—.
-       *
-       * En el ciclo de reserva no hay etapa equivalente a «contactado»: llamar a alguien no lo
-       * hace reservar. Así que ahí solo se registra la llamada, que es lo que ocurrió.
-       */
-      const esComercial = (leadInicial.domain ?? 'commercial') === 'commercial';
-      if (esComercial && lead.status === 'new') {
-        await api.put(`/crm/leads/${lead.id}`, { status: 'contacted' });
-      }
-    },
-    onSuccess: async () => {
-      setAviso({ tone: 'success', text: 'Contacto registrado.' });
-      await Promise.all([refrescar(), queryClient.invalidateQueries({ queryKey: ['lead-interactions', lead.id] })]);
     },
     onError: (error: Error) => setAviso({ tone: 'error', text: error.message }),
   });
@@ -365,6 +361,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
        * un contacto de campaña la actividad quedaba escrita y el cambio de etapa fallaba.
        */
       const comercial = (leadInicial.domain ?? 'commercial') === 'commercial';
+      if (actividad.type === 'call' && comercial && lead.status === 'new') {
+        await api.put(`/crm/leads/${lead.id}`, { status: 'contacted' });
+      }
       const avanza = comercial
         ? ['new', 'contacted', 'quote_sent'].includes(lead.status)
         : lead.status === 'new';
@@ -430,6 +429,15 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     etapa === lead.status &&
     responsable === (lead.assignedTo ?? '') &&
     monto === montoInicial(lead.estimatedAmount);
+  const motivoActual = motivoInicial(lead.discardReason);
+  const fichaSinCambios = sinCambios
+    && calificacion === (lead.fitStatus ?? 'review')
+    && semaforo === (lead.trafficLight ?? '')
+    && etiquetas === (lead.tags ?? []).join(', ')
+    && fuente === (lead.source ?? '')
+    && empresa === (lead.clientId ?? '')
+    && motivoCatalogo === motivoActual.catalogo
+    && motivoOtro === motivoActual.detalle;
 
   return (
     <Modal open onClose={onClose} title={lead.name}>
@@ -487,25 +495,24 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <a className="btn btn-outline btn-sm" href={enlaceWhatsapp} target="_blank" rel="noreferrer">WhatsApp</a>
           ) : null}
           {lead.email ? <a className="btn btn-outline btn-sm" href={`mailto:${lead.email}`}>Correo</a> : null}
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            disabled={registrarContacto.isPending}
-            onClick={() => registrarContacto.mutate()}
-          >
-            {registrarContacto.isPending ? 'Registrando...' : 'Registrar contacto'}
-          </button>
-          {/* Abre el mismo formulario de actividad, ya puesto en reunión: agendar una visita es
-              anotar una reunión con fecha, y tener dos caminos para lo mismo los desincroniza. */}
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={() => { setActividad({ type: 'meeting', description: '', date: '' }); setActividadAbierta(true); }}
-          >
-            Agendar visita
-          </button>
           {scope.puedeEditar ? (
-            <button type="button" className="btn btn-outline btn-sm" onClick={() => setActividadAbierta(true)}>Registrar actividad</button>
+            <>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => { setActividad({ type: 'call', description: '', date: '' }); setActividadAbierta(true); }}
+              >
+                Registrar contacto
+              </button>
+              {/* Ambos accesos terminan en el mismo formulario y la misma escritura. */}
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => { setActividad({ type: 'meeting', description: '', date: '' }); setActividadAbierta(true); }}
+              >
+                Agendar visita
+              </button>
+            </>
           ) : null}
         </div>
 
@@ -586,7 +593,17 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <select className="input" value={calificacion} onChange={(event) => editar(setCalificacion, event.target.value as Lead['fitStatus'])} disabled={!scope.puedeEditar}>
               <option value="review">Pendiente</option>
               <option value="qualified">Calificado</option>
-              <option value="discarded">Descartado</option>
+              <option value="unqualified">No calificado</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Semáforo</span>
+            <select className="input" value={semaforo} onChange={(event) => editar(setSemaforo, event.target.value as typeof semaforo)} disabled={!scope.puedeEditar}>
+              <option value="">Sin etiqueta</option>
+              <option value="green">Verde</option>
+              <option value="yellow">Amarillo</option>
+              <option value="red">Rojo</option>
             </select>
           </label>
 
@@ -632,13 +649,18 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           {etapa === 'lost' ? (
             <label>
               <span>Motivo de descarte</span>
-              <input
+              <select
                 className="input"
-                value={motivo}
-                onChange={(event) => editar(setMotivo, event.target.value)}
+                value={motivoCatalogo}
+                onChange={(event) => editar(setMotivoCatalogo, event.target.value)}
                 disabled={!scope.puedeEditar}
-                placeholder="Precio, ubicación, no responde..."
-              />
+              >
+                <option value="">Selecciona un motivo</option>
+                {LEAD_DISCARD_REASONS.map((razon) => <option key={razon} value={razon}>{razon}</option>)}
+              </select>
+              {motivoCatalogo === 'Otro' ? (
+                <input className="input" value={motivoOtro} onChange={(event) => editar(setMotivoOtro, event.target.value)} disabled={!scope.puedeEditar} placeholder="Especifica el motivo" />
+              ) : null}
             </label>
           ) : null}
         </div>
@@ -663,7 +685,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           de la agencia con su nombre como razón social. El servidor ahora lo rechaza; acá se
           esconde, porque ofrecer algo que siempre va a fallar es peor que no ofrecerlo.
         */}
-        {scope.puedeEditar && !lead.convertedToClientId && (leadInicial.domain ?? 'commercial') === 'commercial' ? (
+        {scope.puedeEditar && scope.esAgencia && !lead.clientId && !lead.convertedToClientId && (leadInicial.domain ?? 'commercial') === 'commercial' ? (
           <div className="lead-detail-convertir">
             <button type="button" className="btn btn-outline btn-sm" disabled={convertir.isPending} onClick={() => convertir.mutate()}>
               {convertir.isPending ? 'Convirtiendo...' : 'Convertir en cliente'}
@@ -813,7 +835,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <button
               type="button"
               className="btn btn-primary"
-              disabled={guardar.isPending || sinCambios}
+              disabled={guardar.isPending || fichaSinCambios || (etapa === 'lost' && (!motivoCatalogo || (motivoCatalogo === 'Otro' && !motivoOtro.trim())))}
               onClick={() => guardar.mutate()}
             >
               {guardar.isPending ? 'Guardando...' : 'Guardar cambios'}
