@@ -179,7 +179,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * porque son la misma lista para los dos, y cambian de mes en mes: se comparte la caché de
    * `crm-campaigns`, que es la misma clave que usa Administración.
    */
-  const { data: campanasResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
+  const { data: campanasResp } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['crm-campaigns', scope.clientId],
     queryFn: () => api.get(`/crm/campaigns${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`),
     // Sin campañas dadas de alta el filtro simplemente no ofrece opciones; no es un error.
@@ -187,16 +187,26 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   });
   // Memorizado para conservar la identidad del arreglo: `?? []` crea uno nuevo en cada render y
   // con eso el filtro se rearmaba entero cada vez.
-  const campanas = useMemo(() => campanasResp?.data ?? [], [campanasResp]);
+  const campanas = useMemo(() => campanasResp ?? [], [campanasResp]);
 
-  const { data: usuarios } = useQuery<{ data: UserOption[] }>({
-    queryKey: ['users-min'],
-    queryFn: () => api.get('/users'),
-    // El portal no administra personas. Evita una petición prohibida que no aporta nada a su
-    // vista de solo lectura.
-    enabled: user?.role !== 'client',
+  /*
+   * Quién puede tener leads de este CRM.
+   *
+   * Alimenta el filtro por responsable y la traducción de identificador a nombre. Sale del mismo
+   * sitio que el desplegable de la ficha y acotado por empresa: con `/users` el filtro ofrecía
+   * a toda la organización, así que en el CRM de una empresa se podía filtrar por personas que
+   * no tienen ni un lead ahí y el resultado era siempre una lista vacía.
+   */
+  const { data: usuarios } = useQuery<UserOption[]>({
+    queryKey: ['crm-responsables', scope.clientId],
+    queryFn: () => api.get(
+      `/crm/leads/responsables${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+    ),
+    retry: false,
   });
-  const equipo = useMemo(() => usuarios?.data ?? [], [usuarios]);
+  const equipo = useMemo(() => usuarios ?? [], [usuarios]);
+  /** Si quien mira puede quedar a cargo de un lead de este CRM. Decide si se ofrece «Tomar». */
+  const puedeTomar = Boolean(user?.id) && equipo.some((persona) => persona.id === user?.id);
   const nombreDe = (id?: string | null) => equipo.find((u) => u.id === id)?.name;
 
   const refrescar = () => Promise.all([
@@ -683,7 +693,16 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                       ⇄
                     </button>
                   ) : null}
-                  {!lead.assignedTo && scope.puedeEditar ? (
+                  {/*
+                    Tomar solo lo ofrece quien puede quedar a cargo aquí.
+
+                    Antes bastaba con poder editar, así que alguien de otra empresa se asignaba
+                    un lead que después no volvía a ver: su alcance de cuenta no llega a esa
+                    empresa, y el lead quedaba a nombre de quien no lo iba a atender. Es la misma
+                    lista que llena el desplegable de la ficha, así que las dos formas de asignar
+                    ofrecen exactamente a las mismas personas.
+                  */}
+                  {!lead.assignedTo && scope.puedeEditar && puedeTomar ? (
                     <button
                       type="button"
                       className="leads-board-tomar"

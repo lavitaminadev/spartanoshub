@@ -54,6 +54,8 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.email = data.email.trim() || null;
         if (data.company !== undefined)
             lead.company = data.company.trim() || null;
+        if (data.campaignName !== undefined)
+            lead.campaignName = data.campaignName.trim() || null;
         if (data.notes !== undefined)
             lead.notes = data.notes;
         if (data.discardReason !== undefined)

@@ -26,6 +26,7 @@ export class UpdateLeadUseCase {
     id: string,
     data: {
       name?: string; phone?: string; email?: string; company?: string;
+      campaignName?: string;
       status?: string; notes?: string; fitStatus?: string; discardReason?: string;
       tags?: string[]; estimatedAmount?: number; assignedTo?: string | null;
       source?: string; clientId?: string | null; trafficLight?: 'green' | 'yellow' | 'red' | null;
@@ -61,6 +62,9 @@ export class UpdateLeadUseCase {
     if (data.phone !== undefined) lead.phone = data.phone.trim() || null;
     if (data.email !== undefined) lead.email = data.email.trim() || null;
     if (data.company !== undefined) lead.company = data.company.trim() || null;
+    // La entidad ya recorta la campaña al guardar; acá basta con distinguir «déjala como está»
+    // de «quítala», que es lo que separa omitir el campo de mandarlo vacío.
+    if (data.campaignName !== undefined) lead.campaignName = data.campaignName.trim() || null;
     if (data.notes !== undefined) lead.notes = data.notes;
     if (data.discardReason !== undefined) lead.discardReason = data.discardReason;
     if (data.tags !== undefined) lead.tags = data.tags;

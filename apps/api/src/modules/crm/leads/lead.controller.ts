@@ -18,6 +18,7 @@ import { Reservation } from '../../reservations/domain/reservation.entity';
 import { Lead } from './lead.entity';
 import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
 import { LeadTaskSummaryService } from './lead-task-summary.service';
+import { ResponsablesDelCrmService } from './responsables-del-crm.service';
 import { veSoloLoSuyo } from './lead-visibility';
 import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
@@ -57,6 +58,7 @@ export class LeadController {
     private readonly history: ProcessHistoryService,
     private readonly leadTasks: LeadTaskSummaryService,
     private readonly capacidades: ClientCapabilityService,
+    private readonly responsablesDelCrm: ResponsablesDelCrmService,
   ) {}
 
   @Post()
@@ -180,6 +182,39 @@ export class LeadController {
         nextStep: tareas.get(lead.id)?.nextStep ?? null,
       })),
     };
+  }
+
+  /**
+   * Quién puede hacerse cargo de un lead en este CRM.
+   *
+   * Existe aparte de `/users` a propósito. Aquél es de administración: devuelve correo,
+   * teléfono, cargo y estado de **toda** la organización, y está reservado a los cargos que
+   * administran personas. La ficha solo necesita nombres para llenar un desplegable, así que
+   * abrirle aquél al portal habría entregado la libreta de contactos del equipo entero para
+   * resolver un `<select>`.
+   *
+   * **Acota por empresa.** Antes la ficha listaba la organización completa, de modo que el CRM
+   * de una empresa ofrecía como responsables a personas de otra: se asignaba un lead a alguien
+   * que no lo iba a ver nunca, porque su alcance de cuenta no llega a esa empresa.
+   *
+   * - En el CRM de una empresa devuelve a **su** gente.
+   * - En el embudo propio de la agencia devuelve al equipo interno, que es de quien es ese
+   *   embudo.
+   *
+   * Declarado antes de `:id` porque ese comodín capturaría «responsables» como identificador.
+   *
+   * @returns Identificador y nombre, nada más. Es lo único que la pantalla dibuja.
+   */
+  @Get('responsables')
+  @ApiOperation({ summary: 'Personas asignables en el CRM de una empresa' })
+  async responsables(@Req() req: AuthenticatedRequest, @Query('clientId') solicitado?: string) {
+    await this.assertPortalCrm(req);
+    // El portal no elige empresa: la suya viene firmada en la sesión y un query string no la
+    // cambia. Es la misma regla que gobierna el listado de leads.
+    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : solicitado;
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    if (clientId) await this.capacidades.assert(req.organizationId, clientId, 'crm');
+    return this.responsablesDelCrm.execute(req.organizationId, clientId);
   }
 
   /** Devuelve un lead, siempre que pertenezca a una cuenta accesible para el usuario. */
