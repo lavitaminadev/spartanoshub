@@ -21,22 +21,26 @@ const update_interaction_dto_1 = require("./dto/update-interaction.dto");
 const list_interactions_dto_1 = require("./dto/list-interactions.dto");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
+const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
 let InteractionsController = class InteractionsController {
-    constructor(service, accountAccess) {
+    constructor(service, accountAccess, capabilities) {
         this.service = service;
         this.accountAccess = accountAccess;
+        this.capabilities = capabilities;
     }
     async create(dto, req) {
         await this.assertClientScope(req, await this.service.referenceClientId(dto, req.organizationId));
         return this.service.create(dto, req.organizationId, req.user.id);
     }
     async findAll(query, req) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
+        const clientId = req.user.role === 'client' ? req.user.clientId : query.clientId;
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capabilities.assert(req.organizationId, clientId, 'crm');
         if (query.leadId) {
             await this.assertClientScope(req, await this.service.referenceClientId({ leadId: query.leadId }, req.organizationId));
         }
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, query.clientId);
+        return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, clientId);
     }
     async findOne(id, req) {
         const interaction = await this.service.findOne(id, req.organizationId);
@@ -59,6 +63,7 @@ let InteractionsController = class InteractionsController {
         if (!clientId && allowed !== undefined)
             throw new common_1.NotFoundException('Interaction not found');
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capabilities.assert(req.organizationId, clientId, 'crm');
     }
 };
 exports.InteractionsController = InteractionsController;
@@ -108,5 +113,6 @@ exports.InteractionsController = InteractionsController = __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
     __metadata("design:paramtypes", [interactions_service_1.InteractionsService,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService])
 ], InteractionsController);

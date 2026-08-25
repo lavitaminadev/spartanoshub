@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '../../core/auth';
-import { activePortalCards, CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
+import { activePortalCards, CLIENT_NAV, isClientNavItemVisible, isPortalPulseVisible } from './client-portal-scope';
 
 function client(overrides: Partial<User> = {}): User {
   return {
@@ -35,5 +35,17 @@ describe('portal del cliente en la operación inicial', () => {
     const user = client({ capabilities: { crm: true, reservations: true } });
 
     expect(activePortalCards(user).map((card) => card.title)).toEqual(['CRM', 'Reservas']);
+  });
+
+  it('ante capacidades ausentes no ofrece ningún servicio por defecto', () => {
+    const user = client({ capabilities: undefined });
+
+    expect(CLIENT_NAV.filter((item) => isClientNavItemVisible(item, user)).map((item) => item.label)).toEqual(['Inicio']);
+    expect(activePortalCards(user)).toEqual([]);
+  });
+
+  it('no consulta Pulso mientras Reportes esté fuera del portal inicial', () => {
+    const user = client({ features: { crm: true, reservations: true, reports: true }, permissions: { crm: 'view', reservations: 'edit', reports: 'view' } });
+    expect(isPortalPulseVisible(user)).toBe(false);
   });
 });

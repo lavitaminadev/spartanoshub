@@ -58,6 +58,12 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   // Un bloqueo se explica, no se disimula. Antes ambos casos devolvían al inicio en silencio y
   // eso se reporta como pantalla rota, cuando en realidad es un permiso que falta.
   const roles = allowedRoles ?? (path ? getAllowedRolesForPath(path) : undefined);
+  // El permiso CRM del cargo cliente dice qué puede hacer dentro de un servicio contratado;
+  // no sustituye la contratación. Una URL directa tampoco puede saltarse la capacidad que el
+  // menú y el dashboard ya ocultan.
+  if (user.role === 'client' && isClientCrmRoute && user.capabilities?.crm !== true) {
+    return <AccessDenied path={path} userRole={user.role} allowedRoles={roles} reason="module" />;
+  }
   if (path && !isPersonalRoute && !isInternalDashboard && !isPathEnabled(path, user.features, user.permissions, user.moduleLifecycle, user.role)) {
     return <AccessDenied path={path} userRole={user.role} allowedRoles={roles} reason="module" />;
   }

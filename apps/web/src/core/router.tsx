@@ -182,8 +182,8 @@ export function AppRouter() {
         </Route>
         <Route path="/portal" element={<ClientRoute><SafeSuspense><ClientLayout /></SafeSuspense></ClientRoute>}>
           <Route index element={<SafeSuspense><ClientDashboard /></SafeSuspense>} />
-          <Route path="reservations" element={<SafeSuspense><ReservationsPage clientView /></SafeSuspense>} />
-          <Route path="reservations/forms/:id" element={<SafeSuspense><ReservationBuilderPage /></SafeSuspense>} />
+          <Route path="reservations" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationsPage clientView /></SafeSuspense></ClientRoute>} />
+          <Route path="reservations/forms/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ClientRoute>} />
         </Route>
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/404" element={<NotFoundPage />} />

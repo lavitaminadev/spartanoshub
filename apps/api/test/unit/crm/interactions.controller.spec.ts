@@ -16,10 +16,12 @@ function setup() {
     allowedClientIds: vi.fn().mockResolvedValue(['client-1']),
     assertClient: vi.fn(),
   };
+  const capabilities = { assert: vi.fn() };
   return {
-    controller: new InteractionsController(service as any, accountAccess as any),
+    controller: new InteractionsController(service as any, accountAccess as any, capabilities as any),
     service,
     accountAccess,
+    capabilities,
   };
 }
 
@@ -34,12 +36,29 @@ describe('InteractionsController · aislamiento por empresa', () => {
   });
 
   it('valida y conserva la empresa elegida por el calendario CRM', async () => {
-    const { controller, service, accountAccess } = setup();
+    const { controller, service, accountAccess, capabilities } = setup();
     service.findAll.mockResolvedValue({ data: [], total: 0, limit: 500, offset: 0 });
 
     await controller.findAll({ limit: 500, offset: 0, clientId: 'client-1' } as any, request);
 
     expect(accountAccess.assertClient).toHaveBeenCalledWith('org-1', request.user, 'client-1');
+    expect(capabilities.assert).toHaveBeenCalledWith('org-1', 'client-1', 'crm');
+    expect(service.findAll).toHaveBeenCalledWith('org-1', 500, 0, undefined, ['client-1'], 'client-1');
+  });
+
+  it('el portal usa la empresa firmada en su sesión aunque manipule el calendario', async () => {
+    const { controller, service, accountAccess, capabilities } = setup();
+    const portalRequest = {
+      organizationId: 'org-1',
+      user: { id: 'portal-1', role: 'client', clientId: 'client-1' },
+    } as any;
+    accountAccess.allowedClientIds.mockResolvedValue(['client-1']);
+    service.findAll.mockResolvedValue({ data: [], total: 0, limit: 500, offset: 0 });
+
+    await controller.findAll({ limit: 500, offset: 0, clientId: 'client-2' } as any, portalRequest);
+
+    expect(accountAccess.assertClient).toHaveBeenCalledWith('org-1', portalRequest.user, 'client-1');
+    expect(capabilities.assert).toHaveBeenCalledWith('org-1', 'client-1', 'crm');
     expect(service.findAll).toHaveBeenCalledWith('org-1', 500, 0, undefined, ['client-1'], 'client-1');
   });
 
