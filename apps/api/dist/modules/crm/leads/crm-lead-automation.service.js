@@ -37,7 +37,7 @@ let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomat
             return;
         }
         await this.ensureIntakeInteraction(lead, manager);
-        if (lead.fitStatus === lead_fit_status_enum_1.LeadFitStatus.DISCARDED) {
+        if (lead.fitStatus === lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED) {
             await this.ensureDiscardInteraction(lead, manager);
             return;
         }
@@ -48,8 +48,8 @@ let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomat
             lead.assignedTo = ownerId;
         }
         await this.ensureContact(lead, manager);
-        await this.ensureOpportunity(lead, ownerId ?? lead.assignedTo, manager);
-        await this.ensureQualifiedInteraction(lead, ownerId ?? lead.assignedTo, manager);
+        await this.ensureOpportunity(lead, ownerId ?? lead.assignedTo ?? undefined, manager);
+        await this.ensureQualifiedInteraction(lead, ownerId ?? lead.assignedTo ?? undefined, manager);
     }
     async ensureAudienceContact(lead, manager) {
         return this.ensureContact(lead, manager);

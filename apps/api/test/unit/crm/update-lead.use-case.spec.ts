@@ -105,7 +105,7 @@ describe('UpdateLeadUseCase · responsable del lead', () => {
 
     const guardado = await useCase.execute('lead-1', { assignedTo: null }, 'org-1');
 
-    expect(guardado.assignedTo).toBeUndefined();
+    expect(guardado.assignedTo).toBeNull();
   });
 
   it('no toca el responsable cuando el campo no viene', async () => {
@@ -145,7 +145,7 @@ describe('UpdateLeadUseCase · origen y empresa del lead', () => {
     expect(movido.clientId).toBe('client-2');
 
     const sinCuenta = await useCase.execute('lead-1', { clientId: null }, 'org-1');
-    expect(sinCuenta.clientId).toBeUndefined();
+    expect(sinCuenta.clientId).toBeNull();
   });
 
   it('no toca la empresa cuando el campo no viene', async () => {

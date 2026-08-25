@@ -102,6 +102,8 @@ export interface LeadCaptureInput {
   source?: string;
   sourceDetail?: string;
   notes?: string;
+  estimatedAmount?: number;
+  trafficLight?: 'green' | 'yellow' | 'red';
   /**
    * Cuándo ocurrió en el origen. Vacío cuando no hay origen externo que lo aporte.
    *
@@ -238,6 +240,7 @@ export class LeadIntakeService {
       sourceCreatedAt: match.lead?.sourceCreatedAt ?? normalized.sourceCreatedAt ?? null,
       qualityScore: qualification.qualityScore,
       fitStatus: qualification.fitStatus,
+      trafficLight: normalized.trafficLight ?? match.lead?.trafficLight ?? null,
       discardReason: qualification.discardReason,
       retentionReviewAt: normalized.retentionReviewAt ?? retentionReviewAt,
       metadata: {
@@ -497,7 +500,7 @@ export class LeadIntakeService {
     if (lowQualityHits.length > 0) {
       return {
         qualityScore: Math.max(qualityScore - 30, 0),
-        fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.DISCARDED,
+        fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.UNQUALIFIED,
         // Un motivo de descarte en un lead que no está descartado se lee como si lo estuviera.
         discardReason: anotadoAMano ? undefined : `Se detectaron señales de bajo encaje: ${lowQualityHits.slice(0, 3).join(', ')}`,
         scoringSignals: [...signals, `low_quality:${lowQualityHits.slice(0, 3).join(',')}`],
@@ -507,7 +510,7 @@ export class LeadIntakeService {
     if (!input.email && !input.phone) {
       return {
         qualityScore,
-        fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.DISCARDED,
+        fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.UNQUALIFIED,
         discardReason: anotadoAMano ? undefined : 'No dejó email ni teléfono para contacto comercial.',
         scoringSignals: [...signals, 'missing_contact_channel'],
       };
@@ -523,7 +526,7 @@ export class LeadIntakeService {
 
     return {
       qualityScore,
-      fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.DISCARDED,
+      fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.UNQUALIFIED,
       discardReason: anotadoAMano ? undefined : 'Puntaje insuficiente para priorización comercial.',
       scoringSignals: [...signals, 'low_score'],
     };

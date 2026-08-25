@@ -12,7 +12,7 @@ import { cerrarBanco, levantarBanco, type Banco } from './util/banco';
  *
  * 1. **Afirmar invariantes** que deben cumplirse en toda la tabla, sin listarlos uno a uno: que
  *    ninguna ruta reviente con 500, que ninguna responda 200 sin sesión, y que el portal del
- *    cliente no consiga escribir en ningún sitio.
+ *    cliente no consiga administrar cuentas ni configuración, aunque sí trabaje su CRM.
  * 2. **Dejar constancia.** Un cambio de permisos que hoy nadie nota se ve al comparar la tabla
  *    de una versión con la de la siguiente. Es la diferencia entre enterarse al revisar y
  *    enterarse cuando un cliente ve algo que no era suyo.
@@ -53,9 +53,8 @@ describe('matriz de acceso', () => {
     ['Tareas · mías', '/tasks/mine'],
   ];
 
-  /** Escrituras que el portal del cliente no debe conseguir en ningún caso. */
+  /** Escrituras administrativas que el portal del cliente no debe conseguir en ningún caso. */
   const ESCRITURAS_PROHIBIDAS_AL_PORTAL: Array<[string, 'POST' | 'PUT' | 'PATCH', string, unknown]> = [
-    ['crear un lead', 'POST', '/crm/leads', { name: 'Colado por el portal' }],
     ['crear un cliente', 'POST', '/clients', { name: 'Empresa inventada' }],
     ['crear un usuario', 'POST', '/users', { name: 'Cuenta inventada', email: 'colado@prueba.local', password: 'Colado2026!', role: 'admin' }],
     ['renombrar etapas', 'PUT', '/crm/stage-labels', { labels: { new: 'Mío' } }],
@@ -104,7 +103,7 @@ ${banco.registro()}`,
     expect(abiertas, 'Rutas que aceptan un token que nadie firmó').toEqual([]);
   }, 60_000);
 
-  it('el portal del cliente no consigue escribir en ningún sitio', async () => {
+  it('el portal del cliente no consigue escrituras administrativas', async () => {
     const conseguidas: string[] = [];
     for (const [nombre, metodo, ruta, cuerpo] of ESCRITURAS_PROHIBIDAS_AL_PORTAL) {
       const { status } = await banco.pedir(metodo, ruta, banco.cuentas.portalCrmUno.token, cuerpo);
@@ -114,22 +113,29 @@ ${banco.registro()}`,
     expect(conseguidas, 'Escrituras que el portal logró').toEqual([]);
   }, 60_000);
 
-  it('el portal no creó nada en la base pese a los intentos', async () => {
+  it('el portal crea un lead únicamente dentro de su propia empresa', async () => {
+    const creado = await banco.pedir('POST', '/crm/leads', banco.cuentas.portalCrmUno.token, {
+      name: 'Lead creado por su empresa',
+      // Ambos campos se falsifican a propósito: la sesión debe prevalecer.
+      clientId: banco.empresas.crmDos,
+      domain: 'audience',
+    });
+    expect([200, 201], JSON.stringify(creado.body)).toContain(creado.status);
+    expect(creado.body.clientId).toBe(banco.empresas.crmUno);
+    expect(creado.body.domain).toBe('commercial');
+  });
+
+  it('el portal no creó cuentas ni usuarios pese a los intentos', async () => {
     const [clientes]: any = await banco.db.query(
       'SELECT COUNT(*) AS n FROM clients WHERE name = ?', ['Empresa inventada'],
     );
     const [usuarios]: any = await banco.db.query(
       'SELECT COUNT(*) AS n FROM users WHERE email = ?', ['colado@prueba.local'],
     );
-    const [leads]: any = await banco.db.query(
-      'SELECT COUNT(*) AS n FROM leads WHERE name = ?', ['Colado por el portal'],
-    );
-
     expect({
       clientes: Number(clientes[0].n),
       usuarios: Number(usuarios[0].n),
-      leads: Number(leads[0].n),
-    }).toEqual({ clientes: 0, usuarios: 0, leads: 0 });
+    }).toEqual({ clientes: 0, usuarios: 0 });
   });
 
   it('cada portal alcanza solo los servicios contratados por su empresa', () => {

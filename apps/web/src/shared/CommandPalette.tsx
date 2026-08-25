@@ -14,7 +14,6 @@ interface DocumentResult { id: string; name: string; type: string; status: strin
 interface FormResult { id: string; name: string; publicSlug: string; publicUrl?: string; status: string }
 interface MeetingResult { id: string; title?: string; subject?: string; scheduledAt?: string; date?: string }
 interface UserResult { id: string; name: string; email: string; role: string; isActive: boolean }
-interface OpportunityResult { id: string; name: string; stage: string; amount?: number; nextAction?: string }
 interface ReservationResult { id: string; referenceCode: string; guestName: string; guestEmail?: string; guestPhone?: string; status: string }
 
 export function CommandPalette() {
@@ -68,7 +67,6 @@ export function CommandPalette() {
   const formsQuery = useQuery<FormResult[]>({ queryKey: ['command-forms'], queryFn: () => api.get('/reservations/forms'), enabled: open && canOpen('/reservations'), retry: false });
   const reservationsQuery = useQuery<{ data: ReservationResult[] }>({ queryKey: ['command-reservations'], queryFn: () => api.get('/reservations?page=1&pageSize=50'), enabled: open && canOpen('/reservations'), retry: false });
   const usersQuery = useQuery<UserResult[]>({ queryKey: ['command-users'], queryFn: () => api.get('/users'), enabled: open && canOpen('/users'), retry: false });
-  const opportunitiesQuery = useQuery<{ data: OpportunityResult[] }>({ queryKey: ['command-opportunities'], queryFn: () => api.get('/crm/opportunities?limit=100'), enabled: open && canOpen('/crm/opportunities'), retry: false });
   const meetingsQuery = useQuery<MeetingResult[]>({ queryKey: ['command-meetings'], queryFn: () => api.get('/meetings'), enabled: open && taskMode && canOpen('/meetings'), retry: false });
   const taskMutation = useMutation({ mutationFn: () => api.post(`/meetings/${taskForm.meetingId}/action-items`, { description: taskForm.description.trim() }), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['meetings'] }); setTaskForm({ meetingId: '', description: '' }); setTaskMode(false); setOpen(false); } });
 
@@ -78,16 +76,6 @@ export function CommandPalette() {
     if (canOpen('/users')) actions.unshift({ id: 'action-new-user', group: 'Acciones rápidas', title: 'Crear usuario', description: 'Asignar rol, empresa y acceso', path: '/users?create=1' });
     if (canOpen('/documents')) actions.unshift({ id: 'action-new-document', group: 'Acciones rápidas', title: 'Crear documento', description: 'Registrar o subir archivo a Drive', path: '/documents?create=1' });
     if (canOpen('/production')) actions.unshift({ id: 'action-new-piece', group: 'Acciones rápidas', title: 'Crear pieza de producción', description: 'Abrir encargo con fecha y dependencias', path: '/production?create=1' });
-    if (canOpen('/crm/opportunities')) actions.unshift(
-      { id: 'nav-opportunities', group: 'CRM Comercial', title: 'Oportunidades y forecast', description: 'Abrir tablero comercial', path: '/crm/opportunities' },
-      { id: 'action-new-opportunity', group: 'Acciones rápidas', title: 'Crear oportunidad', description: 'Registrar monto, cierre y próxima acción', path: '/crm/opportunities?create=1' },
-    );
-    if (canOpen('/crm/contacts')) actions.unshift(
-      { id: 'nav-contacts', group: 'CRM', title: 'Contactos de campañas', description: 'Abrir personas y canales', path: '/crm/contacts' },
-    );
-    if (canOpen('/crm/interactions')) actions.unshift(
-      { id: 'nav-activity', group: 'CRM Comercial', title: 'Centro de actividad', description: 'Abrir seguimientos y bandeja diaria', path: '/crm/interactions' },
-    );
     if (canOpen('/crm/leads')) actions.unshift(
       { id: 'action-new-lead', group: 'Acciones rápidas', title: 'Crear lead', description: 'Abrir registro comercial', path: '/crm/leads?create=1' },
     );
@@ -100,11 +88,10 @@ export function CommandPalette() {
       ...(formsQuery.data || []).map((form) => ({ id: `form-${form.id}`, group: 'Captación', title: form.name, description: `${form.status} · ${publicReservationUrl(form.publicSlug, form.publicUrl)}`, path: `/reservations/forms/${form.id}` })),
       ...(reservationsQuery.data?.data ?? []).map((reservation) => ({ id: `reservation-${reservation.id}`, group: 'Reservas recibidas', title: reservation.guestName, description: `#${reservation.referenceCode} · ${reservation.guestEmail || reservation.guestPhone || reservation.status}`, path: `/reservations?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}` })),
       ...(usersQuery.data || []).map((account) => ({ id: `user-${account.id}`, group: 'Usuarios', title: account.name, description: `${account.email} · ${account.role} · ${account.isActive ? 'activo' : 'inactivo'}`, path: `/users?q=${encodeURIComponent(account.email)}` })),
-      ...(opportunitiesQuery.data?.data || []).map((opportunity) => ({ id: `opportunity-${opportunity.id}`, group: 'Oportunidades', title: opportunity.name, description: `${opportunity.stage} · ${opportunity.nextAction || `CLP ${Number(opportunity.amount || 0).toLocaleString('es-CL')}`}`, path: `/crm/opportunities?search=${encodeURIComponent(opportunity.name)}` })),
     ];
     const needle = query.trim().toLocaleLowerCase('es');
     return [...actions, ...records].filter((item) => !needle || `${item.title} ${item.description} ${item.group}`.toLocaleLowerCase('es').includes(needle)).slice(0, 40);
-  }, [clientsQuery.data, documentsQuery.data, formsQuery.data, canOpen, leadsQuery.data, navigation, opportunitiesQuery.data, query, reservationsQuery.data, usersQuery.data]);
+  }, [clientsQuery.data, documentsQuery.data, formsQuery.data, canOpen, leadsQuery.data, navigation, query, reservationsQuery.data, usersQuery.data]);
 
   const execute = (item: SearchItem | undefined) => {
     if (!item) return;

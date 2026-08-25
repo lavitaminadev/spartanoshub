@@ -69,7 +69,11 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
             const campana = source.campaignName ?? dto.campana;
             const reconocida = campana
                 ? await this.campaigns.exist({
-                    where: { organizationId: source.organizationId, name: campana },
+                    where: {
+                        organizationId: source.organizationId,
+                        name: campana,
+                        clientId: source.clientId ?? (0, typeorm_2.IsNull)(),
+                    },
                 })
                 : false;
             return {

@@ -56,7 +56,9 @@ interface Lead {
   campaignName?: string | null;
   assignedTo?: string | null;
   clientId?: string | null;
-  fitStatus?: 'qualified' | 'review' | 'discarded';
+  fitStatus?: 'qualified' | 'review' | 'unqualified';
+  trafficLight?: 'green' | 'yellow' | 'red' | null;
+  qualityScore?: number;
   tags?: string[] | null;
   estimatedAmount?: number | null;
   /** Tareas abiertas sobre el lead. Las cuenta el servidor al listar. */
@@ -108,7 +110,7 @@ function montoCorto(valor: number): string {
 const CALIDADES: Array<{ value: string; label: string }> = [
   { value: 'qualified', label: 'Calificado' },
   { value: 'review', label: 'Por revisar' },
-  { value: 'discarded', label: 'Descartado' },
+  { value: 'unqualified', label: 'No calificado' },
 ];
 
 function iniciales(nombre: string): string {
@@ -147,7 +149,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const [pagina, setPagina] = useState(1);
   /** Lead cuyo cambio de etapa se está eligiendo por menú, en vez de arrastrando. */
   const [moviendo, setMoviendo] = useState<Lead | null>(null);
-  const [formulario, setFormulario] = useState({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '' });
+  const [formulario, setFormulario] = useState({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '', estimatedAmount: '', trafficLight: '' });
   const [meta, setMeta] = useState({ pageId: '', leadgenId: '' });
 
   const { data, isLoading, error, refetch } = useQuery<LeadsPage>({
@@ -302,10 +304,12 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       company: formulario.company.trim() || undefined,
       source: formulario.source,
       notes: formulario.notes.trim() || undefined,
+      estimatedAmount: formulario.estimatedAmount === '' ? undefined : Number(formulario.estimatedAmount),
+      trafficLight: formulario.trafficLight || undefined,
     }),
     onSuccess: async () => {
       setCrearAbierto(false);
-      setFormulario({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '' });
+      setFormulario({ name: '', email: '', phone: '', company: '', source: 'manual', notes: '', estimatedAmount: '', trafficLight: '' });
       setAviso({ tono: 'success', texto: 'Prospecto creado y agregado al embudo.' });
       await refrescar();
     },
@@ -579,6 +583,15 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 </div>
                 {lead.phone ? <span className="leads-board-contacto">📞 {lead.phone}</span> : null}
                 {lead.estimatedAmount ? <span className="leads-board-monto">💰 {montoCorto(Number(lead.estimatedAmount))}</span> : null}
+                {lead.trafficLight ? (
+                  <span
+                    className={`leads-board-semaforo es-${lead.trafficLight === 'green' ? 'verde' : lead.trafficLight === 'yellow' ? 'amarillo' : 'rojo'}`}
+                    title="Prioridad manual"
+                  >
+                    <i /> {lead.trafficLight === 'green' ? 'Verde' : lead.trafficLight === 'yellow' ? 'Amarillo' : 'Rojo'}
+                  </span>
+                ) : null}
+                {typeof lead.qualityScore === 'number' ? <span className="leads-board-puntaje">Puntaje {lead.qualityScore}/100</span> : null}
                 <span className="leads-board-origen">
                   {lead.campaignName || lead.source || 'Sin origen'} · {new Date(lead.createdAt).toLocaleDateString('es-CL')}
                 </span>
@@ -753,6 +766,10 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             <label>Empresa<input className="input" value={formulario.company} onChange={(e) => setFormulario({ ...formulario, company: e.target.value })} /></label>
             <label>Correo<input className="input" type="email" value={formulario.email} onChange={(e) => setFormulario({ ...formulario, email: e.target.value })} /></label>
             <label>Teléfono<input className="input" value={formulario.phone} onChange={(e) => setFormulario({ ...formulario, phone: e.target.value })} /></label>
+            <label>Origen<input className="input" list="fuentes-nuevo-lead" value={formulario.source} onChange={(e) => setFormulario({ ...formulario, source: e.target.value })} /></label>
+            <datalist id="fuentes-nuevo-lead"><option value="manual" /><option value="Meta Ads" /><option value="Google Ads" /><option value="referido" /><option value="sitio web" /></datalist>
+            <label>Monto estimado<input className="input" type="number" min={0} step="1000" value={formulario.estimatedAmount} onChange={(e) => setFormulario({ ...formulario, estimatedAmount: e.target.value })} placeholder="Opcional" /></label>
+            <label>Semáforo<select className="input" value={formulario.trafficLight} onChange={(e) => setFormulario({ ...formulario, trafficLight: e.target.value })}><option value="">Sin etiqueta</option><option value="green">Verde</option><option value="yellow">Amarillo</option><option value="red">Rojo</option></select></label>
             <label>Notas<textarea className="input" rows={3} value={formulario.notes} onChange={(e) => setFormulario({ ...formulario, notes: e.target.value })} /></label>
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={() => setCrearAbierto(false)}>Cancelar</button>

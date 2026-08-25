@@ -69,6 +69,8 @@ export class IngestSourcesController {
       name: fila.name,
       source: fila.source,
       clientId: fila.clientId,
+      campaignId: fila.campaignId,
+      campaignName: fila.campaignName,
       isActive: fila.isActive,
       tokenHint: `…${fila.tokenHint}`,
       receivedCount: fila.receivedCount,

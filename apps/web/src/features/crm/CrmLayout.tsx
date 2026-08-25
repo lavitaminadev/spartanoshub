@@ -141,13 +141,18 @@ export function CrmLayout(): JSX.Element {
     hacerlo— no gobernaba esta barra. Ahora se resuelve con la misma función que la lateral
     general: mismo módulo, mismos permisos efectivos, misma respuesta en las dos.
   */
-  const visibles = SECCIONES.filter((seccion) => isPathEnabled(
-    seccion.to,
-    user?.features,
-    user?.permissions,
-    user?.moduleLifecycle,
-    user?.role,
-  ));
+  const visibles = SECCIONES.filter((seccion) => {
+    // El portal trabaja sus leads, calendario y resultados. La configuración de campañas,
+    // llaves y vocabulario pertenece a Espartanos y no se ofrece como una falsa pantalla vacía.
+    if (esPortalCliente && seccion.to === '/crm/administracion') return false;
+    return isPathEnabled(
+      seccion.to,
+      user?.features,
+      user?.permissions,
+      user?.moduleLifecycle,
+      user?.role,
+    );
+  });
 
 
   /*

@@ -53,7 +53,7 @@ export class CampaignsService {
     });
     if (!campanias.length) return [];
 
-    const conteos = await this.leadsPorCampania(organizationId, campanias.map((c) => c.name));
+    const conteos = await this.leadsPorCampania(organizationId, campanias.map((c) => c.name), clientId);
 
     return campanias.map((campania) => {
       const leads = conteos.get(campania.name) ?? 0;
@@ -117,6 +117,7 @@ export class CampaignsService {
       name: campaign.name,
       source: campaign.source,
       campaignName: campaign.name,
+      campaignId: campaign.id,
       isActive: true,
       createdBy: createdBy ?? null,
     }));
@@ -127,6 +128,13 @@ export class CampaignsService {
   async update(id: string, organizationId: string, dto: SaveCampaignDto): Promise<Campaign> {
     const campania = await this.findOne(id, organizationId);
 
+    const source = await this.sources.findOne({
+      where: [
+        { organizationId, campaignId: campania.id },
+        { organizationId, campaignName: campania.name, clientId: campania.clientId ?? IsNull() },
+      ],
+    });
+
     campania.name = dto.name.trim();
     if (dto.source !== undefined) campania.source = dto.source;
     // `null` la devuelve a la agencia; omitirla no toca a qué cuenta pertenece.
@@ -136,10 +144,32 @@ export class CampaignsService {
     if (dto.investment !== undefined) campania.investment = dto.investment;
     if (dto.status !== undefined) campania.status = dto.status;
 
-    return this.campaigns.save(campania);
+    const saved = await this.campaigns.save(campania);
+    if (source) {
+      source.campaignId = saved.id;
+      source.campaignName = saved.name;
+      source.name = saved.name;
+      source.source = saved.source;
+      source.clientId = saved.clientId ?? null;
+      source.isActive = saved.status === 'active';
+      await this.sources.save(source);
+    }
+    return saved;
   }
 
   async remove(id: string, organizationId: string): Promise<void> {
+    const campaign = await this.findOne(id, organizationId);
+    const source = await this.sources.findOne({
+      where: [
+        { organizationId, campaignId: id },
+        { organizationId, campaignName: campaign.name, clientId: campaign.clientId ?? IsNull() },
+      ],
+    });
+    // La llave no puede seguir aceptando leads hacia una campaña que dejó de existir.
+    if (source) {
+      source.isActive = false;
+      await this.sources.save(source);
+    }
     const resultado = await this.campaigns.delete({ id, organizationId });
     if (!resultado.affected) throw new NotFoundException('Campaña no encontrada');
   }
@@ -150,12 +180,15 @@ export class CampaignsService {
    * Se agrupa en base y no se cuenta campaña por campaña: con veinte campañas serían veinte
    * viajes a la base cada vez que alguien abre el panel.
    */
-  private async leadsPorCampania(organizationId: string, nombres: string[]): Promise<Map<string, number>> {
-    const filas = await this.leads.createQueryBuilder('lead')
+  private async leadsPorCampania(organizationId: string, nombres: string[], clientId?: string): Promise<Map<string, number>> {
+    const query = this.leads.createQueryBuilder('lead')
       .select('lead.campaign_name', 'name')
       .addSelect('COUNT(*)', 'total')
       .where('lead.organization_id = :organizationId', { organizationId })
-      .andWhere('lead.campaign_name IN (:...nombres)', { nombres })
+      .andWhere('lead.campaign_name IN (:...nombres)', { nombres });
+    if (clientId) query.andWhere('lead.client_id = :clientId', { clientId });
+    else query.andWhere('lead.client_id IS NULL');
+    const filas = await query
       .groupBy('lead.campaign_name')
       .getRawMany<{ name: string; total: string }>();
 

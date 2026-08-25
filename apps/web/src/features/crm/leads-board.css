@@ -129,3 +129,9 @@
 /* El aviso y su cierre en la misma línea: el texto manda, el botón no lo empuja. */
 .leads-board .alert { display: flex; align-items: center; gap: 12px; }
 .leads-board .alert span { flex: 1; min-width: 0; }
+.leads-board-semaforo { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.leads-board-semaforo i { width: 8px; height: 8px; border-radius: 50%; background: #c54b4b; box-shadow: 0 0 0 3px rgb(197 75 75 / .12); }
+.leads-board-semaforo.es-amarillo i { background: #d39b20; box-shadow: 0 0 0 3px rgb(211 155 32 / .14); }
+.leads-board-semaforo.es-verde i { background: #23856d; box-shadow: 0 0 0 3px rgb(35 133 109 / .14); }
+.leads-board-puntaje { color: var(--muted); font-size: 10px; }
+.leads-board-chip.es-unqualified { background: var(--pink-soft); color: var(--pink-dark); border-color: var(--pink); }

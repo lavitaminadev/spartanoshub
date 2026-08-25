@@ -32,7 +32,7 @@ let PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = class PurgeExpiredLeadsJob {
         const expiredLeads = await this.leadRepo.find({
             where: {
                 retentionReviewAt: (0, typeorm_2.LessThan)(now),
-                fitStatus: 'discarded',
+                fitStatus: 'unqualified',
             },
             order: { retentionReviewAt: 'ASC' },
             take: 200,

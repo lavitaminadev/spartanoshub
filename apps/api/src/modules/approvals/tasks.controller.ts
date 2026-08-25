@@ -1,10 +1,17 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { ModuleExempt } from '../../core/authorization/module-scope.decorator';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Lead } from '../crm/leads/lead.entity';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
+import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
+import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
+import { UserRole } from '../organizations/user-role.enum';
 
 /**
  * Tareas: pendientes con dueño y fecha sobre cualquier registro.
@@ -38,7 +45,13 @@ import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 @ApiBearerAuth()
 @ModuleExempt('Trabajo asignado sobre registros de cinco módulos distintos; no pertenece a ninguno')
 export class TasksController {
-  constructor(private readonly tasks: TasksService) {}
+  constructor(
+    private readonly tasks: TasksService,
+    @InjectRepository(Lead) private readonly leads: Repository<Lead>,
+    private readonly accountAccess: AccountAccessService,
+    private readonly capabilities: ClientCapabilityService,
+    private readonly permissions: PermissionResolverService,
+  ) {}
 
   @Get('mine')
   @ApiOperation({ summary: 'Lo que tengo pendiente, lo más vencido primero' })
@@ -48,23 +61,53 @@ export class TasksController {
 
   @Get(':entityType/:entityId')
   @ApiOperation({ summary: 'Tareas de un registro' })
-  forEntity(
+  async forEntity(
     @Param('entityType') entityType: string,
     @Param('entityId') entityId: string,
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.assertEntityAccess(req, entityType, entityId, 'view');
     return this.tasks.listForEntity(req.organizationId, entityType, entityId);
   }
 
   @Post()
   @ApiOperation({ summary: 'Abrir una tarea sobre un registro' })
-  create(@Body() dto: CreateTaskDto, @Req() req: AuthenticatedRequest) {
-    return this.tasks.create(req.organizationId, req.user.id, dto);
+  async create(@Body() dto: CreateTaskDto, @Req() req: AuthenticatedRequest) {
+    const clientId = await this.assertEntityAccess(req, dto.entityType, dto.entityId, 'edit');
+    return this.tasks.create(req.organizationId, req.user.id, { ...dto, clientId });
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Completar, cancelar o reasignar una tarea' })
-  update(@Param('id') id: string, @Body() dto: UpdateTaskDto, @Req() req: AuthenticatedRequest) {
+  async update(@Param('id') id: string, @Body() dto: UpdateTaskDto, @Req() req: AuthenticatedRequest) {
+    const task = await this.tasks.findOne(req.organizationId, id);
+    await this.assertEntityAccess(req, task.entityType, task.entityId, 'edit');
     return this.tasks.update(req.organizationId, id, dto);
+  }
+
+  /** Las tareas de CRM heredan exactamente el alcance del lead al que pertenecen. */
+  private async assertEntityAccess(
+    req: AuthenticatedRequest,
+    entityType: string,
+    entityId: string,
+    level: 'view' | 'edit',
+  ): Promise<string | undefined> {
+    if (entityType !== 'lead') {
+      if (req.user.role === 'client') throw new ForbiddenException('El portal solo administra tareas de su CRM');
+      return undefined;
+    }
+    const lead = await this.leads.findOne({
+      where: { id: entityId, organizationId: req.organizationId }, select: { id: true, clientId: true },
+    });
+    if (!lead) throw new NotFoundException('Lead not found');
+    if (!await this.permissions.can(req.organizationId, req.user.id, req.user.role as UserRole, 'crm', level)) {
+      throw new ForbiddenException('No tienes acceso al CRM');
+    }
+    const clientId = lead.clientId ?? undefined;
+    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    if (!clientId && allowed !== undefined) throw new NotFoundException('Lead not found');
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    await this.capabilities.assert(req.organizationId, clientId, 'crm');
+    return clientId;
   }
 }

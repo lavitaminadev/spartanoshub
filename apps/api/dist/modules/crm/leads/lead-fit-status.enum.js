@@ -5,5 +5,5 @@ var LeadFitStatus;
 (function (LeadFitStatus) {
     LeadFitStatus["QUALIFIED"] = "qualified";
     LeadFitStatus["REVIEW"] = "review";
-    LeadFitStatus["DISCARDED"] = "discarded";
+    LeadFitStatus["UNQUALIFIED"] = "unqualified";
 })(LeadFitStatus || (exports.LeadFitStatus = LeadFitStatus = {}));

@@ -58,7 +58,7 @@ describe('LeadIntakeService', () => {
       notes: 'Solo dejó una consulta genérica',
     });
 
-    expect(lead.fitStatus).toBe(LeadFitStatus.DISCARDED);
+    expect(lead.fitStatus).toBe(LeadFitStatus.UNQUALIFIED);
     expect(lead.discardReason).toContain('email');
   });
 

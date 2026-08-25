@@ -3,7 +3,7 @@
  * @fileoverview Lead domain types.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
+exports.LEAD_DISCARD_REASONS = exports.LEAD_TRAFFIC_LIGHTS = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
 /**
  * Etapas del pipeline comercial. El equipo las mueve a mano y son ordenadas:
  * el orden de este arreglo es el orden de las columnas del tablero.
@@ -58,5 +58,19 @@ exports.LEAD_STATUSES_BY_DOMAIN = {
     commercial: [...exports.LEAD_PIPELINE_STAGES, ...exports.LEAD_CLOSING_STAGES],
     audience: ['new', ...exports.LEAD_RESERVATION_OUTCOMES, 'lost'],
 };
-exports.LEAD_FIT_STATUSES = ['qualified', 'review', 'discarded'];
+exports.LEAD_FIT_STATUSES = ['qualified', 'review', 'unqualified'];
+/** Prioridad manual. No se deriva del puntaje automático. */
+exports.LEAD_TRAFFIC_LIGHTS = ['green', 'yellow', 'red'];
+/** Catálogo de descarte usado por el flujo comercial de referencia MMT. */
+exports.LEAD_DISCARD_REASONS = [
+    'Precio fuera de presupuesto',
+    'Sin financiamiento / no calificó crédito',
+    'Compró en otro proyecto',
+    'Nunca respondió',
+    'Datos de contacto erróneos',
+    'Ubicación no le acomoda',
+    'Solo consultaba (sin intención)',
+    'No es el perfil buscado',
+    'Otro',
+];
 //# sourceMappingURL=lead.js.map

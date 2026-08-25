@@ -20,6 +20,7 @@ const module_scope_decorator_1 = require("../../../core/authorization/module-sco
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const campaigns_service_1 = require("./campaigns.service");
 const save_campaign_dto_1 = require("./dto/save-campaign.dto");
+const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
 let CampaignsController = class CampaignsController {
     constructor(campaigns, accountAccess) {
         this.campaigns = campaigns;
@@ -81,6 +82,7 @@ __decorate([
 ], CampaignsController.prototype, "list", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Registrar una campaña y emitir su llave de entrada' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -90,6 +92,7 @@ __decorate([
 ], CampaignsController.prototype, "create", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar una campaña' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -100,6 +103,7 @@ __decorate([
 ], CampaignsController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar una campaña' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),

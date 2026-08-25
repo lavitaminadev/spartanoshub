@@ -23,7 +23,7 @@ describe('PurgeExpiredLeadsJob', () => {
       {
         id: 'lead-1',
         organizationId: 'org-1',
-        fitStatus: 'discarded',
+        fitStatus: 'unqualified',
         retentionReviewAt: new Date('2026-07-01T00:00:00.000Z'),
         metadata: {},
       },
@@ -39,7 +39,7 @@ describe('PurgeExpiredLeadsJob', () => {
       {
         id: 'lead-2',
         organizationId: 'org-1',
-        fitStatus: 'discarded',
+        fitStatus: 'unqualified',
         retentionReviewAt: new Date('2026-07-01T00:00:00.000Z'),
         metadata: { retentionAnonymizedAt: '2026-07-02T00:00:00.000Z' },
       },

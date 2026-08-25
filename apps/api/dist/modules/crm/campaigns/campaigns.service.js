@@ -34,7 +34,7 @@ let CampaignsService = class CampaignsService {
         });
         if (!campanias.length)
             return [];
-        const conteos = await this.leadsPorCampania(organizationId, campanias.map((c) => c.name));
+        const conteos = await this.leadsPorCampania(organizationId, campanias.map((c) => c.name), clientId);
         return campanias.map((campania) => {
             const leads = conteos.get(campania.name) ?? 0;
             const investment = Number(campania.investment) || 0;
@@ -75,6 +75,7 @@ let CampaignsService = class CampaignsService {
             name: campaign.name,
             source: campaign.source,
             campaignName: campaign.name,
+            campaignId: campaign.id,
             isActive: true,
             createdBy: createdBy ?? null,
         }));
@@ -82,6 +83,12 @@ let CampaignsService = class CampaignsService {
     }
     async update(id, organizationId, dto) {
         const campania = await this.findOne(id, organizationId);
+        const source = await this.sources.findOne({
+            where: [
+                { organizationId, campaignId: campania.id },
+                { organizationId, campaignName: campania.name, clientId: campania.clientId ?? (0, typeorm_2.IsNull)() },
+            ],
+        });
         campania.name = dto.name.trim();
         if (dto.source !== undefined)
             campania.source = dto.source;
@@ -95,19 +102,45 @@ let CampaignsService = class CampaignsService {
             campania.investment = dto.investment;
         if (dto.status !== undefined)
             campania.status = dto.status;
-        return this.campaigns.save(campania);
+        const saved = await this.campaigns.save(campania);
+        if (source) {
+            source.campaignId = saved.id;
+            source.campaignName = saved.name;
+            source.name = saved.name;
+            source.source = saved.source;
+            source.clientId = saved.clientId ?? null;
+            source.isActive = saved.status === 'active';
+            await this.sources.save(source);
+        }
+        return saved;
     }
     async remove(id, organizationId) {
+        const campaign = await this.findOne(id, organizationId);
+        const source = await this.sources.findOne({
+            where: [
+                { organizationId, campaignId: id },
+                { organizationId, campaignName: campaign.name, clientId: campaign.clientId ?? (0, typeorm_2.IsNull)() },
+            ],
+        });
+        if (source) {
+            source.isActive = false;
+            await this.sources.save(source);
+        }
         const resultado = await this.campaigns.delete({ id, organizationId });
         if (!resultado.affected)
             throw new common_1.NotFoundException('Campaña no encontrada');
     }
-    async leadsPorCampania(organizationId, nombres) {
-        const filas = await this.leads.createQueryBuilder('lead')
+    async leadsPorCampania(organizationId, nombres, clientId) {
+        const query = this.leads.createQueryBuilder('lead')
             .select('lead.campaign_name', 'name')
             .addSelect('COUNT(*)', 'total')
             .where('lead.organization_id = :organizationId', { organizationId })
-            .andWhere('lead.campaign_name IN (:...nombres)', { nombres })
+            .andWhere('lead.campaign_name IN (:...nombres)', { nombres });
+        if (clientId)
+            query.andWhere('lead.client_id = :clientId', { clientId });
+        else
+            query.andWhere('lead.client_id IS NULL');
+        const filas = await query
             .groupBy('lead.campaign_name')
             .getRawMany();
         return new Map(filas.map((fila) => [fila.name, Number(fila.total) || 0]));

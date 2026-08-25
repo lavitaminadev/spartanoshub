@@ -78,7 +78,7 @@ describe('convertir un lead en empresa cliente', () => {
     );
 
     expect(status).toBe(400);
-    expect(String(body?.message ?? '')).toMatch(/contacto de campaña/i);
+    expect(String(body?.message ?? '')).toMatch(/contactos? de (una empresa|campaña)/i);
   });
 
   it('y no queda ninguna empresa creada a su nombre', async () => {

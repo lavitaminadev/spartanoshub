@@ -29,6 +29,7 @@ const import_leads_dto_1 = require("./dto/import-leads.dto");
 const import_leads_use_case_1 = require("./use-cases/import-leads.use-case");
 const list_leads_dto_1 = require("./dto/list-leads.dto");
 const reservation_entity_1 = require("../../reservations/domain/reservation.entity");
+const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
 const lead_task_summary_service_1 = require("./lead-task-summary.service");
 const lead_visibility_1 = require("./lead-visibility");
 const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
@@ -52,14 +53,25 @@ let LeadController = class LeadController {
         this.capacidades = capacidades;
     }
     async create(dto, req) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
-        await this.capacidades.assert(req.organizationId, dto.clientId, 'crm');
-        return this.createLead.execute({ ...dto, organizationId: req.organizationId });
+        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : dto.clientId;
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capacidades.assert(req.organizationId, clientId, 'crm');
+        return this.createLead.execute({
+            ...dto,
+            clientId,
+            domain: req.user.role === user_role_enum_1.UserRole.CLIENT ? 'commercial' : dto.domain,
+            organizationId: req.organizationId,
+        });
     }
     async import(dto, req) {
-        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
-        await this.capacidades.assert(req.organizationId, dto.clientId, 'crm');
-        return this.importLeads.execute(req.organizationId, dto);
+        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : dto.clientId;
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capacidades.assert(req.organizationId, clientId, 'crm');
+        return this.importLeads.execute(req.organizationId, {
+            ...dto,
+            clientId,
+            domain: req.user.role === user_role_enum_1.UserRole.CLIENT ? 'commercial' : dto.domain,
+        });
     }
     async list(query, req) {
         await this.assertPortalCrm(req);
@@ -110,9 +122,13 @@ let LeadController = class LeadController {
     }
     async update(id, dto, req) {
         await this.assertPortalCrm(req);
-        await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
-        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId ?? undefined);
-        await this.capacidades.assert(req.organizationId, dto.clientId ?? undefined, 'crm');
+        const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== req.user.clientId) {
+            throw new common_1.ForbiddenException('El portal no puede mover contactos fuera de su empresa');
+        }
+        const clientIdDestino = dto.clientId !== undefined ? (dto.clientId ?? undefined) : (lead.clientId ?? undefined);
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
+        await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
         return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
     }
     async assertLeadAccess(req, lead) {
@@ -163,7 +179,10 @@ let LeadController = class LeadController {
     }
     async convert(id, req) {
         await this.assertPortalCrm(req);
-        await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+        const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+        if (lead.clientId) {
+            throw new common_1.BadRequestException('Los contactos de una empresa se cierran como venta; no crean empresas de Espartanos');
+        }
         return this.convertLead.execute(id, req.organizationId);
     }
 };
@@ -234,6 +253,7 @@ __decorate([
 ], LeadController.prototype, "reservations", null);
 __decorate([
     (0, common_1.Post)(':id/convert'),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Convertir lead a cliente' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),

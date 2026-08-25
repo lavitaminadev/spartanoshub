@@ -164,7 +164,7 @@ const REPARTO_NO_APLICADO = {
         clients: 'view',
         reports: 'view',
         clientMetricsPanel: 'view',
-        crm: 'view',
+        crm: 'edit',
     },
 };
 function roleLevel(role, module) {

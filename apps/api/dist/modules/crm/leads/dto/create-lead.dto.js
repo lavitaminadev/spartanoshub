@@ -59,6 +59,11 @@ __decorate([
 ], CreateLeadDto.prototype, "estimatedAmount", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['green', 'yellow', 'red']),
+    __metadata("design:type", String)
+], CreateLeadDto.prototype, "trafficLight", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], CreateLeadDto.prototype, "clientId", void 0);
