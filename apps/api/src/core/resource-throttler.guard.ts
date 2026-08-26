@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { createHash } from 'node:crypto';
 
 /**
  * Limitador que cuenta por recurso además de por dirección IP.
@@ -42,6 +43,24 @@ export class ResourceThrottlerGuard extends ThrottlerGuard {
 
     const slug = req.params?.slug;
     if (slug) return `${ip}:${slug}`;
+
+    /*
+     * Entrada de leads por integración: el cupo es de la llave, no de la dirección.
+     *
+     * Quien llama es Make o Zapier, y todos sus escenarios salen por un puñado de direcciones
+     * compartidas. Contando por IP, las integraciones de varias empresas competían por el mismo
+     * cupo —bastaba una ráfaga de una campaña para que otra empresa recibiera 429—, y el efecto
+     * era peor justo para los leads sin correo, que son los que caían en el conteo por IP a
+     * secas.
+     *
+     * La llave identifica el origen y ya viene firmada en la cabecera; su huella basta como
+     * clave y evita dejar el valor en claro en la memoria del limitador.
+     */
+    const autorizacion = typeof req.headers?.authorization === 'string' ? req.headers.authorization.trim() : '';
+    if (autorizacion && String(req.url ?? '').includes('/public/ingest/leads')) {
+      const llave = autorizacion.toLowerCase().startsWith('bearer ') ? autorizacion.slice(7).trim() : autorizacion;
+      if (llave) return `ingest:${createHash('sha256').update(llave).digest('hex')}`;
+    }
 
     /*
      * El correo se normaliza igual que al entrar —recortado y en minúsculas— porque si no, probar

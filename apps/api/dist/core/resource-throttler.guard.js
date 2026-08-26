@@ -9,12 +9,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ResourceThrottlerGuard = void 0;
 const common_1 = require("@nestjs/common");
 const throttler_1 = require("@nestjs/throttler");
+const node_crypto_1 = require("node:crypto");
 let ResourceThrottlerGuard = class ResourceThrottlerGuard extends throttler_1.ThrottlerGuard {
     async getTracker(req) {
         const ip = req.ips?.length ? req.ips[0] : req.ip;
         const slug = req.params?.slug;
         if (slug)
             return `${ip}:${slug}`;
+        const autorizacion = typeof req.headers?.authorization === 'string' ? req.headers.authorization.trim() : '';
+        if (autorizacion && String(req.url ?? '').includes('/public/ingest/leads')) {
+            const llave = autorizacion.toLowerCase().startsWith('bearer ') ? autorizacion.slice(7).trim() : autorizacion;
+            if (llave)
+                return `ingest:${(0, node_crypto_1.createHash)('sha256').update(llave).digest('hex')}`;
+        }
         const correo = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
         if (correo)
             return `${ip}:${correo}`;

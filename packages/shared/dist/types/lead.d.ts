@@ -46,6 +46,17 @@ export type LeadDomain = keyof typeof LEAD_STATUSES_BY_DOMAIN;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 export declare const LEAD_FIT_STATUSES: readonly ["qualified", "review", "unqualified"];
 export type LeadFitStatus = (typeof LEAD_FIT_STATUSES)[number];
+/**
+ * Cómo se lee cada etapa fuera de la aplicación.
+ *
+ * Existe acá y no en el frontend porque también lo usa el servidor: los eventos de etapa que se
+ * reportan a Meta llevan el nombre legible, y en sus informes se muestra tal cual: mandar
+ * `quote_sent` obligaría a traducir mentalmente en una pantalla que no es nuestra.
+ *
+ * Es el rótulo de fábrica, no el que cada empresa haya renombrado: si dos empresas llaman
+ * distinto a la misma etapa, sus eventos dejarían de ser comparables entre sí.
+ */
+export declare const STAGE_LABELS_BY_KEY: Record<string, string>;
 /** Prioridad manual. No se deriva del puntaje automático. */
 export declare const LEAD_TRAFFIC_LIGHTS: readonly ["green", "yellow", "red"];
 export type LeadTrafficLight = (typeof LEAD_TRAFFIC_LIGHTS)[number];

@@ -323,7 +323,7 @@ export class ReservationsService {
     const form = await this.publishedForm(slug);
     const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
     const meta = capabilities.metaConversions
-      ? await this.getClientMetaConfig(form.clientId, form.organizationId)
+      ? await this.getClientMetaConfig(form.clientId, form.organizationId, form)
       : { pixelId: '', pixelName: null as string | null, accessToken: undefined as string | undefined };
     return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: form.servicesConfig, resourcesConfig: form.resourcesConfig, pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
   }
@@ -376,8 +376,17 @@ export class ReservationsService {
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
-  private async getClientMetaConfig(clientId: string, organizationId: string) {
-    return this.clientPixels.resolve(organizationId, clientId);
+  /**
+   * Pixel y token con los que mide un formulario.
+   *
+   * Se pasa el formulario entero y no solo su empresa porque un formulario puede apartarse del
+   * Pixel de ella: una empresa con varios proyectos los anuncia por separado y quiere medirlos
+   * igual. Sin `metaPixelId` propio hereda el de la empresa, que es como funcionó siempre.
+   *
+   * Vale para reservas y encuestas: son la misma entidad con distinto `mode`.
+   */
+  private async getClientMetaConfig(clientId: string, organizationId: string, form?: ReservationForm) {
+    return this.clientPixels.resolveForScope(organizationId, clientId, form?.metaPixelId);
   }
 
   /**
@@ -649,7 +658,7 @@ export class ReservationsService {
       const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
       if (!capabilities.metaConversions) return;
 
-      const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId);
+      const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
       if (!pixelId || !accessToken) return;
 
       const fallbackUrl = process.env.APP_PUBLIC_URL
@@ -1078,7 +1087,7 @@ export class ReservationsService {
   }
 
   private async enqueueMetaConversion(booking: Reservation, form: ReservationForm, eventName: string, eventTime?: number, eventSourceUrl?: string) {
-    const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId);
+    const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
     if (!pixelId || !accessToken) throw new Error('Meta pixel or CAPI token is not configured');
     // 'Schedule' se dispara desde el formulario web público (action_source: website, requiere event_source_url).
     // La asistencia la confirma el staff en persona, así que debe reportarse como physical_store
@@ -1118,7 +1127,7 @@ export class ReservationsService {
   }
 
   private async enqueueMetaSurveyConversion(response: ReservationFormEvent, form: ReservationForm, dto: PublicSurveyResponseDto, ipAddress?: string, userAgent?: string, eventSourceUrl?: string) {
-    const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId);
+    const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
     if (!pixelId || !accessToken) throw new Error('Meta pixel or CAPI token is not configured');
     const fallbackUrl = process.env.APP_PUBLIC_URL ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}` : undefined;
     const [firstName, ...lastNameParts] = (dto.guestName ?? '').trim().split(/\s+/);

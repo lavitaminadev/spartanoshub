@@ -3,7 +3,7 @@
  * @fileoverview Lead domain types.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LEAD_DISCARD_REASONS = exports.LEAD_SOURCES = exports.LEAD_TRAFFIC_LIGHTS = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
+exports.LEAD_DISCARD_REASONS = exports.LEAD_SOURCES = exports.LEAD_TRAFFIC_LIGHTS = exports.STAGE_LABELS_BY_KEY = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
 exports.etiquetaDeFuente = etiquetaDeFuente;
 /**
  * Etapas del pipeline comercial. El equipo las mueve a mano y son ordenadas:
@@ -60,6 +60,29 @@ exports.LEAD_STATUSES_BY_DOMAIN = {
     audience: ['new', ...exports.LEAD_RESERVATION_OUTCOMES, 'lost'],
 };
 exports.LEAD_FIT_STATUSES = ['qualified', 'review', 'unqualified'];
+/**
+ * Cómo se lee cada etapa fuera de la aplicación.
+ *
+ * Existe acá y no en el frontend porque también lo usa el servidor: los eventos de etapa que se
+ * reportan a Meta llevan el nombre legible, y en sus informes se muestra tal cual: mandar
+ * `quote_sent` obligaría a traducir mentalmente en una pantalla que no es nuestra.
+ *
+ * Es el rótulo de fábrica, no el que cada empresa haya renombrado: si dos empresas llaman
+ * distinto a la misma etapa, sus eventos dejarían de ser comparables entre sí.
+ */
+exports.STAGE_LABELS_BY_KEY = {
+    new: 'Nuevo',
+    contacted: 'Contactado',
+    quote_sent: 'Calificado',
+    meeting_scheduled: 'Visita agendada',
+    visited: 'Visitó',
+    negotiation: 'Negociación',
+    won: 'Venta',
+    lost: 'Descartado',
+    reserved: 'Reservado',
+    attended: 'Asistió',
+    no_show: 'No asistió',
+};
 /** Prioridad manual. No se deriva del puntaje automático. */
 exports.LEAD_TRAFFIC_LIGHTS = ['green', 'yellow', 'red'];
 /**

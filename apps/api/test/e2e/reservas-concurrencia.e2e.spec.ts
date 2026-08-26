@@ -31,13 +31,29 @@ describe('reservas simultáneas', () => {
   });
 
   /**
-   * Un horario dentro de la ventana por defecto del formulario: lunes a viernes, 09:00–18:00 en
-   * Santiago. Se toma con varios días de margen para no chocar con el aviso mínimo.
+   * El día hábil número `n` a partir de mañana, contando solo de lunes a viernes.
+   *
+   * **Cuenta días hábiles, no días de calendario**, y esa es la corrección: antes sumaba `n` días
+   * y luego empujaba el resultado al lunes si caía en fin de semana. Dos llamadas distintas
+   * podían aterrizar en la misma fecha —un miércoles, `horarioHabil(3)` caía en sábado y saltaba
+   * al lunes, justo el que devolvía `horarioHabil(5)`—, y como estas pruebas comparten cliente,
+   * las reservas de una contaban contra el tope diario de la otra.
+   *
+   * El efecto era una suite que fallaba **solo los miércoles** y pasaba el resto de la semana,
+   * que es la peor forma de fallar: parece que la rompió el último cambio.
+   *
+   * Ahora cada índice tiene su propio día hábil, así que dos llamadas con números distintos
+   * nunca coinciden.
+   *
+   * @param habilesAdelante - Cuántos días hábiles avanzar. Debe ser al menos 1.
    */
-  function horarioHabil(diasAdelante: number): Date {
+  function horarioHabil(habilesAdelante: number): Date {
     const cuando = new Date();
-    cuando.setUTCDate(cuando.getUTCDate() + diasAdelante);
-    while ([0, 6].includes(cuando.getUTCDay())) cuando.setUTCDate(cuando.getUTCDate() + 1);
+    for (let restantes = habilesAdelante; restantes > 0; restantes -= 1) {
+      do {
+        cuando.setUTCDate(cuando.getUTCDate() + 1);
+      } while ([0, 6].includes(cuando.getUTCDay()));
+    }
     cuando.setUTCHours(17, 0, 0, 0); // 13:00 en Santiago, en medio de la ventana.
     return cuando;
   }

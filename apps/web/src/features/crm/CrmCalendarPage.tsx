@@ -10,10 +10,11 @@
  */
 
 import { useMemo, useState, type JSX } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
+import { Modal } from '../../shared/Modal';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
@@ -25,6 +26,15 @@ interface Actividad {
   description?: string;
   date: string;
 }
+
+/** Tipos que se pueden agendar. Los mismos que registra la ficha, para no tener dos catalogos. */
+const TIPOS: Array<{ value: string; label: string }> = [
+  { value: 'meeting', label: 'Visita' },
+  { value: 'call', label: 'Llamada' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'email', label: 'Correo' },
+  { value: 'note', label: 'Nota' },
+];
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -121,13 +131,42 @@ export function CrmCalendarPage(): JSX.Element {
   // De qué empresa es la agenda. Sin esto se veían —y se exportaban— reuniones de otras cuentas
   // bajo el encabezado de la empresa elegida, que es la forma más silenciosa de mezclarlas.
   const scope = useCrmScope();
+  const queryClient = useQueryClient();
   // Cómo llama esta empresa a sus cosas. De fábrica para lo que no haya renombrado.
   const { termino } = useVocabulario(scope.clientId);
 
+  const celdas = useMemo(() => {
+    if (vista === 'mes') return celdasDelMes(ancla);
+    if (vista === 'semana') return celdasDeLaSemana(ancla);
+    return celdasDelDia(ancla);
+  }, [ancla, vista]);
+
+  /**
+   * Extremos de lo que se está dibujando, para pedir exactamente eso.
+   *
+   * Antes se pedían las 100 actividades más recientes sin rango, y la pantalla fallaba de dos
+   * formas que se leían igual —«no hay nada agendado»—: retroceder a un mes anterior no traía
+   * ninguna de ese mes, porque las recientes agotaban el cupo; y un mes con más de cien se
+   * dibujaba incompleto sin avisar.
+   *
+   * El día se cubre entero: desde su primer instante hasta el último, porque una actividad de
+   * las 23:40 pertenece a ese día aunque la petición se arme a mediodía.
+   */
+  const rango = useMemo(() => {
+    const desde = new Date(celdas[0].fecha);
+    desde.setHours(0, 0, 0, 0);
+    const hasta = new Date(celdas[celdas.length - 1].fecha);
+    hasta.setHours(23, 59, 59, 999);
+    return { desde: desde.toISOString(), hasta: hasta.toISOString() };
+  }, [celdas]);
+
   const { data, isLoading, error, refetch, isFetching } = useQuery<{ data: Actividad[] }>({
-    queryKey: ['crm-calendario', scope.clientId],
+    // El rango forma parte de la clave: cambiar de mes trae otras actividades, no las mismas
+    // filtradas, así que su resultado no puede reutilizar la caché del período anterior.
+    queryKey: ['crm-calendario', scope.clientId, rango.desde, rango.hasta],
     queryFn: () => api.get(
-      `/crm/interactions?limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      `/crm/interactions?limit=500&from=${encodeURIComponent(rango.desde)}&to=${encodeURIComponent(rango.hasta)}`
+      + `${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
     ),
     retry: false,
   });
@@ -142,11 +181,6 @@ export function CrmCalendarPage(): JSX.Element {
     return mapa;
   }, [data]);
 
-  const celdas = useMemo(() => {
-    if (vista === 'mes') return celdasDelMes(ancla);
-    if (vista === 'semana') return celdasDeLaSemana(ancla);
-    return celdasDelDia(ancla);
-  }, [ancla, vista]);
   const hoy = claveDia(new Date());
 
   /** Las flechas avanzan lo que se está mirando: un mes, una semana o un día. */
@@ -163,6 +197,32 @@ export function CrmCalendarPage(): JSX.Element {
     : vista === 'semana'
       ? `Semana del ${celdas[0].fecha.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
       : ancla.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  /**
+   * Agendar desde el propio calendario.
+   *
+   * Hasta ahora la agenda era de solo lectura: para anotar una visita había que buscar el lead,
+   * abrir su ficha y registrar la actividad ahí. Pero quien está mirando la semana para ver dónde
+   * cabe algo ya tiene delante la respuesta, y mandarlo a otra pantalla convierte un gesto en un
+   * recado.
+   *
+   * El lead es opcional a propósito: no toda actividad de la agenda cuelga de un contacto —una
+   * reunión de equipo, un bloqueo— y exigirlo obligaría a inventar uno.
+   */
+  const [agendando, setAgendando] = useState<{ type: string; description: string; date: string; leadId: string } | null>(null);
+
+  const agendar = useMutation({
+    mutationFn: () => api.post('/crm/interactions', {
+      type: agendando!.type,
+      description: agendando!.description.trim(),
+      date: new Date(agendando!.date).toISOString(),
+      leadId: agendando!.leadId || undefined,
+    }),
+    onSuccess: async () => {
+      setAgendando(null);
+      await queryClient.invalidateQueries({ queryKey: ['crm-calendario'] });
+    },
+  });
 
   /** Lo que hay agendado dentro de la cuadrícula visible, en orden cronológico. */
   const eventosDelPeriodo = useMemo(() => {
@@ -205,6 +265,27 @@ export function CrmCalendarPage(): JSX.Element {
           <strong>{titulo}</strong>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => mover(1)} aria-label="Siguiente">›</button>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => setAncla(new Date())}>Hoy</button>
+          {/*
+            Agenda sobre el día que se está mirando, no sobre hoy.
+
+            Quien retrocedió a la semana pasada para anotar algo que pasó ahí espera que la fecha
+            venga puesta en lo que tiene delante. Se propone la mañana —09:00— porque una hora
+            vacía obliga a escribirla entera y la mayoría de las visitas se agendan de día.
+          */}
+          {scope.puedeEditar ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                const propuesta = new Date(ancla);
+                propuesta.setHours(9, 0, 0, 0);
+                const local = new Date(propuesta.getTime() - propuesta.getTimezoneOffset() * 60_000);
+                setAgendando({ type: 'meeting', description: '', date: local.toISOString().slice(0, 16), leadId: '' });
+              }}
+            >
+              + Agendar
+            </button>
+          ) : null}
           {/*
             La agenda impresa del período que se está mirando.
 
@@ -282,6 +363,67 @@ export function CrmCalendarPage(): JSX.Element {
         <p className="crm-cal-vacio">
           No hay actividades agendadas visibles para esta {termino('empresa').toLowerCase()}.
         </p>
+      ) : null}
+
+      {agendando ? (
+        <Modal open onClose={() => setAgendando(null)} title="Agendar actividad">
+          <div className="modal-form">
+            <label>
+              Tipo
+              <select
+                className="input"
+                value={agendando.type}
+                onChange={(evento) => setAgendando({ ...agendando, type: evento.target.value })}
+              >
+                {TIPOS.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
+              </select>
+            </label>
+            <label>
+              Fecha y hora
+              <input
+                className="input"
+                type="datetime-local"
+                value={agendando.date}
+                onChange={(evento) => setAgendando({ ...agendando, date: evento.target.value })}
+              />
+            </label>
+            <label>
+              Qué se hará
+              <textarea
+                className="input"
+                rows={3}
+                value={agendando.description}
+                onChange={(evento) => setAgendando({ ...agendando, description: evento.target.value })}
+                placeholder="Visita con la familia Pérez, depto 402"
+              />
+            </label>
+            {/*
+              El lead es opcional: no toda actividad de la agenda cuelga de un contacto. Cuando se
+              indica, la actividad aparece además en su ficha, que es donde se lee en contexto.
+            */}
+            <label>
+              {termino('lead')} relacionado <small>(opcional)</small>
+              <input
+                className="input"
+                value={agendando.leadId}
+                onChange={(evento) => setAgendando({ ...agendando, leadId: evento.target.value })}
+                placeholder="Identificador del contacto, si aplica"
+              />
+            </label>
+            {agendar.error ? <div className="alert alert-error">{(agendar.error as Error).message}</div> : null}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setAgendando(null)}>Cancelar</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={agendar.isPending || !agendando.date || agendando.description.trim().length < 3}
+                onClick={() => agendar.mutate()}
+              >
+                {agendar.isPending ? 'Agendando...' : 'Agendar'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

@@ -27,6 +27,13 @@ export class ReservationForm {
   @Column({ name: 'crm_enabled', type: 'boolean', default: false }) crmEnabled: boolean;
   @Column({ name: 'calendar_enabled', type: 'boolean', default: false }) calendarEnabled: boolean;
   @Column({ name: 'meta_capi_enabled', type: 'boolean', default: false }) metaCapiEnabled: boolean;
+  /**
+   * Pixel propio de este formulario. Nulo hereda el de la empresa.
+   *
+   * Una empresa con varios proyectos los anuncia por separado y quiere medirlos igual. Cubre
+   * reservas y encuestas, que son esta misma entidad con distinto `mode`.
+   */
+  @Column({ name: 'meta_pixel_id', type: 'varchar', length: 40, nullable: true }) metaPixelId?: string | null;
   @Column({ name: 'ga4_measurement_id', type: 'varchar', length: 40, nullable: true }) ga4MeasurementId?: string | null;
   @Column({ name: 'team_notifications', type: 'json', nullable: true }) teamNotifications?: string[];
   @Column({ name: 'created_by', type: 'uuid' }) createdBy: string;

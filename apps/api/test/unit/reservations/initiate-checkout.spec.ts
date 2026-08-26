@@ -28,7 +28,7 @@ const dataSource = { transaction: vi.fn(), query: vi.fn() };
 const leadIntake = { captureLead: vi.fn() };
 const calendar = { createEvent: vi.fn() };
 const metaOutbox = { enqueue: vi.fn(), processPending: vi.fn() };
-const clientPixels = { resolve: vi.fn() };
+const clientPixels = { resolve: vi.fn(), resolveForScope: vi.fn() };
 const notifications = { notifyMultiple: vi.fn() };
 const emails = { send: vi.fn() };
 const audit = { log: vi.fn() };
@@ -61,7 +61,7 @@ describe('inicio del formulario hacia Meta', () => {
     formQuery.setLock.mockReturnValue(formQuery);
     formQuery.getOne.mockResolvedValue(formularioPublicado());
     formEvents.findOne.mockResolvedValue(null);
-    clientPixels.resolve.mockResolvedValue({ pixelId: 'pixel-1', accessToken: 'token-1' });
+    clientPixels.resolveForScope.mockResolvedValue({ pixelId: 'pixel-1', accessToken: 'token-1' });
     service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, leadIntake as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
   });
 
@@ -116,7 +116,7 @@ describe('inicio del formulario hacia Meta', () => {
   });
 
   it('no encola si el cliente no tiene Pixel configurado', async () => {
-    clientPixels.resolve.mockResolvedValue({ pixelId: '', accessToken: undefined });
+    clientPixels.resolveForScope.mockResolvedValue({ pixelId: '', accessToken: undefined });
     await service.trackPublicEvent('cocina-norte', { type: 'start', sessionId: 's-1' });
     expect(metaOutbox.enqueue).not.toHaveBeenCalled();
   });

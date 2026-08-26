@@ -22,15 +22,17 @@ const lead_fit_status_enum_1 = require("../lead-fit-status.enum");
 const process_history_service_1 = require("../../../../core/process-history/process-history.service");
 const process_stage_change_entity_1 = require("../../../../core/process-history/process-stage-change.entity");
 const lead_cierre_service_1 = require("../lead-cierre.service");
+const event_emitter_1 = require("@nestjs/event-emitter");
 const DOMAIN_LABELS = {
     commercial: 'el embudo comercial',
     audience: 'la audiencia de un local',
 };
 let UpdateLeadUseCase = class UpdateLeadUseCase {
-    constructor(repo, history, cierre) {
+    constructor(repo, history, cierre, eventEmitter) {
         this.repo = repo;
         this.history = history;
         this.cierre = cierre;
+        this.eventEmitter = eventEmitter;
     }
     async execute(id, data, organizationId, actorId) {
         const lead = await this.repo.findOne({ where: { id, organizationId } });
@@ -75,6 +77,15 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
         const guardado = await this.repo.save(lead);
         await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.LEAD, guardado.id, etapaPrevia, guardado.status, actorId, guardado.discardReason);
         await this.cierre.avisar(guardado, etapaPrevia, actorId);
+        if (etapaPrevia !== guardado.status) {
+            this.eventEmitter.emit('lead.stage-changed', {
+                organizationId,
+                leadId: guardado.id,
+                clientId: guardado.clientId ?? null,
+                fromStage: etapaPrevia,
+                toStage: guardado.status,
+            });
+        }
         return guardado;
     }
 };
@@ -84,5 +95,6 @@ exports.UpdateLeadUseCase = UpdateLeadUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         process_history_service_1.ProcessHistoryService,
-        lead_cierre_service_1.LeadCierreService])
+        lead_cierre_service_1.LeadCierreService,
+        event_emitter_1.EventEmitter2])
 ], UpdateLeadUseCase);

@@ -24,13 +24,15 @@ const integration_account_entity_1 = require("../../integration-account.entity")
 const integration_account_type_enum_1 = require("../../integration-account-type.enum");
 const lead_entity_1 = require("../../../crm/leads/lead.entity");
 const client_entity_1 = require("../../../clients/client.entity");
+const campaign_entity_1 = require("../../../crm/campaigns/campaign.entity");
 let LeadConvertedHandler = LeadConvertedHandler_1 = class LeadConvertedHandler {
-    constructor(outbox, clientPixels, accountsRepo, leadRepo, clientRepo) {
+    constructor(outbox, clientPixels, accountsRepo, leadRepo, clientRepo, campaignRepo) {
         this.outbox = outbox;
         this.clientPixels = clientPixels;
         this.accountsRepo = accountsRepo;
         this.leadRepo = leadRepo;
         this.clientRepo = clientRepo;
+        this.campaignRepo = campaignRepo;
         this.logger = new common_1.Logger(LeadConvertedHandler_1.name);
     }
     async handleLeadConvertedEvent(payload) {
@@ -53,10 +55,20 @@ let LeadConvertedHandler = LeadConvertedHandler_1 = class LeadConvertedHandler {
             });
             if (!pageAccount?.integration)
                 return;
-            const { pixelId } = await this.clientPixels.resolve(lead.organizationId, payload.clientId);
+            const campana = lead.campaignName
+                ? await this.campaignRepo.findOne({
+                    where: { organizationId: lead.organizationId, name: lead.campaignName, clientId: payload.clientId },
+                    select: { id: true, metaPixelId: true },
+                })
+                : null;
+            const { pixelId, tokenSource } = await this.clientPixels.resolveForScope(lead.organizationId, payload.clientId, campana?.metaPixelId);
             if (!pixelId) {
                 this.logger.warn(`Lead ${lead.id}: el cliente ${payload.clientId} no tiene Pixel configurado; no se encola la conversión`);
                 return;
+            }
+            if (tokenSource === 'environment') {
+                this.logger.warn(`Lead ${lead.id}: el Pixel ${pixelId} no tiene token propio y usará el del entorno; `
+                    + 'si Meta lo rechaza, configura el token de esa empresa.');
             }
             const client = await this.clientRepo.findOne({ where: { id: payload.clientId, organizationId: lead.organizationId } });
             const eventId = `lead-converted:${lead.id}:${payload.clientId}`;
@@ -99,8 +111,10 @@ exports.LeadConvertedHandler = LeadConvertedHandler = LeadConvertedHandler_1 = _
     __param(2, (0, typeorm_1.InjectRepository)(integration_account_entity_1.IntegrationAccount)),
     __param(3, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __param(4, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
+    __param(5, (0, typeorm_1.InjectRepository)(campaign_entity_1.Campaign)),
     __metadata("design:paramtypes", [meta_conversion_outbox_service_1.MetaConversionOutboxService,
         meta_client_pixel_service_1.MetaClientPixelService,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository])

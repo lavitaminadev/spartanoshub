@@ -57,9 +57,10 @@ let CrmDashboardService = class CrmDashboardService {
                 }),
             }),
         ]);
-        const [tiempoDeCierre, conversionPorSetter] = await Promise.all([
+        const [tiempoDeCierre, conversionPorSetter, mejorCampana] = await Promise.all([
             this.tiempoDeCierre(base),
             this.conversionPorSetter(base),
+            this.mejorCampana(base),
         ]);
         const mejorSetter = conversionPorSetter
             .filter((fila) => fila.leads >= 3)
@@ -70,6 +71,7 @@ let CrmDashboardService = class CrmDashboardService {
             clientId: alcance.clientId ?? null,
             tiempoDeCierre,
             mejorSetter,
+            mejorCampana,
             comision: {
                 tasa: exports.TASA_COMISION,
                 ganada: Math.round(montoVendido * exports.TASA_COMISION),
@@ -125,6 +127,26 @@ let CrmDashboardService = class CrmDashboardService {
             const ventas = Number(fila.ventas) || 0;
             return { assignedTo: fila.assignedTo, leads, ventas, conversion: leads ? ventas / leads : 0 };
         });
+    }
+    async mejorCampana(base) {
+        const fila = await this.acotar(this.leads.createQueryBuilder('lead'), base)
+            .select('lead.campaign_name', 'campaignName')
+            .addSelect('COUNT(*)', 'ventas')
+            .addSelect('COALESCE(SUM(lead.estimated_amount), 0)', 'monto')
+            .andWhere('lead.status = :won', { won: lead_status_enum_1.LeadStatus.WON })
+            .andWhere('lead.campaign_name IS NOT NULL')
+            .andWhere("lead.campaign_name <> ''")
+            .groupBy('lead.campaign_name')
+            .orderBy('monto', 'DESC')
+            .limit(1)
+            .getRawOne();
+        if (!fila)
+            return null;
+        return {
+            campaignName: fila.campaignName,
+            ventas: Number(fila.ventas) || 0,
+            monto: Number(fila.monto) || 0,
+        };
     }
     async sumarAbiertos(base) {
         const fila = await this.acotar(this.leads.createQueryBuilder('lead'), base)

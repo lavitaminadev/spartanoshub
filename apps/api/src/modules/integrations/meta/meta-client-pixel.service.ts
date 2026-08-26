@@ -91,6 +91,19 @@ export class MetaClientPixelService {
       pixelId: records[client.id]?.pixelId || null,
       pixelName: records[client.id]?.pixelName || null,
       tokenConfigured: Boolean(records[client.id]?.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN),
+      /*
+       * Propio y heredado se distinguen, y `tokenConfigured` los confundía.
+       *
+       * Decía «sí» también cuando lo único que había era el token del entorno, así que una
+       * empresa sin token propio se veía correctamente configurada. Y un token de entorno
+       * pertenece a una cuenta publicitaria concreta: casi nunca tiene permiso sobre el Pixel de
+       * otra, de modo que sus conversiones se envían, Meta las rechaza y quedan en `failed` sin
+       * que nadie sepa por qué.
+       *
+       * `tokenConfigured` se conserva porque otras pantallas ya lo consumen.
+       */
+      tokenPropio: Boolean(records[client.id]?.accessToken),
+      tokenHeredado: !records[client.id]?.accessToken && Boolean(process.env.META_CONVERSIONS_ACCESS_TOKEN),
       configuredAt: records[client.id]?.configuredAt || null,
     }));
   }
@@ -199,6 +212,90 @@ export class MetaClientPixelService {
       // token global suele no tener permiso sobre el Pixel de un cliente dado en una
       // configuración de agencia multi-cuenta.
       accessToken: revealSecret(record?.accessToken) || process.env.META_CONVERSIONS_ACCESS_TOKEN,
+    };
+  }
+
+  /**
+   * Pixel y token con los que debe medirse un ámbito concreto.
+   *
+   * Un ámbito es un formulario —de reserva o de encuesta— o una campaña del CRM. Los tres
+   * caminos preguntan por aquí, así que el Pixel de una empresa se decide en un solo sitio y no
+   * en cada módulo por su cuenta.
+   *
+   * **Sin `pixelId` propio hereda el de la empresa**, que es como funcionó siempre: por eso
+   * agregar la columna no cambió el envío de nada existente.
+   *
+   * El token se busca **por Pixel** y no por empresa. Es la diferencia que importa cuando dos
+   * ámbitos de la misma empresa miden contra Pixeles distintos: cada uno necesita el token que
+   * tiene permiso sobre el suyo, y el de la empresa solo sirve para el que ella tiene por
+   * defecto.
+   *
+   * @param organizationId - Organización dueña de la integración.
+   * @param clientId - Empresa del ámbito. Sin ella no hay Pixel por defecto que heredar.
+   * @param pixelPropio - Pixel declarado por el formulario o la campaña, si se apartó.
+   * @returns El Pixel efectivo, su token, y de dónde salió cada uno. `tokenSource` existe para
+   *   poder decir en pantalla que una empresa está usando el token del entorno: hoy eso es
+   *   invisible y es justo lo que hace que las conversiones fallen sin que nadie lo sepa.
+   */
+  async resolveForScope(
+    organizationId: string,
+    clientId: string | null | undefined,
+    pixelPropio?: string | null,
+  ): Promise<{
+    pixelId: string;
+    pixelName: string | null;
+    accessToken?: string;
+    pixelSource: 'scope' | 'client' | 'none';
+    tokenSource: 'pixel' | 'client' | 'environment' | 'none';
+  }> {
+    const porDefecto = clientId
+      ? await this.resolve(organizationId, clientId)
+      : { pixelId: '', pixelName: null as string | null, accessToken: undefined as string | undefined };
+
+    const propio = pixelPropio?.trim();
+    // El del ámbito manda; si no hay, el de la empresa. Un Pixel vacío no es «heredar»: es que
+    // esa empresa todavía no tiene ninguno configurado.
+    const pixelId = propio || porDefecto.pixelId || '';
+    if (!pixelId) return { pixelId: '', pixelName: null, pixelSource: 'none', tokenSource: 'none' };
+
+    const pixelSource = propio ? 'scope' : 'client';
+
+    // Cuando el ámbito usa el Pixel de su empresa, el token de esa empresa es el correcto y se
+    // toma directo. Solo hace falta rastrear por Pixel cuando el ámbito se apartó.
+    if (pixelSource === 'client') {
+      return {
+        pixelId,
+        pixelName: porDefecto.pixelName ?? null,
+        accessToken: porDefecto.accessToken,
+        pixelSource,
+        tokenSource: porDefecto.accessToken
+          ? (process.env.META_CONVERSIONS_ACCESS_TOKEN === porDefecto.accessToken ? 'environment' : 'client')
+          : 'none',
+      };
+    }
+
+    const integration = await this.organizationIntegration(organizationId);
+    const registro = integration
+      ? Object.values(this.records(integration)).find((item) => item.pixelId === pixelId)
+      : undefined;
+    const propioToken = revealSecret(registro?.accessToken);
+    if (propioToken) return { pixelId, pixelName: registro?.pixelName ?? null, accessToken: propioToken, pixelSource, tokenSource: 'pixel' };
+
+    /*
+     * Sin token propio para ese Pixel se recurre al del entorno, pero se declara.
+     *
+     * Un token de entorno pertenece a una cuenta publicitaria concreta y casi nunca tiene
+     * permiso sobre el Pixel de otra: el evento se envía, Meta lo rechaza y queda en `failed`.
+     * Devolver `tokenSource: 'environment'` permite avisarlo antes en vez de descubrirlo en la
+     * cola de errores.
+     */
+    const entorno = process.env.META_CONVERSIONS_ACCESS_TOKEN;
+    return {
+      pixelId,
+      pixelName: registro?.pixelName ?? null,
+      accessToken: entorno,
+      pixelSource,
+      tokenSource: entorno ? 'environment' : 'none',
     };
   }
 

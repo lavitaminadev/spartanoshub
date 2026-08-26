@@ -37,7 +37,18 @@ export class CrmLeadAutomationService {
       return;
     }
 
-    if (lead.fitStatus !== LeadFitStatus.QUALIFIED) return;
+    /*
+     * Un lead en revisión también entra al embudo.
+     *
+     * Antes solo se trabajaba lo ya calificado: el resto llegaba sin responsable, sin contacto y
+     * sin ninguna huella, así que aparecía en el tablero como una tarjeta que nadie mira. «En
+     * revisión» significa que falta decidir si encaja, no que no exista.
+     *
+     * Lo que sigue reservado a lo calificado es la **oportunidad**: abrir un trato es afirmar
+     * que hay negocio, y eso sí necesita que alguien lo haya mirado. Con esto, el pronóstico no
+     * se llena de tratos que nadie evaluó.
+     */
+    if (lead.fitStatus !== LeadFitStatus.QUALIFIED && lead.fitStatus !== LeadFitStatus.REVIEW) return;
 
     const ownerId = await this.resolveCommercialOwner(lead.organizationId, manager);
     if (ownerId && !lead.assignedTo) {
@@ -45,6 +56,9 @@ export class CrmLeadAutomationService {
     }
 
     await this.ensureContact(lead, manager);
+
+    if (lead.fitStatus !== LeadFitStatus.QUALIFIED) return;
+
     await this.ensureOpportunity(lead, ownerId ?? lead.assignedTo ?? undefined, manager);
     await this.ensureQualifiedInteraction(lead, ownerId ?? lead.assignedTo ?? undefined, manager);
   }

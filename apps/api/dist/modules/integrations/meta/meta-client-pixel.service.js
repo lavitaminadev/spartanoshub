@@ -79,6 +79,8 @@ let MetaClientPixelService = class MetaClientPixelService {
             pixelId: records[client.id]?.pixelId || null,
             pixelName: records[client.id]?.pixelName || null,
             tokenConfigured: Boolean(records[client.id]?.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN),
+            tokenPropio: Boolean(records[client.id]?.accessToken),
+            tokenHeredado: !records[client.id]?.accessToken && Boolean(process.env.META_CONVERSIONS_ACCESS_TOKEN),
             configuredAt: records[client.id]?.configuredAt || null,
         }));
     }
@@ -166,6 +168,42 @@ let MetaClientPixelService = class MetaClientPixelService {
             pixelId: record?.pixelId || '',
             pixelName: record?.pixelName || null,
             accessToken: (0, integration_secrets_1.revealSecret)(record?.accessToken) || process.env.META_CONVERSIONS_ACCESS_TOKEN,
+        };
+    }
+    async resolveForScope(organizationId, clientId, pixelPropio) {
+        const porDefecto = clientId
+            ? await this.resolve(organizationId, clientId)
+            : { pixelId: '', pixelName: null, accessToken: undefined };
+        const propio = pixelPropio?.trim();
+        const pixelId = propio || porDefecto.pixelId || '';
+        if (!pixelId)
+            return { pixelId: '', pixelName: null, pixelSource: 'none', tokenSource: 'none' };
+        const pixelSource = propio ? 'scope' : 'client';
+        if (pixelSource === 'client') {
+            return {
+                pixelId,
+                pixelName: porDefecto.pixelName ?? null,
+                accessToken: porDefecto.accessToken,
+                pixelSource,
+                tokenSource: porDefecto.accessToken
+                    ? (process.env.META_CONVERSIONS_ACCESS_TOKEN === porDefecto.accessToken ? 'environment' : 'client')
+                    : 'none',
+            };
+        }
+        const integration = await this.organizationIntegration(organizationId);
+        const registro = integration
+            ? Object.values(this.records(integration)).find((item) => item.pixelId === pixelId)
+            : undefined;
+        const propioToken = (0, integration_secrets_1.revealSecret)(registro?.accessToken);
+        if (propioToken)
+            return { pixelId, pixelName: registro?.pixelName ?? null, accessToken: propioToken, pixelSource, tokenSource: 'pixel' };
+        const entorno = process.env.META_CONVERSIONS_ACCESS_TOKEN;
+        return {
+            pixelId,
+            pixelName: registro?.pixelName ?? null,
+            accessToken: entorno,
+            pixelSource,
+            tokenSource: entorno ? 'environment' : 'none',
         };
     }
     async resolveByPixel(organizationId, pixelId) {

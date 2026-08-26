@@ -67,6 +67,10 @@ export class CampaignsService {
         status: campania.status,
         startsAt: campania.startsAt,
         endsAt: campania.endsAt,
+        // Los dos viajan para que editar una campaña abra el formulario con lo que ya tiene, en
+        // vez de proponer los valores por omisión y sobrescribir en silencio lo configurado.
+        metaPixelId: campania.metaPixelId ?? null,
+        metaCapiEnabled: campania.metaCapiEnabled,
         leads,
         // `null` y no cero: cero costo por lead diría que salieron gratis, y lo que ocurre es
         // que todavía no hay con qué dividir.
@@ -103,6 +107,8 @@ export class CampaignsService {
       name: dto.name.trim(),
       source: dto.source ?? 'Meta Ads',
       clientId: dto.clientId ?? null,
+      metaPixelId: dto.metaPixelId?.trim() || null,
+      metaCapiEnabled: dto.metaCapiEnabled ?? true,
       startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
       endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
       investment: dto.investment ?? 0,
@@ -143,6 +149,9 @@ export class CampaignsService {
     if (dto.endsAt !== undefined) campania.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
     if (dto.investment !== undefined) campania.investment = dto.investment;
     if (dto.status !== undefined) campania.status = dto.status;
+    //  la devuelve a heredar el Pixel de su empresa; omitirlo no toca lo configurado.
+    if (dto.metaPixelId !== undefined) campania.metaPixelId = dto.metaPixelId?.trim() || null;
+    if (dto.metaCapiEnabled !== undefined) campania.metaCapiEnabled = dto.metaCapiEnabled;
 
     const saved = await this.campaigns.save(campania);
     if (source) {

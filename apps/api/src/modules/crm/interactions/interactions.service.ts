@@ -38,8 +38,19 @@ export class InteractionsService {
     leadId?: string,
     allowedClientIds?: string[],
     clientId?: string,
+    /**
+     * Rango de la actividad. Lo usa el calendario para pedir exactamente el período que dibuja,
+     * en vez de «las últimas N» —que dejaba los meses anteriores vacíos y truncaba los llenos—.
+     */
+    rango?: { from?: string; to?: string },
   ): Promise<{ data: Interaction[]; total: number; limit: number; offset: number }> {
-    if (allowedClientIds !== undefined || clientId) {
+    // El mismo rango se aplica a los dos caminos, así que se arma una vez.
+    const acotarRango = (aplicar: (sql: string, params: Record<string, unknown>) => void) => {
+      if (rango?.from) aplicar('interaction.date >= :from', { from: rango.from });
+      if (rango?.to) aplicar('interaction.date <= :to', { to: rango.to });
+    };
+
+    if (allowedClientIds !== undefined || clientId || rango?.from || rango?.to) {
       if (allowedClientIds !== undefined && allowedClientIds.length === 0) return { data: [], total: 0, limit, offset };
       const query = this.repo.createQueryBuilder('interaction')
         .leftJoin(Lead, 'lead', 'lead.id = interaction.lead_id AND lead.organization_id = interaction.organization_id')
@@ -51,6 +62,7 @@ export class InteractionsService {
         query.andWhere('(lead.client_id IN (:...allowedClientIds) OR contact.client_id IN (:...allowedClientIds))', { allowedClientIds });
       }
       if (leadId) query.andWhere('interaction.lead_id = :leadId', { leadId });
+      acotarRango((sql, params) => { query.andWhere(sql, params); });
       const [data, total] = await query.orderBy('interaction.date', 'DESC').skip(offset).take(limit).getManyAndCount();
       return { data, total, limit, offset };
     }

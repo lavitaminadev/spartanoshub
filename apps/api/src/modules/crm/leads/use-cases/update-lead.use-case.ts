@@ -7,6 +7,7 @@ import { LeadFitStatus } from '../lead-fit-status.enum';
 import { ProcessHistoryService } from '../../../../core/process-history/process-history.service';
 import { ProcessSubject } from '../../../../core/process-history/process-stage-change.entity';
 import { LeadCierreService } from '../lead-cierre.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 /** Nombre del dominio en los mensajes de error, para que digan algo accionable. */
 const DOMAIN_LABELS: Record<string, string> = {
@@ -20,6 +21,7 @@ export class UpdateLeadUseCase {
     @InjectRepository(Lead) private repo: Repository<Lead>,
     private readonly history: ProcessHistoryService,
     private readonly cierre: LeadCierreService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async execute(
@@ -90,6 +92,28 @@ export class UpdateLeadUseCase {
     // Y si con esto el lead llegó al final, se avisa a quien lo llevaba: hasta ahora un lead se
     // cerraba en silencio y quien lo repartió no se enteraba nunca.
     await this.cierre.avisar(guardado, etapaPrevia, actorId);
+
+    /*
+     * Cada cambio de etapa se anuncia, para que Meta pueda aprender qué anuncios traen leads que
+     * terminan en venta y cuáles traen los que se descartan.
+     *
+     * Se emite solo cuando la etapa cambió de verdad: guardar un teléfono corregido no es un
+     * paso del embudo, y contarlo como tal ensuciaría la señal que se le devuelve a Meta.
+     *
+     * Va como evento y no como llamada directa porque este caso de uso no debe saber que Meta
+     * existe: quien escucha decide si ese lead vino de un formulario instantáneo, si su empresa
+     * tiene la capacidad contratada y a qué Pixel corresponde.
+     */
+    if (etapaPrevia !== guardado.status) {
+      this.eventEmitter.emit('lead.stage-changed', {
+        organizationId,
+        leadId: guardado.id,
+        clientId: guardado.clientId ?? null,
+        fromStage: etapaPrevia,
+        toStage: guardado.status,
+      });
+    }
+
     return guardado;
   }
 }

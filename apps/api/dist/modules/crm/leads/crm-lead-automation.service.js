@@ -41,13 +41,15 @@ let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomat
             await this.ensureDiscardInteraction(lead, manager);
             return;
         }
-        if (lead.fitStatus !== lead_fit_status_enum_1.LeadFitStatus.QUALIFIED)
+        if (lead.fitStatus !== lead_fit_status_enum_1.LeadFitStatus.QUALIFIED && lead.fitStatus !== lead_fit_status_enum_1.LeadFitStatus.REVIEW)
             return;
         const ownerId = await this.resolveCommercialOwner(lead.organizationId, manager);
         if (ownerId && !lead.assignedTo) {
             lead.assignedTo = ownerId;
         }
         await this.ensureContact(lead, manager);
+        if (lead.fitStatus !== lead_fit_status_enum_1.LeadFitStatus.QUALIFIED)
+            return;
         await this.ensureOpportunity(lead, ownerId ?? lead.assignedTo ?? undefined, manager);
         await this.ensureQualifiedInteraction(lead, ownerId ?? lead.assignedTo ?? undefined, manager);
     }

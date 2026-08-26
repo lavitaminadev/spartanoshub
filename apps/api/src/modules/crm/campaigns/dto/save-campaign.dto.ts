@@ -1,5 +1,5 @@
 import {
-  IsDateString, IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength,
+  IsBoolean, IsDateString, IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength,
   ValidateIf,
 } from 'class-validator';
 import type { CampaignStatus } from '../campaign.entity';
@@ -26,4 +26,16 @@ export class SaveCampaignDto {
   @IsOptional() @IsNumber() @Min(0) @Max(999999999999) investment?: number;
 
   @IsOptional() @IsIn(['active', 'paused', 'finished']) status?: CampaignStatus;
+
+  /**
+   * Pixel propio de esta campaña. `null` la devuelve a heredar el de su empresa.
+   *
+   * Solo hace falta cuando una empresa anuncia varias marcas con cuentas publicitarias
+   * distintas. Omitirlo no toca lo que ya estuviera configurado.
+   */
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(40)
+  metaPixelId?: string | null;
+
+  /** Si la campana reporta sus etapas a Meta. Encendido por omision. */
+  @IsOptional() @IsBoolean() metaCapiEnabled?: boolean;
 }

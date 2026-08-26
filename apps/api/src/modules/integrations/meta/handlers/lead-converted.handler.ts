@@ -8,6 +8,7 @@ import { IntegrationAccount } from '../../integration-account.entity';
 import { IntegrationAccountType } from '../../integration-account-type.enum';
 import { Lead } from '../../../crm/leads/lead.entity';
 import { Client } from '../../../clients/client.entity';
+import { Campaign } from '../../../crm/campaigns/campaign.entity';
 
 @Injectable()
 export class LeadConvertedHandler {
@@ -19,6 +20,7 @@ export class LeadConvertedHandler {
     @InjectRepository(IntegrationAccount) private readonly accountsRepo: Repository<IntegrationAccount>,
     @InjectRepository(Lead) private readonly leadRepo: Repository<Lead>,
     @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
+    @InjectRepository(Campaign) private readonly campaignRepo: Repository<Campaign>,
   ) {}
 
   @OnEvent('lead.converted')
@@ -50,10 +52,39 @@ export class LeadConvertedHandler {
       // `config.pixelId`, que es un único valor de la organización: en una agencia con varias
       // cuentas eso mandaba la conversión de un cliente al Pixel del último que se validó,
       // junto con el importe de su retainer.
-      const { pixelId } = await this.clientPixels.resolve(lead.organizationId, payload.clientId);
+      /*
+       * La campaña puede medir contra su propio Pixel.
+       *
+       * Dos campañas de la misma empresa pueden anunciar marcas distintas, cada una con su
+       * cuenta publicitaria. Sin campaña declarada —o sin Pixel propio en ella— hereda el de la
+       * empresa, que es como funcionó siempre.
+       */
+      const campana = lead.campaignName
+        ? await this.campaignRepo.findOne({
+          where: { organizationId: lead.organizationId, name: lead.campaignName, clientId: payload.clientId },
+          select: { id: true, metaPixelId: true },
+        })
+        : null;
+
+      const { pixelId, tokenSource } = await this.clientPixels.resolveForScope(
+        lead.organizationId,
+        payload.clientId,
+        campana?.metaPixelId,
+      );
       if (!pixelId) {
         this.logger.warn(`Lead ${lead.id}: el cliente ${payload.clientId} no tiene Pixel configurado; no se encola la conversión`);
         return;
+      }
+      /*
+       * Un token heredado del entorno casi nunca tiene permiso sobre el Pixel de un cliente: el
+       * evento se encola, Meta lo rechaza y queda en `failed` sin que nadie sepa por qué. Se
+       * avisa al encolar, que es cuando todavía se puede corregir.
+       */
+      if (tokenSource === 'environment') {
+        this.logger.warn(
+          `Lead ${lead.id}: el Pixel ${pixelId} no tiene token propio y usará el del entorno; `
+          + 'si Meta lo rechaza, configura el token de esa empresa.',
+        );
       }
 
       const client = await this.clientRepo.findOne({ where: { id: payload.clientId, organizationId: lead.organizationId } });

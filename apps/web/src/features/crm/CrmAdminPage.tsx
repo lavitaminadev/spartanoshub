@@ -26,6 +26,16 @@ import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import './crm-admin.css';
 
 interface Cliente { id: string; name: string }
+
+/** Estado de Meta de una empresa, tal como lo devuelve el catálogo de Conexiones. */
+interface BindingMeta {
+  clientId: string;
+  pixelId: string | null;
+  /** Tiene credencial propia para ese Pixel. */
+  tokenPropio: boolean;
+  /** No tiene la suya y usaría la general, que casi nunca sirve para su Pixel. */
+  tokenHeredado: boolean;
+}
 interface Usuario { id: string; name: string; email: string; role: string; isActive?: boolean }
 interface Origen {
   id: string;
@@ -64,6 +74,18 @@ const CUERPO_DE_EJEMPLO = `{
   "paginaId":    "{{page_id}}"
 }`;
 
+/**
+ * Formulario en blanco para una campaña nueva.
+ *
+ * Se reconstruye en cada apertura y no se reutiliza el estado anterior: si no, abrir «Nueva
+ * campaña» justo después de editar una traía los valores de aquélla, y guardar creaba un
+ * duplicado con los datos de otra.
+ */
+const FORM_VACIO = (clientId: string) => ({
+  name: '', source: 'meta_lead_ads', investment: '0', status: 'active',
+  clientId, metaCapiEnabled: true, metaPixelId: '',
+});
+
 interface Campania {
   id: string;
   name: string;
@@ -72,6 +94,10 @@ interface Campania {
   status: string;
   leads: number;
   costPerLead: number | null;
+  clientId?: string | null;
+  /** Pixel propio, o `null` si hereda el de su empresa. */
+  metaPixelId: string | null;
+  metaCapiEnabled: boolean;
 }
 
 export function CrmAdminPage(): JSX.Element {
@@ -89,8 +115,15 @@ export function CrmAdminPage(): JSX.Element {
   const [porBorrar, setPorBorrar] = useState<{ id: string; nombre: string } | null>(null);
   const [porRotar, setPorRotar] = useState<{ id: string; nombre: string } | null>(null);
   const [llaveNueva, setLlaveNueva] = useState<string | null>(null);
-  const [campaniaAbierta, setCampaniaAbierta] = useState(false);
-  const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId });
+  /**
+   * Campaña que se está editando, o `true` para una nueva.
+   *
+   * Editar faltaba por completo: corregir la inversión de una campaña obligaba a quitarla y
+   * volver a crearla, y **quitarla apaga su llave y emite otra**. Se perdía la integración por
+   * cambiar una cifra.
+   */
+  const [campaniaAbierta, setCampaniaAbierta] = useState<Campania | true | null>(null);
+  const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId, metaCapiEnabled: true, metaPixelId: '' });
 
   const campanias = useQuery<Campania[]>({
     queryKey: ['crm-campaigns', scope.clientId],
@@ -108,13 +141,41 @@ export function CrmAdminPage(): JSX.Element {
       // Lo elegido en el formulario. El servidor vuelve a comprobar que quien guarda alcance esa
       // empresa, y a un portal le impone la suya ignorando este valor.
       clientId: formCampania.clientId || null,
+      metaCapiEnabled: formCampania.metaCapiEnabled,
+      // Vacio significa heredar el Pixel de la empresa.
+      metaPixelId: formCampania.metaPixelId.trim() || null,
     }),
     onSuccess: async (respuesta: { integracion?: { header?: string; token?: string } }) => {
-      setCampaniaAbierta(false);
-      setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId });
+      setCampaniaAbierta(null);
+      setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId, metaCapiEnabled: true, metaPixelId: '' });
       // Se reutiliza el aviso de llave nueva: es la misma advertencia —cópiala ahora— y tener
       // dos formas de decir lo mismo invita a que una de las dos se quede sin decirlo.
       setLlaveNueva(respuesta?.integracion?.token ?? null);
+      await Promise.all([refrescarCampanias(), queryClient.invalidateQueries({ queryKey: ['lead-ingest-sources'] })]);
+    },
+  });
+
+  /**
+   * Guarda los cambios de una campaña existente.
+   *
+   * No emite llave ni la rota: la que ya tiene sigue sirviendo. Por eso editar es lo que hay que
+   * usar para corregir una cifra, y quitar queda para cuando la campaña de verdad se termina.
+   *
+   * Renombrarla arrastra su conexión, y pasarla a pausada o finalizada apaga su llave: las dos
+   * cosas las hace el servidor, y son la razón de que el formulario avise antes de guardar.
+   */
+  const actualizarCampania = useMutation({
+    mutationFn: (id: string) => api.put(`/crm/campaigns/${id}`, {
+      name: formCampania.name.trim(),
+      source: formCampania.source.trim() || undefined,
+      investment: Number(formCampania.investment) || 0,
+      status: formCampania.status,
+      clientId: formCampania.clientId || null,
+      metaCapiEnabled: formCampania.metaCapiEnabled,
+      metaPixelId: formCampania.metaPixelId.trim() || null,
+    }),
+    onSuccess: async () => {
+      setCampaniaAbierta(null);
       await Promise.all([refrescarCampanias(), queryClient.invalidateQueries({ queryKey: ['lead-ingest-sources'] })]);
     },
   });
@@ -123,6 +184,23 @@ export function CrmAdminPage(): JSX.Element {
     mutationFn: (id: string) => api.delete(`/crm/campaigns/${id}`),
     onSuccess: () => refrescarCampanias(),
   });
+
+  /**
+   * Estado de Meta de la empresa que se está mirando.
+   *
+   * Se consulta en el mejor de los casos: el catálogo pertenece a Conexiones y no todos los
+   * cargos que administran el CRM lo alcanzan. Si responde 403, `estadoMeta` queda indefinido y
+   * los avisos no se dibujan, en vez de mostrar un error por algo que es informativo.
+   */
+  const metaCatalogo = useQuery<{ bindings: BindingMeta[] }>({
+    queryKey: ['meta-client-pixels'],
+    queryFn: () => api.get('/integrations/meta/client-pixels/catalog'),
+    retry: false,
+    enabled: !scope.esAgencia,
+  });
+  const estadoMeta = scope.clientId
+    ? metaCatalogo.data?.bindings.find((fila) => fila.clientId === scope.clientId)
+    : undefined;
 
   const clientes = useQuery<{ data: Cliente[] }>({ queryKey: ['clients-min'], queryFn: () => api.get('/clients') });
   const usuarios = useQuery<{ data: Usuario[] }>({ queryKey: ['users-min'], queryFn: () => api.get('/users') });
@@ -275,7 +353,7 @@ export function CrmAdminPage(): JSX.Element {
       <section className="crm-admin-panel">
         <header>
           <h2>Campañas e inversión <span className="crm-admin-cuenta">{campanias.data?.length ?? 0}</span></h2>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setCampaniaAbierta(true)}>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => { setFormCampania(FORM_VACIO(scope.clientId)); setCampaniaAbierta(true); }}>
             + Nueva campaña
           </button>
         </header>
@@ -283,6 +361,45 @@ export function CrmAdminPage(): JSX.Element {
           El nombre tiene que escribirse igual que el que traen los leads —{scope.esAgencia ? 'los de Espartanos' : `los de ${scope.empresa}`}—;
           si no coincide, la campaña aparece con cero leads y su inversión no se reparte entre nadie.
         </p>
+
+        {/*
+          Lo que impide que estas campañas reporten a Meta, dicho antes de que ocurra.
+
+          Los tres casos terminan igual —las conversiones no llegan— y ninguno avisa por su
+          cuenta: uno deja los eventos sin encolar y los otros dos hacen que Meta los rechace y
+          queden como fallidos en una cola que nadie mira.
+
+          Solo se muestra a quien puede consultar el estado de Meta; para el resto la consulta
+          responde 403 y la sección sencillamente no aparece.
+        */}
+        {scope.esAgencia ? (
+          <p className="crm-admin-ayuda">
+            Estas campañas son de la agencia. Sus leads no se atribuyen a ninguna empresa cliente,
+            y sus etapas no se reportan a Meta: para eso, elige la empresa arriba y créalas ahí.
+          </p>
+        ) : estadoMeta ? (
+          <>
+            {!estadoMeta.pixelId ? (
+              <p className="crm-admin-ayuda">
+                <strong>{scope.empresa} no tiene Pixel configurado.</strong> Sus campañas no
+                reportarán etapas a Meta hasta que se asigne uno en Conexiones.
+              </p>
+            ) : null}
+            {estadoMeta.pixelId && estadoMeta.tokenHeredado ? (
+              <p className="crm-admin-ayuda">
+                <strong>Usando el token general.</strong> Ese token pertenece a otra cuenta
+                publicitaria y normalmente no tiene permiso sobre el Pixel {estadoMeta.pixelId}:
+                Meta rechazará las conversiones. Configura el token propio de {scope.empresa}.
+              </p>
+            ) : null}
+            {estadoMeta.pixelId && !estadoMeta.tokenPropio && !estadoMeta.tokenHeredado ? (
+              <p className="crm-admin-ayuda">
+                <strong>Falta el token de {scope.empresa}.</strong> Tiene Pixel pero no hay
+                credencial con qué escribir en él.
+              </p>
+            ) : null}
+          </>
+        ) : null}
         {campanias.data?.length ? (
           <ul className="crm-admin-lista">
             {campanias.data.map((campania) => (
@@ -297,14 +414,41 @@ export function CrmAdminPage(): JSX.Element {
                       : `$${campania.costPerLead.toLocaleString('es-CL')} por lead`}
                   </small>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  disabled={borrarCampania.isPending}
-                  onClick={() => setPorBorrar({ id: campania.id, nombre: campania.name })}
-                >
-                  Quitar
-                </button>
+                {/*
+                  Editar antes que quitar, y en ese orden.
+
+                  Quitar apaga la llave de la campaña y borra su inversión histórica; editar no
+                  toca ninguna de las dos. Cuando lo único disponible era quitar, corregir una
+                  cifra costaba la integración.
+                */}
+                <div className="crm-admin-acciones">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => {
+                      setFormCampania({
+                        name: campania.name,
+                        source: campania.source,
+                        investment: String(campania.investment ?? 0),
+                        status: campania.status,
+                        clientId: campania.clientId ?? '',
+                        metaCapiEnabled: campania.metaCapiEnabled,
+                        metaPixelId: campania.metaPixelId ?? '',
+                      });
+                      setCampaniaAbierta(campania);
+                    }}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    disabled={borrarCampania.isPending}
+                    onClick={() => setPorBorrar({ id: campania.id, nombre: campania.name })}
+                  >
+                    Quitar
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -314,7 +458,7 @@ export function CrmAdminPage(): JSX.Element {
       </section>
 
       {campaniaAbierta ? (
-        <Modal open onClose={() => setCampaniaAbierta(false)} title="Nueva campaña">
+        <Modal open onClose={() => setCampaniaAbierta(null)} title={campaniaAbierta === true ? 'Nueva campaña' : `Editar ${campaniaAbierta.name}`}>
           <div className="modal-form">
             <label>
               Nombre
@@ -396,15 +540,58 @@ export function CrmAdminPage(): JSX.Element {
                 <option value="finished">Finalizada</option>
               </select>
             </label>
+            {/*
+              Pausar apaga la llave de entrada, y eso no es evidente.
+
+              Es el efecto que más confusión produce: alguien pausa una campaña por presupuesto,
+              Make empieza a recibir 401, y el mensaje es el mismo que el de una llave inválida.
+              Decirlo aquí cuesta una línea y ahorra la hora que toma diagnosticarlo.
+            */}
+            {formCampania.status !== 'active' ? (
+              <p className="crm-admin-ayuda">
+                Al dejarla en <strong>{formCampania.status === 'paused' ? 'pausada' : 'finalizada'}</strong> su
+                llave deja de aceptar leads. Los que ya entraron se conservan; la integración
+                recibirá un error hasta que la vuelvas a activar.
+              </p>
+            ) : null}
+            <label>
+              Reportar etapas a Meta
+              <select
+                className="input"
+                value={formCampania.metaCapiEnabled ? 'si' : 'no'}
+                onChange={(event) => setFormCampania({ ...formCampania, metaCapiEnabled: event.target.value === 'si' })}
+              >
+                <option value="si">Sí, reportar</option>
+                <option value="no">No reportar</option>
+              </select>
+            </label>
+            {/*
+              El Pixel propio es la excepción, no la norma.
+
+              Con uno por empresa, Meta aprende entre todas sus campañas; separarlos fragmenta ese
+              aprendizaje. Solo tiene sentido cuando la empresa anuncia marcas distintas con
+              cuentas publicitarias distintas, así que el valor por defecto es heredar.
+            */}
+            <label>
+              Pixel de Meta
+              <input
+                className="input"
+                value={formCampania.metaPixelId}
+                onChange={(event) => setFormCampania({ ...formCampania, metaPixelId: event.target.value })}
+                placeholder="Heredar el de la empresa"
+              />
+            </label>
             <div className="modal-actions">
-              <button type="button" className="btn btn-outline" onClick={() => setCampaniaAbierta(false)}>Cancelar</button>
+              <button type="button" className="btn btn-outline" onClick={() => setCampaniaAbierta(null)}>Cancelar</button>
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={crearCampania.isPending || formCampania.name.trim().length < 2}
-                onClick={() => crearCampania.mutate()}
+                disabled={crearCampania.isPending || actualizarCampania.isPending || formCampania.name.trim().length < 2}
+                onClick={() => (campaniaAbierta === true
+                  ? crearCampania.mutate()
+                  : campaniaAbierta && actualizarCampania.mutate(campaniaAbierta.id))}
               >
-                {crearCampania.isPending ? 'Guardando...' : 'Guardar'}
+                {crearCampania.isPending || actualizarCampania.isPending ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </div>

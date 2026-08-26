@@ -51,6 +51,24 @@ export class Campaign {
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0 }) investment: number;
 
   @Column({ type: 'varchar', length: 20, default: 'active' }) status: CampaignStatus;
+  /**
+   * Pixel propio de esta campaña. Nulo hereda el de la empresa.
+   *
+   * Dos campañas de la misma empresa pueden anunciar marcas distintas, cada una con su cuenta
+   * publicitaria: sin esto, sus conversiones se mezclan en un solo conjunto de datos.
+   */
+  @Column({ name: 'meta_pixel_id', type: 'varchar', length: 40, nullable: true }) metaPixelId?: string | null;
+  /**
+   * Si esta campana reporta sus etapas a Meta.
+   *
+   * Nace encendida: una campana de Meta existe para medirse, y que hubiera que acordarse de
+   * activarla dejaria la mayoria sin reportar por olvido. Apagarla es la excepcion —una campana
+   * de prueba, o una cuyo Pixel todavia no esta listo— y no obliga a apagar el CRM entero.
+   *
+   * La capacidad de la empresa sigue mandando: con `metaConversions` apagado no sale nada,
+   * aunque esto esté encendido.
+   */
+  @Column({ name: 'meta_capi_enabled', type: 'boolean', default: true }) metaCapiEnabled: boolean;
 
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

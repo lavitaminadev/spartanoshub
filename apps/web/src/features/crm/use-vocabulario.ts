@@ -23,6 +23,14 @@ export const VOCABULARIO_BASE = {
   prospecto: 'Prospecto',
   prospectos: 'Prospectos',
   responsable: 'Responsable',
+  /**
+   * La prioridad manual de un lead.
+   *
+   * De fábrica se llama «Semáforo» porque describe su forma —verde, amarillo, rojo—, pero la
+   * herramienta de referencia del rubro inmobiliario la llama «Etiqueta». Es la misma columna:
+   * lo que cambia es la palabra con la que cada equipo la nombra en voz alta.
+   */
+  semaforo: 'Semáforo',
   campana: 'Campaña',
 } as const;
 

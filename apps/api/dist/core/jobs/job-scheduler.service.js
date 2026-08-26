@@ -48,8 +48,8 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
             return;
         }
         this.schedule('meta-lead-recovery', 15 * 60_000, () => this.metaRecovery.handle());
-        this.schedule('meta-capi-outbox', 5 * 60_000, () => this.capiOutbox.processPending());
-        this.schedule('google-ads-outbox', 5 * 60_000, () => this.googleOutbox.processPending());
+        this.schedule('meta-capi-outbox', 2 * 60_000, () => this.capiOutbox.processPending(100));
+        this.schedule('google-ads-outbox', 2 * 60_000, () => this.googleOutbox.processPending(100));
         this.schedule('automation-runs', 60_000, () => this.automations.processPending());
         this.schedule('automation-cleanup', 24 * 60 * 60_000, () => this.automations.cleanup());
         this.schedule('automation-schedule', 60 * 60_000, () => this.automationSchedule.handle());

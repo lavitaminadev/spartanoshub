@@ -115,6 +115,19 @@
 .leads-board-tomar:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
 .leads-board-tomar:disabled { opacity: .6; cursor: default; }
 
+/* Soltar es lo contrario de tomar y se distingue a la vista: quitarle un lead a alguien no
+   debe parecerse al gesto de quedárselo. Sin relleno, para que no compita con la acción principal. */
+.leads-board-tomar.es-soltar {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--surface-sage);
+}
+.leads-board-tomar.es-soltar:hover:not(:disabled) {
+  background: var(--soft);
+  color: var(--text-dark);
+  border-color: var(--muted);
+}
+
 /* Acciones de la tarjeta: se distinguen de los chips por ser pulsables, no por su tamaño. */
 .leads-board-wa { text-decoration: none; font-size: 13px; line-height: 1; }
 .leads-board-mover {

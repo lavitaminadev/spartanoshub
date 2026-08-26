@@ -4,9 +4,9 @@ import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IsBoolean, IsOptional, IsString, MaxLength, Matches } from 'class-validator';
-import { Roles } from '../../../core/authorization/roles.decorator';
+import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
+import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
-import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { LeadIngestSource } from './ingest-source.entity';
 import { LeadIngestService } from './lead-ingest.service';
@@ -36,18 +36,28 @@ export class ToggleIngestSourceDto {
 /**
  * Administración de los orígenes de entrada de leads.
  *
- * Reservado a Desarrollo: crear un origen entrega una llave que permite escribir leads en la base
- * desde fuera, sin sesión. No es una preferencia de uso diario.
+ * Ya no está reservado a Desarrollo.
+ *
+ * Lo estaba porque crear un origen entrega una llave que escribe leads sin sesión, y eso no es
+ * una preferencia de uso diario. Pero el efecto era que quien administra el CRM —quien da de
+ * alta las campañas y a quien le preguntan por qué no entran leads— **no podía ver el estado de
+ * sus propias conexiones**: ni el contador, ni el último lead, ni el último error. Tenía que
+ * pedírselo a Desarrollo cada vez.
+ *
+ * El listado no expone ningún secreto: solo los últimos seis caracteres de la llave como pista.
+ * Lo que sí hacía falta antes de abrirlo es acotarlo por empresa —devolvía todas las de la
+ * organización—, porque si no, quien lleva una cuenta vería las conexiones de las demás.
  */
 @Controller('crm/ingest-sources')
 @UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
-@Roles(UserRole.DEV)
-@ModuleScope('integrations')
+@RequiresPermission('crm', 'manage')
+@ModuleScope('crm')
 export class IngestSourcesController {
   constructor(
     @InjectRepository(LeadIngestSource) private readonly sources: Repository<LeadIngestSource>,
     private readonly ingest: LeadIngestService,
+    private readonly accountAccess: AccountAccessService,
   ) {}
 
   /**
@@ -59,10 +69,22 @@ export class IngestSourcesController {
   @Get()
   @ApiOperation({ summary: 'Orígenes de entrada con su contador y último error' })
   async list(@Req() req: AuthenticatedRequest) {
-    const filas = await this.sources.find({
+    /*
+     * Acotado a las empresas que esta persona alcanza.
+     *
+     * `undefined` significa que llega a toda la organización —dirección, administración— y
+     * entonces se listan también los orígenes de la agencia, que no tienen empresa. Una lista
+     * vacía de empresas permitidas no devuelve nada, que es lo correcto para quien no lleva
+     * ninguna cuenta.
+     */
+    const permitidas = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
+    const todas = await this.sources.find({
       where: { organizationId: req.organizationId! },
       order: { createdAt: 'DESC' },
     });
+    const filas = permitidas === undefined
+      ? todas
+      : todas.filter((fila) => fila.clientId && permitidas.includes(fila.clientId));
 
     return filas.map((fila) => ({
       id: fila.id,
@@ -114,7 +136,7 @@ export class IngestSourcesController {
   @Post(':id/rotate')
   @ApiOperation({ summary: 'Reemplazar la llave de un origen' })
   async rotate(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const source = await this.find(id, req.organizationId!);
+    const source = await this.find(id, req.organizationId!, req);
     const { token } = await this.ingest.issueToken(source);
     return {
       token,
@@ -132,16 +154,30 @@ export class IngestSourcesController {
   @Post(':id/active')
   @ApiOperation({ summary: 'Encender o apagar un origen' })
   async toggle(@Param('id') id: string, @Body() dto: ToggleIngestSourceDto, @Req() req: AuthenticatedRequest) {
-    const source = await this.find(id, req.organizationId!);
+    const source = await this.find(id, req.organizationId!, req);
     source.isActive = dto.isActive;
     await this.sources.save(source);
     return { id: source.id, isActive: source.isActive };
   }
 
-  /** Busca dentro de la organización de quien consulta: un identificador ajeno no debe alcanzar. */
-  private async find(id: string, organizationId: string): Promise<LeadIngestSource> {
+  /**
+   * Busca un origen y comprueba que quien lo pide alcance su empresa.
+   *
+   * Es la puerta de rotar y de apagar, no solo de leer: sin esta comprobación, abrir el
+   * controlador a quien administra el CRM le habría permitido rotar la llave de una empresa que
+   * no lleva con solo conocer su identificador —y rotar deja sin entregar a su integración.
+   *
+   * Se responde 404 y no 403: decir «existe pero no es tuyo» confirma que ese identificador
+   * corresponde a algo real.
+   */
+  private async find(id: string, organizationId: string, req: AuthenticatedRequest): Promise<LeadIngestSource> {
     const source = await this.sources.findOne({ where: { id, organizationId } });
     if (!source) throw new NotFoundException('Origen no encontrado');
+
+    const permitidas = await this.accountAccess.allowedClientIds(organizationId, req.user);
+    if (permitidas !== undefined && (!source.clientId || !permitidas.includes(source.clientId))) {
+      throw new NotFoundException('Origen no encontrado');
+    }
     return source;
   }
 }

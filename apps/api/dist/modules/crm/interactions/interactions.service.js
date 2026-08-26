@@ -37,8 +37,14 @@ let InteractionsService = class InteractionsService {
         });
         return this.repo.save(interaction);
     }
-    async findAll(organizationId, limit = 50, offset = 0, leadId, allowedClientIds, clientId) {
-        if (allowedClientIds !== undefined || clientId) {
+    async findAll(organizationId, limit = 50, offset = 0, leadId, allowedClientIds, clientId, rango) {
+        const acotarRango = (aplicar) => {
+            if (rango?.from)
+                aplicar('interaction.date >= :from', { from: rango.from });
+            if (rango?.to)
+                aplicar('interaction.date <= :to', { to: rango.to });
+        };
+        if (allowedClientIds !== undefined || clientId || rango?.from || rango?.to) {
             if (allowedClientIds !== undefined && allowedClientIds.length === 0)
                 return { data: [], total: 0, limit, offset };
             const query = this.repo.createQueryBuilder('interaction')
@@ -53,6 +59,7 @@ let InteractionsService = class InteractionsService {
             }
             if (leadId)
                 query.andWhere('interaction.lead_id = :leadId', { leadId });
+            acotarRango((sql, params) => { query.andWhere(sql, params); });
             const [data, total] = await query.orderBy('interaction.date', 'DESC').skip(offset).take(limit).getManyAndCount();
             return { data, total, limit, offset };
         }
