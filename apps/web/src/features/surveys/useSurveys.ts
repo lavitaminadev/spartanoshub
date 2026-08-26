@@ -216,7 +216,17 @@ export function useSubmitSurveyResponse(): UseMutationResult<SurveyResponse, Err
   return useMutation({
     mutationFn: async (response) => {
       try {
-        return await api.post<SurveyResponse, SurveyResponse>(`/surveys/${response.surveyId}/responses`, response);
+        /*
+         * Se manda lo que el servidor declara, no la respuesta entera.
+         *
+         * `surveyId` ya viaja en la ruta y `submittedAt` lo pone el servidor: mandarlos
+         * hacía que la validación rechazara el envío completo. La respuesta entera sí se
+         * guarda tal cual en el respaldo local, que es de esta pantalla y no del servidor.
+         */
+        return await api.post<SurveyResponse, { respondentId: string; answers: SurveyResponse['answers'] }>(
+          `/surveys/${response.surveyId}/responses`,
+          { respondentId: response.respondentId, answers: response.answers },
+        );
       } catch (error) {
         if (!isConnectionError(error)) throw error;
         writeLocalResponses(response.surveyId, [...readLocalResponses(response.surveyId), response]);

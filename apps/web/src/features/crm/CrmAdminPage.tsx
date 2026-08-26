@@ -36,6 +36,14 @@ interface BindingMeta {
   /** No tiene la suya y usaría la general, que casi nunca sirve para su Pixel. */
   tokenHeredado: boolean;
 }
+/**
+ * Un Pixel que ya existe en Conexiones, con las empresas que lo usan.
+ *
+ * Se ofrece para elegir en vez de pedirlo a mano: quince dígitos transcritos fallan callado,
+ * porque Meta acepta la petición y la descarta después sin avisar a nadie.
+ */
+interface PixelRegistrado { pixelId: string; pixelNames: string[]; usageCount: number }
+
 interface Usuario { id: string; name: string; email: string; role: string; isActive?: boolean }
 interface Origen {
   id: string;
@@ -126,6 +134,8 @@ export function CrmAdminPage(): JSX.Element {
    * cambiar una cifra.
    */
   const [campaniaAbierta, setCampaniaAbierta] = useState<Campania | true | null>(null);
+  /** El campo de Pixel está en modo escritura libre, en vez de elegir uno ya registrado. */
+  const [pixelManual, setPixelManual] = useState(false);
   const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId, metaCapiEnabled: true, metaPixelId: '' });
 
   const campanias = useQuery<Campania[]>({
@@ -151,6 +161,7 @@ export function CrmAdminPage(): JSX.Element {
     onSuccess: async (respuesta: { integracion?: { header?: string; token?: string } }) => {
       setCampaniaAbierta(null);
       setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId, metaCapiEnabled: true, metaPixelId: '' });
+      setPixelManual(false);
       // Se reutiliza el aviso de llave nueva: es la misma advertencia —cópiala ahora— y tener
       // dos formas de decir lo mismo invita a que una de las dos se quede sin decirlo.
       setLlaveNueva(respuesta?.integracion?.token ?? null);
@@ -195,7 +206,7 @@ export function CrmAdminPage(): JSX.Element {
    * cargos que administran el CRM lo alcanzan. Si responde 403, `estadoMeta` queda indefinido y
    * los avisos no se dibujan, en vez de mostrar un error por algo que es informativo.
    */
-  const metaCatalogo = useQuery<{ bindings: BindingMeta[] }>({
+  const metaCatalogo = useQuery<{ bindings: BindingMeta[]; pixels: PixelRegistrado[] }>({
     queryKey: ['meta-client-pixels'],
     queryFn: () => api.get('/integrations/meta/client-pixels/catalog'),
     retry: false,
@@ -204,6 +215,14 @@ export function CrmAdminPage(): JSX.Element {
   const estadoMeta = scope.clientId
     ? metaCatalogo.data?.bindings.find((fila) => fila.clientId === scope.clientId)
     : undefined;
+  /*
+   * Los Pixels que ya existen, para elegir en vez de transcribir.
+   *
+   * Se ofrecen todos los de la organización y no solo los de esta empresa: una campaña puede
+   * reportar al Pixel de otra marca del mismo grupo, y esconderlo obligaría a copiar el número
+   * a mano, que es justo lo que este desplegable evita.
+   */
+  const pixelesRegistrados = metaCatalogo.data?.pixels ?? [];
 
   const clientes = useQuery<{ data: Cliente[] }>({ queryKey: ['clients-min'], queryFn: () => api.get('/clients') });
   const usuarios = useQuery<{ data: Usuario[] }>({ queryKey: ['users-min'], queryFn: () => api.get('/users') });
@@ -397,20 +416,20 @@ export function CrmAdminPage(): JSX.Element {
             {!estadoMeta.pixelId ? (
               <p className="crm-admin-ayuda">
                 <strong>{scope.empresa} no tiene Pixel configurado.</strong> Sus campañas no
-                reportarán etapas a Meta hasta que se asigne uno en Conexiones.
+                reportarán etapas a Meta hasta que se le asigne uno en <Link to="/integrations">Conexiones</Link>.
               </p>
             ) : null}
             {estadoMeta.pixelId && estadoMeta.tokenHeredado ? (
               <p className="crm-admin-ayuda">
                 <strong>Usando el token general.</strong> Ese token pertenece a otra cuenta
                 publicitaria y normalmente no tiene permiso sobre el Pixel {estadoMeta.pixelId}:
-                Meta rechazará las conversiones. Configura el token propio de {scope.empresa}.
+                Meta rechazará las conversiones. Ponle a {scope.empresa} su propio token en{' '}<Link to="/integrations">Conexiones</Link>.
               </p>
             ) : null}
             {estadoMeta.pixelId && !estadoMeta.tokenPropio && !estadoMeta.tokenHeredado ? (
               <p className="crm-admin-ayuda">
                 <strong>Falta el token de {scope.empresa}.</strong> Tiene Pixel pero no hay
-                credencial con qué escribir en él.
+                credencial con qué escribir en él: pega su token CAPI en{' '}<Link to="/integrations">Conexiones</Link>. Se genera en Events Manager, en la pestaña Configuración del Pixel.
               </p>
             ) : null}
           </>
@@ -450,6 +469,13 @@ export function CrmAdminPage(): JSX.Element {
                         metaCapiEnabled: campania.metaCapiEnabled,
                         metaPixelId: campania.metaPixelId ?? '',
                       });
+                      /*
+                        Un Pixel que la campaña ya tiene pero que no está en Conexiones no puede
+                        caer en «Heredar»: el desplegable no lo ofrece, y quedaría borrado por
+                        abrir el modal. Se abre en escritura libre con su valor intacto.
+                      */
+                      setPixelManual(Boolean(campania.metaPixelId)
+                        && !pixelesRegistrados.some((pixel) => pixel.pixelId === campania.metaPixelId));
                       setCampaniaAbierta(campania);
                     }}
                   >
@@ -570,7 +596,7 @@ export function CrmAdminPage(): JSX.Element {
               </p>
             ) : null}
             <label>
-              Reportar etapas a Meta
+              Reportar etapas a Meta (CAPI)
               <select
                 className="input"
                 value={formCampania.metaCapiEnabled ? 'si' : 'no'}
@@ -581,6 +607,17 @@ export function CrmAdminPage(): JSX.Element {
               </select>
             </label>
             {/*
+              El nombre técnico va entre paréntesis, no en lugar del claro.
+
+              Quien configura campañas no tiene por qué saber qué es CAPI; quien viene buscando
+              «dónde está CAPI» no lo encuentra si solo dice «reportar etapas». Caben los dos.
+            */}
+            <p className="crm-admin-ayuda">
+              Cada vez que un lead de esta campaña cambia de etapa —contactado, calificado,
+              agendado, ganado o descartado— Meta se entera por servidor. Es lo que le permite
+              aprender a quién conviene mostrarle el anuncio.
+            </p>
+            {/*
               El Pixel propio es la excepción, no la norma.
 
               Con uno por empresa, Meta aprende entre todas sus campañas; separarlos fragmenta ese
@@ -589,13 +626,49 @@ export function CrmAdminPage(): JSX.Element {
             */}
             <label>
               Pixel de Meta
-              <input
+              <select
                 className="input"
-                value={formCampania.metaPixelId}
-                onChange={(event) => setFormCampania({ ...formCampania, metaPixelId: event.target.value })}
-                placeholder="Heredar el de la empresa"
-              />
+                value={pixelManual ? 'otro' : formCampania.metaPixelId}
+                onChange={(event) => {
+                  const elegido = event.target.value;
+                  setPixelManual(elegido === 'otro');
+                  setFormCampania({ ...formCampania, metaPixelId: elegido === 'otro' ? '' : elegido });
+                }}
+              >
+                <option value="">Heredar el de la empresa</option>
+                {pixelesRegistrados.map((pixel) => (
+                  <option key={pixel.pixelId} value={pixel.pixelId}>
+                    {pixel.pixelNames[0] ?? 'Pixel'} · {pixel.pixelId}
+                  </option>
+                ))}
+                <option value="otro">Otro Pixel…</option>
+              </select>
             </label>
+            {/*
+              Escribirlo a mano es la salida, no la puerta.
+
+              Un Pixel nuevo entra por Conexiones, que es donde además se le pone credencial. Aquí
+              se admite el número suelto para la campaña que reporta a uno todavía sin registrar,
+              pero se dice qué falta para que no quede a medias sin que nadie se entere.
+            */}
+            {pixelManual ? (
+              <>
+                <label>
+                  Número del Pixel
+                  <input
+                    className="input"
+                    value={formCampania.metaPixelId}
+                    onChange={(event) => setFormCampania({ ...formCampania, metaPixelId: event.target.value })}
+                    placeholder="15 dígitos, desde Events Manager"
+                  />
+                </label>
+                <p className="crm-admin-ayuda">
+                  Un Pixel que no está en <Link to="/integrations">Conexiones</Link> no tiene
+                  credencial con qué escribir en él: la campaña reportará y Meta lo rechazará.
+                  Regístralo ahí con su token y vuelve a elegirlo de la lista.
+                </p>
+              </>
+            ) : null}
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={() => setCampaniaAbierta(null)}>Cancelar</button>
               <button

@@ -92,8 +92,14 @@ export function PublicSurveyPage(): JSX.Element {
   });
 
   const submitMutation = useMutation({
+    /*
+     * La encuesta va en la ruta y en ningún otro sitio.
+     *
+     * Mandarla también en el cuerpo la duplicaba, y el servidor rechaza los campos que no
+     * declara. Aceptar ambos sería peor que rechazarlos: un cuerpo con otro id se convierte en
+     * una forma de escribir respuestas en una encuesta ajena.
+     */
     mutationFn: () => api.post<SurveyResponse, Partial<SurveyResponse>>(`/public/surveys/${encodeURIComponent(id)}/responses`, {
-      surveyId: id,
       respondentId: source,
       answers,
     }),

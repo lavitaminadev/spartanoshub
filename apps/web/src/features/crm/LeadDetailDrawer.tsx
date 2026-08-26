@@ -24,6 +24,7 @@ import { triggerToast } from '../../shared/toast-events';
 import { roleLabel } from '../../core/role-labels';
 import { useAuth } from '../../core/auth';
 import { STAGES } from './stage-labels';
+import { proximaFechaSugerida } from './agenda-sugerida';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { mensajeDePrimerContacto, whatsapp } from './contacto';
 import { useCrmScope } from './crm-scope';
@@ -203,7 +204,15 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [empresa, setEmpresa] = useState(lead.clientId ?? '');
   const [aviso, setAviso] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [confirmarAnonimizar, setConfirmarAnonimizar] = useState(false);
-  const [actividadAbierta, setActividadAbierta] = useState(false);
+  /*
+   * Con qué intención se abrió el formulario de gestión.
+   *
+   * Agendar y registrar terminan en la misma escritura, pero no son lo mismo para quien las
+   * hace: una mira al futuro y sin fecha no existe, la otra deja constancia de algo que ya
+   * pasó. Un único formulario titulado «Registrar actividad» para ambas obligaba a releer los
+   * campos para saber en cuál de las dos estabas.
+   */
+  const [actividadAbierta, setActividadAbierta] = useState<'registro' | 'agenda' | null>(null);
   const [actividad, setActividad] = useState({ type: 'call', description: '', date: '' });
   // Una respuesta tardía del detalle no puede sobrescribir lo que la persona ya empezó a
   // corregir. Se vuelve a habilitar la sincronización después de un guardado confirmado.
@@ -444,7 +453,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       }
     },
     onSuccess: async () => {
-      setActividadAbierta(false);
+      setActividadAbierta(null);
       setActividad({ type: 'call', description: '', date: '' });
       setAviso({ tone: 'success', text: 'Actividad agregada.' });
       await refrescar();
@@ -577,15 +586,20 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
-                onClick={() => { setActividad({ type: 'call', description: '', date: '' }); setActividadAbierta(true); }}
+                onClick={() => { setActividad({ type: 'call', description: '', date: '' }); setActividadAbierta('registro'); }}
               >
                 Registrar contacto
               </button>
-              {/* Ambos accesos terminan en el mismo formulario y la misma escritura. */}
+              {/*
+                Agendar abre con una fecha ya propuesta.
+
+                El formulario sale con mañana a las 10:00 en vez de vacío: casi siempre se corrige
+                en vez de escribirse desde cero, y sin fecha «agendar» no significa nada.
+              */}
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
-                onClick={() => { setActividad({ type: 'meeting', description: '', date: '' }); setActividadAbierta(true); }}
+                onClick={() => { setActividad({ type: 'meeting', description: '', date: proximaFechaSugerida() }); setActividadAbierta('agenda'); }}
               >
                 Agendar visita
               </button>
@@ -1012,7 +1026,11 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       </div>
 
       {actividadAbierta ? (
-        <Modal open onClose={() => setActividadAbierta(false)} title="Registrar actividad">
+        <Modal
+          open
+          onClose={() => setActividadAbierta(null)}
+          title={actividadAbierta === 'agenda' ? 'Agendar visita' : 'Registrar contacto'}
+        >
           <div className="modal-form">
             <label>
               Tipo
@@ -1023,7 +1041,11 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <label>
               Fecha y hora
               <input className="input" type="datetime-local" value={actividad.date} onChange={(event) => setActividad({ ...actividad, date: event.target.value })} />
-              <small className="field-hint">Vacío registra la hora actual. Una fecha futura sirve como seguimiento.</small>
+              <small className="field-hint">
+                {actividadAbierta === 'agenda'
+                  ? 'Con una fecha futura el lead pasa solo a visita agendada y aparece en la agenda.'
+                  : 'Vacío registra la hora actual. Una fecha futura sirve como seguimiento.'}
+              </small>
             </label>
             <label>
               Detalle
@@ -1037,14 +1059,24 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               />
             </label>
             <div className="modal-actions">
-              <button type="button" className="btn btn-outline" onClick={() => setActividadAbierta(false)}>Cancelar</button>
+              <button type="button" className="btn btn-outline" onClick={() => setActividadAbierta(null)}>Cancelar</button>
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={registrarActividad.isPending || !actividad.description.trim()}
+                /*
+                  Agendar sin fecha no es agendar.
+
+                  Se bloquea en vez de guardar una reunión sin hora, que quedaría escrita en la
+                  bitácora y ausente de la agenda: el lead parecería atendido y nadie lo vería.
+                */
+                disabled={registrarActividad.isPending
+                  || !actividad.description.trim()
+                  || (actividadAbierta === 'agenda' && !actividad.date)}
                 onClick={() => registrarActividad.mutate()}
               >
-                {registrarActividad.isPending ? 'Guardando...' : 'Guardar'}
+                {registrarActividad.isPending
+                  ? 'Guardando...'
+                  : actividadAbierta === 'agenda' ? 'Agendar' : 'Guardar'}
               </button>
             </div>
           </div>
