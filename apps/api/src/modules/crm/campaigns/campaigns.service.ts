@@ -67,6 +67,10 @@ export class CampaignsService {
         status: campania.status,
         startsAt: campania.startsAt,
         endsAt: campania.endsAt,
+        // Los dos viajan para que editar una campaña abra el formulario con lo que ya tiene, en
+        // vez de proponer los valores por omisión y sobrescribir en silencio lo configurado.
+        metaPixelId: campania.metaPixelId ?? null,
+        metaCapiEnabled: campania.metaCapiEnabled,
         leads,
         // `null` y no cero: cero costo por lead diría que salieron gratis, y lo que ocurre es
         // que todavía no hay con qué dividir.

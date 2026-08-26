@@ -47,6 +47,8 @@ let CampaignsService = class CampaignsService {
                 status: campania.status,
                 startsAt: campania.startsAt,
                 endsAt: campania.endsAt,
+                metaPixelId: campania.metaPixelId ?? null,
+                metaCapiEnabled: campania.metaCapiEnabled,
                 leads,
                 costPerLead: leads > 0 ? Math.round(investment / leads) : null,
             };

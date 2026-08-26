@@ -74,6 +74,18 @@ const CUERPO_DE_EJEMPLO = `{
   "paginaId":    "{{page_id}}"
 }`;
 
+/**
+ * Formulario en blanco para una campaña nueva.
+ *
+ * Se reconstruye en cada apertura y no se reutiliza el estado anterior: si no, abrir «Nueva
+ * campaña» justo después de editar una traía los valores de aquélla, y guardar creaba un
+ * duplicado con los datos de otra.
+ */
+const FORM_VACIO = (clientId: string) => ({
+  name: '', source: 'meta_lead_ads', investment: '0', status: 'active',
+  clientId, metaCapiEnabled: true, metaPixelId: '',
+});
+
 interface Campania {
   id: string;
   name: string;
@@ -82,6 +94,10 @@ interface Campania {
   status: string;
   leads: number;
   costPerLead: number | null;
+  clientId?: string | null;
+  /** Pixel propio, o `null` si hereda el de su empresa. */
+  metaPixelId: string | null;
+  metaCapiEnabled: boolean;
 }
 
 export function CrmAdminPage(): JSX.Element {
@@ -99,7 +115,14 @@ export function CrmAdminPage(): JSX.Element {
   const [porBorrar, setPorBorrar] = useState<{ id: string; nombre: string } | null>(null);
   const [porRotar, setPorRotar] = useState<{ id: string; nombre: string } | null>(null);
   const [llaveNueva, setLlaveNueva] = useState<string | null>(null);
-  const [campaniaAbierta, setCampaniaAbierta] = useState(false);
+  /**
+   * Campaña que se está editando, o `true` para una nueva.
+   *
+   * Editar faltaba por completo: corregir la inversión de una campaña obligaba a quitarla y
+   * volver a crearla, y **quitarla apaga su llave y emite otra**. Se perdía la integración por
+   * cambiar una cifra.
+   */
+  const [campaniaAbierta, setCampaniaAbierta] = useState<Campania | true | null>(null);
   const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId, metaCapiEnabled: true, metaPixelId: '' });
 
   const campanias = useQuery<Campania[]>({
@@ -123,11 +146,36 @@ export function CrmAdminPage(): JSX.Element {
       metaPixelId: formCampania.metaPixelId.trim() || null,
     }),
     onSuccess: async (respuesta: { integracion?: { header?: string; token?: string } }) => {
-      setCampaniaAbierta(false);
+      setCampaniaAbierta(null);
       setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId, metaCapiEnabled: true, metaPixelId: '' });
       // Se reutiliza el aviso de llave nueva: es la misma advertencia —cópiala ahora— y tener
       // dos formas de decir lo mismo invita a que una de las dos se quede sin decirlo.
       setLlaveNueva(respuesta?.integracion?.token ?? null);
+      await Promise.all([refrescarCampanias(), queryClient.invalidateQueries({ queryKey: ['lead-ingest-sources'] })]);
+    },
+  });
+
+  /**
+   * Guarda los cambios de una campaña existente.
+   *
+   * No emite llave ni la rota: la que ya tiene sigue sirviendo. Por eso editar es lo que hay que
+   * usar para corregir una cifra, y quitar queda para cuando la campaña de verdad se termina.
+   *
+   * Renombrarla arrastra su conexión, y pasarla a pausada o finalizada apaga su llave: las dos
+   * cosas las hace el servidor, y son la razón de que el formulario avise antes de guardar.
+   */
+  const actualizarCampania = useMutation({
+    mutationFn: (id: string) => api.put(`/crm/campaigns/${id}`, {
+      name: formCampania.name.trim(),
+      source: formCampania.source.trim() || undefined,
+      investment: Number(formCampania.investment) || 0,
+      status: formCampania.status,
+      clientId: formCampania.clientId || null,
+      metaCapiEnabled: formCampania.metaCapiEnabled,
+      metaPixelId: formCampania.metaPixelId.trim() || null,
+    }),
+    onSuccess: async () => {
+      setCampaniaAbierta(null);
       await Promise.all([refrescarCampanias(), queryClient.invalidateQueries({ queryKey: ['lead-ingest-sources'] })]);
     },
   });
@@ -305,7 +353,7 @@ export function CrmAdminPage(): JSX.Element {
       <section className="crm-admin-panel">
         <header>
           <h2>Campañas e inversión <span className="crm-admin-cuenta">{campanias.data?.length ?? 0}</span></h2>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setCampaniaAbierta(true)}>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => { setFormCampania(FORM_VACIO(scope.clientId)); setCampaniaAbierta(true); }}>
             + Nueva campaña
           </button>
         </header>
@@ -366,14 +414,41 @@ export function CrmAdminPage(): JSX.Element {
                       : `$${campania.costPerLead.toLocaleString('es-CL')} por lead`}
                   </small>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  disabled={borrarCampania.isPending}
-                  onClick={() => setPorBorrar({ id: campania.id, nombre: campania.name })}
-                >
-                  Quitar
-                </button>
+                {/*
+                  Editar antes que quitar, y en ese orden.
+
+                  Quitar apaga la llave de la campaña y borra su inversión histórica; editar no
+                  toca ninguna de las dos. Cuando lo único disponible era quitar, corregir una
+                  cifra costaba la integración.
+                */}
+                <div className="crm-admin-acciones">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => {
+                      setFormCampania({
+                        name: campania.name,
+                        source: campania.source,
+                        investment: String(campania.investment ?? 0),
+                        status: campania.status,
+                        clientId: campania.clientId ?? '',
+                        metaCapiEnabled: campania.metaCapiEnabled,
+                        metaPixelId: campania.metaPixelId ?? '',
+                      });
+                      setCampaniaAbierta(campania);
+                    }}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    disabled={borrarCampania.isPending}
+                    onClick={() => setPorBorrar({ id: campania.id, nombre: campania.name })}
+                  >
+                    Quitar
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -383,7 +458,7 @@ export function CrmAdminPage(): JSX.Element {
       </section>
 
       {campaniaAbierta ? (
-        <Modal open onClose={() => setCampaniaAbierta(false)} title="Nueva campaña">
+        <Modal open onClose={() => setCampaniaAbierta(null)} title={campaniaAbierta === true ? 'Nueva campaña' : `Editar ${campaniaAbierta.name}`}>
           <div className="modal-form">
             <label>
               Nombre
@@ -507,14 +582,16 @@ export function CrmAdminPage(): JSX.Element {
               />
             </label>
             <div className="modal-actions">
-              <button type="button" className="btn btn-outline" onClick={() => setCampaniaAbierta(false)}>Cancelar</button>
+              <button type="button" className="btn btn-outline" onClick={() => setCampaniaAbierta(null)}>Cancelar</button>
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={crearCampania.isPending || formCampania.name.trim().length < 2}
-                onClick={() => crearCampania.mutate()}
+                disabled={crearCampania.isPending || actualizarCampania.isPending || formCampania.name.trim().length < 2}
+                onClick={() => (campaniaAbierta === true
+                  ? crearCampania.mutate()
+                  : campaniaAbierta && actualizarCampania.mutate(campaniaAbierta.id))}
               >
-                {crearCampania.isPending ? 'Guardando...' : 'Guardar'}
+                {crearCampania.isPending || actualizarCampania.isPending ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </div>

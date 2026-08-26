@@ -59,3 +59,7 @@
 .crm-admin-etapas span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .crm-admin-etapas-acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .crm-admin-etapas-aviso { font-size: 12px; color: var(--cyan-deep); }
+
+
+/* Editar y quitar juntos, sin que la lista los separe a los extremos de la fila. */
+.crm-admin-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
