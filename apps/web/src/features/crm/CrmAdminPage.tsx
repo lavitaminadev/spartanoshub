@@ -48,6 +48,9 @@ interface Origen {
   receivedCount: number;
   lastReceivedAt?: string | null;
   lastError?: string | null;
+  lastErrorAt?: string | null;
+  /** Hasta cuándo sigue aceptando la llave anterior, si hay una en gracia. */
+  anteriorCaducaEn?: string | null;
   url: string;
 }
 
@@ -215,6 +218,18 @@ export function CrmAdminPage(): JSX.Element {
   const alternar = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       api.post(`/crm/ingest-sources/${id}/active`, { isActive }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['lead-ingest-sources'] }),
+  });
+
+  /**
+   * Corta la llave anterior sin esperar sus 48 horas.
+   *
+   * Sin confirmacion a proposito: no destruye nada que no se pueda rehacer rotando otra vez, y
+   * quien lo pulsa ya sabe por que —acaba de rotar por una filtracion—. Poner un dialogo aqui
+   * seria pedir permiso para cerrar una puerta que urge cerrar.
+   */
+  const cortarAnterior = useMutation({
+    mutationFn: (id: string) => api.post(`/crm/ingest-sources/${id}/revoke-previous`, {}),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['lead-ingest-sources'] }),
   });
 
@@ -667,6 +682,24 @@ export function CrmAdminPage(): JSX.Element {
                         >
                           Rotar llave
                         </button>
+                        {/*
+                          Cortar la anterior antes de que caduque sola.
+
+                          Solo aparece mientras hay una en gracia. La ventana existe para no
+                          perder leads mientras se actualiza la integración; cuando la rotación
+                          fue por una filtración, esperar dos días es justo lo que no se quiere.
+                        */}
+                        {origen.anteriorCaducaEn ? (
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            disabled={cortarAnterior.isPending}
+                            title={`La anterior sigue aceptando hasta ${cuando(origen.anteriorCaducaEn)}`}
+                            onClick={() => cortarAnterior.mutate(origen.id)}
+                          >
+                            Cortar la anterior
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -705,9 +738,10 @@ export function CrmAdminPage(): JSX.Element {
           titulo={`Rotar la llave de ${porRotar.nombre}`}
           consecuencia={
             <>
-              La llave actual deja de servir en el momento en que se rota. Todo lo que la esté
-              usando —el escenario de Make, un formulario— deja de entregar leads hasta que pegues
-              la nueva. La nueva se muestra una sola vez.
+              La llave actual sigue aceptando leads <strong>48 horas más</strong>, para que nada
+              deje de entregar mientras actualizas el escenario de Make. Pasado ese plazo caduca
+              sola. Si la estás rotando porque se filtró, córtala enseguida con «Cortar la
+              anterior». La nueva se muestra una sola vez.
             </>
           }
           confirmar="Rotar la llave"

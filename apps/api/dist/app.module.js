@@ -56,6 +56,7 @@ const audiovisual_module_1 = require("./modules/audiovisual/audiovisual.module")
 const data_protection_module_1 = require("./core/data-protection/data-protection.module");
 const account_cycles_module_1 = require("./modules/account-cycles/account-cycles.module");
 const objectives_module_1 = require("./modules/objectives/objectives.module");
+const portal_module_1 = require("./modules/client-portal/portal.module");
 const reservations_module_1 = require("./modules/reservations/reservations.module");
 const surveys_module_1 = require("./modules/surveys/surveys.module");
 const service_requests_module_1 = require("./modules/service-requests/service-requests.module");
@@ -143,6 +144,7 @@ exports.AppModule = AppModule = __decorate([
             account_cycles_module_1.AccountCyclesModule,
             objectives_module_1.ObjectivesModule,
             reservations_module_1.ReservationsModule,
+            portal_module_1.PortalModule,
             surveys_module_1.SurveysModule,
             service_requests_module_1.ServiceRequestsModule,
             process_templates_module_1.ProcessTemplatesModule,

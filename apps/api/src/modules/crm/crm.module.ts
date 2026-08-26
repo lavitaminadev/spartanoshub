@@ -64,6 +64,6 @@ import { NotificationsModule } from '../../core/notifications/notifications.modu
     InteractionsService,
     CampaignsService,
   ],
-  exports: [LeadIntakeService, CrmLeadAutomationService],
+  exports: [LeadIntakeService, CrmLeadAutomationService, CrmHomeService],
 })
 export class CrmModule {}
