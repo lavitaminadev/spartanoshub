@@ -10,21 +10,32 @@
 }
 
 
+/*
+ * El fondo lo pone .auth-page, no esta clase.
+ *
+ * El <main> lleva las dos, cada una en su hoja y con la misma especificidad, así que pintar
+ * aquí también dejaba al ganador en manos del orden de los @import: salía el fondo oscuro de
+ * .auth-page bajo un contenido escrito para uno claro, y el titular quedaba en tinta casi
+ * negra sobre negro. Se pinta en un sitio, y la tarjeta trae su propia superficie.
+ */
 .first-access-page {
   min-height: 100dvh;
   padding: 32px 18px;
-  background:
-    radial-gradient(circle at 12% 15%, rgba(15, 185, 177, .12), transparent 32%),
-    radial-gradient(circle at 86% 82%, rgba(198, 121, 18, .12), transparent 28%),
-    var(--soft);
 }
 
+/*
+ * Superficie clara sobre el fondo de marca, igual que .password-card.
+ *
+ * Todo lo que va dentro —titulares en --ink, filas en --soft, bordes en --line— está definido
+ * para una superficie clara. La tarjeta la aporta, en vez de que cada elemento tenga que
+ * defenderse por su cuenta contra un fondo que no esperaba.
+ */
 .first-access-card {
   width: min(100%, 610px);
   padding: clamp(26px, 5vw, 44px);
-  border: 1px solid rgba(21, 19, 23, .08);
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 70px rgba(21, 19, 23, .08);
+  background: var(--white);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .28);
 }
 
 .first-access-card h1 { margin: 8px 0 10px; color: var(--ink); font-size: clamp(28px, 5vw, 40px); line-height: 1.05; }
@@ -66,8 +77,9 @@
 .first-access-primary { min-height: 48px; }
 
 @media (max-width: 620px) {
-  .first-access-page { padding: 0; background: var(--white); }
-  .first-access-card { min-height: 100dvh; padding: 28px 20px; border: 0; border-radius: 0; box-shadow: none; }
+  /* A pantalla completa: la tarjeta es la pantalla y el fondo de marca ya no se ve. */
+  .first-access-page { padding: 0; }
+  .first-access-card { min-height: 100dvh; padding: 28px 20px; border-radius: 0; box-shadow: none; }
   .password-rules { grid-template-columns: 1fr; }
   .first-access-actions { flex-direction: column-reverse; }
   .first-access-actions .btn { width: 100%; }
