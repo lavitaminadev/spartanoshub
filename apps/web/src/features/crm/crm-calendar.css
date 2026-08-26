@@ -48,12 +48,23 @@
 /* La semana da alto para leer la hora; el mes solo alcanza para saber que hay algo. */
 .crm-cal-grilla.es-semana .crm-cal-celda { min-height: 200px; }
 
-/* Un solo día: una columna que ocupa el ancho y respira, porque acá sí se lee cada actividad
-   entera en vez de saber que existe. Los eventos se muestran también en pantalla angosta —es
-   justo la vista a la que se entra desde el teléfono para ver qué toca hoy—. */
-.crm-cal-grilla.es-dia { grid-template-columns: 1fr; }
-.crm-cal-grilla.es-dia .crm-cal-celda { min-height: 240px; gap: 6px; padding: 12px; }
-.crm-cal-grilla.es-dia .crm-cal-evento { display: flex; font-size: 13px; padding: 6px 10px; }
+/* Selector de vista: tres botones juntos, que se lean como un solo control. */
+.crm-cal-vistas { display: inline-flex; gap: 4px; }
+
+/* La jornada: una columna de horas fija y otra que se lleva el resto del ancho. La hora en
+   cifras tabulares para que las de dos dígitos no desalineen la columna. */
+.crm-cal-dia { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.crm-cal-franja { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 12px; border-top: 1px solid var(--line); }
+.crm-cal-franja:first-child { border-top: 0; }
+/* Las horas ocupadas se distinguen del hueco sin necesidad de leerlas. */
+.crm-cal-franja.con-eventos { background: var(--soft); }
+.crm-cal-hora { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 4px; }
+.crm-cal-franja-cuerpo { display: grid; gap: 6px; min-height: 22px; min-width: 0; }
+.crm-cal-dia .crm-cal-evento { display: flex; gap: 8px; font-size: 13px; padding: 6px 10px; }
+
+/* En el teléfono la columna de horas se estrecha, pero no desaparece: sin ella la lista deja
+   de ser una jornada y vuelve a ser lo que había antes. */
 @media (max-width: 640px) {
-  .crm-cal-grilla.es-dia .crm-cal-celda { min-height: 200px; }
+  .crm-cal-franja { grid-template-columns: 52px minmax(0, 1fr); gap: 8px; padding: 7px 10px; }
+  .crm-cal-dia .crm-cal-evento { display: flex; }
 }

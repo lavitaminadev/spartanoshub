@@ -17,6 +17,7 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { Modal } from '../../shared/Modal';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
+import { franjasDelDia } from './jornada';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
 import './crm-calendar.css';
 
@@ -124,6 +125,13 @@ function tituloDe(actividad: Actividad): string {
 
 /** Forma en que se mira la agenda. */
 type Vista = 'mes' | 'semana' | 'dia';
+
+const VISTAS: Array<{ value: Vista; label: string }> = [
+  { value: 'mes', label: 'Mes' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'dia', label: 'Día' },
+];
+
 
 export function CrmCalendarPage(): JSX.Element {
   const [ancla, setAncla] = useState(() => new Date());
@@ -295,67 +303,107 @@ export function CrmCalendarPage(): JSX.Element {
             diría algo distinto de lo que la persona tenía delante al pulsar.
           */}
           <ExportButtons document={documento} csv={false} />
-          <select
-            className="input"
-            aria-label="Forma de ver la agenda"
-            value={vista}
-            onChange={(evento) => setVista(evento.target.value as Vista)}
-          >
-            <option value="mes">Vista mensual</option>
-            <option value="semana">Vista semanal</option>
-            <option value="dia">Vista diaria</option>
-          </select>
+          {/*
+            Tres botones a la vista, no un desplegable.
+
+            Cambiar de mes a día es lo que más se hace en esta pantalla, y estaba escondido en un
+            <select> sin rótulo visible entre botones: había que abrirlo para saber que existía.
+            Con las tres opciones delante se ve de un vistazo cuál está puesta y cuáles hay.
+          */}
+          <div className="crm-cal-vistas" role="group" aria-label="Forma de ver la agenda">
+            {VISTAS.map((opcion) => (
+              <button
+                key={opcion.value}
+                type="button"
+                className={`btn btn-sm ${vista === opcion.value ? 'btn-primary' : 'btn-outline'}`}
+                aria-pressed={vista === opcion.value}
+                onClick={() => setVista(opcion.value)}
+              >
+                {opcion.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div
-        className={`crm-cal-grilla${vista === 'semana' ? ' es-semana' : ''}${vista === 'dia' ? ' es-dia' : ''}`}
-        role="grid"
-        aria-label={`Calendario ${vista === 'mes' ? 'mensual' : vista === 'semana' ? 'semanal' : 'diario'}`}
-      >
-        {/*
-          La fila de días de la semana solo tiene sentido cuando hay varias columnas. En la vista
-          diaria hay una, y el encabezado ya dice qué día es: repetir siete rótulos sobre una
-          sola columna sugiere una cuadrícula que no está.
-        */}
-        {vista === 'dia' ? null : DIAS.map((dia) => <span key={dia} className="crm-cal-cabecera">{dia}</span>)}
+      {/*
+        El día no es una casilla del mes: es una jornada con horas.
 
-        {celdas.map(({ fecha, delMes }) => {
-          const clave = claveDia(fecha);
-          // En orden de reloj: una agenda que no va de la mañana a la tarde no es una agenda.
-          const eventos = [...(porDia.get(clave) ?? [])]
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-          return (
-            <div
-              key={clave}
-              className={`crm-cal-celda${delMes ? '' : ' fuera'}${clave === hoy ? ' hoy' : ''}`}
-            >
-              <span className="crm-cal-numero">{fecha.getDate()}</span>
-              {/*
-                Hora primero y después qué es.
-
-                Antes la celda volcaba la descripción completa, así que en el mes se leía un
-                párrafo cortado a media palabra y no se veía a qué hora era nada —que es lo
-                único que se busca al mirar la agenda—. El texto entero sigue en el `title` y
-                en la exportación.
-              */}
-              {eventos.map((evento) => (
-                <span
-                  key={evento.id}
-                  className={`crm-cal-evento tipo-${evento.type}`}
-                  title={`${horaDe(evento.date)} · ${evento.description || TIPO_LABEL[evento.type] || evento.type}`}
-                >
-                  <time>{horaDe(evento.date)}</time>
-                  <b>{tituloDe(evento)}</b>
-                </span>
-              ))}
-              {vista === 'dia' && !eventos.length ? (
-                <p className="crm-cal-dia-vacio">Nada agendado este día.</p>
-              ) : null}
+        Antes la vista diaria reusaba la misma celda del mes, así que mostraba el número del día
+        y una lista suelta. Sin la columna de horas no se ve el hueco entre las 11 y las 16, que
+        es justo lo que se mira al decidir a qué hora ofrecer una visita.
+      */}
+      {vista === 'dia' ? (
+        <div className="crm-cal-dia" aria-label="Agenda del día">
+          {franjasDelDia(porDia.get(claveDia(ancla)) ?? []).map((franja) => (
+            <div key={franja.hora} className={`crm-cal-franja${franja.eventos.length ? ' con-eventos' : ''}`}>
+              <time className="crm-cal-hora">{String(franja.hora).padStart(2, '0')}:00</time>
+              <div className="crm-cal-franja-cuerpo">
+                {franja.eventos.map((evento) => (
+                  <span
+                    key={evento.id}
+                    className={`crm-cal-evento tipo-${evento.type}`}
+                    title={`${horaDe(evento.date)} · ${evento.description || TIPO_LABEL[evento.type] || evento.type}`}
+                  >
+                    <time>{horaDe(evento.date)}</time>
+                    <b>{tituloDe(evento)}</b>
+                  </span>
+                ))}
+              </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+          {/*
+            Una jornada vacía se dice, no se deja en blanco.
+
+            Doce franjas sin nada y una pantalla que no cargó se ven parecido; la frase separa
+            «miré y no hay nada» de «esto está roto».
+          */}
+          {!(porDia.get(claveDia(ancla)) ?? []).length ? (
+            <p className="crm-cal-dia-vacio">Nada agendado este día.</p>
+          ) : null}
+        </div>
+      ) : (
+        <div
+          className={`crm-cal-grilla${vista === 'semana' ? ' es-semana' : ''}`}
+          role="grid"
+          aria-label={`Calendario ${vista === 'mes' ? 'mensual' : 'semanal'}`}
+        >
+          {DIAS.map((dia) => <span key={dia} className="crm-cal-cabecera">{dia}</span>)}
+
+          {celdas.map(({ fecha, delMes }) => {
+            const clave = claveDia(fecha);
+            // En orden de reloj: una agenda que no va de la mañana a la tarde no es una agenda.
+            const eventos = [...(porDia.get(clave) ?? [])]
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            return (
+              <div
+                key={clave}
+                className={`crm-cal-celda${delMes ? '' : ' fuera'}${clave === hoy ? ' hoy' : ''}`}
+              >
+                <span className="crm-cal-numero">{fecha.getDate()}</span>
+                {/*
+                  Hora primero y después qué es.
+
+                  Antes la celda volcaba la descripción completa, así que en el mes se leía un
+                  párrafo cortado a media palabra y no se veía a qué hora era nada —que es lo
+                  único que se busca al mirar la agenda—. El texto entero sigue en el `title` y
+                  en la exportación.
+                */}
+                {eventos.map((evento) => (
+                  <span
+                    key={evento.id}
+                    className={`crm-cal-evento tipo-${evento.type}`}
+                    title={`${horaDe(evento.date)} · ${evento.description || TIPO_LABEL[evento.type] || evento.type}`}
+                  >
+                    <time>{horaDe(evento.date)}</time>
+                    <b>{tituloDe(evento)}</b>
+                  </span>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {!data?.data.length ? (
         // No es un error: puede no haber nada agendado, o el cargo puede no alcanzar las
