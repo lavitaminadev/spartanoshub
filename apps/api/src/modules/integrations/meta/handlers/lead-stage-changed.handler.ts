@@ -76,9 +76,13 @@ export class LeadStageChangedHandler {
       const campana = lead.campaignName
         ? await this.campaigns.findOne({
           where: { organizationId: payload.organizationId, name: lead.campaignName, clientId: payload.clientId },
-          select: { id: true, metaPixelId: true },
+          select: { id: true, metaPixelId: true, metaCapiEnabled: true },
         })
         : null;
+
+      // Una campana puede quedar fuera del reporte sin apagar el CRM entero: es la excepcion
+      // para las de prueba o las que todavia no tienen su Pixel listo.
+      if (campana && campana.metaCapiEnabled === false) return;
 
       const { pixelId, tokenSource } = await this.clientPixels.resolveForScope(
         payload.organizationId,

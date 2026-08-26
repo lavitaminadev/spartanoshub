@@ -31,12 +31,32 @@ export class MetaPixelPorAmbito1756200000110 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     for (const tabla of this.objetivos) {
       if (!(await queryRunner.hasTable(tabla))) continue;
-      if (await queryRunner.hasColumn(tabla, 'meta_pixel_id')) continue;
-      await queryRunner.addColumn(tabla, this.columna());
+      if (!(await queryRunner.hasColumn(tabla, 'meta_pixel_id'))) {
+        await queryRunner.addColumn(tabla, this.columna());
+      }
+    }
+
+    /*
+     * Interruptor de reporte para la campaña.
+     *
+     * Nace encendido: una campaña de Meta existe para medirse, y exigir activarla dejaría a la
+     * mayoría sin reportar por olvido. `reservation_forms` ya tiene el suyo desde antes, con el
+     * valor contrario por defecto, y esa diferencia es deliberada: un formulario puede ser
+     * interno o de prueba, una campaña de Meta no.
+     */
+    if (await queryRunner.hasTable('crm_campaigns')
+      && !(await queryRunner.hasColumn('crm_campaigns', 'meta_capi_enabled'))) {
+      await queryRunner.addColumn('crm_campaigns', new TableColumn({
+        name: 'meta_capi_enabled', type: 'boolean', isNullable: false, default: true,
+      }));
     }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    if (await queryRunner.hasTable('crm_campaigns')
+      && await queryRunner.hasColumn('crm_campaigns', 'meta_capi_enabled')) {
+      await queryRunner.dropColumn('crm_campaigns', 'meta_capi_enabled');
+    }
     for (const tabla of this.objetivos) {
       if (!(await queryRunner.hasTable(tabla))) continue;
       if (!(await queryRunner.hasColumn(tabla, 'meta_pixel_id'))) continue;

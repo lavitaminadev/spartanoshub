@@ -1,5 +1,5 @@
 import {
-  IsDateString, IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength,
+  IsBoolean, IsDateString, IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength,
   ValidateIf,
 } from 'class-validator';
 import type { CampaignStatus } from '../campaign.entity';
@@ -35,4 +35,7 @@ export class SaveCampaignDto {
    */
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(40)
   metaPixelId?: string | null;
+
+  /** Si la campana reporta sus etapas a Meta. Encendido por omision. */
+  @IsOptional() @IsBoolean() metaCapiEnabled?: boolean;
 }

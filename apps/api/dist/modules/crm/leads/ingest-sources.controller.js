@@ -19,9 +19,9 @@ const swagger_1 = require("@nestjs/swagger");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const class_validator_1 = require("class-validator");
-const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
+const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
+const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
-const user_role_enum_1 = require("../../organizations/user-role.enum");
 const ingest_source_entity_1 = require("./ingest-source.entity");
 const lead_ingest_service_1 = require("./lead-ingest.service");
 class CreateIngestSourceDto {
@@ -51,15 +51,20 @@ __decorate([
     __metadata("design:type", Boolean)
 ], ToggleIngestSourceDto.prototype, "isActive", void 0);
 let IngestSourcesController = class IngestSourcesController {
-    constructor(sources, ingest) {
+    constructor(sources, ingest, accountAccess) {
         this.sources = sources;
         this.ingest = ingest;
+        this.accountAccess = accountAccess;
     }
     async list(req) {
-        const filas = await this.sources.find({
+        const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const todas = await this.sources.find({
             where: { organizationId: req.organizationId },
             order: { createdAt: 'DESC' },
         });
+        const filas = permitidas === undefined
+            ? todas
+            : todas.filter((fila) => fila.clientId && permitidas.includes(fila.clientId));
         return filas.map((fila) => ({
             id: fila.id,
             name: fila.name,
@@ -96,7 +101,7 @@ let IngestSourcesController = class IngestSourcesController {
         };
     }
     async rotate(id, req) {
-        const source = await this.find(id, req.organizationId);
+        const source = await this.find(id, req.organizationId, req);
         const { token } = await this.ingest.issueToken(source);
         return {
             token,
@@ -105,15 +110,19 @@ let IngestSourcesController = class IngestSourcesController {
         };
     }
     async toggle(id, dto, req) {
-        const source = await this.find(id, req.organizationId);
+        const source = await this.find(id, req.organizationId, req);
         source.isActive = dto.isActive;
         await this.sources.save(source);
         return { id: source.id, isActive: source.isActive };
     }
-    async find(id, organizationId) {
+    async find(id, organizationId, req) {
         const source = await this.sources.findOne({ where: { id, organizationId } });
         if (!source)
             throw new common_1.NotFoundException('Origen no encontrado');
+        const permitidas = await this.accountAccess.allowedClientIds(organizationId, req.user);
+        if (permitidas !== undefined && (!source.clientId || !permitidas.includes(source.clientId))) {
+            throw new common_1.NotFoundException('Origen no encontrado');
+        }
         return source;
     }
 };
@@ -158,9 +167,10 @@ exports.IngestSourcesController = IngestSourcesController = __decorate([
     (0, common_1.Controller)('crm/ingest-sources'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
-    (0, module_scope_decorator_1.ModuleScope)('integrations'),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
+    (0, module_scope_decorator_1.ModuleScope)('crm'),
     __param(0, (0, typeorm_1.InjectRepository)(ingest_source_entity_1.LeadIngestSource)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        lead_ingest_service_1.LeadIngestService])
+        lead_ingest_service_1.LeadIngestService,
+        account_access_service_1.AccountAccessService])
 ], IngestSourcesController);

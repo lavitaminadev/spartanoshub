@@ -14,12 +14,22 @@ class MetaPixelPorAmbito1756200000110 {
         for (const tabla of this.objetivos) {
             if (!(await queryRunner.hasTable(tabla)))
                 continue;
-            if (await queryRunner.hasColumn(tabla, 'meta_pixel_id'))
-                continue;
-            await queryRunner.addColumn(tabla, this.columna());
+            if (!(await queryRunner.hasColumn(tabla, 'meta_pixel_id'))) {
+                await queryRunner.addColumn(tabla, this.columna());
+            }
+        }
+        if (await queryRunner.hasTable('crm_campaigns')
+            && !(await queryRunner.hasColumn('crm_campaigns', 'meta_capi_enabled'))) {
+            await queryRunner.addColumn('crm_campaigns', new typeorm_1.TableColumn({
+                name: 'meta_capi_enabled', type: 'boolean', isNullable: false, default: true,
+            }));
         }
     }
     async down(queryRunner) {
+        if (await queryRunner.hasTable('crm_campaigns')
+            && await queryRunner.hasColumn('crm_campaigns', 'meta_capi_enabled')) {
+            await queryRunner.dropColumn('crm_campaigns', 'meta_capi_enabled');
+        }
         for (const tabla of this.objetivos) {
             if (!(await queryRunner.hasTable(tabla)))
                 continue;

@@ -63,3 +63,8 @@ __decorate([
     (0, class_validator_1.MaxLength)(40),
     __metadata("design:type", Object)
 ], SaveCampaignDto.prototype, "metaPixelId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], SaveCampaignDto.prototype, "metaCapiEnabled", void 0);

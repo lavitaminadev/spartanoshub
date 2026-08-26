@@ -90,7 +90,7 @@ export function CrmAdminPage(): JSX.Element {
   const [porRotar, setPorRotar] = useState<{ id: string; nombre: string } | null>(null);
   const [llaveNueva, setLlaveNueva] = useState<string | null>(null);
   const [campaniaAbierta, setCampaniaAbierta] = useState(false);
-  const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId });
+  const [formCampania, setFormCampania] = useState({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId, metaCapiEnabled: true, metaPixelId: '' });
 
   const campanias = useQuery<Campania[]>({
     queryKey: ['crm-campaigns', scope.clientId],
@@ -108,10 +108,13 @@ export function CrmAdminPage(): JSX.Element {
       // Lo elegido en el formulario. El servidor vuelve a comprobar que quien guarda alcance esa
       // empresa, y a un portal le impone la suya ignorando este valor.
       clientId: formCampania.clientId || null,
+      metaCapiEnabled: formCampania.metaCapiEnabled,
+      // Vacio significa heredar el Pixel de la empresa.
+      metaPixelId: formCampania.metaPixelId.trim() || null,
     }),
     onSuccess: async (respuesta: { integracion?: { header?: string; token?: string } }) => {
       setCampaniaAbierta(false);
-      setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId });
+      setFormCampania({ name: '', source: 'meta_lead_ads', investment: '0', status: 'active', clientId: scope.clientId, metaCapiEnabled: true, metaPixelId: '' });
       // Se reutiliza el aviso de llave nueva: es la misma advertencia —cópiala ahora— y tener
       // dos formas de decir lo mismo invita a que una de las dos se quede sin decirlo.
       setLlaveNueva(respuesta?.integracion?.token ?? null);
@@ -395,6 +398,47 @@ export function CrmAdminPage(): JSX.Element {
                 <option value="paused">Pausada</option>
                 <option value="finished">Finalizada</option>
               </select>
+            </label>
+            {/*
+              Pausar apaga la llave de entrada, y eso no es evidente.
+
+              Es el efecto que más confusión produce: alguien pausa una campaña por presupuesto,
+              Make empieza a recibir 401, y el mensaje es el mismo que el de una llave inválida.
+              Decirlo aquí cuesta una línea y ahorra la hora que toma diagnosticarlo.
+            */}
+            {formCampania.status !== 'active' ? (
+              <p className="crm-admin-ayuda">
+                Al dejarla en <strong>{formCampania.status === 'paused' ? 'pausada' : 'finalizada'}</strong> su
+                llave deja de aceptar leads. Los que ya entraron se conservan; la integración
+                recibirá un error hasta que la vuelvas a activar.
+              </p>
+            ) : null}
+            <label>
+              Reportar etapas a Meta
+              <select
+                className="input"
+                value={formCampania.metaCapiEnabled ? 'si' : 'no'}
+                onChange={(event) => setFormCampania({ ...formCampania, metaCapiEnabled: event.target.value === 'si' })}
+              >
+                <option value="si">Sí, reportar</option>
+                <option value="no">No reportar</option>
+              </select>
+            </label>
+            {/*
+              El Pixel propio es la excepción, no la norma.
+
+              Con uno por empresa, Meta aprende entre todas sus campañas; separarlos fragmenta ese
+              aprendizaje. Solo tiene sentido cuando la empresa anuncia marcas distintas con
+              cuentas publicitarias distintas, así que el valor por defecto es heredar.
+            */}
+            <label>
+              Pixel de Meta
+              <input
+                className="input"
+                value={formCampania.metaPixelId}
+                onChange={(event) => setFormCampania({ ...formCampania, metaPixelId: event.target.value })}
+                placeholder="Heredar el de la empresa"
+              />
             </label>
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={() => setCampaniaAbierta(false)}>Cancelar</button>

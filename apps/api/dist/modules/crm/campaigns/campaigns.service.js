@@ -65,6 +65,7 @@ let CampaignsService = class CampaignsService {
             source: dto.source ?? 'Meta Ads',
             clientId: dto.clientId ?? null,
             metaPixelId: dto.metaPixelId?.trim() || null,
+            metaCapiEnabled: dto.metaCapiEnabled ?? true,
             startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
             endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
             investment: dto.investment ?? 0,
@@ -105,6 +106,8 @@ let CampaignsService = class CampaignsService {
             campania.status = dto.status;
         if (dto.metaPixelId !== undefined)
             campania.metaPixelId = dto.metaPixelId?.trim() || null;
+        if (dto.metaCapiEnabled !== undefined)
+            campania.metaCapiEnabled = dto.metaCapiEnabled;
         const saved = await this.campaigns.save(campania);
         if (source) {
             source.campaignId = saved.id;

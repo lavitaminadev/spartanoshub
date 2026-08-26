@@ -52,9 +52,11 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
             const campana = lead.campaignName
                 ? await this.campaigns.findOne({
                     where: { organizationId: payload.organizationId, name: lead.campaignName, clientId: payload.clientId },
-                    select: { id: true, metaPixelId: true },
+                    select: { id: true, metaPixelId: true, metaCapiEnabled: true },
                 })
                 : null;
+            if (campana && campana.metaCapiEnabled === false)
+                return;
             const { pixelId, tokenSource } = await this.clientPixels.resolveForScope(payload.organizationId, payload.clientId, campana?.metaPixelId);
             if (!pixelId) {
                 this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta la etapa "${payload.toStage}"`);
