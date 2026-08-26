@@ -18,7 +18,7 @@ function caso(lead: Record<string, unknown>) {
     findOne: vi.fn().mockResolvedValue(lead),
     save: vi.fn().mockImplementation(async (value) => value),
   };
-  return { uso: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble()), repo };
+  return { uso: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble(), { emit: () => true } as never), repo };
 }
 
 describe('mover un lead de etapa', () => {

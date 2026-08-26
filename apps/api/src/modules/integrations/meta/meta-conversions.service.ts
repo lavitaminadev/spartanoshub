@@ -21,6 +21,14 @@ export interface ConversionEvent {
     fbc?: string;
     fbp?: string;
     externalId?: string[];
+    /**
+     * Identificador que Meta generó al rellenarse el formulario instantáneo.
+     *
+     * **No se hashea.** Es un número de Meta, no un dato personal: hashearlo lo vuelve
+     * irreconocible para ellos y el evento deja de emparejarse con su lead. Por eso viaja
+     * aparte de `externalId`, que sí pasa por SHA-256.
+     */
+    lead_id?: string;
     /** Ciudad normalizada (minúsculas, sin acentos ni espacios). */
     ct?: string[];
     /** Región/estado normalizado. */
@@ -33,6 +41,10 @@ export interface ConversionEvent {
     value?: number;
     contentIds?: string[];
     contentType?: string;
+    /** Nombre de la herramienta que reporta. Meta lo pide para los eventos de CRM. */
+    leadEventSource?: string;
+    /** `'crm'` en los eventos de etapa. Es lo que los separa de una conversión web. */
+    eventSource?: string;
   };
   eventId?: string;
 }
@@ -56,6 +68,7 @@ export class MetaConversionsService {
           fn: event.userData.fn,
           ln: event.userData.ln,
           external_id: event.userData.externalId,
+          lead_id: event.userData.lead_id,
           ct: event.userData.ct,
           st: event.userData.st,
           country: event.userData.country,
@@ -69,6 +82,8 @@ export class MetaConversionsService {
           value: event.customData.value,
           content_ids: event.customData.contentIds,
           content_type: event.customData.contentType,
+          lead_event_source: event.customData.leadEventSource,
+          event_source: event.customData.eventSource,
         } : undefined,
         event_id: event.eventId,
       }],

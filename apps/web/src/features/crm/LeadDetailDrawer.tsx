@@ -774,25 +774,45 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             </label>
           ) : null}
 
-          {/* Solo cuando la etapa es de cierre: preguntar por qué se perdió algo que sigue vivo
-              invita a rellenarlo, y ese campo alimenta el informe de por qué se pierden negocios. */}
-          {etapa === 'lost' ? (
-            <label>
-              <span>Motivo de descarte</span>
-              <select
+          {/*
+            El motivo está siempre a la vista, con su propia advertencia.
+
+            Antes el campo aparecía solo al poner la etapa en Descartado, así que quien decidía
+            descartar tenía que cambiar la etapa primero para descubrir que además le pedían un
+            motivo. El propio rótulo del desplegable dice cuándo aplica —«Solo si se descarta»—,
+            que es como lo resuelve la herramienta de referencia: se ve, no se rellena por
+            inercia, y no aparece de golpe a mitad del gesto.
+
+            Guardar sigue exigiéndolo cuando la etapa es de cierre, así que el informe de por qué
+            se pierden negocios no se llena de descartes sin causa.
+          */}
+          <label>
+            <span>Motivo de descarte</span>
+            <select
+              className="input"
+              value={motivoCatalogo}
+              onChange={(event) => editar(setMotivoCatalogo, event.target.value)}
+              disabled={!scope.puedeEditar}
+            >
+              <option value="">— Solo si se descarta —</option>
+              {LEAD_DISCARD_REASONS.map((razon) => <option key={razon} value={razon}>{razon}</option>)}
+            </select>
+            {/*
+              «Otro» sin detalle no explica nada: en el informe se agrupa como una barra sin
+              contenido, que es peor que no haberlo preguntado. Por eso el campo se habilita al
+              elegirlo y Guardar lo exige cuando la etapa es de cierre.
+            */}
+            {motivoCatalogo === 'Otro' ? (
+              <input
                 className="input"
-                value={motivoCatalogo}
-                onChange={(event) => editar(setMotivoCatalogo, event.target.value)}
+                value={motivoOtro}
+                onChange={(event) => editar(setMotivoOtro, event.target.value)}
                 disabled={!scope.puedeEditar}
-              >
-                <option value="">Selecciona un motivo</option>
-                {LEAD_DISCARD_REASONS.map((razon) => <option key={razon} value={razon}>{razon}</option>)}
-              </select>
-              {motivoCatalogo === 'Otro' ? (
-                <input className="input" value={motivoOtro} onChange={(event) => editar(setMotivoOtro, event.target.value)} disabled={!scope.puedeEditar} placeholder="Especifica el motivo" />
-              ) : null}
-            </label>
-          ) : null}
+                placeholder="Escribe el motivo"
+                autoFocus
+              />
+            ) : null}
+          </label>
         </div>
 
         <label className="lead-detail-nota">
