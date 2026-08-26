@@ -91,6 +91,19 @@ export class MetaClientPixelService {
       pixelId: records[client.id]?.pixelId || null,
       pixelName: records[client.id]?.pixelName || null,
       tokenConfigured: Boolean(records[client.id]?.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN),
+      /*
+       * Propio y heredado se distinguen, y `tokenConfigured` los confundía.
+       *
+       * Decía «sí» también cuando lo único que había era el token del entorno, así que una
+       * empresa sin token propio se veía correctamente configurada. Y un token de entorno
+       * pertenece a una cuenta publicitaria concreta: casi nunca tiene permiso sobre el Pixel de
+       * otra, de modo que sus conversiones se envían, Meta las rechaza y quedan en `failed` sin
+       * que nadie sepa por qué.
+       *
+       * `tokenConfigured` se conserva porque otras pantallas ya lo consumen.
+       */
+      tokenPropio: Boolean(records[client.id]?.accessToken),
+      tokenHeredado: !records[client.id]?.accessToken && Boolean(process.env.META_CONVERSIONS_ACCESS_TOKEN),
       configuredAt: records[client.id]?.configuredAt || null,
     }));
   }

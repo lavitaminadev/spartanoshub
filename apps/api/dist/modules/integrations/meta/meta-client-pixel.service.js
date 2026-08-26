@@ -79,6 +79,8 @@ let MetaClientPixelService = class MetaClientPixelService {
             pixelId: records[client.id]?.pixelId || null,
             pixelName: records[client.id]?.pixelName || null,
             tokenConfigured: Boolean(records[client.id]?.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN),
+            tokenPropio: Boolean(records[client.id]?.accessToken),
+            tokenHeredado: !records[client.id]?.accessToken && Boolean(process.env.META_CONVERSIONS_ACCESS_TOKEN),
             configuredAt: records[client.id]?.configuredAt || null,
         }));
     }

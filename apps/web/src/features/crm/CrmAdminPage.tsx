@@ -26,6 +26,16 @@ import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import './crm-admin.css';
 
 interface Cliente { id: string; name: string }
+
+/** Estado de Meta de una empresa, tal como lo devuelve el catálogo de Conexiones. */
+interface BindingMeta {
+  clientId: string;
+  pixelId: string | null;
+  /** Tiene credencial propia para ese Pixel. */
+  tokenPropio: boolean;
+  /** No tiene la suya y usaría la general, que casi nunca sirve para su Pixel. */
+  tokenHeredado: boolean;
+}
 interface Usuario { id: string; name: string; email: string; role: string; isActive?: boolean }
 interface Origen {
   id: string;
@@ -126,6 +136,23 @@ export function CrmAdminPage(): JSX.Element {
     mutationFn: (id: string) => api.delete(`/crm/campaigns/${id}`),
     onSuccess: () => refrescarCampanias(),
   });
+
+  /**
+   * Estado de Meta de la empresa que se está mirando.
+   *
+   * Se consulta en el mejor de los casos: el catálogo pertenece a Conexiones y no todos los
+   * cargos que administran el CRM lo alcanzan. Si responde 403, `estadoMeta` queda indefinido y
+   * los avisos no se dibujan, en vez de mostrar un error por algo que es informativo.
+   */
+  const metaCatalogo = useQuery<{ bindings: BindingMeta[] }>({
+    queryKey: ['meta-client-pixels'],
+    queryFn: () => api.get('/integrations/meta/client-pixels/catalog'),
+    retry: false,
+    enabled: !scope.esAgencia,
+  });
+  const estadoMeta = scope.clientId
+    ? metaCatalogo.data?.bindings.find((fila) => fila.clientId === scope.clientId)
+    : undefined;
 
   const clientes = useQuery<{ data: Cliente[] }>({ queryKey: ['clients-min'], queryFn: () => api.get('/clients') });
   const usuarios = useQuery<{ data: Usuario[] }>({ queryKey: ['users-min'], queryFn: () => api.get('/users') });
@@ -286,6 +313,45 @@ export function CrmAdminPage(): JSX.Element {
           El nombre tiene que escribirse igual que el que traen los leads —{scope.esAgencia ? 'los de Espartanos' : `los de ${scope.empresa}`}—;
           si no coincide, la campaña aparece con cero leads y su inversión no se reparte entre nadie.
         </p>
+
+        {/*
+          Lo que impide que estas campañas reporten a Meta, dicho antes de que ocurra.
+
+          Los tres casos terminan igual —las conversiones no llegan— y ninguno avisa por su
+          cuenta: uno deja los eventos sin encolar y los otros dos hacen que Meta los rechace y
+          queden como fallidos en una cola que nadie mira.
+
+          Solo se muestra a quien puede consultar el estado de Meta; para el resto la consulta
+          responde 403 y la sección sencillamente no aparece.
+        */}
+        {scope.esAgencia ? (
+          <p className="crm-admin-ayuda">
+            Estas campañas son de la agencia. Sus leads no se atribuyen a ninguna empresa cliente,
+            y sus etapas no se reportan a Meta: para eso, elige la empresa arriba y créalas ahí.
+          </p>
+        ) : estadoMeta ? (
+          <>
+            {!estadoMeta.pixelId ? (
+              <p className="crm-admin-ayuda">
+                <strong>{scope.empresa} no tiene Pixel configurado.</strong> Sus campañas no
+                reportarán etapas a Meta hasta que se asigne uno en Conexiones.
+              </p>
+            ) : null}
+            {estadoMeta.pixelId && estadoMeta.tokenHeredado ? (
+              <p className="crm-admin-ayuda">
+                <strong>Usando el token general.</strong> Ese token pertenece a otra cuenta
+                publicitaria y normalmente no tiene permiso sobre el Pixel {estadoMeta.pixelId}:
+                Meta rechazará las conversiones. Configura el token propio de {scope.empresa}.
+              </p>
+            ) : null}
+            {estadoMeta.pixelId && !estadoMeta.tokenPropio && !estadoMeta.tokenHeredado ? (
+              <p className="crm-admin-ayuda">
+                <strong>Falta el token de {scope.empresa}.</strong> Tiene Pixel pero no hay
+                credencial con qué escribir en él.
+              </p>
+            ) : null}
+          </>
+        ) : null}
         {campanias.data?.length ? (
           <ul className="crm-admin-lista">
             {campanias.data.map((campania) => (
