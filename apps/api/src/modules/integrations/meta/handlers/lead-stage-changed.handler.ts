@@ -35,6 +35,15 @@ export class LeadStageChangedHandler {
   /** Nombre con el que estos eventos aparecen en Events Manager como origen. */
   private static readonly ORIGEN = 'Espartanos';
 
+  /**
+   * Forma de un identificador de lead de Meta: 15 a 17 dígitos, nada más.
+   *
+   * Es la definición de Meta, y comprobarla acá evita mandar valores que van a rechazar. En la
+   * base conviven identificadores que no lo son: los de prueba escritos a mano y los de otros
+   * orígenes, que llevan el nombre del origen por delante.
+   */
+  private static readonly LEADGEN_ID = /^\d{15,17}$/;
+
   constructor(
     private readonly outbox: MetaConversionOutboxService,
     private readonly clientPixels: MetaClientPixelService,
@@ -66,7 +75,19 @@ export class LeadStageChangedHandler {
        */
       if (lead.source !== 'meta_lead_ads') return;
       const leadId = lead.externalLeadId;
-      if (!leadId || leadId.includes(':')) return;
+      if (!leadId || !LeadStageChangedHandler.LEADGEN_ID.test(leadId)) {
+        /*
+         * Se descarta acá y no en Meta.
+         *
+         * Un identificador que no tiene la forma de un `leadgen_id` —una prueba escrita a mano,
+         * el número interno de otro sistema, el prefijo `origen:` que se antepone fuera de
+         * Meta— se envía igual y Meta lo rechaza. El evento acaba en la cola de fallidos, que es
+         * el sitio donde se buscan los problemas reales, y ahí no distingue de un token vencido.
+         *
+         * Sin aviso: no es un error, es un lead que no vino de un formulario instantáneo.
+         */
+        return;
+      }
 
       // Sin empresa no hay capacidad que comprobar ni Pixel que heredar: es un prospecto de la
       // agencia y no pertenece a ninguna cuenta publicitaria de cliente.

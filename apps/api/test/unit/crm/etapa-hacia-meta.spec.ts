@@ -103,6 +103,19 @@ describe('etapa del CRM hacia Meta', () => {
     expect(outbox.enqueue).not.toHaveBeenCalled();
   });
 
+  it('no reporta un identificador que no tiene forma de leadgen_id', async () => {
+    // Comprobado contra datos reales: de cinco leads de Meta en producción, tres llevaban un
+    // identificador escrito a mano. Sin esta puerta se enviaban, Meta los rechazaba, y quedaban
+    // en la cola de fallidos mezclados con los problemas de verdad.
+    const { handler, outbox } = montar({
+      lead: { id: 'lead-1', source: 'meta_lead_ads', externalLeadId: 'TEST-POWERSHELL-20260825', campaignName: null },
+    });
+
+    await handler.handle(evento());
+
+    expect(outbox.enqueue).not.toHaveBeenCalled();
+  });
+
   it('no reporta cuando el identificador lleva prefijo: no es un lead de Meta', async () => {
     // `identificadorExterno` antepone el origen salvo para `meta_lead_ads`. Mandar «zapier:99»
     // como `lead_id` hace que Meta rechace el envío entero.

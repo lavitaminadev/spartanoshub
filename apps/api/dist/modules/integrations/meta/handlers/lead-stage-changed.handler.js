@@ -43,8 +43,9 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
             if (lead.source !== 'meta_lead_ads')
                 return;
             const leadId = lead.externalLeadId;
-            if (!leadId || leadId.includes(':'))
+            if (!leadId || !LeadStageChangedHandler_1.LEADGEN_ID.test(leadId)) {
                 return;
+            }
             if (!payload.clientId)
                 return;
             if (!await this.capacidades.tiene(payload.organizationId, payload.clientId, 'metaConversions'))
@@ -87,6 +88,7 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
 };
 exports.LeadStageChangedHandler = LeadStageChangedHandler;
 LeadStageChangedHandler.ORIGEN = 'Espartanos';
+LeadStageChangedHandler.LEADGEN_ID = /^\d{15,17}$/;
 __decorate([
     (0, event_emitter_1.OnEvent)('lead.stage-changed'),
     __metadata("design:type", Function),
