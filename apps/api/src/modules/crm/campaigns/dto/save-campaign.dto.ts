@@ -26,4 +26,13 @@ export class SaveCampaignDto {
   @IsOptional() @IsNumber() @Min(0) @Max(999999999999) investment?: number;
 
   @IsOptional() @IsIn(['active', 'paused', 'finished']) status?: CampaignStatus;
+
+  /**
+   * Pixel propio de esta campaña. `null` la devuelve a heredar el de su empresa.
+   *
+   * Solo hace falta cuando una empresa anuncia varias marcas con cuentas publicitarias
+   * distintas. Omitirlo no toca lo que ya estuviera configurado.
+   */
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(40)
+  metaPixelId?: string | null;
 }

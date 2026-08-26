@@ -49,6 +49,8 @@ interface Panel {
   tiempoDeCierre: number | null;
   /** Quien mejor convierte de los que tienen al menos tres leads. */
   mejorSetter: { assignedTo: string; leads: number; ventas: number; conversion: number } | null;
+  /** La campaña que más dinero cerró en el período. Nula si aún no hay ventas con campaña. */
+  mejorCampana: { campaignName: string; ventas: number; monto: number } | null;
   comision: { tasa: number; ganada: number; proyectada: number };
   porEtapa: Conteo[];
   porFuente: Conteo[];
@@ -274,6 +276,30 @@ export function CrmDashboardPage(): JSX.Element {
           // datos o si el reparto todavía es demasiado chico para comparar.
           <p className="crm-dash-vacio">
             Nadie alcanza los 3 leads asignados que se piden para comparar conversiones.
+          </p>
+        )}
+      </section>
+
+      {/*
+        Qué campaña terminó en dinero.
+
+        Va junto al setter porque responden la misma pregunta desde los dos lados: quién vende
+        mejor y qué trae a quien compra. El panel ya dice cuánto costó cada campaña por lead;
+        sin esto se optimiza por leads baratos, que es como se compra volumen que no cierra.
+      */}
+      <section className="crm-dash-panel crm-dash-setter">
+        <h2>{termino('campana')} más vendida</h2>
+        {data?.mejorCampana ? (
+          <p className="crm-dash-setter-linea">
+            <strong>{data.mejorCampana.campaignName}</strong>
+            <span>
+              {data.mejorCampana.monto.toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })}
+              {' · '}{data.mejorCampana.ventas} venta{data.mejorCampana.ventas === 1 ? '' : 's'}
+            </span>
+          </p>
+        ) : (
+          <p className="crm-dash-vacio">
+            Todavía no hay ventas con {termino('campana').toLowerCase()} registrada en este período.
           </p>
         )}
       </section>

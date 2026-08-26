@@ -111,6 +111,10 @@ __decorate([
     __metadata("design:type", Boolean)
 ], ReservationForm.prototype, "metaCapiEnabled", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'meta_pixel_id', type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], ReservationForm.prototype, "metaPixelId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'ga4_measurement_id', type: 'varchar', length: 40, nullable: true }),
     __metadata("design:type", Object)
 ], ReservationForm.prototype, "ga4MeasurementId", void 0);

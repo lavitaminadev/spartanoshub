@@ -32,7 +32,7 @@ describe('InteractionsController · aislamiento por empresa', () => {
 
     await controller.findAll({ limit: 50, offset: 0 } as any, request);
 
-    expect(service.findAll).toHaveBeenCalledWith('org-1', 50, 0, undefined, ['client-1'], undefined);
+    expect(service.findAll).toHaveBeenCalledWith('org-1', 50, 0, undefined, ['client-1'], undefined, { from: undefined, to: undefined });
   });
 
   it('valida y conserva la empresa elegida por el calendario CRM', async () => {
@@ -43,7 +43,7 @@ describe('InteractionsController · aislamiento por empresa', () => {
 
     expect(accountAccess.assertClient).toHaveBeenCalledWith('org-1', request.user, 'client-1');
     expect(capabilities.assert).toHaveBeenCalledWith('org-1', 'client-1', 'crm');
-    expect(service.findAll).toHaveBeenCalledWith('org-1', 500, 0, undefined, ['client-1'], 'client-1');
+    expect(service.findAll).toHaveBeenCalledWith('org-1', 500, 0, undefined, ['client-1'], 'client-1', { from: undefined, to: undefined });
   });
 
   it('el portal usa la empresa firmada en su sesión aunque manipule el calendario', async () => {
@@ -59,7 +59,7 @@ describe('InteractionsController · aislamiento por empresa', () => {
 
     expect(accountAccess.assertClient).toHaveBeenCalledWith('org-1', portalRequest.user, 'client-1');
     expect(capabilities.assert).toHaveBeenCalledWith('org-1', 'client-1', 'crm');
-    expect(service.findAll).toHaveBeenCalledWith('org-1', 500, 0, undefined, ['client-1'], 'client-1');
+    expect(service.findAll).toHaveBeenCalledWith('org-1', 500, 0, undefined, ['client-1'], 'client-1', { from: undefined, to: undefined });
   });
 
   it('no permite a una persona acotada crear actividad general sin empresa', async () => {

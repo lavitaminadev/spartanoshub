@@ -39,12 +39,26 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
       return;
     }
     this.schedule('meta-lead-recovery', 15 * 60_000, () => this.metaRecovery.handle());
-    this.schedule('meta-capi-outbox', 5 * 60_000, () => this.capiOutbox.processPending());
+    /*
+     * Lote de 100 cada dos minutos, y no 25 cada cinco.
+     *
+     * Lo que importa no es el promedio sino la ráfaga. Con el ritmo anterior salían 300 eventos
+     * por hora: un lunes que concentre cuatrocientas reservas en dos horas tarda casi siete en
+     * vaciar la cola, y Meta recibe conversiones con ese retraso. No se pierde nada —para eso
+     * está la bandeja— pero una conversión que llega tarde vale menos para atribuir campañas que
+     * siguen activas.
+     *
+     * Subirlo no arriesga duplicados: `claimBatch` reserva el lote con bloqueo, así que dos
+     * pasadas que se solapen no toman los mismos eventos.
+     */
+    this.schedule('meta-capi-outbox', 2 * 60_000, () => this.capiOutbox.processPending(100));
     // Google va acá por la misma razón que Meta, y faltaba: tenía endpoint de cron externo pero
     // nadie lo vaciaba desde adentro. Una reserva encola su conversión de Google igual que la de
     // Meta, así que sin esto quedaban esperando indefinidamente mientras las de Meta salían, y
     // la diferencia solo se nota al comparar campañas semanas después.
-    this.schedule('google-ads-outbox', 5 * 60_000, () => this.googleOutbox.processPending());
+    // Mismo ritmo que Meta: una reserva encola en las dos colas a la vez, así que dimensionarlas
+    // distinto solo consigue que una vaya al día y la otra arrastre.
+    this.schedule('google-ads-outbox', 2 * 60_000, () => this.googleOutbox.processPending(100));
     // Cada minuto: es la resolución de las esperas. Una automatización que dice "esperar dos
     // horas" no puede reanudarse con un margen mayor que el intervalo de este trabajo.
     this.schedule('automation-runs', 60_000, () => this.automations.processPending());

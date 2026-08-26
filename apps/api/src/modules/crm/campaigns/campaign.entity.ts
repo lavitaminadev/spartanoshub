@@ -51,6 +51,13 @@ export class Campaign {
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0 }) investment: number;
 
   @Column({ type: 'varchar', length: 20, default: 'active' }) status: CampaignStatus;
+  /**
+   * Pixel propio de esta campaña. Nulo hereda el de la empresa.
+   *
+   * Dos campañas de la misma empresa pueden anunciar marcas distintas, cada una con su cuenta
+   * publicitaria: sin esto, sus conversiones se mezclan en un solo conjunto de datos.
+   */
+  @Column({ name: 'meta_pixel_id', type: 'varchar', length: 40, nullable: true }) metaPixelId?: string | null;
 
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

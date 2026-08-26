@@ -332,7 +332,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const form = await this.publishedForm(slug);
         const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
         const meta = capabilities.metaConversions
-            ? await this.getClientMetaConfig(form.clientId, form.organizationId)
+            ? await this.getClientMetaConfig(form.clientId, form.organizationId, form)
             : { pixelId: '', pixelName: null, accessToken: undefined };
         return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: form.fieldSchema.filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: form.servicesConfig, resourcesConfig: form.resourcesConfig, pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
     }
@@ -371,8 +371,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const { year, month, day } = (0, timezone_1.zonedParts)(date, timeZone);
         return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
-    async getClientMetaConfig(clientId, organizationId) {
-        return this.clientPixels.resolve(organizationId, clientId);
+    async getClientMetaConfig(clientId, organizationId, form) {
+        return this.clientPixels.resolveForScope(organizationId, clientId, form?.metaPixelId);
     }
     async createManual(organizationId, userId, dto, clientId, clientIds, notify = true) {
         const form = await this.getForm(organizationId, dto.formId, clientId, clientIds);
@@ -587,7 +587,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
             if (!capabilities.metaConversions)
                 return;
-            const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId);
+            const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
             if (!pixelId || !accessToken)
                 return;
             const fallbackUrl = process.env.APP_PUBLIC_URL
@@ -924,7 +924,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         });
     }
     async enqueueMetaConversion(booking, form, eventName, eventTime, eventSourceUrl) {
-        const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId);
+        const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
         if (!pixelId || !accessToken)
             throw new Error('Meta pixel or CAPI token is not configured');
         const isWebEvent = eventName === 'Schedule';
@@ -955,7 +955,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         });
     }
     async enqueueMetaSurveyConversion(response, form, dto, ipAddress, userAgent, eventSourceUrl) {
-        const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId);
+        const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
         if (!pixelId || !accessToken)
             throw new Error('Meta pixel or CAPI token is not configured');
         const fallbackUrl = process.env.APP_PUBLIC_URL ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}` : undefined;

@@ -524,10 +524,23 @@ export class LeadIntakeService {
       return { qualityScore, fitStatus: LeadFitStatus.REVIEW, scoringSignals: signals };
     }
 
+    /*
+     * Puntaje bajo deja el lead **en revisión**, no descartado.
+     *
+     * Antes un lead que llegaba por integración con menos de 35 puntos nacía `unqualified` y
+     * además con motivo de descarte, lo que le creaba una interacción «descartado» y lo dejaba
+     * marcado como si alguien lo hubiera revisado y rechazado. Nadie lo había mirado.
+     *
+     * El puntaje mide señales de encaje, no la voluntad de trabajar a alguien: quien deja su
+     * teléfono en una campaña de barrio puntúa bajo y puede ser la venta del mes. Descartar por
+     * esa vara saca del embudo a gente que nunca se evaluó, y el equipo ni siquiera la ve.
+     *
+     * Descartar sigue siendo una decisión de una persona. El puntaje se conserva y ordena; lo
+     * que ya no hace es cerrar la puerta solo.
+     */
     return {
       qualityScore,
-      fitStatus: anotadoAMano ? LeadFitStatus.REVIEW : LeadFitStatus.UNQUALIFIED,
-      discardReason: anotadoAMano ? undefined : 'Puntaje insuficiente para priorización comercial.',
+      fitStatus: LeadFitStatus.REVIEW,
       scoringSignals: [...signals, 'low_score'],
     };
   }

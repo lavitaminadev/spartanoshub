@@ -675,7 +675,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </label>
 
           <label>
-            <span>Semáforo</span>
+            <span>{termino('semaforo')}</span>
             <select className="input" value={semaforo} onChange={(event) => editar(setSemaforo, event.target.value as typeof semaforo)} disabled={!scope.puedeEditar}>
               <option value="">Sin etiqueta</option>
               <option value="green">Verde</option>

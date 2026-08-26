@@ -289,6 +289,21 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   });
 
   /**
+   * Devuelve el lead a la bandeja común.
+   *
+   * `null` desasigna y `undefined` deja como está: el servidor distingue las dos cosas, y es lo
+   * que permite soltar sin tener que abrir la ficha.
+   */
+  const soltar = useMutation({
+    mutationFn: (id: string) => api.put(`/crm/leads/${id}`, { assignedTo: null }),
+    onSuccess: async () => {
+      await refrescar();
+      setAviso({ tono: 'success', texto: 'Lead sin asignar. Cualquiera del equipo puede tomarlo.' });
+    },
+    onError: (err: Error) => setAviso({ tono: 'error', texto: err.message || 'No se pudo soltar el lead' }),
+  });
+
+  /**
    * Cambio de etapa sobre varios prospectos a la vez.
    *
    * Se usa `allSettled` y no `all`: con `all`, un solo rechazo abandonaba el resto y dejaba la
@@ -713,6 +728,29 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                       Tomar
                     </button>
                   ) : null}
+                  {/*
+                    Soltarlo, para que vuelva a estar disponible.
+
+                    Tomar era de ida: una vez asignado, devolverlo a la bandeja común obligaba a
+                    abrir la ficha, cambiar el desplegable y guardar. Quien se dio cuenta de que
+                    un lead no era suyo lo dejaba a su nombre, y ahí se quedaba sin que nadie más
+                    lo pudiera tomar.
+
+                    Solo lo ve quien lo tiene, y quien administra el CRM. Soltar el lead de otro
+                    sin querer es exactamente el gesto que no debe estar a un clic de distancia.
+                  */}
+                  {lead.assignedTo && scope.puedeEditar
+                    && (lead.assignedTo === user?.id || user?.permissions?.crm === 'manage') ? (
+                      <button
+                        type="button"
+                        className="leads-board-tomar es-soltar"
+                        disabled={soltar.isPending}
+                        title={lead.assignedTo === user?.id ? 'Dejarlo sin asignar' : `Quitárselo a ${nombreDe(lead.assignedTo) ?? 'su responsable'}`}
+                        onClick={(event) => { event.stopPropagation(); soltar.mutate(lead.id); }}
+                      >
+                        Soltar
+                      </button>
+                    ) : null}
                 </div>
               </div>
             );
@@ -828,7 +866,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               {campanas.map((campana) => <option key={campana.id} value={campana.name} />)}
             </datalist>
             <label>Monto estimado<input className="input" type="number" min={0} step="1000" value={formulario.estimatedAmount} onChange={(e) => setFormulario({ ...formulario, estimatedAmount: e.target.value })} placeholder="Opcional" /></label>
-            <label>Semáforo<select className="input" value={formulario.trafficLight} onChange={(e) => setFormulario({ ...formulario, trafficLight: e.target.value })}><option value="">Sin etiqueta</option><option value="green">Verde</option><option value="yellow">Amarillo</option><option value="red">Rojo</option></select></label>
+            <label>{termino('semaforo')}<select className="input" value={formulario.trafficLight} onChange={(e) => setFormulario({ ...formulario, trafficLight: e.target.value })}><option value="">Sin etiqueta</option><option value="green">Verde</option><option value="yellow">Amarillo</option><option value="red">Rojo</option></select></label>
             <label>Notas<textarea className="input" rows={3} value={formulario.notes} onChange={(e) => setFormulario({ ...formulario, notes: e.target.value })} /></label>
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={() => setCrearAbierto(false)}>Cancelar</button>

@@ -309,8 +309,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         }
         return {
             qualityScore,
-            fitStatus: anotadoAMano ? lead_fit_status_enum_1.LeadFitStatus.REVIEW : lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
-            discardReason: anotadoAMano ? undefined : 'Puntaje insuficiente para priorización comercial.',
+            fitStatus: lead_fit_status_enum_1.LeadFitStatus.REVIEW,
             scoringSignals: [...signals, 'low_score'],
         };
     }

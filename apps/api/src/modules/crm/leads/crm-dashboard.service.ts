@@ -101,9 +101,10 @@ export class CrmDashboardService {
       }),
     ]);
 
-    const [tiempoDeCierre, conversionPorSetter] = await Promise.all([
+    const [tiempoDeCierre, conversionPorSetter, mejorCampana] = await Promise.all([
       this.tiempoDeCierre(base),
       this.conversionPorSetter(base),
+      this.mejorCampana(base),
     ]);
 
     // Quien más convierte, no quien más vende: con volúmenes distintos, el total premia a quien
@@ -119,6 +120,7 @@ export class CrmDashboardService {
       clientId: alcance.clientId ?? null,
       tiempoDeCierre,
       mejorSetter,
+      mejorCampana,
       comision: {
         tasa: TASA_COMISION,
         ganada: Math.round(montoVendido * TASA_COMISION),
@@ -197,6 +199,43 @@ export class CrmDashboardService {
       const ventas = Number(fila.ventas) || 0;
       return { assignedTo: fila.assignedTo, leads, ventas, conversion: leads ? ventas / leads : 0 };
     });
+  }
+
+  /**
+   * La campaña que más vendió en el período.
+   *
+   * Es la pregunta que cierra el círculo con la inversión: el panel ya dice cuánto costó cada
+   * campaña por lead, y esto dice cuál de ellas terminó en dinero. Sin las dos juntas se
+   * optimiza por leads baratos, que es como se compra volumen que no cierra.
+   *
+   * Se ordena por **monto vendido** y no por cantidad de ventas: dos ventas grandes valen más
+   * que cinco chicas, y quien decide dónde poner el presupuesto necesita esa distinción.
+   *
+   * Devuelve `null` cuando todavía no hay ninguna venta con campaña conocida. Los leads sin
+   * campaña quedan fuera a propósito: agruparlos bajo «sin campaña» pondría a competir un cajón
+   * de sobras contra campañas reales, y a menudo lo ganaría.
+   */
+  private async mejorCampana(
+    base: Record<string, unknown>,
+  ): Promise<{ campaignName: string; ventas: number; monto: number } | null> {
+    const fila = await this.acotar(this.leads.createQueryBuilder('lead'), base)
+      .select('lead.campaign_name', 'campaignName')
+      .addSelect('COUNT(*)', 'ventas')
+      .addSelect('COALESCE(SUM(lead.estimated_amount), 0)', 'monto')
+      .andWhere('lead.status = :won', { won: LeadStatus.WON })
+      .andWhere('lead.campaign_name IS NOT NULL')
+      .andWhere("lead.campaign_name <> ''")
+      .groupBy('lead.campaign_name')
+      .orderBy('monto', 'DESC')
+      .limit(1)
+      .getRawOne<{ campaignName: string; ventas: string; monto: string }>();
+
+    if (!fila) return null;
+    return {
+      campaignName: fila.campaignName,
+      ventas: Number(fila.ventas) || 0,
+      monto: Number(fila.monto) || 0,
+    };
   }
 
   /**

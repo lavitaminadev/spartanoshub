@@ -51,6 +51,10 @@ __decorate([
     __metadata("design:type", String)
 ], Campaign.prototype, "status", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'meta_pixel_id', type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], Campaign.prototype, "metaPixelId", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Campaign.prototype, "createdAt", void 0);

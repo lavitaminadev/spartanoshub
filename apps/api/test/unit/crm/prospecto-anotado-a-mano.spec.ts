@@ -46,16 +46,27 @@ describe('prospecto anotado a mano', () => {
     expect(lead.fitStatus).toBe(LeadFitStatus.REVIEW);
   });
 
-  it('el mismo prospecto, llegado por un origen automático, sí se descarta', async () => {
-    // La regla no afloja el scoring: distingue quién lo escribió. Sin esta comprobación, el
-    // arreglo podría haber desactivado el descarte para todos sin que nada lo delatara.
+  it('el mismo prospecto por un origen automático tampoco se descarta solo', async () => {
+    /*
+     * Antes esta prueba exigía lo contrario: un lead de origen automático con puntaje bajo nacía
+     * `unqualified` y con motivo de descarte.
+     *
+     * Se cambió a propósito. El puntaje mide señales de encaje —correo corporativo, campaña,
+     * palabras de intención— y no la voluntad de trabajar a alguien: quien deja su teléfono en
+     * una campaña de barrio puntúa bajo y puede ser la venta del mes. Descartar por esa vara
+     * sacaba del embudo a gente que nadie había mirado, y el equipo ni siquiera la veía.
+     *
+     * Descartar vuelve a ser una decisión de una persona. El puntaje se conserva y sirve para
+     * ordenar; lo que ya no hace es cerrar la puerta solo.
+     */
     const lead = await service.captureLead({
       organizationId: 'org-1',
       name: 'Panadería Aurora',
       email: 'aurora@gmail.com',
     });
 
-    expect(lead.fitStatus).toBe(LeadFitStatus.UNQUALIFIED);
+    expect(lead.fitStatus).toBe(LeadFitStatus.REVIEW);
+    expect(lead.discardReason).toBeFalsy();
   });
 
   it('sin correo ni teléfono sigue en revisión: el vendedor puede tener solo el nombre', async () => {

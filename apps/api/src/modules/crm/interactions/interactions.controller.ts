@@ -39,7 +39,7 @@ export class InteractionsController {
       await this.assertClientScope(req, await this.service.referenceClientId({ leadId: query.leadId }, req.organizationId));
     }
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, clientId);
+    return this.service.findAll(req.organizationId, query.limit, query.offset, query.leadId, allowed, clientId, { from: query.from, to: query.to });
   }
 
   @Get(':id')

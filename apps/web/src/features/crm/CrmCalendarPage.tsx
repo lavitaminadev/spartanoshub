@@ -124,10 +124,38 @@ export function CrmCalendarPage(): JSX.Element {
   // Cómo llama esta empresa a sus cosas. De fábrica para lo que no haya renombrado.
   const { termino } = useVocabulario(scope.clientId);
 
+  const celdas = useMemo(() => {
+    if (vista === 'mes') return celdasDelMes(ancla);
+    if (vista === 'semana') return celdasDeLaSemana(ancla);
+    return celdasDelDia(ancla);
+  }, [ancla, vista]);
+
+  /**
+   * Extremos de lo que se está dibujando, para pedir exactamente eso.
+   *
+   * Antes se pedían las 100 actividades más recientes sin rango, y la pantalla fallaba de dos
+   * formas que se leían igual —«no hay nada agendado»—: retroceder a un mes anterior no traía
+   * ninguna de ese mes, porque las recientes agotaban el cupo; y un mes con más de cien se
+   * dibujaba incompleto sin avisar.
+   *
+   * El día se cubre entero: desde su primer instante hasta el último, porque una actividad de
+   * las 23:40 pertenece a ese día aunque la petición se arme a mediodía.
+   */
+  const rango = useMemo(() => {
+    const desde = new Date(celdas[0].fecha);
+    desde.setHours(0, 0, 0, 0);
+    const hasta = new Date(celdas[celdas.length - 1].fecha);
+    hasta.setHours(23, 59, 59, 999);
+    return { desde: desde.toISOString(), hasta: hasta.toISOString() };
+  }, [celdas]);
+
   const { data, isLoading, error, refetch, isFetching } = useQuery<{ data: Actividad[] }>({
-    queryKey: ['crm-calendario', scope.clientId],
+    // El rango forma parte de la clave: cambiar de mes trae otras actividades, no las mismas
+    // filtradas, así que su resultado no puede reutilizar la caché del período anterior.
+    queryKey: ['crm-calendario', scope.clientId, rango.desde, rango.hasta],
     queryFn: () => api.get(
-      `/crm/interactions?limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      `/crm/interactions?limit=500&from=${encodeURIComponent(rango.desde)}&to=${encodeURIComponent(rango.hasta)}`
+      + `${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
     ),
     retry: false,
   });
@@ -142,11 +170,6 @@ export function CrmCalendarPage(): JSX.Element {
     return mapa;
   }, [data]);
 
-  const celdas = useMemo(() => {
-    if (vista === 'mes') return celdasDelMes(ancla);
-    if (vista === 'semana') return celdasDeLaSemana(ancla);
-    return celdasDelDia(ancla);
-  }, [ancla, vista]);
   const hoy = claveDia(new Date());
 
   /** Las flechas avanzan lo que se está mirando: un mes, una semana o un día. */
