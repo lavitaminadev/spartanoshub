@@ -98,6 +98,10 @@ export class IngestSourcesController {
       receivedCount: fila.receivedCount,
       lastReceivedAt: fila.lastReceivedAt,
       lastError: fila.lastError,
+      // Para poder decir en pantalla que hay una llave anterior aun aceptando, y hasta cuando.
+      anteriorCaducaEn: fila.previousTokenExpiresAt && fila.previousTokenExpiresAt.getTime() > Date.now()
+        ? fila.previousTokenExpiresAt
+        : null,
       lastErrorAt: fila.lastErrorAt,
       url: `${(process.env.API_PUBLIC_URL ?? '').replace(/\/$/, '')}/public/ingest/leads`,
     }));
@@ -132,17 +136,47 @@ export class IngestSourcesController {
     };
   }
 
-  /** Genera una llave nueva y descarta la anterior. La integración deja de recibir hasta actualizarla. */
+  /**
+   * Genera una llave nueva.
+   *
+   * La anterior **no muere en el acto**: sigue aceptando 48 horas para que la integración no
+   * quede sin entregar mientras alguien pega la nueva. Si se rotó por una filtración, hay que
+   * cortarla con `revoke-previous`.
+   */
   @Post(':id/rotate')
   @ApiOperation({ summary: 'Reemplazar la llave de un origen' })
   async rotate(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const source = await this.find(id, req.organizationId!, req);
-    const { token } = await this.ingest.issueToken(source);
+    const { source: rotado, token } = await this.ingest.issueToken(source);
     return {
       token,
       header: `Authorization: Bearer ${token}`,
-      aviso: 'La llave anterior dejó de funcionar. Actualiza la integración antes de que lleguen más leads.',
+      /*
+       * El aviso dice la verdad nueva: la anterior **sigue sirviendo** un tiempo.
+       *
+       * Decía que dejaba de funcionar de inmediato, y eso hacía que rotar diera miedo justo
+       * cuando más urge. Ahora se entrega la fecha para que la pantalla pueda decir hasta cuándo
+       * hay margen en vez de una frase genérica.
+       */
+      anteriorCaducaEn: rotado.previousTokenExpiresAt ?? null,
+      aviso: rotado.previousTokenExpiresAt
+        ? 'La llave anterior sigue aceptando leads durante 48 horas. Actualiza la integración dentro de ese plazo, o córtala ya si la rotaste porque se filtró.'
+        : 'Copia la llave ahora: no se puede volver a ver.',
     };
+  }
+
+  /**
+   * Corta la llave anterior sin esperar a que caduque.
+   *
+   * La gracia existe para no perder leads mientras se actualiza la integración. Cuando se rotó
+   * **porque la llave se filtró**, esperar dos días es exactamente lo que no se quiere.
+   */
+  @Post(':id/revoke-previous')
+  @ApiOperation({ summary: 'Cortar ya la llave anterior' })
+  async revokePrevious(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const source = await this.find(id, req.organizationId!, req);
+    await this.ingest.revokePreviousToken(source);
+    return { id: source.id, anteriorCaducaEn: null };
   }
 
   /**

@@ -56,6 +56,20 @@ export class LeadIngestSource {
   /** Últimos caracteres, para reconocerla en la pantalla sin revelarla. */
   @Column({ name: 'token_hint', type: 'varchar', length: 12 }) tokenHint: string;
 
+  /**
+   * Huella de la llave anterior, mientras dura su período de gracia.
+   *
+   * Rotar dejaba a la integración sin entregar desde el clic hasta que alguien pegaba la nueva
+   * en Make, y en ese hueco los leads se perdían sin dejar rastro. Con esto la anterior sigue
+   * aceptando un tiempo y caduca sola.
+   */
+  @Column({ name: 'previous_token_hash', type: 'varchar', length: 64, nullable: true })
+  previousTokenHash?: string | null;
+
+  /** Hasta cuándo sirve la anterior. Pasada esa hora deja de aceptarse aunque siga guardada. */
+  @Column({ name: 'previous_token_expires_at', type: 'datetime', nullable: true })
+  previousTokenExpiresAt?: Date | null;
+
   /** Apagar corta este origen sin borrar su historial ni tocar los demás. */
   @Column({ name: 'is_active', type: 'boolean', default: true }) isActive: boolean;
 

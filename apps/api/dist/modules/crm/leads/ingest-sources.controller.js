@@ -77,6 +77,9 @@ let IngestSourcesController = class IngestSourcesController {
             receivedCount: fila.receivedCount,
             lastReceivedAt: fila.lastReceivedAt,
             lastError: fila.lastError,
+            anteriorCaducaEn: fila.previousTokenExpiresAt && fila.previousTokenExpiresAt.getTime() > Date.now()
+                ? fila.previousTokenExpiresAt
+                : null,
             lastErrorAt: fila.lastErrorAt,
             url: `${(process.env.API_PUBLIC_URL ?? '').replace(/\/$/, '')}/public/ingest/leads`,
         }));
@@ -102,12 +105,20 @@ let IngestSourcesController = class IngestSourcesController {
     }
     async rotate(id, req) {
         const source = await this.find(id, req.organizationId, req);
-        const { token } = await this.ingest.issueToken(source);
+        const { source: rotado, token } = await this.ingest.issueToken(source);
         return {
             token,
             header: `Authorization: Bearer ${token}`,
-            aviso: 'La llave anterior dejó de funcionar. Actualiza la integración antes de que lleguen más leads.',
+            anteriorCaducaEn: rotado.previousTokenExpiresAt ?? null,
+            aviso: rotado.previousTokenExpiresAt
+                ? 'La llave anterior sigue aceptando leads durante 48 horas. Actualiza la integración dentro de ese plazo, o córtala ya si la rotaste porque se filtró.'
+                : 'Copia la llave ahora: no se puede volver a ver.',
         };
+    }
+    async revokePrevious(id, req) {
+        const source = await this.find(id, req.organizationId, req);
+        await this.ingest.revokePreviousToken(source);
+        return { id: source.id, anteriorCaducaEn: null };
     }
     async toggle(id, dto, req) {
         const source = await this.find(id, req.organizationId, req);
@@ -153,6 +164,15 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], IngestSourcesController.prototype, "rotate", null);
+__decorate([
+    (0, common_1.Post)(':id/revoke-previous'),
+    (0, swagger_1.ApiOperation)({ summary: 'Cortar ya la llave anterior' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], IngestSourcesController.prototype, "revokePrevious", null);
 __decorate([
     (0, common_1.Post)(':id/active'),
     (0, swagger_1.ApiOperation)({ summary: 'Encender o apagar un origen' }),

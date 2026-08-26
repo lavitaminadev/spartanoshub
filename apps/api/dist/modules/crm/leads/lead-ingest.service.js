@@ -23,6 +23,7 @@ const lead_intake_service_1 = require("./lead-intake.service");
 const campaign_entity_1 = require("../campaigns/campaign.entity");
 const identificador_externo_1 = require("./identificador-externo");
 const TOKEN_PREFIX = 'esp_in_';
+const GRACIA_LLAVE_ANTERIOR_MS = 48 * 60 * 60 * 1000;
 let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
     constructor(sources, campaigns, intake) {
         this.sources = sources;
@@ -32,12 +33,21 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
     }
     async issueToken(source) {
         const token = `${TOKEN_PREFIX}${(0, node_crypto_1.randomBytes)(24).toString('hex')}`;
+        if (source.tokenHash) {
+            source.previousTokenHash = source.tokenHash;
+            source.previousTokenExpiresAt = new Date(Date.now() + GRACIA_LLAVE_ANTERIOR_MS);
+        }
         source.tokenHash = this.hash(token);
         source.tokenHint = token.slice(-6);
         return { source: await this.sources.save(source), token };
     }
+    async revokePreviousToken(source) {
+        source.previousTokenHash = null;
+        source.previousTokenExpiresAt = null;
+        return this.sources.save(source);
+    }
     async ingest(token, dto) {
-        const source = await this.sources.findOne({ where: { tokenHash: this.hash(token), isActive: true } });
+        const source = await this.buscarPorLlave(token);
         if (!source)
             throw new common_1.UnauthorizedException('Llave de integración no válida');
         try {
@@ -101,6 +111,20 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
     }
     hash(token) {
         return (0, node_crypto_1.createHash)('sha256').update(token).digest('hex');
+    }
+    async buscarPorLlave(token) {
+        const huella = this.hash(token);
+        const vigente = await this.sources.findOne({ where: { tokenHash: huella, isActive: true } });
+        if (vigente)
+            return vigente;
+        const anterior = await this.sources.findOne({ where: { previousTokenHash: huella, isActive: true } });
+        if (!anterior?.previousTokenExpiresAt)
+            return null;
+        if (anterior.previousTokenExpiresAt.getTime() <= Date.now())
+            return null;
+        this.logger.warn(`El origen ${anterior.id} recibió un lead con su llave anterior; caduca el `
+            + `${anterior.previousTokenExpiresAt.toISOString()}. Actualiza la integración.`);
+        return anterior;
     }
 };
 exports.LeadIngestService = LeadIngestService;

@@ -51,6 +51,14 @@ __decorate([
     __metadata("design:type", String)
 ], LeadIngestSource.prototype, "tokenHint", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'previous_token_hash', type: 'varchar', length: 64, nullable: true }),
+    __metadata("design:type", Object)
+], LeadIngestSource.prototype, "previousTokenHash", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'previous_token_expires_at', type: 'datetime', nullable: true }),
+    __metadata("design:type", Object)
+], LeadIngestSource.prototype, "previousTokenExpiresAt", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'is_active', type: 'boolean', default: true }),
     __metadata("design:type", Boolean)
 ], LeadIngestSource.prototype, "isActive", void 0);
