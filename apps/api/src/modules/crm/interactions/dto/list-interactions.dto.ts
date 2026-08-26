@@ -1,7 +1,20 @@
-import { IsDateString, IsOptional, IsUUID } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaginationDto } from '../../../../shared/dto/pagination.dto';
 
 export class ListInteractionsDto extends PaginationDto {
+  /**
+   * Sube el tope de 100 a 500, solo para este listado.
+   *
+   * El calendario dibuja hasta seis semanas de una vez y pide exactamente el período visible.
+   * Con el tope general, un mes con más de cien actividades se dibujaba incompleto sin decirlo
+   * —y eso es justo lo que se venía a corregir—; peor aún, pedir más de cien devolvía 400 y la
+   * pantalla entera dejaba de cargar.
+   *
+   * Subirlo aquí no abre una descarga sin límite: `from`/`to` acotan la consulta a lo que cabe en
+   * la cuadrícula, y el alcance por empresa sigue aplicándose antes.
+   */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(500) declare limit?: number;
   @IsOptional()
   @IsUUID()
   leadId?: string;
