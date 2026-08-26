@@ -12,6 +12,15 @@ import { identificadorExterno } from './identificador-externo';
 const TOKEN_PREFIX = 'esp_in_';
 
 /**
+ * Cuánto sigue aceptando la llave anterior tras una rotación.
+ *
+ * Dos días cubren un fin de semana: si se rota un viernes por la tarde, quien actualiza Make el
+ * lunes no pierde nada. Más allá deja de ser una transición y pasan a ser dos llaves vivas, que
+ * es lo contrario de rotar.
+ */
+const GRACIA_LLAVE_ANTERIOR_MS = 48 * 60 * 60 * 1000;
+
+/**
  * Entrada de leads desde integraciones externas.
  *
  * La llave identifica **al origen**, y el origen determina de dónde se dice que viene el lead.
@@ -36,9 +45,38 @@ export class LeadIngestService {
    */
   async issueToken(source: LeadIngestSource): Promise<{ source: LeadIngestSource; token: string }> {
     const token = `${TOKEN_PREFIX}${randomBytes(24).toString('hex')}`;
+
+    /*
+     * Al rotar, la anterior sigue sirviendo un rato.
+     *
+     * Antes moría en el acto, así que entre el clic y el momento en que alguien pegaba la nueva
+     * en Make todo lead que llegara se perdía sin dejar rastro: la integración recibía 401 y no
+     * quedaba ni como error. El hueco importa justo cuando más urge rotar —una llave filtrada—,
+     * porque entonces se rota rápido y se actualiza después.
+     *
+     * Solo aplica a una rotación: en el alta no hay llave anterior que conservar.
+     */
+    if (source.tokenHash) {
+      source.previousTokenHash = source.tokenHash;
+      source.previousTokenExpiresAt = new Date(Date.now() + GRACIA_LLAVE_ANTERIOR_MS);
+    }
+
     source.tokenHash = this.hash(token);
     source.tokenHint = token.slice(-6);
     return { source: await this.sources.save(source), token };
+  }
+
+  /**
+   * Retira la llave anterior antes de que caduque sola.
+   *
+   * La gracia existe para no perder leads mientras se actualiza la integración, no para dejar
+   * dos llaves vivas por comodidad. Cuando la llave se rotó **porque se filtró**, esperar dos
+   * días es exactamente lo que no se quiere: esto la corta ya.
+   */
+  async revokePreviousToken(source: LeadIngestSource): Promise<LeadIngestSource> {
+    source.previousTokenHash = null;
+    source.previousTokenExpiresAt = null;
+    return this.sources.save(source);
   }
 
   /**
@@ -61,7 +99,7 @@ export class LeadIngestService {
      */
     campaign: { name: string; recognized: boolean; hint?: string } | null;
   }> {
-    const source = await this.sources.findOne({ where: { tokenHash: this.hash(token), isActive: true } });
+    const source = await this.buscarPorLlave(token);
     if (!source) throw new UnauthorizedException('Llave de integración no válida');
 
     try {
@@ -163,5 +201,32 @@ export class LeadIngestService {
   /** SHA-256 basta: la llave tiene 24 bytes al azar, no una contraseña que alguien memorice. */
   private hash(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  /**
+   * El origen al que pertenece una llave: la vigente, o la anterior si aún está en gracia.
+   *
+   * Se busca primero la vigente porque es el caso normal y evita mirar la otra columna en cada
+   * lead. Solo si no aparece se prueba la anterior, y ahí la fecha decide: una huella que sigue
+   * guardada pero vencida **no** vale, y por eso la comprobación es de fecha y no de presencia.
+   *
+   * `isActive` gobierna las dos por igual: apagar un origen lo apaga entero, no solo su llave
+   * más reciente.
+   */
+  private async buscarPorLlave(token: string): Promise<LeadIngestSource | null> {
+    const huella = this.hash(token);
+
+    const vigente = await this.sources.findOne({ where: { tokenHash: huella, isActive: true } });
+    if (vigente) return vigente;
+
+    const anterior = await this.sources.findOne({ where: { previousTokenHash: huella, isActive: true } });
+    if (!anterior?.previousTokenExpiresAt) return null;
+    if (anterior.previousTokenExpiresAt.getTime() <= Date.now()) return null;
+
+    this.logger.warn(
+      `El origen ${anterior.id} recibió un lead con su llave anterior; caduca el `
+      + `${anterior.previousTokenExpiresAt.toISOString()}. Actualiza la integración.`,
+    );
+    return anterior;
   }
 }
