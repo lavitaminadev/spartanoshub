@@ -275,3 +275,19 @@
   overflow: hidden;
 }
 
+
+/* Resumen del portal: la cifra manda y los pendientes se leen debajo, en una linea cada uno. */
+.portal-resumen .portal-home-card h3 { font-size: 2.4rem; line-height: 1; margin-bottom: 2px; }
+.portal-pendiente { display: grid; gap: 1px; padding: 8px 10px; border-radius: 7px; margin-top: 8px; }
+.portal-pendiente strong { font-size: .95rem; }
+.portal-pendiente span { font-size: .85rem; opacity: .85; }
+/* El color separa lo que urge de lo que puede esperar; no decora. */
+.portal-pendiente.es-critico { background: #fdeceb; color: #8c2f22; }
+.portal-pendiente.es-alto { background: #fdf3e2; color: #8a5a12; }
+.portal-pendiente.es-ok { background: #e8f6ef; color: #0f6b4a; }
+
+@media (prefers-color-scheme: dark) {
+  .portal-pendiente.es-critico { background: #35201b; color: #e08c74; }
+  .portal-pendiente.es-alto { background: #322818; color: #e0b45e; }
+  .portal-pendiente.es-ok { background: #16302a; color: #5fc79b; }
+}
