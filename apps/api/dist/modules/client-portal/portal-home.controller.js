@@ -50,7 +50,11 @@ let PortalHomeController = class PortalHomeController {
         const home = await this.crmHome.home(organizationId, 7, { domain: 'commercial', clientId });
         return {
             leadsDelMes: home.month?.leads ?? 0,
-            pendientes: (home.alerts ?? []).filter((aviso) => (['sin_contactar', 'calificados_sin_visita'].includes(aviso.key))),
+            pendientes: (home.alerts ?? [])
+                .filter((aviso) => ['sin_contactar', 'calificados_sin_visita'].includes(aviso.key))
+                .map((aviso) => ({
+                key: aviso.key, count: aviso.count, level: aviso.level,
+            })),
         };
     }
     async bloqueReservas(organizationId, clientId) {

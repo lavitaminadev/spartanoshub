@@ -40,6 +40,7 @@ import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
 import { useAuth } from '../../core/auth';
 import { useStageLabels } from './use-stage-labels';
+import { COLUMNAS_OPCIONALES, guardarColumnas, leerColumnas, type ColumnaOpcional } from './columnas-leads';
 import { useVocabulario } from './use-vocabulario';
 import { LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { colorDePersona, mensajeDePrimerContacto, whatsapp } from './contacto';
@@ -137,6 +138,25 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const filtros = useUrlFilters(FILTER_KEYS);
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
   const [abierto, setAbierto] = useState<Lead | null>(null);
+  /*
+   * Columnas visibles, recordadas por embudo.
+   *
+   * Cuáles sobran depende de lo que estés haciendo —llamar, cotizar, repartir—, así que se
+   * elige en vez de decidirlo por todos. Se lee del navegador en el primer render y no en un
+   * efecto: con un efecto la tabla se dibuja una vez con las de fábrica y salta al elegido.
+   */
+  const [columnasVisibles, setColumnasVisibles] = useState<ColumnaOpcional[]>(() => leerColumnas(scope.domain));
+  const [columnasAbierto, setColumnasAbierto] = useState(false);
+  const ve = (clave: ColumnaOpcional) => columnasVisibles.includes(clave);
+  const alternarColumna = (clave: ColumnaOpcional) => {
+    const siguiente = columnasVisibles.includes(clave)
+      ? columnasVisibles.filter((actual) => actual !== clave)
+      : COLUMNAS_OPCIONALES.map((columna) => columna.key).filter((actual) => (
+        actual === clave || columnasVisibles.includes(actual)
+      ));
+    setColumnasVisibles(siguiente);
+    guardarColumnas(scope.domain, siguiente);
+  };
   const [seleccion, setSeleccion] = useState<Set<string>>(() => new Set());
   /*
    * Etapa de destino del cambio en lote.
@@ -494,6 +514,13 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           </p>
         </div>
         <div className="page-header-actions">
+          {/*
+            Elegir columnas es de quien mira, no de quien edita.
+
+            Va fuera de `puedeEditar` a propósito: el portal del cliente también sufre la tabla
+            ancha, y ocultar una columna no escribe nada en el servidor.
+          */}
+          <button type="button" className="btn btn-outline" onClick={() => setColumnasAbierto(true)}>Columnas</button>
           <ExportButtons document={documento} />
           {/* Escribir es del equipo. El portal del cliente mira: ofrecerle estos botones solo
               serviría para que el servidor los rechace y parezca que la pantalla está rota. */}
@@ -769,9 +796,16 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     onChange={alternarTodos}
                   />
                 </th>
-                <th>{termino(scope.domain === 'commercial' ? 'prospecto' : 'lead')}</th><th>Teléfono</th><th>Correo</th>
-                <th>{termino('empresa')}</th><th>Origen</th><th>Etapa</th>
-                <th>Etiqueta</th><th>Calidad</th><th>{termino('responsable')}</th><th>Ingreso</th>
+                <th className="col-prospecto">{termino(scope.domain === 'commercial' ? 'prospecto' : 'lead')}</th>
+                {ve('phone') ? <th>Teléfono</th> : null}
+                {ve('email') ? <th>Correo</th> : null}
+                {ve('company') ? <th>{termino('empresa')}</th> : null}
+                {ve('source') ? <th>Origen</th> : null}
+                {ve('status') ? <th>Etapa</th> : null}
+                {ve('tags') ? <th>Etiqueta</th> : null}
+                {ve('fit') ? <th>Calidad</th> : null}
+                {ve('owner') ? <th>{termino('responsable')}</th> : null}
+                {ve('created') ? <th>Ingreso</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -785,18 +819,23 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                       onChange={() => alternarSeleccion(lead.id)}
                     />
                   </td>
-                  <td data-label="Prospecto">
-                    <button type="button" className="link-button" onClick={() => setAbierto(lead)}>{lead.name}</button>
+                  {/*
+                    El nombre completo va en el `title`: la celda lo recorta con puntos suspensivos
+                    para que la fila mida una línea, y quien necesite el nombre entero lo ve al
+                    posarse encima o al abrir la ficha.
+                  */}
+                  <td data-label="Prospecto" className="col-prospecto">
+                    <button type="button" className="link-button" title={lead.name} onClick={() => setAbierto(lead)}>{lead.name}</button>
                   </td>
-                  <td data-label="Teléfono">{lead.phone || '—'}</td>
-                  <td data-label="Correo">{lead.email || '—'}</td>
-                  <td data-label="Empresa">{lead.company || '—'}</td>
-                  <td data-label="Origen">{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}</td>
-                  <td data-label="Etapa">{etapaLabel(lead.status)}</td>
-                  <td data-label="Etiqueta">{lead.tags?.length ? lead.tags.join(' · ') : '—'}</td>
-                  <td data-label="Calidad">{lead.fitStatus ? <StatusBadge status={lead.fitStatus} /> : '—'}</td>
-                  <td data-label="Responsable">{nombreDe(lead.assignedTo) ?? 'Sin asignar'}</td>
-                  <td data-label="Ingreso">{new Date(lead.createdAt).toLocaleDateString('es-CL')}</td>
+                  {ve('phone') ? <td data-label="Teléfono">{lead.phone || '—'}</td> : null}
+                  {ve('email') ? <td data-label="Correo" className="col-larga" title={lead.email ?? undefined}>{lead.email || '—'}</td> : null}
+                  {ve('company') ? <td data-label="Empresa">{lead.company || '—'}</td> : null}
+                  {ve('source') ? <td data-label="Origen" className="col-larga" title={lead.campaignName ?? undefined}>{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}</td> : null}
+                  {ve('status') ? <td data-label="Etapa">{etapaLabel(lead.status)}</td> : null}
+                  {ve('tags') ? <td data-label="Etiqueta">{lead.tags?.length ? lead.tags.join(' · ') : '—'}</td> : null}
+                  {ve('fit') ? <td data-label="Calidad">{lead.fitStatus ? <StatusBadge status={lead.fitStatus} /> : '—'}</td> : null}
+                  {ve('owner') ? <td data-label="Responsable">{nombreDe(lead.assignedTo) ?? 'Sin asignar'}</td> : null}
+                  {ve('created') ? <td data-label="Ingreso">{new Date(lead.createdAt).toLocaleDateString('es-CL')}</td> : null}
                 </tr>
               ))}
             </tbody>
@@ -847,6 +886,32 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       ) : null}
 
       <ImportLeadsModal open={importarAbierto} onClose={() => { setImportarAbierto(false); void refrescar(); }} />
+
+      {columnasAbierto ? (
+        <Modal open onClose={() => setColumnasAbierto(false)} title="Columnas de la lista">
+          <div className="modal-form">
+            <p className="crm-admin-ayuda">
+              El nombre siempre se muestra: sin él la fila no identifica a nadie. Lo que elijas
+              se recuerda en este equipo, y cada embudo guarda lo suyo.
+            </p>
+            <div className="leads-columnas">
+              {COLUMNAS_OPCIONALES.map((columna) => (
+                <label key={columna.key} className="leads-columna">
+                  <input
+                    type="checkbox"
+                    checked={ve(columna.key)}
+                    onChange={() => alternarColumna(columna.key)}
+                  />
+                  <span>{columna.label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setColumnasAbierto(false)}>Listo</button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       {crearAbierto ? (
         <Modal open onClose={() => setCrearAbierto(false)} title="Nuevo prospecto">

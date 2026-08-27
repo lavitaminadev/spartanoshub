@@ -73,12 +73,6 @@
   .crm-home-kpis strong { font-size: 28px; }
 }
 
-/* Insignia de alcance: decir por qué ves algo que otros no evita que se lea como un error. */
-.crm-home-solo {
-  margin-left: 8px; padding: 2px 8px; border-radius: 999px;
-  background: var(--amber-soft); color: var(--amber-deep);
-  font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
-}
 
 /* Misma razón que en el panel: sin `min-width: 0` el monto empuja la tarjeta fuera de su columna. */
 .crm-home-kpis article { min-width: 0; }

@@ -47,7 +47,15 @@ export function ClientDashboard() {
   const { user } = useAuth();
 
   const { data } = useQuery<Inicio>({
-    queryKey: ['portal-inicio'],
+    /*
+     * La persona va en la clave, no solo en la sesión.
+     *
+     * Vaciar la caché al entrar depende de una lectura asíncrona que puede llegar después del
+     * primer dibujo: en ese hueco, una clave compartida deja que una empresa vea el resumen de
+     * la anterior. Con la persona dentro, ese dato es inalcanzable aunque siga guardado.
+     */
+    queryKey: ['portal-inicio', user?.id],
+    enabled: Boolean(user?.id),
     queryFn: () => api.get('/portal/inicio'),
     // Es un resumen, no un dato transaccional: si falla, la pantalla sigue sirviendo como menú.
     retry: false,
