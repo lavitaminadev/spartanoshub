@@ -14,12 +14,13 @@ exports.MetaPixelService = void 0;
 const common_1 = require("@nestjs/common");
 const axios_1 = require("@nestjs/axios");
 const rxjs_1 = require("rxjs");
+const CREDENCIAL_INVALIDA = [190, 102];
 let MetaPixelService = MetaPixelService_1 = class MetaPixelService {
     constructor(http) {
         this.http = http;
         this.logger = new common_1.Logger(MetaPixelService_1.name);
     }
-    async validatePixel(pixelId, accessToken) {
+    async verificarPixel(pixelId, accessToken) {
         const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
         try {
             const { data } = await (0, rxjs_1.firstValueFrom)(this.http.get(`https://graph.facebook.com/${version}/${pixelId}`, {
@@ -27,13 +28,22 @@ let MetaPixelService = MetaPixelService_1 = class MetaPixelService {
                 headers: { authorization: `Bearer ${accessToken}` },
                 timeout: 15000,
             }));
-            return !!data.id;
+            return { verificado: !!data.id, bloquea: false };
         }
         catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.logger.warn(`Meta pixel validation failed for ${pixelId}: ${message}`);
-            return false;
+            const metaError = error
+                ?.response?.data?.error;
+            const motivo = metaError?.message ?? (error instanceof Error ? error.message : 'Error desconocido');
+            this.logger.warn(`No se pudo verificar el Pixel ${pixelId}: ${motivo}`);
+            return {
+                verificado: false,
+                bloquea: Boolean(metaError?.code && CREDENCIAL_INVALIDA.includes(metaError.code)),
+                motivo,
+            };
         }
+    }
+    async validatePixel(pixelId, accessToken) {
+        return (await this.verificarPixel(pixelId, accessToken)).verificado;
     }
     async getPixelStats(pixelId, accessToken) {
         const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';

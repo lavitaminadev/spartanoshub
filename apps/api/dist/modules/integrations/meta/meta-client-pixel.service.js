@@ -145,8 +145,10 @@ let MetaClientPixelService = class MetaClientPixelService {
         const token = accessToken?.trim() || this.tokenDePixel(integration, pixelId);
         if (!token)
             throw new common_1.BadRequestException('Se requiere un token CAPI para este cliente');
-        if (!await this.pixels.validatePixel(pixelId, token))
-            throw new common_1.BadRequestException('Meta no reconoció el Pixel con el token entregado');
+        const verificacion = await this.pixels.verificarPixel(pixelId, token);
+        if (verificacion.bloquea) {
+            throw new common_1.BadRequestException(`Meta rechazo la credencial: ${verificacion.motivo ?? 'token invalido'}`);
+        }
         return this.mutateRecords(integration.id, (records) => {
             const current = records[clientId];
             const record = {
@@ -278,8 +280,9 @@ let MetaClientPixelService = class MetaClientPixelService {
         const token = nuevo || this.tokenDePixel(integration, limpio);
         if (!token)
             throw new common_1.BadRequestException('Se requiere un token CAPI para este Pixel');
-        if (!await this.pixels.validatePixel(limpio, token)) {
-            throw new common_1.BadRequestException('Meta no reconoció el Pixel con el token entregado');
+        const verificacion = await this.pixels.verificarPixel(limpio, token);
+        if (verificacion.bloquea) {
+            throw new common_1.BadRequestException(`Meta rechazo la credencial: ${verificacion.motivo ?? 'token invalido'}`);
         }
         return this.integrations.manager.transaction(async (manager) => {
             const repo = manager.getRepository(integration_entity_1.Integration);
@@ -295,7 +298,13 @@ let MetaClientPixelService = class MetaClientPixelService {
             };
             fresh.config = { ...fresh.config, metaPixels: { ...actuales, [limpio]: credencial } };
             await repo.save(fresh);
-            return { pixelId: limpio, name: credencial.name ?? null, tokenConfigured: Boolean(credencial.accessToken) };
+            return {
+                pixelId: limpio,
+                name: credencial.name ?? null,
+                tokenConfigured: Boolean(credencial.accessToken),
+                verificado: verificacion.verificado,
+                motivo: verificacion.verificado ? undefined : verificacion.motivo,
+            };
         });
     }
     async quitarCredencial(organizationId, pixelId) {

@@ -28,7 +28,7 @@ describe('MetaClientPixelService', () => {
     },
   };
   const clients = { find: vi.fn(), findOne: vi.fn() };
-  const pixels = { validatePixel: vi.fn() };
+  const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
   let service: MetaClientPixelService;
 
   /** Fija la integración que verán tanto la búsqueda inicial como la relectura con bloqueo. */
@@ -59,7 +59,7 @@ describe('MetaClientPixelService', () => {
     const integration = { config: {} };
     givenIntegration(integration);
     clients.findOne.mockResolvedValue({ id: 'client-a', name: 'Cliente A' });
-    pixels.validatePixel.mockResolvedValue(true);
+    pixels.verificarPixel.mockResolvedValue({ verificado: true, bloquea: false });
     const result = await service.configure('integration-1', 'org-1', 'client-a', '123456', 'a-valid-access-token-for-meta', 'Reservas Cliente A');
     expect(result).toMatchObject({ clientId: 'client-a', pixelId: '123456', pixelName: 'Reservas Cliente A', tokenConfigured: true });
     expect(integration.config).toHaveProperty('clientPixels.client-a.pixelId', '123456');
@@ -70,7 +70,7 @@ describe('MetaClientPixelService', () => {
   it('configures a direct CAPI Pixel without requiring Meta OAuth', async () => {
     givenIntegration(null);
     clients.findOne.mockResolvedValue({ id: 'client-a', name: 'Cliente A' });
-    pixels.validatePixel.mockResolvedValue(true);
+    pixels.verificarPixel.mockResolvedValue({ verificado: true, bloquea: false });
     const result = await service.setup('org-1', 'client-a', 'manual', {
       pixelId: '123456',
       pixelName: 'Pixel Manual',
@@ -96,7 +96,7 @@ describe('MetaClientPixelService', () => {
     } } };
 
     clients.findOne.mockResolvedValue({ id: 'client-b', name: 'Cliente B' });
-    pixels.validatePixel.mockResolvedValue(true);
+    pixels.verificarPixel.mockResolvedValue({ verificado: true, bloquea: false });
 
     await service.configure('integration-1', 'org-1', 'client-b', '222', 'a-valid-access-token-for-meta', 'Pixel B');
 
@@ -117,7 +117,7 @@ describe('MetaClientPixelService', () => {
     expect(result).toMatchObject({ clientId: 'client-b', pixelId: '999', pixelName: 'Pixel Compartido', tokenConfigured: true });
     expect(integration.config.clientPixels['client-b'].accessToken).toBe('protected-token');
     expect(integration.config.clientPixels['client-b'].pixelName).toBe('Pixel Compartido');
-    expect(pixels.validatePixel).not.toHaveBeenCalled();
+    expect(pixels.verificarPixel).not.toHaveBeenCalled();
   });
 });
 
@@ -145,13 +145,13 @@ describe('MetaClientPixelService · credencial por Pixel', () => {
     },
   };
   const clients = { find: vi.fn(async () => []), findOne: vi.fn() };
-  const pixels = { validatePixel: vi.fn(async () => true) };
+  const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
   let service: MetaClientPixelService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.META_CONVERSIONS_ACCESS_TOKEN;
-    pixels.validatePixel.mockResolvedValue(true);
+    pixels.verificarPixel.mockResolvedValue({ verificado: true, bloquea: false });
     stored = { id: 'int-1', config: { directCapi: true, clientPixels: {} } };
     service = new MetaClientPixelService(integrations as never, clients as never, pixels as never);
   });
@@ -187,10 +187,10 @@ describe('MetaClientPixelService · credencial por Pixel', () => {
 
   it('no guarda una credencial que Meta rechaza', async () => {
     // Guardarla en silencio reaparece días después como una cola de eventos fallidos.
-    pixels.validatePixel.mockResolvedValue(false);
+    pixels.verificarPixel.mockResolvedValue({ verificado: false, bloquea: true, motivo: 'Invalid OAuth access token' });
 
     await expect(service.guardarCredencial('org-1', '888', { accessToken: 'TOKEN-DE-PRUEBA-1234567890' }))
-      .rejects.toThrow(/no reconoció/i);
+      .rejects.toThrow(/rechaz/i);
     expect(stored?.config?.metaPixels).toBeUndefined();
   });
 
@@ -230,13 +230,13 @@ describe('MetaClientPixelService · Pixel de la agencia', () => {
     },
   };
   const clients = { find: vi.fn(async () => []), findOne: vi.fn() };
-  const pixels = { validatePixel: vi.fn(async () => true) };
+  const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
   let service: MetaClientPixelService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.META_CONVERSIONS_ACCESS_TOKEN;
-    pixels.validatePixel.mockResolvedValue(true);
+    pixels.verificarPixel.mockResolvedValue({ verificado: true, bloquea: false });
     stored = { id: 'int-1', config: { clientPixels: {} } };
     service = new MetaClientPixelService(integrations as never, clients as never, pixels as never);
   });
