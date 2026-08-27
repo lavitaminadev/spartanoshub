@@ -130,7 +130,8 @@ let MetaClientPixelService = class MetaClientPixelService {
             usageCount: 0,
             tokenConfigured: Boolean(credenciales[pixelId].accessToken),
         }));
-        return { bindings, pixels: [...pixels, ...sinAsignar] };
+        const agencyPixelId = typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : null;
+        return { bindings, pixels: [...pixels, ...sinAsignar], agencyPixelId };
     }
     async configure(id, organizationId, clientId, pixelId, accessToken, pixelName) {
         const integration = await this.integration(id, organizationId);
@@ -236,6 +237,31 @@ let MetaClientPixelService = class MetaClientPixelService {
             pixelSource,
             tokenSource: entorno ? 'environment' : 'none',
         };
+    }
+    async resolveAgencia(organizationId) {
+        const integration = await this.organizationIntegration(organizationId);
+        const pixelId = typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : '';
+        if (!pixelId)
+            return { pixelId: '' };
+        return { pixelId, accessToken: this.tokenDePixel(integration, pixelId) };
+    }
+    async marcarPixelDeAgencia(organizationId, pixelId) {
+        const integration = await this.organizationIntegration(organizationId, true);
+        if (!integration)
+            throw new common_1.NotFoundException('Integración Meta no encontrada');
+        return this.integrations.manager.transaction(async (manager) => {
+            const repo = manager.getRepository(integration_entity_1.Integration);
+            const fresh = await repo.findOne({ where: { id: integration.id }, lock: { mode: 'pessimistic_write' } });
+            if (!fresh)
+                throw new common_1.NotFoundException('Integración Meta no encontrada');
+            const limpio = pixelId?.trim() || null;
+            if (limpio && !this.tokenDePixel(fresh, limpio)) {
+                throw new common_1.BadRequestException('Ese Pixel no tiene token registrado: no podría enviar nada');
+            }
+            fresh.config = { ...fresh.config, agencyPixelId: limpio };
+            await repo.save(fresh);
+            return { agencyPixelId: limpio };
+        });
     }
     async resolveByPixel(organizationId, pixelId) {
         const integration = await this.organizationIntegration(organizationId);

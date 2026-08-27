@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MetaAssetSelectionDto = exports.MetaPixelCredentialDto = exports.MetaClientPixelSetupDto = exports.MetaClientPixelDto = exports.MetaPixelDto = exports.MetaLeadSyncDto = exports.MetaOAuthCallbackDto = void 0;
+exports.MetaAssetSelectionDto = exports.MetaAgencyPixelDto = exports.MetaPixelCredentialDto = exports.MetaClientPixelSetupDto = exports.MetaClientPixelDto = exports.MetaPixelDto = exports.MetaLeadSyncDto = exports.MetaOAuthCallbackDto = void 0;
 const class_validator_1 = require("class-validator");
 const META_ID = /^\d{1,32}$/;
 class MetaOAuthCallbackDto {
@@ -128,6 +128,15 @@ __decorate([
     (0, class_validator_1.MaxLength)(4096),
     __metadata("design:type", String)
 ], MetaPixelCredentialDto.prototype, "accessToken", void 0);
+class MetaAgencyPixelDto {
+}
+exports.MetaAgencyPixelDto = MetaAgencyPixelDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(META_ID),
+    __metadata("design:type", Object)
+], MetaAgencyPixelDto.prototype, "pixelId", void 0);
 class MetaAssetSelectionDto {
 }
 exports.MetaAssetSelectionDto = MetaAssetSelectionDto;

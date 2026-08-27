@@ -59,6 +59,11 @@ export class MetaPixelCredentialDto {
   @IsOptional() @IsString() @MinLength(20) @MaxLength(4096) accessToken?: string;
 }
 
+/** Cuál de los Pixels registrados mide el embudo propio de la agencia. `null` lo apaga. */
+export class MetaAgencyPixelDto {
+  @IsOptional() @IsString() @Matches(META_ID) pixelId?: string | null;
+}
+
 export class MetaAssetSelectionDto {
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) pageIds?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) instagramProfileIds?: string[];

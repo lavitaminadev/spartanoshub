@@ -205,3 +205,67 @@ describe('MetaClientPixelService · credencial por Pixel', () => {
     expect(registrado?.tokenConfigured).toBe(true);
   });
 });
+
+/**
+ * El embudo propio de la agencia mide contra su propio Pixel.
+ *
+ * Espartanos no es cliente de sí misma: sin un Pixel marcado, su conversión se resolvía contra
+ * el de la empresa recién creada y publicaba allí un evento valorado en el retainer que esa
+ * empresa le paga.
+ */
+describe('MetaClientPixelService · Pixel de la agencia', () => {
+  let stored: { id?: string; config?: Record<string, any> } | null = null;
+
+  const integrations = {
+    findOne: vi.fn(async () => stored),
+    create: vi.fn((value) => value),
+    save: vi.fn(async (value: any) => { stored = value; return value; }),
+    manager: {
+      transaction: vi.fn(async (run: (manager: unknown) => Promise<unknown>) => run({
+        getRepository: () => ({
+          findOne: vi.fn(async () => stored),
+          save: vi.fn(async (value: unknown) => { stored = value as typeof stored; return value; }),
+        }),
+      })),
+    },
+  };
+  const clients = { find: vi.fn(async () => []), findOne: vi.fn() };
+  const pixels = { validatePixel: vi.fn(async () => true) };
+  let service: MetaClientPixelService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.META_CONVERSIONS_ACCESS_TOKEN;
+    pixels.validatePixel.mockResolvedValue(true);
+    stored = { id: 'int-1', config: { clientPixels: {} } };
+    service = new MetaClientPixelService(integrations as never, clients as never, pixels as never);
+  });
+
+  it('sin Pixel marcado no hay destino, que es como queda apagado', async () => {
+    await expect(service.resolveAgencia('org-1')).resolves.toEqual({ pixelId: '' });
+  });
+
+  it('marcado, devuelve su Pixel y su token', async () => {
+    await service.guardarCredencial('org-1', '123456789012345', { accessToken: 'TOKEN-DE-PRUEBA-1234567890' });
+    await service.marcarPixelDeAgencia('org-1', '123456789012345');
+
+    await expect(service.resolveAgencia('org-1')).resolves.toEqual({
+      pixelId: '123456789012345',
+      accessToken: 'TOKEN-DE-PRUEBA-1234567890',
+    });
+  });
+
+  it('no se puede marcar un Pixel sin token', async () => {
+    // Dejaría el embudo propio encolando eventos que Meta rechaza, y el aviso aparecería en la
+    // cola en vez de en la pantalla, que es donde todavía se puede corregir.
+    await expect(service.marcarPixelDeAgencia('org-1', '999888777666555')).rejects.toThrow(/no tiene token/i);
+  });
+
+  it('se puede quitar la marca', async () => {
+    await service.guardarCredencial('org-1', '123456789012345', { accessToken: 'TOKEN-DE-PRUEBA-1234567890' });
+    await service.marcarPixelDeAgencia('org-1', '123456789012345');
+    await service.marcarPixelDeAgencia('org-1', null);
+
+    await expect(service.resolveAgencia('org-1')).resolves.toEqual({ pixelId: '' });
+  });
+});
