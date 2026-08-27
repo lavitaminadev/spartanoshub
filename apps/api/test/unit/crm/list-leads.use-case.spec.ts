@@ -12,15 +12,38 @@ function criterio(repo: { findAndCount: { mock: { calls: unknown[][] } } }) {
 }
 
 describe('ListLeadsUseCase · alcance por persona', () => {
-  it('sin acotar consulta un solo criterio', async () => {
+  it('sin acotar consulta las dos ramas del corte de descartados', async () => {
+    // Ya no es un criterio único: ocultar los descartados viejos es una disyunción —«no está
+    // descartado, o se descartó este mes»—, y en TypeORM eso son dos condiciones completas.
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, {});
+    const donde = criterio(repo) as Array<Record<string, any>>;
+    expect(donde).toHaveLength(2);
+    expect(donde[0].status?._type).toBe('not');
+    expect(donde[1].status).toBe('lost');
+    expect(donde[1].updatedAt?._type).toBe('moreThanOrEqual');
+  });
+
+  it('pedirlos explícitamente vuelve al criterio único', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, { incluirDescartados: true });
     expect(Array.isArray(criterio(repo))).toBe(false);
+  });
+
+  it('filtrar por una etapa manda sobre el corte', async () => {
+    // Pedir «Descartado» ya es decir que se quieren ver: acotar además por fecha devolvería
+    // vacío para un filtro que la persona eligió a mano.
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, { status: 'lost' });
+    const donde = criterio(repo) as Record<string, any>;
+    expect(Array.isArray(donde)).toBe(false);
+    expect(donde.status).toBe('lost');
+    expect(donde.updatedAt).toBeUndefined();
   });
 
   it('el embudo de la agencia excluye cualquier lead asociado a una empresa', async () => {
     const { uso, repo } = caso();
-    await uso.execute('org-1', 20, 0, { domain: 'commercial', agencyOnly: true });
+    await uso.execute('org-1', 20, 0, { domain: 'commercial', agencyOnly: true, incluirDescartados: true });
     const donde = criterio(repo) as Record<string, any>;
     expect(donde.domain).toBe('commercial');
     expect(donde.clientId?._type).toBe('isNull');
@@ -37,7 +60,7 @@ describe('ListLeadsUseCase · alcance por persona', () => {
 
   it('acotado devuelve lo suyo o lo que no tiene dueño', async () => {
     const { uso, repo } = caso();
-    await uso.execute('org-1', 20, 0, { onlyAssignedTo: 'user-7' });
+    await uso.execute('org-1', 20, 0, { onlyAssignedTo: 'user-7', incluirDescartados: true });
     const donde = criterio(repo) as Array<Record<string, unknown>>;
     expect(donde).toHaveLength(2);
     expect(donde[0].assignedTo).toBe('user-7');
@@ -48,7 +71,9 @@ describe('ListLeadsUseCase · alcance por persona', () => {
 
   it('las dos ramas llevan el filtro de empresa completo, o una abriría lo que la otra cierra', async () => {
     const { uso, repo } = caso();
-    await uso.execute('org-1', 20, 0, { onlyAssignedTo: 'user-7', clientId: 'cliente-9', domain: 'audience' });
+    await uso.execute('org-1', 20, 0, {
+      onlyAssignedTo: 'user-7', clientId: 'cliente-9', domain: 'audience', incluirDescartados: true,
+    });
     const donde = criterio(repo) as Array<Record<string, unknown>>;
     for (const rama of donde) {
       expect(rama.organizationId).toBe('org-1');
@@ -66,7 +91,9 @@ describe('ListLeadsUseCase · alcance por persona', () => {
 
   it('busca en base sobre todos los campos sin perder el alcance de empresa', async () => {
     const { uso, repo } = caso();
-    await uso.execute('org-1', 100, 0, { clientId: 'cliente-9', domain: 'audience', search: 'ana' });
+    await uso.execute('org-1', 100, 0, {
+      clientId: 'cliente-9', domain: 'audience', search: 'ana', incluirDescartados: true,
+    });
     const donde = criterio(repo) as Array<Record<string, unknown>>;
     expect(donde).toHaveLength(7);
     for (const rama of donde) {

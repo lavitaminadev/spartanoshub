@@ -1,4 +1,5 @@
-import { IsOptional, IsString, IsEnum, IsUUID, IsIn, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsEnum, IsUUID, IsIn, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { PaginationDto } from '../../../../shared/dto/pagination.dto';
 import { LeadStatus } from '../lead-status.enum';
 import { LeadFitStatus } from '../lead-fit-status.enum';
@@ -21,4 +22,12 @@ export class ListLeadsQueryDto extends PaginationDto {
   @IsOptional() @IsUUID() clientId?: string;
   /** Sin este parámetro, el listado asume 'commercial' — ver ListLeadsFilters.domain. */
   @IsOptional() @IsIn(['audience', 'commercial', 'all']) domain?: 'audience' | 'commercial' | 'all';
+  /**
+   * Traer los descartados de meses ya cerrados.
+   *
+   * Llega como texto en la consulta, así que se transforma antes de validar: sin esto,
+   * `?incluirDescartados=false` sería la cadena 'false', que es verdadera.
+   */
+  @IsOptional() @Transform(({ value }) => value === true || value === 'true') @IsBoolean()
+  incluirDescartados?: boolean;
 }

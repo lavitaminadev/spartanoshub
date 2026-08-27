@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ListLeadsQueryDto = void 0;
 const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
 const pagination_dto_1 = require("../../../../shared/dto/pagination.dto");
 const lead_status_enum_1 = require("../lead-status.enum");
 const lead_fit_status_enum_1 = require("../lead-fit-status.enum");
@@ -59,3 +60,9 @@ __decorate([
     (0, class_validator_1.IsIn)(['audience', 'commercial', 'all']),
     __metadata("design:type", String)
 ], ListLeadsQueryDto.prototype, "domain", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Transform)(({ value }) => value === true || value === 'true'),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ListLeadsQueryDto.prototype, "incluirDescartados", void 0);

@@ -48,13 +48,22 @@ let ListLeadsUseCase = class ListLeadsUseCase {
                 { ...where, assignedTo: (0, typeorm_2.IsNull)() },
             ]
             : [where];
+        const inicioDeMes = new Date();
+        inicioDeMes.setDate(1);
+        inicioDeMes.setHours(0, 0, 0, 0);
+        const conDescartados = filters.incluirDescartados || filters.status
+            ? alcancePersona
+            : alcancePersona.flatMap((base) => [
+                { ...base, status: (0, typeorm_2.Not)('lost') },
+                { ...base, status: 'lost', updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) },
+            ]);
         const termino = filters.search?.trim();
         const campos = [
             'name', 'email', 'phone', 'company', 'source', 'sourceDetail', 'campaignName',
         ];
         const criterio = termino
-            ? alcancePersona.flatMap((base) => campos.map((campo) => ({ ...base, [campo]: (0, typeorm_2.Like)(`%${termino}%`) })))
-            : alcancePersona.length === 1 ? alcancePersona[0] : alcancePersona;
+            ? conDescartados.flatMap((base) => campos.map((campo) => ({ ...base, [campo]: (0, typeorm_2.Like)(`%${termino}%`) })))
+            : conDescartados.length === 1 ? conDescartados[0] : conDescartados;
         const [data, total] = await this.repo.findAndCount({
             where: criterio,
             order: { createdAt: 'DESC' },

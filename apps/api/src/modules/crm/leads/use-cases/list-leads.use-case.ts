@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, IsNull, Like, Repository } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Like, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
 import { RESERVATION_LEAD_SOURCES, isReservationLeadSource } from '@espartanos/shared';
 
@@ -47,6 +47,18 @@ export interface ListLeadsFilters {
    * empresas se entra, ésta cuánto se ve dentro de cada una.
    */
   onlyAssignedTo?: string;
+  /**
+   * Traer también los descartados de meses ya cerrados.
+   *
+   * Un descartado no espera nada de nadie, y es lo que más se acumula: dejarlos en la lista
+   * entierra lo que sí hay que trabajar. Se van de la vista al cerrar el mes, no de la base —el
+   * descartado es el denominador de toda medición, y sin él una campaña que trae basura parece
+   * traer pocos leads excelentes.
+   *
+   * Filtrar por la etapa «Descartado» los muestra todos igualmente: pedirlos explícitamente ya
+   * es decir que se quieren ver.
+   */
+  incluirDescartados?: boolean;
 }
 
 /** Página de leads acompañada del total de coincidencias. */
@@ -105,13 +117,34 @@ export class ListLeadsUseCase {
       ]
       : [where];
 
+    /*
+     * Los descartados de meses anteriores salen de la vista, salvo que se pidan.
+     *
+     * Se mira `updatedAt` y no `createdAt`: interesa cuándo se descartó, no cuándo entró, y en un
+     * lead cerrado no cambia nada después. Además hay índice por (organización, estado,
+     * updatedAt), así que la condición no cuesta una lectura completa.
+     *
+     * Es una disyunción —«no está descartado, o se descartó este mes»—, y en TypeORM eso son dos
+     * condiciones completas. Se duplica el criterio entero en ambas: dejar fuera una condición en
+     * una rama abriría por ahí lo que la otra cierra.
+     */
+    const inicioDeMes = new Date();
+    inicioDeMes.setDate(1);
+    inicioDeMes.setHours(0, 0, 0, 0);
+    const conDescartados = filters.incluirDescartados || filters.status
+      ? alcancePersona
+      : alcancePersona.flatMap((base) => [
+        { ...base, status: Not('lost') as unknown as Lead['status'] },
+        { ...base, status: 'lost' as Lead['status'], updatedAt: MoreThanOrEqual(inicioDeMes) },
+      ]);
+
     const termino = filters.search?.trim();
     const campos: Array<keyof Pick<Lead, 'name' | 'email' | 'phone' | 'company' | 'source' | 'sourceDetail' | 'campaignName'>> = [
       'name', 'email', 'phone', 'company', 'source', 'sourceDetail', 'campaignName',
     ];
     const criterio: FindOptionsWhere<Lead> | FindOptionsWhere<Lead>[] = termino
-      ? alcancePersona.flatMap((base) => campos.map((campo) => ({ ...base, [campo]: Like(`%${termino}%`) })))
-      : alcancePersona.length === 1 ? alcancePersona[0] : alcancePersona;
+      ? conDescartados.flatMap((base) => campos.map((campo) => ({ ...base, [campo]: Like(`%${termino}%`) })))
+      : conDescartados.length === 1 ? conDescartados[0] : conDescartados;
 
     const [data, total] = await this.repo.findAndCount({
       where: criterio,
