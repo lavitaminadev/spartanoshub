@@ -33,7 +33,13 @@ const META_OAUTH_ERROR_CODE = 190;
 interface ApiError {
   response?: {
     status: number;
-    data?: { error?: { message?: string; error_user_msg?: string; code?: number; type?: string } };
+    data?: { error?: {
+      message?: string; error_user_msg?: string; code?: number; type?: string;
+      /* Identifica el problema exacto dentro de un mismo `code`: 100/2804036 es lead_id invalido. */
+      error_subcode?: number;
+      /* Lo que pide el soporte de Meta para rastrear una peticion concreta. */
+      fbtrace_id?: string;
+    } };
   };
   message?: string;
 }
@@ -151,7 +157,9 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
 
     const isNonRetryable = typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 && statusCode !== 429;
     const isExpiredToken = metaError?.code === META_OAUTH_ERROR_CODE
-      || metaError?.type === 'OAuthException'
+      // `OAuthException` NO entra acá: Meta lo devuelve también para el código 100 «parámetro
+      // inválido» —un lead_id que no existe, un nombre de evento que no acepta—, y marcarlo como
+      // token dejaba esos eventos sin reintento esperando una credencial que estaba bien.
       || /expired|invalid.*token|invalidated|revoked|unauthorized/i.test(bodyMsg);
 
     // El orden importa: `[TOKEN]` va primero para poder filtrar por él en los registros, y el
@@ -164,6 +172,23 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
     return {
       retryable: !isNonRetryable && !isExpiredToken,
       tag: prefijos.length ? prefijos.join(' ') : undefined,
+      /*
+       * El motivo tal como lo da Meta.
+       *
+       * `code` y `error_subcode` identifican el problema sin ambigüedad —100/2804036 es un
+       * lead_id que no existe, 190 es credencial—, `error_user_msg` lo dice en palabras, y el
+       * `fbtrace_id` es lo que pide el soporte de Meta si hay que escalarlo. Nada de esto lleva
+       * el token: el error que llega acá ya viene saneado desde `sendServerEvent`.
+       */
+      detail: metaError
+        ? [
+          `meta code=${metaError.code ?? '?'}`,
+          metaError.error_subcode ? `subcode=${metaError.error_subcode}` : null,
+          metaError.type ? `type=${metaError.type}` : null,
+          bodyMsg ? `msg="${bodyMsg}"` : null,
+          metaError.fbtrace_id ? `fbtrace=${metaError.fbtrace_id}` : null,
+        ].filter(Boolean).join(' ')
+        : undefined,
     };
   }
 }

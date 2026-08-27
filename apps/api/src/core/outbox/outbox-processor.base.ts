@@ -27,6 +27,15 @@ export interface FailureVerdict {
   retryable: boolean;
   /** Prefijo opcional para el mensaje, como `[TOKEN]`, que ayuda a filtrar en diagnóstico. */
   tag?: string;
+  /**
+   * Lo que dijo el proveedor, ya saneado y sin credenciales.
+   *
+   * Sin esto el registro guardaba solo «Request failed with status code 400», que no distingue
+   * un token vencido de un parámetro inválido: había que reproducir la llamada a mano para
+   * saber cuál de los dos era. El clasificador ya lee ese cuerpo para decidir; ahora también lo
+   * deja escrito.
+   */
+  detail?: string;
 }
 
 /**
@@ -174,7 +183,12 @@ export abstract class OutboxProcessor<T extends OutboxRow> {
     item.attempts += 1;
 
     const message = error instanceof Error ? error.message : String(error);
-    item.lastError = verdict.tag ? `${verdict.tag} ${message}` : message;
+    /*
+     * El detalle va al final: los prefijos y el mensaje son lo que se lee de un vistazo, y el
+     * motivo del proveedor es lo que se necesita cuando ese vistazo no alcanza.
+     */
+    const partes = [verdict.tag, message, verdict.detail].filter(Boolean);
+    item.lastError = partes.join(' ');
 
     if (!verdict.retryable || item.attempts >= this.maxAttempts) {
       item.status = 'failed';
