@@ -200,7 +200,9 @@ export class MetaClientPixelService {
         usageCount: 0,
         tokenConfigured: Boolean(credenciales[pixelId].accessToken),
       }));
-    return { bindings, pixels: [...pixels, ...sinAsignar] };
+    // La pantalla necesita saber cuál es el de la agencia para marcarlo y para poder cambiarlo.
+    const agencyPixelId = typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : null;
+    return { bindings, pixels: [...pixels, ...sinAsignar], agencyPixelId };
   }
 
   async configure(id: string, organizationId: string, clientId: string, pixelId: string, accessToken?: string, pixelName?: string) {
@@ -382,6 +384,51 @@ export class MetaClientPixelService {
       pixelSource,
       tokenSource: entorno ? 'environment' : 'none',
     };
+  }
+
+  /**
+   * Pixel con el que la agencia mide su propio embudo.
+   *
+   * Espartanos no es cliente de sí misma, así que no tiene fila en `clients` ni Pixel por
+   * empresa. Sin esto, su conversión propia se resolvía contra el Pixel de la empresa recién
+   * creada: el cliente veía en su Events Manager un evento valorado en lo que le paga a la
+   * agencia. Es dato comercial de la agencia publicado en la cuenta del cliente.
+   *
+   * Que no haya Pixel marcado es la forma de tenerlo apagado: sin destino no se envía, y
+   * marcarlo es el consentimiento explícito que en las empresas da la capacidad contratada.
+   */
+  async resolveAgencia(organizationId: string): Promise<{ pixelId: string; accessToken?: string }> {
+    const integration = await this.organizationIntegration(organizationId);
+    const pixelId = typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : '';
+    if (!pixelId) return { pixelId: '' };
+    return { pixelId, accessToken: this.tokenDePixel(integration, pixelId) };
+  }
+
+  /**
+   * Marca cuál de los Pixels registrados es el de la agencia, o quita la marca.
+   *
+   * Uno solo: dos «Pixels de la agencia» obligarían a decidir en cada envío cuál usar, y esa
+   * decisión no la puede tomar el código.
+   */
+  async marcarPixelDeAgencia(organizationId: string, pixelId: string | null): Promise<{ agencyPixelId: string | null }> {
+    const integration = await this.organizationIntegration(organizationId, true);
+    if (!integration) throw new NotFoundException('Integración Meta no encontrada');
+
+    return this.integrations.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(Integration);
+      const fresh = await repo.findOne({ where: { id: integration.id }, lock: { mode: 'pessimistic_write' } });
+      if (!fresh) throw new NotFoundException('Integración Meta no encontrada');
+
+      const limpio = pixelId?.trim() || null;
+      // Marcar un Pixel sin credencial dejaría el embudo propio encolando eventos que Meta
+      // rechaza, y el aviso aparecería en la cola en vez de acá, que es donde se puede corregir.
+      if (limpio && !this.tokenDePixel(fresh, limpio)) {
+        throw new BadRequestException('Ese Pixel no tiene token registrado: no podría enviar nada');
+      }
+      fresh.config = { ...fresh.config, agencyPixelId: limpio };
+      await repo.save(fresh);
+      return { agencyPixelId: limpio };
+    });
   }
 
   async resolveByPixel(organizationId: string, pixelId: string): Promise<string | undefined> {

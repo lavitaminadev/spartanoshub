@@ -31,6 +31,8 @@ interface MetaPixelCatalog {
     usageCount: number;
     tokenConfigured: boolean;
   }>;
+  /** Con cuál mide la agencia su propio embudo. `null` lo deja apagado. */
+  agencyPixelId?: string | null;
 }
 
 type PixelMode = 'manual' | 'existing' | 'none';
@@ -134,6 +136,28 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
         text: resultado?.quedaHeredado
           ? 'Credencial quitada, pero ese Pixel conserva un token dentro de una empresa y seguirá enviando. Reasigna esa empresa para cortarlo del todo.'
           : 'Credencial quitada. Ese Pixel ya no puede enviar conversiones.',
+      });
+    },
+    onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
+  });
+
+
+  /*
+   * Marcar el Pixel de la agencia.
+   *
+   * Espartanos no es cliente de sí misma, así que su embudo propio no tiene Pixel por empresa.
+   * Sin esta marca, su conversión se resolvía contra el Pixel del cliente recién creado y
+   * publicaba allí un evento valorado en lo que ese cliente le paga.
+   */
+  const marcarAgencia = useMutation({
+    mutationFn: (pixelId: string | null) => api.post('/integrations/meta/pixels/agencia', { pixelId }),
+    onSuccess: async (_data, pixelId) => {
+      await queryClient.invalidateQueries({ queryKey: ['meta-client-pixel-catalog'] });
+      setFeedback({
+        tone: 'success',
+        text: pixelId
+          ? 'Ese Pixel medirá el embudo propio de la agencia.'
+          : 'La agencia deja de medir su embudo propio.',
       });
     },
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
@@ -328,7 +352,24 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
             <div key={pixel.pixelId}>
               <strong>{pixel.pixelNames[0] || 'Pixel'} · {pixel.pixelId}</strong>
               <span>{pixel.usageCount ? `Lo usan: ${pixel.clientNames.join(', ')}` : 'Sin empresa asignada'}</span>
-              <small>{pixel.tokenConfigured ? 'Con token' : 'Falta token: no puede enviar'}</small>
+              <small>
+                {pixel.tokenConfigured ? 'Con token' : 'Falta token: no puede enviar'}
+                {catalogQuery.data?.agencyPixelId === pixel.pixelId ? ' · Mide el embudo de la agencia' : ''}
+              </small>
+              {/*
+                El embudo propio va a un solo Pixel: dos obligarían a decidir en cada envío cuál
+                usar, y esa decisión no la puede tomar el código.
+              */}
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={marcarAgencia.isPending || !pixel.tokenConfigured}
+                onClick={() => marcarAgencia.mutate(
+                  catalogQuery.data?.agencyPixelId === pixel.pixelId ? null : pixel.pixelId,
+                )}
+              >
+                {catalogQuery.data?.agencyPixelId === pixel.pixelId ? 'Quitar de la agencia' : 'Usar para la agencia'}
+              </button>
               {/* Editar es registrar otra vez: se reutiliza el formulario de arriba. */}
               <button
                 type="button"

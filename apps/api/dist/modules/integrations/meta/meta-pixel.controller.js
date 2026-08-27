@@ -74,6 +74,9 @@ let MetaPixelController = class MetaPixelController {
     guardarCredencialDePixel(dto, req) {
         return this.clientPixels.guardarCredencial(req.organizationId, dto.pixelId, dto);
     }
+    marcarPixelDeAgencia(dto, req) {
+        return this.clientPixels.marcarPixelDeAgencia(req.organizationId, dto.pixelId ?? null);
+    }
     quitarCredencialDePixel(pixelId, req) {
         return this.clientPixels.quitarCredencial(req.organizationId, pixelId);
     }
@@ -185,6 +188,15 @@ __decorate([
     __metadata("design:paramtypes", [meta_integration_dto_1.MetaPixelCredentialDto, Object]),
     __metadata("design:returntype", void 0)
 ], MetaPixelController.prototype, "guardarCredencialDePixel", null);
+__decorate([
+    (0, common_1.Post)('pixels/agencia'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [meta_integration_dto_1.MetaAgencyPixelDto, Object]),
+    __metadata("design:returntype", void 0)
+], MetaPixelController.prototype, "marcarPixelDeAgencia", null);
 __decorate([
     (0, common_1.Delete)('pixels/:pixelId'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),

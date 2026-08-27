@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { MetaConversionOutboxService } from '../meta-conversion-outbox.service';
 import { MetaClientPixelService } from '../meta-client-pixel.service';
 import { IntegrationAccount } from '../../integration-account.entity';
@@ -9,6 +9,9 @@ import { IntegrationAccountType } from '../../integration-account-type.enum';
 import { Lead } from '../../../crm/leads/lead.entity';
 import { Client } from '../../../clients/client.entity';
 import { Campaign } from '../../../crm/campaigns/campaign.entity';
+
+/** Forma de un identificador de lead de Meta: 15 a 17 dígitos, nada más. */
+const LEADGEN_ID = /^d{15,17}$/;
 
 @Injectable()
 export class LeadConvertedHandler {
@@ -59,34 +62,44 @@ export class LeadConvertedHandler {
        * cuenta publicitaria. Sin campaña declarada —o sin Pixel propio en ella— hereda el de la
        * empresa, que es como funcionó siempre.
        */
+      /*
+       * La campaña que trajo al prospecto es de la agencia, no de la empresa que acaba de nacer.
+       *
+       * Se buscaba con el cliente recién creado, así que nunca encontraba nada y el interruptor
+       * de reporte de esa campaña no se leía jamás. Ahora se busca en el embudo propio, donde las
+       * campañas no tienen empresa.
+       */
       const campana = lead.campaignName
         ? await this.campaignRepo.findOne({
-          where: { organizationId: lead.organizationId, name: lead.campaignName, clientId: payload.clientId },
-          select: { id: true, metaPixelId: true },
+          where: { organizationId: lead.organizationId, name: lead.campaignName, clientId: IsNull() },
+          select: { id: true, metaCapiEnabled: true },
         })
         : null;
 
-      const { pixelId, tokenSource } = await this.clientPixels.resolveForScope(
-        lead.organizationId,
-        payload.clientId,
-        campana?.metaPixelId,
-      );
+      // Una campaña puede quedar fuera del reporte sin apagar nada más. Faltaba: la columna ni
+      // siquiera se traía, así que apagarla no surtía efecto en este camino.
+      if (campana && campana.metaCapiEnabled === false) return;
+
+      /*
+       * Va al Pixel de la agencia, no al del cliente.
+       *
+       * Esta conversión es de Espartanos: un prospecto suyo se convirtió en empresa cliente, y el
+       * `value` es el retainer que la agencia va a cobrar. Resolverlo contra el Pixel del cliente
+       * recién creado publicaba en su Events Manager un evento valorado en lo que le paga a la
+       * agencia.
+       *
+       * Sin Pixel de agencia marcado no se envía nada, y eso **es** el interruptor: marcarlo es
+       * el consentimiento explícito que en las empresas da la capacidad contratada.
+       */
+      const { pixelId, accessToken } = await this.clientPixels.resolveAgencia(lead.organizationId);
       if (!pixelId) {
-        this.logger.warn(`Lead ${lead.id}: el cliente ${payload.clientId} no tiene Pixel configurado; no se encola la conversión`);
+        this.logger.warn(`Lead ${lead.id}: la agencia no tiene Pixel propio marcado; no se encola su conversión`);
         return;
       }
-      /*
-       * Un token heredado del entorno casi nunca tiene permiso sobre el Pixel de un cliente: el
-       * evento se encola, Meta lo rechaza y queda en `failed` sin que nadie sepa por qué. Se
-       * avisa al encolar, que es cuando todavía se puede corregir.
-       */
-      if (tokenSource === 'environment') {
-        this.logger.warn(
-          `Lead ${lead.id}: el Pixel ${pixelId} no tiene token propio y usará el del entorno; `
-          + 'si Meta lo rechaza, configura el token de esa empresa.',
-        );
+      if (!accessToken) {
+        this.logger.warn(`Lead ${lead.id}: el Pixel de la agencia ${pixelId} no tiene token; no se encola su conversión`);
+        return;
       }
-
       const client = await this.clientRepo.findOne({ where: { id: payload.clientId, organizationId: lead.organizationId } });
       const eventId = `lead-converted:${lead.id}:${payload.clientId}`;
 
@@ -109,6 +122,10 @@ export class LeadConvertedHandler {
         eventTime: Math.floor(Date.now() / 1000),
         actionSource: 'system_generated',
         userData: {
+          // Si el prospecto vino de un formulario instantáneo, su identificador de Meta es el
+          // emparejador más fuerte. Va sin hashear: es un número que generó Meta, no un dato
+          // personal, y hashearlo lo vuelve irreconocible para ellos.
+          lead_id: LEADGEN_ID.test(lead.externalLeadId ?? '') ? lead.externalLeadId as string : undefined,
           em: lead.email ? [lead.email] : undefined,
           ph: lead.phone ? [lead.phone] : undefined,
           externalId: [lead.id],

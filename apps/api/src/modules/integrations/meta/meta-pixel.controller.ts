@@ -11,7 +11,7 @@ import { Roles } from '../../../core/authorization/roles.decorator';
 import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../../shared/types/request';
 import { toIntegrationResponse } from '../integration-response';
-import { MetaAssetSelectionDto, MetaClientPixelDto, MetaClientPixelSetupDto, MetaPixelCredentialDto, MetaLeadSyncDto, MetaOAuthCallbackDto, MetaPixelDto } from './dto/meta-integration.dto';
+import { MetaAssetSelectionDto, MetaClientPixelDto, MetaClientPixelSetupDto, MetaPixelCredentialDto, MetaAgencyPixelDto, MetaLeadSyncDto, MetaOAuthCallbackDto, MetaPixelDto } from './dto/meta-integration.dto';
 import { createOAuthState, verifyOAuthState } from '../../../shared/security/oauth-state';
 import { MetaInsightsService } from './meta-insights.service';
 import { resolveOAuthRedirect } from '../../../shared/security/oauth-redirect';
@@ -91,6 +91,19 @@ export class MetaPixelController {
   }
 
   /** Cortar el envío a un Pixel sin tocar a qué empresa está asignado. */
+  /**
+   * Marca el Pixel con el que la agencia mide su propio embudo.
+   *
+   * Espartanos no es cliente de sí misma, asi que no tiene Pixel por empresa. Sin esta marca su
+   * conversión propia se resolvía contra el Pixel del cliente recién creado, y publicaba en la
+   * cuenta de ese cliente un evento valorado en lo que le paga a la agencia.
+   */
+  @Post('pixels/agencia')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
+  marcarPixelDeAgencia(@Body() dto: MetaAgencyPixelDto, @Req() req: AuthenticatedRequest) {
+    return this.clientPixels.marcarPixelDeAgencia(req.organizationId, dto.pixelId ?? null);
+  }
+
   @Delete('pixels/:pixelId')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
   quitarCredencialDePixel(@Param('pixelId') pixelId: string, @Req() req: AuthenticatedRequest) {
