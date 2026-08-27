@@ -118,6 +118,28 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
   });
 
+  /*
+   * Cortar el envío a un Pixel.
+   *
+   * No borra la asignación: una empresa puede seguir apuntando a él y dejar de enviar, que es
+   * distinto de no tenerlo. Si queda un token de la forma antigua se dice, porque seguiría
+   * enviando y cortar «a medias» sin avisar es peor que no cortar.
+   */
+  const quitarCredencial = useMutation({
+    mutationFn: (pixelId: string) => api.delete<{ quedaHeredado: boolean }>(`/integrations/meta/pixels/${encodeURIComponent(pixelId)}`),
+    onSuccess: async (resultado) => {
+      await queryClient.invalidateQueries({ queryKey: ['meta-client-pixel-catalog'] });
+      setFeedback({
+        tone: 'success',
+        text: resultado?.quedaHeredado
+          ? 'Credencial quitada, pero ese Pixel conserva un token dentro de una empresa y seguirá enviando. Reasigna esa empresa para cortarlo del todo.'
+          : 'Credencial quitada. Ese Pixel ya no puede enviar conversiones.',
+      });
+    },
+    onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
+  });
+
+
   const canSubmit = Boolean(form.clientId)
     && (form.mode === 'none'
       || (form.mode === 'existing' && Boolean(form.existingPixelId))
@@ -291,8 +313,15 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
             disabled={!credencial.pixelId.trim() || guardarCredencial.isPending}
             onClick={() => guardarCredencial.mutate()}
           >
-            {guardarCredencial.isPending ? 'Validando con Meta...' : 'Guardar Pixel y token'}
+            {guardarCredencial.isPending
+              ? 'Validando con Meta...'
+              : catalogQuery.data?.pixels.some((pixel) => pixel.pixelId === credencial.pixelId.trim())
+                ? 'Guardar cambios'
+                : 'Registrar Pixel'}
           </button>
+          {credencial.pixelId || credencial.name || credencial.accessToken ? (
+            <button type="button" className="btn btn-outline" onClick={() => setCredencial(CREDENCIAL_VACIA)}>Cancelar</button>
+          ) : null}
         </div>
         <div className="client-pixel-list">
           {catalogQuery.data?.pixels.map((pixel) => (
@@ -306,7 +335,15 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
                 className="btn btn-outline btn-sm"
                 onClick={() => setCredencial({ pixelId: pixel.pixelId, name: pixel.pixelNames[0] || '', accessToken: '' })}
               >
-                Cambiar token
+                Editar nombre o token
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={quitarCredencial.isPending}
+                onClick={() => quitarCredencial.mutate(pixel.pixelId)}
+              >
+                Quitar
               </button>
             </div>
           ))}

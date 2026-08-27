@@ -272,6 +272,23 @@ let MetaClientPixelService = class MetaClientPixelService {
             return { pixelId: limpio, name: credencial.name ?? null, tokenConfigured: Boolean(credencial.accessToken) };
         });
     }
+    async quitarCredencial(organizationId, pixelId) {
+        const integration = await this.organizationIntegration(organizationId);
+        if (!integration)
+            throw new common_1.NotFoundException('Integración Meta no encontrada');
+        return this.integrations.manager.transaction(async (manager) => {
+            const repo = manager.getRepository(integration_entity_1.Integration);
+            const fresh = await repo.findOne({ where: { id: integration.id }, lock: { mode: 'pessimistic_write' } });
+            if (!fresh)
+                throw new common_1.NotFoundException('Integración Meta no encontrada');
+            const { [pixelId]: quitada, ...resto } = this.credenciales(fresh);
+            if (!quitada)
+                throw new common_1.NotFoundException('Ese Pixel no tiene credencial registrada');
+            fresh.config = { ...fresh.config, metaPixels: resto };
+            await repo.save(fresh);
+            return { pixelId, quedaHeredado: Boolean(this.tokenGuardadoEnEmpresa(fresh, pixelId)) };
+        });
+    }
     tokenGuardadoEnEmpresa(integration, pixelId) {
         return Object.values(this.records(integration)).find((item) => (item.pixelId === pixelId && item.accessToken))?.accessToken;
     }

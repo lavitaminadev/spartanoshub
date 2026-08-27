@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, UseGuards, Req, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards, Req, Query, BadRequestException , Delete } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -88,6 +88,13 @@ export class MetaPixelController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
   guardarCredencialDePixel(@Body() dto: MetaPixelCredentialDto, @Req() req: AuthenticatedRequest) {
     return this.clientPixels.guardarCredencial(req.organizationId, dto.pixelId, dto);
+  }
+
+  /** Cortar el envío a un Pixel sin tocar a qué empresa está asignado. */
+  @Delete('pixels/:pixelId')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
+  quitarCredencialDePixel(@Param('pixelId') pixelId: string, @Req() req: AuthenticatedRequest) {
+    return this.clientPixels.quitarCredencial(req.organizationId, pixelId);
   }
 
   @Get(':id/client-pixels')

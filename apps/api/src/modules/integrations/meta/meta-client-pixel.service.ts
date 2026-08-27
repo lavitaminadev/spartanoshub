@@ -437,6 +437,33 @@ export class MetaClientPixelService {
     });
   }
 
+  /**
+   * Quita la credencial de un Pixel.
+   *
+   * No borra la asignación: una empresa puede seguir apuntando a ese Pixel y dejar de enviar, que
+   * es distinto de no tenerlo. Se usa cuando el Pixel deja de ser tuyo, o cuando el token se
+   * filtró y prefieres cortar antes que reemplazar.
+   *
+   * Si ese Pixel conserva un token de la forma antigua —dentro de una empresa—, se avisa en vez
+   * de fingir que se cortó: seguiría enviando y nadie lo sabría.
+   */
+  async quitarCredencial(organizationId: string, pixelId: string): Promise<{ pixelId: string; quedaHeredado: boolean }> {
+    const integration = await this.organizationIntegration(organizationId);
+    if (!integration) throw new NotFoundException('Integración Meta no encontrada');
+
+    return this.integrations.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(Integration);
+      const fresh = await repo.findOne({ where: { id: integration.id }, lock: { mode: 'pessimistic_write' } });
+      if (!fresh) throw new NotFoundException('Integración Meta no encontrada');
+
+      const { [pixelId]: quitada, ...resto } = this.credenciales(fresh);
+      if (!quitada) throw new NotFoundException('Ese Pixel no tiene credencial registrada');
+      fresh.config = { ...fresh.config, metaPixels: resto };
+      await repo.save(fresh);
+      return { pixelId, quedaHeredado: Boolean(this.tokenGuardadoEnEmpresa(fresh, pixelId)) };
+    });
+  }
+
   /** El token que quedó dentro de una empresa, ya cifrado, para poder mudarlo tal cual. */
   private tokenGuardadoEnEmpresa(integration: Integration, pixelId: string): string | undefined {
     return Object.values(this.records(integration)).find((item) => (
