@@ -42,3 +42,8 @@ docs/ACCESOS.md
 
 # Informe del diagnostico de permisos: contiene el estado de una cuenta concreta.
 diagnostico-permisos.txt
+
+# Cuentas de prueba del computador: crea doce usuarios con una contraseña conocida.
+# No se versiona para que no exista la posibilidad de que llegue a un entorno real,
+# ni siquiera por descuido. Se corre con `node scripts/local/demo.cjs`.
+scripts/local/demo.cjs

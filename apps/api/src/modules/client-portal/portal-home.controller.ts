@@ -89,11 +89,22 @@ export class PortalHomeController {
     const home = await this.crmHome.home(organizationId, 7, { domain: 'commercial', clientId });
     return {
       leadsDelMes: home.month?.leads ?? 0,
-      // Solo lo accionable. El inicio del equipo trae más avisos, y varios hablan del reparto
-      // interno de Espartanos, que no es asunto de la empresa.
-      pendientes: (home.alerts ?? []).filter((aviso: { key: string }) => (
-        ['sin_contactar', 'calificados_sin_visita'].includes(aviso.key)
-      )),
+      /*
+       * Solo lo accionable, y solo la cifra.
+       *
+       * El aviso del equipo viaja con la lista de leads dentro, y ahí va `assignedToName`: quién
+       * de la agencia lleva cada uno. Eso es reparto interno, no es asunto de la empresa, y
+       * reenviarlo entero lo publicaba en el portal sin que nadie lo pidiera. Se copian las tres
+       * claves que la pantalla usa y se descarta el resto.
+       *
+       * Varios avisos del inicio del equipo tampoco corresponden —`sin_asignar` habla de la
+       * carga de Espartanos—, así que la lista es cerrada y no una exclusión.
+       */
+      pendientes: (home.alerts ?? [])
+        .filter((aviso: { key: string }) => ['sin_contactar', 'calificados_sin_visita'].includes(aviso.key))
+        .map((aviso: { key: string; count: number; level: string }) => ({
+          key: aviso.key, count: aviso.count, level: aviso.level,
+        })),
     };
   }
 

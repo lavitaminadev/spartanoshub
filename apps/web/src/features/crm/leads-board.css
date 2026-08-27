@@ -148,3 +148,35 @@
 .leads-board-semaforo.es-verde i { background: #23856d; box-shadow: 0 0 0 3px rgb(35 133 109 / .14); }
 .leads-board-puntaje { color: var(--muted); font-size: 10px; }
 .leads-board-chip.es-unqualified { background: var(--pink-soft); color: var(--pink-dark); border-color: var(--pink); }
+
+/*
+ * La fila mide una línea.
+ *
+ * «Genesis Donoso Salgado» se partía en tres renglones y arrastraba el alto de toda la fila,
+ * de modo que diez prospectos ocupaban lo que deberían ocupar treinta. El texto completo sigue
+ * disponible en el `title` y en la ficha, así que recortar no esconde nada.
+ */
+.data-table td.col-prospecto,
+.data-table th.col-prospecto { max-width: 190px; }
+.data-table td.col-larga { max-width: 210px; }
+.data-table td.col-prospecto .link-button,
+.data-table td.col-larga {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Elección de columnas: dos por fila, para que quepan las nueve sin desplazarse. */
+.leads-columnas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.leads-columna { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.leads-columna input { width: 16px; height: 16px; }
+
+/* En pantalla angosta la tabla ya se apila por filas; recortar ahí escondería el dato. */
+@media (max-width: 720px) {
+  .data-table td.col-prospecto,
+  .data-table td.col-larga { max-width: none; }
+  .data-table td.col-prospecto .link-button,
+  .data-table td.col-larga { white-space: normal; }
+  .leads-columnas { grid-template-columns: 1fr; }
+}

@@ -255,7 +255,7 @@ export function CrmHomePage(): JSX.Element {
 
       <section className="crm-home-team">
         <header>
-          <h2>Carga del equipo <span className="crm-home-solo">Solo jefatura</span></h2>
+          <h2>Carga del equipo</h2>
         </header>
         {team.length ? (
           <div className="table-wrapper">
