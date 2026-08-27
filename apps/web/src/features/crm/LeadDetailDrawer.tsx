@@ -829,8 +829,16 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </label>
         </div>
 
+        {/*
+          Notas y Tareas van seguidas y se leian como lo mismo.
+
+          Una nota es contexto y una tarea es un compromiso con fecha: la primera no vence ni
+          avisa, la segunda alimenta «proximo paso» y el contador de pendientes. Sin decirlo, la
+          gente escribe recordatorios en Notas —donde nadie los va a ver— o contexto como tarea
+          sin fecha, que infla el contador con cosas que nadie tiene que hacer.
+        */}
         <label className="lead-detail-nota">
-          <span>Notas</span>
+          <span>Notas <em>Contexto: lo que hay que saber de este prospecto</em></span>
           <textarea
             className="input"
             rows={3}
@@ -859,7 +867,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
         ) : null}
 
         <section className="lead-detail-historial">
-          <h3>Tareas</h3>
+          <h3>Tareas <em>Compromisos con fecha: lo que hay que hacer</em></h3>
           {scope.puedeEditar ? <div className="lead-detail-tarea-nueva">
             <input
               className="input"

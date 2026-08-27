@@ -98,3 +98,16 @@
 @media (max-width: 560px) {
   .lead-detail-tareas li { flex-wrap: wrap; }
 }
+
+/* El subtítulo aclara sin competir: dice para qué sirve el campo, no lo titula. */
+.lead-detail-nota > span em,
+.lead-detail-historial h3 em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0;
+  text-transform: none;
+}

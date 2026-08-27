@@ -133,7 +133,25 @@ export class LeadStageChangedHandler {
         eventName: STAGE_LABELS_BY_KEY[payload.toStage] ?? payload.toStage,
         eventTime: Math.floor(Date.now() / 1000),
         actionSource: 'system_generated',
-        userData: { lead_id: leadId },
+        /*
+         * El `lead_id` empareja; el correo y el teléfono lo refuerzan.
+         *
+         * Con solo el identificador, Meta empareja o no empareja. Añadir los contactos hasheados
+         * le da una segunda vía cuando ese lead cambió de cuenta o el identificador envejeció, y
+         * sube la calidad de coincidencia sin coste: son datos que el lead ya nos dio.
+         *
+         * Van sin hashear desde acá **a propósito**: `sendServerEvent` aplica SHA-256 con la
+         * normalización que Meta exige —minúsculas, teléfono solo dígitos—. Hashear dos veces
+         * produce un valor que no empareja con nada y nadie se entera.
+         *
+         * El nombre no viaja: llega en un solo campo y partirlo en nombre y apellido acierta poco
+         * en Chile, donde son dos apellidos. Un `ln` equivocado no resta, pero tampoco suma.
+         */
+        userData: {
+          lead_id: leadId,
+          em: lead.email ? [lead.email] : undefined,
+          ph: lead.phone ? [lead.phone] : undefined,
+        },
         customData: {
           leadEventSource: LeadStageChangedHandler.ORIGEN,
           eventSource: 'crm',

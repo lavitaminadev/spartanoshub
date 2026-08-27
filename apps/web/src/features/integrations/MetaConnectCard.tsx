@@ -35,6 +35,9 @@ interface MetaPixelCatalog {
 
 type PixelMode = 'manual' | 'existing' | 'none';
 
+/** Alta o edición de la credencial de un Pixel, con independencia de quién lo use. */
+const CREDENCIAL_VACIA = { pixelId: '', name: '', accessToken: '' };
+
 const EMPTY_FORM = {
   clientId: '',
   mode: 'manual' as PixelMode,
@@ -47,6 +50,7 @@ const EMPTY_FORM = {
 export function MetaConnectCard({ integration }: MetaConnectCardProps) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY_FORM);
+  const [credencial, setCredencial] = useState(CREDENCIAL_VACIA);
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
   const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({
@@ -89,6 +93,27 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
         text: successText,
       });
       setForm(EMPTY_FORM);
+    },
+    onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
+  });
+
+  /*
+   * Guardar la credencial de un Pixel.
+   *
+   * Separado de asignar: el token es del Pixel y cambia cuando Meta lo caduca, no cuando cambia
+   * la operación. Sin esto había que reescribir la asignación entera para tocar un token, y no
+   * había forma de registrar el Pixel que una campaña usa por su cuenta.
+   */
+  const guardarCredencial = useMutation({
+    mutationFn: () => api.post('/integrations/meta/pixels', {
+      pixelId: credencial.pixelId.trim(),
+      name: credencial.name.trim() || undefined,
+      accessToken: credencial.accessToken.trim() || undefined,
+    }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['meta-client-pixel-catalog'] });
+      setFeedback({ tone: 'success', text: 'Pixel registrado. Ya puede asignarse a una empresa o a una campaña.' });
+      setCredencial(CREDENCIAL_VACIA);
     },
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
   });
@@ -212,10 +237,86 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
         </div>
       </section>
 
+      {/*
+        Registrar el Pixel va antes que asignarlo, y en su propio bloque.
+
+        Son dos decisiones con vidas distintas: la credencial cambia cuando Meta caduca el token;
+        la asignación, cuando cambia la operación. Unidas, mover una campaña de empresa dejaba la
+        credencial atrás y el envío moría con el token del entorno, que Meta rechaza.
+      */}
       <section className="integration-section">
         <div className="integration-section-head">
           <div>
-            <h4>Estado por empresa</h4>
+            <h4>Pixels registrados</h4>
+            <p className="page-subtitle">
+              El token pertenece al Pixel, no a la empresa. Regístralo una vez acá y luego asígnalo
+              a las empresas o campañas que lo usen.
+            </p>
+          </div>
+        </div>
+        <div className="client-pixel-admin-form">
+          <label>
+            ID del Pixel
+            <input
+              className="input"
+              value={credencial.pixelId}
+              onChange={(event) => setCredencial({ ...credencial, pixelId: event.target.value })}
+              placeholder="Desde Events Manager"
+            />
+          </label>
+          <label>
+            Nombre visible
+            <input
+              className="input"
+              value={credencial.name}
+              onChange={(event) => setCredencial({ ...credencial, name: event.target.value })}
+              placeholder="Cómo lo reconoces después"
+            />
+          </label>
+          <label>
+            Token CAPI
+            <input
+              className="input"
+              type="password"
+              value={credencial.accessToken}
+              onChange={(event) => setCredencial({ ...credencial, accessToken: event.target.value })}
+              placeholder="Vacío conserva el que ya tiene"
+            />
+          </label>
+        </div>
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!credencial.pixelId.trim() || guardarCredencial.isPending}
+            onClick={() => guardarCredencial.mutate()}
+          >
+            {guardarCredencial.isPending ? 'Validando con Meta...' : 'Guardar Pixel y token'}
+          </button>
+        </div>
+        <div className="client-pixel-list">
+          {catalogQuery.data?.pixels.map((pixel) => (
+            <div key={pixel.pixelId}>
+              <strong>{pixel.pixelNames[0] || 'Pixel'} · {pixel.pixelId}</strong>
+              <span>{pixel.usageCount ? `Lo usan: ${pixel.clientNames.join(', ')}` : 'Sin empresa asignada'}</span>
+              <small>{pixel.tokenConfigured ? 'Con token' : 'Falta token: no puede enviar'}</small>
+              {/* Editar es registrar otra vez: se reutiliza el formulario de arriba. */}
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => setCredencial({ pixelId: pixel.pixelId, name: pixel.pixelNames[0] || '', accessToken: '' })}
+              >
+                Cambiar token
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="integration-section">
+        <div className="integration-section-head">
+          <div>
+            <h4>Qué Pixel usa cada empresa</h4>
             <p className="page-subtitle">Resumen rápido para saber qué empresas pueden enviar conversiones reales a Meta.</p>
           </div>
         </div>

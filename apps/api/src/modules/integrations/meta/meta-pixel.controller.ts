@@ -11,7 +11,7 @@ import { Roles } from '../../../core/authorization/roles.decorator';
 import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../../shared/types/request';
 import { toIntegrationResponse } from '../integration-response';
-import { MetaAssetSelectionDto, MetaClientPixelDto, MetaClientPixelSetupDto, MetaLeadSyncDto, MetaOAuthCallbackDto, MetaPixelDto } from './dto/meta-integration.dto';
+import { MetaAssetSelectionDto, MetaClientPixelDto, MetaClientPixelSetupDto, MetaPixelCredentialDto, MetaLeadSyncDto, MetaOAuthCallbackDto, MetaPixelDto } from './dto/meta-integration.dto';
 import { createOAuthState, verifyOAuthState } from '../../../shared/security/oauth-state';
 import { MetaInsightsService } from './meta-insights.service';
 import { resolveOAuthRedirect } from '../../../shared/security/oauth-redirect';
@@ -74,6 +74,20 @@ export class MetaPixelController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
   setupClientPixel(@Body() dto: MetaClientPixelSetupDto, @Req() req: AuthenticatedRequest) {
     return this.clientPixels.setup(req.organizationId, dto.clientId, dto.mode, dto);
+  }
+
+  /**
+   * Registra un Pixel con su credencial, sin asignarlo a ninguna empresa.
+   *
+   * Va aparte de `client-pixels/setup` porque son dos decisiones distintas: ésta dice **con qué
+   * permiso se escribe en un Pixel** y cambia cuando Meta caduca el token; aquélla dice **quién
+   * lo usa** y cambia cuando cambia la operación. Juntas obligaban a reescribir la asignación
+   * para tocar el token, y dejaban sin credencial al Pixel que una campaña usa por su cuenta.
+   */
+  @Post('pixels')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
+  guardarCredencialDePixel(@Body() dto: MetaPixelCredentialDto, @Req() req: AuthenticatedRequest) {
+    return this.clientPixels.guardarCredencial(req.organizationId, dto.pixelId, dto);
   }
 
   @Get(':id/client-pixels')
