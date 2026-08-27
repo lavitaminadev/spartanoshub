@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { Lead } from '../../../modules/crm/leads/lead.entity';
 import { DataProtectionService } from '../../data-protection/data-protection.service';
 
@@ -11,6 +11,19 @@ import { DataProtectionService } from '../../data-protection/data-protection.ser
  * revision operativa del periodo y los reportes mensuales antes de borrar el dato.
  */
 const RESERVATION_RETENTION_DAYS = 180;
+
+/**
+ * Etapas en las que un lead ya no espera nada de nadie.
+ *
+ * El plazo se cuenta sobre la etapa y no sobre la calidad: antes se miraba
+ * , de modo que un descartado que habia llegado a calificarse no se
+ * anonimizaba nunca —y es justo el que mas datos personales acumulo—. La calidad dice si valia
+ * la pena; la etapa dice si el trato termino, que es lo que la retencion mide.
+ *
+ * Las ventas quedan fuera: la relacion comercial es el fundamento que permite conservarlas, y su
+ * respaldo tiene plazos propios mas largos.
+ */
+const ETAPAS_CERRADAS = ['lost', 'no_show'];
 
 @Injectable()
 export class PurgeExpiredLeadsJob {
@@ -28,7 +41,7 @@ export class PurgeExpiredLeadsJob {
     const expiredLeads = await this.leadRepo.find({
       where: {
         retentionReviewAt: LessThan(now),
-        fitStatus: 'unqualified',
+        status: In(ETAPAS_CERRADAS),
       },
       order: { retentionReviewAt: 'ASC' },
       take: 200,

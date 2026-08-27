@@ -47,6 +47,18 @@ export class MetaClientPixelSetupDto {
   @IsOptional() @IsString() @MinLength(20) @MaxLength(4096) accessToken?: string;
 }
 
+/**
+ * Credencial de un Pixel: con qué permiso se escribe en él.
+ *
+ * El token es opcional para poder renombrar un Pixel ya registrado sin volver a pegarlo —y sin
+ * que un campo vacío borre la credencial que estaba funcionando—.
+ */
+export class MetaPixelCredentialDto {
+  @IsString() @Matches(META_ID) pixelId: string;
+  @IsOptional() @IsString() @MaxLength(120) name?: string;
+  @IsOptional() @IsString() @MinLength(20) @MaxLength(4096) accessToken?: string;
+}
+
 export class MetaAssetSelectionDto {
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) pageIds?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) instagramProfileIds?: string[];

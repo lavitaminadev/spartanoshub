@@ -10,6 +10,20 @@ import { MetaPixelService } from './meta-pixel.service';
 
 type ClientPixelRecord = { pixelId: string; pixelName?: string; accessToken?: string; configuredAt: string };
 
+/**
+ * Credencial de un Pixel, guardada por Pixel y no por empresa.
+ *
+ * El token pertenece al Pixel: es lo que da permiso para escribir **en ese conjunto de datos**.
+ * Guardarlo dentro de la empresa —como se hacía— producía tres problemas a la vez: una empresa
+ * no podía tener dos Pixels, había que reescribir el Pixel para cambiar el token, y al mover una
+ * campaña a otra empresa la credencial se quedaba con la anterior y el envío moría con un token
+ * del entorno que Meta rechaza.
+ *
+ * Se lee de acá primero y del registro antiguo después, así que lo ya configurado sigue
+ * funcionando y se normaliza solo la primera vez que se guarda.
+ */
+type PixelCredential = { name?: string; accessToken?: string; updatedAt: string };
+
 @Injectable()
 export class MetaClientPixelService {
   constructor(
@@ -39,6 +53,29 @@ export class MetaClientPixelService {
       }));
     }
     return integration;
+  }
+
+  /** Credenciales por Pixel. Vacío cuando la integración todavía usa solo la forma antigua. */
+  private credenciales(integration: Integration): Record<string, PixelCredential> {
+    const value = integration.config?.metaPixels;
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, PixelCredential> : {};
+  }
+
+  /**
+   * Token con el que se escribe en un Pixel.
+   *
+   * En este orden: la credencial del Pixel, la que quedó dentro de alguna empresa que lo usa
+   * —compatibilidad con lo ya configurado—, y el token del entorno como último recurso. Ese
+   * último casi nunca sirve: pertenece a otra cuenta publicitaria y Meta rechaza el evento.
+   */
+  private tokenDePixel(integration: Integration | null, pixelId: string): string | undefined {
+    if (!integration) return process.env.META_CONVERSIONS_ACCESS_TOKEN || undefined;
+    const credencial = this.credenciales(integration)[pixelId];
+    if (credencial?.accessToken) return revealSecret(credencial.accessToken);
+    const heredado = Object.values(this.records(integration)).find((item) => (
+      item.pixelId === pixelId && item.accessToken
+    ));
+    return revealSecret(heredado?.accessToken) || process.env.META_CONVERSIONS_ACCESS_TOKEN || undefined;
   }
 
   private records(integration: Integration): Record<string, ClientPixelRecord> {
@@ -80,10 +117,29 @@ export class MetaClientPixelService {
 
   async list(id: string, organizationId: string) {
     const integration = await this.integration(id, organizationId);
-    return this.catalogRows(organizationId, this.records(integration));
+    return this.catalogRows(organizationId, this.records(integration), this.credenciales(integration));
   }
 
-  private async catalogRows(organizationId: string, records: Record<string, ClientPixelRecord>) {
+  /**
+   * Si esa empresa tiene un token que de verdad sirve para su Pixel.
+   *
+   * Mira primero el registro por Pixel y después lo que quedara dentro de la empresa. Devolver
+   * falso acá es lo que enciende el aviso de «usando el token general», que es la causa más
+   * frecuente de una cola de eventos rechazados.
+   */
+  private tokenPropioDe(
+    record: ClientPixelRecord | undefined,
+    credenciales: Record<string, PixelCredential>,
+  ): boolean {
+    if (!record) return false;
+    return Boolean(credenciales[record.pixelId]?.accessToken || record.accessToken);
+  }
+
+  private async catalogRows(
+    organizationId: string,
+    records: Record<string, ClientPixelRecord>,
+    credenciales: Record<string, PixelCredential> = {},
+  ) {
     const clients = await this.clients.find({ where: { organizationId }, order: { name: 'ASC' } });
     return clients.map((client) => ({
       clientId: client.id,
@@ -102,8 +158,9 @@ export class MetaClientPixelService {
        *
        * `tokenConfigured` se conserva porque otras pantallas ya lo consumen.
        */
-      tokenPropio: Boolean(records[client.id]?.accessToken),
-      tokenHeredado: !records[client.id]?.accessToken && Boolean(process.env.META_CONVERSIONS_ACCESS_TOKEN),
+      tokenPropio: Boolean(this.tokenPropioDe(records[client.id], credenciales)),
+      tokenHeredado: !this.tokenPropioDe(records[client.id], credenciales)
+        && Boolean(process.env.META_CONVERSIONS_ACCESS_TOKEN),
       configuredAt: records[client.id]?.configuredAt || null,
     }));
   }
@@ -111,7 +168,8 @@ export class MetaClientPixelService {
   async catalog(organizationId: string) {
     const integration = await this.organizationIntegration(organizationId);
     const records = integration ? this.records(integration) : {};
-    const bindings = await this.catalogRows(organizationId, records);
+    const credenciales = integration ? this.credenciales(integration) : {};
+    const bindings = await this.catalogRows(organizationId, records, credenciales);
     const pixels = Array.from(new Set(Object.values(records).map((record) => record.pixelId))).map((pixelId) => {
       const matched = bindings.filter((binding) => binding.pixelId === pixelId);
       const clients = matched.map((binding) => binding.clientName);
@@ -122,10 +180,27 @@ export class MetaClientPixelService {
         clientNames: clients,
         pixelNames: names,
         usageCount: clients.length,
-        tokenConfigured: Boolean(record?.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN),
+        tokenConfigured: Boolean(
+          credenciales[pixelId]?.accessToken || record?.accessToken || process.env.META_CONVERSIONS_ACCESS_TOKEN,
+        ),
       };
     });
-    return { bindings, pixels };
+    /*
+     * También los Pixels registrados que ninguna empresa usa todavía.
+     *
+     * Son los que una campaña necesita cuando se aparta del Pixel de su empresa: sin aparecer
+     * acá quedaban invisibles, y no había forma de saber si tenían credencial.
+     */
+    const sinAsignar = Object.keys(credenciales)
+      .filter((pixelId) => !pixels.some((registrado) => registrado.pixelId === pixelId))
+      .map((pixelId) => ({
+        pixelId,
+        clientNames: [] as string[],
+        pixelNames: credenciales[pixelId].name ? [credenciales[pixelId].name as string] : [],
+        usageCount: 0,
+        tokenConfigured: Boolean(credenciales[pixelId].accessToken),
+      }));
+    return { bindings, pixels: [...pixels, ...sinAsignar] };
   }
 
   async configure(id: string, organizationId: string, clientId: string, pixelId: string, accessToken?: string, pixelName?: string) {
@@ -137,7 +212,7 @@ export class MetaClientPixelService {
     const client = await this.clients.findOne({ where: { id: clientId, organizationId } });
     if (!client) throw new NotFoundException('Cliente no encontrado');
     const existing = this.records(integration)[clientId];
-    const token = accessToken?.trim() || revealSecret(existing?.accessToken) || process.env.META_CONVERSIONS_ACCESS_TOKEN;
+    const token = accessToken?.trim() || this.tokenDePixel(integration, pixelId);
     if (!token) throw new BadRequestException('Se requiere un token CAPI para este cliente');
 
     // La validación va antes de abrir la transacción: es una llamada a Meta que puede tardar
@@ -152,7 +227,13 @@ export class MetaClientPixelService {
       const record: ClientPixelRecord = {
         pixelId,
         pixelName: pixelName?.trim() || current?.pixelName || client.name,
-        accessToken: accessToken?.trim() ? protectSecret(accessToken.trim()) : current?.accessToken,
+        /*
+         * La asignación ya no guarda el token nuevo: es del Pixel y se escribe aparte, para que
+         * cambiarlo no obligue a reescribir esto y para que sobreviva a que la empresa cambie de
+         * Pixel. Lo que hubiera de la forma antigua se conserva hasta que ese Pixel tenga su
+         * propia credencial: borrarlo acá dejaría sin token algo que estaba funcionando.
+         */
+        accessToken: current?.accessToken,
         configuredAt: new Date().toISOString(),
       };
       return [
@@ -211,7 +292,11 @@ export class MetaClientPixelService {
       // un token por cliente. La prioridad debe favorecer el token del cliente — un
       // token global suele no tener permiso sobre el Pixel de un cliente dado en una
       // configuración de agencia multi-cuenta.
-      accessToken: revealSecret(record?.accessToken) || process.env.META_CONVERSIONS_ACCESS_TOKEN,
+      // El token se busca por el Pixel, no por la empresa: el permiso depende del Pixel, y así
+      // una empresa que cambia de Pixel no arrastra la credencial equivocada.
+      accessToken: record?.pixelId
+        ? this.tokenDePixel(integration, record.pixelId)
+        : process.env.META_CONVERSIONS_ACCESS_TOKEN,
     };
   }
 
@@ -301,8 +386,61 @@ export class MetaClientPixelService {
 
   async resolveByPixel(organizationId: string, pixelId: string): Promise<string | undefined> {
     const integration = await this.organizationIntegration(organizationId);
-    const record = integration ? Object.values(this.records(integration)).find((item) => item.pixelId === pixelId) : undefined;
-    const token = (record?.accessToken ? revealSecret(record.accessToken) : undefined) || process.env.META_CONVERSIONS_ACCESS_TOKEN;
-    return token || undefined;
+    return this.tokenDePixel(integration, pixelId);
+  }
+
+  /**
+   * Guarda o reemplaza la credencial de un Pixel, sin tocar a qué empresa está asignado.
+   *
+   * Es la mitad que faltaba: cambiar un token obligaba a reescribir la asignación entera, y no
+   * había forma de registrar un Pixel que ninguna empresa usara todavía —el que una campaña
+   * necesita cuando se aparta del de su empresa—.
+   *
+   * Se valida contra Meta antes de guardar: un token que no abre ese Pixel, guardado en
+   * silencio, reaparece días después como una cola de eventos fallidos.
+   */
+  async guardarCredencial(
+    organizationId: string,
+    pixelId: string,
+    datos: { name?: string; accessToken?: string },
+  ): Promise<{ pixelId: string; name: string | null; tokenConfigured: boolean }> {
+    const integration = await this.organizationIntegration(organizationId, true);
+    if (!integration) throw new NotFoundException('Integración Meta no encontrada');
+
+    const limpio = pixelId.trim();
+    if (!limpio) throw new BadRequestException('Debes indicar el ID del Pixel');
+
+    const nuevo = datos.accessToken?.trim();
+    const token = nuevo || this.tokenDePixel(integration, limpio);
+    if (!token) throw new BadRequestException('Se requiere un token CAPI para este Pixel');
+    if (!await this.pixels.validatePixel(limpio, token)) {
+      throw new BadRequestException('Meta no reconoció el Pixel con el token entregado');
+    }
+
+    return this.integrations.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(Integration);
+      const fresh = await repo.findOne({ where: { id: integration.id }, lock: { mode: 'pessimistic_write' } });
+      if (!fresh) throw new NotFoundException('Integración Meta no encontrada');
+
+      const actuales = this.credenciales(fresh);
+      const previa = actuales[limpio];
+      const credencial: PixelCredential = {
+        name: datos.name?.trim() || previa?.name,
+        // Sin token nuevo se conserva el que hubiera, incluido el de la forma antigua: así
+        // registrar solo el nombre no deja el Pixel sin credencial.
+        accessToken: nuevo ? protectSecret(nuevo) : previa?.accessToken ?? this.tokenGuardadoEnEmpresa(fresh, limpio),
+        updatedAt: new Date().toISOString(),
+      };
+      fresh.config = { ...fresh.config, metaPixels: { ...actuales, [limpio]: credencial } };
+      await repo.save(fresh);
+      return { pixelId: limpio, name: credencial.name ?? null, tokenConfigured: Boolean(credencial.accessToken) };
+    });
+  }
+
+  /** El token que quedó dentro de una empresa, ya cifrado, para poder mudarlo tal cual. */
+  private tokenGuardadoEnEmpresa(integration: Integration, pixelId: string): string | undefined {
+    return Object.values(this.records(integration)).find((item) => (
+      item.pixelId === pixelId && item.accessToken
+    ))?.accessToken;
   }
 }

@@ -71,7 +71,11 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                 eventName: shared_1.STAGE_LABELS_BY_KEY[payload.toStage] ?? payload.toStage,
                 eventTime: Math.floor(Date.now() / 1000),
                 actionSource: 'system_generated',
-                userData: { lead_id: leadId },
+                userData: {
+                    lead_id: leadId,
+                    em: lead.email ? [lead.email] : undefined,
+                    ph: lead.phone ? [lead.phone] : undefined,
+                },
                 customData: {
                     leadEventSource: LeadStageChangedHandler_1.ORIGEN,
                     eventSource: 'crm',
