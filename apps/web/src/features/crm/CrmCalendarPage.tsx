@@ -335,6 +335,15 @@ export function CrmCalendarPage(): JSX.Element {
       */}
       {vista === 'dia' ? (
         <div className="crm-cal-dia" aria-label="Agenda del día">
+          {/*
+            El día que se mira, escrito.
+
+            La jornada es una columna de horas idénticas para cualquier fecha: sin el encabezado,
+            volver de «Hoy» a otro día deja la pantalla sin decir de cuál se trata.
+          */}
+          <p className="crm-cal-dia-titulo">
+            {ancla.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
           {franjasDelDia(porDia.get(claveDia(ancla)) ?? []).map((franja) => (
             <div key={franja.hora} className={`crm-cal-franja${franja.eventos.length ? ' con-eventos' : ''}`}>
               <time className="crm-cal-hora">{String(franja.hora).padStart(2, '0')}:00</time>
@@ -380,7 +389,21 @@ export function CrmCalendarPage(): JSX.Element {
                 key={clave}
                 className={`crm-cal-celda${delMes ? '' : ' fuera'}${clave === hoy ? ' hoy' : ''}`}
               >
-                <span className="crm-cal-numero">{fecha.getDate()}</span>
+                {/*
+                  El número del día abre ese día.
+
+                  Sin esto, para ver el martes por horas había que pulsar «Día» —que muestra el
+                  día anclado, no el que se está mirando— y después navegar hasta él. Pulsar la
+                  fecha es lo que cualquiera intenta primero.
+                */}
+                <button
+                  type="button"
+                  className="crm-cal-numero"
+                  title={`Ver el ${fecha.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })} por horas`}
+                  onClick={() => { setAncla(new Date(fecha)); setVista('dia'); }}
+                >
+                  {fecha.getDate()}
+                </button>
                 {/*
                   Hora primero y después qué es.
 
