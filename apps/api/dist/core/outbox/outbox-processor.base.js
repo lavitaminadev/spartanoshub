@@ -70,7 +70,8 @@ class OutboxProcessor {
         const verdict = this.classifyFailure(error);
         item.attempts += 1;
         const message = error instanceof Error ? error.message : String(error);
-        item.lastError = verdict.tag ? `${verdict.tag} ${message}` : message;
+        const partes = [verdict.tag, message, verdict.detail].filter(Boolean);
+        item.lastError = partes.join(' ');
         if (!verdict.retryable || item.attempts >= this.maxAttempts) {
             item.status = 'failed';
             item.nextAttemptAt = null;

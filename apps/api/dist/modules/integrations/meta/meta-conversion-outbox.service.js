@@ -93,7 +93,6 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         const bodyMsg = metaError?.message ?? metaError?.error_user_msg ?? '';
         const isNonRetryable = typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 && statusCode !== 429;
         const isExpiredToken = metaError?.code === META_OAUTH_ERROR_CODE
-            || metaError?.type === 'OAuthException'
             || /expired|invalid.*token|invalidated|revoked|unauthorized/i.test(bodyMsg);
         const prefijos = [
             isExpiredToken ? '[TOKEN]' : null,
@@ -102,6 +101,15 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         return {
             retryable: !isNonRetryable && !isExpiredToken,
             tag: prefijos.length ? prefijos.join(' ') : undefined,
+            detail: metaError
+                ? [
+                    `meta code=${metaError.code ?? '?'}`,
+                    metaError.error_subcode ? `subcode=${metaError.error_subcode}` : null,
+                    metaError.type ? `type=${metaError.type}` : null,
+                    bodyMsg ? `msg="${bodyMsg}"` : null,
+                    metaError.fbtrace_id ? `fbtrace=${metaError.fbtrace_id}` : null,
+                ].filter(Boolean).join(' ')
+                : undefined,
         };
     }
 };
