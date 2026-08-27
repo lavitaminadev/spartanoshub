@@ -159,6 +159,7 @@ export class LeadController {
       search: query.search,
       assignedTo: query.assignedTo,
       domain: query.domain,
+      incluirDescartados: query.incluirDescartados,
       clientId,
       agencyOnly: esEmbudoAgencia,
       allowedClientIds: conCrm,

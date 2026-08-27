@@ -180,3 +180,7 @@
   .data-table td.col-larga { white-space: normal; }
   .leads-columnas { grid-template-columns: 1fr; }
 }
+
+/* La casilla va junto al conteo: quien mira «10 de 40» es quien se pregunta qué falta. */
+.leads-board-descartados { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.leads-board-descartados input { width: 15px; height: 15px; }

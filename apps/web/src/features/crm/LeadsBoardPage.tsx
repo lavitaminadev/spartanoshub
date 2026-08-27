@@ -147,6 +147,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    */
   const [columnasVisibles, setColumnasVisibles] = useState<ColumnaOpcional[]>(() => leerColumnas(scope.domain));
   const [columnasAbierto, setColumnasAbierto] = useState(false);
+  /*
+   * Ver también los descartados de meses cerrados.
+   *
+   * No se recuerda entre visitas a propósito: es una consulta puntual —«¿qué descartamos en
+   * marzo?»— y dejarla puesta devolvería la lista al problema que este corte resuelve, sin que
+   * nadie recuerde haberla encendido.
+   */
+  const [verDescartados, setVerDescartados] = useState(false);
   const ve = (clave: ColumnaOpcional) => columnasVisibles.includes(clave);
   const alternarColumna = (clave: ColumnaOpcional) => {
     const siguiente = columnasVisibles.includes(clave)
@@ -178,11 +186,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const { data, isLoading, error, refetch } = useQuery<LeadsPage>({
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
-    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana],
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, verDescartados],
     // El servidor limita cada respuesta a 100, pero el tablero no: se navega de página en página.
     // Así una empresa no pierde los contactos más antiguos cuando supera el primer centenar.
     queryFn: () => api.get(
-      `/crm/leads?domain=${scope.domain}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}`,
+      `/crm/leads?domain=${scope.domain}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}`,
     ),
   });
 
@@ -190,7 +198,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // anterior podía mostrar un tablero vacío aunque la empresa sí tuviera prospectos.
   useEffect(() => {
     setPagina(1);
-  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana]);
+  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, verDescartados]);
 
   /**
    * Campañas de la empresa que se está mirando.
@@ -248,7 +256,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   ]);
 
   /** Clave exacta del embudo que se está mirando, para tocar solo esa caché y no la de otra empresa. */
-  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana] as const;
+  const claveDelTablero = ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, verDescartados] as const;
 
   /**
    * Cambio de etapa de una tarjeta.
@@ -579,6 +587,21 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       {/* Sin alternador: la sección ya dice qué se está mirando. Queda el conteo, que es lo
           único que ese bloque aportaba de información. */}
       <div className="leads-board-vistas">
+        {/*
+          Se dice que hay algo fuera de la vista, en vez de esconderlo callado.
+
+          Una lista que oculta filas sin avisar se lee como datos perdidos. La casilla cuenta lo
+          que hace —y filtrar por la etapa «Descartado» los muestra todos igualmente, así que
+          esto es un atajo, no la única puerta.
+        */}
+        <label className="leads-board-descartados">
+          <input
+            type="checkbox"
+            checked={verDescartados}
+            onChange={(evento) => { setVerDescartados(evento.target.checked); setPagina(1); }}
+          />
+          <span>Ver descartados de meses anteriores</span>
+        </label>
         <span className="leads-board-conteo">{leads.length} de {data?.total ?? 0}</span>
       </div>
 
