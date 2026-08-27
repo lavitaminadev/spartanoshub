@@ -220,7 +220,17 @@ export class MetaClientPixelService {
     // La validación va antes de abrir la transacción: es una llamada a Meta que puede tardar
     // segundos, y hacerla con la fila bloqueada dejaría esperando a cualquier otra
     // configuración de la misma organización.
-    if (!await this.pixels.validatePixel(pixelId, token)) throw new BadRequestException('Meta no reconoció el Pixel con el token entregado');
+    /*
+     * Solo una credencial que Meta declara invalida impide guardar.
+     *
+     * La comprobacion lee la ficha del Pixel, y leer exige permisos que escribir eventos no: un
+     * token de la API de Conversiones suele poder `POST /events` y no ese `GET`. Bloquear por
+     * eso —o por un tiempo de espera agotado— dejaba sin configurar algo que funciona.
+     */
+    const verificacion = await this.pixels.verificarPixel(pixelId, token);
+    if (verificacion.bloquea) {
+      throw new BadRequestException(`Meta rechazo la credencial: ${verificacion.motivo ?? 'token invalido'}`);
+    }
 
     return this.mutateRecords(integration.id, (records) => {
       // Se relee el registro de dentro de la transacción y no el de antes: entre la
@@ -450,7 +460,7 @@ export class MetaClientPixelService {
     organizationId: string,
     pixelId: string,
     datos: { name?: string; accessToken?: string },
-  ): Promise<{ pixelId: string; name: string | null; tokenConfigured: boolean }> {
+  ): Promise<{ pixelId: string; name: string | null; tokenConfigured: boolean; verificado: boolean; motivo?: string }> {
     const integration = await this.organizationIntegration(organizationId, true);
     if (!integration) throw new NotFoundException('Integración Meta no encontrada');
 
@@ -460,8 +470,16 @@ export class MetaClientPixelService {
     const nuevo = datos.accessToken?.trim();
     const token = nuevo || this.tokenDePixel(integration, limpio);
     if (!token) throw new BadRequestException('Se requiere un token CAPI para este Pixel');
-    if (!await this.pixels.validatePixel(limpio, token)) {
-      throw new BadRequestException('Meta no reconoció el Pixel con el token entregado');
+    /*
+     * Solo una credencial que Meta declara invalida impide guardar.
+     *
+     * La comprobacion lee la ficha del Pixel, y leer exige permisos que escribir eventos no: un
+     * token de la API de Conversiones suele poder `POST /events` y no ese `GET`. Bloquear por
+     * eso —o por un tiempo de espera agotado— dejaba sin configurar algo que funciona.
+     */
+    const verificacion = await this.pixels.verificarPixel(limpio, token);
+    if (verificacion.bloquea) {
+      throw new BadRequestException(`Meta rechazo la credencial: ${verificacion.motivo ?? 'token invalido'}`);
     }
 
     return this.integrations.manager.transaction(async (manager) => {
@@ -480,7 +498,15 @@ export class MetaClientPixelService {
       };
       fresh.config = { ...fresh.config, metaPixels: { ...actuales, [limpio]: credencial } };
       await repo.save(fresh);
-      return { pixelId: limpio, name: credencial.name ?? null, tokenConfigured: Boolean(credencial.accessToken) };
+      return {
+        pixelId: limpio,
+        name: credencial.name ?? null,
+        tokenConfigured: Boolean(credencial.accessToken),
+        // Se guardo, pero no siempre pudo confirmarse contra Meta: la pantalla lo dice en vez de
+        // dar por buena una credencial que quiza solo funcione a medias.
+        verificado: verificacion.verificado,
+        motivo: verificacion.verificado ? undefined : verificacion.motivo,
+      };
     });
   }
 

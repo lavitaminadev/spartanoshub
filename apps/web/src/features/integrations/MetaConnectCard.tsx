@@ -107,14 +107,22 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
    * había forma de registrar el Pixel que una campaña usa por su cuenta.
    */
   const guardarCredencial = useMutation({
-    mutationFn: () => api.post('/integrations/meta/pixels', {
+    mutationFn: () => api.post<{ verificado?: boolean; motivo?: string }>('/integrations/meta/pixels', {
       pixelId: credencial.pixelId.trim(),
       name: credencial.name.trim() || undefined,
       accessToken: credencial.accessToken.trim() || undefined,
     }),
-    onSuccess: async () => {
+    onSuccess: async (resultado) => {
       await queryClient.invalidateQueries({ queryKey: ['meta-client-pixel-catalog'] });
-      setFeedback({ tone: 'success', text: 'Pixel registrado. Ya puede asignarse a una empresa o a una campaña.' });
+      /*
+        Se guardó, pero no siempre pudo confirmarse contra Meta.
+
+        Leer la ficha del Pixel exige permisos que escribir eventos no, así que un token válido
+        puede no pasar esa lectura. Decirlo es más honesto que un «listo» que quizá no lo esté.
+      */
+      setFeedback(resultado?.verificado === false
+        ? { tone: 'success', text: `Pixel guardado, pero no pudimos confirmarlo con Meta: ${resultado.motivo ?? 'sin detalle'}. Si los eventos no llegan, revisa el token.` }
+        : { tone: 'success', text: 'Pixel registrado y confirmado con Meta.' });
       setCredencial(CREDENCIAL_VACIA);
     },
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
