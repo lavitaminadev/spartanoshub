@@ -129,3 +129,22 @@
   .lead-detail-pie { flex-direction: column-reverse; }
   .lead-detail-pie .btn { width: 100%; }
 }
+
+/*
+  Respuestas del formulario con el que llegó el lead.
+
+  Dos columnas fijas y no una rejilla que se acomode: las preguntas son largas y las respuestas
+  cortas, y dejar que cada fila decida su ancho hace que las respuestas bailen de posición y
+  dejen de poder leerse en vertical de un vistazo.
+*/
+.lead-detail-respuestas { margin-top: 22px; }
+.lead-detail-respuestas dl { display: grid; gap: 0; margin: 12px 0 0; }
+.lead-detail-respuestas dl > div { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--soft); }
+.lead-detail-respuestas dt { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.lead-detail-respuestas dd { margin: 0; font-size: 13px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.lead-detail-respuestas > button { margin-top: 12px; }
+
+/* En pantalla estrecha no caben dos columnas: la respuesta pasa debajo de su pregunta. */
+@media (max-width: 640px) {
+  .lead-detail-respuestas dl > div { grid-template-columns: 1fr; gap: 2px; }
+}

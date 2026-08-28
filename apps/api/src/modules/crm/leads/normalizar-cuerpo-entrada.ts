@@ -41,6 +41,14 @@ const ALIAS = {
 } as const;
 
 /** Campos estables del archivo de Make que se conservan como contexto del lead. */
+/**
+ * Tope de preguntas que se guardan de un solo lead.
+ *
+ * No es un límite del formulario sino una defensa: sin él, un cuerpo con miles de claves haría
+ * crecer la fila del lead sin medida. Ningún formulario real se acerca.
+ */
+const MAX_PREGUNTAS = 60;
+
 const CAMPOS_METADATA: Record<string, readonly string[]> = {
   firstName: ['first_name'], lastName: ['last_name'], workEmail: ['work_email'],
   dateOfBirth: ['date_of_birth'], gender: ['gender'], maritalStatus: ['marital_status'],
@@ -95,15 +103,39 @@ export function normalizarCuerpoEntrada(cuerpo: Record<string, unknown>): Record
     if (valor !== undefined) metadata[campo] = valor;
   }
 
-  // Las preguntas son variables por formulario. Se guardan en una colección y no como veinte
-  // columnas rígidas, para que una pregunta nueva no requiera desplegar otra migración.
+  /*
+   * Las preguntas son variables por formulario.
+   *
+   * Se guardan en una colección y no como veinte columnas rígidas, para que una pregunta nueva
+   * no requiera desplegar otra migración.
+   *
+   * Se recorren hasta agotarlas y no hasta un número fijo: estaba topado en diez, así que un
+   * formulario con doce preguntas perdía las dos últimas sin avisar. El corte duro existe solo
+   * como tope de seguridad, para que un cuerpo malicioso no haga crecer la fila sin límite.
+   */
   const respuestas: Array<{ question: string; answer: string }> = [];
-  for (let indice = 1; indice <= 10; indice += 1) {
-    const question = primeroConValor(cuerpo, [`pregunta_${indice}`]);
-    const answer = primeroConValor(cuerpo, [`respuesta_${indice}`]);
-    if (question || answer) respuestas.push({ question: question ?? `Pregunta ${indice}`, answer: answer ?? '' });
+  for (let indice = 1; indice <= MAX_PREGUNTAS; indice += 1) {
+    const question = primeroConValor(cuerpo, [`pregunta_${indice}`, `question_${indice}`]);
+    const answer = primeroConValor(cuerpo, [`respuesta_${indice}`, `answer_${indice}`]);
+    if (!question && !answer) continue;
+    respuestas.push({ question: question ?? `Pregunta ${indice}`, answer: answer ?? '' });
   }
-  if (respuestas.length) metadata.answers = respuestas;
+
+  /*
+   * Y el formato de lista, para quien pueda mandarlo.
+   *
+   * Es la forma natural del dato y no obliga a inventar un nombre por posición. Convive con
+   * `pregunta_N` en vez de reemplazarlo: los escenarios de Make que ya funcionan siguen igual.
+   */
+  for (const fila of Array.isArray(cuerpo.respuestas) ? cuerpo.respuestas.slice(0, MAX_PREGUNTAS) : []) {
+    if (!fila || typeof fila !== 'object') continue;
+    const registro = fila as Record<string, unknown>;
+    const question = primeroConValor(registro, ['pregunta', 'question', 'name']);
+    const answer = primeroConValor(registro, ['respuesta', 'answer', 'value']);
+    if (question || answer) respuestas.push({ question: question ?? 'Pregunta', answer: answer ?? '' });
+  }
+
+  if (respuestas.length) metadata.answers = respuestas.slice(0, MAX_PREGUNTAS);
 
   const customFields = parsearCamposPersonalizados(cuerpo.custom_fields_json);
   if (customFields.length) metadata.customFields = customFields;

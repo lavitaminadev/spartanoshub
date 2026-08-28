@@ -1,4 +1,4 @@
-import { IsEmail, IsISO8601, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsISO8601, IsObject, IsOptional, IsString, MaxLength, IsArray } from 'class-validator';
 
 /**
  * Lead que entra por integración.
@@ -98,6 +98,15 @@ export class IngestLeadDto {
   @IsOptional() @IsString() @MaxLength(600) fbclid?: string;
   @IsOptional() @IsString() @MaxLength(600) fbc?: string;
   @IsOptional() @IsString() @MaxLength(255) fbp?: string;
+
+  /**
+   * Respuestas del formulario como lista.
+   *
+   * Alternativa a `pregunta_1`/`respuesta_1`, que sigue funcionando. La lista es la forma natural
+   * del dato y no obliga a inventar un nombre por posición ni topa en un número fijo de filas.
+   */
+  @IsOptional() @IsArray()
+  respuestas?: Array<{ pregunta?: string; respuesta?: string }>;
 
   @IsOptional() @IsObject()
   metadata?: Record<string, unknown>;
