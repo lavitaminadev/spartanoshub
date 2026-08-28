@@ -85,6 +85,20 @@ export class IngestLeadDto {
    * El normalizador construye este objeto desde una lista permitida; nunca acepta `metadata`
    * directamente del llamador ni copia las columnas `api_*` que Make usa para la respuesta.
    */
+  /**
+   * Señales de Meta que capturó el formulario de origen.
+   *
+   * Quien las tiene es la página donde la persona rellenó, no nosotros: cuando el lead llega por
+   * Zapier o Make ya no hay navegador al que preguntarle. Si el origen las reenvía, la conversión
+   * que se mande semanas después empareja bastante mejor.
+   *
+   * Con el `fbclid` solo alcanza: el `fbc` se construye a partir de él y de la fecha de captura.
+   * Es un parámetro que viaja en la URL siempre que la visita viene de un anuncio.
+   */
+  @IsOptional() @IsString() @MaxLength(600) fbclid?: string;
+  @IsOptional() @IsString() @MaxLength(600) fbc?: string;
+  @IsOptional() @IsString() @MaxLength(255) fbp?: string;
+
   @IsOptional() @IsObject()
   metadata?: Record<string, unknown>;
 }

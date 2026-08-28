@@ -58,6 +58,14 @@ let NotificationService = class NotificationService {
         const result = await this.repo.update(includeSystem ? { organizationId, userId, read: false } : { organizationId, userId, read: false, type: (0, typeorm_2.Not)('system') }, { read: true });
         return { updated: result.affected ?? 0 };
     }
+    async remove(organizationId, id, userId) {
+        const result = await this.repo.delete({ organizationId, id, userId });
+        return (result.affected ?? 0) > 0;
+    }
+    async removeRead(organizationId, userId) {
+        const result = await this.repo.delete({ organizationId, userId, read: true });
+        return { deleted: result.affected ?? 0 };
+    }
 };
 exports.NotificationService = NotificationService;
 exports.NotificationService = NotificationService = __decorate([

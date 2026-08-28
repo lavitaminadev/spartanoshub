@@ -66,9 +66,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 externalFormId: dto.formId,
                 externalCampaignId: dto.campanaId,
                 pageId: dto.paginaId,
-                metadata: dto.anuncioId || dto.metadata
-                    ? { ...(dto.metadata ?? {}), ...(dto.anuncioId ? { adId: dto.anuncioId } : {}) }
-                    : undefined,
+                metadata: this.metadatosDeEntrada(dto),
             });
             await this.sources.update(source.id, {
                 receivedCount: () => 'received_count + 1',
@@ -125,6 +123,24 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
         this.logger.warn(`El origen ${anterior.id} recibió un lead con su llave anterior; caduca el `
             + `${anterior.previousTokenExpiresAt.toISOString()}. Actualiza la integración.`);
         return anterior;
+    }
+    metadatosDeEntrada(dto) {
+        const atribucion = dto.fbclid || dto.fbc || dto.fbp
+            ? {
+                attribution: {
+                    fbclid: dto.fbclid,
+                    fbc: dto.fbc,
+                    fbp: dto.fbp,
+                    capturedAt: new Date().toISOString(),
+                },
+            }
+            : {};
+        const metadatos = {
+            ...(dto.metadata ?? {}),
+            ...(dto.anuncioId ? { adId: dto.anuncioId } : {}),
+            ...atribucion,
+        };
+        return Object.keys(metadatos).length > 0 ? metadatos : undefined;
     }
 };
 exports.LeadIngestService = LeadIngestService;

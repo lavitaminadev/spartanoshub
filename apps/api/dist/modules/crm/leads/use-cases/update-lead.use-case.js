@@ -27,12 +27,10 @@ const DOMAIN_LABELS = {
     commercial: 'el embudo comercial',
     audience: 'la audiencia de un local',
 };
-const CALIFICAN = [
-    lead_status_enum_1.LeadStatus.QUOTE_SENT,
-    lead_status_enum_1.LeadStatus.MEETING_SCHEDULED,
-    lead_status_enum_1.LeadStatus.NEGOTIATION,
-    lead_status_enum_1.LeadStatus.WON,
-];
+const DESENLACES = {
+    [lead_status_enum_1.LeadStatus.WON]: lead_fit_status_enum_1.LeadFitStatus.QUALIFIED,
+    [lead_status_enum_1.LeadStatus.LOST]: lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
+};
 let UpdateLeadUseCase = class UpdateLeadUseCase {
     constructor(repo, history, cierre, eventEmitter) {
         this.repo = repo;
@@ -51,6 +49,7 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             }
             lead.status = data.status;
         }
+        const calificacionPrevia = lead.fitStatus;
         if (data.fitStatus && Object.values(lead_fit_status_enum_1.LeadFitStatus).includes(data.fitStatus)) {
             lead.fitStatus = data.fitStatus;
         }
@@ -81,10 +80,9 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
         if (data.clientId !== undefined)
             lead.clientId = data.clientId;
         if (data.fitStatus === undefined && lead.domain === 'commercial' && etapaPrevia !== lead.status) {
-            if (CALIFICAN.includes(lead.status))
-                lead.fitStatus = lead_fit_status_enum_1.LeadFitStatus.QUALIFIED;
-            else if (lead.status === lead_status_enum_1.LeadStatus.LOST)
-                lead.fitStatus = lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED;
+            const automatica = DESENLACES[lead.status];
+            if (automatica)
+                lead.fitStatus = automatica;
         }
         if (lead.status === lead_status_enum_1.LeadStatus.LOST && etapaPrevia !== lead_status_enum_1.LeadStatus.LOST && !lead.discardReason?.trim()) {
             throw new common_1.BadRequestException('Para descartar un lead hay que indicar el motivo');
@@ -92,13 +90,19 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
         const guardado = await this.repo.save(lead);
         await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.LEAD, guardado.id, etapaPrevia, guardado.status, actorId, guardado.discardReason);
         await this.cierre.avisar(guardado, etapaPrevia, actorId);
-        if (etapaPrevia !== guardado.status) {
-            this.eventEmitter.emit('lead.stage-changed', {
+        if (lead.fitStatus === lead_fit_status_enum_1.LeadFitStatus.QUALIFIED
+            && calificacionPrevia !== lead_fit_status_enum_1.LeadFitStatus.QUALIFIED) {
+            this.eventEmitter.emit('lead.qualified', {
                 organizationId,
                 leadId: guardado.id,
                 clientId: guardado.clientId ?? null,
-                fromStage: etapaPrevia,
-                toStage: guardado.status,
+            });
+        }
+        if (etapaPrevia !== guardado.status && guardado.status === lead_status_enum_1.LeadStatus.WON) {
+            this.eventEmitter.emit('lead.won', {
+                organizationId,
+                leadId: guardado.id,
+                clientId: guardado.clientId ?? null,
             });
         }
         return guardado;

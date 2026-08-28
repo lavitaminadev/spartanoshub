@@ -24,9 +24,16 @@ export const STAGES = LEAD_STATUSES_BY_DOMAIN.commercial;
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<string, string> = {
-  new: 'Nuevo',
-  contacted: 'Contactado',
-  quote_sent: 'Calificado',
+  /*
+   * Los rótulos de fábrica dicen qué hacer, no solo dónde está.
+   *
+   * «Nuevo» describe un estado; «Nuevo - Contactar» describe la tarea pendiente, que es lo que
+   * alguien necesita saber al mirar la columna. Cada empresa puede renombrarlos desde su propia
+   * pantalla sin tocar esto: acá vive el punto de partida, no la última palabra.
+   */
+  new: 'Nuevo - Contactar',
+  contacted: 'Contactado - Recontactar',
+  quote_sent: 'Agendado esperando reunión',
   meeting_scheduled: 'Visita agendada',
   // Agendar la visita y que ocurra son dos hechos distintos: uno espera una fecha, el otro
   // espera una respuesta. Con una sola etapa no se distingue al que no llegó del que sí vino.

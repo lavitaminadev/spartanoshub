@@ -42,6 +42,15 @@ let NotificationsController = class NotificationsController {
             throw new common_1.NotFoundException('Notification not found');
         return notif;
     }
+    removeRead(req) {
+        return this.service.removeRead(req.organizationId || req.user.organizationId, req.user.id);
+    }
+    async remove(id, req) {
+        const borrada = await this.service.remove(req.organizationId || req.user.organizationId, id, req.user.id);
+        if (!borrada)
+            throw new common_1.NotFoundException('Notification not found');
+        return { deleted: true };
+    }
 };
 exports.NotificationsController = NotificationsController;
 __decorate([
@@ -77,6 +86,23 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], NotificationsController.prototype, "markAsRead", null);
+__decorate([
+    (0, common_1.Delete)('read'),
+    (0, swagger_1.ApiOperation)({ summary: 'Borrar las notificaciones ya leidas' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], NotificationsController.prototype, "removeRead", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Borrar una notificacion' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], NotificationsController.prototype, "remove", null);
 exports.NotificationsController = NotificationsController = __decorate([
     (0, swagger_1.ApiTags)('Notificaciones'),
     (0, common_1.Controller)('notifications'),

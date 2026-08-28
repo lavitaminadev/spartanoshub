@@ -18,12 +18,12 @@ const common_1 = require("@nestjs/common");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
-const shared_1 = require("@espartanos/shared");
 const meta_conversion_outbox_service_1 = require("../meta-conversion-outbox.service");
 const meta_client_pixel_service_1 = require("../meta-client-pixel.service");
 const client_capability_service_1 = require("../../../../core/client-scope/client-capability.service");
 const lead_entity_1 = require("../../../crm/leads/lead.entity");
 const campaign_entity_1 = require("../../../crm/campaigns/campaign.entity");
+const atribucion_del_lead_1 = require("../atribucion-del-lead");
 let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChangedHandler {
     constructor(outbox, clientPixels, capacidades, leads, campaigns) {
         this.outbox = outbox;
@@ -33,19 +33,19 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
         this.campaigns = campaigns;
         this.logger = new common_1.Logger(LeadStageChangedHandler_1.name);
     }
-    async handle(payload) {
+    async calificado(payload) {
+        await this.reportar(payload, 'QualifiedLead', 'calificacion');
+    }
+    async vendido(payload) {
+        await this.reportar(payload, 'Purchase', 'venta');
+    }
+    async reportar(payload, eventName, sufijo) {
         try {
             const lead = await this.leads.findOne({
                 where: { id: payload.leadId, organizationId: payload.organizationId },
             });
             if (!lead)
                 return;
-            if (lead.source !== 'meta_lead_ads')
-                return;
-            const leadId = lead.externalLeadId;
-            if (!leadId || !LeadStageChangedHandler_1.LEADGEN_ID.test(leadId)) {
-                return;
-            }
             if (!payload.clientId)
                 return;
             if (!await this.capacidades.tiene(payload.organizationId, payload.clientId, 'metaConversions'))
@@ -60,33 +60,44 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                 return;
             const { pixelId, tokenSource } = await this.clientPixels.resolveForScope(payload.organizationId, payload.clientId, campana?.metaPixelId);
             if (!pixelId) {
-                this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta la etapa "${payload.toStage}"`);
+                this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta «${eventName}»`);
                 return;
             }
             if (tokenSource === 'environment') {
                 this.logger.warn(`Lead ${lead.id}: el Pixel ${pixelId} no tiene token propio y usará el del entorno; `
                     + 'si Meta lo rechaza, configura el token de esa empresa.');
             }
+            const atribucion = (0, atribucion_del_lead_1.atribucionDelLead)(lead);
+            const leadId = lead.source === 'meta_lead_ads' && lead.externalLeadId
+                && LeadStageChangedHandler_1.LEADGEN_ID.test(lead.externalLeadId)
+                ? lead.externalLeadId
+                : undefined;
+            const monto = lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined;
             await this.outbox.enqueue(payload.organizationId, pixelId, {
-                eventName: shared_1.STAGE_LABELS_BY_KEY[payload.toStage] ?? payload.toStage,
+                eventName,
                 eventTime: Math.floor(Date.now() / 1000),
                 actionSource: 'system_generated',
                 userData: {
                     lead_id: leadId,
                     em: lead.email ? [lead.email] : undefined,
                     ph: lead.phone ? [lead.phone] : undefined,
+                    externalId: [lead.id],
+                    fbp: atribucion.fbp,
+                    fbc: atribucion.fbc,
+                    client_ip_address: atribucion.clientIpAddress,
+                    client_user_agent: atribucion.clientUserAgent,
                 },
                 customData: {
                     leadEventSource: LeadStageChangedHandler_1.ORIGEN,
                     eventSource: 'crm',
-                    value: payload.toStage === 'won' && lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined,
-                    currency: payload.toStage === 'won' && lead.estimatedAmount ? 'CLP' : undefined,
+                    value: eventName === 'Purchase' && monto && monto > 0 ? monto : undefined,
+                    currency: eventName === 'Purchase' && monto && monto > 0 ? 'CLP' : undefined,
                 },
-                eventId: `lead-stage:${lead.id}:${payload.toStage}`,
+                eventId: `lead-${sufijo}:${lead.id}`,
             });
         }
         catch (error) {
-            this.logger.error(`No se pudo reportar la etapa del lead ${payload.leadId}:`, error);
+            this.logger.error(`No se pudo reportar «${eventName}» del lead ${payload.leadId}:`, error);
         }
     }
 };
@@ -94,11 +105,17 @@ exports.LeadStageChangedHandler = LeadStageChangedHandler;
 LeadStageChangedHandler.ORIGEN = 'Espartanos';
 LeadStageChangedHandler.LEADGEN_ID = /^\d{15,17}$/;
 __decorate([
-    (0, event_emitter_1.OnEvent)('lead.stage-changed'),
+    (0, event_emitter_1.OnEvent)('lead.qualified'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], LeadStageChangedHandler.prototype, "handle", null);
+], LeadStageChangedHandler.prototype, "calificado", null);
+__decorate([
+    (0, event_emitter_1.OnEvent)('lead.won'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], LeadStageChangedHandler.prototype, "vendido", null);
 exports.LeadStageChangedHandler = LeadStageChangedHandler = LeadStageChangedHandler_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(3, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),

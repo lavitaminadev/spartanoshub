@@ -19,7 +19,6 @@ import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartano
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
-import { StatusBadge } from '../../shared/StatusBadge';
 import { triggerToast } from '../../shared/toast-events';
 import { useAuth } from '../../core/auth';
 import { STAGES } from './stage-labels';
@@ -28,6 +27,7 @@ import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { mensajeDePrimerContacto, whatsapp } from './contacto';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
+import { CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
 import './lead-detail.css';
 
 interface Lead {
@@ -559,7 +559,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           <dt>Origen</dt>
           <dd>{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}{lead.sourceDetail ? ` · ${lead.sourceDetail}` : ''}</dd>
 
-          {lead.fitStatus ? (<><dt>Calidad</dt><dd><StatusBadge status={lead.fitStatus} /></dd></>) : null}
+          {lead.fitStatus ? (<><dt>{CALIFICACION_TITULO}</dt><dd>{rotuloDeCalificacion(lead.fitStatus)}</dd></>) : null}
 
           {/*
             El puntaje automático no se muestra.

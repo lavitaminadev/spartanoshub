@@ -53,7 +53,7 @@ const LOW_QUALITY_KEYWORDS = [
   'soporte',
 ];
 
-interface LeadMetadata {
+export interface LeadMetadata {
   scoringSignals?: string[];
   [key: string]: string | number | boolean | string[] | Record<string, unknown> | Record<string, unknown>[] | undefined;
 }

@@ -63,12 +63,10 @@ let ConvertLeadUseCase = class ConvertLeadUseCase {
             clientId: result.client.id,
         });
         if (etapaPrevia !== lead_status_enum_1.LeadStatus.WON) {
-            this.eventEmitter.emit('lead.stage-changed', {
+            this.eventEmitter.emit('lead.won', {
                 organizationId,
                 leadId: result.lead.id,
                 clientId: result.lead.clientId ?? null,
-                fromStage: etapaPrevia,
-                toStage: lead_status_enum_1.LeadStatus.WON,
             });
         }
         return result;

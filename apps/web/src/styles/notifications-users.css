@@ -14,7 +14,15 @@
 .notification-popover header button,.notification-state button { padding: 3px 0; border: 0; background: transparent; color: #087e79; font-size: 10px; font-weight: 800; cursor: pointer; }
 .notification-popover header button:disabled { opacity: .5; cursor: wait; }
 .notification-list { max-height: min(460px, 65vh); overflow-y: auto; }
-.notification-item { width: 100%; display: grid; grid-template-columns: 8px 1fr; gap: 10px; padding: 13px 17px; border: 0; border-bottom: 1px solid var(--soft); background: var(--white); color: inherit; text-align: left; cursor: pointer; }
+/* La fila envuelve el cuerpo y el borrado: un boton no puede contener otro boton. */
+.notification-row { display: grid; grid-template-columns: 1fr auto; align-items: stretch; border-bottom: 1px solid var(--soft); }
+.notification-row.unread .notification-item { background: var(--success-bg); }
+.notification-row.unread .notification-item > i { background: var(--accent); box-shadow: 0 0 0 4px rgba(234,15,99,.12); }
+.notification-remove { border: 0; background: transparent; color: var(--surface-sage); font-size: 18px; line-height: 1; padding: 0 14px; cursor: pointer; }
+.notification-remove:hover { color: var(--accent); background: var(--soft); }
+/* Visible siempre en pantallas tactiles, donde no hay puntero que lo revele. */
+@media (hover: hover) { .notification-remove { opacity: 0; } .notification-row:hover .notification-remove, .notification-remove:focus-visible { opacity: 1; } }
+.notification-item { width: 100%; display: grid; grid-template-columns: 8px 1fr; gap: 10px; padding: 13px 17px; border: 0; background: var(--white); color: inherit; text-align: left; cursor: pointer; }
 .notification-item:hover { background: var(--soft); }
 .notification-item.unread { background: var(--success-bg); }
 .notification-item > i { width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--surface-sage); }

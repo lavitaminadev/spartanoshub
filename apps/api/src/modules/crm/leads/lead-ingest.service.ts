@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { createHash, randomBytes } from 'node:crypto';
 import { LeadIngestSource } from './ingest-source.entity';
-import { LeadIntakeService } from './lead-intake.service';
+import { LeadIntakeService, type LeadMetadata } from './lead-intake.service';
 import { Campaign } from '../campaigns/campaign.entity';
 import { IngestLeadDto } from './dto/ingest-lead.dto';
 import { identificadorExterno } from './identificador-externo';
@@ -134,9 +134,7 @@ export class LeadIngestService {
         pageId: dto.paginaId,
         // El anuncio no tiene columna propia y sí la tiene el detalle de Meta: se guarda donde
         // el camino directo ya lo guarda, y no se inventa una columna para un solo dato.
-        metadata: dto.anuncioId || dto.metadata
-          ? { ...(dto.metadata ?? {}), ...(dto.anuncioId ? { adId: dto.anuncioId } : {}) }
-          : undefined,
+        metadata: this.metadatosDeEntrada(dto),
       });
 
       // El contador y la fecha se actualizan aparte del lead: si esto fallara, el lead ya está
@@ -228,5 +226,39 @@ export class LeadIngestService {
       + `${anterior.previousTokenExpiresAt.toISOString()}. Actualiza la integración.`,
     );
     return anterior;
+  }
+  /**
+   * Qué se guarda en `metadata` de un lead que entró por una integración.
+   *
+   * El anuncio no tiene columna propia y sí la tiene el detalle de Meta: se guarda donde el
+   * camino directo ya lo guarda, y no se inventa una columna para un solo dato.
+   *
+   * Las señales de Meta van bajo `attribution`, la misma forma que usa el formulario público, para
+   * que la conversión se arme igual sin importar por dónde entró la persona. La fecha de captura
+   * se pone acá y no se acepta del cuerpo: es la que fija el `fbc`, y un valor que el emisor
+   * elige haría que dos leads del mismo clic produjeran identificadores distintos.
+   *
+   * La IP y el navegador **no** se guardan: quien nos llama es Zapier o Make, no la persona, y
+   * mandarle a Meta el servidor de la integración en vez del dispositivo del lead le enseña algo
+   * falso y empeora la coincidencia.
+   */
+  private metadatosDeEntrada(dto: IngestLeadDto): LeadMetadata | undefined {
+    const atribucion = dto.fbclid || dto.fbc || dto.fbp
+      ? {
+        attribution: {
+          fbclid: dto.fbclid,
+          fbc: dto.fbc,
+          fbp: dto.fbp,
+          capturedAt: new Date().toISOString(),
+        },
+      }
+      : {};
+
+    const metadatos = {
+      ...(dto.metadata ?? {}),
+      ...(dto.anuncioId ? { adId: dto.anuncioId } : {}),
+      ...atribucion,
+    };
+    return Object.keys(metadatos).length > 0 ? metadatos : undefined;
   }
 }
