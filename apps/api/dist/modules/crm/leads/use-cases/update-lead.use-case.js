@@ -27,6 +27,12 @@ const DOMAIN_LABELS = {
     commercial: 'el embudo comercial',
     audience: 'la audiencia de un local',
 };
+const CALIFICAN = [
+    lead_status_enum_1.LeadStatus.QUOTE_SENT,
+    lead_status_enum_1.LeadStatus.MEETING_SCHEDULED,
+    lead_status_enum_1.LeadStatus.NEGOTIATION,
+    lead_status_enum_1.LeadStatus.WON,
+];
 let UpdateLeadUseCase = class UpdateLeadUseCase {
     constructor(repo, history, cierre, eventEmitter) {
         this.repo = repo;
@@ -74,6 +80,12 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.source = data.source;
         if (data.clientId !== undefined)
             lead.clientId = data.clientId;
+        if (data.fitStatus === undefined && lead.domain === 'commercial' && etapaPrevia !== lead.status) {
+            if (CALIFICAN.includes(lead.status))
+                lead.fitStatus = lead_fit_status_enum_1.LeadFitStatus.QUALIFIED;
+            else if (lead.status === lead_status_enum_1.LeadStatus.LOST)
+                lead.fitStatus = lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED;
+        }
         if (lead.status === lead_status_enum_1.LeadStatus.LOST && etapaPrevia !== lead_status_enum_1.LeadStatus.LOST && !lead.discardReason?.trim()) {
             throw new common_1.BadRequestException('Para descartar un lead hay que indicar el motivo');
         }

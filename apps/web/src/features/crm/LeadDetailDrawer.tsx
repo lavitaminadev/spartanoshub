@@ -687,12 +687,19 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </label>
 
           <label>
-            <span>Calificación</span>
+            <span>Calificación <em>La fija la etapa; corrígela si no cuadra</em></span>
             <select className="input" value={calificacion} onChange={(event) => editar(setCalificacion, event.target.value as Lead['fitStatus'])} disabled={!scope.puedeEditar}>
               <option value="review">Pendiente</option>
               <option value="qualified">Calificado</option>
               <option value="unqualified">No calificado</option>
             </select>
+            {/*
+              Se dice que la etapa la mueve, porque si no parece que cambia sola.
+
+              Avanzar a Calificado o más allá la pone en «Calificado», y descartar en «No
+              calificado». Sin explicarlo, quien vuelve a la ficha ve un campo distinto del que
+              dejó y no sabe quién lo tocó.
+            */}
           </label>
 
           <label>
