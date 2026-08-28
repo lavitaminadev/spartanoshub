@@ -562,8 +562,16 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             retira es el número en pantalla, no el dato.
           */}
 
-          <dt>Consentimiento</dt>
-          <dd>{lead.consentCapturedAt ? new Date(lead.consentCapturedAt).toLocaleString('es-CL') : 'No registrado'}</dd>
+          {/*
+            El consentimiento se conserva y no se muestra.
+
+            Decía «No registrado» en casi todos los leads, y eso no significa que falte: significa
+            que ese dato solo lo trae quien entra por un formulario que lo pide. En la ficha se
+            leía como una carencia y encima ocupaba una línea de las que sí se consultan a diario.
+
+            El campo sigue guardándose —hace falta para responder ante la ley— y se consulta en la
+            base cuando toque. Lo que se retira es dar por ausente algo que simplemente no aplica.
+          */}
 
           {lead.discardReason ? (<><dt>Motivo de cierre</dt><dd>{lead.discardReason}</dd></>) : null}
         </dl>
@@ -712,16 +720,16 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             </select>
           </label>
 
-          <label>
-            <span>Etiquetas</span>
-            <input
-              className="input"
-              value={etiquetas}
-              onChange={(event) => editar(setEtiquetas, event.target.value)}
-              disabled={!scope.puedeEditar}
-              placeholder="Sin etiquetas"
-            />
-          </label>
+          {/*
+            Las etiquetas salen de la ficha.
+
+            Eran texto libre: cada persona escribía lo suyo, no se podía filtrar por ellas, no
+            entraban en ningún informe ni en el envío a Meta. Un campo que se llena y nadie lee
+            ocupa sitio en la única pantalla que se mira lead por lead.
+
+            La columna se conserva y lo guardado no se toca: si vuelven, será con un catálogo
+            cerrado y con filtro, que es lo que las haría servir para algo.
+          */}
 
           <label>
             <span>Fuente</span>

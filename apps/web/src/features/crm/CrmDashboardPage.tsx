@@ -84,8 +84,6 @@ const ACENTO_PERDIDA = '#e2725b';
 /** Altura fija de los paneles: distintas alturas hacen que dos gráficos no se puedan comparar. */
 const ALTO = 240;
 
-/** Comisión que reconoce el negocio. Debe coincidir con `TASA_COMISION` del servidor. */
-const tasaComision = '2%';
 
 /**
  * Distribución en barras horizontales.
@@ -208,8 +206,15 @@ export function CrmDashboardPage(): JSX.Element {
         </article>
         <article>
           <strong>{totals.conVisita}</strong>
-          <span>Llegaron a visita</span>
-          <small>{porcentaje(totals.conVisita, totals.calificados)} de calificados</small>
+          <span>Visitas agendadas</span>
+          {/*
+            Agendada, no cumplida.
+
+            Decía «llegaron a visita», que es otra cosa: contaba los que tienen fecha, no los que
+            vinieron. La etapa que medía eso —«Visitó»— se retiró del embudo por no usarse, así
+            que la promesa se quedó sin dato detrás y el rótulo mentía por omisión.
+          */}
+          <small>{porcentaje(totals.conVisita, totals.calificados)} de los calificados</small>
         </article>
         <article>
           <strong>{totals.ventas}</strong>
@@ -243,16 +248,16 @@ export function CrmDashboardPage(): JSX.Element {
           <span>{termino('leads')} estancados</span>
           <small>Sin gestión hace +7 días</small>
         </article>
-        <article>
-          <strong>{dinero(data?.comision?.proyectada ?? 0)}</strong>
-          <span>Comisión proyectada</span>
-          <small>{tasaComision} del pipeline</small>
-        </article>
-        <article>
-          <strong>{dinero(data?.comision?.ganada ?? 0)}</strong>
-          <span>Comisión ganada</span>
-          <small>{tasaComision} de lo vendido</small>
-        </article>
+        {/*
+          La comisión sale del panel.
+
+          Se calculaba con una tasa fija del 2% sobre el pipeline y sobre lo vendido, y ese número
+          no describe ningún acuerdo real: cada cuenta tiene el suyo. Un importe inventado en un
+          panel se lee como un dato, y decisiones tomadas sobre él serían decisiones sobre nada.
+
+          El cálculo sigue en el servidor por si se retoma con tasas de verdad; lo que se retira
+          es mostrarlo como si ya fuera cierto.
+        */}
       </section>
 
       {/*
