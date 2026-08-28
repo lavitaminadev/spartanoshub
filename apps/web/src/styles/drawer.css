@@ -257,10 +257,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
-.pwa-install-button { display: grid; gap: 3px; width: 100%; margin-bottom: 8px; padding: 9px 10px; border: 1px solid rgba(255,255,255,.16); border-radius: var(--radius-md); background: rgba(255,255,255,.07); color: var(--white); cursor: pointer; text-align: left; }
-.pwa-install-button:hover { background: rgba(255,255,255,.12); }
+/*
+ * Ofrecer instalar: el bloque es el contenedor y el botón lleva el aspecto.
+ *
+ * Antes el propio botón era el bloque. Ahora acompaña un «No, gracias» —y en Safari, los pasos
+ * del gesto—, así que la caja pasa a envolverlos para que se lean como una sola propuesta.
+ */
+.pwa-install-button { display: grid; gap: 6px; width: 100%; margin-bottom: 8px; }
+.pwa-install-button > button {
+  display: grid; gap: 3px; width: 100%; padding: 9px 10px;
+  border: 1px solid rgba(255,255,255,.16); border-radius: var(--radius-md);
+  background: rgba(255,255,255,.07); color: var(--white); cursor: pointer; text-align: left;
+}
+.pwa-install-button > button:hover { background: rgba(255,255,255,.12); }
 .pwa-install-button span { font-size: 9px; font-weight: 900; }
 .pwa-install-button small { color: rgba(255,255,255,.58); font-size: 10px; }
+
+/* Decir que no no compite con instalar: se ve, se pulsa, y no llama la atención. */
+.pwa-install-no {
+  border: 0; background: none; color: rgba(255,255,255,.5);
+  font-size: 10px; cursor: pointer; text-align: center; padding: 2px;
+}
+.pwa-install-no:hover { color: rgba(255,255,255,.8); text-decoration: underline; }
+
+/* Los pasos de Safari: numerados, porque es una secuencia y el orden importa. */
+.pwa-install-pasos ol { margin: 0 0 6px; padding-left: 18px; display: grid; gap: 4px; }
+.pwa-install-pasos li { color: rgba(255,255,255,.7); font-size: 11px; line-height: 1.4; }
+.pwa-install-pasos strong { color: var(--white); }
+.pwa-install-pasos .pwa-install-no { width: 100%; }
 .sidebar-account-link { display: block; margin-bottom: 8px; color: rgba(255,255,255,.68); font-size: 11px; font-weight: 800; text-align: center; text-decoration: none; }
 .sidebar-account-link:hover { color: var(--white); text-decoration: underline; }
 
