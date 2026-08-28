@@ -81,7 +81,8 @@ describe('estados imposibles', () => {
     for (const estado of ['reserved', 'attended', 'no_show', 'lost']) {
       await banco.db.query('UPDATE leads SET status = ? WHERE id = ?', [estado, contacto]);
     }
-    for (const estado of ['contacted', 'quote_sent', 'meeting_scheduled', 'visited', 'negotiation', 'lost']) {
+    // Sin 'visited': la etapa se retiro del embudo comercial y la restriccion ya no la admite.
+    for (const estado of ['contacted', 'quote_sent', 'meeting_scheduled', 'negotiation', 'lost']) {
       await banco.db.query('UPDATE leads SET status = ? WHERE id = ?', [estado, prospecto]);
     }
 

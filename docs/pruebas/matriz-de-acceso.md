@@ -19,7 +19,7 @@ además se oculta la existencia.
 | Aprobaciones | 200 | 403 | 403 | 403 | 403 |
 | Reuniones | 200 | 403 | 403 | 403 | 403 |
 | Contenido · grillas | 200 | 403 | 403 | 403 | 403 |
-| Informes · panel | 200 | 403 | 403 | 403 | 403 |
+| Informes · panel | 200 | 200 | 200 | 403 | 403 |
 | Tareas · mías | 200 | 200 | 200 | 200 | 200 |
 
 ## Cómo leerla
