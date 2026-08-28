@@ -25,6 +25,19 @@ import { STAGES, STAGE_LABEL } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import './crm-admin.css';
 
+/**
+ * Si se ofrece renombrar las cosas por empresa.
+ *
+ * El panel funciona y su mecanismo se usa en todas las pantallas, pero ofrecerlo invita a que
+ * cada empresa llame distinto a lo mismo, y entonces nadie puede leer un informe de otra sin
+ * traducir. Se retira de la vista, no del producto: el componente y el guardado quedan enteros,
+ * y volver a mostrarlo es poner esto en `true`.
+ *
+ * Los nombres ya guardados siguen aplicándose: quitar el panel no revierte lo que alguien eligió.
+ */
+const MOSTRAR_NOMBRES_POR_EMPRESA = false;
+
+
 interface Cliente { id: string; name: string }
 
 /** Estado de Meta de una empresa, tal como lo devuelve el catálogo de Conexiones. */
@@ -340,7 +353,7 @@ export function CrmAdminPage(): JSX.Element {
       */}
       <NombresDeEtapa />
 
-      <NombresDeLasCosas />
+      {MOSTRAR_NOMBRES_POR_EMPRESA ? <NombresDeLasCosas /> : null}
 
       <div className="crm-admin-dos">
         <section className="crm-admin-panel">
