@@ -122,7 +122,7 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
       */
       setFeedback(resultado?.verificado === false
         ? { tone: 'success', text: `Pixel guardado, pero no pudimos confirmarlo con Meta: ${resultado.motivo ?? 'sin detalle'}. Si los eventos no llegan, revisa el token.` }
-        : { tone: 'success', text: 'Pixel registrado y confirmado con Meta.' });
+      : { tone: 'success', text: 'Registrado y confirmado con Meta.' });
       setCredencial(CREDENCIAL_VACIA);
     },
     onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }),
@@ -301,21 +301,30 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
       <section className="integration-section">
         <div className="integration-section-head">
           <div>
-            <h4>Pixels registrados</h4>
+            {/*
+              «Conjunto de datos» es como los llama Meta hoy.
+
+              Un Pixel web y un conjunto de CRM son cosas distintas —uno mide el navegador, el
+              otro solo recibe del servidor— pero su identificador va al mismo sitio: la ruta de
+              envío es la misma para los dos. Llamarlos solo «Pixel» hacía dudar de si el CRM
+              debía usar uno.
+            */}
+            <h4>Pixels y conjuntos de datos</h4>
             <p className="page-subtitle">
-              El token pertenece al Pixel, no a la empresa. Regístralo una vez acá y luego asígnalo
-              a las empresas o campañas que lo usen.
+              El token pertenece al conjunto de datos, no a la empresa. Regístralo una vez acá y
+              luego asígnalo a las empresas o campañas que lo usen. Vale tanto para un Pixel web
+              —Reservas— como para un conjunto de CRM.
             </p>
           </div>
         </div>
         <div className="client-pixel-admin-form">
           <label>
-            ID del Pixel
+            Identificador
             <input
               className="input"
               value={credencial.pixelId}
               onChange={(event) => setCredencial({ ...credencial, pixelId: event.target.value })}
-              placeholder="Desde Events Manager"
+              placeholder="El número bajo el nombre, en Events Manager"
             />
           </label>
           <label>
@@ -349,7 +358,7 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
               ? 'Validando con Meta...'
               : catalogQuery.data?.pixels.some((pixel) => pixel.pixelId === credencial.pixelId.trim())
                 ? 'Guardar cambios'
-                : 'Registrar Pixel'}
+                : 'Registrar'}
           </button>
           {credencial.pixelId || credencial.name || credencial.accessToken ? (
             <button type="button" className="btn btn-outline" onClick={() => setCredencial(CREDENCIAL_VACIA)}>Cancelar</button>

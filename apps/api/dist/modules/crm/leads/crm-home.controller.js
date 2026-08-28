@@ -54,6 +54,7 @@ let CrmHomeController = class CrmHomeController {
             domain: domain === 'audience' ? 'audience' : 'commercial',
             clientId: effectiveClientId || undefined,
             agencyOnly,
+            ocultarEquipo: req.user.role === user_role_enum_1.UserRole.CLIENT,
             allowedClientIds: conCrm,
             onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
         });

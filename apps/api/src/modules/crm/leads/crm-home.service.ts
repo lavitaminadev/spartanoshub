@@ -92,6 +92,14 @@ export class CrmHomeService {
        * alcance vacío se convierte en acceso total.
        */
       allowedClientIds?: string[];
+      /**
+       * Ocultar el reparto interno de la agencia.
+       *
+       * La carga del equipo dice qué persona de Espartanos lleva cada lead. Para la empresa
+       * cliente eso no es información suya: es cómo se organiza su proveedor. Se omitía solo
+       * para los cargos acotados —y el cliente no lo es—, así que la veía entera con nombres.
+       */
+      ocultarEquipo?: boolean;
     } = {},
   ) {
     const inicioDeMes = new Date();
@@ -142,7 +150,9 @@ export class CrmHomeService {
        * mostrarla con una sola fila —la propia— haría creer que el equipo es una persona, y
        * mostrarla completa sería enseñar por otra vía justo lo que el filtro oculta.
        */
-      alcance.onlyAssignedTo ? Promise.resolve([]) : this.teamLoad(base, limiteFrio),
+      alcance.onlyAssignedTo || alcance.ocultarEquipo
+        ? Promise.resolve([])
+        : this.teamLoad(base, limiteFrio),
     ]);
 
     const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);

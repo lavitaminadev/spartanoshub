@@ -69,6 +69,8 @@ export class CrmHomeController {
       domain: domain === 'audience' ? 'audience' : 'commercial',
       clientId: effectiveClientId || undefined,
       agencyOnly,
+      // La empresa no ve cómo se reparte el trabajo dentro de la agencia.
+      ocultarEquipo: req.user.role === UserRole.CLIENT,
       /*
        * Sin empresa elegida, la respuesta se acota a las que esta persona alcanza.
        *
