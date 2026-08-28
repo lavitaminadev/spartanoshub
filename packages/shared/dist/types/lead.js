@@ -3,7 +3,7 @@
  * @fileoverview Lead domain types.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LEAD_DISCARD_REASONS = exports.LEAD_SOURCES = exports.LEAD_TRAFFIC_LIGHTS = exports.STAGE_LABELS_BY_KEY = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
+exports.OPPORTUNITY_LOSS_REASONS = exports.LEAD_DISCARD_REASONS = exports.LEAD_SOURCES = exports.LEAD_TRAFFIC_LIGHTS = exports.STAGE_LABELS_BY_KEY = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
 exports.etiquetaDeFuente = etiquetaDeFuente;
 /**
  * Etapas del pipeline comercial. El equipo las mueve a mano y son ordenadas:
@@ -128,6 +128,28 @@ exports.LEAD_DISCARD_REASONS = [
     'Ubicación no le acomoda',
     'Solo consultaba (sin intención)',
     'No es el perfil buscado',
+    'Otro',
+];
+/**
+ * Por qué se perdió un negocio de la agencia.
+ *
+ * Distinto del catálogo de descarte de un lead: aquél es del embudo inmobiliario del cliente
+ * —crédito, proyecto, ubicación— y éste de los tratos que Espartanos cierra o pierde.
+ *
+ * Vive acá porque había uno por pantalla y **no coincidían**: el tablero guardaba
+ * `sin_presupuesto` y la tabla «Sin presupuesto». Los mismos datos escritos desde dos sitios no
+ * se agrupaban en el mismo informe, y la pregunta «¿por qué perdemos?» no tenía respuesta.
+ */
+exports.OPPORTUNITY_LOSS_REASONS = [
+    'Precio',
+    'Sin presupuesto',
+    'No respondió',
+    'Eligió competencia',
+    'Fuera de alcance',
+    'Prioridad postergada',
+    'Mal momento',
+    'Servicio no disponible',
+    'Duplicado',
     'Otro',
 ];
 //# sourceMappingURL=lead.js.map

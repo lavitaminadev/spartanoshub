@@ -74,6 +74,9 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.source = data.source;
         if (data.clientId !== undefined)
             lead.clientId = data.clientId;
+        if (lead.status === lead_status_enum_1.LeadStatus.LOST && etapaPrevia !== lead_status_enum_1.LeadStatus.LOST && !lead.discardReason?.trim()) {
+            throw new common_1.BadRequestException('Para descartar un lead hay que indicar el motivo');
+        }
         const guardado = await this.repo.save(lead);
         await this.history.recordStageChange(organizationId, process_stage_change_entity_1.ProcessSubject.LEAD, guardado.id, etapaPrevia, guardado.status, actorId, guardado.discardReason);
         await this.cierre.avisar(guardado, etapaPrevia, actorId);

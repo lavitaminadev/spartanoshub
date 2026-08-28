@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RESERVATION_LEAD_SOURCE } from '@espartanos/shared';
+import { OPPORTUNITY_LOSS_REASONS, RESERVATION_LEAD_SOURCE } from '@espartanos/shared';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { DataTable } from '../../shared/DataTable';
@@ -306,11 +306,23 @@ export function OpportunitiesPage() {
   const save = useMutation({ mutationFn: () => { const body = { name: form.name.trim(), amount: form.amount ? Number(form.amount) : undefined, stage: form.stage, probability: Number(form.probability), expectedCloseDate: form.expectedCloseDate || (editing ? null : undefined), nextAction: form.nextAction.trim() || (editing ? null : undefined), nextActionAt: form.nextActionAt ? new Date(form.nextActionAt).toISOString() : (editing ? null : undefined), leadId: form.leadId || (editing ? null : undefined), clientId: form.clientId || (editing ? null : undefined) }; return editing ? api.put(`/crm/opportunities/${editing.id}`, body) : api.post('/crm/opportunities', body); }, onSuccess: async () => { setOpen(false); setEditing(null); setForm(EMPTY_OPPORTUNITY); setFeedback('Oportunidad y próxima acción guardadas.'); await queryClient.invalidateQueries({ queryKey: ['crm-opportunities'] }); } });
   const remove = useMutation({ mutationFn: (id: string) => api.delete(`/crm/opportunities/${id}`), onSuccess: async () => { setDeleteTarget(null); setFeedback('Oportunidad eliminada.'); await queryClient.invalidateQueries({ queryKey: ['crm-opportunities'] }); } });
   const moveStage = useMutation({ mutationFn: ({ id, stage, lossReason }: { id: string; stage: string; lossReason?: string }) => api.put(`/crm/opportunities/${id}`, { stage, ...(lossReason ? { lossReason } : {}) }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['crm-opportunities'] }) });
-  const LOSS_REASONS = ['Precio', 'Sin presupuesto', 'No respondió', 'Eligió competencia', 'Fuera de alcance', 'Prioridad postergada', 'Timing', 'Servicio no disponible', 'Duplicado', 'Otro'];
   const dropOpportunity = (id: string, stage: string, current?: Opportunity) => {
     if (stage === 'lost' && current?.stage !== 'lost' && !current?.lossReason) {
-      const reason = window.prompt(`Motivo de pérdida (${LOSS_REASONS.join(', ')}):`);
-      if (!reason) return; // sin motivo no se mueve — el backend lo rechaza igual, esto evita el viaje al servidor
+      /*
+        El motivo se comprueba contra el catálogo, no se acepta cualquier texto.
+
+        Antes se guardaba lo que se escribiera: un «no tenia plata» y un «Sin presupuesto» son la
+        misma causa y quedaban como dos barras distintas en el informe, que es justo lo que este
+        campo existe para responder. Se compara sin distinguir mayúsculas ni acentos de más.
+      */
+      const escrito = window.prompt(`Motivo de pérdida — usa uno de: ${OPPORTUNITY_LOSS_REASONS.join(", ")}`);
+      if (!escrito) return;
+      const normalizar = (texto: string) => texto.trim().toLowerCase();
+      const reason = OPPORTUNITY_LOSS_REASONS.find((valido) => normalizar(valido) === normalizar(escrito));
+      if (!reason) {
+        setFeedback(`«${escrito}» no está en el catálogo. Usa uno de la lista para que el informe agrupe bien.`);
+        return;
+      }
       moveStage.mutate({ id, stage, lossReason: reason });
       return;
     }

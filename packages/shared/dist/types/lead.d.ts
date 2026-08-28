@@ -108,6 +108,17 @@ export declare function etiquetaDeFuente(value?: string | null): string;
 /** Catálogo de descarte usado por el flujo comercial de referencia MMT. */
 export declare const LEAD_DISCARD_REASONS: readonly ["Precio fuera de presupuesto", "Sin financiamiento / no calificó crédito", "Compró en otro proyecto", "Nunca respondió", "Datos de contacto erróneos", "Ubicación no le acomoda", "Solo consultaba (sin intención)", "No es el perfil buscado", "Otro"];
 /**
+ * Por qué se perdió un negocio de la agencia.
+ *
+ * Distinto del catálogo de descarte de un lead: aquél es del embudo inmobiliario del cliente
+ * —crédito, proyecto, ubicación— y éste de los tratos que Espartanos cierra o pierde.
+ *
+ * Vive acá porque había uno por pantalla y **no coincidían**: el tablero guardaba
+ * `sin_presupuesto` y la tabla «Sin presupuesto». Los mismos datos escritos desde dos sitios no
+ * se agrupaban en el mismo informe, y la pregunta «¿por qué perdemos?» no tenía respuesta.
+ */
+export declare const OPPORTUNITY_LOSS_REASONS: readonly ["Precio", "Sin presupuesto", "No respondió", "Eligió competencia", "Fuera de alcance", "Prioridad postergada", "Mal momento", "Servicio no disponible", "Duplicado", "Otro"];
+/**
  * Lead response returned by CRM endpoints.
  */
 export interface LeadResponse {

@@ -42,7 +42,7 @@ import { useAuth } from '../../core/auth';
 import { useStageLabels } from './use-stage-labels';
 import { COLUMNAS_OPCIONALES, guardarColumnas, leerColumnas, type ColumnaOpcional } from './columnas-leads';
 import { useVocabulario } from './use-vocabulario';
-import { LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
+import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { colorDePersona, mensajeDePrimerContacto, whatsapp } from './contacto';
 import './leads-board.css';
 
@@ -147,6 +147,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    */
   const [columnasVisibles, setColumnasVisibles] = useState<ColumnaOpcional[]>(() => leerColumnas(scope.domain));
   const [columnasAbierto, setColumnasAbierto] = useState(false);
+  /** Lead que se está descartando, mientras se elige el motivo. */
+  const [descartando, setDescartando] = useState<{ lead: Lead; motivo: string; detalle: string } | null>(null);
   /*
    * Ver también los descartados de meses cerrados.
    *
@@ -271,7 +273,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * tarjeta de columna.
    */
   const mover = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => api.put(`/crm/leads/${id}`, { status }),
+    mutationFn: ({ id, status, discardReason }: { id: string; status: string; discardReason?: string }) => (
+      api.put(`/crm/leads/${id}`, discardReason ? { status, discardReason } : { status })
+    ),
     onMutate: async ({ id, status }) => {
       // Se cancela lo que esté en vuelo: una respuesta anterior llegando después pisaría el
       // adelanto y devolvería la tarjeta a su columna vieja.
@@ -642,7 +646,20 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           keyExtractor={(lead) => lead.id}
           columnOf={(lead) => lead.status}
           readOnly={!scope.puedeEditar}
-          onMove={(lead, stage) => mover.mutate({ id: lead.id, status: stage })}
+          /*
+            Descartar arrastrando también pide el motivo.
+
+            El servidor lo exige, así que sin esto la tarjeta volvía sola a su columna con un
+            error críptico. Se pregunta antes de mover: quien arrastra a Descartado ya decidió
+            descartar, y el motivo es parte de esa decisión, no un trámite posterior.
+          */
+          onMove={(lead, stage) => {
+            if (stage !== 'lost' || lead.status === 'lost') {
+              mover.mutate({ id: lead.id, status: stage });
+              return;
+            }
+            setDescartando({ lead, motivo: '', detalle: '' });
+          }}
           emptyMessage="Ningún prospecto calza con este filtro."
           renderCard={(lead) => {
             const frio = Date.now() - new Date(lead.updatedAt).getTime() > COOLING_DAYS * 86_400_000;
@@ -895,7 +912,15 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   type="button"
                   className="btn btn-outline btn-sm"
                   disabled={mover.isPending}
-                  onClick={() => { mover.mutate({ id: moviendo.id, status: estado }); setMoviendo(null); }}
+                  onClick={() => {
+                    if (estado === 'lost' && moviendo.status !== 'lost') {
+                      setDescartando({ lead: moviendo, motivo: '', detalle: '' });
+                      setMoviendo(null);
+                      return;
+                    }
+                    mover.mutate({ id: moviendo.id, status: estado });
+                    setMoviendo(null);
+                  }}
                 >
                   {etapaLabel(estado)}
                 </button>
@@ -909,6 +934,60 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       ) : null}
 
       <ImportLeadsModal open={importarAbierto} onClose={() => { setImportarAbierto(false); void refrescar(); }} />
+
+      {descartando ? (
+        <Modal open onClose={() => setDescartando(null)} title="¿Por qué se descarta?">
+          <div className="modal-form">
+            <p className="crm-admin-ayuda">
+              Se descarta <strong>{descartando.lead.name}</strong>. El motivo es lo que después
+              responde «¿por qué perdemos leads?», así que sin él el informe queda a medias.
+            </p>
+            <label>
+              Motivo
+              <select
+                className="input"
+                value={descartando.motivo}
+                onChange={(evento) => setDescartando({ ...descartando, motivo: evento.target.value })}
+              >
+                <option value="">— Elige uno —</option>
+                {LEAD_DISCARD_REASONS.map((razon) => <option key={razon} value={razon}>{razon}</option>)}
+              </select>
+            </label>
+            {/* «Otro» sin detalle se agrupa como una barra vacía: peor que no haber preguntado. */}
+            {descartando.motivo === 'Otro' ? (
+              <label>
+                Cuál
+                <input
+                  className="input"
+                  value={descartando.detalle}
+                  onChange={(evento) => setDescartando({ ...descartando, detalle: evento.target.value })}
+                  placeholder="En pocas palabras"
+                />
+              </label>
+            ) : null}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setDescartando(null)}>Cancelar</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!descartando.motivo || (descartando.motivo === 'Otro' && !descartando.detalle.trim())}
+                onClick={() => {
+                  mover.mutate({
+                    id: descartando.lead.id,
+                    status: 'lost',
+                    discardReason: descartando.motivo === 'Otro'
+                      ? `Otro: ${descartando.detalle.trim()}`
+                      : descartando.motivo,
+                  });
+                  setDescartando(null);
+                }}
+              >
+                Descartar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       {columnasAbierto ? (
         <Modal open onClose={() => setColumnasAbierto(false)} title="Columnas de la lista">
