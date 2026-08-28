@@ -30,7 +30,6 @@ export const STAGE_LABEL: Record<string, string> = {
   meeting_scheduled: 'Visita agendada',
   // Agendar la visita y que ocurra son dos hechos distintos: uno espera una fecha, el otro
   // espera una respuesta. Con una sola etapa no se distingue al que no llegó del que sí vino.
-  visited: 'Visitó',
   negotiation: 'Negociación',
   won: 'Venta',
   lost: 'Descartado',
@@ -47,7 +46,6 @@ export const STAGE_ACCENT: Record<string, string> = {
   contacted: '#7cc6f5',
   quote_sent: '#17c78a',
   meeting_scheduled: '#e2a33c',
-  visited: '#7fc8e8',
   negotiation: '#f0a05a',
   won: '#17c78a',
   lost: '#c9736b',

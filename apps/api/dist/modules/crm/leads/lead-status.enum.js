@@ -9,7 +9,6 @@ var LeadStatus;
     LeadStatus["CONTACTED"] = "contacted";
     LeadStatus["MEETING_SCHEDULED"] = "meeting_scheduled";
     LeadStatus["QUOTE_SENT"] = "quote_sent";
-    LeadStatus["VISITED"] = "visited";
     LeadStatus["NEGOTIATION"] = "negotiation";
     LeadStatus["RESERVED"] = "reserved";
     LeadStatus["ATTENDED"] = "attended";

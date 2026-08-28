@@ -16,6 +16,8 @@ export class ConvertLeadUseCase {
   ) {}
 
   async execute(leadId: string, organizationId: string) {
+    // Se guarda fuera de la transacción para poder anunciar el cambio de etapa una vez confirmada.
+    let etapaPrevia = '';
     const result = await this.leadRepo.manager.transaction(async (manager: EntityManager) => {
       const lead = await manager.findOne(Lead, {
         where: { id: leadId, organizationId },
@@ -54,6 +56,7 @@ export class ConvertLeadUseCase {
       });
       const savedClient = await manager.save(Client, client);
 
+      etapaPrevia = lead.status;
       lead.status = LeadStatus.WON;
       lead.convertedAt = new Date();
       lead.convertedToClientId = savedClient.id;
@@ -66,6 +69,26 @@ export class ConvertLeadUseCase {
       leadId: result.lead.id,
       clientId: result.client.id,
     });
+    /*
+     * Convertir también cierra el lead, y eso hay que anunciarlo.
+     *
+     * Este camino ponía «Venta» con un guardado directo, sin emitir el evento de etapa: quien
+     * cerraba convirtiendo en cliente —que es como cierra el equipo comercial— dejaba a Meta sin
+     * la señal que más pesa. Veía leads que llegaban a Negociación y desaparecían, y aprendía
+     * que esa campaña no convierte.
+     *
+     * Solo si la etapa cambió de verdad: un lead ya cerrado que se convierte después no repite
+     * el aviso, y el identificador de evento por etapa lo deduplicaría igualmente.
+     */
+    if (etapaPrevia !== LeadStatus.WON) {
+      this.eventEmitter.emit('lead.stage-changed', {
+        organizationId,
+        leadId: result.lead.id,
+        clientId: result.lead.clientId ?? null,
+        fromStage: etapaPrevia,
+        toStage: LeadStatus.WON,
+      });
+    }
     return result;
   }
 }

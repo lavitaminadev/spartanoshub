@@ -16,7 +16,6 @@ exports.LEAD_PIPELINE_STAGES = [
     'meeting_scheduled',
     // Se agendo la visita y ademas ocurrio. Son dos hechos distintos y el equipo los trabaja
     // distinto: uno espera a que llegue la fecha, el otro espera una respuesta.
-    'visited',
     'negotiation',
 ];
 /**
@@ -48,7 +47,7 @@ exports.LEAD_STATUSES = [
  *
  * **Es la fuente unica.** El enum de la API, el reparto por dominio, las columnas del tablero y
  * la paleta de estados derivan de aca. Estuvieron declarados por separado en cinco sitios, y esa
- * duplicacion costo dos fallos silenciosos: faltaba 'visited' en el embudo comercial y 'lost' en
+ * duplicacion costo dos fallos silenciosos: faltaban estados en un embudo y 'lost' en
  * el de campana, asi que los leads en esos estados no tenian columna donde dibujarse. No fallaba
  * nada; simplemente desaparecian de la pantalla.
  *
@@ -75,7 +74,6 @@ exports.STAGE_LABELS_BY_KEY = {
     contacted: 'Contactado',
     quote_sent: 'Calificado',
     meeting_scheduled: 'Visita agendada',
-    visited: 'Visitó',
     negotiation: 'Negociación',
     won: 'Venta',
     lost: 'Descartado',

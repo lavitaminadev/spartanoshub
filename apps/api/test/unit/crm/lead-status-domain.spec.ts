@@ -21,9 +21,12 @@ describe('estados por dominio', () => {
       .toEqual(['new', ...LEAD_RESERVATION_OUTCOMES, 'lost']);
   });
 
-  it('«visitó» es comercial y no se puede aplicar a un contacto de campaña', () => {
-    expect(isStatusInDomain('commercial', LeadStatus.VISITED)).toBe(true);
-    expect(isStatusInDomain('audience', LeadStatus.VISITED)).toBe(false);
+  it('«negociación» es comercial y no se puede aplicar a un contacto de campaña', () => {
+    // Sustituye a la de «Visitó», retirada del embudo: la regla que se comprueba es la misma
+    // —un contacto de campaña no recorre el embudo comercial— y hace falta un estado propio de
+    // ese embudo para comprobarla.
+    expect(isStatusInDomain('commercial', LeadStatus.NEGOTIATION)).toBe(true);
+    expect(isStatusInDomain('audience', LeadStatus.NEGOTIATION)).toBe(false);
   });
 
   it('todo estado del enumerado pertenece a algún dominio, o sería inalcanzable', () => {

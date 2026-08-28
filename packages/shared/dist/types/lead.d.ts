@@ -5,7 +5,7 @@
  * Etapas del pipeline comercial. El equipo las mueve a mano y son ordenadas:
  * el orden de este arreglo es el orden de las columnas del tablero.
  */
-export declare const LEAD_PIPELINE_STAGES: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "visited", "negotiation"];
+export declare const LEAD_PIPELINE_STAGES: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "negotiation"];
 /**
  * Resultados del ciclo de reserva. Los escribe el sistema, no el equipo:
  * `reserved` al crearse la reserva y `attended` / `no_show` al registrar la
@@ -21,13 +21,13 @@ export declare const LEAD_CLOSING_STAGES: readonly ["won", "lost"];
  * del backend y las columnas del tablero derivan de aca para que no se
  * desincronicen.
  */
-export declare const LEAD_STATUSES: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "visited", "negotiation", "reserved", "attended", "no_show", "won", "lost"];
+export declare const LEAD_STATUSES: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "negotiation", "reserved", "attended", "no_show", "won", "lost"];
 /**
  * Que estados admite cada embudo, en el orden en que se recorren.
  *
  * **Es la fuente unica.** El enum de la API, el reparto por dominio, las columnas del tablero y
  * la paleta de estados derivan de aca. Estuvieron declarados por separado en cinco sitios, y esa
- * duplicacion costo dos fallos silenciosos: faltaba 'visited' en el embudo comercial y 'lost' en
+ * duplicacion costo dos fallos silenciosos: faltaban estados en un embudo y 'lost' en
  * el de campana, asi que los leads en esos estados no tenian columna donde dibujarse. No fallaba
  * nada; simplemente desaparecian de la pantalla.
  *
@@ -35,7 +35,7 @@ export declare const LEAD_STATUSES: readonly ["new", "contacted", "quote_sent", 
  * que no se gano como una visita que no ocurrio se cierran igual.
  */
 export declare const LEAD_STATUSES_BY_DOMAIN: {
-    readonly commercial: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "visited", "negotiation", "won", "lost"];
+    readonly commercial: readonly ["new", "contacted", "quote_sent", "meeting_scheduled", "negotiation", "won", "lost"];
     readonly audience: readonly ["new", "reserved", "attended", "no_show", "lost"];
 };
 /** Embudo al que pertenece un lead. */

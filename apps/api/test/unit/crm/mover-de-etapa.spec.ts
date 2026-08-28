@@ -22,10 +22,10 @@ function caso(lead: Record<string, unknown>) {
 }
 
 describe('mover un lead de etapa', () => {
-  it('un prospecto de la agencia recorre el embudo comercial, «Visitó» incluida', async () => {
+  it('un prospecto de la agencia recorre el embudo comercial', async () => {
     const { uso, repo } = caso({ id: 'l1', domain: 'commercial', status: LeadStatus.MEETING_SCHEDULED });
-    const resultado = await uso.execute('l1', { status: LeadStatus.VISITED }, 'org-1');
-    expect(resultado.status).toBe(LeadStatus.VISITED);
+    const resultado = await uso.execute('l1', { status: LeadStatus.NEGOTIATION }, 'org-1');
+    expect(resultado.status).toBe(LeadStatus.NEGOTIATION);
     expect(repo.save).toHaveBeenCalled();
   });
 
