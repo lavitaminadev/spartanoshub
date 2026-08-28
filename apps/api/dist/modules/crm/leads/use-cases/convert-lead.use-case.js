@@ -28,6 +28,7 @@ let ConvertLeadUseCase = class ConvertLeadUseCase {
         this.eventEmitter = eventEmitter;
     }
     async execute(leadId, organizationId) {
+        let etapaPrevia = '';
         const result = await this.leadRepo.manager.transaction(async (manager) => {
             const lead = await manager.findOne(lead_entity_1.Lead, {
                 where: { id: leadId, organizationId },
@@ -49,6 +50,7 @@ let ConvertLeadUseCase = class ConvertLeadUseCase {
                 status: client_status_enum_1.ClientStatus.ONBOARDING,
             });
             const savedClient = await manager.save(client_entity_1.Client, client);
+            etapaPrevia = lead.status;
             lead.status = lead_status_enum_1.LeadStatus.WON;
             lead.convertedAt = new Date();
             lead.convertedToClientId = savedClient.id;
@@ -60,6 +62,15 @@ let ConvertLeadUseCase = class ConvertLeadUseCase {
             leadId: result.lead.id,
             clientId: result.client.id,
         });
+        if (etapaPrevia !== lead_status_enum_1.LeadStatus.WON) {
+            this.eventEmitter.emit('lead.stage-changed', {
+                organizationId,
+                leadId: result.lead.id,
+                clientId: result.lead.clientId ?? null,
+                fromStage: etapaPrevia,
+                toStage: lead_status_enum_1.LeadStatus.WON,
+            });
+        }
         return result;
     }
 };

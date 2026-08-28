@@ -100,6 +100,7 @@
 }
 
 /* El subtítulo aclara sin competir: dice para qué sirve el campo, no lo titula. */
+.lead-detail-edicion label > span em,
 .lead-detail-nota > span em,
 .lead-detail-historial h3 em {
   display: block;

@@ -12,7 +12,6 @@ export enum LeadStatus {
   CONTACTED = 'contacted',
   MEETING_SCHEDULED = 'meeting_scheduled',
   QUOTE_SENT = 'quote_sent',
-  VISITED = 'visited',
   NEGOTIATION = 'negotiation',
   // Resultados del ciclo de reserva: los escribe el flujo de reservas, no el equipo.
   RESERVED = 'reserved',

@@ -15,6 +15,20 @@ const DOMAIN_LABELS: Record<string, string> = {
   audience: 'la audiencia de un local',
 };
 
+/**
+ * Etapas en las que alguien ya afirmó que el lead encaja.
+ *
+ * Desde «Calificado» en adelante: nadie envía una cotización, agenda una visita ni negocia con
+ * quien no le sirve. Que la venta esté incluida es redundante y se deja explícito igualmente,
+ * porque un lead puede saltar directo a cerrada.
+ */
+const CALIFICAN = [
+  LeadStatus.QUOTE_SENT,
+  LeadStatus.MEETING_SCHEDULED,
+  LeadStatus.NEGOTIATION,
+  LeadStatus.WON,
+];
+
 @Injectable()
 export class UpdateLeadUseCase {
   constructor(
@@ -78,6 +92,26 @@ export class UpdateLeadUseCase {
     if (data.source !== undefined) lead.source = data.source;
     // Igual que el responsable: `null` lo deja sin cuenta y omitirlo no toca lo que había.
     if (data.clientId !== undefined) lead.clientId = data.clientId;
+
+    /*
+     * La etapa manda sobre la calidad.
+     *
+     * El puntaje se calculaba al entrar y no se volvía a mirar: un lead que resultaba excelente
+     * seguía diciendo «En revisión» para siempre, y el campo dejaba de significar nada. Llegar a
+     * «Calificado» ya **es** alguien afirmando que encaja, y descartarlo es alguien afirmando lo
+     * contrario: son mejores evidencias que un puntaje de palabras clave calculado a ciegas.
+     *
+     * Solo hacia adelante en el embudo comercial. «Nuevo» y «Contactado» son todavía territorio
+     * de triaje, donde el puntaje de entrada es lo único que hay. Y el ciclo de reserva no
+     * califica a nadie: quien reservó no es un prospecto que encaje o no.
+     *
+     * Un cambio manual en la misma petición gana: quien corrige la calificación a mano está
+     * diciendo algo que la etapa no sabe.
+     */
+    if (data.fitStatus === undefined && lead.domain === 'commercial' && etapaPrevia !== lead.status) {
+      if (CALIFICAN.includes(lead.status as LeadStatus)) lead.fitStatus = LeadFitStatus.QUALIFIED;
+      else if (lead.status === LeadStatus.LOST) lead.fitStatus = LeadFitStatus.UNQUALIFIED;
+    }
 
     /*
      * Descartar exige decir por qué, y se comprueba acá y no en la pantalla.
