@@ -57,7 +57,6 @@ interface BindingMeta {
  */
 interface PixelRegistrado { pixelId: string; pixelNames: string[]; usageCount: number }
 
-interface Usuario { id: string; name: string; email: string; role: string; isActive?: boolean }
 interface Origen {
   id: string;
   name: string;
@@ -238,7 +237,8 @@ export function CrmAdminPage(): JSX.Element {
   const pixelesRegistrados = metaCatalogo.data?.pixels ?? [];
 
   const clientes = useQuery<{ data: Cliente[] }>({ queryKey: ['clients-min'], queryFn: () => api.get('/clients') });
-  const usuarios = useQuery<{ data: Usuario[] }>({ queryKey: ['users-min'], queryFn: () => api.get('/users') });
+  // La lista de usuarios se consultaba solo para dibujar el bloque «Equipo», que salió de esta
+  // pantalla: pedirla igual costaba una consulta en cada visita para no mostrar nada.
   const origenes = useQuery<Origen[]>({
     queryKey: ['lead-ingest-sources'],
     queryFn: () => api.get('/crm/ingest-sources'),
@@ -274,10 +274,9 @@ export function CrmAdminPage(): JSX.Element {
     },
   });
 
-  if (clientes.isLoading || usuarios.isLoading) return <LoadingSpinner text="Cargando la administración..." />;
+  if (clientes.isLoading) return <LoadingSpinner text="Cargando la administración..." />;
 
   const listaClientes = clientes.data?.data ?? [];
-  const listaUsuarios = usuarios.data?.data ?? [];
   const listaOrigenes = origenes.data ?? [];
 
   return (
@@ -355,40 +354,17 @@ export function CrmAdminPage(): JSX.Element {
 
       {MOSTRAR_NOMBRES_POR_EMPRESA ? <NombresDeLasCosas /> : null}
 
-      <div className="crm-admin-dos">
-        <section className="crm-admin-panel">
-          <header>
-            <h2>Clientes</h2>
-            <Link className="btn btn-outline btn-sm" to="/clients">Administrar</Link>
-          </header>
-          {listaClientes.length ? (
-            <ul className="crm-admin-lista">
-              {listaClientes.map((cliente) => <li key={cliente.id}><strong>{cliente.name}</strong></li>)}
-            </ul>
-          ) : (
-            <p className="crm-admin-vacio">Todavía no hay clientes.</p>
-          )}
-        </section>
+      {/*
+        Clientes y Equipo salen de acá.
 
-        <section className="crm-admin-panel">
-          <header>
-            <h2>Equipo <span className="crm-admin-cuenta">{listaUsuarios.length}</span></h2>
-            <Link className="btn btn-outline btn-sm" to="/users">Administrar</Link>
-          </header>
-          {listaUsuarios.length ? (
-            <ul className="crm-admin-lista">
-              {listaUsuarios.map((usuario) => (
-                <li key={usuario.id}>
-                  <strong>{usuario.name}</strong>
-                  <span>{usuario.email} · {usuario.role}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="crm-admin-vacio">Todavía no hay usuarios.</p>
-          )}
-        </section>
-      </div>
+        Eran dos listas de solo lectura con un enlace a la pantalla que sí las administra: no se
+        podía hacer nada con ellas, y ocupaban el sitio de lo que esta pantalla sí resuelve
+        —campañas, conexiones y nombres de etapa—. Quien viene a administrar clientes va a
+        Clientes; repetirlos acá invitaba a buscar aquí lo que no está.
+
+        El resto de la pantalla los sigue usando: la lista de clientes alimenta los desplegables
+        de más abajo, así que la consulta se queda.
+      */}
 
       {/*
         Inversión por campaña.
