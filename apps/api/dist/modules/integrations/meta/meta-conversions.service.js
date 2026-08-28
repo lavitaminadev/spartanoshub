@@ -12,12 +12,11 @@ var MetaConversionsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MetaConversionsService = void 0;
 const common_1 = require("@nestjs/common");
+const identificadores_meta_1 = require("./identificadores-meta");
+const politica_meta_capi_1 = require("./politica-meta-capi");
 const axios_1 = require("@nestjs/axios");
 const rxjs_1 = require("rxjs");
-const node_crypto_1 = require("node:crypto");
 const common_2 = require("@nestjs/common");
-const geo_inference_1 = require("../../../shared/geo-inference");
-const phone_1 = require("../../../shared/phone");
 let MetaConversionsService = MetaConversionsService_1 = class MetaConversionsService {
     constructor(http) {
         this.http = http;
@@ -36,11 +35,11 @@ let MetaConversionsService = MetaConversionsService_1 = class MetaConversionsSer
                         ph: event.userData.ph,
                         fn: event.userData.fn,
                         ln: event.userData.ln,
-                        external_id: event.userData.externalId,
-                        lead_id: event.userData.lead_id,
                         ct: event.userData.ct,
                         st: event.userData.st,
                         country: event.userData.country,
+                        external_id: event.userData.externalId,
+                        lead_id: event.userData.lead_id,
                         client_ip_address: event.userData.client_ip_address,
                         client_user_agent: event.userData.client_user_agent,
                         fbc: event.userData.fbc,
@@ -76,18 +75,19 @@ let MetaConversionsService = MetaConversionsService_1 = class MetaConversionsSer
         }
     }
     async sendServerEvent(pixelId, accessToken, event) {
-        const hashed = {
-            ...event.userData,
-            em: hashAll(event.userData.em, (value) => value.trim().toLowerCase()),
-            ph: hashAll(event.userData.ph, normalizePhoneForMeta),
-            fn: hashAll(event.userData.fn, (value) => value.trim().toLowerCase()),
-            ln: hashAll(event.userData.ln, (value) => value.trim().toLowerCase()),
-            externalId: hashAll(event.userData.externalId, (value) => value),
-            ct: hashAll(event.userData.ct, geo_inference_1.normalizeGeoValue),
-            st: hashAll(event.userData.st, geo_inference_1.normalizeGeoValue),
-            country: hashAll(event.userData.country, geo_inference_1.normalizeGeoValue),
-        };
-        return this.sendEvent(pixelId, accessToken, { ...event, userData: hashed });
+        const infracciones = (0, politica_meta_capi_1.revisarEvento)(event);
+        if (infracciones.length > 0) {
+            (0, politica_meta_capi_1.registrarBloqueo)(event.eventId, infracciones);
+            throw new common_1.BadRequestException(`Meta CAPI: el evento incluye campos no autorizados (${infracciones.map((i) => `${i.seccion}.${i.campo}`).join(', ')})`);
+        }
+        const permitido = (0, politica_meta_capi_1.construirEventoPermitido)(event);
+        const userData = (0, identificadores_meta_1.prepararIdentificadores)(permitido.userData);
+        const enClaro = (0, identificadores_meta_1.parametroSinHashear)(userData);
+        if (enClaro) {
+            throw new common_1.BadRequestException(`Meta CAPI: el parámetro «${enClaro}» no viaja hasheado y el evento no se envía`);
+        }
+        this.logger.log(`META_CAPI_SENT ${(0, politica_meta_capi_1.resumenAuditable)({ ...permitido, userData })}`);
+        return this.sendEvent(pixelId, accessToken, { ...permitido, userData });
     }
 };
 exports.MetaConversionsService = MetaConversionsService;
@@ -95,15 +95,3 @@ exports.MetaConversionsService = MetaConversionsService = MetaConversionsService
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [axios_1.HttpService])
 ], MetaConversionsService);
-function hashAll(values, normalize) {
-    if (!values?.length)
-        return undefined;
-    const hashed = values
-        .map((value) => normalize(value ?? ''))
-        .filter((value) => value.length > 0)
-        .map((value) => (0, node_crypto_1.createHash)('sha256').update(value).digest('hex'));
-    return hashed.length > 0 ? hashed : undefined;
-}
-function normalizePhoneForMeta(phone) {
-    return (0, phone_1.normalizePhoneDigits)(phone) ?? '';
-}

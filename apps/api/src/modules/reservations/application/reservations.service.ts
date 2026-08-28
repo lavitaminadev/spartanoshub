@@ -1134,7 +1134,7 @@ export class ReservationsService {
     const lastName = lastNameParts.join(' ');
     const phone = dto.guestPhone?.replace(/[^\d+]/g, '');
     const location = inferLocationFromPhone(phone);
-    const rating = Number((dto.answers || {}).rating ?? (dto.answers || {}).experience_rating);
+
     await this.metaOutbox.enqueue(form.organizationId, pixelId, {
       eventName: META_DEDUPLICATED_EVENTS.LEAD,
       eventTime: Math.floor(response.createdAt.getTime() / 1000),
@@ -1154,11 +1154,15 @@ export class ReservationsService {
         client_ip_address: ipAddress ?? undefined,
         client_user_agent: userAgent ?? undefined,
       },
-      customData: {
-        contentIds: [form.id],
-        contentType: 'survey',
-        ...(Number.isFinite(rating) ? { value: rating } : {}),
-      },
+      /*
+       * La nota de la encuesta no viaja.
+       *
+       * `value` es, para Meta, el importe económico de la conversión, y una puntuación de
+       * satisfacción no lo es: aparece en sus informes como si cada respuesta hubiera producido
+       * ingresos de 4 o 5, y de paso entrega a un tercero una respuesta que la persona dio para
+       * nosotros. La nota sigue guardada en la respuesta del formulario, que es donde sirve.
+       */
+      customData: { contentIds: [form.id], contentType: 'survey' },
       eventId: metaEventId(META_DEDUPLICATED_EVENTS.LEAD, response.id),
     });
   }
