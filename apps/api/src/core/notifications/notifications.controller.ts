@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Param, Req, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Put, Param, Req, NotFoundException, Delete } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import type { AuthenticatedRequest } from '@shared/types/request';
@@ -42,5 +42,18 @@ export class NotificationsController {
     const notif = await this.service.markAsRead(req.organizationId || req.user.organizationId, id, req.user.id, this.canReadSystemNotifications(req));
     if (!notif) throw new NotFoundException('Notification not found');
     return notif;
+  }
+  @Delete('read')
+  @ApiOperation({ summary: 'Borrar las notificaciones ya leidas' })
+  removeRead(@Req() req: AuthenticatedRequest) {
+    return this.service.removeRead(req.organizationId || req.user.organizationId, req.user.id);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Borrar una notificacion' })
+  async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const borrada = await this.service.remove(req.organizationId || req.user.organizationId, id, req.user.id);
+    if (!borrada) throw new NotFoundException('Notification not found');
+    return { deleted: true };
   }
 }

@@ -17,7 +17,7 @@ export const COLUMNAS_OPCIONALES = [
   { key: 'source', label: 'Origen' },
   { key: 'status', label: 'Etapa' },
   { key: 'tags', label: 'Etiqueta' },
-  { key: 'fit', label: 'Calidad' },
+  { key: 'fit', label: 'Calificación' },
   { key: 'owner', label: 'Responsable' },
   { key: 'created', label: 'Ingreso' },
 ] as const;

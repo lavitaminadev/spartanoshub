@@ -16,18 +16,20 @@ const DOMAIN_LABELS: Record<string, string> = {
 };
 
 /**
- * Etapas en las que alguien ya afirmó que el lead encaja.
+ * Etapas que deciden la calificación por sí solas.
  *
- * Desde «Calificado» en adelante: nadie envía una cotización, agenda una visita ni negocia con
- * quien no le sirve. Que la venta esté incluida es redundante y se deja explícito igualmente,
- * porque un lead puede saltar directo a cerrada.
+ * Solo el desenlace. Una venta es la afirmación más fuerte de que el lead encajaba, y un descarte
+ * la contraria; ninguna de las dos necesita que alguien la escriba aparte.
+ *
+ * Las etapas intermedias **no** califican, aunque parezca que sí. Que alguien agende una visita
+ * no significa que el lead le sirva —se agenda para averiguarlo—, y marcarlo calificado por eso
+ * convierte el campo en una copia de la etapa. La calificación es un eje aparte: dice cuánto vale
+ * el lead, no dónde va, y quien la decide es la persona que habló con él.
  */
-const CALIFICAN = [
-  LeadStatus.QUOTE_SENT,
-  LeadStatus.MEETING_SCHEDULED,
-  LeadStatus.NEGOTIATION,
-  LeadStatus.WON,
-];
+const DESENLACES = {
+  [LeadStatus.WON]: LeadFitStatus.QUALIFIED,
+  [LeadStatus.LOST]: LeadFitStatus.UNQUALIFIED,
+} as Partial<Record<LeadStatus, LeadFitStatus>>;
 
 @Injectable()
 export class UpdateLeadUseCase {
@@ -67,6 +69,9 @@ export class UpdateLeadUseCase {
       }
       lead.status = data.status as LeadStatus;
     }
+    // Antes de que nada la toque: es lo que permite distinguir «pasó a calificado ahora» de
+    // «ya estaba calificado y se guardó otra cosa». Sin esto, cada guardado reenviaría el evento.
+    const calificacionPrevia = lead.fitStatus;
     if (data.fitStatus && Object.values(LeadFitStatus).includes(data.fitStatus as LeadFitStatus)) {
       lead.fitStatus = data.fitStatus as LeadFitStatus;
     }
@@ -94,23 +99,19 @@ export class UpdateLeadUseCase {
     if (data.clientId !== undefined) lead.clientId = data.clientId;
 
     /*
-     * La etapa manda sobre la calidad.
+     * Solo el desenlace decide la calificación por su cuenta.
      *
-     * El puntaje se calculaba al entrar y no se volvía a mirar: un lead que resultaba excelente
-     * seguía diciendo «En revisión» para siempre, y el campo dejaba de significar nada. Llegar a
-     * «Calificado» ya **es** alguien afirmando que encaja, y descartarlo es alguien afirmando lo
-     * contrario: son mejores evidencias que un puntaje de palabras clave calculado a ciegas.
+     * La calificación dice cuánto vale el lead; la etapa, dónde va. Son dos preguntas distintas y
+     * un lead puede estar en «Contactado» y ya valer la pena. Dejarlas atadas convertía el campo
+     * en una copia de la etapa y le quitaba a quien vende la única forma que tiene de decir «este
+     * me interesa» antes de que se note en el embudo.
      *
-     * Solo hacia adelante en el embudo comercial. «Nuevo» y «Contactado» son todavía territorio
-     * de triaje, donde el puntaje de entrada es lo único que hay. Y el ciclo de reserva no
-     * califica a nadie: quien reservó no es un prospecto que encaje o no.
-     *
-     * Un cambio manual en la misma petición gana: quien corrige la calificación a mano está
-     * diciendo algo que la etapa no sabe.
+     * Un cambio manual en la misma petición gana: quien la corrige a mano sabe algo que la etapa
+     * no sabe.
      */
     if (data.fitStatus === undefined && lead.domain === 'commercial' && etapaPrevia !== lead.status) {
-      if (CALIFICAN.includes(lead.status as LeadStatus)) lead.fitStatus = LeadFitStatus.QUALIFIED;
-      else if (lead.status === LeadStatus.LOST) lead.fitStatus = LeadFitStatus.UNQUALIFIED;
+      const automatica = DESENLACES[lead.status as LeadStatus];
+      if (automatica) lead.fitStatus = automatica;
     }
 
     /*
@@ -142,23 +143,36 @@ export class UpdateLeadUseCase {
     await this.cierre.avisar(guardado, etapaPrevia, actorId);
 
     /*
-     * Cada cambio de etapa se anuncia, para que Meta pueda aprender qué anuncios traen leads que
-     * terminan en venta y cuáles traen los que se descartan.
+     * Dos señales, no siete.
      *
-     * Se emite solo cuando la etapa cambió de verdad: guardar un teléfono corregido no es un
-     * paso del embudo, y contarlo como tal ensuciaría la señal que se le devuelve a Meta.
+     * Antes se anunciaba cada cambio de etapa y Meta recibía un evento distinto por cada paso del
+     * embudo. Repartía la señal entre siete nombres con pocas conversiones cada uno, que es la
+     * forma más segura de que no aprenda nada: para optimizar necesita volumen sobre un mismo
+     * hecho, no el detalle del recorrido.
      *
-     * Va como evento y no como llamada directa porque este caso de uso no debe saber que Meta
-     * existe: quien escucha decide si ese lead vino de un formulario instantáneo, si su empresa
-     * tiene la capacidad contratada y a qué Pixel corresponde.
+     * Ahora se anuncian los dos hechos que a Meta le sirven de verdad: que alguien afirmó que
+     * este lead vale la pena, y que compró. El descarte no se anuncia; Meta aprende de lo que
+     * recibe, y un evento de «malo» no le enseña a evitar ese perfil, solo ensucia el conjunto.
+     *
+     * Van como eventos y no como llamada directa porque este caso de uso no debe saber que Meta
+     * existe: quien escucha decide el Pixel, la capacidad contratada y el formato.
      */
-    if (etapaPrevia !== guardado.status) {
-      this.eventEmitter.emit('lead.stage-changed', {
+    if (
+      lead.fitStatus === LeadFitStatus.QUALIFIED
+      && calificacionPrevia !== LeadFitStatus.QUALIFIED
+    ) {
+      this.eventEmitter.emit('lead.qualified', {
         organizationId,
         leadId: guardado.id,
         clientId: guardado.clientId ?? null,
-        fromStage: etapaPrevia,
-        toStage: guardado.status,
+      });
+    }
+
+    if (etapaPrevia !== guardado.status && guardado.status === LeadStatus.WON) {
+      this.eventEmitter.emit('lead.won', {
+        organizationId,
+        leadId: guardado.id,
+        clientId: guardado.clientId ?? null,
       });
     }
 

@@ -9,6 +9,7 @@ import { IntegrationAccountType } from '../../integration-account-type.enum';
 import { Lead } from '../../../crm/leads/lead.entity';
 import { Client } from '../../../clients/client.entity';
 import { Campaign } from '../../../crm/campaigns/campaign.entity';
+import { atribucionDelLead } from '../atribucion-del-lead';
 
 /** Forma de un identificador de lead de Meta: 15 a 17 dígitos, nada más. */
 const LEADGEN_ID = /^d{15,17}$/;
@@ -103,19 +104,8 @@ export class LeadConvertedHandler {
       const client = await this.clientRepo.findOne({ where: { id: payload.clientId, organizationId: lead.organizationId } });
       const eventId = `lead-converted:${lead.id}:${payload.clientId}`;
 
-      /**
-       * Señales del navegador guardadas cuando la persona llegó.
-       *
-       * Meta atribuye bastante mejor un evento que llega con `fbp` y `fbc` que uno que solo
-       * trae correo y teléfono. Como acá se está enviando una conversión que ocurre semanas
-       * después de la visita, estas señales solo pueden venir de lo que se guardó entonces.
-       * Si la captura es anterior a que se registraran, no habrá nada y el evento sale igual
-       * con lo que haya: menos preciso, pero nunca se pierde.
-       */
-      const attribution = (lead.metadata?.attribution ?? {}) as {
-        fbp?: string; fbc?: string;
-        clientIpAddress?: string; clientUserAgent?: string;
-      };
+      // Incluye el `fbc` reconstruido desde el `fbclid` cuando la página no tenía el Pixel.
+      const attribution = atribucionDelLead(lead);
 
       await this.outbox.enqueue(lead.organizationId, pixelId, {
         eventName: 'QualifiedLead',

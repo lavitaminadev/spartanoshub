@@ -72,7 +72,7 @@ export class ConvertLeadUseCase {
     /*
      * Convertir también cierra el lead, y eso hay que anunciarlo.
      *
-     * Este camino ponía «Venta» con un guardado directo, sin emitir el evento de etapa: quien
+     * Este camino ponía «Venta» con un guardado directo, sin anunciar la venta: quien
      * cerraba convirtiendo en cliente —que es como cierra el equipo comercial— dejaba a Meta sin
      * la señal que más pesa. Veía leads que llegaban a Negociación y desaparecían, y aprendía
      * que esa campaña no convierte.
@@ -81,12 +81,10 @@ export class ConvertLeadUseCase {
      * el aviso, y el identificador de evento por etapa lo deduplicaría igualmente.
      */
     if (etapaPrevia !== LeadStatus.WON) {
-      this.eventEmitter.emit('lead.stage-changed', {
+      this.eventEmitter.emit('lead.won', {
         organizationId,
         leadId: result.lead.id,
         clientId: result.lead.clientId ?? null,
-        fromStage: etapaPrevia,
-        toStage: LeadStatus.WON,
       });
     }
     return result;

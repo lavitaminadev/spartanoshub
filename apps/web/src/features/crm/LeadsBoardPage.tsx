@@ -31,7 +31,6 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
 import { Pagination } from '../../shared/Pagination';
 import { Modal } from '../../shared/Modal';
-import { StatusBadge } from '../../shared/StatusBadge';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { ImportLeadsModal } from './ImportLeadsModal';
 import { ExportButtons, type ExportDocument } from '../../shared/export';
@@ -44,6 +43,7 @@ import { COLUMNAS_OPCIONALES, guardarColumnas, leerColumnas, type ColumnaOpciona
 import { useVocabulario } from './use-vocabulario';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { colorDePersona, mensajeDePrimerContacto, whatsapp } from './contacto';
+import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
 import './leads-board.css';
 
 interface Lead {
@@ -111,11 +111,6 @@ function montoCorto(valor: number): string {
   return `${valor.toLocaleString('es-CL')}`;
 }
 
-const CALIDADES: Array<{ value: string; label: string }> = [
-  { value: 'qualified', label: 'Calificado' },
-  { value: 'review', label: 'Por revisar' },
-  { value: 'unqualified', label: 'No calificado' },
-];
 
 function iniciales(nombre: string): string {
   return nombre.trim().split(/\s+/).slice(0, 2).map((parte) => parte[0]?.toUpperCase() ?? '').join('');
@@ -575,7 +570,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         filters={[
           { key: 'responsable', label: 'Responsable', allLabel: 'Todo el equipo', options: equipo.map((u) => ({ value: u.id, label: u.name })) },
           { key: 'etapa', label: 'Etapa', allLabel: 'Todas las etapas', options: etapasDelEmbudo.map((s) => ({ value: s, label: etapaLabel(s) })) },
-          { key: 'calidad', label: 'Calidad', allLabel: 'Toda calidad', options: CALIDADES },
+          { key: 'calidad', label: CALIFICACION_TITULO, allLabel: 'Toda calificación', options: CALIFICACIONES },
           /*
             Las campañas son las de la empresa que se está mirando, no las de toda la
             organización: dos empresas pueden llamar igual a la suya, y ofrecer ambas dejaría
@@ -732,7 +727,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 {frio ? <span className="leads-board-frio">Sin movimiento hace +{COOLING_DAYS} días</span> : null}
                 <div className="leads-board-pie">
                   {lead.fitStatus
-                    ? <span className={`leads-board-chip es-${lead.fitStatus}`}>{CALIDADES.find((c) => c.value === lead.fitStatus)?.label}</span>
+                    ? <span className={`leads-board-chip es-${lead.fitStatus}`}>{rotuloDeCalificacion(lead.fitStatus)}</span>
                     : null}
                   {lead.openTasks ? <span className="leads-board-chip es-tarea" title="Tareas pendientes">✓ {lead.openTasks}</span> : null}
                   {/*
@@ -843,7 +838,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 {ve('source') ? <th>Origen</th> : null}
                 {ve('status') ? <th>Etapa</th> : null}
                 {ve('tags') ? <th>Etiqueta</th> : null}
-                {ve('fit') ? <th>Calidad</th> : null}
+                {ve('fit') ? <th>{CALIFICACION_TITULO}</th> : null}
                 {ve('owner') ? <th>{termino('responsable')}</th> : null}
                 {ve('created') ? <th>Ingreso</th> : null}
               </tr>
@@ -873,7 +868,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   {ve('source') ? <td data-label="Origen" className="col-larga" title={lead.campaignName ?? undefined}>{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}</td> : null}
                   {ve('status') ? <td data-label="Etapa">{etapaLabel(lead.status)}</td> : null}
                   {ve('tags') ? <td data-label="Etiqueta">{lead.tags?.length ? lead.tags.join(' · ') : '—'}</td> : null}
-                  {ve('fit') ? <td data-label="Calidad">{lead.fitStatus ? <StatusBadge status={lead.fitStatus} /> : '—'}</td> : null}
+                  {ve('fit') ? <td data-label={CALIFICACION_TITULO}>{rotuloDeCalificacion(lead.fitStatus)}</td> : null}
                   {ve('owner') ? <td data-label="Responsable">{nombreDe(lead.assignedTo) ?? 'Sin asignar'}</td> : null}
                   {ve('created') ? <td data-label="Ingreso">{new Date(lead.createdAt).toLocaleDateString('es-CL')}</td> : null}
                 </tr>

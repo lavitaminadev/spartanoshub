@@ -35,15 +35,16 @@ const base = {
 };
 
 describe('convertir un lead en empresa cliente', () => {
-  it('anuncia el cambio de etapa a Venta', async () => {
+  it('anuncia la venta', async () => {
+    // Cerrar convirtiendo en cliente es como cierra el equipo comercial. Sin este aviso, Meta veía
+    // leads que llegaban a Negociación y desaparecían, y aprendía que esa campaña no convierte.
     const { uso, eventEmitter } = caso({ ...base });
 
     await uso.execute('lead-1', 'org-1');
 
-    const etapa = eventEmitter.emit.mock.calls.find(([nombre]) => nombre === 'lead.stage-changed');
-    expect(etapa).toBeDefined();
-    expect(etapa?.[1].toStage).toBe(LeadStatus.WON);
-    expect(etapa?.[1].fromStage).toBe(LeadStatus.NEGOTIATION);
+    const venta = eventEmitter.emit.mock.calls.find(([nombre]) => nombre === 'lead.won');
+    expect(venta).toBeDefined();
+    expect(venta?.[1].leadId).toBe('lead-1');
   });
 
   it('no lo repite si el lead ya estaba en Venta', async () => {
@@ -53,7 +54,7 @@ describe('convertir un lead en empresa cliente', () => {
 
     await uso.execute('lead-1', 'org-1');
 
-    expect(eventEmitter.emit.mock.calls.some(([nombre]) => nombre === 'lead.stage-changed')).toBe(false);
+    expect(eventEmitter.emit.mock.calls.some(([nombre]) => nombre === 'lead.won')).toBe(false);
   });
 
   it('sigue anunciando la conversión, que es otra cosa', async () => {

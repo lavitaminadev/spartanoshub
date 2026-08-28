@@ -2,28 +2,28 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { STAGE_LABELS_BY_KEY } from '@espartanos/shared';
 import { MetaConversionOutboxService } from '../meta-conversion-outbox.service';
 import { MetaClientPixelService } from '../meta-client-pixel.service';
 import { ClientCapabilityService } from '../../../../core/client-scope/client-capability.service';
 import { Lead } from '../../../crm/leads/lead.entity';
 import { Campaign } from '../../../crm/campaigns/campaign.entity';
+import { atribucionDelLead } from '../atribucion-del-lead';
 
 /**
- * Devuelve a Meta en qué etapa quedó cada lead que llegó por un formulario instantáneo.
+ * Le devuelve a Meta los dos hechos comerciales que puede aprender de un lead.
  *
- * Es un flujo distinto del de una conversión web, y Meta lo trata aparte:
+ * - **`QualifiedLead`**: alguien del equipo afirmó que este lead vale la pena. Es la señal que
+ *   Meta usa para optimizar hacia perfiles parecidos, y por eso es la más valiosa de las dos:
+ *   llega semanas antes que la venta y hay muchas más.
+ * - **`Purchase`**: compró, con el monto.
  *
- * - Se identifica por **`lead_id`**, el número que Meta generó al rellenarse el formulario, y no
- *   por correo hasheado. Sin ese número el evento no se puede emparejar con ningún lead suyo, así
- *   que un contacto importado de una planilla o escrito a mano no entra por aquí.
- * - `action_source` es siempre `system_generated`: no ocurrió en una web.
- * - `custom_data.event_source` vale `'crm'`, que es lo que separa estos eventos de los de reserva.
+ * El descarte no se reporta. Meta optimiza hacia lo que recibe y no aprende de lo que le falta;
+ * un evento de «este no servía» no le enseña a evitar el perfil, solo diluye el conjunto.
  *
- * Se envían **todas las etapas**, no solo el desenlace, porque es lo que permite a Meta aprender
- * qué anuncios traen gente que avanza y cuáles traen gente que se queda en el primer paso. La
- * bandeja de salida deduplica por `event_id`, así que un lead que va y vuelve entre dos etapas no
- * genera el mismo evento dos veces.
+ * Antes se enviaba un evento por cada cambio de etapa, con el nombre de la etapa. Repartía la
+ * señal entre siete nombres distintos —cada uno con pocas conversiones— y ninguno acumulaba el
+ * volumen que Meta necesita para optimizar. El detalle del embudo se ve en el CRM, que es donde
+ * hace falta.
  *
  * Nada de esto sale si la empresa no tiene `metaConversions` contratado: son datos personales
  * hacia un tercero y esa capacidad nace apagada a propósito.
@@ -52,42 +52,34 @@ export class LeadStageChangedHandler {
     @InjectRepository(Campaign) private readonly campaigns: Repository<Campaign>,
   ) {}
 
-  @OnEvent('lead.stage-changed')
-  async handle(payload: {
-    organizationId: string;
-    leadId: string;
-    clientId: string | null;
-    fromStage: string;
-    toStage: string;
-  }): Promise<void> {
+  @OnEvent('lead.qualified')
+  async calificado(payload: { organizationId: string; leadId: string; clientId: string | null }): Promise<void> {
+    await this.reportar(payload, 'QualifiedLead', 'calificacion');
+  }
+
+  @OnEvent('lead.won')
+  async vendido(payload: { organizationId: string; leadId: string; clientId: string | null }): Promise<void> {
+    await this.reportar(payload, 'Purchase', 'venta');
+  }
+
+  /**
+   * Encola el evento si la empresa puede reportar y hay Pixel al que reportar.
+   *
+   * @param eventName - Nombre estándar de Meta. Genérico y comercial a propósito: sus condiciones
+   *   prohíben que el nombre de un evento insinúe una categoría sensible, y desde septiembre de
+   *   2025 marcan e inhabilitan las conversiones personalizadas que lo hacen.
+   * @param sufijo - Distingue los dos eventos de un mismo lead dentro del `event_id`.
+   */
+  private async reportar(
+    payload: { organizationId: string; leadId: string; clientId: string | null },
+    eventName: 'QualifiedLead' | 'Purchase',
+    sufijo: 'calificacion' | 'venta',
+  ): Promise<void> {
     try {
       const lead = await this.leads.findOne({
         where: { id: payload.leadId, organizationId: payload.organizationId },
       });
       if (!lead) return;
-
-      /*
-       * Solo los leads de formularios instantáneos de Meta.
-       *
-       * `identificadorExterno` guarda el `leadgen_id` tal cual cuando el origen es
-       * `meta_lead_ads`, y le antepone el nombre del origen en los demás casos. Un valor con dos
-       * puntos no es un identificador de Meta, y mandarlo haría que rechazaran el evento entero.
-       */
-      if (lead.source !== 'meta_lead_ads') return;
-      const leadId = lead.externalLeadId;
-      if (!leadId || !LeadStageChangedHandler.LEADGEN_ID.test(leadId)) {
-        /*
-         * Se descarta acá y no en Meta.
-         *
-         * Un identificador que no tiene la forma de un `leadgen_id` —una prueba escrita a mano,
-         * el número interno de otro sistema, el prefijo `origen:` que se antepone fuera de
-         * Meta— se envía igual y Meta lo rechaza. El evento acaba en la cola de fallidos, que es
-         * el sitio donde se buscan los problemas reales, y ahí no distingue de un token vencido.
-         *
-         * Sin aviso: no es un error, es un lead que no vino de un formulario instantáneo.
-         */
-        return;
-      }
 
       // Sin empresa no hay capacidad que comprobar ni Pixel que heredar: es un prospecto de la
       // agencia y no pertenece a ninguna cuenta publicitaria de cliente.
@@ -101,8 +93,8 @@ export class LeadStageChangedHandler {
         })
         : null;
 
-      // Una campana puede quedar fuera del reporte sin apagar el CRM entero: es la excepcion
-      // para las de prueba o las que todavia no tienen su Pixel listo.
+      // Una campaña puede quedar fuera del reporte sin apagar el CRM entero: es la excepción
+      // para las de prueba o las que todavía no tienen su Pixel listo.
       if (campana && campana.metaCapiEnabled === false) return;
 
       const { pixelId, tokenSource } = await this.clientPixels.resolveForScope(
@@ -111,7 +103,7 @@ export class LeadStageChangedHandler {
         campana?.metaPixelId,
       );
       if (!pixelId) {
-        this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta la etapa "${payload.toStage}"`);
+        this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta «${eventName}»`);
         return;
       }
       if (tokenSource === 'environment') {
@@ -121,55 +113,69 @@ export class LeadStageChangedHandler {
         );
       }
 
+      /*
+       * Todo lo que se sepa de cómo llegó esta persona.
+       *
+       * Se guardó al capturarla y no ahora: `fbp`, `fbc`, la IP y el navegador describen el
+       * momento en que llegó, y ese momento no vuelve. Lo que no exista se omite —un dato
+       * inventado produce un hash que no empareja con nadie y le enseña algo falso a Meta—.
+       */
+      const atribucion = atribucionDelLead(lead);
+
+      /*
+       * El `lead_id` de Meta cuando lo hay, y los contactos siempre.
+       *
+       * Antes solo se reportaban los leads de formularios instantáneos, porque solo ellos tienen
+       * ese número. Pero el correo y el teléfono emparejan igual, así que un lead que llegó por
+       * la web o por teléfono también puede enseñarle a Meta a qué perfil apuntar; excluirlo era
+       * tirar la mitad de la señal.
+       *
+       * Van sin hashear desde acá **a propósito**: la cola aplica SHA-256 con la normalización
+       * que Meta exige. Hashear dos veces produce un valor que no empareja con nada.
+       */
+      const leadId = lead.source === 'meta_lead_ads' && lead.externalLeadId
+        && LeadStageChangedHandler.LEADGEN_ID.test(lead.externalLeadId)
+        ? lead.externalLeadId
+        : undefined;
+
+      const monto = lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined;
+
       await this.outbox.enqueue(payload.organizationId, pixelId, {
-        /*
-         * El nombre de la etapa tal como lo lee el equipo, no la clave interna.
-         *
-         * Meta acepta cualquier texto acá y lo muestra como está en sus informes: `quote_sent`
-         * obligaría a traducir mentalmente en la pantalla de ellos. Se usa el rótulo de fábrica
-         * y no el renombrado por empresa, porque si dos empresas llaman distinto a la misma
-         * etapa sus eventos dejarían de ser comparables entre sí.
-         */
-        eventName: STAGE_LABELS_BY_KEY[payload.toStage] ?? payload.toStage,
+        eventName,
         eventTime: Math.floor(Date.now() / 1000),
         actionSource: 'system_generated',
-        /*
-         * El `lead_id` empareja; el correo y el teléfono lo refuerzan.
-         *
-         * Con solo el identificador, Meta empareja o no empareja. Añadir los contactos hasheados
-         * le da una segunda vía cuando ese lead cambió de cuenta o el identificador envejeció, y
-         * sube la calidad de coincidencia sin coste: son datos que el lead ya nos dio.
-         *
-         * Van sin hashear desde acá **a propósito**: `sendServerEvent` aplica SHA-256 con la
-         * normalización que Meta exige —minúsculas, teléfono solo dígitos—. Hashear dos veces
-         * produce un valor que no empareja con nada y nadie se entera.
-         *
-         * El nombre no viaja: llega en un solo campo y partirlo en nombre y apellido acierta poco
-         * en Chile, donde son dos apellidos. Un `ln` equivocado no resta, pero tampoco suma.
-         */
         userData: {
           lead_id: leadId,
           em: lead.email ? [lead.email] : undefined,
           ph: lead.phone ? [lead.phone] : undefined,
+          externalId: [lead.id],
+          fbp: atribucion.fbp,
+          fbc: atribucion.fbc,
+          client_ip_address: atribucion.clientIpAddress,
+          client_user_agent: atribucion.clientUserAgent,
         },
         customData: {
           leadEventSource: LeadStageChangedHandler.ORIGEN,
           eventSource: 'crm',
-          // El monto solo viaja en la venta: en las etapas intermedias es una estimación, y Meta
-          // la contaría como ingreso confirmado.
-          value: payload.toStage === 'won' && lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined,
-          currency: payload.toStage === 'won' && lead.estimatedAmount ? 'CLP' : undefined,
+          /*
+           * El monto solo viaja en la venta.
+           *
+           * En cualquier otro momento es una estimación, y Meta lo trataría como ingreso
+           * confirmado. Una calificación no vale dinero: vale como señal de perfil.
+           */
+          value: eventName === 'Purchase' && monto && monto > 0 ? monto : undefined,
+          currency: eventName === 'Purchase' && monto && monto > 0 ? 'CLP' : undefined,
         },
         /*
-         * Estable y por etapa: un lead que vuelve a una etapa por la que ya pasó no genera un
-         * evento nuevo. Sin esto, arrastrar una tarjeta de ida y vuelta en el tablero inflaría
-         * los conteos de Meta con movimientos que no son avances.
+         * Estable por lead y por hecho: un lead que se descalifica y se vuelve a calificar no
+         * genera un evento nuevo, y guardar la ficha otra vez tampoco. Sin esto, cada guardado
+         * inflaría los conteos de Meta con movimientos que no son conversiones.
          */
-        eventId: `lead-stage:${lead.id}:${payload.toStage}`,
+        eventId: `lead-${sufijo}:${lead.id}`,
       });
     } catch (error) {
-      // Nunca se propaga: reportar una etapa a Meta no puede impedir que el lead se guarde.
-      this.logger.error(`No se pudo reportar la etapa del lead ${payload.leadId}:`, error);
+      // Nunca se propaga: reportar a Meta no puede impedir que el lead se guarde.
+      this.logger.error(`No se pudo reportar «${eventName}» del lead ${payload.leadId}:`, error);
     }
   }
 }

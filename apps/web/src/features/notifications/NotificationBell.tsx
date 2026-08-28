@@ -68,6 +68,16 @@ export function NotificationBell() {
     onSuccess: refreshNotifications,
   });
 
+  const borrar = useMutation({
+    mutationFn: (id: string) => api.delete(`/notifications/${id}`),
+    onSuccess: refreshNotifications,
+  });
+
+  const borrarLeidas = useMutation({
+    mutationFn: () => api.delete('/notifications/read'),
+    onSuccess: refreshNotifications,
+  });
+
   const markAllRead = useMutation({
     mutationFn: () => api.put('/notifications/read-all'),
     onSuccess: refreshNotifications,
@@ -122,6 +132,11 @@ export function NotificationBell() {
               <span>ACTIVIDAD</span>
               <h3>Notificaciones</h3>
             </div>
+            {notifications.some((n) => n.read) && (
+              <button type="button" onClick={() => borrarLeidas.mutate()} disabled={borrarLeidas.isPending}>
+                {borrarLeidas.isPending ? 'Borrando...' : 'Borrar leidas'}
+              </button>
+            )}
             {unread > 0 && (
               <button type="button" onClick={() => markAllRead.mutate()} disabled={markAllRead.isPending}>
                 {markAllRead.isPending ? 'Marcando...' : 'Marcar todas leidas'}
@@ -147,20 +162,32 @@ export function NotificationBell() {
             {notifications.map((notification) => {
               const route = notificationRoute(notification, user?.role === 'client');
               return (
-                <button
-                  type="button"
-                  className={`notification-item ${notification.read ? '' : 'unread'}`}
-                  key={notification.id}
-                  onClick={() => openNotification(notification)}
-                  disabled={markRead.isPending}
-                >
-                  <i aria-hidden="true" />
-                  <span>
-                    <strong>{notification.title}</strong>
-                    <p>{notification.message}</p>
-                    <small>{formatDate(notification.createdAt)}{route ? ' · Abrir' : ''}</small>
-                  </span>
-                </button>
+                <div className={`notification-row ${notification.read ? '' : 'unread'}`} key={notification.id}>
+                  <button
+                    type="button"
+                    className="notification-item"
+                    onClick={() => openNotification(notification)}
+                    disabled={markRead.isPending}
+                  >
+                    <i aria-hidden="true" />
+                    <span>
+                      <strong>{notification.title}</strong>
+                      <p>{notification.message}</p>
+                      <small>{formatDate(notification.createdAt)}{route ? ' · Abrir' : ''}</small>
+                    </span>
+                  </button>
+                  {/* Aparte del cuerpo y no dentro: un botón no puede contener otro botón. */}
+                  <button
+                    type="button"
+                    className="notification-remove"
+                    aria-label={`Borrar ${notification.title}`}
+                    title="Borrar"
+                    onClick={() => borrar.mutate(notification.id)}
+                    disabled={borrar.isPending}
+                  >
+                    ×
+                  </button>
+                </div>
               );
             })}
           </div>
