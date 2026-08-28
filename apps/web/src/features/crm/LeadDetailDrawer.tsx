@@ -347,7 +347,16 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       // omitido justamente para permitirlo.
       assignedTo: responsable || null,
       estimatedAmount: monto === '' ? undefined : Number(monto),
-      fitStatus: calificacion,
+      /*
+       * La calificación solo viaja si la tocaste.
+       *
+       * El servidor la deriva de la etapa —llegar a Calificado ya es afirmar que encaja— salvo
+       * que la petición traiga una, en cuyo caso respeta lo que le mandan. Como este formulario
+       * enviaba siempre el valor que tenía, le estaba diciendo «la decido yo» en cada guardado y
+       * la regla no se aplicaba nunca desde acá: mover la etapa en la ficha dejaba la calidad
+       * congelada, que es justo lo que había que arreglar.
+       */
+      fitStatus: calificacion === (lead.fitStatus ?? 'review') ? undefined : calificacion,
       trafficLight: semaforo || null,
       // Se separan por coma, como en la importación, para que la misma persona escriba igual en
       // los dos sitios. Vacío limpia las etiquetas en vez de dejarlas como estaban.
