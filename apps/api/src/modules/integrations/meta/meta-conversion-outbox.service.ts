@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { prepararIdentificadores } from './identificadores-meta';
+import { construirEventoPermitido, registrarBloqueo, revisarEvento } from './politica-meta-capi';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OutboxProcessor, type FailureVerdict } from '../../../core/outbox/outbox-processor.base';
@@ -77,7 +79,36 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
     if (!eventId) throw new Error('A stable eventId is required for Meta CAPI');
     const existing = await this.repository.findOne({ where: { organizationId, eventId } });
     if (existing) return existing;
-    return this.repository.save(this.repository.create({ organizationId, pixelId, eventId, eventData: event }));
+    /*
+     * Los identificadores se hashean antes de guardar, no antes de enviar.
+     *
+     * Funcionaba igual haciéndolo al enviar —Meta nunca recibió nada en claro—, pero dejaba
+     * correo y teléfono legibles en la cola durante todo el tiempo que el evento espera, y
+     * después indefinidamente en las filas ya procesadas. Es una copia de datos personales que
+     * nadie necesita: para enviarlos hace falta el digest, no el original.
+     *
+     * Va acá y no en cada emisor porque por esta puerta pasan los dos —etapas del CRM y
+     * reservas—, y porque `prepararIdentificadores` reconoce lo ya hasheado: quien mande el
+     * digest hecho no lo estropea, y el envío lo vuelve a comprobar de todas formas.
+     */
+    /*
+     * Control 1: lo que no está en la lista blanca no entra a la cola.
+     *
+     * Se revisa antes de descartar, para poder decir qué campo sobraba: si se sanea en silencio,
+     * quien añadió el campo cree que está viajando a Meta y construye encima de algo que nunca
+     * llegó. Con el bloqueo registrado el fallo es visible; sin él, invisible durante meses.
+     */
+    const infracciones = revisarEvento(event as unknown as Record<string, unknown>);
+    if (infracciones.length > 0) {
+      registrarBloqueo(eventId, infracciones);
+      throw new BadRequestException(
+        `Meta CAPI: el evento incluye campos no autorizados (${infracciones.map((i) => `${i.seccion}.${i.campo}`).join(', ')})`,
+      );
+    }
+
+    const permitido = construirEventoPermitido(event as unknown as Record<string, unknown>);
+    const evento = { ...permitido, userData: prepararIdentificadores(permitido.userData as Record<string, unknown>) };
+    return this.repository.save(this.repository.create({ organizationId, pixelId, eventId, eventData: evento }));
   }
 
   /**
@@ -137,7 +168,23 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
   protected async send(item: MetaConversionOutbox): Promise<void> {
     const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId);
     if (!token) throw new Error('Meta conversion token is unavailable');
-    await this.conversions.sendServerEvent(item.pixelId, token, item.eventData as ConversionEvent);
+    const respuesta = await this.conversions.sendServerEvent(item.pixelId, token, item.eventData as ConversionEvent);
+
+    /*
+     * Que la llamada no falle no significa que Meta lo haya recibido.
+     *
+     * Axios lanza en cualquier respuesta que no sea 2xx, así que un rechazo se detecta. Pero Meta
+     * responde 200 con `events_received: 0` cuando descarta el evento sin considerarlo un error
+     * de la petición, y eso quedaba marcado como procesado: una conversión perdida contada como
+     * enviada, que es peor que un fallo porque nadie la va a buscar.
+     *
+     * Si el campo no viene no se bloquea: negarse por un campo ausente convertiría un cambio de
+     * la API de Meta en una cola detenida.
+     */
+    const recibidos = (respuesta as { events_received?: number } | undefined)?.events_received;
+    if (typeof recibidos === 'number' && recibidos < 1) {
+      throw new Error(`Meta respondió sin recibir el evento (events_received: ${recibidos})`);
+    }
   }
 
   /**

@@ -15,6 +15,8 @@ var MetaConversionOutboxService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MetaConversionOutboxService = void 0;
 const common_1 = require("@nestjs/common");
+const identificadores_meta_1 = require("./identificadores-meta");
+const politica_meta_capi_1 = require("./politica-meta-capi");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const outbox_processor_base_1 = require("../../../core/outbox/outbox-processor.base");
@@ -43,7 +45,14 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         const existing = await this.repository.findOne({ where: { organizationId, eventId } });
         if (existing)
             return existing;
-        return this.repository.save(this.repository.create({ organizationId, pixelId, eventId, eventData: event }));
+        const infracciones = (0, politica_meta_capi_1.revisarEvento)(event);
+        if (infracciones.length > 0) {
+            (0, politica_meta_capi_1.registrarBloqueo)(eventId, infracciones);
+            throw new common_1.BadRequestException(`Meta CAPI: el evento incluye campos no autorizados (${infracciones.map((i) => `${i.seccion}.${i.campo}`).join(', ')})`);
+        }
+        const permitido = (0, politica_meta_capi_1.construirEventoPermitido)(event);
+        const evento = { ...permitido, userData: (0, identificadores_meta_1.prepararIdentificadores)(permitido.userData) };
+        return this.repository.save(this.repository.create({ organizationId, pixelId, eventId, eventData: evento }));
     }
     async stats(organizationId) {
         const scope = organizationId ? { organizationId } : {};
@@ -84,7 +93,11 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId);
         if (!token)
             throw new Error('Meta conversion token is unavailable');
-        await this.conversions.sendServerEvent(item.pixelId, token, item.eventData);
+        const respuesta = await this.conversions.sendServerEvent(item.pixelId, token, item.eventData);
+        const recibidos = respuesta?.events_received;
+        if (typeof recibidos === 'number' && recibidos < 1) {
+            throw new Error(`Meta respondió sin recibir el evento (events_received: ${recibidos})`);
+        }
     }
     classifyFailure(error) {
         const apiError = error;

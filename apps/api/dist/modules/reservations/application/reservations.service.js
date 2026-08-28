@@ -963,7 +963,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const lastName = lastNameParts.join(' ');
         const phone = dto.guestPhone?.replace(/[^\d+]/g, '');
         const location = (0, geo_inference_1.inferLocationFromPhone)(phone);
-        const rating = Number((dto.answers || {}).rating ?? (dto.answers || {}).experience_rating);
         await this.metaOutbox.enqueue(form.organizationId, pixelId, {
             eventName: shared_1.META_DEDUPLICATED_EVENTS.LEAD,
             eventTime: Math.floor(response.createdAt.getTime() / 1000),
@@ -983,11 +982,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 client_ip_address: ipAddress ?? undefined,
                 client_user_agent: userAgent ?? undefined,
             },
-            customData: {
-                contentIds: [form.id],
-                contentType: 'survey',
-                ...(Number.isFinite(rating) ? { value: rating } : {}),
-            },
+            customData: { contentIds: [form.id], contentType: 'survey' },
             eventId: (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.LEAD, response.id),
         });
     }
