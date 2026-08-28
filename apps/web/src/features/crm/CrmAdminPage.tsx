@@ -625,7 +625,7 @@ export function CrmAdminPage(): JSX.Element {
               cuentas publicitarias distintas, así que el valor por defecto es heredar.
             */}
             <label>
-              Pixel de Meta
+              Conjunto de datos de Meta
               <select
                 className="input"
                 value={pixelManual ? 'otro' : formCampania.metaPixelId}
@@ -659,7 +659,7 @@ export function CrmAdminPage(): JSX.Element {
                     className="input"
                     value={formCampania.metaPixelId}
                     onChange={(event) => setFormCampania({ ...formCampania, metaPixelId: event.target.value })}
-                    placeholder="15 dígitos, desde Events Manager"
+                    placeholder="El número bajo el nombre, en Events Manager"
                   />
                 </label>
                 <p className="crm-admin-ayuda">

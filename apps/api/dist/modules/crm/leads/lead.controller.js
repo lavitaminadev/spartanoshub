@@ -130,7 +130,10 @@ let LeadController = class LeadController {
     async historial(id, req) {
         await this.assertPortalCrm(req);
         await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
-        return this.history.timeline(process_stage_change_entity_1.ProcessSubject.LEAD, id);
+        const pasos = await this.history.timeline(process_stage_change_entity_1.ProcessSubject.LEAD, id);
+        if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
+            return pasos;
+        return pasos.map(({ changedBy: _oculto, ...resto }) => resto);
     }
     async update(id, dto, req) {
         await this.assertPortalCrm(req);

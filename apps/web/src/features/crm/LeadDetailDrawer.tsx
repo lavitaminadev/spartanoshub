@@ -21,7 +21,6 @@ import { Modal } from '../../shared/Modal';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { triggerToast } from '../../shared/toast-events';
-import { roleLabel } from '../../core/role-labels';
 import { useAuth } from '../../core/auth';
 import { STAGES } from './stage-labels';
 import { proximaFechaSugerida } from './agenda-sugerida';
@@ -307,7 +306,15 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
    * para desasignarlo sin que nadie lo pidiera.
    */
   const usuarios = lead.assignedTo && !asignables.some((persona) => persona.id === lead.assignedTo)
-    ? [{ id: lead.assignedTo, name: `${nombreDe(lead.assignedTo)} (fuera de esta empresa)` }, ...asignables]
+    /*
+     * Quien ya lo tiene se conserva sin decir quién es.
+     *
+     * `nombreDe` busca en el equipo de esta empresa, y esta rama existe justo para cuando el
+     * responsable **no** está ahí: devolvía `undefined` y la plantilla imprimía «undefined».
+     * Además, quien está fuera de la empresa suele ser de la agencia, y su nombre no es asunto
+     * del cliente: se describe el puesto, no la persona.
+     */
+    ? [{ id: lead.assignedTo, name: nombreDe(lead.assignedTo) ?? 'Responsable actual' }, ...asignables]
     : asignables;
 
   const refrescar = async () => {
@@ -975,7 +982,14 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
                       </strong>
                       <span>
                         {/* Sin autor significa que lo movió el sistema, no que se desconozca. */}
-                        {paso.changedBy ? nombreDe(paso.changedBy) ?? roleLabel('dev') : 'Automático'}
+                        {/*
+                          Sin actor no se inventa uno.
+
+                          Al portal el servidor no le manda quién movió la etapa, y antes eso caía
+                          en el rótulo del cargo de desarrollo: el cliente leía «Desarrollo» donde
+                          debería leer que lo hizo su equipo de cuenta.
+                        */}
+                        {paso.changedBy ? nombreDe(paso.changedBy) ?? 'Equipo de cuenta' : 'Automático'}
                         {permanencia ? ` · estuvo ${permanencia} en la etapa anterior` : ''}
                       </span>
                       {paso.reason ? <em>{paso.reason}</em> : null}

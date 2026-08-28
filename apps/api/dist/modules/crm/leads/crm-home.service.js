@@ -47,7 +47,9 @@ let CrmHomeService = class CrmHomeService {
                 ...base,
                 status: lead_status_enum_1.LeadStatus.QUOTE_SENT,
             }, alcance.onlyAssignedTo)),
-            alcance.onlyAssignedTo ? Promise.resolve([]) : this.teamLoad(base, limiteFrio),
+            alcance.onlyAssignedTo || alcance.ocultarEquipo
+                ? Promise.resolve([])
+                : this.teamLoad(base, limiteFrio),
         ]);
         const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
         return {

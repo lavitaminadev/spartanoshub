@@ -111,3 +111,20 @@
   letter-spacing: 0;
   text-transform: none;
 }
+
+/*
+ * En el teléfono, una sola columna.
+ *
+ * Los campos editables usan `minmax(160px, 1fr)`, y en una pantalla de 360px con el relleno del
+ * modal quedan unos 300px útiles: caben dos columnas justas, y ahí es donde el correo se corta a
+ * media palabra y el responsable se lee a medias. A este ancho una columna cabe entera.
+ */
+@media (max-width: 480px) {
+  .lead-detail-edicion { grid-template-columns: 1fr; }
+  /* Los botones envolvían con anchos dispares; a ancho completo se pulsan sin apuntar. */
+  .lead-detail-acciones { display: grid; grid-template-columns: 1fr 1fr; }
+  .lead-detail-acciones .btn,
+  .lead-detail-acciones a { width: 100%; text-align: center; }
+  .lead-detail-pie { flex-direction: column-reverse; }
+  .lead-detail-pie .btn { width: 100%; }
+}

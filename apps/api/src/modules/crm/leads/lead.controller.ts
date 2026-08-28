@@ -242,7 +242,19 @@ export class LeadController {
     // El mismo control de acceso que el detalle: conocer un identificador no debe alcanzar para
     // leer por dónde pasó un lead de una cuenta ajena.
     await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
-    return this.history.timeline(ProcessSubject.LEAD, id);
+    const pasos = await this.history.timeline(ProcessSubject.LEAD, id);
+    /*
+     * A la empresa no se le dice quién de la agencia movió cada etapa.
+     *
+     * Quién atiende sus leads es cómo se organiza su proveedor, no información suya. El id salía
+     * igual y la pantalla lo resolvía a un nombre o a un cargo, así que el reparto interno se
+     * leía de todas formas. Se omite en el origen: lo que no viaja no se puede mostrar por
+     * descuido en otra pantalla.
+     *
+     * El rastro completo sigue en la auditoría, que la empresa no alcanza.
+     */
+    if (req.user.role !== UserRole.CLIENT) return pasos;
+    return pasos.map(({ changedBy: _oculto, ...resto }) => resto);
   }
 
   /** Actualiza estado, calidad o etiquetas de un lead de una cuenta accesible. */
