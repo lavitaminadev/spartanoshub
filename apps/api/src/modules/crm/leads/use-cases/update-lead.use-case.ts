@@ -79,6 +79,20 @@ export class UpdateLeadUseCase {
     // Igual que el responsable: `null` lo deja sin cuenta y omitirlo no toca lo que había.
     if (data.clientId !== undefined) lead.clientId = data.clientId;
 
+    /*
+     * Descartar exige decir por qué, y se comprueba acá y no en la pantalla.
+     *
+     * La ficha ya lo pedía, pero arrastrar la tarjeta al tablero y mover en lote mandaban solo el
+     * estado: la mitad de los descartes se guardaban sin causa y el informe de por qué se pierden
+     * negocios quedaba a medias. Puesto en el caso de uso, ningún camino puede saltárselo.
+     *
+     * Se exige solo cuando el descarte es **nuevo**: un lead ya descartado al que se le corrige
+     * el teléfono no vuelve a pedir el motivo que ya tiene.
+     */
+    if (lead.status === LeadStatus.LOST && etapaPrevia !== LeadStatus.LOST && !lead.discardReason?.trim()) {
+      throw new BadRequestException('Para descartar un lead hay que indicar el motivo');
+    }
+
     const guardado = await this.repo.save(lead);
 
     // El registro de recorrido ya existía y los leads no lo escribían, así que su ficha no podía

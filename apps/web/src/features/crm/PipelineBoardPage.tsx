@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { OPPORTUNITY_LOSS_REASONS } from '@espartanos/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -43,11 +44,6 @@ const STAGE_ACCENTS: Record<string, string> = {
   lost: '#b90749',
 };
 
-/** Motivos de pérdida ofrecidos al cerrar un trato como perdido. */
-const LOSS_REASONS = [
-  'precio', 'competencia', 'sin_presupuesto', 'sin_respuesta',
-  'fuera_de_alcance', 'mal_momento', 'otro',
-];
 
 const CURRENCY = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
 
@@ -83,7 +79,7 @@ export function PipelineBoardPage() {
    * sitio sin explicar por qué.
    */
   const [closingLost, setClosingLost] = useState<Opportunity | null>(null);
-  const [lossReason, setLossReason] = useState(LOSS_REASONS[0]);
+  const [lossReason, setLossReason] = useState<string>(OPPORTUNITY_LOSS_REASONS[0]);
   const [lossNote, setLossNote] = useState('');
 
   const { data, isLoading, error, refetch } = useQuery<{ data: Opportunity[]; total: number }>({
@@ -143,7 +139,7 @@ export function PipelineBoardPage() {
   const handleMove = (opportunity: Opportunity, toStage: string) => {
     if (toStage === 'lost') {
       setClosingLost(opportunity);
-      setLossReason(LOSS_REASONS[0]);
+      setLossReason(OPPORTUNITY_LOSS_REASONS[0]);
       setLossNote('');
       return;
     }
@@ -242,7 +238,7 @@ export function PipelineBoardPage() {
           <label>
             Motivo
             <select className="input" value={lossReason} onChange={(event) => setLossReason(event.target.value)}>
-              {LOSS_REASONS.map((reason) => <option key={reason} value={reason}>{reason.replaceAll('_', ' ')}</option>)}
+              {OPPORTUNITY_LOSS_REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
             </select>
           </label>
           <label>
