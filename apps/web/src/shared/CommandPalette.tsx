@@ -5,6 +5,7 @@ import { api } from '../core/api';
 import { useAuth } from '../core/auth';
 import { getNavigation, isPathEnabled } from '../core/navigation.registry';
 import { publicReservationUrl } from '../core/public-url';
+import { STAGE_LABEL } from '../features/crm/stage-labels';
 import { COMMAND_PALETTE_EVENT } from './command-events';
 
 interface SearchItem { id: string; group: string; title: string; description: string; path?: string; action?: () => void }
@@ -83,7 +84,7 @@ export function CommandPalette() {
     if (canOpen('/meetings')) actions.unshift({ id: 'action-new-task', group: 'Acciones rápidas', title: 'Crear tarea de reunión', description: 'Registrar una acción sin abandonar la pantalla', action: () => setTaskMode(true) });
     const records: SearchItem[] = [
       ...(clientsQuery.data?.data || []).map((client) => ({ id: `client-${client.id}`, group: 'Clientes', title: client.name, description: `${client.industry || 'Sin industria'} · ${client.status}`, path: `/clients/${client.id}` })),
-      ...(leadsQuery.data?.data || []).map((lead) => ({ id: `lead-${lead.id}`, group: 'Leads', title: lead.name, description: `${lead.company || lead.email || 'Sin empresa'} · ${lead.status}`, path: `/crm/leads?focus=${lead.id}` })),
+      ...(leadsQuery.data?.data || []).map((lead) => ({ id: `lead-${lead.id}`, group: 'Leads', title: lead.name, description: `${lead.company || lead.email || 'Sin empresa'} · ${STAGE_LABEL[lead.status] ?? lead.status}`, path: `/crm/leads?focus=${lead.id}` })),
       ...(documentsQuery.data?.data || []).map((document) => ({ id: `document-${document.id}`, group: 'Documentos', title: document.name, description: `${document.type} · ${document.status}`, path: `/documents?q=${encodeURIComponent(document.name)}` })),
       ...(formsQuery.data || []).map((form) => ({ id: `form-${form.id}`, group: 'Captación', title: form.name, description: `${form.status} · ${publicReservationUrl(form.publicSlug, form.publicUrl)}`, path: `/reservations/forms/${form.id}` })),
       ...(reservationsQuery.data?.data ?? []).map((reservation) => ({ id: `reservation-${reservation.id}`, group: 'Reservas recibidas', title: reservation.guestName, description: `#${reservation.referenceCode} · ${reservation.guestEmail || reservation.guestPhone || reservation.status}`, path: `/reservations?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}` })),

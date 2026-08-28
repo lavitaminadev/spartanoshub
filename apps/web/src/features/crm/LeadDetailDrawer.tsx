@@ -28,6 +28,7 @@ import { mensajeDePrimerContacto, whatsapp } from './contacto';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
 import { CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
+import { respuestasDelFormulario } from './respuestas-del-formulario';
 import './lead-detail.css';
 
 interface Lead {
@@ -52,6 +53,8 @@ interface Lead {
   trafficLight?: 'green' | 'yellow' | 'red' | null;
   tags?: string[];
   consentCapturedAt?: string | null;
+  /** Datos variables del origen: respuestas del formulario, atribución y campos personalizados. */
+  metadata?: Record<string, unknown> | null;
   convertedToClientId?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -134,6 +137,25 @@ function fecha(valor?: string | null): string {
   return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString('es-CL');
 }
 
+/**
+ * Fecha y, si la hay, la hora.
+ *
+ * «Llamar el jueves» y «llamar el jueves a las 10» son compromisos distintos, y sin hora todo
+ * vencía a medianoche: la alerta llegaba cuando el día ya había pasado.
+ *
+ * Las tareas guardadas antes quedaron a las 00:00, y mostrar «00:00» en todas ellas sería ruido
+ * que además parece un dato real. Se omite en ese caso: una tarea sin hora es una tarea para ese
+ * día, no una para las doce de la noche.
+ */
+function fechaHora(valor?: string | null): string {
+  if (!valor) return '—';
+  const parsed = new Date(valor);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  const dia = parsed.toLocaleDateString('es-CL');
+  if (parsed.getHours() === 0 && parsed.getMinutes() === 0) return dia;
+  return `${dia} ${parsed.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 /** Monto con formato local, o `''` cuando no hay ninguno. Vacío y cero no son lo mismo. */
 function montoInicial(valor?: number | string | null): string {
   if (valor === null || valor === undefined || valor === '') return '';
@@ -173,11 +195,23 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     placeholderData: leadInicial,
   });
 
+  /*
+   * Las respuestas del formulario con el que llegó.
+   *
+   * Se guardaban desde la captura y no se mostraban en ninguna parte: quien llamaba no sabía qué
+   * había respondido esta persona, que es justo lo que decide cómo empezar la conversación.
+   */
+  const respuestas = respuestasDelFormulario(lead.metadata);
+  // Plegadas cuando son muchas: un formulario largo empujaría el resto de la ficha fuera de vista.
+  const [respuestasAbiertas, setRespuestasAbiertas] = useState(false);
+  const RESPUESTAS_VISIBLES = 5;
+
   const [nombre, setNombre] = useState(lead.name);
   const [telefono, setTelefono] = useState(lead.phone ?? '');
   const [correo, setCorreo] = useState(lead.email ?? '');
   const [nota, setNota] = useState(lead.notes ?? '');
   const [etapa, setEtapa] = useState(lead.status);
+  const motivoRef = useRef<HTMLSelectElement>(null);
   const [responsable, setResponsable] = useState(lead.assignedTo ?? '');
   const [monto, setMonto] = useState(montoInicial(lead.estimatedAmount));
   const [calificacion, setCalificacion] = useState(lead.fitStatus ?? 'review');
@@ -219,6 +253,24 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const editar = <T,>(setter: (value: T) => void, value: T) => {
     cambiosLocales.current = true;
     setter(value);
+  };
+
+  /**
+   * Cambia la calificación y, si es «No calificado», lleva el lead a Descartado.
+   *
+   * Decir que un lead no sirve y dejarlo en mitad del embudo son dos cosas que no casan: la
+   * tarjeta sigue ocupando su columna, aparece en los conteos de lo que está en curso y alguien
+   * la trabaja igual. Mover la etapa a la vez deja el tablero diciendo la verdad.
+   *
+   * Descartar exige motivo —el servidor lo rechaza sin él—, así que el foco baja al campo en vez
+   * de dejar a la persona con un botón de guardar que no funciona y sin saber por qué.
+   */
+  const cambiarCalificacion = (valor: Lead['fitStatus']) => {
+    editar(setCalificacion, valor);
+    if (valor !== 'unqualified' || etapa === 'lost') return;
+    editar(setEtapa, 'lost');
+    // Tras el repintado: el campo del motivo no existe hasta que la etapa es «Descartado».
+    window.setTimeout(() => motivoRef.current?.focus(), 0);
   };
 
   // El detalle puede llegar después del primer dibujo con valores que el listado no traía.
@@ -704,8 +756,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </label>
 
           <label>
-            <span>Calificación <em>La fija la etapa; corrígela si no cuadra</em></span>
-            <select className="input" value={calificacion} onChange={(event) => editar(setCalificacion, event.target.value as Lead['fitStatus'])} disabled={!scope.puedeEditar}>
+            <span>Calificación <em>La decides tú; venta y descarte la fijan solas</em></span>
+            <select className="input" value={calificacion} onChange={(event) => cambiarCalificacion(event.target.value as Lead['fitStatus'])} disabled={!scope.puedeEditar}>
               <option value="review">Pendiente</option>
               <option value="qualified">Calificado</option>
               <option value="unqualified">No calificado</option>
@@ -834,6 +886,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           <label>
             <span>Motivo de descarte</span>
             <select
+              ref={motivoRef}
               className="input"
               value={motivoCatalogo}
               onChange={(event) => editar(setMotivoCatalogo, event.target.value)}
@@ -908,10 +961,26 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             />
             <input
               className="input"
-              type="date"
+              // Con hora: «llamar el jueves» y «llamar el jueves a las 10» son compromisos
+              // distintos, y sin la hora todo vence a medianoche y avisa cuando ya no sirve.
+              type="datetime-local"
               value={tarea.dueAt}
               onChange={(event) => setTarea({ ...tarea, dueAt: event.target.value })}
             />
+            {/*
+              Proponer en vez de dejarlo en blanco.
+              Escribir día y hora a mano cuesta lo suficiente como para que la mayoría lo deje
+              vacío, y una tarea sin fecha no vence nunca ni avisa a nadie.
+            */}
+            {!tarea.dueAt ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => setTarea({ ...tarea, dueAt: proximaFechaSugerida() })}
+              >
+                Mañana 10:00
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn btn-primary btn-sm"
@@ -953,7 +1022,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
                       <span>{pendiente.title}</span>
                     </label>
                     {pendiente.dueAt ? (
-                      <time>{fecha(pendiente.dueAt)}</time>
+                      <time dateTime={pendiente.dueAt}>{fechaHora(pendiente.dueAt)}</time>
                     ) : null}
                   </li>
                 );
@@ -1036,6 +1105,30 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           El hilo no se borra: `/crm/leads/:id/comments` sigue en pie y lo ya escrito se
           conserva. Lo que se retira es el tercer sitio donde escribir lo mismo.
         */}
+
+        {respuestas.length > 0 ? (
+          <section className="lead-detail-respuestas">
+            <h3>Respuestas del formulario <em>Lo que contestó al registrarse</em></h3>
+            <dl>
+              {/*
+                La posición como clave, y no el texto de la pregunta: un formulario puede repetir
+                la misma pregunta, y entonces dos filas compartirían clave. Acá la lista no se
+                reordena ni se filtra, así que la posición identifica bien.
+              */}
+              {(respuestasAbiertas ? respuestas : respuestas.slice(0, RESPUESTAS_VISIBLES)).map((fila, posicion) => (
+                <div key={`${posicion}-${fila.question}`}>
+                  <dt>{fila.question}</dt>
+                  <dd>{fila.answer}</dd>
+                </div>
+              ))}
+            </dl>
+            {respuestas.length > RESPUESTAS_VISIBLES ? (
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setRespuestasAbiertas((v) => !v)}>
+                {respuestasAbiertas ? 'Ver menos' : `Ver las ${respuestas.length} respuestas`}
+              </button>
+            ) : null}
+          </section>
+        ) : null}
 
         {/*
           Borrar los datos de una persona o llevárselos son decisiones de quien responde por

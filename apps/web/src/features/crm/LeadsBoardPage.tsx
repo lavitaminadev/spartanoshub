@@ -522,12 +522,18 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         </div>
         <div className="page-header-actions">
           {/*
-            Elegir columnas es de quien mira, no de quien edita.
+            Elegir columnas solo tiene sentido donde hay columnas.
+
+            En el tablero las tarjetas se agrupan por etapa y no hay tabla que recortar: el botón
+            abría un diálogo que no cambiaba nada de lo que se estaba viendo, y ocupaba el primer
+            sitio de la barra en la pestaña donde más estorba.
 
             Va fuera de `puedeEditar` a propósito: el portal del cliente también sufre la tabla
             ancha, y ocultar una columna no escribe nada en el servidor.
           */}
-          <button type="button" className="btn btn-outline" onClick={() => setColumnasAbierto(true)}>Columnas</button>
+          {vista === 'tabla' ? (
+            <button type="button" className="btn btn-outline" onClick={() => setColumnasAbierto(true)}>Columnas</button>
+          ) : null}
           <ExportButtons document={documento} />
           {/* Escribir es del equipo. El portal del cliente mira: ofrecerle estos botones solo
               serviría para que el servidor los rechace y parezca que la pantalla está rota. */}

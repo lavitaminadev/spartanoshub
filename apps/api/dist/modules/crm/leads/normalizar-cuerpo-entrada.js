@@ -15,6 +15,7 @@ const ALIAS = {
     anuncioId: ['anuncioId', 'ad_id', 'adId'],
     paginaId: ['paginaId', 'page_id', 'pageId'],
 };
+const MAX_PREGUNTAS = 60;
 const CAMPOS_METADATA = {
     firstName: ['first_name'], lastName: ['last_name'], workEmail: ['work_email'],
     dateOfBirth: ['date_of_birth'], gender: ['gender'], maritalStatus: ['marital_status'],
@@ -58,14 +59,24 @@ function normalizarCuerpoEntrada(cuerpo) {
             metadata[campo] = valor;
     }
     const respuestas = [];
-    for (let indice = 1; indice <= 10; indice += 1) {
-        const question = primeroConValor(cuerpo, [`pregunta_${indice}`]);
-        const answer = primeroConValor(cuerpo, [`respuesta_${indice}`]);
+    for (let indice = 1; indice <= MAX_PREGUNTAS; indice += 1) {
+        const question = primeroConValor(cuerpo, [`pregunta_${indice}`, `question_${indice}`]);
+        const answer = primeroConValor(cuerpo, [`respuesta_${indice}`, `answer_${indice}`]);
+        if (!question && !answer)
+            continue;
+        respuestas.push({ question: question ?? `Pregunta ${indice}`, answer: answer ?? '' });
+    }
+    for (const fila of Array.isArray(cuerpo.respuestas) ? cuerpo.respuestas.slice(0, MAX_PREGUNTAS) : []) {
+        if (!fila || typeof fila !== 'object')
+            continue;
+        const registro = fila;
+        const question = primeroConValor(registro, ['pregunta', 'question', 'name']);
+        const answer = primeroConValor(registro, ['respuesta', 'answer', 'value']);
         if (question || answer)
-            respuestas.push({ question: question ?? `Pregunta ${indice}`, answer: answer ?? '' });
+            respuestas.push({ question: question ?? 'Pregunta', answer: answer ?? '' });
     }
     if (respuestas.length)
-        metadata.answers = respuestas;
+        metadata.answers = respuestas.slice(0, MAX_PREGUNTAS);
     const customFields = parsearCamposPersonalizados(cuerpo.custom_fields_json);
     if (customFields.length)
         metadata.customFields = customFields;
