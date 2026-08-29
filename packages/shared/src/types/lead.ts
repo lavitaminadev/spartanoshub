@@ -68,7 +68,15 @@ export type LeadDomain = keyof typeof LEAD_STATUSES_BY_DOMAIN
  */
 export type LeadStatus = (typeof LEAD_STATUSES)[number]
 
-export const LEAD_FIT_STATUSES = ['qualified', 'review', 'unqualified'] as const
+/**
+ * Calificación de un lead, de indecisa a decidida.
+ *
+ * `review` es el estado en que nace: nadie lo ha mirado todavía. `in_review` es distinto y por
+ * eso existe aparte: alguien ya habló con esta persona y **aún no decide**. Con un solo estado
+ * intermedio no se distingue el lead que nadie tocó del que está en conversación, que es
+ * justamente lo que hay que saber para repartir el trabajo del día.
+ */
+export const LEAD_FIT_STATUSES = ['qualified', 'in_review', 'review', 'unqualified'] as const
 
 export type LeadFitStatus = (typeof LEAD_FIT_STATUSES)[number]
 

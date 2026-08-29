@@ -20,8 +20,14 @@
 .notification-row.unread .notification-item > i { background: var(--accent); box-shadow: 0 0 0 4px rgba(234,15,99,.12); }
 .notification-remove { border: 0; background: transparent; color: var(--surface-sage); font-size: 18px; line-height: 1; padding: 0 14px; cursor: pointer; }
 .notification-remove:hover { color: var(--accent); background: var(--soft); }
-/* Visible siempre en pantallas tactiles, donde no hay puntero que lo revele. */
-@media (hover: hover) { .notification-remove { opacity: 0; } .notification-row:hover .notification-remove, .notification-remove:focus-visible { opacity: 1; } }
+/*
+ Siempre visible.
+
+  Estuvo oculto hasta pasar el puntero por encima, y eso lo dejaba fuera del alcance de quien no
+ sabia que existia: un boton de borrar que hay que descubrir es un boton que nadie usa. Se queda
+ en gris tenue, que basta para no competir con el texto de la notificacion.
+*/
+.notification-row:hover .notification-remove { color: var(--accent); }
 .notification-item { width: 100%; display: grid; grid-template-columns: 8px 1fr; gap: 10px; padding: 13px 17px; border: 0; background: var(--white); color: inherit; text-align: left; cursor: pointer; }
 .notification-item:hover { background: var(--soft); }
 .notification-item.unread { background: var(--success-bg); }

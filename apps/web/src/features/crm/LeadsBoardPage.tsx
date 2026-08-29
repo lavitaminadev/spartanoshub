@@ -59,7 +59,7 @@ interface Lead {
   campaignName?: string | null;
   assignedTo?: string | null;
   clientId?: string | null;
-  fitStatus?: 'qualified' | 'review' | 'unqualified';
+  fitStatus?: 'qualified' | 'in_review' | 'review' | 'unqualified';
   trafficLight?: 'green' | 'yellow' | 'red' | null;
   qualityScore?: number;
   tags?: string[] | null;

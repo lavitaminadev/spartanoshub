@@ -15,11 +15,13 @@ export const CALIFICACION_TITULO = 'Calificación';
 /**
  * Cómo se lee cada valor.
  *
- * «Pendiente» y no «En revisión»: nadie está revisando nada: es el estado en que nace el lead
- * mientras quien vende decide. La palabra describe lo que pasa, que es que todavía no se decidió.
+ * «Pendiente» es el estado en que nace, cuando nadie lo ha mirado. «En revisión» es el paso
+ * siguiente: alguien ya habló con la persona y todavía no decide. Son dos situaciones distintas
+ * y con una sola palabra no se sabe cuál de las dos tienes delante.
  */
 export const CALIFICACION_ROTULOS: Record<string, string> = {
   qualified: 'Calificado',
+  in_review: 'En revisión',
   review: 'Pendiente',
   unqualified: 'No calificado',
 };
@@ -27,6 +29,7 @@ export const CALIFICACION_ROTULOS: Record<string, string> = {
 /** Las opciones en el orden en que se ofrecen, de mejor a peor. */
 export const CALIFICACIONES: Array<{ value: string; label: string }> = [
   { value: 'qualified', label: CALIFICACION_ROTULOS.qualified },
+  { value: 'in_review', label: CALIFICACION_ROTULOS.in_review },
   { value: 'review', label: CALIFICACION_ROTULOS.review },
   { value: 'unqualified', label: CALIFICACION_ROTULOS.unqualified },
 ];

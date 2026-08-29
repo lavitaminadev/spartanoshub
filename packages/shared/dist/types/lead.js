@@ -58,7 +58,15 @@ exports.LEAD_STATUSES_BY_DOMAIN = {
     commercial: [...exports.LEAD_PIPELINE_STAGES, ...exports.LEAD_CLOSING_STAGES],
     audience: ['new', ...exports.LEAD_RESERVATION_OUTCOMES, 'lost'],
 };
-exports.LEAD_FIT_STATUSES = ['qualified', 'review', 'unqualified'];
+/**
+ * Calificación de un lead, de indecisa a decidida.
+ *
+ * `review` es el estado en que nace: nadie lo ha mirado todavía. `in_review` es distinto y por
+ * eso existe aparte: alguien ya habló con esta persona y **aún no decide**. Con un solo estado
+ * intermedio no se distingue el lead que nadie tocó del que está en conversación, que es
+ * justamente lo que hay que saber para repartir el trabajo del día.
+ */
+exports.LEAD_FIT_STATUSES = ['qualified', 'in_review', 'review', 'unqualified'];
 /**
  * Cómo se lee cada etapa fuera de la aplicación.
  *

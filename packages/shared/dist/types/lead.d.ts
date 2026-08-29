@@ -44,7 +44,15 @@ export type LeadDomain = keyof typeof LEAD_STATUSES_BY_DOMAIN;
  * Lead funnel status.
  */
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
-export declare const LEAD_FIT_STATUSES: readonly ["qualified", "review", "unqualified"];
+/**
+ * Calificación de un lead, de indecisa a decidida.
+ *
+ * `review` es el estado en que nace: nadie lo ha mirado todavía. `in_review` es distinto y por
+ * eso existe aparte: alguien ya habló con esta persona y **aún no decide**. Con un solo estado
+ * intermedio no se distingue el lead que nadie tocó del que está en conversación, que es
+ * justamente lo que hay que saber para repartir el trabajo del día.
+ */
+export declare const LEAD_FIT_STATUSES: readonly ["qualified", "in_review", "review", "unqualified"];
 export type LeadFitStatus = (typeof LEAD_FIT_STATUSES)[number];
 /**
  * Cómo se lee cada etapa fuera de la aplicación.
