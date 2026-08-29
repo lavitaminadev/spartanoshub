@@ -4,6 +4,8 @@ import { CreateMonthlyCyclesJob } from './cron/create-monthly-cycles.job';
 import { DetectStalePiecesJob } from './cron/detect-stale-pieces.job';
 import { LeadsParadosJob } from './cron/leads-parados.job';
 import { RecordatorioDeTareasJob } from './cron/recordatorio-de-tareas.job';
+import { ResumenDiarioJob } from './cron/resumen-diario.job';
+import { SaludoDeCumpleanosJob } from './cron/saludo-de-cumpleanos.job';
 import { CollectionEmailsJob } from './cron/collection-emails.job';
 import { PurgeExpiredLeadsJob } from './cron/purge-expired-leads.job';
 import { MetaLeadRecoveryJob } from './cron/meta-lead-recovery.job';
@@ -26,6 +28,8 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly stale: DetectStalePiecesJob,
     private readonly leadsParados: LeadsParadosJob,
     private readonly recordatorios: RecordatorioDeTareasJob,
+    private readonly resumen: ResumenDiarioJob,
+    private readonly cumpleanos: SaludoDeCumpleanosJob,
     private readonly collections: CollectionEmailsJob,
     private readonly purge: PurgeExpiredLeadsJob,
     private readonly metaRecovery: MetaLeadRecoveryJob,
@@ -79,6 +83,14 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     // Cada media hora: el aviso de tres horas antes se pasaría de largo con una cadencia mayor,
     // y llegar tarde a un recordatorio es lo mismo que no mandarlo.
     this.schedule('recordatorio-tareas', 30 * 60_000, () => this.recordatorios.handle());
+    /*
+     * Los dos diarios se planifican cada 24 h y no a una hora concreta: el planificador
+     * interno mide intervalos desde que arrancó el servidor, no relojes de pared. Para que
+     * salgan a primera hora hay que dispararlos desde el cron de cPanel, que sí sabe de horas;
+     * esto es la red de seguridad para que igualmente salgan una vez al día.
+     */
+    this.schedule('resumen-diario', 24 * 60 * 60_000, () => this.resumen.handle());
+    this.schedule('cumpleanos', 24 * 60 * 60_000, () => this.cumpleanos.handle());
     this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
     this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
     this.schedule('collection-emails', 24 * 60 * 60_000, () => this.collections.handle());
