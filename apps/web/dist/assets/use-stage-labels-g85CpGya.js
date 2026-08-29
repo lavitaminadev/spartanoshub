@@ -1,0 +1,1 @@
+import{rn as e}from"./vendor-B-2wpTAC.js";import{n as t}from"./vendor-query-DiOVlv7D.js";function n(n){let{data:r}=t({queryKey:[`crm-stage-labels`,n],queryFn:()=>e.get(`/crm/stage-labels${n?`?clientId=${encodeURIComponent(n)}`:``}`),staleTime:5*6e4});return r?.labels??{}}export{n as t};

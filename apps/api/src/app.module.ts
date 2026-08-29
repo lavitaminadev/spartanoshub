@@ -24,6 +24,7 @@ import { CloudinaryModule } from './core/cloudinary/cloudinary.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { UsersModule } from './modules/users/users.module';
 import { CrmModule } from './modules/crm/crm.module';
+import { MarketingModule } from './modules/marketing/marketing.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -128,6 +129,7 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
     OrganizationsModule,
     UsersModule,
     CrmModule,
+    MarketingModule,
     ClientsModule,
     ContractsModule,
     CatalogModule,
