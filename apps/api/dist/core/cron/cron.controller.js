@@ -21,6 +21,7 @@ const meta_conversion_outbox_service_1 = require("../../modules/integrations/met
 const google_conversion_outbox_service_1 = require("../../modules/integrations/google/google-conversion-outbox.service");
 const detect_stale_pieces_job_1 = require("../jobs/cron/detect-stale-pieces.job");
 const leads_parados_job_1 = require("../jobs/cron/leads-parados.job");
+const recordatorio_de_tareas_job_1 = require("../jobs/cron/recordatorio-de-tareas.job");
 const operational_alerts_job_1 = require("../jobs/cron/operational-alerts.job");
 const create_monthly_cycles_job_1 = require("../jobs/cron/create-monthly-cycles.job");
 const collection_emails_job_1 = require("../jobs/cron/collection-emails.job");
@@ -28,11 +29,12 @@ const purge_expired_leads_job_1 = require("../jobs/cron/purge-expired-leads.job"
 const recover_reservation_integrations_job_1 = require("../jobs/cron/recover-reservation-integrations.job");
 const close_xp_periods_job_1 = require("../jobs/cron/close-xp-periods.job");
 let CronController = class CronController {
-    constructor(capiOutbox, googleOutbox, stale, leadsParados, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp) {
+    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp) {
         this.capiOutbox = capiOutbox;
         this.googleOutbox = googleOutbox;
         this.stale = stale;
         this.leadsParados = leadsParados;
+        this.recordatorios = recordatorios;
         this.operationalAlerts = operationalAlerts;
         this.cycles = cycles;
         this.collections = collections;
@@ -131,6 +133,14 @@ let CronController = class CronController {
     async leadsParadosGet(secret) {
         this.verifySecret(secret);
         return this.runLocked('leads-parados', () => this.leadsParados.handle());
+    }
+    async recordatorioTareasPost(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('recordatorio-tareas', () => this.recordatorios.handle());
+    }
+    async recordatorioTareasGet(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('recordatorio-tareas', () => this.recordatorios.handle());
     }
     async processStalePiecesPost(secret) {
         this.verifySecret(secret);
@@ -266,6 +276,22 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CronController.prototype, "leadsParadosGet", null);
 __decorate([
+    (0, common_1.Post)('recordatorio-tareas'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "recordatorioTareasPost", null);
+__decorate([
+    (0, common_1.Get)('recordatorio-tareas'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "recordatorioTareasGet", null);
+__decorate([
     (0, common_1.Post)('stale-pieces'),
     (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
     __param(0, (0, common_1.Headers)('x-cron-secret')),
@@ -384,6 +410,7 @@ exports.CronController = CronController = __decorate([
         google_conversion_outbox_service_1.GoogleConversionOutboxService,
         detect_stale_pieces_job_1.DetectStalePiecesJob,
         leads_parados_job_1.LeadsParadosJob,
+        recordatorio_de_tareas_job_1.RecordatorioDeTareasJob,
         operational_alerts_job_1.OperationalAlertsJob,
         create_monthly_cycles_job_1.CreateMonthlyCyclesJob,
         collection_emails_job_1.CollectionEmailsJob,

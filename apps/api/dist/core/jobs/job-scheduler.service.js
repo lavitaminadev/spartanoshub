@@ -16,6 +16,7 @@ const close_xp_periods_job_1 = require("./cron/close-xp-periods.job");
 const create_monthly_cycles_job_1 = require("./cron/create-monthly-cycles.job");
 const detect_stale_pieces_job_1 = require("./cron/detect-stale-pieces.job");
 const leads_parados_job_1 = require("./cron/leads-parados.job");
+const recordatorio_de_tareas_job_1 = require("./cron/recordatorio-de-tareas.job");
 const collection_emails_job_1 = require("./cron/collection-emails.job");
 const purge_expired_leads_job_1 = require("./cron/purge-expired-leads.job");
 const meta_lead_recovery_job_1 = require("./cron/meta-lead-recovery.job");
@@ -26,11 +27,12 @@ const automation_runner_service_1 = require("../../modules/automations/automatio
 const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
-    constructor(xp, cycles, stale, leadsParados, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks) {
+    constructor(xp, cycles, stale, leadsParados, recordatorios, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks) {
         this.xp = xp;
         this.cycles = cycles;
         this.stale = stale;
         this.leadsParados = leadsParados;
+        this.recordatorios = recordatorios;
         this.collections = collections;
         this.purge = purge;
         this.metaRecovery = metaRecovery;
@@ -59,6 +61,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.schedule('automation-webhooks-cleanup', 24 * 60 * 60_000, () => this.webhooks.cleanup());
         this.schedule('stale-pieces', 60 * 60_000, () => this.stale.handle());
         this.schedule('leads-parados', 6 * 60 * 60_000, () => this.leadsParados.handle());
+        this.schedule('recordatorio-tareas', 30 * 60_000, () => this.recordatorios.handle());
         this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
         this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
         this.schedule('collection-emails', 24 * 60 * 60_000, () => this.collections.handle());
@@ -96,6 +99,7 @@ exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __de
         create_monthly_cycles_job_1.CreateMonthlyCyclesJob,
         detect_stale_pieces_job_1.DetectStalePiecesJob,
         leads_parados_job_1.LeadsParadosJob,
+        recordatorio_de_tareas_job_1.RecordatorioDeTareasJob,
         collection_emails_job_1.CollectionEmailsJob,
         purge_expired_leads_job_1.PurgeExpiredLeadsJob,
         meta_lead_recovery_job_1.MetaLeadRecoveryJob,

@@ -90,6 +90,10 @@ __decorate([
     __metadata("design:type", Date)
 ], ApprovalRequest.prototype, "dueAt", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'reminder_sent', type: 'varchar', length: 10, nullable: true }),
+    __metadata("design:type", Object)
+], ApprovalRequest.prototype, "reminderSent", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], ApprovalRequest.prototype, "createdAt", void 0);
