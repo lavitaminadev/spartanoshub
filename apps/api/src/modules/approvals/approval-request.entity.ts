@@ -84,6 +84,16 @@ export class ApprovalRequest {
   @Column({ name: 'due_at', type: 'timestamp', nullable: true })
   dueAt?: Date;
 
+  /**
+   * Último recordatorio previo al vencimiento que ya se envió.
+   *
+   * El trabajo que los manda corre cada media hora; sin esto reenviaría el mismo correo en cada
+   * pasada. Se guarda cuál y no cuándo, porque lo que hay que responder es «¿ya avisé del de 3
+   * horas?», y una fecha obliga a reconstruir esa respuesta en cada comparación.
+   */
+  @Column({ name: 'reminder_sent', type: 'varchar', length: 10, nullable: true })
+  reminderSent?: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

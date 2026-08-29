@@ -6,6 +6,7 @@ import { MetaConversionOutboxService } from '../../modules/integrations/meta/met
 import { GoogleConversionOutboxService } from '../../modules/integrations/google/google-conversion-outbox.service';
 import { DetectStalePiecesJob } from '../jobs/cron/detect-stale-pieces.job';
 import { LeadsParadosJob } from '../jobs/cron/leads-parados.job';
+import { RecordatorioDeTareasJob } from '../jobs/cron/recordatorio-de-tareas.job';
 import { OperationalAlertsJob } from '../jobs/cron/operational-alerts.job';
 import { CreateMonthlyCyclesJob } from '../jobs/cron/create-monthly-cycles.job';
 import { CollectionEmailsJob } from '../jobs/cron/collection-emails.job';
@@ -23,6 +24,7 @@ export class CronController {
     private readonly googleOutbox: GoogleConversionOutboxService,
     private readonly stale: DetectStalePiecesJob,
     private readonly leadsParados: LeadsParadosJob,
+    private readonly recordatorios: RecordatorioDeTareasJob,
     private readonly operationalAlerts: OperationalAlertsJob,
     private readonly cycles: CreateMonthlyCyclesJob,
     private readonly collections: CollectionEmailsJob,
@@ -174,6 +176,20 @@ export class CronController {
   async leadsParadosGet(@Headers('x-cron-secret') secret: string) {
     this.verifySecret(secret);
     return this.runLocked('leads-parados', () => this.leadsParados.handle());
+  }
+
+  @Post('recordatorio-tareas')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async recordatorioTareasPost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('recordatorio-tareas', () => this.recordatorios.handle());
+  }
+
+  @Get('recordatorio-tareas')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async recordatorioTareasGet(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('recordatorio-tareas', () => this.recordatorios.handle());
   }
 
   @Post('stale-pieces')

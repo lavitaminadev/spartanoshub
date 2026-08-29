@@ -3,6 +3,7 @@ import { CloseXpPeriodsJob } from './cron/close-xp-periods.job';
 import { CreateMonthlyCyclesJob } from './cron/create-monthly-cycles.job';
 import { DetectStalePiecesJob } from './cron/detect-stale-pieces.job';
 import { LeadsParadosJob } from './cron/leads-parados.job';
+import { RecordatorioDeTareasJob } from './cron/recordatorio-de-tareas.job';
 import { CollectionEmailsJob } from './cron/collection-emails.job';
 import { PurgeExpiredLeadsJob } from './cron/purge-expired-leads.job';
 import { MetaLeadRecoveryJob } from './cron/meta-lead-recovery.job';
@@ -24,6 +25,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly cycles: CreateMonthlyCyclesJob,
     private readonly stale: DetectStalePiecesJob,
     private readonly leadsParados: LeadsParadosJob,
+    private readonly recordatorios: RecordatorioDeTareasJob,
     private readonly collections: CollectionEmailsJob,
     private readonly purge: PurgeExpiredLeadsJob,
     private readonly metaRecovery: MetaLeadRecoveryJob,
@@ -74,6 +76,9 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     // Cada seis horas: los plazos se miden en días, y revisarlo cada hora solo repetiría trabajo
     // para adelantar el aviso unos minutos sobre un umbral que se cruza una vez al día.
     this.schedule('leads-parados', 6 * 60 * 60_000, () => this.leadsParados.handle());
+    // Cada media hora: el aviso de tres horas antes se pasaría de largo con una cadencia mayor,
+    // y llegar tarde a un recordatorio es lo mismo que no mandarlo.
+    this.schedule('recordatorio-tareas', 30 * 60_000, () => this.recordatorios.handle());
     this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
     this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
     this.schedule('collection-emails', 24 * 60 * 60_000, () => this.collections.handle());
