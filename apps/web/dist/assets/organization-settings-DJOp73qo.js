@@ -1,1 +1,0 @@
-import{rn as e}from"./vendor-B-2wpTAC.js";import{n as t}from"./vendor-query-DiOVlv7D.js";function n(){return t({queryKey:[`organization-settings-map`],queryFn:async()=>{let t=await e.get(`/settings`),n=Array.isArray(t)?t:t?.data??[];return Object.fromEntries(n.filter(e=>e?.key!==void 0&&e?.value!==null&&e?.value!==void 0).map(e=>[e.key,String(e.value)]))}})}export{n as t};

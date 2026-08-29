@@ -27,7 +27,7 @@ import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { mensajeDePrimerContacto, whatsapp } from './contacto';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
-import { CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
+import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
 import { respuestasDelFormulario } from './respuestas-del-formulario';
 import './lead-detail.css';
 
@@ -49,7 +49,7 @@ interface Lead {
   clientId?: string | null;
   estimatedAmount?: number | string | null;
   qualityScore?: number;
-  fitStatus?: 'qualified' | 'review' | 'unqualified';
+  fitStatus?: 'qualified' | 'in_review' | 'review' | 'unqualified';
   trafficLight?: 'green' | 'yellow' | 'red' | null;
   tags?: string[];
   consentCapturedAt?: string | null;
@@ -758,9 +758,13 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           <label>
             <span>Calificación <em>La decides tú; venta y descarte la fijan solas</em></span>
             <select className="input" value={calificacion} onChange={(event) => cambiarCalificacion(event.target.value as Lead['fitStatus'])} disabled={!scope.puedeEditar}>
-              <option value="review">Pendiente</option>
-              <option value="qualified">Calificado</option>
-              <option value="unqualified">No calificado</option>
+              {/*
+                Del mismo catálogo que el filtro y la tabla. Escritas a mano quedaban tres acá y
+                cuatro allá, y quien filtra por un estado no lo encontraba en la ficha.
+              */}
+              {CALIFICACIONES.map((opcion) => (
+                <option key={opcion.value} value={opcion.value}>{opcion.label}</option>
+              ))}
             </select>
             {/*
               Se dice que la etapa la mueve, porque si no parece que cambia sola.
