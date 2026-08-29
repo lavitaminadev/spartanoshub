@@ -68,6 +68,28 @@ export class Lead {
   @Column({ name: 'source_created_at', type: 'datetime', nullable: true })
   sourceCreatedAt?: Date | null;
 
+  /**
+   * Cuándo entró en la etapa en la que está.
+   *
+   * Distinta de `updatedAt`, que se mueve con cualquier edición: corregir un teléfono no es un
+   * paso del embudo, y contarlo como tal hacía que el lead más manoseado no avisara nunca de
+   * estar parado.
+   *
+   * Es lo que mide las alertas por inactividad. Vacía solo en los instantes previos a que la
+   * migración la rellene.
+   */
+  @Column({ name: 'stage_changed_at', type: 'timestamp', nullable: true })
+  stageChangedAt?: Date | null;
+
+  /**
+   * Hasta qué gravedad de inactividad se avisó ya de este lead.
+   *
+   * Evita repetir el mismo aviso en cada pasada del trabajo. Se limpia al cambiar de etapa: un
+   * lead que avanzó y se vuelve a parar merece un aviso nuevo.
+   */
+  @Column({ name: 'idle_alerted_level', type: 'varchar', length: 10, nullable: true })
+  idleAlertedLevel?: string | null;
+
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;
 

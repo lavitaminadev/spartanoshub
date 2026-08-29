@@ -31,6 +31,7 @@ const list_leads_dto_1 = require("./dto/list-leads.dto");
 const reservation_entity_1 = require("../../reservations/domain/reservation.entity");
 const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
 const lead_task_summary_service_1 = require("./lead-task-summary.service");
+const inactividad_del_lead_1 = require("./inactividad-del-lead");
 const responsables_del_crm_service_1 = require("./responsables-del-crm.service");
 const lead_visibility_1 = require("./lead-visibility");
 const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
@@ -39,8 +40,9 @@ const module_scope_decorator_1 = require("../../../core/authorization/module-sco
 const process_history_service_1 = require("../../../core/process-history/process-history.service");
 const process_stage_change_entity_1 = require("../../../core/process-history/process-stage-change.entity");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
+const parameter_resolver_service_1 = require("../../../core/parameters/parameter-resolver.service");
 let LeadController = class LeadController {
-    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, capacidades, responsablesDelCrm) {
+    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, parametros, capacidades, responsablesDelCrm) {
         this.createLead = createLead;
         this.listLeads = listLeads;
         this.getLead = getLead;
@@ -51,6 +53,7 @@ let LeadController = class LeadController {
         this.accountAccess = accountAccess;
         this.history = history;
         this.leadTasks = leadTasks;
+        this.parametros = parametros;
         this.capacidades = capacidades;
         this.responsablesDelCrm = responsablesDelCrm;
     }
@@ -104,12 +107,19 @@ let LeadController = class LeadController {
             onlyAssignedTo: (0, lead_visibility_1.veSoloLoSuyo)(req.user.role, req.user.crmProfile) ? req.user.id : undefined,
         });
         const tareas = await this.leadTasks.porLead(req.organizationId, pagina.data.map((lead) => lead.id));
+        const ajustes = await this.parametros.getManyForOrganization([inactividad_del_lead_1.CLAVE_AVISO, inactividad_del_lead_1.CLAVE_ALERTA, inactividad_del_lead_1.CLAVE_ABANDONO], req.organizationId);
+        const plazos = {
+            notice: Number(ajustes.get(inactividad_del_lead_1.CLAVE_AVISO) ?? inactividad_del_lead_1.PLAZOS_POR_DEFECTO.notice),
+            warning: Number(ajustes.get(inactividad_del_lead_1.CLAVE_ALERTA) ?? inactividad_del_lead_1.PLAZOS_POR_DEFECTO.warning),
+            critical: Number(ajustes.get(inactividad_del_lead_1.CLAVE_ABANDONO) ?? inactividad_del_lead_1.PLAZOS_POR_DEFECTO.critical),
+        };
         return {
             ...pagina,
             data: pagina.data.map((lead) => ({
                 ...lead,
                 openTasks: tareas.get(lead.id)?.openTasks ?? 0,
                 nextStep: tareas.get(lead.id)?.nextStep ?? null,
+                ...(0, inactividad_del_lead_1.inactividadDe)(lead, plazos),
             })),
         };
     }
@@ -302,6 +312,7 @@ exports.LeadController = LeadController = __decorate([
         account_access_service_1.AccountAccessService,
         process_history_service_1.ProcessHistoryService,
         lead_task_summary_service_1.LeadTaskSummaryService,
+        parameter_resolver_service_1.ParameterResolver,
         client_capability_service_1.ClientCapabilityService,
         responsables_del_crm_service_1.ResponsablesDelCrmService])
 ], LeadController);

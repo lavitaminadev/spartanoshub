@@ -68,6 +68,19 @@ export class UpdateLeadUseCase {
         );
       }
       lead.status = data.status as LeadStatus;
+      /*
+       * El reloj de la inactividad se reinicia solo cuando la etapa cambia de verdad.
+       *
+       * Puesto acá y no en un `@BeforeUpdate` porque la entidad no sabe cuál era la etapa
+       * anterior: guardar cualquier otro campo lo reiniciaría, y entonces el lead que más se
+       * toca sería el que nunca avisa de estar parado.
+       */
+      if (etapaPrevia !== lead.status) {
+        lead.stageChangedAt = new Date();
+        // Se olvida lo ya avisado: un lead que avanzó y se vuelve a parar merece un aviso nuevo.
+        // Sin esto, el primer aviso de su vida sería también el último.
+        lead.idleAlertedLevel = null;
+      }
     }
     // Antes de que nada la toque: es lo que permite distinguir «pasó a calificado ahora» de
     // «ya estaba calificado y se guardó otra cosa». Sin esto, cada guardado reenviaría el evento.

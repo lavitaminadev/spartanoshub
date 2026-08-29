@@ -51,10 +51,11 @@ import { StageLabelsController } from './leads/stage-labels.controller';
 import { LeadTaskSummaryService } from './leads/lead-task-summary.service';
 import { ResponsablesDelCrmService } from './leads/responsables-del-crm.service';
 import { LeadCierreService } from './leads/lead-cierre.service';
+import { ParametersModule } from '../../core/parameters/parameters.module';
 import { NotificationsModule } from '../../core/notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule],
+  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule],
   controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController],
   providers: [
     LeadTaskSummaryService, ResponsablesDelCrmService, StageLabelsService, LeadCierreService,

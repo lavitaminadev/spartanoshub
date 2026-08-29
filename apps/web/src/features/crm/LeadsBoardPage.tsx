@@ -44,6 +44,7 @@ import { useVocabulario } from './use-vocabulario';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { colorDePersona, mensajeDePrimerContacto, whatsapp } from './contacto';
 import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
+import { marcaDeInactividad } from './inactividad';
 import './leads-board.css';
 
 interface Lead {
@@ -65,6 +66,9 @@ interface Lead {
   estimatedAmount?: number | null;
   /** Tareas abiertas sobre el lead. Las cuenta el servidor al listar. */
   openTasks?: number;
+  /** Días sin cambiar de etapa y su gravedad. Los calcula el servidor: los plazos son ajustes. */
+  idleDays?: number;
+  idleLevel?: 'notice' | 'warning' | 'critical' | null;
   /** La tarea que vence antes: lo que falta hacer, no lo último que se hizo. */
   nextStep?: { title: string; dueAt: string | null; overdue: boolean } | null;
   createdAt: string;
@@ -77,9 +81,6 @@ interface LeadsPage { data: Lead[]; total: number; limit: number; offset: number
 const LEADS_PAGE_SIZE = 100;
 
 const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana'] as const;
-
-/** Días sin movimiento tras los que la tarjeta se marca. Coincide con el valor del inicio. */
-const COOLING_DAYS = 7;
 
 /** Forma en que se mira el embudo. Se recuerda en la URL, junto con los filtros. */
 type Vista = 'tablero' | 'tabla';
@@ -663,11 +664,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           }}
           emptyMessage="Ningún prospecto calza con este filtro."
           renderCard={(lead) => {
-            const frio = Date.now() - new Date(lead.updatedAt).getTime() > COOLING_DAYS * 86_400_000;
+            const inactivo = marcaDeInactividad(lead.idleLevel ?? null, lead.idleDays ?? 0);
             const responsable = nombreDe(lead.assignedTo);
             return (
               <div
-                className={`leads-board-card${frio ? ' esta-frio' : ''}`}
+                className={`leads-board-card${inactivo ? ` esta-${lead.idleLevel}` : ''}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setAbierto(lead)}
@@ -730,7 +731,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 ) : null}
                 {/* El aviso de frío va en la tarjeta y no solo en el informe: se actúa mirando el
                     tablero, no leyendo un número al final del mes. */}
-                {frio ? <span className="leads-board-frio">Sin movimiento hace +{COOLING_DAYS} días</span> : null}
+                {inactivo ? <span className={inactivo.clase} title={inactivo.titulo}>{inactivo.texto}</span> : null}
                 <div className="leads-board-pie">
                   {lead.fitStatus
                     ? <span className={`leads-board-chip es-${lead.fitStatus}`}>{rotuloDeCalificacion(lead.fitStatus)}</span>

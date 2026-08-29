@@ -60,13 +60,14 @@ const stage_labels_controller_1 = require("./leads/stage-labels.controller");
 const lead_task_summary_service_1 = require("./leads/lead-task-summary.service");
 const responsables_del_crm_service_1 = require("./leads/responsables-del-crm.service");
 const lead_cierre_service_1 = require("./leads/lead-cierre.service");
+const parameters_module_1 = require("../../core/parameters/parameters.module");
 const notifications_module_1 = require("../../core/notifications/notifications.module");
 let CrmModule = class CrmModule {
 };
 exports.CrmModule = CrmModule;
 exports.CrmModule = CrmModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([lead_entity_1.Lead, contact_entity_1.Contact, opportunity_entity_1.Opportunity, opportunity_stage_change_entity_1.OpportunityStageChange, interaction_entity_1.Interaction, user_entity_1.User, client_entity_1.Client, reservation_entity_1.Reservation, ingest_source_entity_1.LeadIngestSource, campaign_entity_1.Campaign, approval_request_entity_1.ApprovalRequest, parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), account_access_module_1.AccountAccessModule, audit_module_1.AuditModule, process_templates_module_1.ProcessTemplatesModule, notifications_module_1.NotificationsModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([lead_entity_1.Lead, contact_entity_1.Contact, opportunity_entity_1.Opportunity, opportunity_stage_change_entity_1.OpportunityStageChange, interaction_entity_1.Interaction, user_entity_1.User, client_entity_1.Client, reservation_entity_1.Reservation, ingest_source_entity_1.LeadIngestSource, campaign_entity_1.Campaign, approval_request_entity_1.ApprovalRequest, parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), account_access_module_1.AccountAccessModule, audit_module_1.AuditModule, process_templates_module_1.ProcessTemplatesModule, notifications_module_1.NotificationsModule, parameters_module_1.ParametersModule],
         controllers: [lead_controller_1.LeadController, contacts_controller_1.ContactsController, opportunities_controller_1.OpportunitiesController, interactions_controller_1.InteractionsController, public_agency_leads_controller_1.PublicAgencyLeadsController, lead_ingest_controller_1.LeadIngestController, crm_home_controller_1.CrmHomeController, ingest_sources_controller_1.IngestSourcesController, campaigns_controller_1.CampaignsController, stage_labels_controller_1.StageLabelsController],
         providers: [
             lead_task_summary_service_1.LeadTaskSummaryService, responsables_del_crm_service_1.ResponsablesDelCrmService, stage_labels_service_1.StageLabelsService, lead_cierre_service_1.LeadCierreService,

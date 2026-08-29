@@ -16,6 +16,7 @@ export type OrganizationSettingCategory =
   | 'alerts'
   | 'documents'
   | 'compliance'
+  | 'email'
   | 'modules';
 
 export type OrganizationSettingValueType = 'boolean' | 'number' | 'select' | 'text';
@@ -355,6 +356,154 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     min: 15,
     max: 120,
     unit: 'minutos',
+  },
+  {
+    /*
+     * Los tres plazos de un lead parado.
+     *
+     * Van como ajuste y no como constante porque el ritmo depende del negocio: en un ciclo de
+     * venta de dos semanas, tres días parado es alarmante; en uno de seis meses no significa
+     * nada. Con un número fijo en el código, media cartera vería avisos vacíos, y un aviso vacío
+     * enseña a ignorar todos los demás.
+     */
+    key: 'crm.lead_idle_days_notice',
+    category: 'alerts',
+    label: 'Aviso por lead parado',
+    description: 'Días sin cambiar de etapa tras los que la tarjeta se marca en el tablero.',
+    valueType: 'number',
+    defaultValue: 3,
+    masterStatus: 'master_defined',
+    min: 1,
+    max: 90,
+    unit: 'días',
+  },
+  {
+    key: 'crm.lead_idle_days_warning',
+    category: 'alerts',
+    label: 'Alerta por lead parado',
+    description: 'Días sin cambiar de etapa tras los que se avisa al responsable.',
+    valueType: 'number',
+    defaultValue: 5,
+    masterStatus: 'master_defined',
+    min: 1,
+    max: 120,
+    unit: 'días',
+  },
+  {
+    key: 'crm.lead_idle_days_critical',
+    category: 'alerts',
+    label: 'Lead abandonado',
+    description: 'Días sin cambiar de etapa tras los que el lead se considera abandonado.',
+    valueType: 'number',
+    defaultValue: 7,
+    masterStatus: 'master_defined',
+    min: 1,
+    max: 180,
+    unit: 'días',
+  },
+  /*
+   * Las plantillas de correo.
+   *
+   * Van como ajuste y no en el código porque el texto que recibe un cliente es comunicación de la
+   * empresa, no una constante técnica: quien la escribe debe poder corregirla sin esperar un
+   * despliegue, y queda registrado quién la cambió.
+   *
+   * Lo que se edita es **texto con variables**, nunca HTML. El armazón —marca, tipografía, ancho
+   * para el teléfono— lo pone el sistema y no se toca: un texto pegado desde Word rompería el
+   * correo entero y quien lo pegó no tendría forma de saberlo.
+   *
+   * Cada aviso trae su interruptor. Un correo que no se quiere no se apaga borrando la plantilla,
+   * porque entonces se pierde el texto y hay que reescribirlo para volver a encenderlo.
+   */
+  {
+    key: 'email.daily_digest_enabled',
+    category: 'email',
+    label: 'Resumen diario del CRM',
+    description: 'Envía cada mañana un resumen de leads y tareas a cada responsable.',
+    valueType: 'boolean',
+    defaultValue: false,
+    masterStatus: 'direction_required',
+  },
+  {
+    key: 'email.daily_digest_subject',
+    category: 'email',
+    label: 'Resumen diario · asunto',
+    description: 'Variables: {{fecha}}, {{pendientes}}, {{parados}}.',
+    valueType: 'text',
+    defaultValue: 'Tu CRM hoy: {{pendientes}} tareas y {{parados}} leads parados',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.daily_digest_body',
+    category: 'email',
+    label: 'Resumen diario · cuerpo',
+    description: 'Variables: {{responsable}}, {{fecha}}, {{pendientes}}, {{parados}}, {{nuevos}}.',
+    valueType: 'text',
+    defaultValue: 'Hola {{responsable}}:\n\nHoy tienes {{pendientes}} tareas con vencimiento y {{parados}} leads sin avanzar.\n\nAyer entraron {{nuevos}} leads nuevos.',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.task_reminder_enabled',
+    category: 'email',
+    label: 'Recordatorio de tareas',
+    description: 'Avisa 12 y 3 horas antes de que venza una tarea agendada.',
+    valueType: 'boolean',
+    defaultValue: false,
+    masterStatus: 'direction_required',
+  },
+  {
+    key: 'email.task_reminder_subject',
+    category: 'email',
+    label: 'Recordatorio de tareas · asunto',
+    description: 'Variables: {{tarea}}, {{horas}}, {{lead}}.',
+    valueType: 'text',
+    defaultValue: '{{tarea}} en {{horas}} horas',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.task_reminder_body',
+    category: 'email',
+    label: 'Recordatorio de tareas · cuerpo',
+    description: 'Variables: {{responsable}}, {{tarea}}, {{cuando}}, {{horas}}, {{lead}}.',
+    valueType: 'text',
+    defaultValue: 'Hola {{responsable}}:\n\nTienes «{{tarea}}» el {{cuando}}.\n\nProspecto: {{lead}}',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.new_lead_enabled',
+    category: 'email',
+    label: 'Aviso de lead nuevo',
+    description: 'Avisa al responsable cuando entra un lead, indicando de dónde viene.',
+    valueType: 'boolean',
+    defaultValue: false,
+    masterStatus: 'direction_required',
+  },
+  {
+    key: 'email.new_lead_subject',
+    category: 'email',
+    label: 'Lead nuevo · asunto',
+    description: 'Variables: {{lead}}, {{origen}}, {{campana}}.',
+    valueType: 'text',
+    defaultValue: 'Lead nuevo: {{lead}} ({{origen}})',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.new_lead_body',
+    category: 'email',
+    label: 'Lead nuevo · cuerpo',
+    description: 'Variables: {{responsable}}, {{lead}}, {{origen}}, {{campana}}, {{telefono}}, {{correo}}.',
+    valueType: 'text',
+    defaultValue: 'Entró {{lead}} desde {{origen}}.\n\nCampaña: {{campana}}\nTeléfono: {{telefono}}\nCorreo: {{correo}}',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.idle_lead_enabled',
+    category: 'email',
+    label: 'Aviso de lead parado',
+    description: 'Avisa por correo además de en la aplicación. Apagado de fábrica: el resumen diario ya lo cuenta.',
+    valueType: 'boolean',
+    defaultValue: false,
+    masterStatus: 'direction_required',
   },
   {
     key: 'alerts.deadline_notice_hours',

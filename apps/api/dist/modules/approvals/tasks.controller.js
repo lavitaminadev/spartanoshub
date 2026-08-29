@@ -36,6 +36,16 @@ let TasksController = class TasksController {
     mine(req, limit) {
         return this.tasks.listMine(req.organizationId, req.user.id, limit ? Number(limit) : undefined);
     }
+    async agenda(req, from, to) {
+        const desde = new Date(from);
+        const hasta = new Date(to);
+        if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime())) {
+            throw new common_1.BadRequestException('El rango de fechas no es válido');
+        }
+        const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const data = await this.tasks.listAgenda(req.organizationId, desde, hasta, permitidas);
+        return { data };
+    }
     async forEntity(entityType, entityId, req) {
         await this.assertEntityAccess(req, entityType, entityId, 'view');
         return this.tasks.listForEntity(req.organizationId, entityType, entityId);
@@ -82,6 +92,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], TasksController.prototype, "mine", null);
+__decorate([
+    (0, common_1.Get)('agenda'),
+    (0, swagger_1.ApiOperation)({ summary: 'Tareas que vencen en un rango, para el calendario' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('from')),
+    __param(2, (0, common_1.Query)('to')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "agenda", null);
 __decorate([
     (0, common_1.Get)(':entityType/:entityId'),
     (0, swagger_1.ApiOperation)({ summary: 'Tareas de un registro' }),

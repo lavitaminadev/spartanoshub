@@ -81,3 +81,17 @@ button.crm-cal-numero:hover { background: var(--soft); }
   background: var(--soft); font-size: 13px; font-weight: 700;
   text-transform: capitalize;
 }
+
+/*
+  Las tareas comparten la agenda con la actividad registrada, pero no son lo mismo.
+
+  Una actividad es historia y una tarea es una decisión pendiente, así que la tarea lleva borde
+  además de fondo: en un día con varias cosas, lo que hay que hacer tiene que distinguirse de un
+  vistazo de lo que ya se hizo, sin leer.
+*/
+.crm-cal-evento.tipo-task { background: var(--pink-soft); color: var(--pink-dark); box-shadow: inset 2px 0 0 var(--pink-dark); }
+
+/* Completada: sigue en su día porque haberla hecho es parte de lo que ocurrió, pero deja de
+   pedir atención. */
+.crm-cal-evento.tipo-task.esta-completada { background: var(--soft); color: var(--muted); box-shadow: none; }
+.crm-cal-evento.tipo-task.esta-completada b { text-decoration: line-through; }
