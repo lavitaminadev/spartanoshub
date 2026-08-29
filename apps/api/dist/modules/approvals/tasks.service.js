@@ -51,6 +51,18 @@ let TasksService = class TasksService {
             status: approval_request_status_enum_1.ApprovalRequestStatus.PENDING,
         }));
     }
+    listAgenda(organizationId, desde, hasta, clientIds) {
+        return this.repo.find({
+            where: {
+                organizationId,
+                kind: approval_request_status_enum_1.PendingKind.TASK,
+                dueAt: (0, typeorm_2.Between)(desde, hasta),
+                ...(clientIds?.length ? { clientId: (0, typeorm_2.In)(clientIds) } : {}),
+            },
+            order: { dueAt: 'ASC' },
+            take: 500,
+        });
+    }
     async listForEntity(organizationId, entityType, entityId) {
         const tasks = await this.repo.find({
             where: { organizationId, kind: approval_request_status_enum_1.PendingKind.TASK, entityType, entityId },

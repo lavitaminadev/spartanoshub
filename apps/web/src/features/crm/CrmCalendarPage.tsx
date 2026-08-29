@@ -26,6 +26,15 @@ interface Actividad {
   type: string;
   description?: string;
   date: string;
+  /**
+   * Si es un compromiso futuro en vez de algo que ya ocurrió.
+   *
+   * Las dos cosas caben en la misma agenda —el día tuvo lo que pasó y lo que hay que hacer—
+   * pero no se leen igual: una tarea pendiente es una decisión, y una actividad registrada es
+   * historia. Se distinguen al pintarlas.
+   */
+  esTarea?: boolean;
+  completada?: boolean;
 }
 
 /** Tipos que se pueden agendar. Los mismos que registra la ficha, para no tener dos catalogos. */
@@ -97,6 +106,9 @@ function celdasDelDia(ancla: Date): Array<{ fecha: Date; delMes: boolean }> {
 
 /** Cómo se lee cada tipo de actividad. La clave es la que guarda el servidor. */
 const TIPO_LABEL: Record<string, string> = {
+  // No es un tipo de actividad sino un compromiso pendiente, pero comparte la misma agenda: el
+  // día tiene lo que pasó y lo que falta por hacer.
+  task: 'Tarea',
   call: 'Llamada',
   email: 'Correo',
   meeting: 'Reunión',
@@ -179,15 +191,46 @@ export function CrmCalendarPage(): JSX.Element {
     retry: false,
   });
 
+  /*
+   * Las tareas que vencen en el mismo rango.
+   *
+   * Van en una consulta aparte y no dentro de la de actividades porque son cosas distintas en
+   * tablas distintas: una es lo que se registró, la otra lo que falta por hacer. Unirlas en el
+   * servidor obligaría a inventar una vista para ahorrar una petición que el navegador ya hace
+   * en paralelo con la otra.
+   *
+   * Si falla, el calendario sigue mostrando las actividades: perder los compromisos es malo,
+   * pero mucho menos que una pantalla en blanco.
+   */
+  const { data: tareas } = useQuery<{ data: Array<{ id: string; title: string; dueAt?: string | null; status: string }> }>({
+    queryKey: ['crm-calendario-tareas', scope.clientId, rango.desde, rango.hasta],
+    queryFn: () => api.get(
+      `/tasks/agenda?from=${encodeURIComponent(rango.desde)}&to=${encodeURIComponent(rango.hasta)}`,
+    ),
+    retry: false,
+  });
+
+  /** Las tareas con forma de actividad, para que el calendario pinte una sola lista ordenada. */
+  const tareasComoActividad = useMemo<Actividad[]>(() => (tareas?.data ?? [])
+    .filter((tarea) => Boolean(tarea.dueAt))
+    .map((tarea) => ({
+      id: `tarea-${tarea.id}`,
+      type: 'task',
+      description: tarea.title,
+      date: tarea.dueAt as string,
+      esTarea: true,
+      completada: tarea.status === 'done' || tarea.status === 'cancelled',
+    })), [tareas]);
+
   const porDia = useMemo(() => {
     const mapa = new Map<string, Actividad[]>();
-    for (const actividad of data?.data ?? []) {
+    for (const actividad of [...(data?.data ?? []), ...tareasComoActividad]) {
       if (!actividad.date) continue;
       const clave = claveDia(new Date(actividad.date));
       mapa.set(clave, [...(mapa.get(clave) ?? []), actividad]);
     }
     return mapa;
-  }, [data]);
+  }, [data, tareasComoActividad]);
 
   const hoy = claveDia(new Date());
 
@@ -351,7 +394,7 @@ export function CrmCalendarPage(): JSX.Element {
                 {franja.eventos.map((evento) => (
                   <span
                     key={evento.id}
-                    className={`crm-cal-evento tipo-${evento.type}`}
+                    className={`crm-cal-evento tipo-${evento.type}${evento.completada ? ' esta-completada' : ''}`}
                     title={`${horaDe(evento.date)} · ${evento.description || TIPO_LABEL[evento.type] || evento.type}`}
                   >
                     <time>{horaDe(evento.date)}</time>
@@ -415,7 +458,7 @@ export function CrmCalendarPage(): JSX.Element {
                 {eventos.map((evento) => (
                   <span
                     key={evento.id}
-                    className={`crm-cal-evento tipo-${evento.type}`}
+                    className={`crm-cal-evento tipo-${evento.type}${evento.completada ? ' esta-completada' : ''}`}
                     title={`${horaDe(evento.date)} · ${evento.description || TIPO_LABEL[evento.type] || evento.type}`}
                   >
                     <time>{horaDe(evento.date)}</time>

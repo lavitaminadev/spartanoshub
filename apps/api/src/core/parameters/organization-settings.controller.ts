@@ -12,7 +12,12 @@ import { isModuleLifecycleVisible, moduleLifecycleSettingKey, type ModuleLifecyc
 @ApiTags('Configuración')
 @ApiBearerAuth()
 @Controller('settings')
-@Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
+/*
+ * Dirección Comercial entra porque las plantillas de correo del CRM son suyas: el texto que
+ * recibe un prospecto es comunicación comercial, y quien responde por ella tiene que poder
+ * corregirla sin pedírselo a nadie. Todo cambio queda auditado igual.
+ */
+@Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
 @ModuleScope('settings')
 export class OrganizationSettingsController {
   constructor(private readonly settings: OrganizationSettingsService) {}

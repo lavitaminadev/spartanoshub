@@ -152,6 +152,14 @@ __decorate([
     __metadata("design:type", Object)
 ], Lead.prototype, "sourceCreatedAt", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'stage_changed_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Lead.prototype, "stageChangedAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'idle_alerted_level', type: 'varchar', length: 10, nullable: true }),
+    __metadata("design:type", Object)
+], Lead.prototype, "idleAlertedLevel", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Lead.prototype, "createdAt", void 0);

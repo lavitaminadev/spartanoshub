@@ -48,6 +48,10 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
                 throw new common_1.BadRequestException(`El estado "${data.status}" no corresponde a un lead de ${DOMAIN_LABELS[lead.domain] ?? lead.domain}`);
             }
             lead.status = data.status;
+            if (etapaPrevia !== lead.status) {
+                lead.stageChangedAt = new Date();
+                lead.idleAlertedLevel = null;
+            }
         }
         const calificacionPrevia = lead.fitStatus;
         if (data.fitStatus && Object.values(lead_fit_status_enum_1.LeadFitStatus).includes(data.fitStatus)) {

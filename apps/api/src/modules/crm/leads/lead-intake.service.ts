@@ -252,6 +252,9 @@ export class LeadIntakeService {
     });
 
     if (!lead.status) lead.status = 'new';
+    // Un lead recién capturado lleva parado desde ahora: sin esto la alerta lo daría por
+    // inactivo desde una fecha vacía, o no lo miraría nunca.
+    lead.stageChangedAt ??= new Date();
     const savedLead = await repo.save(lead);
     if (identityChange) await this.recordIdentityChange(savedLead, identityChange);
     const contact = await this.runAutomation(savedLead, domain, manager);
@@ -371,6 +374,7 @@ export class LeadIntakeService {
       return null;
     }
     lead.status = status;
+    lead.stageChangedAt = new Date();
     return this.repo.save(lead);
   }
 

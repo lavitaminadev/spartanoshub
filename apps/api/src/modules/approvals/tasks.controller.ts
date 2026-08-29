@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Put, Query, Req, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import type { AuthenticatedRequest } from '@shared/types/request';
@@ -57,6 +57,36 @@ export class TasksController {
   @ApiOperation({ summary: 'Lo que tengo pendiente, lo más vencido primero' })
   mine(@Req() req: AuthenticatedRequest, @Query('limit') limit?: string) {
     return this.tasks.listMine(req.organizationId, req.user.id, limit ? Number(limit) : undefined);
+  }
+
+  /*
+   * Va declarada antes que `:entityType/:entityId` por costumbre, aunque no colisionen: aquella
+   * exige dos segmentos y esta uno. Mantener las rutas fijas arriba evita que la próxima que se
+   * añada quede capturada por el comodín sin que nadie lo note.
+   */
+  @Get('agenda')
+  @ApiOperation({ summary: 'Tareas que vencen en un rango, para el calendario' })
+  async agenda(
+    @Req() req: AuthenticatedRequest,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    const desde = new Date(from);
+    const hasta = new Date(to);
+    if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime())) {
+      throw new BadRequestException('El rango de fechas no es válido');
+    }
+
+    /*
+     * El alcance por cuenta se aplica acá y no en el servicio.
+     *
+     * `allowedClientIds` devuelve `undefined` cuando la persona alcanza todas las cuentas, que es
+     * distinto de alcanzar ninguna. Confundirlos filtraría por una lista vacía y devolvería cero
+     * tareas a quien lo ve todo.
+     */
+    const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    const data = await this.tasks.listAgenda(req.organizationId, desde, hasta, permitidas);
+    return { data };
   }
 
   @Get(':entityType/:entityId')

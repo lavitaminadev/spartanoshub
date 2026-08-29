@@ -22,21 +22,36 @@
 .leads-board-origen { font-size: 11px; color: var(--muted); }
 
 /* Los dos avisos que cambian qué hacer con la tarjeta, no solo cómo se ve. */
-.leads-board-frio,
+.leads-board-inactivo,
 .leads-board-sin-duenio {
   justify-self: start; margin-top: 2px; padding: 2px 7px; border-radius: 999px;
   font-size: 10px; letter-spacing: .04em;
 }
-.leads-board-frio { background: var(--amber-soft); color: var(--amber-deep); }
 .leads-board-sin-duenio { background: var(--pink-soft); color: var(--pink-dark); }
 
+/*
+  Tres niveles, tres intensidades.
+
+  El salto de color va de suave a fuerte para que la gravedad se lea sin tener que leer el texto:
+  con un solo aviso, «tres días» y «tres semanas» pintaban igual y nadie sabía cuál atender
+  primero.
+*/
+.leads-board-inactivo.es-notice { background: var(--soft); color: var(--muted); }
+.leads-board-inactivo.es-warning { background: var(--amber-soft); color: var(--amber-deep); }
+.leads-board-inactivo.es-critical { background: var(--pink-soft); color: var(--pink-dark); font-weight: 600; }
+
 /* El borde marca la tarjeta entera sin competir con el color de la columna. */
-.leads-board-card.esta-frio { border-left: 2px solid var(--amber); padding-left: 8px; margin-left: -10px; }
+.leads-board-card.esta-notice { border-left: 2px solid var(--soft); padding-left: 8px; margin-left: -10px; }
+.leads-board-card.esta-warning { border-left: 2px solid var(--amber); padding-left: 8px; margin-left: -10px; }
+.leads-board-card.esta-critical { border-left: 2px solid var(--pink-dark); padding-left: 8px; margin-left: -10px; }
 
 @media (prefers-color-scheme: dark) {
-  .leads-board-frio { background: #362a13; color: #e3b25f; }
+  .leads-board-inactivo.es-notice { background: #24262b; color: #9aa0a8; }
+  .leads-board-inactivo.es-warning { background: #362a13; color: #e3b25f; }
+  .leads-board-inactivo.es-critical { background: #3a2220; color: #f0857c; }
   .leads-board-sin-duenio { background: #3a2220; color: #f0857c; }
 }
+
 
 /*
  * Alternador entre tablero y tabla.

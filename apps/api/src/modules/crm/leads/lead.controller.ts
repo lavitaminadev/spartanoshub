@@ -18,6 +18,7 @@ import { Reservation } from '../../reservations/domain/reservation.entity';
 import { Lead } from './lead.entity';
 import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
 import { LeadTaskSummaryService } from './lead-task-summary.service';
+import { CLAVE_ABANDONO, CLAVE_ALERTA, CLAVE_AVISO, PLAZOS_POR_DEFECTO, inactividadDe } from './inactividad-del-lead';
 import { ResponsablesDelCrmService } from './responsables-del-crm.service';
 import { veSoloLoSuyo } from './lead-visibility';
 import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
@@ -26,6 +27,7 @@ import { ModuleScope } from '../../../core/authorization/module-scope.decorator'
 import { ProcessHistoryService } from '../../../core/process-history/process-history.service';
 import { ProcessSubject } from '../../../core/process-history/process-stage-change.entity';
 import { UserRole } from '../../organizations/user-role.enum';
+import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 
 @ApiTags('CRM - Leads')
 @Controller('crm/leads')
@@ -57,6 +59,7 @@ export class LeadController {
     private readonly accountAccess: AccountAccessService,
     private readonly history: ProcessHistoryService,
     private readonly leadTasks: LeadTaskSummaryService,
+    private readonly parametros: ParameterResolver,
     private readonly capacidades: ClientCapabilityService,
     private readonly responsablesDelCrm: ResponsablesDelCrmService,
   ) {}
@@ -175,12 +178,30 @@ export class LeadController {
      * Es una sola consulta agrupada sobre los leads de esta página.
      */
     const tareas = await this.leadTasks.porLead(req.organizationId, pagina.data.map((lead) => lead.id));
+
+    /*
+     * Los plazos de inactividad, resueltos una vez para toda la página.
+     *
+     * El nivel lo calcula el servidor y no la pantalla porque los ajustes solo los puede leer
+     * un administrador: un vendedor mirando su tablero no podría consultarlos, y la alerta
+     * dependería del cargo de quien mira en vez de del estado del lead.
+     */
+    const ajustes = await this.parametros.getManyForOrganization(
+      [CLAVE_AVISO, CLAVE_ALERTA, CLAVE_ABANDONO],
+      req.organizationId,
+    );
+    const plazos = {
+      notice: Number(ajustes.get(CLAVE_AVISO) ?? PLAZOS_POR_DEFECTO.notice),
+      warning: Number(ajustes.get(CLAVE_ALERTA) ?? PLAZOS_POR_DEFECTO.warning),
+      critical: Number(ajustes.get(CLAVE_ABANDONO) ?? PLAZOS_POR_DEFECTO.critical),
+    };
     return {
       ...pagina,
       data: pagina.data.map((lead) => ({
         ...lead,
         openTasks: tareas.get(lead.id)?.openTasks ?? 0,
         nextStep: tareas.get(lead.id)?.nextStep ?? null,
+        ...inactividadDe(lead, plazos),
       })),
     };
   }

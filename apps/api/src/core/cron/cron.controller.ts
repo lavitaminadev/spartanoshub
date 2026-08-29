@@ -5,6 +5,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { MetaConversionOutboxService } from '../../modules/integrations/meta/meta-conversion-outbox.service';
 import { GoogleConversionOutboxService } from '../../modules/integrations/google/google-conversion-outbox.service';
 import { DetectStalePiecesJob } from '../jobs/cron/detect-stale-pieces.job';
+import { LeadsParadosJob } from '../jobs/cron/leads-parados.job';
 import { OperationalAlertsJob } from '../jobs/cron/operational-alerts.job';
 import { CreateMonthlyCyclesJob } from '../jobs/cron/create-monthly-cycles.job';
 import { CollectionEmailsJob } from '../jobs/cron/collection-emails.job';
@@ -21,6 +22,7 @@ export class CronController {
     private readonly capiOutbox: MetaConversionOutboxService,
     private readonly googleOutbox: GoogleConversionOutboxService,
     private readonly stale: DetectStalePiecesJob,
+    private readonly leadsParados: LeadsParadosJob,
     private readonly operationalAlerts: OperationalAlertsJob,
     private readonly cycles: CreateMonthlyCyclesJob,
     private readonly collections: CollectionEmailsJob,
@@ -152,6 +154,26 @@ export class CronController {
     } finally {
       this.running.delete(lockKey);
     }
+  }
+
+  /*
+   * Los dos verbos, igual que el resto.
+   *
+   * Los programadores de cron de cPanel solo saben hacer GET, y el POST es el correcto para algo
+   * que escribe. Ofrecer ambos evita elegir entre lo correcto y lo que se puede configurar.
+   */
+  @Post('leads-parados')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async leadsParadosPost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('leads-parados', () => this.leadsParados.handle());
+  }
+
+  @Get('leads-parados')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async leadsParadosGet(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('leads-parados', () => this.leadsParados.handle());
   }
 
   @Post('stale-pieces')

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, LessThan, Not, Repository } from 'typeorm';
+import { In, IsNull, LessThan, Not, Repository, Between } from 'typeorm';
 import { ApprovalRequest } from './approval-request.entity';
 import { ApprovalRequestStatus, OPEN_STATUSES, PendingKind } from './approval-request-status.enum';
 import { User } from '../users/user.entity';
@@ -65,6 +65,38 @@ export class TasksService {
   }
 
   /** Tareas de un registro, lo abierto primero y dentro de eso lo más vencido antes. */
+  /**
+   * Tareas con vencimiento dentro de un rango, para pintarlas en el calendario.
+   *
+   * El calendario mostraba solo actividad registrada, o sea lo que **ya pasó**: una tarea para el
+   * jueves no aparecía en el jueves, que es justo el día en que sirve verla. Una agenda que solo
+   * enseña el pasado no es una agenda.
+   *
+   * Se piden las abiertas y también las cerradas del rango: haber completado algo forma parte de
+   * lo que ocurrió ese día, y esconderlo dejaría huecos en jornadas que sí tuvieron trabajo.
+   *
+   * @param clientIds - Empresas que quien mira alcanza. Vacío o ausente no acota: la llamada ya
+   *   viene de un controlador que resolvió el alcance, y filtrar por una lista vacía devolvería
+   *   siempre cero.
+   */
+  listAgenda(
+    organizationId: string,
+    desde: Date,
+    hasta: Date,
+    clientIds?: string[],
+  ): Promise<ApprovalRequest[]> {
+    return this.repo.find({
+      where: {
+        organizationId,
+        kind: PendingKind.TASK,
+        dueAt: Between(desde, hasta),
+        ...(clientIds?.length ? { clientId: In(clientIds) } : {}),
+      },
+      order: { dueAt: 'ASC' },
+      take: 500,
+    });
+  }
+
   async listForEntity(organizationId: string, entityType: string, entityId: string): Promise<ApprovalRequest[]> {
     const tasks = await this.repo.find({
       where: { organizationId, kind: PendingKind.TASK, entityType, entityId },

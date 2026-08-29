@@ -118,6 +118,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         });
         if (!lead.status)
             lead.status = 'new';
+        lead.stageChangedAt ??= new Date();
         const savedLead = await repo.save(lead);
         if (identityChange)
             await this.recordIdentityChange(savedLead, identityChange);
@@ -202,6 +203,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
             return null;
         }
         lead.status = status;
+        lead.stageChangedAt = new Date();
         return this.repo.save(lead);
     }
     async findExistingLead(input, repo = this.repo, domain = 'commercial') {
