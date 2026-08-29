@@ -31,6 +31,7 @@ const cloudinary_module_1 = require("./core/cloudinary/cloudinary.module");
 const organizations_module_1 = require("./modules/organizations/organizations.module");
 const users_module_1 = require("./modules/users/users.module");
 const crm_module_1 = require("./modules/crm/crm.module");
+const marketing_module_1 = require("./modules/marketing/marketing.module");
 const clients_module_1 = require("./modules/clients/clients.module");
 const contracts_module_1 = require("./modules/contracts/contracts.module");
 const catalog_module_1 = require("./modules/catalog/catalog.module");
@@ -118,6 +119,7 @@ exports.AppModule = AppModule = __decorate([
             organizations_module_1.OrganizationsModule,
             users_module_1.UsersModule,
             crm_module_1.CrmModule,
+            marketing_module_1.MarketingModule,
             clients_module_1.ClientsModule,
             contracts_module_1.ContractsModule,
             catalog_module_1.CatalogModule,

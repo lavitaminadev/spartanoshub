@@ -143,6 +143,10 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly key: "surveys";
     readonly lifecycle: "active";
     readonly defaultEnabled: true;
+}, {
+    readonly key: "marketing";
+    readonly lifecycle: "active";
+    readonly defaultEnabled: true;
 }];
 export type OrganizationModuleKey = (typeof ORGANIZATION_MODULE_CATALOG)[number]['key'];
 export declare const AGENCY_CORE_MODULE_KEYS: readonly ["dashboard", "settings", "users", "clients", "reports", "integrations", "reservations", "governance", "crm", "surveys"];

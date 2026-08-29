@@ -121,6 +121,15 @@ exports.ORGANIZATION_MODULE_CATALOG = [
     // porque distribuir una encuesta es una decision de cada organizacion, no un valor por
     // defecto, y queda a un interruptor de distancia en el panel de administracion.
     { key: 'surveys', lifecycle: 'active', defaultEnabled: true },
+    /*
+     * Lista de correo comercial.
+     *
+     * Encendida como el resto del catálogo. Que la pantalla exista no manda nada a nadie: lo que
+     * habilita un envío es el consentimiento registrado de cada dirección, y esa reja vive en el
+     * dato —una fila sin respaldo nace en «pendiente» y ninguna campaña la alcanza—. Esconder el
+     * módulo daría una sensación de seguridad que no añade ninguna.
+     */
+    { key: 'marketing', lifecycle: 'active', defaultEnabled: true },
 ];
 exports.AGENCY_CORE_MODULE_KEYS = [
     'dashboard',

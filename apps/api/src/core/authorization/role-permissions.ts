@@ -60,6 +60,7 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
    */
   [UserRole.COMMERCIAL_DIRECTOR]: {
     ...TEAM_BASELINE,
+    marketing: 'manage',
     users: 'manage',
     clients: 'manage',
     crm: 'manage',
