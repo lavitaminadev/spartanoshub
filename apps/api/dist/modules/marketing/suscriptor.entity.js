@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Suscriptor = exports.EstadoDeSuscripcion = void 0;
 const typeorm_1 = require("typeorm");
+const edad_1 = require("./edad");
 var EstadoDeSuscripcion;
 (function (EstadoDeSuscripcion) {
     EstadoDeSuscripcion["PENDIENTE"] = "pending";
@@ -22,8 +23,12 @@ let Suscriptor = class Suscriptor {
         this.email = this.email?.trim().toLowerCase();
         this.name = this.name?.trim() || null;
     }
-    puedeRecibirCampana() {
-        return this.status === EstadoDeSuscripcion.SUSCRITO;
+    puedeRecibirCampana(hoy = new Date()) {
+        if (this.status !== EstadoDeSuscripcion.SUSCRITO)
+            return false;
+        if (this.adultDeclaredAt)
+            return true;
+        return (0, edad_1.puedeRecibirPorEdad)(this.birthDate, hoy);
     }
 };
 exports.Suscriptor = Suscriptor;
@@ -48,6 +53,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Suscriptor.prototype, "name", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'birth_date', type: 'date', nullable: true }),
+    __metadata("design:type", Object)
+], Suscriptor.prototype, "birthDate", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 20, default: EstadoDeSuscripcion.PENDIENTE }),
     __metadata("design:type", String)
 ], Suscriptor.prototype, "status", void 0);
@@ -67,6 +76,10 @@ __decorate([
     (0, typeorm_1.Column)({ name: 'consent_text', type: 'text', nullable: true }),
     __metadata("design:type", Object)
 ], Suscriptor.prototype, "consentText", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'adult_declared_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Suscriptor.prototype, "adultDeclaredAt", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'consent_ip', type: 'varchar', length: 45, nullable: true }),
     __metadata("design:type", Object)

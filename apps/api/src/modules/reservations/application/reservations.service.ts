@@ -903,6 +903,9 @@ export class ReservationsService {
         resourceId: dto.resourceId,
         answers: dto.answers,
         consentVersion: dto.consentVersion,
+        // La casilla llega como booleano y se guarda con su instante, que es lo que se puede
+        // mostrar. Sin marcar no se inventa una fecha: queda como «no consta», que es la verdad.
+        adultDeclaredAt: dto.adultDeclared ? new Date() : null,
         utmSource: dto.utmSource,
         utmMedium: dto.utmMedium,
         utmCampaign: dto.utmCampaign,

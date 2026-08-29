@@ -792,6 +792,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 resourceId: dto.resourceId,
                 answers: dto.answers,
                 consentVersion: dto.consentVersion,
+                adultDeclaredAt: dto.adultDeclared ? new Date() : null,
                 utmSource: dto.utmSource,
                 utmMedium: dto.utmMedium,
                 utmCampaign: dto.utmCampaign,

@@ -142,11 +142,19 @@ export class SuscriptoresService {
    * La consulta filtra por estado en la base y no en memoria: es la única forma de que un fallo
    * al escribir el filtro no acabe enviando a toda la tabla.
    */
-  suscritos(organizationId: string, clientId?: string | null): Promise<Suscriptor[]> {
+  async suscritos(organizationId: string, clientId?: string | null): Promise<Suscriptor[]> {
     const where: FindOptionsWhere<Suscriptor> = { organizationId, status: EstadoDeSuscripcion.SUSCRITO };
     // `undefined` significa «de cualquier empresa»; `null`, «las de la agencia». Son distintos.
     if (clientId !== undefined) where.clientId = clientId === null ? IsNull() : clientId;
-    return this.repo.find({ where, order: { createdAt: 'DESC' } });
+    const candidatos = await this.repo.find({ where, order: { createdAt: 'DESC' } });
+    /*
+     * La edad se filtra en memoria y el estado en la base.
+     *
+     * «Quién cumple 18 hoy» no se puede escribir como condición SQL sin repetir la aritmética
+     * de años bisiestos en otro lenguaje, y tenerla en dos sitios es tenerla mal en uno. El
+     * conjunto ya viene acotado por estado, así que son pocas filas.
+     */
+    return candidatos.filter((suscriptor) => suscriptor.puedeRecibirCampana());
   }
 
   /** La lista completa, para la pantalla. Incluye pendientes y bajas, con su procedencia. */

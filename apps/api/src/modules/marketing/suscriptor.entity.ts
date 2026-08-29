@@ -2,6 +2,7 @@ import {
   BeforeInsert, BeforeUpdate, Column, CreateDateColumn, Entity, Index,
   PrimaryGeneratedColumn, UpdateDateColumn,
 } from 'typeorm';
+import { puedeRecibirPorEdad } from './edad';
 
 /**
  * Estado de una dirección respecto a recibir correo comercial.
@@ -55,6 +56,18 @@ export class Suscriptor {
   @Column({ type: 'varchar', length: 190 }) email: string;
 
   @Column({ type: 'varchar', length: 180, nullable: true }) name?: string | null;
+  /**
+   * Fecha de nacimiento declarada por la propia persona.
+   *
+   * Sirve para felicitar y para no escribirle a quien declaró ser menor. **No acredita** la
+   * edad —cualquiera puede poner otro año— pero deja constancia de que se preguntó, que es lo
+   * proporcionado para una lista de correo.
+   *
+   * Solo la fecha, sin hora: guardar un instante haría que el cumpleaños cayera un día antes o
+   * después según la zona horaria de quien consulte.
+   */
+  @Column({ name: 'birth_date', type: 'date', nullable: true })
+  birthDate?: Date | null;
 
   @Column({ type: 'varchar', length: 20, default: EstadoDeSuscripcion.PENDIENTE })
   status: EstadoDeSuscripcion;
@@ -81,6 +94,18 @@ export class Suscriptor {
   @Column({ name: 'consent_at', type: 'timestamp', nullable: true }) consentAt?: Date | null;
 
   @Column({ name: 'consent_text', type: 'text', nullable: true }) consentText?: string | null;
+  /**
+   * Cuándo declaró ser mayor de 18 años.
+   *
+   * Es la casilla del formulario. Se guarda el instante y no un sí/no porque cuando alguien
+   * reclama la pregunta es «¿desde cuándo?», y porque un booleano no distingue «dijo que no» de
+   * «nunca se le preguntó» —que es la distinción que decide si se le puede escribir—.
+   *
+   * No acredita nada: cualquiera marca la casilla. Acredita que se preguntó, que es lo
+   * proporcionado para esto y lo que se puede mostrar.
+   */
+  @Column({ name: 'adult_declared_at', type: 'timestamp', nullable: true })
+  adultDeclaredAt?: Date | null;
 
   /**
    * Dirección desde la que se consintió, cuando se capturó por web.
@@ -124,8 +149,20 @@ export class Suscriptor {
     this.name = this.name?.trim() || null;
   }
 
-  /** Si se le puede enviar una campaña ahora mismo. */
-  puedeRecibirCampana(): boolean {
-    return this.status === EstadoDeSuscripcion.SUSCRITO;
+  /**
+   * Si se le puede enviar una campaña ahora mismo.
+   *
+   * Dos condiciones y no una: haber dicho que sí, y no constar como menor de edad. La segunda
+   * va acá y no en el criterio de quien mira la lista, porque una regla que hay que recordar
+   * aplicar es una regla que un día no se aplica.
+   *
+   * La declaración de mayoría de edad manda sobre la fecha: es lo que la persona afirmó
+   * expresamente. La fecha solo decide cuando no hay declaración, y si no hay ninguna de las
+   * dos se permite —exigirlas dejaría fuera a toda la lista recogida antes de preguntarlas—.
+   */
+  puedeRecibirCampana(hoy: Date = new Date()): boolean {
+    if (this.status !== EstadoDeSuscripcion.SUSCRITO) return false;
+    if (this.adultDeclaredAt) return true;
+    return puedeRecibirPorEdad(this.birthDate, hoy);
   }
 }

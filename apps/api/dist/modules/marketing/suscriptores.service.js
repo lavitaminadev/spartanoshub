@@ -86,11 +86,12 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         }
         return { email: suscriptor.email };
     }
-    suscritos(organizationId, clientId) {
+    async suscritos(organizationId, clientId) {
         const where = { organizationId, status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO };
         if (clientId !== undefined)
             where.clientId = clientId === null ? (0, typeorm_2.IsNull)() : clientId;
-        return this.repo.find({ where, order: { createdAt: 'DESC' } });
+        const candidatos = await this.repo.find({ where, order: { createdAt: 'DESC' } });
+        return candidatos.filter((suscriptor) => suscriptor.puedeRecibirCampana());
     }
     listar(organizationId, limite = 200) {
         return this.repo.find({

@@ -44,6 +44,18 @@ export class Lead {
   @Column({ name: 'assigned_to', type: 'uuid', nullable: true }) assignedTo?: string | null;
   @Column({ type: 'text', nullable: true }) notes?: string;
   @Column({ name: 'consent_captured_at', type: 'timestamp', nullable: true }) consentCapturedAt?: Date;
+  /**
+   * Fecha de nacimiento declarada por la propia persona.
+   *
+   * Sirve para felicitar y para no escribirle a quien declaró ser menor. **No acredita** la
+   * edad —cualquiera puede poner otro año— pero deja constancia de que se preguntó, que es lo
+   * proporcionado para una lista de correo.
+   *
+   * Solo la fecha, sin hora: guardar un instante haría que el cumpleaños cayera un día antes o
+   * después según la zona horaria de quien consulte.
+   */
+  @Column({ name: 'birth_date', type: 'date', nullable: true })
+  birthDate?: Date | null;
   @Column({ name: 'retention_review_at', type: 'timestamp', nullable: true }) retentionReviewAt?: Date;
   @Column({ type: 'json', nullable: true }) metadata?: Record<string, any>;
   @Column({ name: 'converted_at', type: 'timestamp', nullable: true }) convertedAt?: Date;

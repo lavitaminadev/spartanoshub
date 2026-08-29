@@ -91,6 +91,10 @@ __decorate([
     __metadata("design:type", String)
 ], Reservation.prototype, "consentVersion", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'adult_declared_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "adultDeclaredAt", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'internal_notes', type: 'text', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "internalNotes", void 0);

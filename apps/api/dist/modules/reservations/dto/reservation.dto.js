@@ -310,6 +310,11 @@ __decorate([
 ], PublicReservationDto.prototype, "consentVersion", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicReservationDto.prototype, "adultDeclared", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(120),
     __metadata("design:type", String)
