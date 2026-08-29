@@ -64,6 +64,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 sourceCreatedAt: dto.fechaOrigen ? new Date(dto.fechaOrigen) : undefined,
                 externalLeadId: (0, identificador_externo_1.identificadorExterno)(source.source, dto.idExterno),
                 externalFormId: dto.formId,
+                externalFormName: dto.metadata?.formName ?? undefined,
                 externalCampaignId: dto.campanaId,
                 pageId: dto.paginaId,
                 metadata: this.metadatosDeEntrada(dto),

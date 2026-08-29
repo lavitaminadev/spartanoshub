@@ -130,6 +130,9 @@ export class LeadIngestService {
         // Las mismas columnas que llena el webhook firmado, para que un lead se vea igual sin
         // importar por cuál de los dos caminos entró.
         externalFormId: dto.formId,
+        // El nombre viaja también en `metadata`, que es de donde lo lee la ficha. Acá se
+        // duplica a propósito: la columna existe para filtrar, no para mostrar.
+        externalFormName: (dto.metadata?.formName as string | undefined) ?? undefined,
         externalCampaignId: dto.campanaId,
         pageId: dto.paginaId,
         // El anuncio no tiene columna propia y sí la tiene el detalle de Meta: se guarda donde

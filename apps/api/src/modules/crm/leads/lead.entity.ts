@@ -32,6 +32,15 @@ export class Lead {
   @Column({ type: 'json', nullable: true }) tags?: string[];
   @Column({ name: 'external_lead_id', type: 'varchar', length: 255, nullable: true }) externalLeadId?: string;
   @Column({ name: 'external_form_id', type: 'varchar', length: 255, nullable: true }) externalFormId?: string;
+  /**
+   * Nombre del formulario que produjo el lead, tal como lo llamó quien lo creó.
+   *
+   * Columna propia y no una clave dentro de `metadata` porque es por lo que se filtra: dentro
+   * del JSON se puede leer, pero preguntar «los leads del formulario de inversión» obligaría a
+   * recorrer la tabla entera. El identificador no sirve para eso: nadie recuerda un número.
+   */
+  @Column({ name: 'external_form_name', type: 'varchar', length: 255, nullable: true })
+  externalFormName?: string | null;
   @Column({ name: 'external_campaign_id', type: 'varchar', length: 255, nullable: true }) externalCampaignId?: string;
   @Column({ name: 'campaign_name', type: 'varchar', length: 255, nullable: true }) campaignName?: string | null;
   @Column({ name: 'page_id', type: 'varchar', length: 255, nullable: true }) pageId?: string;

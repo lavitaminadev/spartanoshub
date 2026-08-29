@@ -113,6 +113,7 @@ export interface LeadCaptureInput {
   sourceCreatedAt?: Date;
   externalLeadId?: string;
   externalFormId?: string;
+  externalFormName?: string;
   externalCampaignId?: string;
   campaignName?: string;
   pageId?: string;

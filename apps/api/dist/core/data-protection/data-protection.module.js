@@ -21,13 +21,14 @@ const data_protection_controller_1 = require("./data-protection.controller");
 const consent_controller_1 = require("./consent.controller");
 const audit_module_1 = require("../audit/audit.module");
 const parameters_module_1 = require("../parameters/parameters.module");
+const service_request_entity_1 = require("../../modules/service-requests/service-request.entity");
 let DataProtectionModule = class DataProtectionModule {
 };
 exports.DataProtectionModule = DataProtectionModule;
 exports.DataProtectionModule = DataProtectionModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, lead_entity_1.Lead, audit_entity_1.AuditLog, consent_entity_1.DataConsent, consent_version_entity_1.ConsentVersion, contact_entity_1.Contact, reservation_entity_1.Reservation]),
+            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, lead_entity_1.Lead, audit_entity_1.AuditLog, consent_entity_1.DataConsent, consent_version_entity_1.ConsentVersion, contact_entity_1.Contact, reservation_entity_1.Reservation, service_request_entity_1.ServiceRequest]),
             audit_module_1.AuditModule,
             parameters_module_1.ParametersModule,
         ],
