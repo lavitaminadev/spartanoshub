@@ -7,6 +7,8 @@ import { GoogleConversionOutboxService } from '../../modules/integrations/google
 import { DetectStalePiecesJob } from '../jobs/cron/detect-stale-pieces.job';
 import { LeadsParadosJob } from '../jobs/cron/leads-parados.job';
 import { RecordatorioDeTareasJob } from '../jobs/cron/recordatorio-de-tareas.job';
+import { ResumenDiarioJob } from '../jobs/cron/resumen-diario.job';
+import { SaludoDeCumpleanosJob } from '../jobs/cron/saludo-de-cumpleanos.job';
 import { OperationalAlertsJob } from '../jobs/cron/operational-alerts.job';
 import { CreateMonthlyCyclesJob } from '../jobs/cron/create-monthly-cycles.job';
 import { CollectionEmailsJob } from '../jobs/cron/collection-emails.job';
@@ -25,6 +27,8 @@ export class CronController {
     private readonly stale: DetectStalePiecesJob,
     private readonly leadsParados: LeadsParadosJob,
     private readonly recordatorios: RecordatorioDeTareasJob,
+    private readonly resumen: ResumenDiarioJob,
+    private readonly cumpleanos: SaludoDeCumpleanosJob,
     private readonly operationalAlerts: OperationalAlertsJob,
     private readonly cycles: CreateMonthlyCyclesJob,
     private readonly collections: CollectionEmailsJob,
@@ -190,6 +194,34 @@ export class CronController {
   async recordatorioTareasGet(@Headers('x-cron-secret') secret: string) {
     this.verifySecret(secret);
     return this.runLocked('recordatorio-tareas', () => this.recordatorios.handle());
+  }
+
+  @Post('resumen-diario')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async resumenPost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('resumen-diario', () => this.resumen.handle());
+  }
+
+  @Get('resumen-diario')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async resumenGet(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('resumen-diario', () => this.resumen.handle());
+  }
+
+  @Post('cumpleanos')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async cumpleanosPost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('cumpleanos', () => this.cumpleanos.handle());
+  }
+
+  @Get('cumpleanos')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async cumpleanosGet(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('cumpleanos', () => this.cumpleanos.handle());
   }
 
   @Post('stale-pieces')
