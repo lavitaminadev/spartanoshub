@@ -7,6 +7,7 @@ import { DataConsent } from './consent.entity';
 import { Lead } from '../../modules/crm/leads/lead.entity';
 import { Contact } from '../../modules/crm/contacts/contact.entity';
 import { Reservation } from '../../modules/reservations/domain/reservation.entity';
+import { ServiceRequest } from '../../modules/service-requests/service-request.entity';
 import { ConsentVersion } from './consent-version.entity';
 
 /** Aviso de privacidad que se muestra donde se pide un consentimiento. */
@@ -54,6 +55,7 @@ export class DataProtectionService {
     @InjectRepository(DataConsent) private consentRepo: Repository<DataConsent>,
     @InjectRepository(Contact) private contactRepo: Repository<Contact>,
     @InjectRepository(Reservation) private reservationRepo: Repository<Reservation>,
+    @InjectRepository(ServiceRequest) private serviceRequestRepo: Repository<ServiceRequest>,
     @InjectRepository(ConsentVersion) private consentVersionRepo: Repository<ConsentVersion>,
   ) {}
 
@@ -262,5 +264,45 @@ export class DataProtectionService {
   async recordConsent(userId: string, action: string, granted: boolean, ipAddress?: string): Promise<DataConsent> {
     const consent = this.consentRepo.create({ userId, action, granted, ipAddress });
     return this.consentRepo.save(consent);
+  }
+
+  /**
+   * Anonimiza una solicitud de servicio o de derechos.
+   *
+   * Es la que más datos personales guarda de todas: nombre, correo, **RUT**, teléfono y un
+   * mensaje libre donde la persona puede haber escrito cualquier cosa. Y era la única que la
+   * anonimización no cubría, de modo que alguien que ejercía su derecho de supresión quedaba
+   * borrado del CRM y entero acá —justo en la tabla que existe para atender ese derecho—.
+   *
+   * El tipo, el estado y las fechas quedan intactos: son lo que prueba que la solicitud se
+   * atendió y dentro de qué plazo, y borrarlos destruiría la constancia del cumplimiento en vez
+   * de protegerlo.
+   */
+  async anonymizeServiceRequest(
+    requestId: string,
+    organizationId: string,
+    reason = 'Retención expirada',
+  ): Promise<ServiceRequest> {
+    const solicitud = await this.serviceRequestRepo.findOneBy({ id: requestId, organizationId });
+    if (!solicitud) throw new NotFoundException('Service request not found');
+
+    solicitud.requesterName = `Solicitante anonimizado ${solicitud.id.slice(0, 8)}`;
+    solicitud.requesterEmail = '';
+    solicitud.requesterRut = null;
+    solicitud.requesterPhone = null;
+    solicitud.message = null;
+    /*
+     * `extra` y la nota de resolución también.
+     *
+     * Son campos libres: el primero guarda lo que trajera el formulario y el segundo lo que
+     * escribió quien atendió, que suele repetir los datos de la persona para dejar constancia.
+     * Dejarlos sería anonimizar las columnas con nombre y olvidar las que de verdad acumulan.
+     */
+    solicitud.extra = null;
+    solicitud.resolutionNote = null;
+
+    const guardada = await this.serviceRequestRepo.save(solicitud);
+    await this.recordAnonymization(organizationId, 'ServiceRequest', requestId, reason);
+    return guardada;
   }
 }

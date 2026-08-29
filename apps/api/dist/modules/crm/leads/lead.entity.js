@@ -84,6 +84,10 @@ __decorate([
     __metadata("design:type", String)
 ], Lead.prototype, "externalFormId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'external_form_name', type: 'varchar', length: 255, nullable: true }),
+    __metadata("design:type", Object)
+], Lead.prototype, "externalFormName", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'external_campaign_id', type: 'varchar', length: 255, nullable: true }),
     __metadata("design:type", String)
 ], Lead.prototype, "externalCampaignId", void 0);

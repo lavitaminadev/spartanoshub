@@ -12,10 +12,11 @@ import { DataProtectionController } from './data-protection.controller';
 import { ConsentController } from './consent.controller';
 import { AuditModule } from '../audit/audit.module';
 import { ParametersModule } from '../parameters/parameters.module';
+import { ServiceRequest } from '../../modules/service-requests/service-request.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Lead, AuditLog, DataConsent, ConsentVersion, Contact, Reservation]),
+    TypeOrmModule.forFeature([User, Lead, AuditLog, DataConsent, ConsentVersion, Contact, Reservation, ServiceRequest]),
     AuditModule,
     // `ConsentController` publica el texto vigente moviendo `compliance.terms_version`, que es
     // lo que decide a quién se le vuelve a pedir la aceptación al entrar.

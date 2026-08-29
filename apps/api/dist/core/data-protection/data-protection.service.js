@@ -22,6 +22,7 @@ const consent_entity_1 = require("./consent.entity");
 const lead_entity_1 = require("../../modules/crm/leads/lead.entity");
 const contact_entity_1 = require("../../modules/crm/contacts/contact.entity");
 const reservation_entity_1 = require("../../modules/reservations/domain/reservation.entity");
+const service_request_entity_1 = require("../../modules/service-requests/service-request.entity");
 const consent_version_entity_1 = require("./consent-version.entity");
 const AVISO_PROVISIONAL = {
     title: 'Aviso de privacidad (texto provisional)',
@@ -39,13 +40,14 @@ const AVISO_PROVISIONAL = {
     ].join('\n'),
 };
 let DataProtectionService = class DataProtectionService {
-    constructor(userRepo, leadRepo, auditRepo, consentRepo, contactRepo, reservationRepo, consentVersionRepo) {
+    constructor(userRepo, leadRepo, auditRepo, consentRepo, contactRepo, reservationRepo, serviceRequestRepo, consentVersionRepo) {
         this.userRepo = userRepo;
         this.leadRepo = leadRepo;
         this.auditRepo = auditRepo;
         this.consentRepo = consentRepo;
         this.contactRepo = contactRepo;
         this.reservationRepo = reservationRepo;
+        this.serviceRequestRepo = serviceRequestRepo;
         this.consentVersionRepo = consentVersionRepo;
     }
     async avisoPrivacidadVigente(organizationId) {
@@ -193,6 +195,21 @@ let DataProtectionService = class DataProtectionService {
         const consent = this.consentRepo.create({ userId, action, granted, ipAddress });
         return this.consentRepo.save(consent);
     }
+    async anonymizeServiceRequest(requestId, organizationId, reason = 'Retención expirada') {
+        const solicitud = await this.serviceRequestRepo.findOneBy({ id: requestId, organizationId });
+        if (!solicitud)
+            throw new common_1.NotFoundException('Service request not found');
+        solicitud.requesterName = `Solicitante anonimizado ${solicitud.id.slice(0, 8)}`;
+        solicitud.requesterEmail = '';
+        solicitud.requesterRut = null;
+        solicitud.requesterPhone = null;
+        solicitud.message = null;
+        solicitud.extra = null;
+        solicitud.resolutionNote = null;
+        const guardada = await this.serviceRequestRepo.save(solicitud);
+        await this.recordAnonymization(organizationId, 'ServiceRequest', requestId, reason);
+        return guardada;
+    }
 };
 exports.DataProtectionService = DataProtectionService;
 exports.DataProtectionService = DataProtectionService = __decorate([
@@ -203,8 +220,10 @@ exports.DataProtectionService = DataProtectionService = __decorate([
     __param(3, (0, typeorm_1.InjectRepository)(consent_entity_1.DataConsent)),
     __param(4, (0, typeorm_1.InjectRepository)(contact_entity_1.Contact)),
     __param(5, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
-    __param(6, (0, typeorm_1.InjectRepository)(consent_version_entity_1.ConsentVersion)),
+    __param(6, (0, typeorm_1.InjectRepository)(service_request_entity_1.ServiceRequest)),
+    __param(7, (0, typeorm_1.InjectRepository)(consent_version_entity_1.ConsentVersion)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
