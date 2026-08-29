@@ -77,6 +77,13 @@ export class PublicReservationDto {
   @IsObject() answers: Record<string, unknown>;
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(80) consentVersion?: string;
+  /**
+   * Si marcó la casilla de ser mayor de 18 años.
+   *
+   * Llega como booleano y se guarda como instante: lo que hace falta responder cuando alguien
+   * reclama es «desde cuándo», no «sí o no».
+   */
+  @IsOptional() @IsBoolean() adultDeclared?: boolean;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;

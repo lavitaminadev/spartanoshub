@@ -41,6 +41,18 @@ export class Reservation {
   @Column({ name: 'guest_phone', type: 'varchar', length: 50, nullable: true }) guestPhone?: string | null;
   @Column({ name: 'answers', type: 'json' }) answers: Record<string, unknown>;
   @Column({ name: 'consent_version', type: 'varchar', length: 30, nullable: true }) consentVersion?: string;
+  /**
+   * Cuándo declaró ser mayor de 18 años.
+   *
+   * Es la casilla del formulario. Se guarda el instante y no un sí/no porque cuando alguien
+   * reclama la pregunta es «¿desde cuándo?», y porque un booleano no distingue «dijo que no» de
+   * «nunca se le preguntó» —que es la distinción que decide si se le puede escribir—.
+   *
+   * No acredita nada: cualquiera marca la casilla. Acredita que se preguntó, que es lo
+   * proporcionado para esto y lo que se puede mostrar.
+   */
+  @Column({ name: 'adult_declared_at', type: 'timestamp', nullable: true })
+  adultDeclaredAt?: Date | null;
   @Column({ name: 'internal_notes', type: 'text', nullable: true }) internalNotes?: string | null;
   @Column({ name: 'utm_source', type: 'varchar', length: 120, nullable: true }) utmSource?: string;
   @Column({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }) utmMedium?: string;
