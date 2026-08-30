@@ -826,8 +826,16 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           }}
         />
       ) : (
-        <div className="table-wrap">
-          <table className="table">
+        /*
+          Las clases con las que el resto del proyecto dibuja sus tablas.
+
+          Estaban puestas `table-wrap` y `table`, que **no tienen ni una regla de CSS**: la tabla
+          salía sin contenedor de desplazamiento y sin el diseño de tarjetas para pantalla
+          estrecha, así que en el teléfono se desbordaba a lo ancho. Era la pantalla que peor se
+          veía, y la causa era un nombre de clase que nunca existió.
+        */
+        <div className="table-wrapper">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>
@@ -853,7 +861,15 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             <tbody>
               {leads.map((lead) => (
                 <tr key={lead.id}>
-                  <td>
+                  {/*
+                    Lleva `data-label` como todas.
+
+                    En pantalla estrecha la tabla se convierte en tarjetas, y ese diseño usa la
+                    etiqueta de cada celda como su título. Esta era la única sin ella en todo el
+                    proyecto: la fila salía con una columna de título vacía y la casilla empujada
+                    contra el borde, que es lo que descuadraba la tarjeta entera.
+                  */}
+                  <td data-label="Seleccionar" className="col-marcar">
                     <input
                       type="checkbox"
                       aria-label={`Seleccionar ${lead.name}`}

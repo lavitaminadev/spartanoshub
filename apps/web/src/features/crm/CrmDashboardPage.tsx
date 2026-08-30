@@ -399,8 +399,15 @@ export function CrmDashboardPage(): JSX.Element {
             escribirse igual que el que traen los leads.
           </p>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
+          /*
+            Las clases con las que el resto del proyecto dibuja sus tablas.
+
+            `table-wrap` y `table` no tienen ninguna regla de CSS, así que la tabla salía sin
+            contenedor de desplazamiento y sin el plegado a tarjetas: en el teléfono se desbordaba
+            a lo ancho aunque sus celdas ya traían `data-label` para plegarse.
+          */
+          <div className="table-wrapper">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Campaña</th><th>Fuente</th><th>Inversión</th>
