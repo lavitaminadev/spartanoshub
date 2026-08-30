@@ -24,9 +24,10 @@ import { MetaConversionOutboxService } from "./meta-conversion-outbox.service";
 import { IntegrationMetric } from "../integration-metric.entity";
 import { MetaInsightsService } from "./meta-insights.service";
 import { MetaClientPixelService } from "./meta-client-pixel.service";
+import { MetaPixel } from "./meta-pixel.entity";
 
 @Module({
-  imports: [HttpModule, CrmModule, TypeOrmModule.forFeature([Integration, IntegrationAccount, IntegrationMetric, MetaLeadWebhookEvent, MetaConversionOutbox, Lead, Client, Campaign])],
+  imports: [HttpModule, CrmModule, TypeOrmModule.forFeature([Integration, IntegrationAccount, IntegrationMetric, MetaLeadWebhookEvent, MetaConversionOutbox, Lead, Client, Campaign, MetaPixel])],
   controllers: [MetaController, MetaPixelController],
   providers: [MetaService, MetaPixelService, MetaClientPixelService, MetaConversionsService, MetaConversionOutboxService, MetaInsightsService, MetaIntegrationAccessor, MetaAssetDiscoveryService, MetaOAuthService, MetaLeadAdsService, LeadConvertedHandler, LeadStageChangedHandler],
   exports: [MetaService, MetaPixelService, MetaClientPixelService, MetaConversionsService, MetaConversionOutboxService, MetaOAuthService, MetaAssetDiscoveryService, MetaLeadAdsService],

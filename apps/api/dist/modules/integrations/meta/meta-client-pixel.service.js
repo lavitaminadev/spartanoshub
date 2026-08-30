@@ -22,10 +22,13 @@ const integration_entity_1 = require("../integration.entity");
 const integration_provider_enum_1 = require("../integration-provider.enum");
 const integration_status_enum_1 = require("../integration-status.enum");
 const meta_pixel_service_1 = require("./meta-pixel.service");
+const meta_pixel_entity_1 = require("./meta-pixel.entity");
+const typeorm_3 = require("typeorm");
 let MetaClientPixelService = class MetaClientPixelService {
-    constructor(integrations, clients, pixels) {
+    constructor(integrations, clients, pixelesGuardados, pixels) {
         this.integrations = integrations;
         this.clients = clients;
+        this.pixelesGuardados = pixelesGuardados;
         this.pixels = pixels;
     }
     async integration(id, organizationId) {
@@ -53,6 +56,19 @@ let MetaClientPixelService = class MetaClientPixelService {
     credenciales(integration) {
         const value = integration.config?.metaPixels;
         return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    }
+    async tokenEnTabla(organizationId, pixelId, clientId) {
+        if (clientId) {
+            const propia = await this.pixelesGuardados.findOne({
+                where: { organizationId, clientId, pixelId },
+            });
+            if (propia?.accessToken)
+                return (0, integration_secrets_1.revealSecret)(propia.accessToken);
+        }
+        const registro = await this.pixelesGuardados.findOne({
+            where: { organizationId, clientId: (0, typeorm_3.IsNull)(), pixelId },
+        });
+        return registro?.accessToken ? (0, integration_secrets_1.revealSecret)(registro.accessToken) : undefined;
     }
     tokenDePixel(integration, pixelId, clientId) {
         if (!integration)
@@ -235,7 +251,8 @@ let MetaClientPixelService = class MetaClientPixelService {
             };
         }
         const integration = await this.organizationIntegration(organizationId);
-        const propioToken = integration ? this.tokenDePixel(integration, pixelId, clientId) : undefined;
+        const propioToken = await this.tokenEnTabla(organizationId, pixelId, clientId)
+            ?? (integration ? this.tokenDePixel(integration, pixelId, clientId) : undefined);
         const registro = integration ? this.credenciales(integration)[pixelId] : undefined;
         if (propioToken && propioToken !== process.env.META_CONVERSIONS_ACCESS_TOKEN) {
             return { pixelId, pixelName: registro?.name ?? null, accessToken: propioToken, pixelSource, tokenSource: 'pixel' };
@@ -275,6 +292,9 @@ let MetaClientPixelService = class MetaClientPixelService {
         });
     }
     async resolveByPixel(organizationId, pixelId) {
+        const enTabla = await this.tokenEnTabla(organizationId, pixelId);
+        if (enTabla)
+            return enTabla;
         const integration = await this.organizationIntegration(organizationId);
         return this.tokenDePixel(integration, pixelId);
     }
@@ -343,7 +363,9 @@ exports.MetaClientPixelService = MetaClientPixelService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(integration_entity_1.Integration)),
     __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
+    __param(2, (0, typeorm_1.InjectRepository)(meta_pixel_entity_1.MetaPixel)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         meta_pixel_service_1.MetaPixelService])
 ], MetaClientPixelService);

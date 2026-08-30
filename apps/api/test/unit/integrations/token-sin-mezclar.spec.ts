@@ -21,6 +21,9 @@ describe('el token no se toma de otra empresa', () => {
     return new MetaClientPixelService(
       integrations as never,
       { find: vi.fn().mockResolvedValue([]) } as never,
+      // La tabla, vacía: estas pruebas describen la regla dentro del JSON, que es la red mientras
+      // conviven las dos formas. La tabla tiene las suyas aparte.
+      { findOne: vi.fn().mockResolvedValue(null) } as never,
       { verificarPixel: vi.fn() } as never,
     );
   };
