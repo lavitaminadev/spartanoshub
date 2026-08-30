@@ -80,8 +80,56 @@ describe('señales del CRM hacia Meta', () => {
   });
 
   /*
-   * El descarte no tiene handler y esta prueba lo deja escrito: Meta optimiza hacia lo que
-   * recibe, y un evento de «este no servía» no le enseña a evitar el perfil.
+   * `Purchase` es un evento estandar y su definicion exige `value` y `currency`. Se enviaba igual
+   * sin monto, y Meta lo devolvia con «Invalid parameter»: la venta se perdia y solo aparecia dias
+   * despues en la cola de fallidos.
+   */
+  it('una venta sin monto no viaja como Purchase, que lo exige', async () => {
+    const { handler, outbox } = montar({
+      lead: {
+        id: 'lead-1', source: 'web', externalLeadId: null, campaignName: null,
+        estimatedAmount: null, email: 'p@e.cl', phone: null, metadata: null,
+      },
+    });
+
+    await handler.vendido(evento);
+
+    const enviado = outbox.enqueue.mock.calls[0][2];
+    expect(enviado.eventName).toBe('Venta');
+    expect(enviado.customData.value).toBeUndefined();
+    expect(enviado.customData.currency).toBeUndefined();
+  });
+
+  it('un monto cero tampoco cuenta como importe', async () => {
+    const { handler, outbox } = montar({
+      lead: {
+        id: 'lead-1', source: 'web', externalLeadId: null, campaignName: null,
+        estimatedAmount: '0', email: 'p@e.cl', phone: null, metadata: null,
+      },
+    });
+
+    await handler.vendido(evento);
+
+    expect(outbox.enqueue.mock.calls[0][2].eventName).toBe('Venta');
+  });
+
+  it('el identificador del evento no cambia con el nombre: sigue siendo la misma venta', async () => {
+    const { handler, outbox } = montar({
+      lead: {
+        id: 'lead-1', source: 'web', externalLeadId: null, campaignName: null,
+        estimatedAmount: null, email: 'p@e.cl', phone: null, metadata: null,
+      },
+    });
+
+    await handler.vendido(evento);
+
+    expect(outbox.enqueue.mock.calls[0][2].eventId).toBe('lead-venta:lead-1');
+  });
+
+  /*
+   * El descarte no tiene manejador, y esta prueba lo deja escrito. La documentacion de Meta pide
+   * enviar todas las etapas y clasificarlas en Events Manager, asi que esto esta pendiente de
+   * revisar; mientras tanto, que nadie lo agregue sin decidirlo.
    */
   it('no existe forma de reportar un descarte', () => {
     const { handler } = montar();

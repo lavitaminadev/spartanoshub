@@ -73,8 +73,12 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                 ? lead.externalLeadId
                 : undefined;
             const monto = lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined;
+            const conMonto = Boolean(monto && monto > 0);
+            const nombreFinal = eventName === 'Purchase' && !conMonto
+                ? LeadStageChangedHandler_1.ETIQUETA_DE_VENTA
+                : eventName;
             await this.outbox.enqueue(payload.organizationId, pixelId, {
-                eventName,
+                eventName: nombreFinal,
                 eventTime: Math.floor(Date.now() / 1000),
                 actionSource: 'system_generated',
                 userData: {
@@ -90,8 +94,8 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                 customData: {
                     leadEventSource: LeadStageChangedHandler_1.ORIGEN,
                     eventSource: 'crm',
-                    value: eventName === 'Purchase' && monto && monto > 0 ? monto : undefined,
-                    currency: eventName === 'Purchase' && monto && monto > 0 ? 'CLP' : undefined,
+                    value: conMonto ? monto : undefined,
+                    currency: conMonto ? 'CLP' : undefined,
                 },
                 eventId: `lead-${sufijo}:${lead.id}`,
             });
@@ -102,6 +106,7 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
     }
 };
 exports.LeadStageChangedHandler = LeadStageChangedHandler;
+LeadStageChangedHandler.ETIQUETA_DE_VENTA = 'Venta';
 LeadStageChangedHandler.ORIGEN = 'Espartanos';
 LeadStageChangedHandler.LEADGEN_ID = /^\d{15,17}$/;
 __decorate([
