@@ -3,8 +3,16 @@
 /* Notification center */
 .sidebar-footer-actions { margin-bottom: 12px; }
 .notification-center { position: relative; }
-.notification-trigger { position: relative; width: 42px; height: 42px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.18); border-radius: var(--radius-md); background: rgba(255,255,255,.07); color: var(--white); cursor: pointer; }
-.notification-trigger:hover { background: rgba(255,255,255,.14); }
+/*
+  Contraste suficiente para encontrarla.
+
+  Estaba al 7% de blanco de fondo y 18% de borde sobre la barra oscura: se dibujaba, pero habia
+  que saber donde mirar. Un aviso que hay que buscar es un aviso que no se ve.
+
+  Sigue en tonos de blanco porque el pie de la barra lateral es oscuro; lo que cambia es cuanto.
+*/
+.notification-trigger { position: relative; width: 42px; height: 42px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.34); border-radius: var(--radius-md); background: rgba(255,255,255,.16); color: var(--white); cursor: pointer; }
+.notification-trigger:hover { background: rgba(255,255,255,.26); border-color: rgba(255,255,255,.5); }
 .notification-trigger svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .notification-count { position: absolute; top: -6px; right: -7px; min-width: 19px; height: 19px; display: grid; place-items: center; padding: 0 5px; border: 2px solid var(--surface-dark); border-radius: 99px; background: var(--accent); color: var(--white); font-size: 9px; font-weight: 900; }
 .notification-popover { position: absolute; bottom: calc(100% + 12px); left: 0; width: min(370px, calc(100vw - 28px)); overflow: hidden; border: 1px solid rgba(34, 22, 29,.12); border-radius: var(--radius-lg); background: var(--white); color: var(--text); box-shadow: 0 24px 65px rgba(34,22,29,.28); z-index: 1200; }
@@ -254,3 +262,38 @@
 
 @media(max-width:800px){.content-summary{grid-template-columns:repeat(2,1fr)}.content-plan-card>header{flex-direction:column}.content-plan-actions{width:100%;flex-wrap:wrap}.content-plan-actions .input{flex:1}.client-grid-items>div{grid-template-columns:1fr}.client-grid-items small{text-align:left}}
 
+
+/*
+  La campanita de la cabecera: solo en pantalla estrecha.
+
+  En escritorio vive en el pie de la barra lateral, que es oscura y siempre está a la vista. En
+  móvil esa barra es un cajón cerrado, así que la misma campanita quedaba detrás del botón de
+  menú: un aviso que exige abrir un menú para verse no se mira.
+
+  Son dos instancias del mismo componente y una sola petición —comparten la clave de consulta—,
+  así que lo único que decide cuál se ve es este par de reglas.
+*/
+.notification-center.en-cabecera { display: none; }
+
+/* En la cabecera el fondo es claro, así que los tonos de blanco no sirven. */
+.en-cabecera .notification-trigger {
+  width: 38px; height: 38px;
+  border-color: var(--soft); background: transparent; color: var(--text);
+}
+.en-cabecera .notification-trigger:hover { background: var(--soft); border-color: var(--accent); color: var(--accent); }
+.en-cabecera .notification-count { border-color: var(--white); }
+
+/*
+  Y el panel cae hacia abajo, no hacia arriba.
+
+  Desde el pie de la barra se despliega hacia arriba porque abajo no hay sitio; desde la cabecera
+  es al revés. Se ancla a la derecha para no salirse por el borde en una pantalla angosta.
+*/
+.en-cabecera .notification-popover { top: calc(100% + 10px); bottom: auto; left: auto; right: 0; }
+
+@media (max-width: 768px) {
+  .notification-center.en-cabecera { display: block; }
+  .sidebar-footer-actions { display: none; }
+  /* El ancho fijo de 370 px se salía del cajón y del propio teléfono. */
+  .notification-popover { width: min(370px, calc(100vw - 24px)); }
+}

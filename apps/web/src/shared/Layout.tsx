@@ -184,6 +184,15 @@ export function Layout(): JSX.Element {
             <strong>{currentItem?.label ?? 'Espartanos'}</strong>
           </div>
           <div className="workspace-header-actions">
+            {/*
+              La misma campanita, en la cabecera y solo en pantalla estrecha.
+
+              La del pie de la barra lateral queda detras del boton de menu cuando la barra es un
+              cajon: un aviso que exige abrir un menu para verse no se mira. Son dos instancias del
+              mismo componente y una sola peticion, porque comparten la clave de consulta; el CSS
+              deja visible la que corresponde a cada ancho.
+            */}
+            <NotificationBell enCabecera />
             <button
               type="button"
               className="workspace-command workspace-search"

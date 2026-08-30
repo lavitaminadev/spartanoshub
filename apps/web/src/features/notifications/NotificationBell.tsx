@@ -32,7 +32,7 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-export function NotificationBell() {
+export function NotificationBell({ enCabecera = false }: { enCabecera?: boolean } = {}) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -110,7 +110,7 @@ export function NotificationBell() {
   const unread = countQuery.data?.unread ?? 0;
 
   return (
-    <div className="notification-center" ref={rootRef}>
+    <div className={`notification-center${enCabecera ? ' en-cabecera' : ''}`} ref={rootRef}>
       <button
         type="button"
         className="notification-trigger"
