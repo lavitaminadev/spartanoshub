@@ -21,6 +21,8 @@ import { GoogleCalendarService } from '../../integrations/google/google-calendar
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { EmailService } from '../../../core/notifications/email.service';
+import { componerCorreo } from '../../../core/notifications/plantilla-de-correo';
+import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { MetaClientPixelService } from '../../integrations/meta/meta-client-pixel.service';
 import { inferLocationFromPhone } from '../../../shared/geo-inference';
@@ -110,6 +112,9 @@ export class ReservationsService {
     // dependencias existentes.
     private readonly googleOutbox: GoogleConversionOutboxService,
     @InjectRepository(SurveyContactRequest) private readonly surveyContacts: Repository<SurveyContactRequest>,
+    // Al final, por el mismo motivo que el anterior: las pruebas pasan los argumentos por
+    // posición y meterlo en medio desplazaría todo lo que viene detrás.
+    private readonly parametros: ParameterResolver,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -1170,7 +1175,68 @@ export class ReservationsService {
     });
   }
 
+
+  /**
+   * El comprobante para quien reservó.
+   *
+   * Hasta ahora solo se avisaba al equipo: la persona que reservaba **no recibía nada**, así que
+   * se quedaba sin fecha, sin código y sin nada que enseñar al llegar. Es el correo que más
+   * falta hacía de todo el sistema.
+   *
+   * El asunto nombra el local aunque el remitente sea el de la agencia: quien reservó no conoce
+   * a Espartanos, y una confirmación de un desconocido acaba en spam.
+   *
+   * La plantilla se resuelve **por empresa** y cae a la general si esa empresa no tiene la suya.
+   *
+   * Nunca revierte la reserva: si el correo falla, la reserva ya está confirmada y perderla por
+   * un servidor de correo caído sería mucho peor que un comprobante que no llegó.
+   */
+  private async enviarComprobante(form: ReservationForm, booking: Reservation): Promise<void> {
+    try {
+      if (!booking.guestEmail) return;
+
+      const encendido = await this.parametros.get(
+        'email.reservation_confirmation_enabled', form.clientId, null, form.organizationId,
+      );
+      if (!encendido) return;
+
+      const [asunto, cuerpo] = await Promise.all([
+        this.parametros.get('email.reservation_confirmation_subject', form.clientId, null, form.organizationId),
+        this.parametros.get('email.reservation_confirmation_body', form.clientId, null, form.organizationId),
+      ]);
+
+      const { subject, html } = componerCorreo(
+        String(asunto ?? 'Tu reserva en {{local}} está confirmada'),
+        String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
+        {
+          nombre: booking.guestName,
+          local: form.name,
+          fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
+          personas: booking.partySize,
+          codigo: booking.referenceCode,
+        },
+      );
+
+      /*
+       * Sin esperar, igual que el aviso al equipo.
+       *
+       * El envío es un saludo TLS más una entrega, y con el servidor de correo lento eso se
+       * sumaba entero a lo que espera quien está reservando en la página.
+       */
+      void this.emails.send(booking.guestEmail, subject, html).catch((err) => this.logger.warn(
+        `Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`,
+      ));
+    } catch (err) {
+      this.logger.warn(
+        `No se pudo componer el comprobante de ${booking.id}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
+
   private async notifyNewBooking(form: ReservationForm, booking: Reservation): Promise<void> {
+    // El comprobante va aparte del aviso al equipo: son dos destinatarios con dos motivos, y
+    // que falle el de dentro no puede impedir el de fuera.
+    void this.enviarComprobante(form, booking);
     try {
       const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR id = (SELECT community_manager_id FROM clients WHERE id = ? AND organization_id = ?))`, [form.organizationId, form.clientId, form.clientId, form.organizationId]);
       const userIds = (rows as Array<{ id: string }>).map((row) => row.id).filter(Boolean);

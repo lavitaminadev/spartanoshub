@@ -36,6 +36,8 @@ const google_calendar_service_1 = require("../../integrations/google/google-cale
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
 const notification_service_1 = require("../../../core/notifications/notification.service");
 const email_service_1 = require("../../../core/notifications/email.service");
+const plantilla_de_correo_1 = require("../../../core/notifications/plantilla-de-correo");
+const parameter_resolver_service_1 = require("../../../core/parameters/parameter-resolver.service");
 const audit_service_1 = require("../../../core/audit/audit.service");
 const meta_client_pixel_service_1 = require("../../integrations/meta/meta-client-pixel.service");
 const geo_inference_1 = require("../../../shared/geo-inference");
@@ -57,7 +59,7 @@ const STATUS_TRANSITIONS = {
     attended: [], no_show: [], cancelled_client: [], cancelled_business: [],
 };
 let ReservationsService = ReservationsService_1 = class ReservationsService {
-    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, leadIntake, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts) {
+    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, leadIntake, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, parametros) {
         this.forms = forms;
         this.reservations = reservations;
         this.blocks = blocks;
@@ -74,6 +76,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.audit = audit;
         this.googleOutbox = googleOutbox;
         this.surveyContacts = surveyContacts;
+        this.parametros = parametros;
         this.logger = new common_1.Logger(ReservationsService_1.name);
     }
     slug(value) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 140); }
@@ -987,7 +990,32 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             eventId: (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.LEAD, response.id),
         });
     }
+    async enviarComprobante(form, booking) {
+        try {
+            if (!booking.guestEmail)
+                return;
+            const encendido = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
+            if (!encendido)
+                return;
+            const [asunto, cuerpo] = await Promise.all([
+                this.parametros.get('email.reservation_confirmation_subject', form.clientId, null, form.organizationId),
+                this.parametros.get('email.reservation_confirmation_body', form.clientId, null, form.organizationId),
+            ]);
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? 'Tu reserva en {{local}} está confirmada'), String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'), {
+                nombre: booking.guestName,
+                local: form.name,
+                fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
+                personas: booking.partySize,
+                codigo: booking.referenceCode,
+            });
+            void this.emails.send(booking.guestEmail, subject, html).catch((err) => this.logger.warn(`Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
+        }
+        catch (err) {
+            this.logger.warn(`No se pudo componer el comprobante de ${booking.id}: ${err instanceof Error ? err.message : err}`);
+        }
+    }
     async notifyNewBooking(form, booking) {
+        void this.enviarComprobante(form, booking);
         try {
             const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR id = (SELECT community_manager_id FROM clients WHERE id = ? AND organization_id = ?))`, [form.organizationId, form.clientId, form.clientId, form.organizationId]);
             const userIds = rows.map((row) => row.id).filter(Boolean);
@@ -1456,5 +1484,6 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         email_service_1.EmailService,
         audit_service_1.AuditService,
         google_conversion_outbox_service_1.GoogleConversionOutboxService,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        parameter_resolver_service_1.ParameterResolver])
 ], ReservationsService);
