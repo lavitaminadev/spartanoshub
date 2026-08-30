@@ -66,6 +66,17 @@ const ALERTS: Record<string, { title: string; why: string }> = {
     title: 'Calificados sin visita agendada',
     why: 'Están listos para visitar pero no tienen fecha.',
   },
+  /*
+   * Es el mismo hecho que marca la tarjeta en el tablero.
+   *
+   * Estaba solo allí, y quien entra por el inicio para saber qué atender no lo veía —que es
+   * justo la pantalla donde se decide—. El plazo se configura en Ajustes, así que el texto no
+   * lo nombra: decir «3 días» sería mentir en las cuentas que lo hayan cambiado.
+   */
+  parados: {
+    title: 'Leads sin avanzar',
+    why: 'Llevan días en la misma etapa. Decide si siguen vivos o se descartan.',
+  },
 };
 
 /** El saludo cambia con la hora: entrar a las nueve y a las siete no es lo mismo. */

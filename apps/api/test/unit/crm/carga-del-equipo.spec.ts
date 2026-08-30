@@ -24,7 +24,11 @@ function servicio() {
     findAndCount: vi.fn().mockResolvedValue([[], 0]),
   };
   const users = { find: vi.fn().mockResolvedValue([{ id: 'u1', name: 'Nicolás' }]) };
-  return new CrmHomeService(leads as never, users as never);
+  // El resolutor de ajustes decide desde cuántos días un lead cuenta como parado. Devuelve
+  // `null` para que se use el valor de fábrica, que es lo que hace cualquier cuenta sin
+  // configurar.
+  const parametros = { get: vi.fn().mockResolvedValue(null) };
+  return new CrmHomeService(leads as never, users as never, parametros as never);
 }
 
 describe('carga del equipo', () => {

@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, IsNull, MoreThanOrEqual, Repository, LessThan } from 'typeorm';
 import { Lead } from './lead.entity';
 import { LeadStatus } from './lead-status.enum';
+import { CLAVE_AVISO, PLAZOS_POR_DEFECTO } from './inactividad-del-lead';
+import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 import { User } from '../../users/user.entity';
 
 /** Un lead resumido a lo que hace falta para reconocerlo en un aviso. */
@@ -68,6 +70,7 @@ export class CrmHomeService {
   constructor(
     @InjectRepository(Lead) private readonly leads: Repository<Lead>,
     @InjectRepository(User) private readonly users: Repository<User>,
+    private readonly parametros: ParameterResolver,
   ) {}
 
   /**
@@ -107,6 +110,16 @@ export class CrmHomeService {
     inicioDeMes.setHours(0, 0, 0, 0);
 
     const limiteFrio = new Date(Date.now() - coolingDays * 86_400_000);
+    /*
+     * Desde cuándo un lead cuenta como parado.
+     *
+     * El plazo es un ajuste de la organización porque el ritmo depende del negocio. Se resuelve
+     * una vez para toda la pantalla: preguntarlo por lead sería una consulta por tarjeta.
+     */
+    const diasParaParado = Number(
+      await this.parametros.get(CLAVE_AVISO, null, null, organizationId) ?? PLAZOS_POR_DEFECTO.notice,
+    );
+    const limiteParado = new Date(Date.now() - diasParaParado * 86_400_000);
     // Se compone una vez y se reparte: con seis consultas, repetir el filtro dejaba que alguna
     // se olvidara y contara leads de otra empresa dentro del inicio de ésta.
     const base = {
@@ -116,7 +129,7 @@ export class CrmHomeService {
     };
     const abierto = { ...base, status: In(this.openStatuses()) };
 
-    const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, equipo] = await Promise.all([
+    const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, parados, equipo] = await Promise.all([
       // Las cifras del mes cuentan lo mismo que muestran los avisos y el tablero. Si contaran el
       // embudo entero, el encabezado estaría diciendo por arriba lo que el filtro oculta abajo.
       this.leads.count({ where: this.soloLoSuyo({ ...base, createdAt: MoreThanOrEqual(inicioDeMes) }, alcance.onlyAssignedTo) as never }),
@@ -150,12 +163,29 @@ export class CrmHomeService {
        * mostrarla con una sola fila —la propia— haría creer que el equipo es una persona, y
        * mostrarla completa sería enseñar por otra vía justo lo que el filtro oculta.
        */
+      /*
+       * Leads que llevan días sin cambiar de etapa.
+       *
+       * Es el mismo hecho que marca la tarjeta en el tablero, y estaba solo ahí: quien entra por
+       * el inicio para saber qué atender no lo veía, que es justo la pantalla donde se decide.
+       *
+       * Basta el primer umbral para contar. Los tres niveles sirven para pintar una tarjeta, no
+       * para decidir si algo entra en un aviso: partir el aviso en tres daría tres números que
+       * suman lo mismo y obligan a sumarlos con la vista.
+       *
+       * Se compara la fecha en la consulta y no en memoria: acá se cuentan todos los leads
+       * abiertos de la empresa, y traerlos para descartarlos sería leer la tabla entera.
+       */
+      this.alert('parados', 'alto', this.soloLoSuyo({
+        ...abierto,
+        stageChangedAt: LessThan(limiteParado),
+      }, alcance.onlyAssignedTo)),
       alcance.onlyAssignedTo || alcance.ocultarEquipo
         ? Promise.resolve([])
         : this.teamLoad(base, limiteFrio),
     ]);
 
-    const alerts = [sinContactar, sinAsignar, calificadosSinVisita].filter((a) => a.count > 0);
+    const alerts = [sinContactar, sinAsignar, calificadosSinVisita, parados].filter((a) => a.count > 0);
 
     return {
       month: { leads: delMes, ventas: ventasDelMes, monto: montoDelMes },
