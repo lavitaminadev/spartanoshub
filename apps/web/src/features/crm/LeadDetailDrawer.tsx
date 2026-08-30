@@ -720,6 +720,17 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </label>
 
           <label>
+            <span>Empresa</span>
+            <input
+              className="input"
+              value={empresaDelContacto}
+              onChange={(event) => editar(setEmpresaDelContacto, event.target.value)}
+              disabled={!scope.puedeEditar}
+              placeholder="Dónde trabaja o qué representa"
+            />
+          </label>
+
+          <label>
             <span>Etapa</span>
             {/*
               Las etapas son las del embudo de este lead, no siempre las comerciales.
@@ -731,28 +742,6 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <select className="input" value={etapa} onChange={(event) => editar(setEtapa, event.target.value)} disabled={!scope.puedeEditar}>
               {etapasDelEmbudo.map((stage) => <option key={stage} value={stage}>{etapaLabel(stage)}</option>)}
             </select>
-          </label>
-
-          <label>
-            <span>Responsable</span>
-            <select className="input" value={responsable} onChange={(event) => editar(setResponsable, event.target.value)} disabled={!scope.puedeEditar}>
-              <option value="">Sin asignar</option>
-              {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.name}</option>)}
-            </select>
-          </label>
-
-          <label>
-            <span>Monto estimado</span>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              step="1000"
-              value={monto}
-              onChange={(event) => editar(setMonto, event.target.value)}
-              disabled={!scope.puedeEditar}
-              placeholder="Sin estimar"
-            />
           </label>
 
           <label>
@@ -776,25 +765,12 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </label>
 
           <label>
-            <span>{termino('semaforo')}</span>
-            <select className="input" value={semaforo} onChange={(event) => editar(setSemaforo, event.target.value as typeof semaforo)} disabled={!scope.puedeEditar}>
-              <option value="">Sin etiqueta</option>
-              <option value="green">Verde</option>
-              <option value="yellow">Amarillo</option>
-              <option value="red">Rojo</option>
+            <span>Responsable</span>
+            <select className="input" value={responsable} onChange={(event) => editar(setResponsable, event.target.value)} disabled={!scope.puedeEditar}>
+              <option value="">Sin asignar</option>
+              {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.name}</option>)}
             </select>
           </label>
-
-          {/*
-            Las etiquetas salen de la ficha.
-
-            Eran texto libre: cada persona escribía lo suyo, no se podía filtrar por ellas, no
-            entraban en ningún informe ni en el envío a Meta. Un campo que se llena y nadie lee
-            ocupa sitio en la única pantalla que se mira lead por lead.
-
-            La columna se conserva y lo guardado no se toca: si vuelven, será con un catálogo
-            cerrado y con filtro, que es lo que las haría servir para algo.
-          */}
 
           <label>
             <span>Fuente</span>
@@ -816,6 +792,31 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </label>
 
           {/*
+            Las etiquetas salen de la ficha.
+
+            Eran texto libre: cada persona escribía lo suyo, no se podía filtrar por ellas, no
+            entraban en ningún informe ni en el envío a Meta. Un campo que se llena y nadie lee
+            ocupa sitio en la única pantalla que se mira lead por lead.
+
+            La columna se conserva y lo guardado no se toca: si vuelven, será con un catálogo
+            cerrado y con filtro, que es lo que las haría servir para algo.
+          */}
+
+          <label>
+            <span>Monto estimado</span>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              step="1000"
+              value={monto}
+              onChange={(event) => editar(setMonto, event.target.value)}
+              disabled={!scope.puedeEditar}
+              placeholder="Sin estimar"
+            />
+          </label>
+
+          {/*
             La empresa de la persona, escrita por quien la registra.
 
             Antes este rótulo cubría otra cosa: era el desplegable de cuentas de Espartanos, es
@@ -825,14 +826,13 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             del lead no tenía dónde escribirse: entraba por importación y no se podía corregir.
           */}
           <label>
-            <span>Empresa</span>
-            <input
-              className="input"
-              value={empresaDelContacto}
-              onChange={(event) => editar(setEmpresaDelContacto, event.target.value)}
-              disabled={!scope.puedeEditar}
-              placeholder="Dónde trabaja o qué representa"
-            />
+            <span>{termino('semaforo')}</span>
+            <select className="input" value={semaforo} onChange={(event) => editar(setSemaforo, event.target.value as typeof semaforo)} disabled={!scope.puedeEditar}>
+              <option value="">Sin etiqueta</option>
+              <option value="green">Verde</option>
+              <option value="yellow">Amarillo</option>
+              <option value="red">Rojo</option>
+            </select>
           </label>
 
           {/*

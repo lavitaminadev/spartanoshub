@@ -47,11 +47,29 @@
  * En una fila y no apilados: etapa, responsable y monto se deciden en el mismo momento —al
  * terminar de atender al lead— y verlos juntos deja claro que se guardan juntos.
  */
+/*
+ * Dos columnas fijas, y titulos y controles alineados entre si.
+ *
+ * Antes eran `auto-fit`: el numero de columnas cambiaba con el ancho del cajon, asi que los
+ * campos saltaban de sitio y con un numero impar el ultimo quedaba estirado el solo.
+ *
+ * Y cada campo era una rejilla propia de dos filas, de modo que un titulo de dos lineas -como
+ * el de Calificacion, que lleva una aclaracion- empujaba su control mas abajo que el de al lado.
+ * Con `subgrid` los campos de una misma fila comparten las dos filas del padre: los titulos se
+ * alinean entre si y los controles tambien, sin importar cuanto ocupe cada texto.
+ */
 .lead-detail-edicion {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+  grid-auto-rows: auto auto;
   padding: 14px 0; border-top: 1px solid var(--surface-sage); border-bottom: 1px solid var(--surface-sage);
 }
-.lead-detail-edicion label { display: grid; gap: 5px; }
+.lead-detail-edicion label { display: grid; gap: 5px; grid-row: span 2; grid-template-rows: subgrid; }
+
+/* Sin `subgrid`, se reserva la altura de dos lineas para que el desajuste no dependa del texto. */
+@supports not (grid-template-rows: subgrid) {
+  .lead-detail-edicion label { grid-row: auto; grid-template-rows: none; }
+  .lead-detail-edicion label > span { min-height: 30px; }
+}
 .lead-detail-edicion label > span {
   font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
 }
