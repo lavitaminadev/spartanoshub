@@ -22,6 +22,7 @@ const CrmLayout = lazy(() => import('../features/crm/CrmLayout').then(m => ({ de
 const ReservationsLayout = lazy(() => import('../features/reservations/ReservationsLayout').then(m => ({ default: m.ReservationsLayout })));
 const CrmCalendarPage = lazy(() => import('../features/crm/CrmCalendarPage').then(m => ({ default: m.CrmCalendarPage })));
 const CrmAdminPage = lazy(() => import('../features/crm/CrmAdminPage').then(m => ({ default: m.CrmAdminPage })));
+const PanelDeCorreo = lazy(() => import('../features/admin/PanelDeCorreo').then(m => ({ default: m.PanelDeCorreo })));
 const CrmDashboardPage = lazy(() => import('../features/crm/CrmDashboardPage').then(m => ({ default: m.CrmDashboardPage })));
 const LeadsBoardPage = lazy(() => import('../features/crm/LeadsBoardPage').then(m => ({ default: m.LeadsBoardPage })));
 const CrmHomePage = lazy(() => import('../features/crm/CrmHomePage').then(m => ({ default: m.CrmHomePage })));
@@ -160,6 +161,7 @@ export function AppRouter() {
           <Route path="/governance" element={<ProtectedRoute path="/governance"><SafeSuspense><GovernancePage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/security" element={<ProtectedRoute path="/security"><SafeSuspense><SecurityPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute path="/admin"><SafeSuspense><AdminPage /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/correos" element={<ProtectedRoute path="/correos"><SafeSuspense><PanelDeCorreo /></SafeSuspense></ProtectedRoute>} />
           <Route path="/catalog" element={<ProtectedRoute path="/catalog"><SafeSuspense><CatalogPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute path="/knowledge"><SafeSuspense><KnowledgePage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/surveys" element={<ProtectedRoute path="/surveys"><SafeSuspense><SurveysPage /></SafeSuspense></ProtectedRoute>} />
@@ -222,4 +224,5 @@ import '../features/audiovisual/feature.manifest';
 import '../features/governance/feature.manifest';
 import '../features/security/feature.manifest';
 import '../features/admin/feature.manifest';
+import '../features/admin/correos.manifest';
 import '../features/surveys/feature.manifest';
