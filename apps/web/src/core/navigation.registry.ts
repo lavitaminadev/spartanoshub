@@ -83,7 +83,7 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
     // Administración reúne el trabajo diario: usuarios, seguridad, privacidad e integraciones.
     // Gobierno, configuración técnica y estado del sistema aparecen en este mismo grupo solo
     // para Desarrollo.
-    paths: ['/admin', '/users', '/security', '/integrations', '/governance', '/settings', '/operations'],
+    paths: ['/admin', '/users', '/correos', '/security', '/integrations', '/governance', '/settings', '/operations'],
   },
 ];
 
@@ -243,6 +243,10 @@ const PATH_FEATURE: Record<string, string> = {
   '/crm/dashboard': 'crm',
   '/crm/calendario': 'crm',
   '/crm/administracion': 'crm',
+  // Las plantillas de correo se guardan por el endpoint de ajustes, asi que responden al mismo
+  // modulo: quien no puede tocar la configuracion tampoco debe reescribir lo que le llega a un
+  // cliente.
+  '/correos': 'settings',
   '/crm/contacts': 'crm',
   '/crm/leads': 'crm',
 
