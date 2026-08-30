@@ -1,6 +1,7 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Put, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Put, Req, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../authorization/roles.decorator';
+import { AccountAccessService } from '../client-scope/account-access.service';
 import { UserRole } from '../../modules/organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { UpdateOrganizationSettingsDto } from './dto/update-organization-settings.dto';
@@ -20,17 +21,35 @@ import { isModuleLifecycleVisible, moduleLifecycleSettingKey, type ModuleLifecyc
 @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
 @ModuleScope('settings')
 export class OrganizationSettingsController {
-  constructor(private readonly settings: OrganizationSettingsService) {}
+  constructor(
+    private readonly settings: OrganizationSettingsService,
+    private readonly accountAccess: AccountAccessService,
+  ) {}
 
+  /**
+   * Ajustes efectivos, opcionalmente los de una empresa.
+   *
+   * Con empresa se ve lo que ella tenga escrito y, para lo demás, lo general. Es lo que
+   * permite que una plantilla de correo sea distinta por cliente sin escribirla entera.
+   *
+   * **La empresa no entra acá.** Estos ajustes los administra Espartanos; `clientId` dice de
+   * qué empresa se está editando la plantilla, no quién la edita.
+   */
   @Get()
-  @ApiOperation({ summary: 'Obtener configuración efectiva de la organización' })
-  list(@Req() request: AuthenticatedRequest) {
-    return this.settings.list(request.organizationId || request.user.organizationId);
+  @ApiOperation({ summary: 'Obtener configuración efectiva, opcionalmente de una empresa' })
+  async list(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    const organizationId = request.organizationId || request.user.organizationId;
+    await this.accountAccess.assertClient(organizationId, request.user, clientId);
+    return this.settings.list(organizationId, clientId ?? null);
   }
 
   @Put()
   @ApiOperation({ summary: 'Actualizar y auditar configuración de la organización' })
-  update(@Req() request: AuthenticatedRequest, @Body() dto: UpdateOrganizationSettingsDto) {
+  async update(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateOrganizationSettingsDto,
+    @Query('clientId') clientId?: string,
+  ) {
     const valores = dto.values ?? {};
     const touchesModuleLifecycle = Object.keys(valores).some((key) => key.startsWith('modules.lifecycle.'));
     if (touchesModuleLifecycle && request.user.role !== UserRole.DEV) {
@@ -60,10 +79,15 @@ export class OrganizationSettingsController {
         'Déjalos en activo, piloto o mantenimiento.',
       );
     }
+    const organizationId = request.organizationId || request.user.organizationId;
+    // La misma comprobación que al leer: escribir la plantilla de una empresa exige alcanzarla.
+    await this.accountAccess.assertClient(organizationId, request.user, clientId);
+
     return this.settings.update(
-      request.organizationId || request.user.organizationId,
+      organizationId,
       request.user.id,
       dto.values,
+      clientId ?? null,
     );
   }
 }

@@ -22,6 +22,7 @@ import { PageHero } from '../../shared/PageHero';
 import { EmptyState } from '../../shared/EmptyState';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { QueryErrorState } from '../../shared/QueryErrorState';
+import { PanelDeCorreo } from './PanelDeCorreo';
 import { matchesSearch } from '../../shared/search';
 
 /**
@@ -96,7 +97,7 @@ export function AdminPage() {
    * elegir entre ocultarle a administración lo suyo o darle lo que no le toca.
    */
   const canManageModules = esDesarrollo;
-  const [tab, setTab] = useState<'permisos' | 'modulos' | 'excepciones' | 'consentimiento'>('excepciones');
+  const [tab, setTab] = useState<'permisos' | 'modulos' | 'excepciones' | 'consentimiento' | 'correo'>('excepciones');
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [dirty, setDirty] = useState(false);
   const [matrixDraft, setMatrixDraft] = useState<Record<string, Record<string, PermissionLevel>>>({});
@@ -383,8 +384,13 @@ export function AdminPage() {
       {canManageModules && <button className={tab === 'modulos' ? 'active' : ''} onClick={() => { setTab('modulos'); setFeedback(null); }}><span>02</span><strong>Módulos</strong><small>Ciclo de vida y acceso por organización</small></button>}
       <button className={tab === 'excepciones' ? 'active' : ''} onClick={() => { setTab('excepciones'); setFeedback(null); }}><span>03</span><strong>Accesos por persona</strong><small>Excepciones y accesos temporales</small></button>
       <button className={tab === 'consentimiento' ? 'active' : ''} onClick={() => { setTab('consentimiento'); setFeedback(null); }}><span>04</span><strong>Consentimiento</strong><small>Versiones, aceptación y acceso</small></button>
+      <button className={tab === 'correo' ? 'active' : ''} onClick={() => { setTab('correo'); setFeedback(null); }}><span>05</span><strong>Correos</strong><small>Qué se envía y con qué texto</small></button>
     </nav>
     {feedback && <div className={`alert alert-${feedback.tone}`}>{feedback.text}</div>}
+
+    {/* Vive en su propio componente: esta pantalla ya es larga, y las plantillas son otra cosa
+        que decidir quién puede hacer qué. */}
+    {tab === 'correo' && <PanelDeCorreo />}
 
     {canManagePermissions && tab === 'permisos' && <section className="permission-matrix-section">
       <div className="section-toolbar"><div><span className="page-eyebrow">MATRIZ DE ACCESO</span><h2>Permisos por cargo y módulo</h2><p className="page-subtitle">Cada celda define qué puede hacer un cargo en un módulo. Los cambios se guardan al confirmar.</p></div>

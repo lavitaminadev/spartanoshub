@@ -21,18 +21,46 @@ export class OrganizationSettingsService {
     private readonly resolver: ParameterResolver,
   ) {}
 
-  async list(organizationId: string) {
+  /**
+   * Ajustes efectivos, opcionalmente los de una empresa.
+   *
+   * Con empresa se devuelve lo que ella tenga escrito y, para lo que no, el valor de la
+   * organización. `source` dice de dónde salió cada uno, que es lo que permite a la pantalla
+   * distinguir «esta empresa lo cambió» de «hereda el general».
+   */
+  async list(organizationId: string, clientId?: string | null) {
     const definitions = await this.ensureDefinitions();
     const definitionByKey = new Map(definitions.map((definition) => [definition.key, definition]));
-    const values = await this.valueRepo.find({
+    const idsDeDefinicion = definitions.map((definition) => definition.id);
+    const deLaOrganizacion = await this.valueRepo.find({
       where: {
-        definitionId: In(definitions.map((definition) => definition.id)),
+        definitionId: In(idsDeDefinicion),
         scopeType: 'organization',
         scopeId: organizationId,
         validTo: IsNull(),
       },
     });
-    const valueByDefinition = new Map(values.map((value) => [value.definitionId, value]));
+    const valueByDefinition = new Map(deLaOrganizacion.map((value) => [value.definitionId, value]));
+
+    /*
+     * Lo de la empresa se superpone a lo de la organización, no lo sustituye.
+     *
+     * Así una empresa que solo cambió el asunto conserva el cuerpo general, que es lo que hace
+     * útil la cascada: obligar a escribir la plantilla entera para cambiar una línea sería peor
+     * que no poder cambiarla.
+     */
+    const deLaEmpresa = clientId
+      ? await this.valueRepo.find({
+        where: {
+          definitionId: In(idsDeDefinicion),
+          scopeType: 'client',
+          scopeId: clientId,
+          validTo: IsNull(),
+        },
+      })
+      : [];
+    const propios = new Set(deLaEmpresa.map((value) => value.definitionId));
+    for (const value of deLaEmpresa) valueByDefinition.set(value.definitionId, value);
 
     return ORGANIZATION_SETTINGS.map((setting) => {
       const definition = definitionByKey.get(setting.key)!;
@@ -43,13 +71,27 @@ export class OrganizationSettingsService {
         // quien entra a avanzada ve todo lo que su cargo ya le permitía.
         level: settingLevel(setting.key),
         value: override?.valueJson?.value ?? setting.defaultValue,
-        source: override ? 'organization' : 'master_default',
+        /*
+         * Tres orígenes y no dos.
+         *
+         * Quien edita necesita distinguir «esta empresa lo cambió» de «hereda el general»: sin
+         * eso, cambiar el valor general y no ver el cambio en una empresa parece un fallo en vez
+         * de una decisión que alguien tomó antes.
+         */
+        source: override
+          ? (propios.has(definition.id) ? 'client' : 'organization')
+          : 'master_default',
         version: override?.version ?? 0,
       };
     });
   }
 
-  async update(organizationId: string, actorId: string, requestedValues: Record<string, unknown>) {
+  async update(
+    organizationId: string,
+    actorId: string,
+    requestedValues: Record<string, unknown>,
+    clientId?: string | null,
+  ) {
     const catalogByKey = new Map(ORGANIZATION_SETTINGS.map((setting) => [setting.key, setting]));
     const normalizedValues = new Map<string, string | number | boolean | null>();
 
@@ -78,8 +120,8 @@ export class OrganizationSettingsService {
         const active = await valueRepo.findOne({
           where: {
             definitionId: definition.id,
-            scopeType: 'organization',
-            scopeId: organizationId,
+            scopeType: clientId ? 'client' : 'organization',
+            scopeId: clientId ?? organizationId,
             validTo: IsNull(),
           },
           order: { version: 'DESC' },
@@ -93,8 +135,8 @@ export class OrganizationSettingsService {
         }
         await valueRepo.save(valueRepo.create({
           definitionId: definition.id,
-          scopeType: 'organization',
-          scopeId: organizationId,
+          scopeType: clientId ? 'client' : 'organization',
+          scopeId: clientId ?? organizationId,
           valueJson: { value },
           version: (active?.version ?? 0) + 1,
           validFrom: now,
@@ -113,9 +155,13 @@ export class OrganizationSettingsService {
         action: 'update',
         before,
         after,
-        reason: 'Actualización desde Configuración Central',
+        // La empresa queda en el motivo: sin ella, dos cambios sobre la misma clave en empresas
+        // distintas se leen igual en la auditoría.
+        reason: clientId
+          ? `Actualización desde Configuración Central para la empresa ${clientId}`
+          : 'Actualización desde Configuración Central',
       });
-      for (const key of Object.keys(after)) this.resolver.invalidate(key, null, null, organizationId);
+      for (const key of Object.keys(after)) this.resolver.invalidate(key, clientId ?? null, null, organizationId);
     }
 
     return this.list(organizationId);

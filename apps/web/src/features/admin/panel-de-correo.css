@@ -1,0 +1,41 @@
+/*
+  Panel de plantillas de correo.
+
+  Cada aviso es una tarjeta con su interruptor arriba: encendido o apagado es lo primero que se
+  mira, y tenerlo junto al título evita recorrer la fila para saber si ese correo sale.
+*/
+.panel-correo { display: grid; gap: 16px; }
+.panel-correo > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.panel-correo > header p { max-width: 62ch; margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.panel-correo-empresa { display: grid; gap: 4px; min-width: 240px; }
+.panel-correo-empresa > span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.panel-correo-nota { margin: 0; padding: 9px 13px; border-radius: 8px; background: var(--soft); color: var(--muted); font-size: 13px; }
+
+.panel-correo-aviso { padding: 14px 16px; border: 1px solid var(--soft); border-radius: 10px; background: var(--white); }
+/* El encendido se ve en el borde, no solo en la casilla: de un vistazo se sabe cuáles salen. */
+.panel-correo-aviso.esta-activo { border-color: var(--accent); }
+.panel-correo-aviso > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.panel-correo-aviso > header label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.panel-correo-aviso > p { margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.panel-correo-propio { font-style: normal; font-size: 11px; color: var(--accent); }
+
+.panel-correo-campos { display: grid; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--soft); }
+.panel-correo-campos label { display: grid; gap: 5px; }
+.panel-correo-campos label > span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.panel-correo-campos textarea { font-family: inherit; line-height: 1.5; resize: vertical; }
+
+/* Las variables se pulsan para insertarlas: escribirlas a mano es donde aparecen las erratas. */
+.panel-correo-variables { display: flex; flex-wrap: wrap; gap: 5px; }
+.panel-correo-variables button {
+  padding: 2px 7px; border: 1px solid var(--soft); border-radius: 999px; background: transparent;
+  color: var(--muted); font-family: ui-monospace, monospace; font-size: 11px; cursor: pointer;
+}
+.panel-correo-variables button:hover { border-color: var(--accent); color: var(--accent); }
+
+.panel-correo-acciones { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.panel-correo-acciones small { color: var(--muted); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .panel-correo > header { flex-direction: column; }
+  .panel-correo-empresa { width: 100%; }
+}
