@@ -33,3 +33,28 @@ export function useStageLabels(clientId: string): RotulosDeEtapa {
   });
   return data?.labels ?? {};
 }
+
+/**
+ * Etapas que esta empresa decidió no usar.
+ *
+ * No se borran de nada: el lead que estuviera en una seguiría teniéndola guardada. Lo que
+ * cambia es si la columna se dibuja y si el estado se ofrece al mover una tarjeta.
+ *
+ * Mientras carga devuelve la lista vacía, o sea **se muestran todas**. Es lo correcto: esconder
+ * columnas mientras llega la respuesta haría que el tablero cambiara de forma al cargar, y un
+ * lead que estuviera en una etapa oculta desaparecería un instante antes de reaparecer.
+ *
+ * @param clientId - Empresa cuyo CRM se mira. Vacío para el embudo de la agencia.
+ */
+export function useEtapasOcultas(clientId: string): string[] {
+  const { data } = useQuery<{ hidden: string[] }>({
+    queryKey: ['crm-stage-hidden', clientId],
+    queryFn: () => api.get(
+      `/crm/stage-labels/hidden${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ''}`,
+    ),
+    // Mismo motivo que los rótulos: se piden en cada pantalla del CRM y cambian muy de vez en
+    // cuando, así que sin esto el tablero cambiaría de forma al ir y volver de la lista.
+    staleTime: 5 * 60_000,
+  });
+  return data?.hidden ?? [];
+}

@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StageLabelsService = exports.CLAVE_VOCABULARIO = exports.CLAVE_ROTULOS = void 0;
+exports.StageLabelsService = exports.CLAVE_ETAPAS_OCULTAS = exports.CLAVE_VOCABULARIO = exports.CLAVE_ROTULOS = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -20,6 +20,7 @@ const parameter_definition_entity_1 = require("../../../core/parameters/paramete
 const parameter_value_entity_1 = require("../../../core/parameters/parameter-value.entity");
 exports.CLAVE_ROTULOS = 'crm.stage_labels';
 exports.CLAVE_VOCABULARIO = 'crm.vocabulary';
+exports.CLAVE_ETAPAS_OCULTAS = 'crm.hidden_stages';
 let StageLabelsService = class StageLabelsService {
     constructor(definiciones, valores) {
         this.definiciones = definiciones;
@@ -69,6 +70,46 @@ let StageLabelsService = class StageLabelsService {
             }));
         }
         return limpios;
+    }
+    async ocultas(organizationId, clientId) {
+        const definicion = await this.definiciones.findOne({ where: { key: exports.CLAVE_ETAPAS_OCULTAS } });
+        if (!definicion)
+            return [];
+        const fila = await this.valores.findOne({
+            where: {
+                definitionId: definicion.id,
+                ...this.alcance(organizationId, clientId),
+                validTo: (0, typeorm_2.IsNull)(),
+            },
+        });
+        const guardado = fila?.valueJson?.value;
+        return Array.isArray(guardado) ? guardado.map(String) : [];
+    }
+    async ocultar(organizationId, clientId, estados) {
+        const definicion = await this.definiciones.findOne({ where: { key: exports.CLAVE_ETAPAS_OCULTAS } })
+            ?? await this.definiciones.save(this.definiciones.create({
+                key: exports.CLAVE_ETAPAS_OCULTAS,
+                description: 'Etapas del embudo que una empresa decide no usar. No borra nada: solo deja de mostrarlas.',
+                defaultValue: { value: [] },
+            }));
+        const limpias = [...new Set(estados.map((estado) => String(estado ?? '').trim()).filter(Boolean))];
+        const alcance = this.alcance(organizationId, clientId);
+        const existente = await this.valores.findOne({
+            where: { definitionId: definicion.id, ...alcance, validTo: (0, typeorm_2.IsNull)() },
+        });
+        if (existente) {
+            existente.valueJson = { value: limpias };
+            existente.version += 1;
+            await this.valores.save(existente);
+        }
+        else {
+            await this.valores.save(this.valores.create({
+                definitionId: definicion.id,
+                ...alcance,
+                valueJson: { value: limpias },
+            }));
+        }
+        return limpias;
     }
     alcance(organizationId, clientId) {
         return clientId

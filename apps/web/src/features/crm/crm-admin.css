@@ -63,3 +63,19 @@
 
 /* Editar y quitar juntos, sin que la lista los separe a los extremos de la fila. */
 .crm-admin-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+CSS2
+
+/*
+  La casilla de "la uso" va dentro del título de cada etapa.
+
+  Junto al nombre y no en una columna aparte porque son la misma decisión: cómo se llama este
+  paso y si este paso existe. En columnas separadas hay que cruzar la vista para saber a cuál
+  pertenece cada casilla.
+*/
+.crm-admin-etapas label > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.crm-admin-etapas label > span em { display: inline-flex; align-items: center; gap: 4px; font-style: normal; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.crm-admin-etapas label > span em input { margin: 0; }
+
+/* Una etapa que no se usa sigue visible acá para poder volver a encenderla, pero apagada. */
+.crm-admin-etapas label.esta-oculta > span { color: var(--muted); }
+.crm-admin-etapas label.esta-oculta .input { opacity: .55; }

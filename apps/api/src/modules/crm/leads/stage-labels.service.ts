@@ -16,6 +16,14 @@ export const CLAVE_ROTULOS = 'crm.stage_labels';
  */
 export const CLAVE_VOCABULARIO = 'crm.vocabulary';
 
+/**
+ * Clave de las etapas que una empresa decide no usar.
+ *
+ * Va aparte del renombrado porque son decisiones distintas: una cambia cómo se lee un paso y
+ * la otra si ese paso existe para esa empresa. Comparten el mecanismo, no el contenido.
+ */
+export const CLAVE_ETAPAS_OCULTAS = 'crm.hidden_stages';
+
 /** Rótulos de etapa: estado interno → cómo lo llama esa empresa. */
 export type RotulosDeEtapa = Record<string, string>;
 
@@ -106,6 +114,72 @@ export class StageLabelsService {
       }));
     }
     return limpios;
+  }
+
+
+  /**
+   * Etapas que esta empresa decidió no usar.
+   *
+   * No se borran del catálogo ni de los leads: lo que cambia es si la columna se dibuja y si el
+   * estado se ofrece al mover una tarjeta. Un lead que ya estuviera en una etapa oculta seguiría
+   * teniéndola guardada, y por eso apagarla se impide mientras haya alguno dentro.
+   *
+   * @returns Claves internas de estado. Vacío significa que se usan todas.
+   */
+  async ocultas(organizationId: string, clientId?: string | null): Promise<string[]> {
+    const definicion = await this.definiciones.findOne({ where: { key: CLAVE_ETAPAS_OCULTAS } });
+    if (!definicion) return [];
+
+    const fila = await this.valores.findOne({
+      where: {
+        definitionId: definicion.id,
+        ...this.alcance(organizationId, clientId),
+        validTo: IsNull(),
+      },
+    });
+    const guardado = fila?.valueJson?.value;
+    return Array.isArray(guardado) ? guardado.map(String) : [];
+  }
+
+  /**
+   * Fija qué etapas quedan ocultas para esta empresa.
+   *
+   * Se guarda la lista completa y no una diferencia: volver a usar una etapa es no incluirla, y
+   * con parches habría que inventar una forma de decir «esta vuelve».
+   */
+  async ocultar(
+    organizationId: string,
+    clientId: string | null,
+    estados: string[],
+  ): Promise<string[]> {
+    const definicion = await this.definiciones.findOne({ where: { key: CLAVE_ETAPAS_OCULTAS } })
+      ?? await this.definiciones.save(this.definiciones.create({
+        key: CLAVE_ETAPAS_OCULTAS,
+        description: 'Etapas del embudo que una empresa decide no usar. No borra nada: solo deja de mostrarlas.',
+        defaultValue: { value: [] },
+      }));
+
+    // Sin repetidos y sin vacíos: la lista se compara por pertenencia, y un duplicado solo
+    // engorda el JSON sin cambiar ninguna respuesta.
+    const limpias = [...new Set(estados.map((estado) => String(estado ?? '').trim()).filter(Boolean))];
+
+    const alcance = this.alcance(organizationId, clientId);
+    const existente = await this.valores.findOne({
+      where: { definitionId: definicion.id, ...alcance, validTo: IsNull() },
+    });
+
+    if (existente) {
+      existente.valueJson = { value: limpias };
+      existente.version += 1;
+      await this.valores.save(existente);
+    } else {
+      await this.valores.save(this.valores.create({
+        definitionId: definicion.id,
+        ...alcance,
+        valueJson: { value: limpias },
+      }));
+    }
+    return limpias;
   }
 
   /**
