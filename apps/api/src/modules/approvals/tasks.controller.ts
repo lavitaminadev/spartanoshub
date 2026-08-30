@@ -70,6 +70,7 @@ export class TasksController {
     @Req() req: AuthenticatedRequest,
     @Query('from') from: string,
     @Query('to') to: string,
+    @Query('clientId') clientId?: string,
   ) {
     const desde = new Date(from);
     const hasta = new Date(to);
@@ -78,14 +79,28 @@ export class TasksController {
     }
 
     /*
-     * El alcance por cuenta se aplica acá y no en el servicio.
+     * Dos filtros distintos, y hacen falta los dos.
+     *
+     * `assertClient` comprueba que esta persona **puede** ver esa empresa. El filtro por
+     * `clientId` decide cuál se **está mirando**, que es otra cosa: sin él, el calendario de una
+     * empresa mostraba las tareas de todas las que la persona alcanza. No era una fuga de
+     * permisos —solo veía lo suyo— pero sí datos de una cuenta bajo el encabezado de otra, que es
+     * la forma más silenciosa de mezclarlas y la más difícil de notar.
      *
      * `allowedClientIds` devuelve `undefined` cuando la persona alcanza todas las cuentas, que es
      * distinto de alcanzar ninguna. Confundirlos filtraría por una lista vacía y devolvería cero
      * tareas a quien lo ve todo.
      */
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    const data = await this.tasks.listAgenda(req.organizationId, desde, hasta, permitidas);
+
+    const data = await this.tasks.listAgenda(
+      req.organizationId,
+      desde,
+      hasta,
+      // Con empresa elegida se acota a ella; sin empresa, a todas las que alcanza.
+      clientId ? [clientId] : permitidas,
+    );
     return { data };
   }
 

@@ -187,7 +187,10 @@ export function CrmCalendarPage(): JSX.Element {
   const { data: tareas } = useQuery<{ data: Array<{ id: string; title: string; dueAt?: string | null; status: string }> }>({
     queryKey: ['crm-calendario-tareas', scope.clientId, rango.desde, rango.hasta],
     queryFn: () => api.get(
-      `/tasks/agenda?from=${encodeURIComponent(rango.desde)}&to=${encodeURIComponent(rango.hasta)}`,
+      `/tasks/agenda?from=${encodeURIComponent(rango.desde)}&to=${encodeURIComponent(rango.hasta)}`
+      // La empresa que se está mirando, igual que en las actividades. Sin esto el calendario de
+      // una empresa mostraba las tareas de todas las que la persona alcanza.
+      + `${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
     ),
     retry: false,
   });
