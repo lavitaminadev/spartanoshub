@@ -523,6 +523,83 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     defaultValue: '{{nombre}}, que tengas un gran día.\n\nUn saludo de todo el equipo.',
     masterStatus: 'master_defined',
   },
+  /*
+   * Los correos de reserva.
+   *
+   * Quien reserva no conoce a Espartanos: reservó en el local de un cliente. Por eso el asunto
+   * nombra el local —«Tu reserva en {{local}}»— aunque el remitente sea el de la agencia. Sin
+   * eso, la confirmación llega de un desconocido y acaba en spam.
+   *
+   * Estas plantillas admiten valor por empresa: la maquinaria de ajustes resuelve empresa,
+   * después organización y al final el valor de fábrica. Quien no escriba la suya usa la
+   * general, y quien la escriba no afecta a nadie más.
+   */
+  {
+    key: 'email.reservation_confirmation_enabled',
+    category: 'email',
+    label: 'Confirmación de reserva',
+    description: 'Envía el comprobante a quien reserva. Hoy no recibe nada: es el correo que más falta hace.',
+    valueType: 'boolean',
+    defaultValue: false,
+    masterStatus: 'direction_required',
+  },
+  {
+    key: 'email.reservation_confirmation_subject',
+    category: 'email',
+    label: 'Confirmación de reserva · asunto',
+    description: 'Variables: {{nombre}}, {{local}}, {{fecha}}, {{codigo}}.',
+    valueType: 'text',
+    defaultValue: 'Tu reserva en {{local}} está confirmada',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.reservation_confirmation_body',
+    category: 'email',
+    label: 'Confirmación de reserva · cuerpo',
+    description: 'Variables: {{nombre}}, {{local}}, {{fecha}}, {{personas}}, {{codigo}}.',
+    valueType: 'text',
+    defaultValue: 'Hola {{nombre}}:\n\nTu reserva en {{local}} quedó confirmada para el {{fecha}}.\n\nPersonas: {{personas}}\nCódigo: {{codigo}}\n\nSi no puedes asistir, avísanos respondiendo este correo.',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.reservation_reminder_enabled',
+    category: 'email',
+    label: 'Recordatorio de reserva',
+    description: 'Avisa el día antes. Es la medida que más reduce las ausencias.',
+    valueType: 'boolean',
+    defaultValue: false,
+    masterStatus: 'direction_required',
+  },
+  {
+    key: 'email.reservation_reminder_hours',
+    category: 'email',
+    label: 'Recordatorio de reserva · anticipación',
+    description: 'Horas antes de la reserva a las que se envía el recordatorio.',
+    valueType: 'number',
+    defaultValue: 24,
+    masterStatus: 'master_defined',
+    min: 1,
+    max: 168,
+    unit: 'horas',
+  },
+  {
+    key: 'email.reservation_reminder_subject',
+    category: 'email',
+    label: 'Recordatorio de reserva · asunto',
+    description: 'Variables: {{nombre}}, {{local}}, {{fecha}}, {{codigo}}.',
+    valueType: 'text',
+    defaultValue: 'Mañana te esperamos en {{local}}',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.reservation_reminder_body',
+    category: 'email',
+    label: 'Recordatorio de reserva · cuerpo',
+    description: 'Variables: {{nombre}}, {{local}}, {{fecha}}, {{personas}}, {{codigo}}.',
+    valueType: 'text',
+    defaultValue: 'Hola {{nombre}}:\n\nTe recordamos tu reserva en {{local}} el {{fecha}}.\n\nPersonas: {{personas}}\nCódigo: {{codigo}}\n\nSi ya no puedes asistir, respóndenos para liberar el cupo.',
+    masterStatus: 'master_defined',
+  },
   {
     key: 'email.idle_lead_enabled',
     category: 'email',

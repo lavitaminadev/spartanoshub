@@ -53,6 +53,16 @@ export class Reservation {
    */
   @Column({ name: 'adult_declared_at', type: 'timestamp', nullable: true })
   adultDeclaredAt?: Date | null;
+
+  /**
+   * Cuándo se le recordó su reserva a quien la hizo.
+   *
+   * El trabajo que los manda corre cada media hora; sin esto la misma persona recibiría cuarenta
+   * y ocho copias antes de que llegara el día. Se guarda el instante y no un sí/no porque la
+   * anticipación es un ajuste: si cambia, la fecha permite saber si el enviado sigue valiendo.
+   */
+  @Column({ name: 'reminder_sent_at', type: 'timestamp', nullable: true })
+  reminderSentAt?: Date | null;
   @Column({ name: 'internal_notes', type: 'text', nullable: true }) internalNotes?: string | null;
   @Column({ name: 'utm_source', type: 'varchar', length: 120, nullable: true }) utmSource?: string;
   @Column({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }) utmMedium?: string;

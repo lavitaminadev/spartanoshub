@@ -24,6 +24,7 @@ const leads_parados_job_1 = require("../jobs/cron/leads-parados.job");
 const recordatorio_de_tareas_job_1 = require("../jobs/cron/recordatorio-de-tareas.job");
 const resumen_diario_job_1 = require("../jobs/cron/resumen-diario.job");
 const saludo_de_cumpleanos_job_1 = require("../jobs/cron/saludo-de-cumpleanos.job");
+const recordatorio_de_reservas_job_1 = require("../jobs/cron/recordatorio-de-reservas.job");
 const operational_alerts_job_1 = require("../jobs/cron/operational-alerts.job");
 const create_monthly_cycles_job_1 = require("../jobs/cron/create-monthly-cycles.job");
 const collection_emails_job_1 = require("../jobs/cron/collection-emails.job");
@@ -31,7 +32,7 @@ const purge_expired_leads_job_1 = require("../jobs/cron/purge-expired-leads.job"
 const recover_reservation_integrations_job_1 = require("../jobs/cron/recover-reservation-integrations.job");
 const close_xp_periods_job_1 = require("../jobs/cron/close-xp-periods.job");
 let CronController = class CronController {
-    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp) {
+    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp) {
         this.capiOutbox = capiOutbox;
         this.googleOutbox = googleOutbox;
         this.stale = stale;
@@ -39,6 +40,7 @@ let CronController = class CronController {
         this.recordatorios = recordatorios;
         this.resumen = resumen;
         this.cumpleanos = cumpleanos;
+        this.recordatorioReservas = recordatorioReservas;
         this.operationalAlerts = operationalAlerts;
         this.cycles = cycles;
         this.collections = collections;
@@ -161,6 +163,14 @@ let CronController = class CronController {
     async cumpleanosGet(secret) {
         this.verifySecret(secret);
         return this.runLocked('cumpleanos', () => this.cumpleanos.handle());
+    }
+    async recordatorioReservasPost(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('recordatorio-reservas', () => this.recordatorioReservas.handle());
+    }
+    async recordatorioReservasGet(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('recordatorio-reservas', () => this.recordatorioReservas.handle());
     }
     async processStalePiecesPost(secret) {
         this.verifySecret(secret);
@@ -344,6 +354,22 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CronController.prototype, "cumpleanosGet", null);
 __decorate([
+    (0, common_1.Post)('recordatorio-reservas'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "recordatorioReservasPost", null);
+__decorate([
+    (0, common_1.Get)('recordatorio-reservas'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "recordatorioReservasGet", null);
+__decorate([
     (0, common_1.Post)('stale-pieces'),
     (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
     __param(0, (0, common_1.Headers)('x-cron-secret')),
@@ -465,6 +491,7 @@ exports.CronController = CronController = __decorate([
         recordatorio_de_tareas_job_1.RecordatorioDeTareasJob,
         resumen_diario_job_1.ResumenDiarioJob,
         saludo_de_cumpleanos_job_1.SaludoDeCumpleanosJob,
+        recordatorio_de_reservas_job_1.RecordatorioDeReservasJob,
         operational_alerts_job_1.OperationalAlertsJob,
         create_monthly_cycles_job_1.CreateMonthlyCyclesJob,
         collection_emails_job_1.CollectionEmailsJob,

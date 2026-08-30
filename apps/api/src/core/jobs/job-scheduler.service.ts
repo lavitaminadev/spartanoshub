@@ -6,6 +6,7 @@ import { LeadsParadosJob } from './cron/leads-parados.job';
 import { RecordatorioDeTareasJob } from './cron/recordatorio-de-tareas.job';
 import { ResumenDiarioJob } from './cron/resumen-diario.job';
 import { SaludoDeCumpleanosJob } from './cron/saludo-de-cumpleanos.job';
+import { RecordatorioDeReservasJob } from './cron/recordatorio-de-reservas.job';
 import { CollectionEmailsJob } from './cron/collection-emails.job';
 import { PurgeExpiredLeadsJob } from './cron/purge-expired-leads.job';
 import { MetaLeadRecoveryJob } from './cron/meta-lead-recovery.job';
@@ -30,6 +31,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly recordatorios: RecordatorioDeTareasJob,
     private readonly resumen: ResumenDiarioJob,
     private readonly cumpleanos: SaludoDeCumpleanosJob,
+    private readonly recordatorioReservas: RecordatorioDeReservasJob,
     private readonly collections: CollectionEmailsJob,
     private readonly purge: PurgeExpiredLeadsJob,
     private readonly metaRecovery: MetaLeadRecoveryJob,
@@ -91,6 +93,9 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
      */
     this.schedule('resumen-diario', 24 * 60 * 60_000, () => this.resumen.handle());
     this.schedule('cumpleanos', 24 * 60 * 60_000, () => this.cumpleanos.handle());
+    // Cada media hora: la anticipación se configura en horas, y con una cadencia mayor el
+    // recordatorio saldría con menos margen del que la empresa eligió.
+    this.schedule('recordatorio-reservas', 30 * 60_000, () => this.recordatorioReservas.handle());
     this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
     this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
     this.schedule('collection-emails', 24 * 60 * 60_000, () => this.collections.handle());
