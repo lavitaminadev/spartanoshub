@@ -19,7 +19,7 @@ import { EmptyState } from '../../shared/EmptyState';
 import { Modal } from '../../shared/Modal';
 import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { useCrmScope } from './crm-scope';
-import { useStageLabels, type RotulosDeEtapa } from './use-stage-labels';
+import { useEtapasOcultas, useStageLabels, type RotulosDeEtapa } from './use-stage-labels';
 import { useVocabulario, VOCABULARIO_BASE, type Vocabulario } from './use-vocabulario';
 import { STAGES, STAGE_LABEL } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
@@ -843,6 +843,34 @@ function NombresDeEtapa(): JSX.Element {
 
   const valores = borrador ?? guardados;
 
+  /*
+   * Qué etapas usa esta empresa.
+   *
+   * Va en la misma pantalla que los nombres porque son la misma decisión mirada de dos formas:
+   * cómo se llama un paso y si ese paso existe. Tenerlas en pantallas distintas obliga a ir y
+   * volver para configurar un embudo.
+   */
+  const ocultasGuardadas = useEtapasOcultas(scope.clientId);
+  const [ocultasBorrador, setOcultasBorrador] = useState<string[] | null>(null);
+  const ocultas = ocultasBorrador ?? ocultasGuardadas;
+
+  const guardarOcultas = useMutation({
+    mutationFn: (hidden: string[]) => api.put(
+      `/crm/stage-labels/hidden${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      { hidden },
+    ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['crm-stage-hidden'] });
+      setOcultasBorrador(null);
+      setAviso('Etapas guardadas. El tablero las reflejará al recargar.');
+    },
+    /*
+     * El servidor se niega a ocultar una etapa con leads dentro y dice cuántos hay. Ese mensaje
+     * se muestra tal cual: es la única forma de saber qué hacer, y sustituirlo por uno genérico
+     * dejaría a quien configura sin saber por qué no puede.
+     */
+    onError: (error: Error) => setAviso(error.message || 'No se pudieron guardar las etapas'),
+  });
   const guardar = useMutation({
     mutationFn: (labels: RotulosDeEtapa) => api.put(
       `/crm/stage-labels${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
@@ -871,8 +899,27 @@ function NombresDeEtapa(): JSX.Element {
       </p>
       <div className="crm-admin-etapas">
         {etapas.map((etapa) => (
-          <label key={etapa.value}>
-            <span>{etapa.base}</span>
+          <label key={etapa.value} className={ocultas.includes(etapa.value) ? 'esta-oculta' : ''}>
+            <span>
+              {etapa.base}
+              {/*
+                La casilla dice si la etapa se usa, no si se oculta: se lee mejor en positivo, y
+                una casilla marcada que significa "no aparece" se entiende al revés la mitad de
+                las veces.
+              */}
+              <em>
+                <input
+                  type="checkbox"
+                  checked={!ocultas.includes(etapa.value)}
+                  onChange={() => setOcultasBorrador(
+                    ocultas.includes(etapa.value)
+                      ? ocultas.filter((estado) => estado !== etapa.value)
+                      : [...ocultas, etapa.value],
+                  )}
+                />
+                {' '}La uso
+              </em>
+            </span>
             <input
               className="input"
               value={valores[etapa.value] ?? ''}
@@ -884,6 +931,14 @@ function NombresDeEtapa(): JSX.Element {
         ))}
       </div>
       <div className="crm-admin-etapas-acciones">
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          disabled={ocultasBorrador === null || guardarOcultas.isPending}
+          onClick={() => guardarOcultas.mutate(ocultas)}
+        >
+          {guardarOcultas.isPending ? 'Guardando...' : 'Guardar etapas'}
+        </button>
         <button
           type="button"
           className="btn btn-accent btn-sm"

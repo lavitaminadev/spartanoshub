@@ -1,4 +1,7 @@
-import { Body, Controller, Get, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { Lead } from './lead.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
@@ -23,6 +26,7 @@ export class StageLabelsController {
   constructor(
     private readonly rotulos: StageLabelsService,
     private readonly accountAccess: AccountAccessService,
+    @InjectRepository(Lead) private readonly leads: Repository<Lead>,
   ) {}
 
   @Get()
@@ -72,5 +76,61 @@ export class StageLabelsController {
   ) {
     await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
     return { labels: await this.rotulos.set(req.organizationId!, clientId ?? null, cuerpo?.labels ?? {}) };
+  }
+
+  /**
+   * Etapas que esta empresa decidió no usar.
+   *
+   * Leer no exige cargo, igual que los rótulos: el tablero lo necesita para saber qué columnas
+   * dibujar, y sin esto las pintaría todas.
+   */
+  @Get('hidden')
+  @ApiOperation({ summary: 'Etapas ocultas de una empresa' })
+  async ocultas(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    return { hidden: await this.rotulos.ocultas(req.organizationId!, clientId ?? null) };
+  }
+
+  /**
+   * Enciende y apaga etapas del embudo de una empresa.
+   *
+   * **Se niega a ocultar una etapa que tenga leads dentro**, y dice cuántos. La alternativa
+   * —moverlos a otra etapa por su cuenta— cambiaría el estado de leads reales sin que nadie lo
+   * pidiera; y ocultarla sin más los haría desaparecer del tablero sin borrarlos, que es peor:
+   * no falla nada, simplemente dejan de verse. Eso ya pasó en este CRM con la etapa «Visitó».
+   *
+   * Volver a mostrar una etapa nunca se impide: no puede romper nada.
+   */
+  @Put('hidden')
+  @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
+  @ApiOperation({ summary: 'Elegir qué etapas usa una empresa' })
+  async guardarOcultas(
+    @Req() req: AuthenticatedRequest,
+    @Body() cuerpo: { hidden?: string[] },
+    @Query('clientId') clientId?: string,
+  ) {
+    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    const pedidas = cuerpo?.hidden ?? [];
+    const yaOcultas = await this.rotulos.ocultas(req.organizationId!, clientId ?? null);
+
+    // Solo se comprueban las que se apagan ahora: una que ya estaba oculta no puede haber
+    // recibido leads nuevos, y volver a comprobarla haría fallar el guardado de otra cosa.
+    for (const estado of pedidas.filter((etapa) => !yaOcultas.includes(etapa))) {
+      const dentro = await this.leads.count({
+        where: {
+          organizationId: req.organizationId!,
+          status: estado,
+          clientId: clientId ?? IsNull(),
+        },
+      });
+      if (dentro > 0) {
+        throw new BadRequestException(
+          `No se puede ocultar esa etapa: hay ${dentro} ${dentro === 1 ? "lead" : "leads"} dentro. `
+          + 'Muévelos primero y vuelve a intentarlo.',
+        );
+      }
+    }
+
+    return { hidden: await this.rotulos.ocultar(req.organizationId!, clientId ?? null, pedidas) };
   }
 }

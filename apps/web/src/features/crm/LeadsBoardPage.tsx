@@ -38,7 +38,7 @@ import { STAGES, STAGE_ACCENT, STAGE_LABEL } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
 import { useAuth } from '../../core/auth';
-import { useStageLabels } from './use-stage-labels';
+import { useEtapasOcultas, useStageLabels } from './use-stage-labels';
 import { COLUMNAS_OPCIONALES, guardarColumnas, leerColumnas, type ColumnaOpcional } from './columnas-leads';
 import { useVocabulario } from './use-vocabulario';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
@@ -129,6 +129,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const { user } = useAuth();
   // Cómo llama esta empresa a sus etapas. Vacío mientras carga: se ven los nombres de fábrica.
   const rotulos = useStageLabels(scope.clientId);
+  // Etapas que esta empresa decidió no usar. Vacío mientras carga: se muestran todas.
+  const etapasOcultas = useEtapasOcultas(scope.clientId);
   // Cómo llama esta empresa a sus cosas. Devuelve el nombre de fábrica para lo que no renombró.
   const { termino } = useVocabulario(scope.clientId);
   const filtros = useUrlFilters(FILTER_KEYS);
@@ -454,10 +456,21 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       ? STAGE_LABEL[estado] ?? estado
       : CONTACT_STATUS_OPTIONS.find((opcion) => opcion.value === estado)?.label ?? estado);
 
-  /** Estados a los que se puede mover un lead del embudo que se está mirando. */
-  const etapasDelEmbudo = scope.domain === 'commercial'
+  /**
+   * Estados a los que se puede mover un lead del embudo que se está mirando.
+   *
+   * Se descuentan las etapas que la empresa decidió no usar. Se filtra acá y no en cada sitio
+   * porque de esta lista salen las columnas del tablero, el filtro, el desplegable de mover en
+   * lote y el de mover una tarjeta: repetir el descuento en los cuatro es olvidarlo en uno.
+   *
+   * **Una etapa oculta que tuviera leads dentro los haría desaparecer del tablero.** No pasa
+   * porque el servidor se niega a ocultarla mientras haya alguno, pero si alguna vez se pudiera,
+   * la tarjeta dejaría de verse sin que nada fallara.
+   */
+  const etapasDelEmbudo = (scope.domain === 'commercial'
     ? [...STAGES]
-    : CONTACT_STATUS_OPTIONS.map((opcion) => opcion.value);
+    : CONTACT_STATUS_OPTIONS.map((opcion) => opcion.value)
+  ).filter((estado) => !etapasOcultas.includes(estado));
 
   /*
    * El mismo documento alimenta el CSV y el PDF, así que no pueden divergir: agregar una columna
