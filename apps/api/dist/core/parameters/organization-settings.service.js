@@ -29,18 +29,32 @@ let OrganizationSettingsService = class OrganizationSettingsService {
         this.audit = audit;
         this.resolver = resolver;
     }
-    async list(organizationId) {
+    async list(organizationId, clientId) {
         const definitions = await this.ensureDefinitions();
         const definitionByKey = new Map(definitions.map((definition) => [definition.key, definition]));
-        const values = await this.valueRepo.find({
+        const idsDeDefinicion = definitions.map((definition) => definition.id);
+        const deLaOrganizacion = await this.valueRepo.find({
             where: {
-                definitionId: (0, typeorm_2.In)(definitions.map((definition) => definition.id)),
+                definitionId: (0, typeorm_2.In)(idsDeDefinicion),
                 scopeType: 'organization',
                 scopeId: organizationId,
                 validTo: (0, typeorm_2.IsNull)(),
             },
         });
-        const valueByDefinition = new Map(values.map((value) => [value.definitionId, value]));
+        const valueByDefinition = new Map(deLaOrganizacion.map((value) => [value.definitionId, value]));
+        const deLaEmpresa = clientId
+            ? await this.valueRepo.find({
+                where: {
+                    definitionId: (0, typeorm_2.In)(idsDeDefinicion),
+                    scopeType: 'client',
+                    scopeId: clientId,
+                    validTo: (0, typeorm_2.IsNull)(),
+                },
+            })
+            : [];
+        const propios = new Set(deLaEmpresa.map((value) => value.definitionId));
+        for (const value of deLaEmpresa)
+            valueByDefinition.set(value.definitionId, value);
         return organization_settings_catalog_1.ORGANIZATION_SETTINGS.map((setting) => {
             const definition = definitionByKey.get(setting.key);
             const override = valueByDefinition.get(definition.id);
@@ -48,12 +62,14 @@ let OrganizationSettingsService = class OrganizationSettingsService {
                 ...setting,
                 level: (0, organization_settings_catalog_1.settingLevel)(setting.key),
                 value: override?.valueJson?.value ?? setting.defaultValue,
-                source: override ? 'organization' : 'master_default',
+                source: override
+                    ? (propios.has(definition.id) ? 'client' : 'organization')
+                    : 'master_default',
                 version: override?.version ?? 0,
             };
         });
     }
-    async update(organizationId, actorId, requestedValues) {
+    async update(organizationId, actorId, requestedValues, clientId) {
         const catalogByKey = new Map(organization_settings_catalog_1.ORGANIZATION_SETTINGS.map((setting) => [setting.key, setting]));
         const normalizedValues = new Map();
         for (const [key, value] of Object.entries(requestedValues)) {
@@ -80,8 +96,8 @@ let OrganizationSettingsService = class OrganizationSettingsService {
                 const active = await valueRepo.findOne({
                     where: {
                         definitionId: definition.id,
-                        scopeType: 'organization',
-                        scopeId: organizationId,
+                        scopeType: clientId ? 'client' : 'organization',
+                        scopeId: clientId ?? organizationId,
                         validTo: (0, typeorm_2.IsNull)(),
                     },
                     order: { version: 'DESC' },
@@ -95,8 +111,8 @@ let OrganizationSettingsService = class OrganizationSettingsService {
                 }
                 await valueRepo.save(valueRepo.create({
                     definitionId: definition.id,
-                    scopeType: 'organization',
-                    scopeId: organizationId,
+                    scopeType: clientId ? 'client' : 'organization',
+                    scopeId: clientId ?? organizationId,
                     valueJson: { value },
                     version: (active?.version ?? 0) + 1,
                     validFrom: now,
@@ -114,10 +130,12 @@ let OrganizationSettingsService = class OrganizationSettingsService {
                 action: 'update',
                 before,
                 after,
-                reason: 'Actualización desde Configuración Central',
+                reason: clientId
+                    ? `Actualización desde Configuración Central para la empresa ${clientId}`
+                    : 'Actualización desde Configuración Central',
             });
             for (const key of Object.keys(after))
-                this.resolver.invalidate(key, null, null, organizationId);
+                this.resolver.invalidate(key, clientId ?? null, null, organizationId);
         }
         return this.list(organizationId);
     }

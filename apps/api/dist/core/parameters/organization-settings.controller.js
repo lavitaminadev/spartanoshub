@@ -16,6 +16,7 @@ exports.OrganizationSettingsController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const roles_decorator_1 = require("../authorization/roles.decorator");
+const account_access_service_1 = require("../client-scope/account-access.service");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const update_organization_settings_dto_1 = require("./dto/update-organization-settings.dto");
 const organization_settings_service_1 = require("./organization-settings.service");
@@ -23,13 +24,16 @@ const module_scope_decorator_1 = require("../authorization/module-scope.decorato
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const shared_1 = require("@espartanos/shared");
 let OrganizationSettingsController = class OrganizationSettingsController {
-    constructor(settings) {
+    constructor(settings, accountAccess) {
         this.settings = settings;
+        this.accountAccess = accountAccess;
     }
-    list(request) {
-        return this.settings.list(request.organizationId || request.user.organizationId);
+    async list(request, clientId) {
+        const organizationId = request.organizationId || request.user.organizationId;
+        await this.accountAccess.assertClient(organizationId, request.user, clientId);
+        return this.settings.list(organizationId, clientId ?? null);
     }
-    update(request, dto) {
+    async update(request, dto, clientId) {
         const valores = dto.values ?? {};
         const touchesModuleLifecycle = Object.keys(valores).some((key) => key.startsWith('modules.lifecycle.'));
         if (touchesModuleLifecycle && request.user.role !== user_role_enum_1.UserRole.DEV) {
@@ -44,26 +48,30 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             throw new common_1.BadRequestException(`No se puede esconder ${sinSalida.join(' ni ')}: son la puerta de entrada y el sitio donde se deshace este cambio. ` +
                 'Déjalos en activo, piloto o mantenimiento.');
         }
-        return this.settings.update(request.organizationId || request.user.organizationId, request.user.id, dto.values);
+        const organizationId = request.organizationId || request.user.organizationId;
+        await this.accountAccess.assertClient(organizationId, request.user, clientId);
+        return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null);
     }
 };
 exports.OrganizationSettingsController = OrganizationSettingsController;
 __decorate([
     (0, common_1.Get)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Obtener configuración efectiva de la organización' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Obtener configuración efectiva, opcionalmente de una empresa' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "list", null);
 __decorate([
     (0, common_1.Put)(),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar y auditar configuración de la organización' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, update_organization_settings_dto_1.UpdateOrganizationSettingsDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object, update_organization_settings_dto_1.UpdateOrganizationSettingsDto, String]),
+    __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "update", null);
 exports.OrganizationSettingsController = OrganizationSettingsController = __decorate([
     (0, swagger_1.ApiTags)('Configuración'),
@@ -71,5 +79,6 @@ exports.OrganizationSettingsController = OrganizationSettingsController = __deco
     (0, common_1.Controller)('settings'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, module_scope_decorator_1.ModuleScope)('settings'),
-    __metadata("design:paramtypes", [organization_settings_service_1.OrganizationSettingsService])
+    __metadata("design:paramtypes", [organization_settings_service_1.OrganizationSettingsService,
+        account_access_service_1.AccountAccessService])
 ], OrganizationSettingsController);

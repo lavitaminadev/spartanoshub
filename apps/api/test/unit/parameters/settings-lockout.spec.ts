@@ -17,8 +17,10 @@ import { UserRole } from '../../../src/modules/organizations/user-role.enum';
  */
 function controlador() {
   const settings = { update: vi.fn().mockResolvedValue({ ok: true }), list: vi.fn() };
+  // Sin empresa elegida no hay nada que comprobar; con ella, esto es la reja de alcance.
+  const accountAccess = { assertClient: vi.fn().mockResolvedValue(undefined) };
   return {
-    controller: new OrganizationSettingsController(settings as never),
+    controller: new OrganizationSettingsController(settings as never, accountAccess as never),
     settings,
   };
 }
@@ -26,44 +28,46 @@ function controlador() {
 const DEV = { user: { id: 'u1', role: UserRole.DEV, organizationId: 'org-1' }, organizationId: 'org-1' } as never;
 
 describe('OrganizationSettingsController · no se puede cerrar por dentro', () => {
-  it('rechaza dejar settings en un estado que esconde la propia pantalla', () => {
+  it('rechaza dejar settings en un estado que esconde la propia pantalla', async () => {
     const { controller, settings } = controlador();
 
-    expect(() => controller.update(DEV, { values: { 'modules.lifecycle.settings': 'disabled' } }))
-      .toThrow(BadRequestException);
+    // La comprobacion llega como promesa rechazada porque el metodo es asincrono: para NestJS es
+    // equivalente, el filtro de excepciones trata las dos igual.
+    await expect(controller.update(DEV, { values: { 'modules.lifecycle.settings': 'disabled' } }))
+      .rejects.toThrow(BadRequestException);
     // Se rechaza el cambio entero: guardar la mitad dejaría la pantalla mostrando un estado
     // que nadie eligió.
     expect(settings.update).not.toHaveBeenCalled();
   });
 
-  it('rechaza esconder el dashboard, que es la puerta de entrada', () => {
+  it('rechaza esconder el dashboard, que es la puerta de entrada', async () => {
     const { controller } = controlador();
 
-    expect(() => controller.update(DEV, { values: { 'modules.lifecycle.dashboard': 'development' } }))
-      .toThrow(BadRequestException);
+    await expect(controller.update(DEV, { values: { 'modules.lifecycle.dashboard': 'development' } }))
+      .rejects.toThrow(BadRequestException);
   });
 
-  it('deja bajarlos a los estados que siguen siendo visibles', () => {
+  it('deja bajarlos a los estados que siguen siendo visibles', async () => {
     const { controller, settings } = controlador();
 
-    controller.update(DEV, { values: { 'modules.lifecycle.settings': 'maintenance' } });
+    await controller.update(DEV, { values: { 'modules.lifecycle.settings': 'maintenance' } });
 
     expect(settings.update).toHaveBeenCalledTimes(1);
   });
 
-  it('no toca los demás módulos, que sí se pueden esconder', () => {
+  it('no toca los demás módulos, que sí se pueden esconder', async () => {
     const { controller, settings } = controlador();
 
-    controller.update(DEV, { values: { 'modules.lifecycle.reservations': 'disabled' } });
+    await controller.update(DEV, { values: { 'modules.lifecycle.reservations': 'disabled' } });
 
     expect(settings.update).toHaveBeenCalledTimes(1);
   });
 
-  it('sigue reservando el ciclo de vida a desarrollo', () => {
+  it('sigue reservando el ciclo de vida a desarrollo', async () => {
     const { controller } = controlador();
     const admin = { user: { id: 'u2', role: UserRole.ADMIN, organizationId: 'org-1' }, organizationId: 'org-1' } as never;
 
-    expect(() => controller.update(admin, { values: { 'modules.lifecycle.reservations': 'active' } }))
-      .toThrow(ForbiddenException);
+    await expect(controller.update(admin, { values: { 'modules.lifecycle.reservations': 'active' } }))
+      .rejects.toThrow(ForbiddenException);
   });
 });
