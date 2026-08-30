@@ -47,7 +47,7 @@ let GoogleConversionOutboxService = GoogleConversionOutboxService_1 = class Goog
         const accounts = await this.accounts.find({
             where: { integrationId: integration.id, accountType: integration_account_type_enum_1.IntegrationAccountType.AD_ACCOUNT },
         });
-        const account = accounts.find((item) => item.metadata?.clientId === clientId) ?? accounts[0];
+        const account = accounts.find((item) => item.metadata?.clientId === clientId);
         if (!account)
             return null;
         const actionId = account.metadata?.conversionActions?.[eventKey];

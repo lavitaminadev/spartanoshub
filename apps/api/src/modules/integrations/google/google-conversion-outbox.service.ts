@@ -51,7 +51,19 @@ export class GoogleConversionOutboxService extends OutboxProcessor<GoogleConvers
     const accounts = await this.accounts.find({
       where: { integrationId: integration.id, accountType: IntegrationAccountType.AD_ACCOUNT },
     });
-    const account = accounts.find((item) => item.metadata?.clientId === clientId) ?? accounts[0];
+    /*
+     * Solo la cuenta de esta empresa. Nunca la primera que haya.
+     *
+     * Antes, una empresa sin cuenta de Ads propia caía en `accounts[0]`, que pertenece a otra: sus
+     * conversiones se enviaban a la cuenta publicitaria de un cliente distinto y alimentaban la
+     * optimización de campañas ajenas. No fallaba nada —el envío tenía éxito— y por eso podía
+     * durar meses sin que nadie lo notara.
+     *
+     * Sin cuenta propia se devuelve `null`, que el llamador ya trata como «esta empresa no tiene
+     * Ads conectado» y omite el envío. No mandar una conversión es recuperable; mandarla al
+     * anunciante equivocado no.
+     */
+    const account = accounts.find((item) => item.metadata?.clientId === clientId);
     if (!account) return null;
 
     const actionId = account.metadata?.conversionActions?.[eventKey];
