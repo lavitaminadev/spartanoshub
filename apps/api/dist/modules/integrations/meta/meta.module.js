@@ -33,12 +33,13 @@ const meta_conversion_outbox_service_1 = require("./meta-conversion-outbox.servi
 const integration_metric_entity_1 = require("../integration-metric.entity");
 const meta_insights_service_1 = require("./meta-insights.service");
 const meta_client_pixel_service_1 = require("./meta-client-pixel.service");
+const meta_pixel_entity_1 = require("./meta-pixel.entity");
 let MetaModule = class MetaModule {
 };
 exports.MetaModule = MetaModule;
 exports.MetaModule = MetaModule = __decorate([
     (0, common_1.Module)({
-        imports: [axios_1.HttpModule, crm_module_1.CrmModule, typeorm_1.TypeOrmModule.forFeature([integration_entity_1.Integration, integration_account_entity_1.IntegrationAccount, integration_metric_entity_1.IntegrationMetric, meta_lead_webhook_event_entity_1.MetaLeadWebhookEvent, meta_conversion_outbox_entity_1.MetaConversionOutbox, lead_entity_1.Lead, client_entity_1.Client, campaign_entity_1.Campaign])],
+        imports: [axios_1.HttpModule, crm_module_1.CrmModule, typeorm_1.TypeOrmModule.forFeature([integration_entity_1.Integration, integration_account_entity_1.IntegrationAccount, integration_metric_entity_1.IntegrationMetric, meta_lead_webhook_event_entity_1.MetaLeadWebhookEvent, meta_conversion_outbox_entity_1.MetaConversionOutbox, lead_entity_1.Lead, client_entity_1.Client, campaign_entity_1.Campaign, meta_pixel_entity_1.MetaPixel])],
         controllers: [meta_controller_1.MetaController, meta_pixel_controller_1.MetaPixelController],
         providers: [meta_service_1.MetaService, meta_pixel_service_1.MetaPixelService, meta_client_pixel_service_1.MetaClientPixelService, meta_conversions_service_1.MetaConversionsService, meta_conversion_outbox_service_1.MetaConversionOutboxService, meta_insights_service_1.MetaInsightsService, meta_integration_accessor_service_1.MetaIntegrationAccessor, meta_asset_discovery_service_1.MetaAssetDiscoveryService, meta_oauth_service_1.MetaOAuthService, meta_lead_ads_service_1.MetaLeadAdsService, lead_converted_handler_1.LeadConvertedHandler, lead_stage_changed_handler_1.LeadStageChangedHandler],
         exports: [meta_service_1.MetaService, meta_pixel_service_1.MetaPixelService, meta_client_pixel_service_1.MetaClientPixelService, meta_conversions_service_1.MetaConversionsService, meta_conversion_outbox_service_1.MetaConversionOutboxService, meta_oauth_service_1.MetaOAuthService, meta_asset_discovery_service_1.MetaAssetDiscoveryService, meta_lead_ads_service_1.MetaLeadAdsService],

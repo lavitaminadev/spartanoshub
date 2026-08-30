@@ -29,6 +29,9 @@ describe('MetaClientPixelService', () => {
   };
   const clients = { find: vi.fn(), findOne: vi.fn() };
   const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
+  // La tabla de credenciales, vacia: estas pruebas describen el camino del JSON, que sigue
+  // siendo la red mientras conviven las dos formas.
+  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null) };
   let service: MetaClientPixelService;
 
   /** Fija la integración que verán tanto la búsqueda inicial como la relectura con bloqueo. */
@@ -41,7 +44,7 @@ describe('MetaClientPixelService', () => {
     vi.clearAllMocks();
     stored = null;
     delete process.env.META_CONVERSIONS_ACCESS_TOKEN;
-    service = new MetaClientPixelService(integrations as never, clients as never, pixels as never);
+    service = new MetaClientPixelService(integrations as never, clients as never, pixelesGuardados as never, pixels as never);
   });
 
   it('resolves only the Pixel and token explicitly assigned to the requested client', async () => {
@@ -146,6 +149,9 @@ describe('MetaClientPixelService · credencial por Pixel', () => {
   };
   const clients = { find: vi.fn(async () => []), findOne: vi.fn() };
   const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
+  // La tabla de credenciales, vacia: estas pruebas describen el camino del JSON, que sigue
+  // siendo la red mientras conviven las dos formas.
+  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null) };
   let service: MetaClientPixelService;
 
   beforeEach(() => {
@@ -153,7 +159,7 @@ describe('MetaClientPixelService · credencial por Pixel', () => {
     delete process.env.META_CONVERSIONS_ACCESS_TOKEN;
     pixels.verificarPixel.mockResolvedValue({ verificado: true, bloquea: false });
     stored = { id: 'int-1', config: { directCapi: true, clientPixels: {} } };
-    service = new MetaClientPixelService(integrations as never, clients as never, pixels as never);
+    service = new MetaClientPixelService(integrations as never, clients as never, pixelesGuardados as never, pixels as never);
   });
 
   it('guarda el token bajo el Pixel y lo devuelve al resolver por Pixel', async () => {
@@ -231,6 +237,9 @@ describe('MetaClientPixelService · Pixel de la agencia', () => {
   };
   const clients = { find: vi.fn(async () => []), findOne: vi.fn() };
   const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
+  // La tabla de credenciales, vacia: estas pruebas describen el camino del JSON, que sigue
+  // siendo la red mientras conviven las dos formas.
+  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null) };
   let service: MetaClientPixelService;
 
   beforeEach(() => {
@@ -238,7 +247,7 @@ describe('MetaClientPixelService · Pixel de la agencia', () => {
     delete process.env.META_CONVERSIONS_ACCESS_TOKEN;
     pixels.verificarPixel.mockResolvedValue({ verificado: true, bloquea: false });
     stored = { id: 'int-1', config: { clientPixels: {} } };
-    service = new MetaClientPixelService(integrations as never, clients as never, pixels as never);
+    service = new MetaClientPixelService(integrations as never, clients as never, pixelesGuardados as never, pixels as never);
   });
 
   it('sin Pixel marcado no hay destino, que es como queda apagado', async () => {

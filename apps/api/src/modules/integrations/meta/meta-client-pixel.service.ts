@@ -7,6 +7,8 @@ import { Integration } from '../integration.entity';
 import { IntegrationProvider } from '../integration-provider.enum';
 import { IntegrationStatus } from '../integration-status.enum';
 import { MetaPixelService } from './meta-pixel.service';
+import { MetaPixel } from './meta-pixel.entity';
+import { IsNull } from 'typeorm';
 
 type ClientPixelRecord = { pixelId: string; pixelName?: string; accessToken?: string; configuredAt: string };
 
@@ -29,6 +31,7 @@ export class MetaClientPixelService {
   constructor(
     @InjectRepository(Integration) private readonly integrations: Repository<Integration>,
     @InjectRepository(Client) private readonly clients: Repository<Client>,
+    @InjectRepository(MetaPixel) private readonly pixelesGuardados: Repository<MetaPixel>,
     private readonly pixels: MetaPixelService,
   ) {}
 
@@ -62,25 +65,42 @@ export class MetaClientPixelService {
   }
 
   /**
-   * Token con el que se escribe en un Pixel.
+   * El token de un Pixel, buscado en la tabla con dueño.
    *
-   * En este orden: la credencial del Pixel, la que quedó dentro de alguna empresa que lo usa
-   * —compatibilidad con lo ya configurado—, y el token del entorno como último recurso. Ese
-   * último casi nunca sirve: pertenece a otra cuenta publicitaria y Meta rechaza el evento.
+   * En este orden: la credencial de esa empresa, y si no la tiene, la del registro por Pixel
+   * —la declarada para ese destino, sin empresa—. Nunca la de otra empresa: la consulta no
+   * puede devolverla, así que no depende de que alguien se acuerde de filtrar.
+   *
+   * Devuelve `undefined` cuando no hay fila, y entonces quien llama cae al JSON de siempre.
+   * Mientras dure esa convivencia, lo configurado antes de la tabla sigue enviando igual.
    */
+  private async tokenEnTabla(
+    organizationId: string,
+    pixelId: string,
+    clientId?: string | null,
+  ): Promise<string | undefined> {
+    if (clientId) {
+      const propia = await this.pixelesGuardados.findOne({
+        where: { organizationId, clientId, pixelId },
+      });
+      if (propia?.accessToken) return revealSecret(propia.accessToken);
+    }
+
+    const registro = await this.pixelesGuardados.findOne({
+      where: { organizationId, clientId: IsNull(), pixelId },
+    });
+    return registro?.accessToken ? revealSecret(registro.accessToken) : undefined;
+  }
+
   /**
-   * El token de un Pixel, buscado con dueño.
+   * El mismo token, buscado en el JSON.
    *
-   * El registro por Pixel manda: es la credencial declarada para ese destino, y no pertenece a
-   * ninguna empresa en concreto.
+   * Es la red mientras conviven las dos formas: lo configurado antes de la tabla se encuentra
+   * donde estaba. Cuando el JSON se retire, este método desaparece con él.
    *
-   * De la forma antigua **solo se acepta la de la empresa indicada**. Antes se recorrían las de
-   * todas y se tomaba la primera que coincidiera, así que cuál se usaba dependía del orden de
-   * las claves en un JSON. Mientras dos empresas compartan Pixel eso funciona por casualidad;
-   * el día que una revoque su token, la otra deja de enviar sin que nada lo explique.
-   *
-   * @param clientId - Empresa en cuyo nombre se envía. Sin ella no se mira la forma antigua: no
-   *   hay a quién atribuir la credencial y elegir una sería volver al problema.
+   * De la forma antigua, con empresa se usa la suya; sin empresa —el envío desde la cola solo
+   * tiene organización y Pixel— la única que haya. Antes se recorrían las de todas y se tomaba la
+   * primera que coincidiera, así que cuál se usaba dependía del orden de las claves.
    */
   private tokenDePixel(
     integration: Integration | null,
@@ -415,7 +435,8 @@ export class MetaClientPixelService {
      * la primera que usara ese Pixel. Con dos empresas compartiendo destino funcionaba por
      * casualidad, y cuál se usaba dependía del orden de las claves en un JSON.
      */
-    const propioToken = integration ? this.tokenDePixel(integration, pixelId, clientId) : undefined;
+    const propioToken = await this.tokenEnTabla(organizationId, pixelId, clientId)
+      ?? (integration ? this.tokenDePixel(integration, pixelId, clientId) : undefined);
     const registro = integration ? this.credenciales(integration)[pixelId] : undefined;
     if (propioToken && propioToken !== process.env.META_CONVERSIONS_ACCESS_TOKEN) {
       return { pixelId, pixelName: registro?.name ?? null, accessToken: propioToken, pixelSource, tokenSource: 'pixel' };
@@ -485,6 +506,15 @@ export class MetaClientPixelService {
   }
 
   async resolveByPixel(organizationId: string, pixelId: string): Promise<string | undefined> {
+    /*
+     * La tabla primero, el JSON como red.
+     *
+     * Mientras conviven las dos formas, una credencial que todavía no se haya copiado sigue
+     * encontrándose donde estaba. Cuando el JSON se retire, esta segunda consulta desaparece.
+     */
+    const enTabla = await this.tokenEnTabla(organizationId, pixelId);
+    if (enTabla) return enTabla;
+
     const integration = await this.organizationIntegration(organizationId);
     return this.tokenDePixel(integration, pixelId);
   }
