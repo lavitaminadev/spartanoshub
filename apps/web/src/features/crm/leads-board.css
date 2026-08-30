@@ -199,3 +199,16 @@
 /* La casilla va junto al conteo: quien mira «10 de 40» es quien se pregunta qué falta. */
 .leads-board-descartados { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
 .leads-board-descartados input { width: 15px; height: 15px; }
+
+/*
+  Columna de selección.
+
+  En pantalla ancha es una casilla estrecha; en estrecha, la tabla pasa a tarjetas y esa celda
+  hereda el `text-align: right` del resto, lo que dejaba la casilla pegada al borde y lejos de su
+  título. Se alinea a la izquierda, que es donde la busca el dedo.
+*/
+.data-table td.col-marcar { justify-items: start; }
+@media (min-width: 721px) {
+  .data-table th:first-child,
+  .data-table td.col-marcar { width: 36px; }
+}
