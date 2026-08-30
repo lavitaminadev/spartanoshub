@@ -68,14 +68,50 @@ export class MetaClientPixelService {
    * —compatibilidad con lo ya configurado—, y el token del entorno como último recurso. Ese
    * último casi nunca sirve: pertenece a otra cuenta publicitaria y Meta rechaza el evento.
    */
-  private tokenDePixel(integration: Integration | null, pixelId: string): string | undefined {
+  /**
+   * El token de un Pixel, buscado con dueño.
+   *
+   * El registro por Pixel manda: es la credencial declarada para ese destino, y no pertenece a
+   * ninguna empresa en concreto.
+   *
+   * De la forma antigua **solo se acepta la de la empresa indicada**. Antes se recorrían las de
+   * todas y se tomaba la primera que coincidiera, así que cuál se usaba dependía del orden de
+   * las claves en un JSON. Mientras dos empresas compartan Pixel eso funciona por casualidad;
+   * el día que una revoque su token, la otra deja de enviar sin que nada lo explique.
+   *
+   * @param clientId - Empresa en cuyo nombre se envía. Sin ella no se mira la forma antigua: no
+   *   hay a quién atribuir la credencial y elegir una sería volver al problema.
+   */
+  private tokenDePixel(
+    integration: Integration | null,
+    pixelId: string,
+    clientId?: string | null,
+  ): string | undefined {
     if (!integration) return process.env.META_CONVERSIONS_ACCESS_TOKEN || undefined;
+
     const credencial = this.credenciales(integration)[pixelId];
     if (credencial?.accessToken) return revealSecret(credencial.accessToken);
-    const heredado = Object.values(this.records(integration)).find((item) => (
-      item.pixelId === pixelId && item.accessToken
-    ));
-    return revealSecret(heredado?.accessToken) || process.env.META_CONVERSIONS_ACCESS_TOKEN || undefined;
+
+    /*
+     * De la forma antigua, con empresa se usa la suya y sin empresa solo si no hay duda.
+     *
+     * El envío desde la cola llega sin empresa —solo tiene organización y Pixel—, así que exigirla
+     * dejaría sin credencial a todo lo configurado antes del registro por Pixel. La regla que sí
+     * vale para los dos casos es la ambigüedad: si una sola empresa tiene token para ese Pixel, es
+     * el que corresponde; si lo tienen dos, elegir sería quedarse con la primera del JSON, que es
+     * el problema que esto viene a quitar.
+     */
+    if (clientId) {
+      const deLaEmpresa = this.records(integration)[clientId];
+      if (deLaEmpresa?.pixelId === pixelId && deLaEmpresa.accessToken) {
+        return revealSecret(deLaEmpresa.accessToken);
+      }
+    } else {
+      const unico = this.tokenSinAmbiguedad(integration, pixelId);
+      if (unico) return revealSecret(unico);
+    }
+
+    return process.env.META_CONVERSIONS_ACCESS_TOKEN || undefined;
   }
 
   private records(integration: Integration): Record<string, ClientPixelRecord> {
@@ -372,11 +408,18 @@ export class MetaClientPixelService {
     }
 
     const integration = await this.organizationIntegration(organizationId);
-    const registro = integration
-      ? Object.values(this.records(integration)).find((item) => item.pixelId === pixelId)
-      : undefined;
-    const propioToken = revealSecret(registro?.accessToken);
-    if (propioToken) return { pixelId, pixelName: registro?.pixelName ?? null, accessToken: propioToken, pixelSource, tokenSource: 'pixel' };
+    /*
+     * El token se busca con dueño: el registro del Pixel, o la credencial de **esta** empresa.
+     *
+     * Antes se recorrían las credenciales de todas las empresas de la organización y se tomaba
+     * la primera que usara ese Pixel. Con dos empresas compartiendo destino funcionaba por
+     * casualidad, y cuál se usaba dependía del orden de las claves en un JSON.
+     */
+    const propioToken = integration ? this.tokenDePixel(integration, pixelId, clientId) : undefined;
+    const registro = integration ? this.credenciales(integration)[pixelId] : undefined;
+    if (propioToken && propioToken !== process.env.META_CONVERSIONS_ACCESS_TOKEN) {
+      return { pixelId, pixelName: registro?.name ?? null, accessToken: propioToken, pixelSource, tokenSource: 'pixel' };
+    }
 
     /*
      * Sin token propio para ese Pixel se recurre al del entorno, pero se declara.
@@ -389,7 +432,7 @@ export class MetaClientPixelService {
     const entorno = process.env.META_CONVERSIONS_ACCESS_TOKEN;
     return {
       pixelId,
-      pixelName: registro?.pixelName ?? null,
+      pixelName: registro?.name ?? null,
       accessToken: entorno,
       pixelSource,
       tokenSource: entorno ? 'environment' : 'none',
@@ -493,7 +536,7 @@ export class MetaClientPixelService {
         name: datos.name?.trim() || previa?.name,
         // Sin token nuevo se conserva el que hubiera, incluido el de la forma antigua: así
         // registrar solo el nombre no deja el Pixel sin credencial.
-        accessToken: nuevo ? protectSecret(nuevo) : previa?.accessToken ?? this.tokenGuardadoEnEmpresa(fresh, limpio),
+        accessToken: nuevo ? protectSecret(nuevo) : previa?.accessToken ?? this.tokenSinAmbiguedad(fresh, limpio),
         updatedAt: new Date().toISOString(),
       };
       fresh.config = { ...fresh.config, metaPixels: { ...actuales, [limpio]: credencial } };
@@ -533,14 +576,26 @@ export class MetaClientPixelService {
       if (!quitada) throw new NotFoundException('Ese Pixel no tiene credencial registrada');
       fresh.config = { ...fresh.config, metaPixels: resto };
       await repo.save(fresh);
-      return { pixelId, quedaHeredado: Boolean(this.tokenGuardadoEnEmpresa(fresh, pixelId)) };
+      return { pixelId, quedaHeredado: Boolean(this.tokenSinAmbiguedad(fresh, pixelId)) };
     });
   }
 
-  /** El token que quedó dentro de una empresa, ya cifrado, para poder mudarlo tal cual. */
-  private tokenGuardadoEnEmpresa(integration: Integration, pixelId: string): string | undefined {
-    return Object.values(this.records(integration)).find((item) => (
+  /**
+   * El token de la forma antigua para un Pixel, **solo si no hay duda de cuál es**.
+   *
+   * Se usa en administración —registrar la credencial de un Pixel sin escribir el token otra vez,
+   * y avisar de si al quitarla queda alguna heredada—, no para enviar.
+   *
+   * La regla es la ambigüedad, no la lectura. Si una sola empresa tiene credencial para ese
+   * Pixel, adoptarla es lo que quien administra espera. Si la tienen dos, elegir una sería lo que
+   * hacía antes: quedarse con la primera del JSON, o sea con la que salga.
+   *
+   * Devuelve el texto cifrado tal cual, para poder mudarlo sin descifrarlo.
+   */
+  private tokenSinAmbiguedad(integration: Integration, pixelId: string): string | undefined {
+    const conEsePixel = Object.values(this.records(integration)).filter((item) => (
       item.pixelId === pixelId && item.accessToken
-    ))?.accessToken;
+    ));
+    return conEsePixel.length === 1 ? conEsePixel[0].accessToken : undefined;
   }
 }

@@ -54,14 +54,24 @@ let MetaClientPixelService = class MetaClientPixelService {
         const value = integration.config?.metaPixels;
         return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     }
-    tokenDePixel(integration, pixelId) {
+    tokenDePixel(integration, pixelId, clientId) {
         if (!integration)
             return process.env.META_CONVERSIONS_ACCESS_TOKEN || undefined;
         const credencial = this.credenciales(integration)[pixelId];
         if (credencial?.accessToken)
             return (0, integration_secrets_1.revealSecret)(credencial.accessToken);
-        const heredado = Object.values(this.records(integration)).find((item) => (item.pixelId === pixelId && item.accessToken));
-        return (0, integration_secrets_1.revealSecret)(heredado?.accessToken) || process.env.META_CONVERSIONS_ACCESS_TOKEN || undefined;
+        if (clientId) {
+            const deLaEmpresa = this.records(integration)[clientId];
+            if (deLaEmpresa?.pixelId === pixelId && deLaEmpresa.accessToken) {
+                return (0, integration_secrets_1.revealSecret)(deLaEmpresa.accessToken);
+            }
+        }
+        else {
+            const unico = this.tokenSinAmbiguedad(integration, pixelId);
+            if (unico)
+                return (0, integration_secrets_1.revealSecret)(unico);
+        }
+        return process.env.META_CONVERSIONS_ACCESS_TOKEN || undefined;
     }
     records(integration) {
         const value = integration.config?.clientPixels;
@@ -225,16 +235,15 @@ let MetaClientPixelService = class MetaClientPixelService {
             };
         }
         const integration = await this.organizationIntegration(organizationId);
-        const registro = integration
-            ? Object.values(this.records(integration)).find((item) => item.pixelId === pixelId)
-            : undefined;
-        const propioToken = (0, integration_secrets_1.revealSecret)(registro?.accessToken);
-        if (propioToken)
-            return { pixelId, pixelName: registro?.pixelName ?? null, accessToken: propioToken, pixelSource, tokenSource: 'pixel' };
+        const propioToken = integration ? this.tokenDePixel(integration, pixelId, clientId) : undefined;
+        const registro = integration ? this.credenciales(integration)[pixelId] : undefined;
+        if (propioToken && propioToken !== process.env.META_CONVERSIONS_ACCESS_TOKEN) {
+            return { pixelId, pixelName: registro?.name ?? null, accessToken: propioToken, pixelSource, tokenSource: 'pixel' };
+        }
         const entorno = process.env.META_CONVERSIONS_ACCESS_TOKEN;
         return {
             pixelId,
-            pixelName: registro?.pixelName ?? null,
+            pixelName: registro?.name ?? null,
             accessToken: entorno,
             pixelSource,
             tokenSource: entorno ? 'environment' : 'none',
@@ -293,7 +302,7 @@ let MetaClientPixelService = class MetaClientPixelService {
             const previa = actuales[limpio];
             const credencial = {
                 name: datos.name?.trim() || previa?.name,
-                accessToken: nuevo ? (0, integration_secrets_1.protectSecret)(nuevo) : previa?.accessToken ?? this.tokenGuardadoEnEmpresa(fresh, limpio),
+                accessToken: nuevo ? (0, integration_secrets_1.protectSecret)(nuevo) : previa?.accessToken ?? this.tokenSinAmbiguedad(fresh, limpio),
                 updatedAt: new Date().toISOString(),
             };
             fresh.config = { ...fresh.config, metaPixels: { ...actuales, [limpio]: credencial } };
@@ -321,11 +330,12 @@ let MetaClientPixelService = class MetaClientPixelService {
                 throw new common_1.NotFoundException('Ese Pixel no tiene credencial registrada');
             fresh.config = { ...fresh.config, metaPixels: resto };
             await repo.save(fresh);
-            return { pixelId, quedaHeredado: Boolean(this.tokenGuardadoEnEmpresa(fresh, pixelId)) };
+            return { pixelId, quedaHeredado: Boolean(this.tokenSinAmbiguedad(fresh, pixelId)) };
         });
     }
-    tokenGuardadoEnEmpresa(integration, pixelId) {
-        return Object.values(this.records(integration)).find((item) => (item.pixelId === pixelId && item.accessToken))?.accessToken;
+    tokenSinAmbiguedad(integration, pixelId) {
+        const conEsePixel = Object.values(this.records(integration)).filter((item) => (item.pixelId === pixelId && item.accessToken));
+        return conEsePixel.length === 1 ? conEsePixel[0].accessToken : undefined;
     }
 };
 exports.MetaClientPixelService = MetaClientPixelService;
