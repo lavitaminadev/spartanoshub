@@ -12,6 +12,7 @@
 import { useMemo, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
+import { MEDIOS, TIPOS_AGENDABLES, TIPO_DE_ACTIVIDAD, admiteMedio, campoDelMedio } from './tipos-de-actividad';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { Modal } from '../../shared/Modal';
@@ -37,14 +38,6 @@ interface Actividad {
   completada?: boolean;
 }
 
-/** Tipos que se pueden agendar. Los mismos que registra la ficha, para no tener dos catalogos. */
-const TIPOS: Array<{ value: string; label: string }> = [
-  { value: 'meeting', label: 'Visita' },
-  { value: 'call', label: 'Llamada' },
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'email', label: 'Correo' },
-  { value: 'note', label: 'Nota' },
-];
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -105,17 +98,6 @@ function celdasDelDia(ancla: Date): Array<{ fecha: Date; delMes: boolean }> {
 }
 
 /** Cómo se lee cada tipo de actividad. La clave es la que guarda el servidor. */
-const TIPO_LABEL: Record<string, string> = {
-  // No es un tipo de actividad sino un compromiso pendiente, pero comparte la misma agenda: el
-  // día tiene lo que pasó y lo que falta por hacer.
-  task: 'Tarea',
-  call: 'Llamada',
-  email: 'Correo',
-  meeting: 'Reunión',
-  whatsapp: 'WhatsApp',
-  note: 'Nota',
-  visit: 'Visita',
-};
 
 /** Hora local de una actividad, sin la fecha: la fecha ya la da la celda donde está. */
 function horaDe(fecha: string): string {
@@ -132,7 +114,7 @@ function horaDe(fecha: string): string {
  */
 function tituloDe(actividad: Actividad): string {
   const primera = actividad.description?.split('\n')[0]?.trim();
-  return primera || TIPO_LABEL[actividad.type] || 'Actividad';
+  return primera || TIPO_DE_ACTIVIDAD[actividad.type] || 'Actividad';
 }
 
 /** Forma en que se mira la agenda. */
@@ -260,7 +242,7 @@ export function CrmCalendarPage(): JSX.Element {
    * El lead es opcional a propósito: no toda actividad de la agenda cuelga de un contacto —una
    * reunión de equipo, un bloqueo— y exigirlo obligaría a inventar uno.
    */
-  const [agendando, setAgendando] = useState<{ type: string; description: string; date: string; leadId: string } | null>(null);
+  const [agendando, setAgendando] = useState<{ type: string; description: string; date: string; leadId: string; medium: string; location: string } | null>(null);
 
   const agendar = useMutation({
     mutationFn: () => api.post('/crm/interactions', {
@@ -268,6 +250,10 @@ export function CrmCalendarPage(): JSX.Element {
       description: agendando!.description.trim(),
       date: new Date(agendando!.date).toISOString(),
       leadId: agendando!.leadId || undefined,
+      // Vacío se manda como ausente y no como cadena vacía: en la base, «no tiene medio» y
+      // «tiene el medio ""» se leerían igual al mostrarlo pero distinto al filtrar.
+      medium: agendando!.medium || undefined,
+      location: agendando!.location.trim() || undefined,
     }),
     onSuccess: async () => {
       setAgendando(null);
@@ -331,7 +317,7 @@ export function CrmCalendarPage(): JSX.Element {
                 const propuesta = new Date(ancla);
                 propuesta.setHours(9, 0, 0, 0);
                 const local = new Date(propuesta.getTime() - propuesta.getTimezoneOffset() * 60_000);
-                setAgendando({ type: 'meeting', description: '', date: local.toISOString().slice(0, 16), leadId: '' });
+                setAgendando({ type: 'meeting', description: '', date: local.toISOString().slice(0, 16), leadId: '', medium: '', location: '' });
               }}
             >
               + Agendar
@@ -395,7 +381,7 @@ export function CrmCalendarPage(): JSX.Element {
                   <span
                     key={evento.id}
                     className={`crm-cal-evento tipo-${evento.type}${evento.completada ? ' esta-completada' : ''}`}
-                    title={`${horaDe(evento.date)} · ${evento.description || TIPO_LABEL[evento.type] || evento.type}`}
+                    title={`${horaDe(evento.date)} · ${evento.description || TIPO_DE_ACTIVIDAD[evento.type] || evento.type}`}
                   >
                     <time>{horaDe(evento.date)}</time>
                     <b>{tituloDe(evento)}</b>
@@ -459,7 +445,7 @@ export function CrmCalendarPage(): JSX.Element {
                   <span
                     key={evento.id}
                     className={`crm-cal-evento tipo-${evento.type}${evento.completada ? ' esta-completada' : ''}`}
-                    title={`${horaDe(evento.date)} · ${evento.description || TIPO_LABEL[evento.type] || evento.type}`}
+                    title={`${horaDe(evento.date)} · ${evento.description || TIPO_DE_ACTIVIDAD[evento.type] || evento.type}`}
                   >
                     <time>{horaDe(evento.date)}</time>
                     <b>{tituloDe(evento)}</b>
@@ -489,9 +475,45 @@ export function CrmCalendarPage(): JSX.Element {
                 value={agendando.type}
                 onChange={(evento) => setAgendando({ ...agendando, type: evento.target.value })}
               >
-                {TIPOS.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
+                {TIPOS_AGENDABLES.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
               </select>
             </label>
+            {/*
+              El medio solo se pregunta donde significa algo.
+
+              Una llamada ya dice por dónde ocurre y una nota no ocurre en ninguna parte:
+              ofrecerles el campo sería pedir un dato que nadie puede responder bien.
+            */}
+            {admiteMedio(agendando.type) ? (
+              <label>
+                Medio
+                <select
+                  className="input"
+                  value={agendando.medium}
+                  onChange={(evento) => setAgendando({ ...agendando, medium: evento.target.value })}
+                >
+                  <option value="">Sin especificar</option>
+                  {MEDIOS.map((medio) => <option key={medio.value} value={medio.value}>{medio.label}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {/*
+              Y el enlace o la dirección, según lo que pida el medio elegido.
+
+              Es lo que hace útil el recordatorio previo: sin este campo, el enlace acaba dentro
+              de la descripción y el correo no puede sacarlo de un párrafo.
+            */}
+            {campoDelMedio(agendando.medium) ? (
+              <label>
+                {campoDelMedio(agendando.medium)!.etiqueta}
+                <input
+                  className="input"
+                  value={agendando.location}
+                  onChange={(evento) => setAgendando({ ...agendando, location: evento.target.value })}
+                  placeholder={campoDelMedio(agendando.medium)!.ejemplo}
+                />
+              </label>
+            ) : null}
             <label>
               Fecha y hora
               <input

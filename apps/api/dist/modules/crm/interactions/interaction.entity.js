@@ -45,6 +45,14 @@ __decorate([
     __metadata("design:type", String)
 ], Interaction.prototype, "description", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], Interaction.prototype, "medium", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 500, nullable: true }),
+    __metadata("design:type", Object)
+], Interaction.prototype, "location", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' }),
     __metadata("design:type", Date)
 ], Interaction.prototype, "date", void 0);

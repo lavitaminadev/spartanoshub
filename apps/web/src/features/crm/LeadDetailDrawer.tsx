@@ -29,6 +29,7 @@ import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
 import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
 import { respuestasDelFormulario } from './respuestas-del-formulario';
+import { MEDIOS, TIPOS_AGENDABLES, TIPO_DE_ACTIVIDAD, admiteMedio, campoDelMedio } from './tipos-de-actividad';
 import './lead-detail.css';
 
 interface Lead {
@@ -101,13 +102,6 @@ function fuentesPara(actual?: string | null): Array<{ value: string; label: stri
   return [{ value: actual, label: `${actual} (origen anterior)` }, ...catalogo];
 }
 
-const TIPOS_ACTIVIDAD: Array<{ value: string; label: string }> = [
-  { value: 'call', label: 'Llamada' },
-  { value: 'email', label: 'Correo' },
-  { value: 'meeting', label: 'Reunión' },
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'note', label: 'Nota' },
-];
 
 function motivoInicial(valor?: string | null): { catalogo: string; detalle: string } {
   if (!valor) return { catalogo: '', detalle: '' };
@@ -246,7 +240,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
    * campos para saber en cuál de las dos estabas.
    */
   const [actividadAbierta, setActividadAbierta] = useState<'registro' | 'agenda' | null>(null);
-  const [actividad, setActividad] = useState({ type: 'call', description: '', date: '' });
+  const [actividad, setActividad] = useState({ type: 'call', description: '', date: '', medium: '', location: '' });
   // Una respuesta tardía del detalle no puede sobrescribir lo que la persona ya empezó a
   // corregir. Se vuelve a habilitar la sincronización después de un guardado confirmado.
   const cambiosLocales = useRef(false);
@@ -492,6 +486,10 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       await api.post('/crm/interactions', {
         leadId: lead.id,
         type: actividad.type,
+        // Vacío va como ausente: «sin medio» y «medio vacío» se leerían igual en pantalla y
+        // distinto al filtrar.
+        medium: actividad.medium || undefined,
+        location: actividad.location.trim() || undefined,
         description: actividad.description.trim(),
         date: actividad.date ? new Date(actividad.date).toISOString() : undefined,
       });
@@ -522,7 +520,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     },
     onSuccess: async () => {
       setActividadAbierta(null);
-      setActividad({ type: 'call', description: '', date: '' });
+      setActividad({ type: 'call', description: '', date: '', medium: '', location: '' });
       setAviso({ tone: 'success', text: 'Actividad agregada.' });
       await refrescar();
       await queryClient.invalidateQueries({ queryKey: ['lead-interactions', lead.id] });
@@ -662,7 +660,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
-                onClick={() => { setActividad({ type: 'call', description: '', date: '' }); setActividadAbierta('registro'); }}
+                onClick={() => { setActividad({ type: 'call', description: '', date: '', medium: '', location: '' }); setActividadAbierta('registro'); }}
               >
                 Registrar contacto
               </button>
@@ -675,7 +673,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
-                onClick={() => { setActividad({ type: 'meeting', description: '', date: proximaFechaSugerida() }); setActividadAbierta('agenda'); }}
+                onClick={() => { setActividad({ type: 'meeting', description: '', date: proximaFechaSugerida(), medium: '', location: '' }); setActividadAbierta('agenda'); }}
               >
                 Agendar visita
               </button>
@@ -1045,7 +1043,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
                 <li key={registro.id}>
                   <time>{new Date(registro.date).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</time>
                   <div>
-                    <strong>{TIPOS_ACTIVIDAD.find((tipo) => tipo.value === registro.type)?.label ?? registro.type}</strong>
+                    <strong>{TIPO_DE_ACTIVIDAD[registro.type] ?? registro.type}</strong>
                     {registro.description ? <span>{registro.description}</span> : null}
                   </div>
                 </li>
@@ -1178,9 +1176,40 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <label>
               Tipo
               <select className="input" value={actividad.type} onChange={(event) => setActividad({ ...actividad, type: event.target.value })}>
-                {TIPOS_ACTIVIDAD.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
+                {TIPOS_AGENDABLES.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
               </select>
             </label>
+              {/*
+                Medio y lugar, solo donde significan algo.
+
+                Una llamada ya dice por dónde ocurre y una nota no ocurre en ninguna parte. El
+                enlace va en su propio campo y no dentro de la descripción: es lo que permite
+                que el recordatorio previo lo lleve, en vez de tener que sacarlo de un párrafo.
+              */}
+              {admiteMedio(actividad.type) ? (
+                <label>
+                  <span>Medio</span>
+                  <select
+                    className="input"
+                    value={actividad.medium}
+                    onChange={(event) => setActividad({ ...actividad, medium: event.target.value })}
+                  >
+                    <option value="">Sin especificar</option>
+                    {MEDIOS.map((medio) => <option key={medio.value} value={medio.value}>{medio.label}</option>)}
+                  </select>
+                </label>
+              ) : null}
+              {campoDelMedio(actividad.medium) ? (
+                <label>
+                  <span>{campoDelMedio(actividad.medium)!.etiqueta}</span>
+                  <input
+                    className="input"
+                    value={actividad.location}
+                    onChange={(event) => setActividad({ ...actividad, location: event.target.value })}
+                    placeholder={campoDelMedio(actividad.medium)!.ejemplo}
+                  />
+                </label>
+              ) : null}
             <label>
               Fecha y hora
               <input className="input" type="datetime-local" value={actividad.date} onChange={(event) => setActividad({ ...actividad, date: event.target.value })} />

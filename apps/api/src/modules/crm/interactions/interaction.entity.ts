@@ -19,6 +19,23 @@ export class Interaction {
   @Column({ name: 'contact_id', type: 'uuid', nullable: true }) contactId?: string;
   @Column({ type: 'varchar', length: 50 }) type: string;
   @Column({ type: 'text', nullable: true }) description?: string;
+  /**
+   * Por dónde ocurre: `meet`, `zoom`, `teams`, `presencial`, `telefono`.
+   *
+   * Columna propia y no una frase dentro de la descripción: ahí no se puede filtrar ni meter en
+   * un recordatorio, y cada persona lo escribe distinto. Vacío en lo que no tiene medio, como
+   * una nota.
+   */
+  @Column({ type: 'varchar', length: 40, nullable: true }) medium?: string | null;
+
+  /**
+   * Dónde: el enlace de la videollamada o la dirección.
+   *
+   * Separado del medio porque son cosas distintas —uno es un valor de una lista corta y el otro
+   * texto libre— y juntarlos obligaría a interpretar la cadena para saber cuál es cuál. Es lo
+   * que el recordatorio previo necesita para servir de algo.
+   */
+  @Column({ type: 'varchar', length: 500, nullable: true }) location?: string | null;
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' }) date: Date;
   @Column({ name: 'created_by', type: 'uuid', nullable: true }) createdBy?: string;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
