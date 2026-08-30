@@ -17,13 +17,17 @@ import { atribucionDelLead } from '../atribucion-del-lead';
  *   llega semanas antes que la venta y hay muchas más.
  * - **`Purchase`**: compró, con el monto.
  *
- * El descarte no se reporta. Meta optimiza hacia lo que recibe y no aprende de lo que le falta;
- * un evento de «este no servía» no le enseña a evitar el perfil, solo diluye el conjunto.
+ * El descarte todavía no se reporta.
  *
- * Antes se enviaba un evento por cada cambio de etapa, con el nombre de la etapa. Repartía la
- * señal entre siete nombres distintos —cada uno con pocas conversiones— y ninguno acumulaba el
- * volumen que Meta necesita para optimizar. El detalle del embudo se ve en el CRM, que es donde
- * hace falta.
+ * **Esto está pendiente de revisar.** La documentación de la integración de CRM pide enviar todas
+ * las etapas «incluido el lead crudo» y clasificarlas después en Events Manager como positivas o
+ * no, en vez de filtrarlas al enviar. Enviar solo estas dos fue una decisión tomada con un
+ * criterio general que no aplica a este producto.
+ *
+ * No se corrigió todavía porque la optimización por Conversion Leads exige 200 leads al mes de
+ * formularios instantáneos, y hasta llegar ahí ninguna de las dos formas cambia nada. Lo que sí
+ * cambia es el histórico: cuanto antes se envíe el embudo completo, más datos habrá cuando el
+ * volumen llegue.
  *
  * Nada de esto sale si la empresa no tiene `metaConversions` contratado: son datos personales
  * hacia un tercero y esa capacidad nace apagada a propósito.
@@ -31,6 +35,14 @@ import { atribucionDelLead } from '../atribucion-del-lead';
 @Injectable()
 export class LeadStageChangedHandler {
   private readonly logger = new Logger(LeadStageChangedHandler.name);
+
+  /**
+   * Con qué nombre se reporta una venta sin importe.
+   *
+   * No es `Purchase` porque ese evento estándar exige `value` y `currency`. Es el rótulo de la
+   * etapa, que es lo que la integración de CRM espera para los pasos del embudo.
+   */
+  private static readonly ETIQUETA_DE_VENTA = 'Venta';
 
   /** Nombre con el que estos eventos aparecen en Events Manager como origen. */
   private static readonly ORIGEN = 'Espartanos';
@@ -139,9 +151,27 @@ export class LeadStageChangedHandler {
         : undefined;
 
       const monto = lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined;
+      const conMonto = Boolean(monto && monto > 0);
+
+      /*
+       * `Purchase` exige importe y moneda; sin ellos Meta rechaza el evento.
+       *
+       * Es un evento estándar y su definición pide `value` y `currency` como obligatorios. Se
+       * enviaba igual cuando el lead no tenía monto estimado, y Meta lo devolvía con «Invalid
+       * parameter» —código 100, subcódigo 2804010—: la venta se perdía y solo se veía días
+       * después en la cola de fallidos.
+       *
+       * Una venta sin monto sigue siendo una venta, así que en vez de callarla se reporta con el
+       * nombre de la etapa. La integración de CRM admite nombres libres para los pasos del
+       * embudo y no les exige importe, de modo que la señal llega igual y sin mentir sobre
+       * ingresos que nadie anotó.
+       */
+      const nombreFinal = eventName === 'Purchase' && !conMonto
+        ? LeadStageChangedHandler.ETIQUETA_DE_VENTA
+        : eventName;
 
       await this.outbox.enqueue(payload.organizationId, pixelId, {
-        eventName,
+        eventName: nombreFinal,
         eventTime: Math.floor(Date.now() / 1000),
         actionSource: 'system_generated',
         userData: {
@@ -163,8 +193,8 @@ export class LeadStageChangedHandler {
            * En cualquier otro momento es una estimación, y Meta lo trataría como ingreso
            * confirmado. Una calificación no vale dinero: vale como señal de perfil.
            */
-          value: eventName === 'Purchase' && monto && monto > 0 ? monto : undefined,
-          currency: eventName === 'Purchase' && monto && monto > 0 ? 'CLP' : undefined,
+          value: conMonto ? monto : undefined,
+          currency: conMonto ? 'CLP' : undefined,
         },
         /*
          * Estable por lead y por hecho: un lead que se descalifica y se vuelve a calificar no
