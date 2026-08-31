@@ -49,20 +49,86 @@ function montar(overrides: {
 const evento = { organizationId: 'org-1', leadId: 'lead-1', clientId: 'client-1' };
 
 describe('señales del CRM hacia Meta', () => {
-  it('la calificación viaja como QualifiedLead, sin monto', async () => {
+  it('la calificación viaja con el nombre de la etapa, sin monto', async () => {
     const { handler, outbox } = montar();
 
     await handler.calificado(evento);
 
     expect(outbox.enqueue).toHaveBeenCalledWith('org-1', 'pixel-1', expect.objectContaining({
-      eventName: 'QualifiedLead',
+      eventName: 'Calificado',
       eventId: 'lead-calificacion:lead-1',
       userData: expect.objectContaining({ lead_id: '1234567890123456' }),
       customData: expect.objectContaining({ value: undefined, currency: undefined, eventSource: 'crm' }),
     }));
   });
 
-  it('la venta viaja como Purchase, con el monto y su moneda', async () => {
+  it('el lead recibido es la primera etapa, la que da el denominador', async () => {
+    const { handler, outbox } = montar();
+
+    await handler.recibido(evento);
+
+    expect(outbox.enqueue).toHaveBeenCalledWith('org-1', 'pixel-1', expect.objectContaining({
+      eventName: 'Lead recibido',
+      eventId: 'lead-recibido:lead-1',
+    }));
+  });
+
+  it('el descarte viaja como su propia etapa', async () => {
+    const { handler, outbox } = montar();
+
+    await handler.descartado(evento);
+
+    expect(outbox.enqueue).toHaveBeenCalledWith('org-1', 'pixel-1', expect.objectContaining({
+      eventName: 'Descartado',
+      eventId: 'lead-descarte:lead-1',
+    }));
+  });
+
+  /*
+   * La especificación exige que las etapas previas ya se hayan enviado cuando un lead llega a
+   * la última. El identificador estable evita duplicarla si ya salió.
+   */
+  it('la venta arrastra la calificación, en ese orden', async () => {
+    const { handler, outbox } = montar();
+
+    await handler.vendido(evento);
+
+    const nombres = outbox.enqueue.mock.calls.map((llamada: unknown[]) => (llamada[2] as { eventName: string }).eventName);
+    expect(nombres).toEqual(['Calificado', 'Vendido']);
+  });
+
+  it('manda nombre, apellido y país para emparejar mejor', async () => {
+    const { handler, outbox } = montar({
+      lead: {
+        id: 'lead-1', source: 'web', externalLeadId: null, campaignName: null,
+        estimatedAmount: null, email: 'p@e.cl', phone: null, metadata: null,
+        name: 'Ana María Pérez Soto',
+      },
+    });
+
+    await handler.calificado(evento);
+
+    expect(outbox.enqueue.mock.calls[0][2].userData).toMatchObject({
+      fn: ['Ana'], ln: ['María Pérez Soto'], country: ['cl'],
+    });
+  });
+
+  it('un nombre de una sola palabra no inventa apellido', async () => {
+    // Una cadena vacía produce un hash que no empareja con nadie y ensucia el evento.
+    const { handler, outbox } = montar({
+      lead: {
+        id: 'lead-1', source: 'web', externalLeadId: null, campaignName: null,
+        estimatedAmount: null, email: 'p@e.cl', phone: null, metadata: null, name: 'Martín',
+      },
+    });
+
+    await handler.calificado(evento);
+
+    expect(outbox.enqueue.mock.calls[0][2].userData.fn).toEqual(['Martín']);
+    expect(outbox.enqueue.mock.calls[0][2].userData.ln).toBeUndefined();
+  });
+
+  it('la venta lleva el monto y su moneda cuando se anotaron', async () => {
     const { handler, outbox } = montar({
       lead: {
         id: 'lead-1', source: 'web', externalLeadId: null, campaignName: null,
@@ -72,19 +138,19 @@ describe('señales del CRM hacia Meta', () => {
 
     await handler.vendido(evento);
 
-    expect(outbox.enqueue).toHaveBeenCalledWith('org-1', 'pixel-1', expect.objectContaining({
-      eventName: 'Purchase',
+    expect(outbox.enqueue).toHaveBeenLastCalledWith('org-1', 'pixel-1', expect.objectContaining({
+      eventName: 'Vendido',
       eventId: 'lead-venta:lead-1',
       customData: expect.objectContaining({ value: 250000, currency: 'CLP' }),
     }));
   });
 
   /*
-   * `Purchase` es un evento estandar y su definicion exige `value` y `currency`. Se enviaba igual
-   * sin monto, y Meta lo devolvia con «Invalid parameter»: la venta se perdia y solo aparecia dias
-   * despues en la cola de fallidos.
+   * Con el nombre de etapa libre no hay validación de evento estándar. Usar `Purchase` la
+   * activaba y Meta rechazaba las ventas sin importe con «code=100 subcode=2804010»: la
+   * conversión se perdía y solo aparecía días después en la cola de fallidos.
    */
-  it('una venta sin monto no viaja como Purchase, que lo exige', async () => {
+  it('una venta sin monto se reporta igual, con su mismo nombre', async () => {
     const { handler, outbox } = montar({
       lead: {
         id: 'lead-1', source: 'web', externalLeadId: null, campaignName: null,
@@ -94,8 +160,8 @@ describe('señales del CRM hacia Meta', () => {
 
     await handler.vendido(evento);
 
-    const enviado = outbox.enqueue.mock.calls[0][2];
-    expect(enviado.eventName).toBe('Venta');
+    const enviado = outbox.enqueue.mock.calls[1][2];
+    expect(enviado.eventName).toBe('Vendido');
     expect(enviado.customData.value).toBeUndefined();
     expect(enviado.customData.currency).toBeUndefined();
   });
@@ -110,10 +176,11 @@ describe('señales del CRM hacia Meta', () => {
 
     await handler.vendido(evento);
 
-    expect(outbox.enqueue.mock.calls[0][2].eventName).toBe('Venta');
+    expect(outbox.enqueue.mock.calls[1][2].eventName).toBe('Vendido');
+    expect(outbox.enqueue.mock.calls[1][2].customData.value).toBeUndefined();
   });
 
-  it('el identificador del evento no cambia con el nombre: sigue siendo la misma venta', async () => {
+  it('el identificador del evento es estable por etapa', async () => {
     const { handler, outbox } = montar({
       lead: {
         id: 'lead-1', source: 'web', externalLeadId: null, campaignName: null,
@@ -123,18 +190,9 @@ describe('señales del CRM hacia Meta', () => {
 
     await handler.vendido(evento);
 
-    expect(outbox.enqueue.mock.calls[0][2].eventId).toBe('lead-venta:lead-1');
+    expect(outbox.enqueue.mock.calls[1][2].eventId).toBe('lead-venta:lead-1');
   });
 
-  /*
-   * El descarte no tiene manejador, y esta prueba lo deja escrito. La documentacion de Meta pide
-   * enviar todas las etapas y clasificarlas en Events Manager, asi que esto esta pendiente de
-   * revisar; mientras tanto, que nadie lo agregue sin decidirlo.
-   */
-  it('no existe forma de reportar un descarte', () => {
-    const { handler } = montar();
-    expect((handler as unknown as Record<string, unknown>).descartado).toBeUndefined();
-  });
 
   /*
    * Antes solo se reportaban los leads de formularios instantáneos. El correo y el teléfono
@@ -246,6 +304,7 @@ describe('leads excluidos del reporte', () => {
 
     await handler.vendido(evento);
 
-    expect(outbox.enqueue).toHaveBeenCalledTimes(1);
+    // Dos: la venta arrastra la calificación, porque la etapa previa tiene que haber salido.
+    expect(outbox.enqueue).toHaveBeenCalledTimes(2);
   });
 });

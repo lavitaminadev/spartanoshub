@@ -18,6 +18,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("../lead.entity");
 const lead_status_enum_1 = require("../lead-status.enum");
+const lead_fit_status_enum_1 = require("../lead-fit-status.enum");
 const client_entity_1 = require("../../../clients/client.entity");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const client_status_enum_1 = require("../../../clients/client-status.enum");
@@ -52,6 +53,7 @@ let ConvertLeadUseCase = class ConvertLeadUseCase {
             const savedClient = await manager.save(client_entity_1.Client, client);
             etapaPrevia = lead.status;
             lead.status = lead_status_enum_1.LeadStatus.WON;
+            lead.fitStatus = lead_fit_status_enum_1.LeadFitStatus.SOLD;
             lead.convertedAt = new Date();
             lead.convertedToClientId = savedClient.id;
             await manager.save(lead_entity_1.Lead, lead);

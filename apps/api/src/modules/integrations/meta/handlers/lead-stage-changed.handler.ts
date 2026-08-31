@@ -9,40 +9,67 @@ import { Lead } from '../../../crm/leads/lead.entity';
 import { Campaign } from '../../../crm/campaigns/campaign.entity';
 import { atribucionDelLead } from '../atribucion-del-lead';
 
+/** Lo que acompaña a cualquier señal de un lead. La empresa decide Pixel y permiso. */
+type SenalDeLead = { organizationId: string; leadId: string; clientId: string | null };
+
 /**
- * Le devuelve a Meta los dos hechos comerciales que puede aprender de un lead.
+ * Le devuelve a Meta el recorrido de un lead por el embudo del CRM.
  *
- * - **`QualifiedLead`**: alguien del equipo afirmó que este lead vale la pena. Es la señal que
- *   Meta usa para optimizar hacia perfiles parecidos, y por eso es la más valiosa de las dos:
- *   llega semanas antes que la venta y hay muchas más.
- * - **`Purchase`**: compró, con el monto.
+ * Cuatro etapas, y las cuatro hacen falta:
  *
- * El descarte todavía no se reporta.
+ * - **Lead recibido**: uno por cada lead que entra. No es una etapa que nadie trabaje: es el
+ *   denominador. La integración calcula la tasa de conversión como «calificados sobre leads
+ *   recibidos», así que sin esto no hay con qué dividir y el requisito del 1-40% no se puede
+ *   evaluar siquiera. Es también lo que le dice a Meta que el lead llegó y se procesó.
+ * - **Calificado**: alguien del equipo afirmó que este perfil interesa. Es la señal más
+ *   valiosa porque es un juicio humano que no se deduce de ningún comportamiento, y llega
+ *   semanas antes que la venta.
+ * - **Vendido**: el desenlace. Lleva el importe cuando se anotó.
+ * - **Descartado**: el contraste. En Events Manager se clasifica como «otra etapa» y le
+ *   enseña a Meta qué perfiles no busca.
  *
- * **Esto está pendiente de revisar.** La documentación de la integración de CRM pide enviar todas
- * las etapas «incluido el lead crudo» y clasificarlas después en Events Manager como positivas o
- * no, en vez de filtrarlas al enviar. Enviar solo estas dos fue una decisión tomada con un
- * criterio general que no aplica a este producto.
+ * Las etapas intermedias —contactado, reunión agendada, cotización— **no se envían**. Son
+ * pasos de proceso, no de valor: se contacta a todos y se agenda para averiguar. Mandarlas
+ * diluye la señal y, si una de ellas cubriera casi todos los leads, sacaría a la etapa
+ * optimizada del rango de conversión que la integración exige.
  *
- * No se corrigió todavía porque la optimización por Conversion Leads exige 200 leads al mes de
- * formularios instantáneos, y hasta llegar ahí ninguna de las dos formas cambia nada. Lo que sí
- * cambia es el histórico: cuanto antes se envíe el embudo completo, más datos habrá cuando el
- * volumen llegue.
+ * **Los nombres son libres, nunca eventos estándar.** La especificación de la integración de
+ * CRM define `event_name` como «campo sin formato para capturar las etapas que usas en tu
+ * CRM». Usar `Purchase` hacía que Meta aplicara la validación del evento estándar, que exige
+ * `value` y `currency`: las ventas sin importe se rechazaban con «code=100 subcode=2804010» y
+ * la conversión se perdía en la cola de fallidos.
+ *
+ * **Cada etapa exige las anteriores.** La especificación lo dice sin rodeos: si un lead llega
+ * a la última etapa, las previas ya tienen que haberse enviado. Por eso una venta arrastra la
+ * calificación aunque nadie la haya marcado a mano; el identificador de evento es estable, así
+ * que si ya se envió, la cola la reconoce y no la duplica.
  *
  * Nada de esto sale si la empresa no tiene `metaConversions` contratado: son datos personales
  * hacia un tercero y esa capacidad nace apagada a propósito.
+ *
+ * @see docs/meta-conversion-leads.md
  */
 @Injectable()
 export class LeadStageChangedHandler {
   private readonly logger = new Logger(LeadStageChangedHandler.name);
 
   /**
-   * Con qué nombre se reporta una venta sin importe.
+   * Los nombres con que cada etapa aparece en Events Manager.
    *
-   * No es `Purchase` porque ese evento estándar exige `value` y `currency`. Es el rótulo de la
-   * etapa, que es lo que la integración de CRM espera para los pasos del embudo.
+   * Se escriben una vez acá porque son la clave con la que se configura el embudo en la
+   * interfaz de Meta: cambiarlos después parte el histórico en dos series que no se suman, y
+   * obliga a rehacer la clasificación de etapas positivas.
+   *
+   * Son deliberadamente neutros. Las condiciones de Meta prohíben que el nombre de un evento
+   * insinúe una categoría sensible, y desde septiembre de 2025 inhabilitan las conversiones
+   * personalizadas que lo hacen.
    */
-  private static readonly ETIQUETA_DE_VENTA = 'Venta';
+  static readonly ETAPAS = {
+    recibido: 'Lead recibido',
+    calificacion: 'Calificado',
+    venta: 'Vendido',
+    descarte: 'Descartado',
+  } as const;
 
   /** Nombre con el que estos eventos aparecen en Events Manager como origen. */
   private static readonly ORIGEN = 'Espartanos';
@@ -64,29 +91,44 @@ export class LeadStageChangedHandler {
     @InjectRepository(Campaign) private readonly campaigns: Repository<Campaign>,
   ) {}
 
-  @OnEvent('lead.qualified')
-  async calificado(payload: { organizationId: string; leadId: string; clientId: string | null }): Promise<void> {
-    await this.reportar(payload, 'QualifiedLead', 'calificacion');
+  /** Un lead entró al CRM. La primera etapa, la que todos recorren. */
+  @OnEvent('lead.received')
+  async recibido(payload: SenalDeLead): Promise<void> {
+    await this.reportar(payload, 'recibido');
   }
 
-  @OnEvent('lead.won')
-  async vendido(payload: { organizationId: string; leadId: string; clientId: string | null }): Promise<void> {
-    await this.reportar(payload, 'Purchase', 'venta');
+  /** Alguien afirmó que el lead vale la pena. */
+  @OnEvent('lead.qualified')
+  async calificado(payload: SenalDeLead): Promise<void> {
+    await this.reportar(payload, 'calificacion');
   }
 
   /**
-   * Encola el evento si la empresa puede reportar y hay Pixel al que reportar.
+   * Se cerró la venta.
    *
-   * @param eventName - Nombre estándar de Meta. Genérico y comercial a propósito: sus condiciones
-   *   prohíben que el nombre de un evento insinúe una categoría sensible, y desde septiembre de
-   *   2025 marcan e inhabilitan las conversiones personalizadas que lo hacen.
-   * @param sufijo - Distingue los dos eventos de un mismo lead dentro del `event_id`.
+   * Arrastra la calificación: vender es la afirmación más fuerte de que el lead encajaba, y la
+   * integración exige que las etapas previas ya se hayan enviado. Si la calificación ya salió,
+   * el identificador estable hace que la cola la reconozca y no la repita.
    */
-  private async reportar(
-    payload: { organizationId: string; leadId: string; clientId: string | null },
-    eventName: 'QualifiedLead' | 'Purchase',
-    sufijo: 'calificacion' | 'venta',
-  ): Promise<void> {
+  @OnEvent('lead.won')
+  async vendido(payload: SenalDeLead): Promise<void> {
+    await this.reportar(payload, 'calificacion');
+    await this.reportar(payload, 'venta');
+  }
+
+  /** El lead se descartó. Viaja como «otra etapa» para que Meta aprenda el contraste. */
+  @OnEvent('lead.discarded')
+  async descartado(payload: SenalDeLead): Promise<void> {
+    await this.reportar(payload, 'descarte');
+  }
+
+  /**
+   * Encola una etapa si la empresa puede reportar y hay Pixel al que reportar.
+   *
+   * @param etapa - Cuál de las cuatro. Da a la vez el nombre visible en Events Manager y el
+   *   sufijo del `event_id`, de modo que no puedan divergir.
+   */
+  private async reportar(payload: SenalDeLead, etapa: keyof typeof LeadStageChangedHandler.ETAPAS): Promise<void> {
     try {
       const lead = await this.leads.findOne({
         where: { id: payload.leadId, organizationId: payload.organizationId },
@@ -127,7 +169,7 @@ export class LeadStageChangedHandler {
         campana?.metaPixelId,
       );
       if (!pixelId) {
-        this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta «${eventName}»`);
+        this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta «${LeadStageChangedHandler.ETAPAS[etapa]}»`);
         return;
       }
       if (tokenSource === 'environment') {
@@ -162,34 +204,44 @@ export class LeadStageChangedHandler {
         ? lead.externalLeadId
         : undefined;
 
-      const monto = lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined;
-      const conMonto = Boolean(monto && monto > 0);
-
       /*
-       * `Purchase` exige importe y moneda; sin ellos Meta rechaza el evento.
+       * El importe solo viaja con la venta, y solo si alguien lo anotó.
        *
-       * Es un evento estándar y su definición pide `value` y `currency` como obligatorios. Se
-       * enviaba igual cuando el lead no tenía monto estimado, y Meta lo devolvía con «Invalid
-       * parameter» —código 100, subcódigo 2804010—: la venta se perdía y solo se veía días
-       * después en la cola de fallidos.
+       * En cualquier otra etapa sería una estimación, y Meta la trataría como ingreso
+       * confirmado. Una calificación no vale dinero: vale como señal de perfil.
        *
-       * Una venta sin monto sigue siendo una venta, así que en vez de callarla se reporta con el
-       * nombre de la etapa. La integración de CRM admite nombres libres para los pasos del
-       * embudo y no les exige importe, de modo que la señal llega igual y sin mentir sobre
-       * ingresos que nadie anotó.
+       * Que falte ya no rompe nada. Con el nombre de etapa libre no hay validación de evento
+       * estándar que exija `value` y `currency`, así que una venta sin monto se reporta igual
+       * en vez de perderse.
        */
-      const nombreFinal = eventName === 'Purchase' && !conMonto
-        ? LeadStageChangedHandler.ETIQUETA_DE_VENTA
-        : eventName;
+      const monto = lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined;
+      const conMonto = etapa === 'venta' && Boolean(monto && monto > 0);
+
 
       await this.outbox.enqueue(payload.organizationId, pixelId, {
-        eventName: nombreFinal,
+        eventName: LeadStageChangedHandler.ETAPAS[etapa],
         eventTime: Math.floor(Date.now() / 1000),
         actionSource: 'system_generated',
         userData: {
           lead_id: leadId,
           em: lead.email ? [lead.email] : undefined,
           ph: lead.phone ? [lead.phone] : undefined,
+          /*
+           * Nombre y apellido suben la calidad del emparejamiento.
+           *
+           * Meta puntúa cuántos identificadores manda cada evento y qué porcentaje empareja;
+           * cada parámetro más es una vía más de encontrar a la misma persona. Se parten del
+           * nombre completo, que es como lo guarda el CRM, y la cola los normaliza y hashea.
+           */
+          fn: partirNombre(lead.name).nombre,
+          ln: partirNombre(lead.name).apellido,
+          /*
+           * El país siempre, aunque sea uno solo.
+           *
+           * Meta lo pide explícitamente: empareja a escala global, y sin país tiene que
+           * distinguir entre cuentas de todo el mundo con los demás datos.
+           */
+          country: ['cl'],
           externalId: [lead.id],
           fbp: atribucion.fbp,
           fbc: atribucion.fbc,
@@ -199,12 +251,6 @@ export class LeadStageChangedHandler {
         customData: {
           leadEventSource: LeadStageChangedHandler.ORIGEN,
           eventSource: 'crm',
-          /*
-           * El monto solo viaja en la venta.
-           *
-           * En cualquier otro momento es una estimación, y Meta lo trataría como ingreso
-           * confirmado. Una calificación no vale dinero: vale como señal de perfil.
-           */
           value: conMonto ? monto : undefined,
           currency: conMonto ? 'CLP' : undefined,
         },
@@ -213,11 +259,28 @@ export class LeadStageChangedHandler {
          * genera un evento nuevo, y guardar la ficha otra vez tampoco. Sin esto, cada guardado
          * inflaría los conteos de Meta con movimientos que no son conversiones.
          */
-        eventId: `lead-${sufijo}:${lead.id}`,
+        eventId: `lead-${etapa}:${lead.id}`,
       });
     } catch (error) {
       // Nunca se propaga: reportar a Meta no puede impedir que el lead se guarde.
-      this.logger.error(`No se pudo reportar «${eventName}» del lead ${payload.leadId}:`, error);
+      this.logger.error(`No se pudo reportar «${LeadStageChangedHandler.ETAPAS[etapa]}» del lead ${payload.leadId}:`, error);
     }
   }
+}
+
+/**
+ * Parte un nombre completo en nombre y apellidos.
+ *
+ * El CRM guarda un solo campo porque es lo que llega de los formularios de Meta y de la web.
+ * Se toma la primera palabra como nombre y el resto como apellido: en Chile lo habitual son dos
+ * apellidos, y mandar los dos juntos empareja mejor que mandar solo uno.
+ *
+ * Un nombre de una sola palabra devuelve nombre y ningún apellido, no un apellido vacío: un
+ * valor en blanco produce un hash que no empareja con nadie y ensucia el evento.
+ */
+function partirNombre(completo: string | null | undefined): { nombre?: string[]; apellido?: string[] } {
+  const partes = String(completo ?? '').trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return {};
+  if (partes.length === 1) return { nombre: [partes[0]] };
+  return { nombre: [partes[0]], apellido: [partes.slice(1).join(' ')] };
 }

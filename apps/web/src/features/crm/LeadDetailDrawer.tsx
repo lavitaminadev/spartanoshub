@@ -50,7 +50,7 @@ interface Lead {
   clientId?: string | null;
   estimatedAmount?: number | string | null;
   qualityScore?: number;
-  fitStatus?: 'qualified' | 'in_review' | 'review' | 'unqualified';
+  fitStatus?: 'sold' | 'qualified' | 'in_review' | 'review' | 'unqualified';
   trafficLight?: 'green' | 'yellow' | 'red' | null;
   excludedFromMeta?: boolean;
   tags?: string[];

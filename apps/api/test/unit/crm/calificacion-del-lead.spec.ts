@@ -45,12 +45,15 @@ describe('la calificación del lead', () => {
     expect(lead.fitStatus).toBe(LeadFitStatus.REVIEW);
   });
 
-  it('vender la pone en calificado', async () => {
+  it('vender la deja en vendido, que es distinto de calificado', async () => {
+    // Quien vende necesita distinguir al que compró del que solo prometía: con un solo valor,
+    // un tablero con seis calificados no dice cuántos son clientes.
     const { uso } = caso({ ...base });
 
     const lead = await uso.execute('lead-1', { status: LeadStatus.WON }, 'org-1');
 
-    expect(lead.fitStatus).toBe(LeadFitStatus.QUALIFIED);
+    expect(lead.fitStatus).toBe(LeadFitStatus.SOLD);
+    expect(lead.fitStatus).not.toBe(LeadFitStatus.QUALIFIED);
   });
 
   it('descartar la pone en no calificado', async () => {
@@ -105,22 +108,38 @@ describe('qué se le anuncia a Meta', () => {
     expect(nombresEmitidos(emit)).not.toContain('lead.qualified');
   });
 
-  it('vender anuncia las dos señales: califica y compra', async () => {
+  it('vender anuncia la venta; quien reporta arrastra la calificación', async () => {
+    /*
+     * El caso de uso emite un solo hecho: se vendió. Que Meta necesite además la etapa previa
+     * es una regla de esa integración, y quien la conoce es su manejador. Emitir las dos desde
+     * acá obligaría a este caso de uso a saber cómo funciona el embudo de un tercero.
+     */
     const { uso, emit } = caso({ ...base });
 
     await uso.execute('lead-1', { status: LeadStatus.WON }, 'org-1');
 
-    expect(nombresEmitidos(emit)).toContain('lead.qualified');
     expect(nombresEmitidos(emit)).toContain('lead.won');
   });
 
-  it('descartar no anuncia nada a Meta', async () => {
+  it('descartar anuncia su propia señal, y ninguna positiva', async () => {
+    // Va a Events Manager como «otra etapa»: enseña qué perfil no se busca.
     const { uso, emit } = caso({ ...base });
 
     await uso.execute('lead-1', { status: LeadStatus.LOST, discardReason: 'Precio' }, 'org-1');
 
+    expect(nombresEmitidos(emit)).toContain('lead.discarded');
     expect(nombresEmitidos(emit)).not.toContain('lead.qualified');
     expect(nombresEmitidos(emit)).not.toContain('lead.won');
+  });
+
+  it('una reserva que no se concretó no viaja como prospecto descartado', async () => {
+    // `lost` lo comparten los dos dominios y no significan lo mismo: un comensal que no fue
+    // a comer no es un prospecto que no servía.
+    const { uso, emit } = caso({ ...base, domain: 'audience' });
+
+    await uso.execute('lead-1', { status: LeadStatus.LOST, discardReason: 'No llegó' }, 'org-1');
+
+    expect(nombresEmitidos(emit)).not.toContain('lead.discarded');
   });
 
   it('avanzar de etapa sin calificar no anuncia nada', async () => {
@@ -130,5 +149,6 @@ describe('qué se le anuncia a Meta', () => {
 
     expect(nombresEmitidos(emit)).not.toContain('lead.qualified');
     expect(nombresEmitidos(emit)).not.toContain('lead.won');
+    expect(nombresEmitidos(emit)).not.toContain('lead.discarded');
   });
 });
