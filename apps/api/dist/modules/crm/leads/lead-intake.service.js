@@ -339,14 +339,16 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         return Boolean(domain && GENERIC_EMAIL_DOMAINS.has(domain));
     }
     buildRetentionReviewDate() {
-        const retentionDays = Number(process.env.CRM_LEAD_RETENTION_DAYS ?? '');
-        if (!Number.isFinite(retentionDays) || retentionDays <= 0)
-            return undefined;
-        return new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
+        const configurado = Number(process.env.CRM_LEAD_RETENTION_DAYS ?? '');
+        const dias = Number.isFinite(configurado) && configurado > 0
+            ? configurado
+            : LeadIntakeService_1.DIAS_DE_RETENCION_POR_OMISION;
+        return new Date(Date.now() + dias * 24 * 60 * 60 * 1000);
     }
 };
 exports.LeadIntakeService = LeadIntakeService;
 LeadIntakeService.DIAS_QUE_META_ACEPTA = 7;
+LeadIntakeService.DIAS_DE_RETENCION_POR_OMISION = 730;
 exports.LeadIntakeService = LeadIntakeService = LeadIntakeService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),

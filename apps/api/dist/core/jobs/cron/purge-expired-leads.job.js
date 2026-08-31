@@ -20,7 +20,7 @@ const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("../../../modules/crm/leads/lead.entity");
 const data_protection_service_1 = require("../../data-protection/data-protection.service");
 const RESERVATION_RETENTION_DAYS = 180;
-const ETAPAS_CERRADAS = ['lost', 'no_show'];
+const ETAPAS_CON_FUNDAMENTO = ['won'];
 let PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = class PurgeExpiredLeadsJob {
     constructor(leadRepo, dataProtection) {
         this.leadRepo = leadRepo;
@@ -33,7 +33,7 @@ let PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = class PurgeExpiredLeadsJob {
         const expiredLeads = await this.leadRepo.find({
             where: {
                 retentionReviewAt: (0, typeorm_2.LessThan)(now),
-                status: (0, typeorm_2.In)(ETAPAS_CERRADAS),
+                status: (0, typeorm_2.Not)((0, typeorm_2.In)(ETAPAS_CON_FUNDAMENTO)),
             },
             order: { retentionReviewAt: 'ASC' },
             take: 200,

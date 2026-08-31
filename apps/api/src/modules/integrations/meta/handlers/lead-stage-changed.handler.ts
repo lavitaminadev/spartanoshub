@@ -8,6 +8,7 @@ import { ClientCapabilityService } from '../../../../core/client-scope/client-ca
 import { Lead } from '../../../crm/leads/lead.entity';
 import { Campaign } from '../../../crm/campaigns/campaign.entity';
 import { atribucionDelLead } from '../atribucion-del-lead';
+import { regionDelLead } from '../region-del-lead';
 
 /** Lo que acompaña a cualquier señal de un lead. La empresa decide Pixel y permiso. */
 type SenalDeLead = { organizationId: string; leadId: string; clientId: string | null };
@@ -187,6 +188,7 @@ export class LeadStageChangedHandler {
        * inventado produce un hash que no empareja con nadie y le enseña algo falso a Meta—.
        */
       const atribucion = atribucionDelLead(lead);
+      const region = regionDelLead(lead.metadata);
 
       /*
        * El `lead_id` de Meta cuando lo hay, y los contactos siempre.
@@ -242,6 +244,13 @@ export class LeadStageChangedHandler {
            * distinguir entre cuentas de todo el mundo con los demás datos.
            */
           country: ['cl'],
+          /*
+           * La región que la persona declaró en el formulario.
+           *
+           * Ya se la pedimos y está guardada: mandarla no cuesta ningún dato nuevo y suma un
+           * parámetro más de emparejamiento. Lo que no esté no se inventa.
+           */
+          st: region ? [region] : undefined,
           externalId: [lead.id],
           fbp: atribucion.fbp,
           fbc: atribucion.fbc,
