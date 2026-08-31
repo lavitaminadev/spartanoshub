@@ -33,6 +33,9 @@ interface Ajuste {
 
 interface Empresa { id: string; name: string }
 
+/** Alguien del equipo que puede recibir una prueba. */
+interface Destinatario { id: string; name: string; email: string }
+
 /**
  * Los avisos, en el orden en que conviene mirarlos.
  *
@@ -91,11 +94,18 @@ export function PanelDeCorreo(): JSX.Element {
   const [aviso, setAviso] = useState<string | null>(null);
   /** Qué aviso tiene una prueba en vuelo, para deshabilitar solo su botón. */
   const [probando, setProbando] = useState<string | null>(null);
+  /** Vacío significa «a mí», que es el caso normal. */
+  const [destinatario, setDestinatario] = useState('');
 
   const ajustesQuery = useQuery<Ajuste[]>({
     // La empresa forma parte de la clave: cambiarla trae otros valores, no los mismos filtrados.
     queryKey: ['ajustes-correo', empresa],
     queryFn: () => api.get(`/settings${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
+  });
+
+  const equipoQuery = useQuery<Destinatario[]>({
+    queryKey: ['destinatarios-de-prueba'],
+    queryFn: () => api.get('/settings/destinatarios-de-prueba'),
   });
 
   const empresasQuery = useQuery<{ data: Empresa[] }>({
@@ -125,7 +135,7 @@ export function PanelDeCorreo(): JSX.Element {
     está guardado no responde a esa pregunta.
   */
   const probar = useMutation({
-    mutationFn: (texto: { asunto: string; cuerpo: string }) =>
+    mutationFn: (texto: { asunto: string; cuerpo: string; destinatarioId?: string }) =>
       api.post<{ enviado: boolean; destino: string; motivo: string | null }>('/settings/probar', texto),
     onSuccess: (respuesta) => setAviso(respuesta.enviado
       ? `Enviado a ${respuesta.destino}. Si no llega, revisa la carpeta de no deseados.`
@@ -262,6 +272,29 @@ export function PanelDeCorreo(): JSX.Element {
                     </label>
                   );
                 })}
+                {/*
+                  A quién llega la prueba.
+
+                  Se elige de la lista del equipo, no se escribe: un campo libre convertiría
+                  esta pantalla en un formulario para mandar correo con la marca de la agencia a
+                  cualquier dirección, desde una cuenta del dominio propio.
+                */}
+                <div className="panel-correo-envio">
+                <label className="panel-correo-destinatario">
+                  <span>Enviar la prueba a</span>
+                  <select
+                    className="input"
+                    value={destinatario}
+                    onChange={(evento) => setDestinatario(evento.target.value)}
+                  >
+                    <option value="">A mí</option>
+                    {(equipoQuery.data ?? []).map((persona) => (
+                      <option key={persona.id} value={persona.id}>
+                        {persona.name} — {persona.email}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   className="btn btn-outline panel-correo-probar"
@@ -269,13 +302,15 @@ export function PanelDeCorreo(): JSX.Element {
                   onClick={() => {
                     setProbando(grupo.prefijo);
                     probar.mutate({
+                      destinatarioId: destinatario || undefined,
                       asunto: String(valorDe(`${grupo.prefijo}_subject`) || grupo.titulo),
                       cuerpo: String(valorDe(`${grupo.prefijo}_body`) || ""),
                     });
                   }}
                 >
-                  {probando === grupo.prefijo ? "Enviando..." : "Enviarme una prueba"}
+                  {probando === grupo.prefijo ? "Enviando..." : "Enviar una prueba"}
                 </button>
+                </div>
               </div>
             ) : null}
           </article>

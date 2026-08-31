@@ -4,6 +4,9 @@ import { Roles } from '../authorization/roles.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { AccountAccessService } from '../client-scope/account-access.service';
 import { EmailService } from '../notifications/email.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../../modules/users/user.entity';
 import { componerCorreo } from '../notifications/plantilla-de-correo';
 import { MUESTRA } from './muestra-de-correo';
 import { UserRole } from '../../modules/organizations/user-role.enum';
@@ -29,6 +32,7 @@ export class OrganizationSettingsController {
     private readonly settings: OrganizationSettingsService,
     private readonly accountAccess: AccountAccessService,
     private readonly correo: EmailService,
+    @InjectRepository(User) private readonly usuarios: Repository<User>,
   ) {}
 
   /**
@@ -97,28 +101,51 @@ export class OrganizationSettingsController {
   }
 
   /**
-   * Manda una plantilla a la persona que la está editando.
+   * Quiénes pueden recibir una prueba.
+   *
+   * Son las personas del equipo, y solo ellas. La pantalla necesita la lista para ofrecerla;
+   * sin un desplegable habría que escribir la dirección a mano, que es justo lo que no se
+   * permite.
+   */
+  @Get('destinatarios-de-prueba')
+  @ApiOperation({ summary: 'Personas del equipo a las que se puede enviar una prueba' })
+  async destinatariosDePrueba(@Req() request: AuthenticatedRequest) {
+    const organizationId = request.organizationId || request.user.organizationId;
+    const equipo = await this.usuarios.find({
+      where: { organizationId, isActive: true },
+      select: { id: true, name: true, email: true },
+      order: { name: 'ASC' },
+    });
+    // Quien no tiene correo no puede recibir nada; ofrecerlo sería un error garantizado.
+    return equipo.filter((persona) => persona.email?.trim());
+  }
+
+  /**
+   * Manda una plantilla a alguien del equipo para verla antes de guardarla.
    *
    * Editar un correo a ciegas y descubrir cómo quedó cuando ya le llegó a un cliente es la forma
    * más cara de corregir una errata. Con esto se ve antes: el mismo armazón, las mismas
    * variables, el mismo aspecto.
    *
-   * **Va siempre al correo de quien lo pide**, nunca a una dirección escrita a mano. Un campo
-   * libre acá convertiría la pantalla en un formulario para mandar correo con la marca de la
-   * agencia a cualquiera.
+   * **El destinatario se elige por identificador, nunca por dirección escrita a mano.** Un campo
+   * libre convertiría esta pantalla en un formulario para mandar correo con la marca de la
+   * agencia a cualquier dirección del mundo, desde una cuenta del dominio propio. Con el
+   * identificador, la dirección la pone el servidor desde la ficha de esa persona: quien manda
+   * la prueba no elige el texto de la dirección, solo a cuál de sus compañeros llega.
+   *
+   * Sin destinatario va a quien la pide, que es el caso normal.
    *
    * Las variables se rellenan con valores de muestra: la plantilla no sabe de qué lead o de qué
    * reserva se trata, y dejarlas vacías mostraría un texto con huecos que no se parece al real.
    */
   @Post('probar')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiOperation({ summary: 'Enviarse una plantilla de correo para verla' })
+  @ApiOperation({ summary: 'Enviar una plantilla de correo a alguien del equipo' })
   async probar(
     @Req() request: AuthenticatedRequest,
-    @Body() dto: { asunto?: string; cuerpo?: string },
+    @Body() dto: { asunto?: string; cuerpo?: string; destinatarioId?: string },
   ) {
-    const destino = request.user.email;
-    if (!destino) throw new BadRequestException('Tu usuario no tiene correo, así que no hay dónde enviarlo');
+    const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId);
 
     const { subject, html } = componerCorreo(
       String(dto?.asunto ?? 'Prueba'),
@@ -134,5 +161,33 @@ export class OrganizationSettingsController {
       // estar encendido y el servidor de correo apagado.
       motivo: enviado ? null : 'El envío de correo está apagado en el servidor (SMTP_ENABLED)',
     };
+  }
+
+  /**
+   * Dirección a la que va la prueba.
+   *
+   * La organización acota la búsqueda por la misma razón que en el resto del sistema: conocer un
+   * identificador no puede alcanzar a alguien de otra organización, ni siquiera para mandarle un
+   * correo de prueba.
+   */
+  private async direccionDelDestinatario(
+    request: AuthenticatedRequest,
+    destinatarioId?: string,
+  ): Promise<string> {
+    if (!destinatarioId) {
+      const propio = request.user.email;
+      if (!propio) throw new BadRequestException('Tu usuario no tiene correo, así que no hay dónde enviarlo');
+      return propio;
+    }
+
+    const organizationId = request.organizationId || request.user.organizationId;
+    const persona = await this.usuarios.findOne({
+      where: { id: destinatarioId, organizationId, isActive: true },
+      select: { id: true, email: true },
+    });
+    if (!persona) throw new BadRequestException('Esa persona no está en tu equipo');
+    if (!persona.email?.trim()) throw new BadRequestException('Esa persona no tiene correo registrado');
+
+    return persona.email;
   }
 }

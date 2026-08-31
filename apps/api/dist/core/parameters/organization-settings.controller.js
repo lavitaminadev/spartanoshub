@@ -19,6 +19,9 @@ const roles_decorator_1 = require("../authorization/roles.decorator");
 const throttler_1 = require("@nestjs/throttler");
 const account_access_service_1 = require("../client-scope/account-access.service");
 const email_service_1 = require("../notifications/email.service");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
+const user_entity_1 = require("../../modules/users/user.entity");
 const plantilla_de_correo_1 = require("../notifications/plantilla-de-correo");
 const muestra_de_correo_1 = require("./muestra-de-correo");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
@@ -28,10 +31,11 @@ const module_scope_decorator_1 = require("../authorization/module-scope.decorato
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const shared_1 = require("@espartanos/shared");
 let OrganizationSettingsController = class OrganizationSettingsController {
-    constructor(settings, accountAccess, correo) {
+    constructor(settings, accountAccess, correo, usuarios) {
         this.settings = settings;
         this.accountAccess = accountAccess;
         this.correo = correo;
+        this.usuarios = usuarios;
     }
     async list(request, clientId) {
         const organizationId = request.organizationId || request.user.organizationId;
@@ -57,10 +61,17 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null);
     }
+    async destinatariosDePrueba(request) {
+        const organizationId = request.organizationId || request.user.organizationId;
+        const equipo = await this.usuarios.find({
+            where: { organizationId, isActive: true },
+            select: { id: true, name: true, email: true },
+            order: { name: 'ASC' },
+        });
+        return equipo.filter((persona) => persona.email?.trim());
+    }
     async probar(request, dto) {
-        const destino = request.user.email;
-        if (!destino)
-            throw new common_1.BadRequestException('Tu usuario no tiene correo, así que no hay dónde enviarlo');
+        const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId);
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? 'Prueba'), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
         const enviado = await this.correo.send(destino, `[Prueba] ${subject}`, html);
         return {
@@ -68,6 +79,24 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             destino,
             motivo: enviado ? null : 'El envío de correo está apagado en el servidor (SMTP_ENABLED)',
         };
+    }
+    async direccionDelDestinatario(request, destinatarioId) {
+        if (!destinatarioId) {
+            const propio = request.user.email;
+            if (!propio)
+                throw new common_1.BadRequestException('Tu usuario no tiene correo, así que no hay dónde enviarlo');
+            return propio;
+        }
+        const organizationId = request.organizationId || request.user.organizationId;
+        const persona = await this.usuarios.findOne({
+            where: { id: destinatarioId, organizationId, isActive: true },
+            select: { id: true, email: true },
+        });
+        if (!persona)
+            throw new common_1.BadRequestException('Esa persona no está en tu equipo');
+        if (!persona.email?.trim())
+            throw new common_1.BadRequestException('Esa persona no tiene correo registrado');
+        return persona.email;
     }
 };
 exports.OrganizationSettingsController = OrganizationSettingsController;
@@ -91,9 +120,17 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "update", null);
 __decorate([
+    (0, common_1.Get)('destinatarios-de-prueba'),
+    (0, swagger_1.ApiOperation)({ summary: 'Personas del equipo a las que se puede enviar una prueba' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], OrganizationSettingsController.prototype, "destinatariosDePrueba", null);
+__decorate([
     (0, common_1.Post)('probar'),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
-    (0, swagger_1.ApiOperation)({ summary: 'Enviarse una plantilla de correo para verla' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Enviar una plantilla de correo a alguien del equipo' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -106,7 +143,9 @@ exports.OrganizationSettingsController = OrganizationSettingsController = __deco
     (0, common_1.Controller)('settings'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, module_scope_decorator_1.ModuleScope)('settings'),
+    __param(3, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [organization_settings_service_1.OrganizationSettingsService,
         account_access_service_1.AccountAccessService,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        typeorm_2.Repository])
 ], OrganizationSettingsController);

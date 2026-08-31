@@ -97,7 +97,14 @@ export class ListLeadsUseCase {
     // La entidad recorta la campaña al guardarla, así que comparar el valor tal cual basta y no
     // hace falta normalizar acá.
     if (filters.campaignName) where.campaignName = filters.campaignName;
-    if (filters.assignedTo) where.assignedTo = filters.assignedTo;
+    /*
+     * `sin` es la bandeja de lo que nadie ha tomado.
+     *
+     * Va antes del caso normal porque no es un identificador: tratarlo como tal buscaría un
+     * responsable llamado «sin» y devolvería siempre cero.
+     */
+    if (filters.assignedTo === 'sin') where.assignedTo = IsNull();
+    else if (filters.assignedTo) where.assignedTo = filters.assignedTo;
     const domain = filters.domain ?? 'commercial';
     if (domain !== 'all') where.domain = domain;
 

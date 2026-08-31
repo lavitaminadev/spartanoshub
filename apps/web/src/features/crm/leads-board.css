@@ -171,16 +171,31 @@
  * de modo que diez prospectos ocupaban lo que deberían ocupar treinta. El texto completo sigue
  * disponible en el `title` y en la ficha, así que recortar no esconde nada.
  */
+/*
+ * El recorte va en un elemento dentro de la celda, nunca en la celda.
+ *
+ * `max-width` sobre un `<td>` lo ignora el navegador mientras la tabla reparta el ancho sola,
+ * así que el recorte no llegaba a aplicarse y el nombre se salía sobre la columna vecina. Y
+ * `display: block` sobre un `<td>` es peor: lo saca del flujo de la fila, de modo que Correo y
+ * Origen dejaban de alinearse con el resto.
+ *
+ * Con un elemento propio dentro, las dos propiedades hacen lo que dicen y la celda sigue siendo
+ * una celda. El texto completo sigue en el `title` y en la ficha, así que recortar no esconde
+ * nada.
+ */
 .data-table td.col-prospecto,
 .data-table th.col-prospecto { max-width: 190px; }
 .data-table td.col-larga { max-width: 210px; }
 .data-table td.col-prospecto .link-button,
-.data-table td.col-larga {
+.data-table td.col-larga .celda-recortada {
   display: block;
+  max-width: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.data-table td.col-prospecto .link-button { max-width: 190px; }
+.data-table td.col-larga .celda-recortada { max-width: 210px; }
 
 /* Elección de columnas: dos por fila, para que quepan las nueve sin desplazarse. */
 .leads-columnas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
@@ -192,7 +207,12 @@
   .data-table td.col-prospecto,
   .data-table td.col-larga { max-width: none; }
   .data-table td.col-prospecto .link-button,
-  .data-table td.col-larga { white-space: normal; }
+  .data-table td.col-larga .celda-recortada {
+    max-width: none;
+    white-space: normal;
+    /* Un correo largo sin espacios no se parte solo y desborda la tarjeta. */
+    overflow-wrap: anywhere;
+  }
   .leads-columnas { grid-template-columns: 1fr; }
 }
 
