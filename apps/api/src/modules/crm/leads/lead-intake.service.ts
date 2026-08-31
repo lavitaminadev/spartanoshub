@@ -148,6 +148,14 @@ export class LeadIntakeService {
    */
   private static readonly DIAS_QUE_META_ACEPTA = 7;
 
+  /**
+   * Plazo por omisión para revisar la retención de un lead, en días.
+   *
+   * Veinticuatro meses desde la captura. Un prospecto que nadie movió en dos años ya no sirve
+   * al fin para el que se recogió, y ese fin es lo que la ley mide.
+   */
+  private static readonly DIAS_DE_RETENCION_POR_OMISION = 730;
+
   private readonly logger = new Logger(LeadIntakeService.name);
 
   constructor(
@@ -601,9 +609,25 @@ export class LeadIntakeService {
     return Boolean(domain && GENERIC_EMAIL_DOMAINS.has(domain));
   }
 
-  private buildRetentionReviewDate(): Date | undefined {
-    const retentionDays = Number(process.env.CRM_LEAD_RETENTION_DAYS ?? '');
-    if (!Number.isFinite(retentionDays) || retentionDays <= 0) return undefined;
-    return new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
+  /**
+   * Cuándo hay que volver a mirar si estos datos personales siguen haciendo falta.
+   *
+   * **Siempre devuelve una fecha.** Antes salía de una variable de entorno y, si esa variable
+   * no estaba puesta, devolvía nada: el lead nacía sin fecha de revisión y la purga no lo
+   * miraba nunca. La retención quedaba apagada por omisión, que es la forma más silenciosa de
+   * conservar datos personales para siempre.
+   *
+   * El valor por omisión son veinticuatro meses. Es un plazo, no una decisión definitiva:
+   * `CRM_LEAD_RETENTION_DAYS` lo cambia, pero ya no puede dejarlo sin plazo.
+   *
+   * Que llegue la fecha no borra nada por sí solo. Marca el momento de revisar, y la purga
+   * decide después: una venta conserva su fundamento y no se toca.
+   */
+  private buildRetentionReviewDate(): Date {
+    const configurado = Number(process.env.CRM_LEAD_RETENTION_DAYS ?? '');
+    const dias = Number.isFinite(configurado) && configurado > 0
+      ? configurado
+      : LeadIntakeService.DIAS_DE_RETENCION_POR_OMISION;
+    return new Date(Date.now() + dias * 24 * 60 * 60 * 1000);
   }
 }

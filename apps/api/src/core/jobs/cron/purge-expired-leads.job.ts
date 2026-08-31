@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, Repository } from 'typeorm';
+import { In, LessThan, Not, Repository } from 'typeorm';
 import { Lead } from '../../../modules/crm/leads/lead.entity';
 import { DataProtectionService } from '../../data-protection/data-protection.service';
 
@@ -23,7 +23,18 @@ const RESERVATION_RETENTION_DAYS = 180;
  * Las ventas quedan fuera: la relacion comercial es el fundamento que permite conservarlas, y su
  * respaldo tiene plazos propios mas largos.
  */
-const ETAPAS_CERRADAS = ['lost', 'no_show'];
+/**
+ * Etapas cuyo dato personal conserva un fundamento para seguir guardado.
+ *
+ * Solo la venta: la relacion comercial es lo que permite conservar los datos de un cliente, y su
+ * respaldo tiene plazos propios mas largos que los de un prospecto.
+ *
+ * La regla era la contraria —se anonimizaba solo lo cerrado como perdido o no asistido— y dejaba
+ * fuera el caso mas comun: el lead que nadie movio nunca. Un prospecto que lleva dos anos en
+ * «Nuevo» no esta en curso, esta olvidado, y sus datos ya no sirven al fin para el que se
+ * recogieron. Conservarlos por no haberlos cerrado es guardarlos por descuido.
+ */
+const ETAPAS_CON_FUNDAMENTO = ['won'];
 
 @Injectable()
 export class PurgeExpiredLeadsJob {
@@ -41,7 +52,7 @@ export class PurgeExpiredLeadsJob {
     const expiredLeads = await this.leadRepo.find({
       where: {
         retentionReviewAt: LessThan(now),
-        status: In(ETAPAS_CERRADAS),
+        status: Not(In(ETAPAS_CON_FUNDAMENTO)),
       },
       order: { retentionReviewAt: 'ASC' },
       take: 200,
