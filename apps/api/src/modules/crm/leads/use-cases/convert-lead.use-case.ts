@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { Lead } from '../lead.entity';
 import { LeadStatus } from '../lead-status.enum';
+import { LeadFitStatus } from '../lead-fit-status.enum';
 import { Client } from '../../../clients/client.entity';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClientStatus } from '../../../clients/client-status.enum';
@@ -58,6 +59,14 @@ export class ConvertLeadUseCase {
 
       etapaPrevia = lead.status;
       lead.status = LeadStatus.WON;
+      /*
+       * Convertir también califica.
+       *
+       * Este camino escribía la etapa y dejaba la calificación como estaba, así que un lead
+       * que se cerró convirtiéndolo en cliente —que es como cierra el equipo comercial—
+       * quedaba vendido y «pendiente de revisar» a la vez.
+       */
+      lead.fitStatus = LeadFitStatus.SOLD;
       lead.convertedAt = new Date();
       lead.convertedToClientId = savedClient.id;
       await manager.save(Lead, lead);

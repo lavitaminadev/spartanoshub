@@ -70,6 +70,24 @@ export class MetaPixelController {
     };
   }
 
+
+  /**
+   * Devuelve a la cola los eventos que se dieron por perdidos.
+   *
+   * Sin identificadores reintenta todo lo fallido de la organización, que es lo que se quiere
+   * después de arreglar una causa común. El `event_id` no cambia, así que Meta deduplica lo que
+   * hubiera llegado pese al error.
+   */
+  @Post('conversions/outbox/reintentar')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
+  @ApiOperation({ summary: 'Reintentar eventos de conversión fallidos' })
+  async reintentarConversiones(
+    @Req() req: AuthenticatedRequest,
+    @Body() cuerpo: { ids?: string[] },
+  ) {
+    return this.conversionOutbox.reintentar(req.organizationId, cuerpo?.ids);
+  }
+
   @Post('client-pixels/setup')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
   setupClientPixel(@Body() dto: MetaClientPixelSetupDto, @Req() req: AuthenticatedRequest) {

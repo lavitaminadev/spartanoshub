@@ -7,7 +7,7 @@ import { MetaConversionOutboxService } from '../../../src/modules/integrations/m
  * cola deja de avanzar sin que aparezca ningun error en la aplicacion. Estas pruebas
  * fijan ese contrato.
  */
-function makeService(rows: any[] = []) {
+function makeService(rows: any[] = [], leadsExistentes = 1) {
   const outbox: Record<string, any> = {
     findOne: vi.fn().mockResolvedValue(null),
     create: vi.fn((value: any) => value),
@@ -28,8 +28,9 @@ function makeService(rows: any[] = []) {
   };
   const conversions = { sendServerEvent: vi.fn().mockResolvedValue({ events_received: 1 }) };
   const clientPixels = { resolveByPixel: vi.fn().mockResolvedValue('token-123') };
-  const service = new MetaConversionOutboxService(outbox as any, conversions as any, clientPixels as any);
-  return { service, outbox, conversions, clientPixels };
+  const leads = { count: vi.fn().mockResolvedValue(leadsExistentes) };
+  const service = new MetaConversionOutboxService(outbox as any, conversions as any, clientPixels as any, leads as any);
+  return { service, outbox, conversions, clientPixels, leads };
 }
 
 function row(overrides: Record<string, any> = {}) {
@@ -170,5 +171,52 @@ describe('MetaConversionOutboxService.processPending', () => {
     const { service } = makeService();
     await expect(service.enqueue('org-1', 'pixel-1', { eventName: 'Schedule' } as never))
       .rejects.toThrow('A stable eventId is required');
+  });
+});
+
+describe('MetaConversionOutboxService: leads borrados', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const LEAD = '92c453b7-1f0a-4c2e-9d3b-5a1e7c8f0b21';
+
+  it('no llama a Meta si el lead que originó el evento ya no está', async () => {
+    const fila = row({ eventId: `lead-venta:${LEAD}`, eventData: { eventName: 'Purchase' } });
+    const { service, conversions, outbox } = makeService([fila], 0);
+
+    await service.processPending();
+
+    expect(conversions.sendServerEvent).not.toHaveBeenCalled();
+    expect(fila.status).toBe('expired');
+    expect(fila.lastError).toContain('ya no existe');
+    expect(outbox.save).toHaveBeenCalled();
+  });
+
+  it('busca por identificador y organización, nunca por nombre ni correo', async () => {
+    const fila = row({ eventId: `lead-calificacion:${LEAD}`, eventData: { eventName: 'QualifiedLead' } });
+    const { service, leads } = makeService([fila]);
+
+    await service.processPending();
+
+    // El mismo nombre en otra campaña es otro lead con otro UUID: borrar aquel no puede
+    // silenciar este.
+    expect(leads.count).toHaveBeenCalledWith({ where: { id: LEAD, organizationId: 'org-1' } });
+  });
+
+  it('envía con normalidad cuando el lead sigue existiendo', async () => {
+    const fila = row({ eventId: `lead-venta:${LEAD}`, eventData: { eventName: 'Purchase' } });
+    const { service, conversions } = makeService([fila]);
+
+    await service.processPending();
+
+    expect(conversions.sendServerEvent).toHaveBeenCalledTimes(1);
+    expect(fila.status).toBe('processed');
+  });
+
+  it('no consulta leads para eventos que no nacen de uno', async () => {
+    const { service, leads, conversions } = makeService([row()]);
+
+    await service.processPending();
+
+    expect(leads.count).not.toHaveBeenCalled();
+    expect(conversions.sendServerEvent).toHaveBeenCalledTimes(1);
   });
 });

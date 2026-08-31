@@ -26,7 +26,8 @@ describe('prospecto anotado a mano', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new LeadIntakeService(repo as never, automation as never, audit as never);
+    const emisor = { emit: vi.fn() };
+    service = new LeadIntakeService(repo as never, automation as never, audit as never, emisor as never);
     repo.create.mockImplementation((data) => data);
     repo.save.mockImplementation(async (data) => ({ id: 'lead-1', ...data }));
     repo.findOne.mockResolvedValue(null);

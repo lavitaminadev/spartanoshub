@@ -136,6 +136,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Lead.prototype, "birthDate", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'excluded_from_meta', type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], Lead.prototype, "excludedFromMeta", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'retention_review_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Date)
 ], Lead.prototype, "retentionReviewAt", void 0);

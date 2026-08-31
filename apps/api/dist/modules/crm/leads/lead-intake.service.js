@@ -16,6 +16,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LeadIntakeService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
+const event_emitter_1 = require("@nestjs/event-emitter");
 const typeorm_2 = require("typeorm");
 const audit_service_1 = require("../../../core/audit/audit.service");
 const lead_entity_1 = require("./lead.entity");
@@ -65,10 +66,11 @@ const LOW_QUALITY_KEYWORDS = [
     'soporte',
 ];
 let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
-    constructor(repo, automation, audit) {
+    constructor(repo, automation, audit, eventEmitter) {
         this.repo = repo;
         this.automation = automation;
         this.audit = audit;
+        this.eventEmitter = eventEmitter;
         this.logger = new common_1.Logger(LeadIntakeService_1.name);
     }
     async captureAudience(input) {
@@ -83,9 +85,26 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         const normalized = this.normalizeInput(payload);
         const transactionManager = this.repo.manager;
         if (!transactionManager?.transaction) {
-            return this.persistCapture(normalized, domain, this.repo, undefined, mode);
+            const directo = await this.persistCapture(normalized, domain, this.repo, undefined, mode);
+            this.anunciarLlegada(directo.lead, domain);
+            return directo;
         }
-        return transactionManager.transaction(async (manager) => this.persistCapture(normalized, domain, manager.getRepository(lead_entity_1.Lead), manager, mode));
+        const resultado = await transactionManager.transaction(async (manager) => this.persistCapture(normalized, domain, manager.getRepository(lead_entity_1.Lead), manager, mode));
+        this.anunciarLlegada(resultado.lead, domain);
+        return resultado;
+    }
+    anunciarLlegada(lead, domain) {
+        if (domain !== 'commercial')
+            return;
+        const origen = lead.sourceCreatedAt ?? lead.createdAt;
+        const dias = origen ? (Date.now() - new Date(origen).getTime()) / 86_400_000 : 0;
+        if (dias > LeadIntakeService_1.DIAS_QUE_META_ACEPTA)
+            return;
+        this.eventEmitter.emit('lead.received', {
+            organizationId: lead.organizationId,
+            leadId: lead.id,
+            clientId: lead.clientId ?? null,
+        });
     }
     async persistCapture(normalized, domain, repo, manager, mode = 'upsert') {
         if (mode === 'create-only') {
@@ -327,10 +346,12 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
     }
 };
 exports.LeadIntakeService = LeadIntakeService;
+LeadIntakeService.DIAS_QUE_META_ACEPTA = 7;
 exports.LeadIntakeService = LeadIntakeService = LeadIntakeService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         crm_lead_automation_service_1.CrmLeadAutomationService,
-        audit_service_1.AuditService])
+        audit_service_1.AuditService,
+        event_emitter_1.EventEmitter2])
 ], LeadIntakeService);

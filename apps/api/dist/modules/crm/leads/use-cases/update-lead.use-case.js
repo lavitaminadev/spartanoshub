@@ -28,7 +28,7 @@ const DOMAIN_LABELS = {
     audience: 'la audiencia de un local',
 };
 const DESENLACES = {
-    [lead_status_enum_1.LeadStatus.WON]: lead_fit_status_enum_1.LeadFitStatus.QUALIFIED,
+    [lead_status_enum_1.LeadStatus.WON]: lead_fit_status_enum_1.LeadFitStatus.SOLD,
     [lead_status_enum_1.LeadStatus.LOST]: lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
 };
 let UpdateLeadUseCase = class UpdateLeadUseCase {
@@ -77,6 +77,8 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.estimatedAmount = data.estimatedAmount;
         if (data.trafficLight !== undefined)
             lead.trafficLight = data.trafficLight;
+        if (data.excludedFromMeta !== undefined)
+            lead.excludedFromMeta = data.excludedFromMeta;
         if (data.assignedTo !== undefined)
             lead.assignedTo = data.assignedTo;
         if (data.source !== undefined)
@@ -104,6 +106,13 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
         }
         if (etapaPrevia !== guardado.status && guardado.status === lead_status_enum_1.LeadStatus.WON) {
             this.eventEmitter.emit('lead.won', {
+                organizationId,
+                leadId: guardado.id,
+                clientId: guardado.clientId ?? null,
+            });
+        }
+        if (etapaPrevia !== guardado.status && guardado.status === lead_status_enum_1.LeadStatus.LOST && guardado.domain === 'commercial') {
+            this.eventEmitter.emit('lead.discarded', {
                 organizationId,
                 leadId: guardado.id,
                 clientId: guardado.clientId ?? null,

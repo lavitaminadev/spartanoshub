@@ -33,18 +33,27 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
         this.campaigns = campaigns;
         this.logger = new common_1.Logger(LeadStageChangedHandler_1.name);
     }
+    async recibido(payload) {
+        await this.reportar(payload, 'recibido');
+    }
     async calificado(payload) {
-        await this.reportar(payload, 'QualifiedLead', 'calificacion');
+        await this.reportar(payload, 'calificacion');
     }
     async vendido(payload) {
-        await this.reportar(payload, 'Purchase', 'venta');
+        await this.reportar(payload, 'calificacion');
+        await this.reportar(payload, 'venta');
     }
-    async reportar(payload, eventName, sufijo) {
+    async descartado(payload) {
+        await this.reportar(payload, 'descarte');
+    }
+    async reportar(payload, etapa) {
         try {
             const lead = await this.leads.findOne({
                 where: { id: payload.leadId, organizationId: payload.organizationId },
             });
             if (!lead)
+                return;
+            if (lead.excludedFromMeta)
                 return;
             if (!payload.clientId)
                 return;
@@ -60,7 +69,7 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                 return;
             const { pixelId, tokenSource } = await this.clientPixels.resolveForScope(payload.organizationId, payload.clientId, campana?.metaPixelId);
             if (!pixelId) {
-                this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta «${eventName}»`);
+                this.logger.warn(`Lead ${lead.id}: sin Pixel configurado; no se reporta «${LeadStageChangedHandler_1.ETAPAS[etapa]}»`);
                 return;
             }
             if (tokenSource === 'environment') {
@@ -73,18 +82,18 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                 ? lead.externalLeadId
                 : undefined;
             const monto = lead.estimatedAmount ? Number(lead.estimatedAmount) : undefined;
-            const conMonto = Boolean(monto && monto > 0);
-            const nombreFinal = eventName === 'Purchase' && !conMonto
-                ? LeadStageChangedHandler_1.ETIQUETA_DE_VENTA
-                : eventName;
+            const conMonto = etapa === 'venta' && Boolean(monto && monto > 0);
             await this.outbox.enqueue(payload.organizationId, pixelId, {
-                eventName: nombreFinal,
+                eventName: LeadStageChangedHandler_1.ETAPAS[etapa],
                 eventTime: Math.floor(Date.now() / 1000),
                 actionSource: 'system_generated',
                 userData: {
                     lead_id: leadId,
                     em: lead.email ? [lead.email] : undefined,
                     ph: lead.phone ? [lead.phone] : undefined,
+                    fn: partirNombre(lead.name).nombre,
+                    ln: partirNombre(lead.name).apellido,
+                    country: ['cl'],
                     externalId: [lead.id],
                     fbp: atribucion.fbp,
                     fbc: atribucion.fbc,
@@ -97,18 +106,29 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                     value: conMonto ? monto : undefined,
                     currency: conMonto ? 'CLP' : undefined,
                 },
-                eventId: `lead-${sufijo}:${lead.id}`,
+                eventId: `lead-${etapa}:${lead.id}`,
             });
         }
         catch (error) {
-            this.logger.error(`No se pudo reportar «${eventName}» del lead ${payload.leadId}:`, error);
+            this.logger.error(`No se pudo reportar «${LeadStageChangedHandler_1.ETAPAS[etapa]}» del lead ${payload.leadId}:`, error);
         }
     }
 };
 exports.LeadStageChangedHandler = LeadStageChangedHandler;
-LeadStageChangedHandler.ETIQUETA_DE_VENTA = 'Venta';
+LeadStageChangedHandler.ETAPAS = {
+    recibido: 'Lead recibido',
+    calificacion: 'Calificado',
+    venta: 'Vendido',
+    descarte: 'Descartado',
+};
 LeadStageChangedHandler.ORIGEN = 'Espartanos';
 LeadStageChangedHandler.LEADGEN_ID = /^\d{15,17}$/;
+__decorate([
+    (0, event_emitter_1.OnEvent)('lead.received'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], LeadStageChangedHandler.prototype, "recibido", null);
 __decorate([
     (0, event_emitter_1.OnEvent)('lead.qualified'),
     __metadata("design:type", Function),
@@ -121,6 +141,12 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], LeadStageChangedHandler.prototype, "vendido", null);
+__decorate([
+    (0, event_emitter_1.OnEvent)('lead.discarded'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], LeadStageChangedHandler.prototype, "descartado", null);
 exports.LeadStageChangedHandler = LeadStageChangedHandler = LeadStageChangedHandler_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(3, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
@@ -131,3 +157,11 @@ exports.LeadStageChangedHandler = LeadStageChangedHandler = LeadStageChangedHand
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], LeadStageChangedHandler);
+function partirNombre(completo) {
+    const partes = String(completo ?? '').trim().split(/\s+/).filter(Boolean);
+    if (partes.length === 0)
+        return {};
+    if (partes.length === 1)
+        return { nombre: [partes[0]] };
+    return { nombre: [partes[0]], apellido: [partes.slice(1).join(' ')] };
+}

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EntityManager, FindOptionsWhere, Repository } from 'typeorm';
 import { AuditService } from '../../../core/audit/audit.service';
 import { Lead } from './lead.entity';
@@ -139,12 +140,21 @@ interface LeadQualificationResult {
 
 @Injectable()
 export class LeadIntakeService {
+  /**
+   * Antigüedad máxima que Meta acepta para un evento, en días.
+   *
+   * Es su límite, no una decisión nuestra: un evento más viejo se descarta, y falsear la fecha
+   * para colarlo puede costar el lote completo.
+   */
+  private static readonly DIAS_QUE_META_ACEPTA = 7;
+
   private readonly logger = new Logger(LeadIntakeService.name);
 
   constructor(
     @InjectRepository(Lead) private readonly repo: Repository<Lead>,
     private readonly automation: CrmLeadAutomationService,
     private readonly audit: AuditService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -184,11 +194,47 @@ export class LeadIntakeService {
     // llaman al mismo método a propósito: cuando eran dos copias, la auditoría de sobrescritura
     // se agregó solo a una y el camino sin transacción siguió pisando datos en silencio.
     if (!transactionManager?.transaction) {
-      return this.persistCapture(normalized, domain, this.repo, undefined, mode);
+      const directo = await this.persistCapture(normalized, domain, this.repo, undefined, mode);
+      this.anunciarLlegada(directo.lead, domain);
+      return directo;
     }
 
-    return transactionManager.transaction(async (manager) =>
+    const resultado = await transactionManager.transaction(async (manager) =>
       this.persistCapture(normalized, domain, manager.getRepository(Lead), manager, mode));
+    this.anunciarLlegada(resultado.lead, domain);
+    return resultado;
+  }
+
+  /**
+   * Anuncia que llegó un lead comercial, para que quien reporte a Meta lo sepa.
+   *
+   * Es la primera etapa del embudo y la que todos recorren: la integración calcula la tasa de
+   * conversión sobre ella, así que sin este aviso las calificaciones y ventas llegan sin
+   * denominador y el embudo no se puede validar.
+   *
+   * **Solo el dominio comercial.** Una reserva no es un prospecto del CRM y tiene sus propios
+   * eventos; mezclarlas metería a los comensales en el embudo de ventas de la agencia.
+   *
+   * **Solo lo que llega de verdad ahora.** Un lead importado trae su fecha de origen real, y
+   * Meta descarta lo que supere los siete días —advirtiendo que un lote con fechas
+   * manipuladas puede desecharse entero—. Cargar el histórico no puede anunciarse como si
+   * acabara de ocurrir: sería falso y arriesgaría los eventos legítimos del mismo lote.
+   *
+   * Va fuera de la transacción a propósito: quien escucha lee el lead por su cuenta, y dentro
+   * de la transacción todavía no lo vería.
+   */
+  private anunciarLlegada(lead: Lead, domain: LeadDomain): void {
+    if (domain !== 'commercial') return;
+
+    const origen = lead.sourceCreatedAt ?? lead.createdAt;
+    const dias = origen ? (Date.now() - new Date(origen).getTime()) / 86_400_000 : 0;
+    if (dias > LeadIntakeService.DIAS_QUE_META_ACEPTA) return;
+
+    this.eventEmitter.emit('lead.received', {
+      organizationId: lead.organizationId,
+      leadId: lead.id,
+      clientId: lead.clientId ?? null,
+    });
   }
 
   /**

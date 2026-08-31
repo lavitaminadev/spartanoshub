@@ -89,6 +89,8 @@ export function PanelDeCorreo(): JSX.Element {
   const [empresa, setEmpresa] = useState('');
   const [borrador, setBorrador] = useState<Record<string, string | number | boolean> | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Qué aviso tiene una prueba en vuelo, para deshabilitar solo su botón. */
+  const [probando, setProbando] = useState<string | null>(null);
 
   const ajustesQuery = useQuery<Ajuste[]>({
     // La empresa forma parte de la clave: cambiarla trae otros valores, no los mismos filtrados.
@@ -114,6 +116,22 @@ export function PanelDeCorreo(): JSX.Element {
       setAviso('Guardado. Los próximos correos usarán este texto.');
     },
     onError: (error: Error) => setAviso(error.message || 'No se pudo guardar'),
+  });
+
+  /*
+    La prueba va siempre al correo de quien la pide; el servidor no acepta destinatario.
+
+    Manda el borrador, no lo guardado: se prueba para decidir si guardar, y probar lo que ya
+    está guardado no responde a esa pregunta.
+  */
+  const probar = useMutation({
+    mutationFn: (texto: { asunto: string; cuerpo: string }) =>
+      api.post<{ enviado: boolean; destino: string; motivo: string | null }>('/settings/probar', texto),
+    onSuccess: (respuesta) => setAviso(respuesta.enviado
+      ? `Enviado a ${respuesta.destino}. Si no llega, revisa la carpeta de no deseados.`
+      : respuesta.motivo ?? 'No se pudo enviar'),
+    onError: (error: Error) => setAviso(error.message || 'No se pudo enviar la prueba'),
+    onSettled: () => setProbando(null),
   });
 
   const porClave = useMemo(
@@ -244,6 +262,20 @@ export function PanelDeCorreo(): JSX.Element {
                     </label>
                   );
                 })}
+                <button
+                  type="button"
+                  className="btn btn-outline panel-correo-probar"
+                  disabled={probando !== null}
+                  onClick={() => {
+                    setProbando(grupo.prefijo);
+                    probar.mutate({
+                      asunto: String(valorDe(`${grupo.prefijo}_subject`) || grupo.titulo),
+                      cuerpo: String(valorDe(`${grupo.prefijo}_body`) || ""),
+                    });
+                  }}
+                >
+                  {probando === grupo.prefijo ? "Enviando..." : "Enviarme una prueba"}
+                </button>
               </div>
             ) : null}
           </article>

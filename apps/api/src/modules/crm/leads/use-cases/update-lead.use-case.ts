@@ -27,7 +27,7 @@ const DOMAIN_LABELS: Record<string, string> = {
  * el lead, no dónde va, y quien la decide es la persona que habló con él.
  */
 const DESENLACES = {
-  [LeadStatus.WON]: LeadFitStatus.QUALIFIED,
+  [LeadStatus.WON]: LeadFitStatus.SOLD,
   [LeadStatus.LOST]: LeadFitStatus.UNQUALIFIED,
 } as Partial<Record<LeadStatus, LeadFitStatus>>;
 
@@ -48,6 +48,7 @@ export class UpdateLeadUseCase {
       status?: string; notes?: string; fitStatus?: string; discardReason?: string;
       tags?: string[]; estimatedAmount?: number; assignedTo?: string | null;
       source?: string; clientId?: string | null; trafficLight?: 'green' | 'yellow' | 'red' | null;
+      excludedFromMeta?: boolean;
     },
     organizationId: string,
     actorId?: string,
@@ -104,6 +105,7 @@ export class UpdateLeadUseCase {
     if (data.tags !== undefined) lead.tags = data.tags;
     if (data.estimatedAmount !== undefined) lead.estimatedAmount = data.estimatedAmount;
     if (data.trafficLight !== undefined) lead.trafficLight = data.trafficLight;
+    if (data.excludedFromMeta !== undefined) lead.excludedFromMeta = data.excludedFromMeta;
     // `null` desasigna y `undefined` deja como está: son dos intenciones distintas y colapsarlas
     // haría imposible devolver un lead a la bandeja común desde la ficha.
     if (data.assignedTo !== undefined) lead.assignedTo = data.assignedTo;
@@ -183,6 +185,25 @@ export class UpdateLeadUseCase {
 
     if (etapaPrevia !== guardado.status && guardado.status === LeadStatus.WON) {
       this.eventEmitter.emit('lead.won', {
+        organizationId,
+        leadId: guardado.id,
+        clientId: guardado.clientId ?? null,
+      });
+    }
+
+    /*
+     * El descarte también se anuncia.
+     *
+     * En Events Manager se clasifica como «otra etapa»: le enseña a Meta qué perfiles no
+     * buscamos, que es la mitad del contraste que necesita para distinguir un buen lead.
+     *
+     * **Solo del embudo comercial.** `lost` lo comparten los dos dominios —una reserva que no
+     * se concretó se cierra igual que una venta que no se ganó— y son cosas distintas: un
+     * comensal que no fue a comer no es un prospecto que no servía. Mezclarlos le enseñaría a
+     * Meta a evitar perfiles por un motivo que no tiene nada que ver.
+     */
+    if (etapaPrevia !== guardado.status && guardado.status === LeadStatus.LOST && guardado.domain === 'commercial') {
+      this.eventEmitter.emit('lead.discarded', {
         organizationId,
         leadId: guardado.id,
         clientId: guardado.clientId ?? null,

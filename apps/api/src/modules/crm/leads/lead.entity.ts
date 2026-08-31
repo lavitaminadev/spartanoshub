@@ -65,6 +65,16 @@ export class Lead {
    */
   @Column({ name: 'birth_date', type: 'date', nullable: true })
   birthDate?: Date | null;
+  /**
+   * Si este lead queda fuera de lo que se reporta a Meta.
+   *
+   * Para pruebas internas, duplicados y entradas de formularios mal configurados: el lead se
+   * conserva con todo lo que cuelga de él, pero su señal no se le enseña a la plataforma.
+   *
+   * Vale por lead, nunca por nombre ni campaña: la misma persona puede entrar dos veces y cada
+   * entrada se decide por separado.
+   */
+  @Column({ name: 'excluded_from_meta', type: 'boolean', default: false }) excludedFromMeta: boolean;
   @Column({ name: 'retention_review_at', type: 'timestamp', nullable: true }) retentionReviewAt?: Date;
   @Column({ type: 'json', nullable: true }) metadata?: Record<string, any>;
   @Column({ name: 'converted_at', type: 'timestamp', nullable: true }) convertedAt?: Date;

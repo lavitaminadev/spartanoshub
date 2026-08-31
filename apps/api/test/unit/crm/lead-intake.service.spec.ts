@@ -21,7 +21,9 @@ describe('LeadIntakeService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new LeadIntakeService(repo as any, automation as any, audit as any);
+    const emisor = { emit: vi.fn() };
+
+    service = new LeadIntakeService(repo as any, automation as any, audit as any, emisor as any);
     repo.create.mockImplementation((data) => data);
     repo.save.mockImplementation(async (data) => ({ id: data.id ?? 'lead-1', ...data }));
     automation.runForLead.mockResolvedValue(undefined);

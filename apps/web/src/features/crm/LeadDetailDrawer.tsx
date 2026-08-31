@@ -50,8 +50,9 @@ interface Lead {
   clientId?: string | null;
   estimatedAmount?: number | string | null;
   qualityScore?: number;
-  fitStatus?: 'qualified' | 'in_review' | 'review' | 'unqualified';
+  fitStatus?: 'sold' | 'qualified' | 'in_review' | 'review' | 'unqualified';
   trafficLight?: 'green' | 'yellow' | 'red' | null;
+  excludedFromMeta?: boolean;
   tags?: string[];
   consentCapturedAt?: string | null;
   /** Datos variables del origen: respuestas del formulario, atribución y campos personalizados. */
@@ -211,6 +212,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [calificacion, setCalificacion] = useState(lead.fitStatus ?? 'review');
   const [semaforo, setSemaforo] = useState(lead.trafficLight ?? '');
   const [etiquetas, setEtiquetas] = useState((lead.tags ?? []).join(', '));
+  const [fueraDeMeta, setFueraDeMeta] = useState(Boolean(lead.excludedFromMeta));
   const [motivoCatalogo, setMotivoCatalogo] = useState(motivoInicial(lead.discardReason).catalogo);
   const [motivoOtro, setMotivoOtro] = useState(motivoInicial(lead.discardReason).detalle);
   const [tarea, setTarea] = useState({ title: '', dueAt: '' });
@@ -283,6 +285,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setCalificacion(lead.fitStatus ?? 'review');
     setSemaforo(lead.trafficLight ?? '');
     setEtiquetas((lead.tags ?? []).join(', '));
+    setFueraDeMeta(Boolean(lead.excludedFromMeta));
     setMotivoCatalogo(motivoInicial(lead.discardReason).catalogo);
     setMotivoOtro(motivoInicial(lead.discardReason).detalle);
     setFuente(lead.source ?? '');
@@ -291,6 +294,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     lead.id, lead.name, lead.phone, lead.email, lead.notes, lead.status, lead.assignedTo,
     lead.company, lead.campaignName,
     lead.estimatedAmount, lead.fitStatus, lead.trafficLight, lead.tags, lead.discardReason, lead.source, lead.clientId,
+    lead.excludedFromMeta,
   ]);
 
   const { data: historial, isLoading } = useQuery<Paso[]>({
@@ -404,6 +408,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
        */
       fitStatus: calificacion === (lead.fitStatus ?? 'review') ? undefined : calificacion,
       trafficLight: semaforo || null,
+      excludedFromMeta: fueraDeMeta,
       // Se separan por coma, como en la importación, para que la misma persona escriba igual en
       // los dos sitios. Vacío limpia las etiquetas en vez de dejarlas como estaban.
       tags: etiquetas.split(',').map((t) => t.trim()).filter(Boolean),
@@ -585,6 +590,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     && calificacion === (lead.fitStatus ?? 'review')
     && semaforo === (lead.trafficLight ?? '')
     && etiquetas === (lead.tags ?? []).join(', ')
+    && fueraDeMeta === Boolean(lead.excludedFromMeta)
     && fuente === (lead.source ?? '')
     && empresaDelContacto === (lead.company ?? '')
     && campana === (lead.campaignName ?? '')
@@ -823,6 +829,29 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             si el contacto perteneciera a una empresa de la cartera de Espartanos. El dato propio
             del lead no tenía dónde escribirse: entraba por importación y no se podía corregir.
           */}
+          {/*
+            No reportar este lead a Meta.
+
+            Es lo que hay que usar en vez de borrarlo: pruebas internas, duplicados y entradas
+            de un formulario mal configurado dejan de enseñarle un perfil a la plataforma, pero
+            el lead se conserva con sus contactos, sus interacciones y su historial.
+
+            Vale solo para este lead. La misma persona entrando por otra campaña es otro lead y
+            se decide por separado.
+          */}
+          <label className="lead-fuera-de-meta">
+            <input
+              type="checkbox"
+              checked={fueraDeMeta}
+              onChange={() => editar(setFueraDeMeta, !fueraDeMeta)}
+              disabled={!scope.puedeEditar}
+            />
+            <span>
+              No reportar a Meta
+              <small>Para pruebas y duplicados. Se conserva el lead; solo deja de enviarse su señal.</small>
+            </span>
+          </label>
+
           <label>
             <span>{termino('semaforo')}</span>
             <select className="input" value={semaforo} onChange={(event) => editar(setSemaforo, event.target.value as typeof semaforo)} disabled={!scope.puedeEditar}>

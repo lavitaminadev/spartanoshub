@@ -78,7 +78,7 @@ export function NotificationCenter() {
   };
 
   return (
-    <div className="notification-center" role="region" aria-live="polite" aria-label="Notificaciones">
+    <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificaciones">
       {notifications.map((n) => (
         <div
           key={n.id}

@@ -76,6 +76,11 @@ __decorate([
 ], UpdateLeadDto.prototype, "notes", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateLeadDto.prototype, "excludedFromMeta", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsNumber)(),
     (0, class_validator_1.Min)(0),
     (0, class_validator_1.Max)(999999999999),

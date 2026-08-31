@@ -15,7 +15,7 @@ class OutboxProcessor {
         let processed = 0;
         let failed = 0;
         for (const item of items) {
-            const expiration = this.expirationReason(item);
+            const expiration = await this.expirationReason(item);
             if (expiration) {
                 item.status = 'expired';
                 item.nextAttemptAt = null;

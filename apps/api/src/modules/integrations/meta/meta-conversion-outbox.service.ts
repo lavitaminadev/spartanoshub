@@ -2,11 +2,13 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { prepararIdentificadores } from './identificadores-meta';
 import { construirEventoPermitido, registrarBloqueo, revisarEvento } from './politica-meta-capi';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In, type FindOptionsWhere } from 'typeorm';
 import { OutboxProcessor, type FailureVerdict } from '../../../core/outbox/outbox-processor.base';
 import { ConversionEvent, MetaConversionsService } from './meta-conversions.service';
 import { MetaConversionOutbox } from './meta-conversion-outbox.entity';
 import { MetaClientPixelService } from './meta-client-pixel.service';
+import { leadDelEvento } from './origen-del-evento';
+import { Lead } from '../../crm/leads/lead.entity';
 
 /**
  * Ventana que Meta acepta para recibir una conversión pasada, según el origen del evento.
@@ -64,6 +66,7 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
     @InjectRepository(MetaConversionOutbox) protected readonly repository: Repository<MetaConversionOutbox>,
     private readonly conversions: MetaConversionsService,
     private readonly clientPixels: MetaClientPixelService,
+    @InjectRepository(Lead) private readonly leads: Repository<Lead>,
   ) {
     super();
   }
@@ -154,15 +157,48 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
    * Pasada esa ventana el evento ya no puede atribuirse. Sin este corte agotaba los ocho
    * reintentos contra una ventana cerrada y terminaba como un fallo genérico.
    */
-  protected expirationReason(item: MetaConversionOutbox): string | null {
+  protected async expirationReason(item: MetaConversionOutbox): Promise<string | null> {
     const event = item.eventData as ConversionEvent;
     const eventTime = Number(event?.eventTime ?? 0);
-    if (eventTime <= 0) return null;
 
-    const maxAgeDays = MAX_AGE_DAYS_BY_ACTION_SOURCE[event?.actionSource ?? ''] ?? DEFAULT_MAX_AGE_DAYS;
-    if (Date.now() - eventTime * 1000 <= maxAgeDays * 86_400_000) return null;
+    if (eventTime > 0) {
+      const maxAgeDays = MAX_AGE_DAYS_BY_ACTION_SOURCE[event?.actionSource ?? ''] ?? DEFAULT_MAX_AGE_DAYS;
+      if (Date.now() - eventTime * 1000 > maxAgeDays * 86_400_000) {
+        return `El evento supera los ${maxAgeDays} días que acepta Meta para su origen y ya no puede atribuirse.`;
+      }
+    }
 
-    return `El evento supera los ${maxAgeDays} días que acepta Meta para su origen y ya no puede atribuirse.`;
+    return this.leadDesaparecido(item);
+  }
+
+  /**
+   * Control 3: no se reporta a Meta lo que en el CRM ya no existe.
+   *
+   * Entre que un evento entra a la cola y sale pueden pasar horas, y en ese rato el lead puede
+   * borrarse a mano. Enviarlo igual le enseña a Meta a buscar perfiles a partir de un registro
+   * que se decidió eliminar, y deja en la cola un fallo que no se puede diagnosticar porque el
+   * lead que lo explica ya no está.
+   *
+   * Se comprueba acá y no al enviar para no gastar los ocho reintentos: la fila queda en
+   * `expired` con el motivo escrito, sin llamar a Meta ni una vez.
+   *
+   * **La comprobación es por identificador, nunca por nombre, correo ni campaña.** El UUID sale
+   * del `event_id` de esta misma fila. Dos leads pueden compartir todos los demás datos —la
+   * misma persona entrando por dos campañas es el caso normal, no la excepción— y emparejarlos
+   * por cualquier otro campo haría que borrar uno silenciara el evento del otro.
+   *
+   * Un evento que no nace de un lead —los de reservas— no se toca.
+   */
+  private async leadDesaparecido(item: MetaConversionOutbox): Promise<string | null> {
+    const leadId = leadDelEvento(item.eventId);
+    if (!leadId) return null;
+
+    // La organización acompaña al identificador por la misma razón que en el resto del CRM:
+    // un UUID conocido no debe permitir mirar la fila de otra organización.
+    const existe = await this.leads.count({ where: { id: leadId, organizationId: item.organizationId } });
+    if (existe > 0) return null;
+
+    return 'El lead que originó este evento ya no existe en el CRM, así que no se reporta.';
   }
 
   protected async send(item: MetaConversionOutbox): Promise<void> {
@@ -237,5 +273,41 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
         ].filter(Boolean).join(' ')
         : undefined,
     };
+  }
+
+  /**
+   * Devuelve a la cola un evento que se dio por perdido.
+   *
+   * Los que agotan los intentos quedan marcados como fallidos y no vuelven a salir nunca. Eso
+   * es correcto mientras la causa siga ahí —reintentar contra un token inválido solo repite el
+   * error—, pero cuando la causa se arregla no había forma de recuperarlos: la conversión
+   * quedaba perdida y la fila decía «requiere intervención» sin ofrecer ninguna.
+   *
+   * Se reinician los intentos y se deja para ahora mismo. El `event_id` no cambia, así que si
+   * el evento llegó a entrar en Meta pese al error, lo deduplican ellos y no se cuenta dos veces.
+   *
+   * @returns Cuántos volvieron a la cola.
+   */
+  async reintentar(organizationId: string, ids?: string[]): Promise<{ reintentados: number }> {
+    const where: FindOptionsWhere<MetaConversionOutbox> = {
+      organizationId,
+      status: 'failed',
+    };
+    // Sin identificadores se reintenta todo lo fallido: es lo que se quiere después de arreglar
+    // una causa común, como un token que estaba mal.
+    if (ids?.length) where.id = In(ids);
+
+    const resultado = await this.repository.update(where, {
+      status: 'pending',
+      attempts: 0,
+      nextAttemptAt: new Date(),
+      // El motivo viejo se limpia: dejarlo haria que un reintento en curso siguiera mostrando
+      // el error de la vez anterior.
+      lastError: undefined,
+    });
+
+    const reintentados = resultado.affected ?? 0;
+    if (reintentados > 0) this.logger.log(`Eventos devueltos a la cola: ${reintentados}`);
+    return { reintentados };
   }
 }
