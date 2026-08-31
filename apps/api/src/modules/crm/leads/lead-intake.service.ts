@@ -193,7 +193,7 @@ export class LeadIntakeService {
    * en vez de exponerlo en un campo compartido del servicio: dos reservas simultáneas se
    * pisarían ese campo entre los `await` de la transacción.
    */
-  private async capture(input: LeadCaptureInput, mode: LeadCaptureMode = 'upsert'): Promise<{ lead: Lead; contact: Contact | null }> {
+  private async capture(input: LeadCaptureInput, mode: LeadCaptureMode = 'upsert'): Promise<{ lead: Lead; contact: Contact | null; created: boolean }> {
     const { domain, payload } = this.splitDomain(input);
     const normalized = this.normalizeInput(payload);
     const transactionManager = this.repo.manager;
@@ -204,13 +204,31 @@ export class LeadIntakeService {
     if (!transactionManager?.transaction) {
       const directo = await this.persistCapture(normalized, domain, this.repo, undefined, mode);
       this.anunciarLlegada(directo.lead, domain);
+      this.anunciarCreacion(directo.lead, directo.created);
       return directo;
     }
 
     const resultado = await transactionManager.transaction(async (manager) =>
       this.persistCapture(normalized, domain, manager.getRepository(Lead), manager, mode));
     this.anunciarLlegada(resultado.lead, domain);
+    this.anunciarCreacion(resultado.lead, resultado.created);
     return resultado;
+  }
+
+  /**
+   * Avisa que se creó una ficha nueva, sin confundirla con una recaptura.
+   *
+   * `lead.received` ya existía para atribución de Meta, pero deliberadamente omite los leads de
+   * audiencia y puede emitirse al actualizar una identidad conocida. Un aviso al cliente debe
+   * incluir también sus campañas y, sobre todo, no repetirse por un reintento del origen.
+   */
+  private anunciarCreacion(lead: Lead, created: boolean): void {
+    if (!created) return;
+    this.eventEmitter.emit('lead.created', {
+      organizationId: lead.organizationId,
+      leadId: lead.id,
+      clientId: lead.clientId ?? null,
+    });
   }
 
   /**
@@ -269,10 +287,10 @@ export class LeadIntakeService {
     repo: Repository<Lead>,
     manager?: EntityManager,
     mode: LeadCaptureMode = 'upsert',
-  ): Promise<{ lead: Lead; contact: Contact | null }> {
+  ): Promise<{ lead: Lead; contact: Contact | null; created: boolean }> {
     if (mode === 'create-only') {
       const replay = await this.findReplay(normalized, repo);
-      if (replay) return { lead: replay, contact: null };
+      if (replay) return { lead: replay, contact: null, created: false };
     }
 
     const match: LeadMatch = mode === 'create-only'
@@ -281,6 +299,7 @@ export class LeadIntakeService {
     const qualification = this.qualifyLead(normalized, domain);
     const retentionReviewAt = this.buildRetentionReviewDate();
 
+    const created = !match.lead;
     const lead = match.lead ?? repo.create({ organizationId: normalized.organizationId });
     const identityChange = match.lead ? this.identityDiff(match.lead, normalized) : null;
 
@@ -313,7 +332,7 @@ export class LeadIntakeService {
     const savedLead = await repo.save(lead);
     if (identityChange) await this.recordIdentityChange(savedLead, identityChange);
     const contact = await this.runAutomation(savedLead, domain, manager);
-    return { lead: await repo.save(savedLead), contact };
+    return { lead: await repo.save(savedLead), contact, created };
   }
 
   /**

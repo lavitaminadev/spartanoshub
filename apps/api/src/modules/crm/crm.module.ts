@@ -51,6 +51,7 @@ import { StageLabelsController } from './leads/stage-labels.controller';
 import { LeadTaskSummaryService } from './leads/lead-task-summary.service';
 import { ResponsablesDelCrmService } from './leads/responsables-del-crm.service';
 import { LeadCierreService } from './leads/lead-cierre.service';
+import { LeadCreatedEmailListener } from './leads/lead-created-email.listener';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { NotificationsModule } from '../../core/notifications/notifications.module';
 
@@ -58,7 +59,7 @@ import { NotificationsModule } from '../../core/notifications/notifications.modu
   imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule],
   controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController],
   providers: [
-    LeadTaskSummaryService, ResponsablesDelCrmService, StageLabelsService, LeadCierreService,
+    LeadTaskSummaryService, ResponsablesDelCrmService, StageLabelsService, LeadCierreService, LeadCreatedEmailListener,
     CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, LeadIngestService, CrmHomeService, CrmDashboardService, CrmLeadAutomationService,
     ContactsService,
     OpportunityReferenceValidator, OpportunityStageHistoryService, CreateOpportunityUseCase, ListOpportunitiesUseCase, GetOpportunityUseCase, UpdateOpportunityUseCase, RemoveOpportunityUseCase,
