@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
+import { User } from '../../../modules/users/user.entity';
+import { UserRole } from '../../../modules/organizations/user-role.enum';
 import { Lead } from '../../../modules/crm/leads/lead.entity';
 import {
   CLAVE_ABANDONO,
@@ -37,22 +39,28 @@ const MENSAJE: Record<Exclude<NivelDeInactividad, null>, { titulo: string; verbo
  * Lo avisado se olvida al cambiar de etapa, así que un lead que avanza y se vuelve a parar
  * vuelve a avisar.
  *
- * Un lead sin responsable no genera notificación: no hay a quién mandársela. Queda marcado en el
- * tablero igualmente, que es donde se ve que nadie lo tomó.
+ * **El lead sin responsable también avisa**, y a quien dirige el CRM. Antes se saltaba porque no
+ * había a quién mandárselo, y eso funcionaba mientras todo lead nacía asignado. Desde que entran
+ * sin dueño, saltárselos dejaría sin vigilancia justo lo que nadie ha tomado —que es lo que más
+ * necesita que alguien lo mire—.
  */
 @Injectable()
 export class LeadsParadosJob {
   private readonly logger = new Logger(LeadsParadosJob.name);
 
+  /** Quién recibe los huérfanos de cada organización. Se llena durante la pasada. */
+  private readonly responsablePorOrganizacion = new Map<string, string | null>();
+
   constructor(
     @InjectRepository(Lead) private readonly leads: Repository<Lead>,
     @InjectRepository(Notification) private readonly notificaciones: Repository<Notification>,
+    @InjectRepository(User) private readonly usuarios: Repository<User>,
     private readonly parametros: ParameterResolver,
   ) {}
 
   async handle(): Promise<void> {
     /*
-     * Solo los que están en curso y tienen dueño.
+     * Todos los que están en curso, tengan dueño o no.
      *
      * Los cerrados llevan parados por definición, y avisar de ellos llenaría la campanita de
      * trabajo ya hecho. El filtro va en la consulta y no en el bucle para no traerse la tabla
@@ -61,7 +69,6 @@ export class LeadsParadosJob {
     const candidatos = await this.leads.find({
       where: {
         status: Not(In(['won', 'lost', 'attended', 'no_show'])),
-        assignedTo: Not(IsNull()),
       },
       select: {
         id: true, organizationId: true, name: true, status: true,
@@ -73,6 +80,8 @@ export class LeadsParadosJob {
     // preguntarlos por lead sería una consulta por tarjeta.
     const plazosPorOrganizacion = new Map<string, PlazosDeInactividad>();
     let avisados = 0;
+    // El cargo puede cambiar entre pasadas; lo recordado vale solo para esta.
+    this.responsablePorOrganizacion.clear();
 
     for (const lead of candidatos) {
       // Un lead con datos raros no puede impedir avisar del resto en esta misma pasada.
@@ -95,14 +104,29 @@ export class LeadsParadosJob {
         const yaAvisado = ORDEN.indexOf(lead.idleAlertedLevel as Exclude<NivelDeInactividad, null>);
         if (yaAvisado >= ORDEN.indexOf(idleLevel)) continue;
 
+        /*
+         * Sin responsable, el aviso sube a quien dirige el CRM.
+         *
+         * Un lead que nadie tomó y ya lleva días parado es un problema de reparto, no de
+         * seguimiento: no hay ejecutivo al que recordarle nada, hay una cola de entrada que
+         * nadie está mirando. Por eso el mensaje también es otro.
+         */
+        const destinatario = lead.assignedTo ?? await this.quienDirigeElCrm(lead.organizationId);
+        // Sin nadie a quien avisar no se marca como avisado: cuando exista un cargo que reciba
+        // el aviso, el lead sigue esperándolo.
+        if (!destinatario) continue;
+
         const { titulo, verbo } = MENSAJE[idleLevel];
+        const sinDuenio = !lead.assignedTo;
         await this.notificaciones.save(this.notificaciones.create({
-          userId: lead.assignedTo as string,
+          userId: destinatario,
           organizationId: lead.organizationId,
           type: 'lead.idle',
-          title: titulo,
-          message: `«${lead.name}» ${verbo} ${idleDays} ${idleDays === 1 ? 'día' : 'días'} sin avanzar.`,
-          data: { leadId: lead.id, status: lead.status, idleDays, idleLevel },
+          title: sinDuenio ? 'Prospecto sin responsable' : titulo,
+          message: sinDuenio
+            ? `«${lead.name}» lleva ${idleDays} ${idleDays === 1 ? 'día' : 'días'} sin que nadie lo tome.`
+            : `«${lead.name}» ${verbo} ${idleDays} ${idleDays === 1 ? 'día' : 'días'} sin avanzar.`,
+          data: { leadId: lead.id, status: lead.status, idleDays, idleLevel, sinResponsable: sinDuenio },
         }));
 
         // Después de notificar: si el guardado fallara, el aviso se repetiría en la siguiente
@@ -120,6 +144,32 @@ export class LeadsParadosJob {
   }
 
   /** Los tres plazos de una organización, con los de fábrica para lo que no haya configurado. */
+  /**
+   * A quién le llega lo que nadie tomó.
+   *
+   * La dirección comercial, y si no la hay, administración. Se resuelve una vez por
+   * organización: es la misma respuesta para todos sus leads huérfanos.
+   */
+  private async quienDirigeElCrm(organizationId: string): Promise<string | undefined> {
+    const recordado = this.responsablePorOrganizacion.get(organizationId);
+    if (recordado !== undefined) return recordado ?? undefined;
+
+    for (const role of [UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN]) {
+      const persona = await this.usuarios.findOne({
+        where: { organizationId, role, isActive: true },
+        order: { createdAt: 'ASC' },
+        select: { id: true },
+      });
+      if (persona) {
+        this.responsablePorOrganizacion.set(organizationId, persona.id);
+        return persona.id;
+      }
+    }
+
+    this.responsablePorOrganizacion.set(organizationId, null);
+    return undefined;
+  }
+
   private async plazosDe(organizationId: string): Promise<PlazosDeInactividad> {
     const ajustes = await this.parametros.getManyForOrganization(
       [CLAVE_AVISO, CLAVE_ALERTA, CLAVE_ABANDONO],

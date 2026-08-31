@@ -20,4 +20,24 @@ cleanup_cache
 /bin/mkdir -p "$NPM_CACHE_DIR"
 export npm_config_cache="$NPM_CACHE_DIR"
 
-npm ci --omit=dev
+# `npm install` y no `npm ci`, aunque `ci` sea lo habitual en un despliegue.
+#
+# `npm ci` borra `node_modules` antes de instalar. Aquí eso no es limpieza: en CloudLinux el
+# `node_modules` de la raíz es un **symlink** al entorno virtual que crea el Node.js Selector, y
+# borrarlo lo sustituye por una carpeta corriente. Desde ese momento la resolución de módulos deja
+# de pasar por el entorno y el arranque revienta en un `require` distinto cada vez —una vez en
+# `class-serializer.interceptor`, otra en `controller.decorator`—, que es lo que hace que parezca
+# un paquete ausente cuando no falta ninguno.
+#
+# `npm install` escribe dentro del enlace sin tocarlo. A cambio no garantiza la instalación exacta
+# del `package-lock.json`, y esa es la contrapartida aceptada: una versión menor distinta es
+# recuperable, un despliegue que deja la aplicación sin arrancar no lo es.
+npm install --omit=dev
+
+# El enlace tiene que seguir siendo un enlace al terminar. Si algo lo convirtió en carpeta, la
+# aplicación arrancaría a medias y el fallo aparecería horas después, lejos del despliegue.
+if [ -e "$APP_ROOT/node_modules" ] && [ ! -L "$APP_ROOT/node_modules" ]; then
+  echo "NPM INSTALL: node_modules dejo de ser un symlink; CloudLinux lo exige asi." >&2
+  echo "Borralo desde el Administrador de archivos y usa «Run NPM Install» del Node.js Selector." >&2
+  exit 1
+fi

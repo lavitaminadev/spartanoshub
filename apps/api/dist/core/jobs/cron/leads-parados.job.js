@@ -17,6 +17,8 @@ exports.LeadsParadosJob = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const user_entity_1 = require("../../../modules/users/user.entity");
+const user_role_enum_1 = require("../../../modules/organizations/user-role.enum");
 const lead_entity_1 = require("../../../modules/crm/leads/lead.entity");
 const inactividad_del_lead_1 = require("../../../modules/crm/leads/inactividad-del-lead");
 const notification_entity_1 = require("../../notifications/notification.entity");
@@ -28,17 +30,18 @@ const MENSAJE = {
     critical: { titulo: 'Lead abandonado', verbo: 'lleva' },
 };
 let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
-    constructor(leads, notificaciones, parametros) {
+    constructor(leads, notificaciones, usuarios, parametros) {
         this.leads = leads;
         this.notificaciones = notificaciones;
+        this.usuarios = usuarios;
         this.parametros = parametros;
         this.logger = new common_1.Logger(LeadsParadosJob_1.name);
+        this.responsablePorOrganizacion = new Map();
     }
     async handle() {
         const candidatos = await this.leads.find({
             where: {
                 status: (0, typeorm_2.Not)((0, typeorm_2.In)(['won', 'lost', 'attended', 'no_show'])),
-                assignedTo: (0, typeorm_2.Not)((0, typeorm_2.IsNull)()),
             },
             select: {
                 id: true, organizationId: true, name: true, status: true,
@@ -47,6 +50,7 @@ let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
         });
         const plazosPorOrganizacion = new Map();
         let avisados = 0;
+        this.responsablePorOrganizacion.clear();
         for (const lead of candidatos) {
             try {
                 let plazos = plazosPorOrganizacion.get(lead.organizationId);
@@ -60,14 +64,20 @@ let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
                 const yaAvisado = ORDEN.indexOf(lead.idleAlertedLevel);
                 if (yaAvisado >= ORDEN.indexOf(idleLevel))
                     continue;
+                const destinatario = lead.assignedTo ?? await this.quienDirigeElCrm(lead.organizationId);
+                if (!destinatario)
+                    continue;
                 const { titulo, verbo } = MENSAJE[idleLevel];
+                const sinDuenio = !lead.assignedTo;
                 await this.notificaciones.save(this.notificaciones.create({
-                    userId: lead.assignedTo,
+                    userId: destinatario,
                     organizationId: lead.organizationId,
                     type: 'lead.idle',
-                    title: titulo,
-                    message: `«${lead.name}» ${verbo} ${idleDays} ${idleDays === 1 ? 'día' : 'días'} sin avanzar.`,
-                    data: { leadId: lead.id, status: lead.status, idleDays, idleLevel },
+                    title: sinDuenio ? 'Prospecto sin responsable' : titulo,
+                    message: sinDuenio
+                        ? `«${lead.name}» lleva ${idleDays} ${idleDays === 1 ? 'día' : 'días'} sin que nadie lo tome.`
+                        : `«${lead.name}» ${verbo} ${idleDays} ${idleDays === 1 ? 'día' : 'días'} sin avanzar.`,
+                    data: { leadId: lead.id, status: lead.status, idleDays, idleLevel, sinResponsable: sinDuenio },
                 }));
                 await this.leads.update(lead.id, { idleAlertedLevel: idleLevel });
                 avisados += 1;
@@ -77,6 +87,24 @@ let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
             }
         }
         this.logger.log(`Leads parados avisados: ${avisados} de ${candidatos.length} revisados`);
+    }
+    async quienDirigeElCrm(organizationId) {
+        const recordado = this.responsablePorOrganizacion.get(organizationId);
+        if (recordado !== undefined)
+            return recordado ?? undefined;
+        for (const role of [user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN]) {
+            const persona = await this.usuarios.findOne({
+                where: { organizationId, role, isActive: true },
+                order: { createdAt: 'ASC' },
+                select: { id: true },
+            });
+            if (persona) {
+                this.responsablePorOrganizacion.set(organizationId, persona.id);
+                return persona.id;
+            }
+        }
+        this.responsablePorOrganizacion.set(organizationId, null);
+        return undefined;
     }
     async plazosDe(organizationId) {
         const ajustes = await this.parametros.getManyForOrganization([inactividad_del_lead_1.CLAVE_AVISO, inactividad_del_lead_1.CLAVE_ALERTA, inactividad_del_lead_1.CLAVE_ABANDONO], organizationId);
@@ -92,7 +120,9 @@ exports.LeadsParadosJob = LeadsParadosJob = LeadsParadosJob_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __param(1, (0, typeorm_1.InjectRepository)(notification_entity_1.Notification)),
+    __param(2, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         parameter_resolver_service_1.ParameterResolver])
 ], LeadsParadosJob);
