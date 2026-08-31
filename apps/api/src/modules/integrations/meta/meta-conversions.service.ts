@@ -4,6 +4,7 @@ import { construirEventoPermitido, registrarBloqueo, resumenAuditable, revisarEv
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { BadGatewayException } from '@nestjs/common';
+import { sinCredenciales } from './sin-credenciales';
 
 export interface ConversionEvent {
   eventName: string;
@@ -99,7 +100,9 @@ export class MetaConversionsService {
       );
       return data;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+      // Meta repite el token en el mensaje cuando lo rechaza por malformado, y este texto
+      // termina en el registro y en la columna de errores de la cola.
+      const message = sinCredenciales(error instanceof Error ? error.message : 'Unknown error');
       this.logger.error(`Meta CAPI failed: ${message}`);
       // Se relanza un error saneado con lo único que el outbox necesita para clasificar:
       // estado y cuerpo de la respuesta. El error original de Axios arrastra `config.data`,

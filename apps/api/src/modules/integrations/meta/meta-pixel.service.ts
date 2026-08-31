@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { sinCredenciales } from './sin-credenciales';
 
 interface MetaPixelInfo { id?: string; name?: string; last_fired_time?: string }
 interface MetaPixelStats { data?: Array<Record<string, unknown>> }
@@ -60,7 +61,16 @@ export class MetaPixelService {
     } catch (error) {
       const metaError = (error as { response?: { data?: { error?: { code?: number; message?: string } } } })
         ?.response?.data?.error;
-      const motivo = metaError?.message ?? (error instanceof Error ? error.message : 'Error desconocido');
+      /*
+       * El motivo se sanea antes de tocar nada.
+       *
+       * Meta repite el token en el mensaje cuando lo rechaza por malformado, así que este texto
+       * puede traer la credencial entera. Va al registro del servidor y sube hasta la pantalla
+       * de quien configura, de modo que sanearlo aquí —donde nace— lo cubre todo.
+       */
+      const motivo = sinCredenciales(
+        metaError?.message ?? (error instanceof Error ? error.message : 'Error desconocido'),
+      );
       this.logger.warn(`No se pudo verificar el Pixel ${pixelId}: ${motivo}`);
       /*
        * Sin respuesta de Meta no hay nada que juzgar.
