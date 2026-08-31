@@ -17,6 +17,7 @@ const politica_meta_capi_1 = require("./politica-meta-capi");
 const axios_1 = require("@nestjs/axios");
 const rxjs_1 = require("rxjs");
 const common_2 = require("@nestjs/common");
+const sin_credenciales_1 = require("./sin-credenciales");
 let MetaConversionsService = MetaConversionsService_1 = class MetaConversionsService {
     constructor(http) {
         this.http = http;
@@ -63,7 +64,7 @@ let MetaConversionsService = MetaConversionsService_1 = class MetaConversionsSer
             return data;
         }
         catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
+            const message = (0, sin_credenciales_1.sinCredenciales)(error instanceof Error ? error.message : 'Unknown error');
             this.logger.error(`Meta CAPI failed: ${message}`);
             if (error && typeof error === 'object' && 'response' in error) {
                 const response = error.response;

@@ -14,6 +14,7 @@ exports.MetaPixelService = void 0;
 const common_1 = require("@nestjs/common");
 const axios_1 = require("@nestjs/axios");
 const rxjs_1 = require("rxjs");
+const sin_credenciales_1 = require("./sin-credenciales");
 const CREDENCIAL_INVALIDA = [190, 102];
 let MetaPixelService = MetaPixelService_1 = class MetaPixelService {
     constructor(http) {
@@ -33,7 +34,7 @@ let MetaPixelService = MetaPixelService_1 = class MetaPixelService {
         catch (error) {
             const metaError = error
                 ?.response?.data?.error;
-            const motivo = metaError?.message ?? (error instanceof Error ? error.message : 'Error desconocido');
+            const motivo = (0, sin_credenciales_1.sinCredenciales)(metaError?.message ?? (error instanceof Error ? error.message : 'Error desconocido'));
             this.logger.warn(`No se pudo verificar el Pixel ${pixelId}: ${motivo}`);
             return {
                 verificado: false,
