@@ -87,11 +87,22 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         if (!transactionManager?.transaction) {
             const directo = await this.persistCapture(normalized, domain, this.repo, undefined, mode);
             this.anunciarLlegada(directo.lead, domain);
+            this.anunciarCreacion(directo.lead, directo.created);
             return directo;
         }
         const resultado = await transactionManager.transaction(async (manager) => this.persistCapture(normalized, domain, manager.getRepository(lead_entity_1.Lead), manager, mode));
         this.anunciarLlegada(resultado.lead, domain);
+        this.anunciarCreacion(resultado.lead, resultado.created);
         return resultado;
+    }
+    anunciarCreacion(lead, created) {
+        if (!created)
+            return;
+        this.eventEmitter.emit('lead.created', {
+            organizationId: lead.organizationId,
+            leadId: lead.id,
+            clientId: lead.clientId ?? null,
+        });
     }
     anunciarLlegada(lead, domain) {
         if (domain !== 'commercial')
@@ -110,13 +121,14 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         if (mode === 'create-only') {
             const replay = await this.findReplay(normalized, repo);
             if (replay)
-                return { lead: replay, contact: null };
+                return { lead: replay, contact: null, created: false };
         }
         const match = mode === 'create-only'
             ? { lead: null }
             : await this.findExistingLead(normalized, repo, domain);
         const qualification = this.qualifyLead(normalized, domain);
         const retentionReviewAt = this.buildRetentionReviewDate();
+        const created = !match.lead;
         const lead = match.lead ?? repo.create({ organizationId: normalized.organizationId });
         const identityChange = match.lead ? this.identityDiff(match.lead, normalized) : null;
         Object.assign(lead, {
@@ -142,7 +154,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
         if (identityChange)
             await this.recordIdentityChange(savedLead, identityChange);
         const contact = await this.runAutomation(savedLead, domain, manager);
-        return { lead: await repo.save(savedLead), contact };
+        return { lead: await repo.save(savedLead), contact, created };
     }
     async findReplay(input, repo) {
         if (!input.externalLeadId)

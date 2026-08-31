@@ -18,10 +18,11 @@ const automation = {
 
 describe('LeadIntakeService', () => {
   let service: LeadIntakeService;
+  let emisor: { emit: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    const emisor = { emit: vi.fn() };
+    emisor = { emit: vi.fn() };
 
     service = new LeadIntakeService(repo as any, automation as any, audit as any, emisor as any);
     repo.create.mockImplementation((data) => data);
@@ -83,6 +84,20 @@ describe('LeadIntakeService', () => {
 
     expect(lead.id).toBe('lead-existing');
     expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'lead-existing' }));
+    expect(emisor.emit).not.toHaveBeenCalledWith('lead.created', expect.anything());
+  });
+
+  it('emits lead.created once after persisting a genuinely new lead', async () => {
+    repo.findOne.mockResolvedValue(null);
+
+    await service.captureLead({
+      organizationId: 'org-1', clientId: 'client-1', name: 'Lead nuevo',
+      email: 'nuevo@example.cl', source: 'meta_lead_ads',
+    });
+
+    expect(emisor.emit).toHaveBeenCalledWith('lead.created', {
+      organizationId: 'org-1', leadId: 'lead-1', clientId: 'client-1',
+    });
   });
 
   describe('capturas de audiencia', () => {
