@@ -6,9 +6,9 @@ import { ParameterResolver } from './parameter-resolver.service';
 import { AuditModule } from '../audit/audit.module';
 import { OrganizationSettingsController } from './organization-settings.controller';
 import { OrganizationSettingsService } from './organization-settings.service';
-
+import { EmailModule } from '../notifications/email.module';
 @Module({
-  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue]), AuditModule],
+  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue]), AuditModule, EmailModule],
   controllers: [OrganizationSettingsController],
   providers: [ParameterResolver, OrganizationSettingsService],
   exports: [ParameterResolver, OrganizationSettingsService, TypeOrmModule],

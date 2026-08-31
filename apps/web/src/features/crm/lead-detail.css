@@ -166,3 +166,23 @@
 @media (max-width: 640px) {
   .lead-detail-respuestas dl > div { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/*
+ * No reportar el lead a Meta.
+ *
+ * Se sale de la retícula de campos a propósito: las demás casillas describen al lead, y ésta
+ * decide qué se hace con él. Ocupa las dos columnas y se lee como una frase, no como un dato
+ * más, para que nadie la marque de paso mientras corrige un teléfono.
+ */
+.lead-detail-edicion label.lead-fuera-de-meta {
+  grid-column: 1 / -1; grid-row: auto; grid-template-rows: none;
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 9px 11px; border: 1px solid var(--surface-sage); border-radius: var(--radius-sm);
+  background: var(--soft);
+}
+.lead-detail-edicion label.lead-fuera-de-meta input { margin-top: 2px; flex: none; }
+.lead-detail-edicion label.lead-fuera-de-meta > span {
+  display: grid; gap: 2px; min-height: 0;
+  font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--text);
+}
+.lead-detail-edicion label.lead-fuera-de-meta small { color: var(--muted); font-size: 11px; }

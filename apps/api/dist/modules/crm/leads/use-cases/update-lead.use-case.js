@@ -77,6 +77,8 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.estimatedAmount = data.estimatedAmount;
         if (data.trafficLight !== undefined)
             lead.trafficLight = data.trafficLight;
+        if (data.excludedFromMeta !== undefined)
+            lead.excludedFromMeta = data.excludedFromMeta;
         if (data.assignedTo !== undefined)
             lead.assignedTo = data.assignedTo;
         if (data.source !== undefined)

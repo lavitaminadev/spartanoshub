@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsIn, IsOptional, IsString, MaxLength, IsNumber, Min, Max, IsUUID, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsIn, IsOptional, IsString, MaxLength, IsNumber, Min, Max, IsUUID, ValidateIf } from 'class-validator';
 import { LeadStatus } from '../lead-status.enum';
 import { LeadFitStatus } from '../lead-fit-status.enum';
 
@@ -34,6 +34,14 @@ export class UpdateLeadDto {
   trafficLight?: 'green' | 'yellow' | 'red' | null;
   @IsOptional() @IsString() @MaxLength(2000) discardReason?: string;
   @IsOptional() @IsString() @MaxLength(10000) notes?: string;
+
+  /**
+   * Deja este lead fuera de lo que se reporta a Meta.
+   *
+   * Se conserva el lead y todo lo que cuelga de él; lo único que cambia es que su calificación
+   * y su venta dejan de enviarse. Es lo que hay que usar en vez de borrarlo.
+   */
+  @IsOptional() @IsBoolean() excludedFromMeta?: boolean;
 
   /**
    * Monto estimado del negocio.

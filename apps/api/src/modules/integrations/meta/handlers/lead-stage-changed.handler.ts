@@ -93,6 +93,18 @@ export class LeadStageChangedHandler {
       });
       if (!lead) return;
 
+      /*
+       * Un lead marcado como excluido no se reporta, en ninguna etapa.
+       *
+       * Es la alternativa a borrarlo: pruebas internas, duplicados y formularios mal
+       * configurados dejan de enseñarle a Meta un perfil que no queremos que aprenda, sin
+       * perder el lead ni lo que cuelga de él.
+       *
+       * Se comprueba acá y no en la cola porque la exclusión se decide antes: lo que no debe
+       * salir tampoco tiene por qué ocupar una fila esperando a que alguien la mire.
+       */
+      if (lead.excludedFromMeta) return;
+
       // Sin empresa no hay capacidad que comprobar ni Pixel que heredar: es un prospecto de la
       // agencia y no pertenece a ninguna cuenta publicitaria de cliente.
       if (!payload.clientId) return;

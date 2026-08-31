@@ -16,7 +16,11 @@ exports.OrganizationSettingsController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const roles_decorator_1 = require("../authorization/roles.decorator");
+const throttler_1 = require("@nestjs/throttler");
 const account_access_service_1 = require("../client-scope/account-access.service");
+const email_service_1 = require("../notifications/email.service");
+const plantilla_de_correo_1 = require("../notifications/plantilla-de-correo");
+const muestra_de_correo_1 = require("./muestra-de-correo");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const update_organization_settings_dto_1 = require("./dto/update-organization-settings.dto");
 const organization_settings_service_1 = require("./organization-settings.service");
@@ -24,9 +28,10 @@ const module_scope_decorator_1 = require("../authorization/module-scope.decorato
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const shared_1 = require("@espartanos/shared");
 let OrganizationSettingsController = class OrganizationSettingsController {
-    constructor(settings, accountAccess) {
+    constructor(settings, accountAccess, correo) {
         this.settings = settings;
         this.accountAccess = accountAccess;
+        this.correo = correo;
     }
     async list(request, clientId) {
         const organizationId = request.organizationId || request.user.organizationId;
@@ -52,6 +57,18 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null);
     }
+    async probar(request, dto) {
+        const destino = request.user.email;
+        if (!destino)
+            throw new common_1.BadRequestException('Tu usuario no tiene correo, así que no hay dónde enviarlo');
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? 'Prueba'), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
+        const enviado = await this.correo.send(destino, `[Prueba] ${subject}`, html);
+        return {
+            enviado,
+            destino,
+            motivo: enviado ? null : 'El envío de correo está apagado en el servidor (SMTP_ENABLED)',
+        };
+    }
 };
 exports.OrganizationSettingsController = OrganizationSettingsController;
 __decorate([
@@ -73,6 +90,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, update_organization_settings_dto_1.UpdateOrganizationSettingsDto, String]),
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "update", null);
+__decorate([
+    (0, common_1.Post)('probar'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    (0, swagger_1.ApiOperation)({ summary: 'Enviarse una plantilla de correo para verla' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], OrganizationSettingsController.prototype, "probar", null);
 exports.OrganizationSettingsController = OrganizationSettingsController = __decorate([
     (0, swagger_1.ApiTags)('Configuración'),
     (0, swagger_1.ApiBearerAuth)(),
@@ -80,5 +107,6 @@ exports.OrganizationSettingsController = OrganizationSettingsController = __deco
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, module_scope_decorator_1.ModuleScope)('settings'),
     __metadata("design:paramtypes", [organization_settings_service_1.OrganizationSettingsService,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        email_service_1.EmailService])
 ], OrganizationSettingsController);

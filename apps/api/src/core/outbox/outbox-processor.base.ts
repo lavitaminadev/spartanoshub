@@ -93,8 +93,11 @@ export abstract class OutboxProcessor<T extends OutboxRow> {
    *
    * Devolver un texto lo marca como `expired` sin gastar intentos ni llamar al tercero. Meta lo
    * usa para la ventana de atribución; una bandeja que no caduca no necesita implementarlo.
+   *
+   * Admite respuesta asíncrona porque el motivo puede depender de la base de datos: comprobar si
+   * lo que el evento describe sigue existiendo es una consulta, no un cálculo sobre la fila.
    */
-  protected expirationReason(_item: T): string | null {
+  protected expirationReason(_item: T): string | null | Promise<string | null> {
     return null;
   }
 
@@ -109,7 +112,7 @@ export abstract class OutboxProcessor<T extends OutboxRow> {
     let failed = 0;
 
     for (const item of items) {
-      const expiration = this.expirationReason(item);
+      const expiration = await this.expirationReason(item);
       if (expiration) {
         item.status = 'expired';
         item.nextAttemptAt = null;

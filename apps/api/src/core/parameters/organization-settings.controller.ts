@@ -1,7 +1,11 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Put, Req, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Put, Req, Query, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../authorization/roles.decorator';
+import { Throttle } from '@nestjs/throttler';
 import { AccountAccessService } from '../client-scope/account-access.service';
+import { EmailService } from '../notifications/email.service';
+import { componerCorreo } from '../notifications/plantilla-de-correo';
+import { MUESTRA } from './muestra-de-correo';
 import { UserRole } from '../../modules/organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { UpdateOrganizationSettingsDto } from './dto/update-organization-settings.dto';
@@ -24,6 +28,7 @@ export class OrganizationSettingsController {
   constructor(
     private readonly settings: OrganizationSettingsService,
     private readonly accountAccess: AccountAccessService,
+    private readonly correo: EmailService,
   ) {}
 
   /**
@@ -89,5 +94,45 @@ export class OrganizationSettingsController {
       dto.values,
       clientId ?? null,
     );
+  }
+
+  /**
+   * Manda una plantilla a la persona que la está editando.
+   *
+   * Editar un correo a ciegas y descubrir cómo quedó cuando ya le llegó a un cliente es la forma
+   * más cara de corregir una errata. Con esto se ve antes: el mismo armazón, las mismas
+   * variables, el mismo aspecto.
+   *
+   * **Va siempre al correo de quien lo pide**, nunca a una dirección escrita a mano. Un campo
+   * libre acá convertiría la pantalla en un formulario para mandar correo con la marca de la
+   * agencia a cualquiera.
+   *
+   * Las variables se rellenan con valores de muestra: la plantilla no sabe de qué lead o de qué
+   * reserva se trata, y dejarlas vacías mostraría un texto con huecos que no se parece al real.
+   */
+  @Post('probar')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Enviarse una plantilla de correo para verla' })
+  async probar(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: { asunto?: string; cuerpo?: string },
+  ) {
+    const destino = request.user.email;
+    if (!destino) throw new BadRequestException('Tu usuario no tiene correo, así que no hay dónde enviarlo');
+
+    const { subject, html } = componerCorreo(
+      String(dto?.asunto ?? 'Prueba'),
+      String(dto?.cuerpo ?? ''),
+      MUESTRA,
+    );
+
+    const enviado = await this.correo.send(destino, `[Prueba] ${subject}`, html);
+    return {
+      enviado,
+      destino,
+      // Se dice explícitamente porque es la causa más frecuente de «no me llegó»: el aviso puede
+      // estar encendido y el servidor de correo apagado.
+      motivo: enviado ? null : 'El envío de correo está apagado en el servidor (SMTP_ENABLED)',
+    };
   }
 }

@@ -68,6 +68,9 @@ let MetaPixelController = class MetaPixelController {
             })),
         };
     }
+    async reintentarConversiones(req, cuerpo) {
+        return this.conversionOutbox.reintentar(req.organizationId, cuerpo?.ids);
+    }
     setupClientPixel(dto, req) {
         return this.clientPixels.setup(req.organizationId, dto.clientId, dto.mode, dto);
     }
@@ -170,6 +173,16 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], MetaPixelController.prototype, "conversionsOutbox", null);
+__decorate([
+    (0, common_1.Post)('conversions/outbox/reintentar'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
+    (0, swagger_1.ApiOperation)({ summary: 'Reintentar eventos de conversión fallidos' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], MetaPixelController.prototype, "reintentarConversiones", null);
 __decorate([
     (0, common_1.Post)('client-pixels/setup'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),

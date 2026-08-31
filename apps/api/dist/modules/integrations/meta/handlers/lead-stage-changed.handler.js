@@ -46,6 +46,8 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
             });
             if (!lead)
                 return;
+            if (lead.excludedFromMeta)
+                return;
             if (!payload.clientId)
                 return;
             if (!await this.capacidades.tiene(payload.organizationId, payload.clientId, 'metaConversions'))

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { refetchWhenIdle } from '../../core/refetch-policy';
 
@@ -37,10 +37,24 @@ function dateTime(value: string): string {
 }
 
 export function ConversionQueue() {
+  const queryClient = useQueryClient();
   const { data, isLoading, error, refetch, isFetching } = useQuery<OutboxState>({
     queryKey: ['meta-conversion-outbox'],
     queryFn: () => api.get('/integrations/meta/conversions/outbox'),
     refetchInterval: refetchWhenIdle(60_000),
+  });
+
+  /*
+    Devuelve a la cola lo que ya se dio por perdido.
+
+    Un fallo casi nunca es del evento: es del token, del Pixel o de un campo que faltaba. Una
+    vez arreglada la causa, estos eventos siguen siendo válidos y nadie los va a reintentar
+    solo. El `event_id` no cambia, así que Meta descarta lo que hubiera llegado pese al error
+    y no se cuenta dos veces la misma conversión.
+  */
+  const reintentar = useMutation({
+    mutationFn: () => api.post<{ reintentados: number }>('/integrations/meta/conversions/outbox/reintentar', {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['meta-conversion-outbox'] }),
   });
 
   if (isLoading) return null;
@@ -69,6 +83,16 @@ export function ConversionQueue() {
           <button type="button" className="btn btn-outline btn-sm" disabled={isFetching} onClick={() => void refetch()}>
             {isFetching ? 'Actualizando...' : 'Actualizar'}
           </button>
+          {stats.failed > 0 && (
+            <button
+              type="button"
+              className="btn btn-accent btn-sm"
+              disabled={reintentar.isPending}
+              onClick={() => reintentar.mutate()}
+            >
+              {reintentar.isPending ? 'Reintentando...' : `Reintentar ${stats.failed} fallido(s)`}
+            </button>
+          )}
         </div>
       </div>
 
@@ -79,6 +103,19 @@ export function ConversionQueue() {
         <article><span>Fallidos</span><strong>{stats.failed.toLocaleString('es-CL')}</strong><small>{stats.failed > 0 ? 'no se reintentan solos' : 'ninguno'}</small></article>
         <article><span>Vencidos</span><strong>{expired.toLocaleString('es-CL')}</strong><small>{expired > 0 ? 'fuera de la ventana de Meta' : 'ninguno'}</small></article>
       </div>
+
+      {reintentar.isSuccess && (
+        <div className="alert alert-success" role="status">
+          {reintentar.data.reintentados} evento(s) volvieron a la cola. Se envían en la próxima
+          pasada del cron, dentro de los próximos cinco minutos.
+        </div>
+      )}
+
+      {reintentar.isError && (
+        <div className="alert alert-error" role="alert">
+          No se pudieron reintentar: {(reintentar.error as Error).message}
+        </div>
+      )}
 
       {expired > 0 && (
         <div className="alert alert-error" role="alert">

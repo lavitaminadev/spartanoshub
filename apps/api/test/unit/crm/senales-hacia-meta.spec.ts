@@ -207,3 +207,45 @@ describe('señales del CRM hacia Meta', () => {
     await expect(handler.calificado(evento)).resolves.toBeUndefined();
   });
 });
+
+describe('leads excluidos del reporte', () => {
+  const excluido = {
+    id: 'lead-1', source: 'meta_lead_ads', externalLeadId: '1234567890123456',
+    campaignName: null, estimatedAmount: '250000', email: 'p@e.cl', phone: null,
+    metadata: null, excludedFromMeta: true,
+  };
+
+  it('no reporta la calificación de un lead marcado como excluido', async () => {
+    const { handler, outbox } = montar({ lead: excluido });
+
+    await handler.calificado(evento);
+
+    expect(outbox.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('tampoco reporta su venta, aunque tenga monto', async () => {
+    const { handler, outbox } = montar({ lead: excluido });
+
+    await handler.vendido(evento);
+
+    expect(outbox.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('no consulta el Pixel de un lead excluido', async () => {
+    // Se corta antes de resolver credenciales: lo que no va a salir no toca la configuración
+    // de la empresa ni deja rastro de haberlo intentado.
+    const { handler, clientPixels } = montar({ lead: excluido });
+
+    await handler.vendido(evento);
+
+    expect(clientPixels.resolveForScope).not.toHaveBeenCalled();
+  });
+
+  it('un lead sin la marca se reporta con normalidad', async () => {
+    const { handler, outbox } = montar({ lead: { ...excluido, excludedFromMeta: false } });
+
+    await handler.vendido(evento);
+
+    expect(outbox.enqueue).toHaveBeenCalledTimes(1);
+  });
+});

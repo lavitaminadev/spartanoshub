@@ -1,4 +1,12 @@
-.notification-center {
+/*
+  Pila de avisos flotantes. La clase se llama `toast-stack` y no `notification-center`.
+
+  Ese nombre lo usa también la campanita de la barra lateral, que se posiciona `relative`
+  dentro de su fila. Compartiéndolo, la hoja que cargara última decidía: cuando ganaba esta,
+  la campanita heredaba `position: fixed` y aterrizaba sobre el logotipo, y con
+  `pointer-events: none` dejaba de responder al clic y al puntero.
+*/
+.toast-stack {
   position: fixed;
   top: 20px;
   right: 20px;
@@ -193,7 +201,7 @@
 
 /* Responsive: adapt to small screens */
 @media (max-width: 640px) {
-  .notification-center {
+  .toast-stack {
     top: 12px;
     right: 12px;
     left: 12px;

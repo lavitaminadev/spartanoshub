@@ -23,17 +23,20 @@ const outbox_processor_base_1 = require("../../../core/outbox/outbox-processor.b
 const meta_conversions_service_1 = require("./meta-conversions.service");
 const meta_conversion_outbox_entity_1 = require("./meta-conversion-outbox.entity");
 const meta_client_pixel_service_1 = require("./meta-client-pixel.service");
+const origen_del_evento_1 = require("./origen-del-evento");
+const lead_entity_1 = require("../../crm/leads/lead.entity");
 const MAX_AGE_DAYS_BY_ACTION_SOURCE = {
     physical_store: 62,
 };
 const DEFAULT_MAX_AGE_DAYS = 7;
 const META_OAUTH_ERROR_CODE = 190;
 let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConversionOutboxService extends outbox_processor_base_1.OutboxProcessor {
-    constructor(repository, conversions, clientPixels) {
+    constructor(repository, conversions, clientPixels, leads) {
         super();
         this.repository = repository;
         this.conversions = conversions;
         this.clientPixels = clientPixels;
+        this.leads = leads;
         this.logger = new common_1.Logger(MetaConversionOutboxService_1.name);
         this.entity = meta_conversion_outbox_entity_1.MetaConversionOutbox;
         this.label = 'Meta CAPI';
@@ -79,15 +82,25 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
             take: Math.min(Math.max(limit, 1), 100),
         });
     }
-    expirationReason(item) {
+    async expirationReason(item) {
         const event = item.eventData;
         const eventTime = Number(event?.eventTime ?? 0);
-        if (eventTime <= 0)
+        if (eventTime > 0) {
+            const maxAgeDays = MAX_AGE_DAYS_BY_ACTION_SOURCE[event?.actionSource ?? ''] ?? DEFAULT_MAX_AGE_DAYS;
+            if (Date.now() - eventTime * 1000 > maxAgeDays * 86_400_000) {
+                return `El evento supera los ${maxAgeDays} días que acepta Meta para su origen y ya no puede atribuirse.`;
+            }
+        }
+        return this.leadDesaparecido(item);
+    }
+    async leadDesaparecido(item) {
+        const leadId = (0, origen_del_evento_1.leadDelEvento)(item.eventId);
+        if (!leadId)
             return null;
-        const maxAgeDays = MAX_AGE_DAYS_BY_ACTION_SOURCE[event?.actionSource ?? ''] ?? DEFAULT_MAX_AGE_DAYS;
-        if (Date.now() - eventTime * 1000 <= maxAgeDays * 86_400_000)
+        const existe = await this.leads.count({ where: { id: leadId, organizationId: item.organizationId } });
+        if (existe > 0)
             return null;
-        return `El evento supera los ${maxAgeDays} días que acepta Meta para su origen y ya no puede atribuirse.`;
+        return 'El lead que originó este evento ya no existe en el CRM, así que no se reporta.';
     }
     async send(item) {
         const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId);
@@ -125,12 +138,32 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
                 : undefined,
         };
     }
+    async reintentar(organizationId, ids) {
+        const where = {
+            organizationId,
+            status: 'failed',
+        };
+        if (ids?.length)
+            where.id = (0, typeorm_2.In)(ids);
+        const resultado = await this.repository.update(where, {
+            status: 'pending',
+            attempts: 0,
+            nextAttemptAt: new Date(),
+            lastError: undefined,
+        });
+        const reintentados = resultado.affected ?? 0;
+        if (reintentados > 0)
+            this.logger.log(`Eventos devueltos a la cola: ${reintentados}`);
+        return { reintentados };
+    }
 };
 exports.MetaConversionOutboxService = MetaConversionOutboxService;
 exports.MetaConversionOutboxService = MetaConversionOutboxService = MetaConversionOutboxService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(meta_conversion_outbox_entity_1.MetaConversionOutbox)),
+    __param(3, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         meta_conversions_service_1.MetaConversionsService,
-        meta_client_pixel_service_1.MetaClientPixelService])
+        meta_client_pixel_service_1.MetaClientPixelService,
+        typeorm_2.Repository])
 ], MetaConversionOutboxService);
