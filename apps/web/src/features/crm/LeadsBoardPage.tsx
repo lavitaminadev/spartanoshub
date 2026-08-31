@@ -484,7 +484,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     subtitle: `${leads.length} mostrados de ${data?.total ?? 0} prospectos`,
     meta: [
       { label: 'Empresa', value: scope.empresa },
-      { label: 'Responsable', value: nombreDe(filtros.values.responsable) ?? 'Todo el equipo' },
+      { label: 'Responsable', value: filtros.values.responsable === 'sin' ? 'Sin responsable' : nombreDe(filtros.values.responsable) ?? 'Todo el equipo' },
       { label: 'Etapa', value: filtros.values.etapa ? etapaLabel(filtros.values.etapa) : 'Todas' },
       { label: 'Búsqueda', value: filtros.search || 'Sin filtrar' },
     ],
@@ -605,7 +605,22 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         onSearchChange={filtros.setSearch}
         searchPlaceholder="Buscar por nombre, empresa, correo, teléfono o campaña..."
         filters={[
-          { key: 'responsable', label: 'Responsable', allLabel: 'Todo el equipo', options: equipo.map((u) => ({ value: u.id, label: u.name })) },
+          {
+            key: 'responsable',
+            label: 'Responsable',
+            allLabel: 'Todo el equipo',
+            /*
+              «Sin responsable» va primero y no al final de la lista.
+
+              Es la bandeja de lo que falta repartir, no una persona más: un lead nuevo no se
+              asigna a nadie, así que ésta es la cola de entrada del equipo y es lo primero que
+              hay que poder mirar por la mañana.
+            */
+            options: [
+              { value: 'sin', label: 'Sin responsable' },
+              ...equipo.map((u) => ({ value: u.id, label: u.name })),
+            ],
+          },
           { key: 'etapa', label: 'Etapa', allLabel: 'Todas las etapas', options: etapasDelEmbudo.map((s) => ({ value: s, label: etapaLabel(s) })) },
           { key: 'calidad', label: CALIFICACION_TITULO, allLabel: 'Toda calificación', options: CALIFICACIONES },
           /*
@@ -916,9 +931,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     <button type="button" className="link-button" title={lead.name} onClick={() => setAbierto(lead)}>{lead.name}</button>
                   </td>
                   {ve('phone') ? <td data-label="Teléfono">{lead.phone || '—'}</td> : null}
-                  {ve('email') ? <td data-label="Correo" className="col-larga" title={lead.email ?? undefined}>{lead.email || '—'}</td> : null}
+                  {ve('email') ? <td data-label="Correo" className="col-larga" title={lead.email ?? undefined}><span className="celda-recortada">{lead.email || '—'}</span></td> : null}
                   {ve('company') ? <td data-label="Empresa">{lead.company || '—'}</td> : null}
-                  {ve('source') ? <td data-label="Origen" className="col-larga" title={lead.campaignName ?? undefined}>{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}</td> : null}
+                  {ve('source') ? <td data-label="Origen" className="col-larga" title={lead.campaignName ?? undefined}><span className="celda-recortada">{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}</span></td> : null}
                   {ve('status') ? <td data-label="Etapa">{etapaLabel(lead.status)}</td> : null}
                   {ve('tags') ? <td data-label="Etiqueta">{lead.tags?.length ? lead.tags.join(' · ') : '—'}</td> : null}
                   {ve('fit') ? <td data-label={CALIFICACION_TITULO}>{rotuloDeCalificacion(lead.fitStatus)}</td> : null}

@@ -32,7 +32,9 @@ let ListLeadsUseCase = class ListLeadsUseCase {
             where.source = expandSourceFilter(filters.source);
         if (filters.campaignName)
             where.campaignName = filters.campaignName;
-        if (filters.assignedTo)
+        if (filters.assignedTo === 'sin')
+            where.assignedTo = (0, typeorm_2.IsNull)();
+        else if (filters.assignedTo)
             where.assignedTo = filters.assignedTo;
         const domain = filters.domain ?? 'commercial';
         if (domain !== 'all')

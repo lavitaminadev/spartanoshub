@@ -7,8 +7,9 @@ import { AuditModule } from '../audit/audit.module';
 import { OrganizationSettingsController } from './organization-settings.controller';
 import { OrganizationSettingsService } from './organization-settings.service';
 import { EmailModule } from '../notifications/email.module';
+import { User } from '../../modules/users/user.entity';
 @Module({
-  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue]), AuditModule, EmailModule],
+  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue, User]), AuditModule, EmailModule],
   controllers: [OrganizationSettingsController],
   providers: [ParameterResolver, OrganizationSettingsService],
   exports: [ParameterResolver, OrganizationSettingsService, TypeOrmModule],

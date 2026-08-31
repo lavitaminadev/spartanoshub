@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, IsEnum, IsUUID, IsIn, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsEnum, IsUUID, IsIn, MaxLength, ValidateIf } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { PaginationDto } from '../../../../shared/dto/pagination.dto';
 import { LeadStatus } from '../lead-status.enum';
@@ -18,7 +18,13 @@ export class ListLeadsQueryDto extends PaginationDto {
   @IsOptional() @IsString() @MaxLength(255) campaignName?: string;
   /** Búsqueda real sobre toda la cuenta; no solo sobre la página que ya cargó el navegador. */
   @IsOptional() @IsString() @MaxLength(120) search?: string;
-  @IsOptional() @IsUUID() assignedTo?: string;
+  /**
+   * Responsable por el que se filtra.
+   *
+   * `sin` trae los que no tiene nadie. Es un valor aparte y no la ausencia del filtro porque
+   * son dos preguntas distintas: «todos» y «los que faltan por repartir».
+   */
+  @IsOptional() @ValidateIf((_objeto: unknown, valor: unknown) => valor !== 'sin') @IsUUID() assignedTo?: string;
   @IsOptional() @IsUUID() clientId?: string;
   /** Sin este parámetro, el listado asume 'commercial' — ver ListLeadsFilters.domain. */
   @IsOptional() @IsIn(['audience', 'commercial', 'all']) domain?: 'audience' | 'commercial' | 'all';

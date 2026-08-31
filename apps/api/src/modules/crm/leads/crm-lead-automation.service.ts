@@ -50,10 +50,21 @@ export class CrmLeadAutomationService {
      */
     if (lead.fitStatus !== LeadFitStatus.QUALIFIED && lead.fitStatus !== LeadFitStatus.REVIEW) return;
 
+    /*
+     * Un lead nuevo **no** se asigna a nadie.
+     *
+     * Antes caía sobre la primera dirección comercial activa, y el efecto era que todo lead
+     * nacía con dueño sin que nadie lo hubiera tomado: el tablero mostraba una cartera repartida
+     * que no existía, y la bandeja de lo que falta repartir no se podía ver porque estaba vacía
+     * por construcción.
+     *
+     * Sin responsable es un estado legítimo y visible —hay filtro y aviso para él—, no un
+     * olvido. Quien lo toma se lo asigna, que es cuando la asignación significa algo.
+     *
+     * La persona del embudo se sigue resolviendo para la oportunidad y la interacción: esas
+     * necesitan un autor, y el autor es quien responde por la cuenta mientras nadie la tome.
+     */
     const ownerId = await this.resolveCommercialOwner(lead.organizationId, manager);
-    if (ownerId && !lead.assignedTo) {
-      lead.assignedTo = ownerId;
-    }
 
     await this.ensureContact(lead, manager);
 

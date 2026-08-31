@@ -47,6 +47,7 @@ __decorate([
 ], ListLeadsQueryDto.prototype, "search", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_objeto, valor) => valor !== 'sin'),
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], ListLeadsQueryDto.prototype, "assignedTo", void 0);

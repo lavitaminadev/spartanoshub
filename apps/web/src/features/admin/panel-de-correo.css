@@ -39,3 +39,22 @@
   .panel-correo > header { flex-direction: column; }
   .panel-correo-empresa { width: 100%; }
 }
+
+/*
+ * A quién se manda la prueba, junto al botón que la manda.
+ *
+ * En la misma fila porque son una sola decisión: el destinatario no significa nada sin el envío,
+ * y verlos separados hace dudar de si el desplegable afecta a este aviso o a todos.
+ */
+.panel-correo-destinatario { display: grid; gap: 4px; min-width: 0; flex: 1 1 240px; }
+.panel-correo-destinatario > span {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+.panel-correo-envio { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.panel-correo-probar { flex: 0 0 auto; }
+
+/* En un teléfono la fila no cabe: el desplegable ocupa el ancho y el botón debajo. */
+@media (max-width: 560px) {
+  .panel-correo-destinatario { flex: 1 1 100%; }
+  .panel-correo-probar { width: 100%; }
+}
