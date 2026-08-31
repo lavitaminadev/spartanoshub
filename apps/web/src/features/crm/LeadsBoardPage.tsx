@@ -501,15 +501,32 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     footer: 'Espartanos · CRM',
   };
 
+  /*
+    Las columnas salen de `etapasDelEmbudo`, que ya descontó las etapas ocultas.
+
+    Antes se construían recorriendo el catálogo completo, así que apagar una etapa la quitaba de
+    los desplegables —filtro, mover en lote, mover una tarjeta— y la dejaba dibujada en el
+    tablero. La empresa la veía y no podía usarla.
+
+    Se derivan de la misma lista y no de una copia a propósito: son cuatro sitios que tienen que
+    ofrecer exactamente los mismos pasos, y mantenerlos con dos listas paralelas es cómo
+    empezó esto.
+  */
   const columnas = useMemo<KanbanColumn[]>(
     () => (scope.domain === 'commercial'
-      ? STAGES.map((stage) => ({ id: stage, label: rotulos[stage] ?? STAGE_LABEL[stage], accent: STAGE_ACCENT[stage] }))
-      : CONTACT_STATUS_OPTIONS.map((estado) => ({
-        id: estado.value,
-        label: rotulos[estado.value] ?? estado.label,
-        accent: estado.color,
-      }))),
-    [scope.domain, rotulos],
+      ? etapasDelEmbudo.map((stage) => ({
+        id: stage,
+        label: rotulos[stage] ?? STAGE_LABEL[stage],
+        accent: STAGE_ACCENT[stage],
+      }))
+      : CONTACT_STATUS_OPTIONS
+        .filter((estado) => etapasDelEmbudo.includes(estado.value))
+        .map((estado) => ({
+          id: estado.value,
+          label: rotulos[estado.value] ?? estado.label,
+          accent: estado.color,
+        }))),
+    [scope.domain, rotulos, etapasDelEmbudo],
   );
 
   if (isLoading) return <LoadingSpinner text="Cargando el embudo..." />;
