@@ -55,6 +55,11 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string }> = [
     explica: 'La víspera, o con la anticipación que elijas. Es la medida que más reduce las ausencias.',
   },
   {
+    prefijo: 'email.collection_overdue',
+    titulo: 'Aviso de pago vencido',
+    explica: 'Se envía al contacto principal de la empresa cuando una factura queda vencida.',
+  },
+  {
     prefijo: 'email.birthday',
     titulo: 'Saludo de cumpleaños',
     explica: 'Solo a quien dio su fecha y está suscrito. Lleva enlace de baja como todo correo comercial.',
@@ -73,11 +78,6 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string }> = [
     prefijo: 'email.new_lead',
     titulo: 'Aviso de lead nuevo',
     explica: 'Al responsable, indicando de dónde viene.',
-  },
-  {
-    prefijo: 'email.idle_lead',
-    titulo: 'Aviso de lead parado',
-    explica: 'Por correo además de en la aplicación. El resumen diario ya lo cuenta, así que suele sobrar.',
   },
 ];
 
@@ -335,8 +335,8 @@ export function PanelDeCorreo(): JSX.Element {
           Descartar cambios
         </button>
         <small>
-          Ningún correo sale si <code>SMTP_ENABLED</code> está apagado en el servidor, aunque el
-          aviso esté encendido acá.
+          Los avisos se enviarán cuando el servicio de correo del sistema esté configurado y el
+          interruptor de esta plantilla esté encendido.
         </small>
       </footer>
     </section>

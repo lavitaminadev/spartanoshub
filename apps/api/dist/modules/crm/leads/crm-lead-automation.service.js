@@ -15,6 +15,7 @@ var CrmLeadAutomationService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CrmLeadAutomationService = void 0;
 const common_1 = require("@nestjs/common");
+const shared_1 = require("@espartanos/shared");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const contact_entity_1 = require("../contacts/contact.entity");
@@ -23,7 +24,7 @@ const interaction_entity_1 = require("../interactions/interaction.entity");
 const user_entity_1 = require("../../users/user.entity");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const lead_fit_status_enum_1 = require("./lead-fit-status.enum");
-const shared_1 = require("@espartanos/shared");
+const shared_2 = require("@espartanos/shared");
 let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomationService {
     constructor(contactsRepo, opportunitiesRepo, interactionsRepo, usersRepo) {
         this.contactsRepo = contactsRepo;
@@ -108,7 +109,7 @@ let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomat
             organizationId: lead.organizationId,
             leadId: lead.id,
             type: 'lead_ingested',
-            description: `Lead ingresado desde ${lead.sourceDetail || lead.source || 'origen desconocido'}.`,
+            description: `Lead recibido desde ${lead.sourceDetail || (0, shared_1.etiquetaDeFuente)(lead.source) || 'un origen no identificado'}.`,
         }));
     }
     async ensureQualifiedInteraction(lead, ownerId, manager) {
@@ -161,7 +162,7 @@ let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomat
     }
 };
 exports.CrmLeadAutomationService = CrmLeadAutomationService;
-CrmLeadAutomationService.AUDIENCE_SOURCES = new Set(shared_1.RESERVATION_LEAD_SOURCES);
+CrmLeadAutomationService.AUDIENCE_SOURCES = new Set(shared_2.RESERVATION_LEAD_SOURCES);
 exports.CrmLeadAutomationService = CrmLeadAutomationService = CrmLeadAutomationService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(contact_entity_1.Contact)),

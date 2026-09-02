@@ -42,7 +42,7 @@ let CrmHomeService = class CrmHomeService {
             ...this.alcanceDeCuentas(alcance),
         };
         const abierto = { ...base, status: (0, typeorm_2.In)(this.openStatuses()) };
-        const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, parados, equipo] = await Promise.all([
+        const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, parados, equipo, recentLeads] = await Promise.all([
             this.leads.count({ where: this.soloLoSuyo({ ...base, createdAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) }, alcance.onlyAssignedTo) }),
             this.leads.count({ where: this.soloLoSuyo({ ...base, status: lead_status_enum_1.LeadStatus.WON, updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) }, alcance.onlyAssignedTo) }),
             this.montoDelMes({ ...base, onlyAssignedTo: alcance.onlyAssignedTo }, inicioDeMes),
@@ -59,6 +59,12 @@ let CrmHomeService = class CrmHomeService {
             alcance.onlyAssignedTo || alcance.ocultarEquipo
                 ? Promise.resolve([])
                 : this.teamLoad(base, limiteFrio),
+            this.leads.find({
+                where: this.soloLoSuyo(base, alcance.onlyAssignedTo),
+                order: { createdAt: 'DESC' },
+                take: 8,
+                select: { id: true, name: true, source: true, campaignName: true, createdAt: true },
+            }),
         ]);
         const alerts = [sinContactar, sinAsignar, calificadosSinVisita, parados].filter((a) => a.count > 0);
         return {
@@ -69,6 +75,7 @@ let CrmHomeService = class CrmHomeService {
                 .reduce((suma, a) => suma + a.count, 0),
             alerts,
             team: equipo,
+            recentLeads,
             coolingDays,
         };
     }

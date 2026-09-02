@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { JSX } from 'react';
 import { api } from '../../core/api';
+import { etiquetaDeFuente } from '@espartanos/shared';
 import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
@@ -43,6 +44,7 @@ interface Home {
   personalScope?: boolean;
   urgentCount: number;
   alerts: Alert[];
+  recentLeads: LeadPreview[];
   team: TeamRow[];
   coolingDays: number;
 }
@@ -56,11 +58,11 @@ interface Home {
 const ALERTS: Record<string, { title: string; why: string }> = {
   sin_contactar: {
     title: 'Leads sin contactar',
-    why: 'Nunca se les ha llamado ni escrito. Mientras más pasa, menos responden.',
+    why: 'Aún no han recibido una llamada ni un mensaje. Mientras antes los contactes, más probable es que respondan.',
   },
   sin_asignar: {
     title: 'Leads sin asignar',
-    why: 'Nadie los está trabajando. Asígnalos para que alguien se haga cargo.',
+    why: 'Asignarlos da visibilidad al equipo y ayuda a responder cada oportunidad a tiempo.',
   },
   calificados_sin_visita: {
     title: 'Calificados sin visita agendada',
@@ -89,8 +91,12 @@ function saludo(): string {
 
 /** Cuántos días lleva esperando, en palabras. */
 function desde(fecha: string): string {
-  const dias = Math.floor((Date.now() - new Date(fecha).getTime()) / 86_400_000);
-  if (dias <= 0) return 'ingresó hoy';
+  const minutos = Math.max(0, Math.floor((Date.now() - new Date(fecha).getTime()) / 60_000));
+  if (minutos < 2) return 'ingresó hace un momento';
+  if (minutos < 60) return `ingresó hace ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `ingresó hace ${horas} ${horas === 1 ? 'hora' : 'horas'}`;
+  const dias = Math.floor(horas / 24);
   if (dias === 1) return 'ingresó ayer';
   return `ingresó hace ${dias} días`;
 }
@@ -157,6 +163,7 @@ export function CrmHomePage(): JSX.Element {
   const alerts = data?.alerts ?? [];
   const urgentes = data?.urgentCount ?? 0;
   const team = data?.team ?? [];
+  const recentLeads = data?.recentLeads ?? [];
   const leadsEnCartera = data?.month?.leads ?? 0;
   const ventasDelMes = data?.month?.ventas ?? 0;
   const montoVendido = `$${Math.round(data?.month?.monto ?? 0).toLocaleString('es-CL')}`;
@@ -235,7 +242,7 @@ export function CrmHomePage(): JSX.Element {
                       <span>
                         {desde(lead.createdAt)}
                         {lead.campaignName ? ` · ${lead.campaignName}` : ''}
-                        {lead.source ? ` · ${lead.source}` : ''}
+                        {lead.source ? ` · ${etiquetaDeFuente(lead.source)}` : ''}
                       </span>
                     </Link>
                     {/*
@@ -262,6 +269,36 @@ export function CrmHomePage(): JSX.Element {
             </article>
           );
         })}
+      </section>
+
+      <section className="crm-home-recent">
+        <header>
+          <div>
+            <h2>Leads ingresados recientemente</h2>
+            <p>Revisa los últimos ingresos y asígnalos o contáctalos sin salir del inicio.</p>
+          </div>
+          <Link className="btn btn-outline btn-sm" to="/crm/leads">Ver todos los leads</Link>
+        </header>
+        {recentLeads.length ? (
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead><tr><th>Lead</th><th>Campaña</th><th>Origen</th><th>Ingresó</th><th></th></tr></thead>
+              <tbody>
+                {recentLeads.map((lead) => (
+                  <tr key={lead.id}>
+                    <td data-label="Lead"><strong>{lead.name}</strong></td>
+                    <td data-label="Campaña">{lead.campaignName || 'Sin campaña'}</td>
+                    <td data-label="Origen">{lead.source ? etiquetaDeFuente(lead.source) : 'Sin origen'}</td>
+                    <td data-label="Ingresó">{desde(lead.createdAt)}</td>
+                    <td><Link className="btn btn-outline btn-sm" to={`/crm/leads?q=${encodeURIComponent(lead.name)}`}>Abrir</Link></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState title="Aún no hay leads recientes" description="Cuando entre un nuevo lead, aparecerá aquí para darle seguimiento rápido." />
+        )}
       </section>
 
       <section className="crm-home-team">

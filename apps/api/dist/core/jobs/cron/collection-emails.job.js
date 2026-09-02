@@ -20,11 +20,14 @@ const typeorm_2 = require("typeorm");
 const invoice_entity_1 = require("../../../modules/billing/invoice.entity");
 const client_entity_1 = require("../../../modules/clients/client.entity");
 const email_service_1 = require("../../notifications/email.service");
+const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
+const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
 let CollectionEmailsJob = CollectionEmailsJob_1 = class CollectionEmailsJob {
-    constructor(invoiceRepo, clientRepo, emailService) {
+    constructor(invoiceRepo, clientRepo, emailService, parametros) {
         this.invoiceRepo = invoiceRepo;
         this.clientRepo = clientRepo;
         this.emailService = emailService;
+        this.parametros = parametros;
         this.logger = new common_1.Logger(CollectionEmailsJob_1.name);
     }
     async handle() {
@@ -51,7 +54,19 @@ let CollectionEmailsJob = CollectionEmailsJob_1 = class CollectionEmailsJob {
                 const dueDateStr = invoice.dueAt instanceof Date
                     ? invoice.dueAt.toISOString().split('T')[0]
                     : String(invoice.dueAt);
-                const delivered = await this.emailService.sendCollectionEmail(client.name, email, invoice.number, Number(invoice.total), dueDateStr);
+                const enabled = await this.parametros.get('email.collection_overdue_enabled', client.id, null, invoice.organizationId);
+                if (enabled !== true)
+                    continue;
+                const [subjectTemplate, bodyTemplate] = await Promise.all([
+                    this.parametros.get('email.collection_overdue_subject', client.id, null, invoice.organizationId),
+                    this.parametros.get('email.collection_overdue_body', client.id, null, invoice.organizationId),
+                ]);
+                const monto = new Intl.NumberFormat('es-CL', {
+                    style: 'currency', currency: invoice.currency || client.currency || 'CLP',
+                    maximumFractionDigits: 0,
+                }).format(Number(invoice.total));
+                const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(subjectTemplate ?? 'Recordatorio de pago: factura {{factura}} vencida'), String(bodyTemplate ?? 'La factura {{factura}} de {{empresa}} venció el {{vencimiento}}.'), { empresa: client.name, factura: invoice.number, monto, vencimiento: dueDateStr });
+                const delivered = await this.emailService.send(email, subject, html);
                 if (delivered) {
                     invoice.status = 'overdue';
                     await this.invoiceRepo.save(invoice);
@@ -83,5 +98,6 @@ exports.CollectionEmailsJob = CollectionEmailsJob = CollectionEmailsJob_1 = __de
     __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        parameter_resolver_service_1.ParameterResolver])
 ], CollectionEmailsJob);

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { etiquetaDeFuente } from '@espartanos/shared';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { Contact } from '../contacts/contact.entity';
@@ -168,7 +169,7 @@ export class CrmLeadAutomationService {
         organizationId: lead.organizationId,
         leadId: lead.id,
         type: 'lead_ingested',
-        description: `Lead ingresado desde ${lead.sourceDetail || lead.source || 'origen desconocido'}.`,
+        description: `Lead recibido desde ${lead.sourceDetail || etiquetaDeFuente(lead.source) || 'un origen no identificado'}.`,
       }),
     );
   }

@@ -15,6 +15,7 @@ export const TIPO_DE_ACTIVIDAD: Record<string, string> = {
   email: 'Correo',
   note: 'Nota',
   task: 'Tarea',
+  lead_ingested: 'Lead recibido',
 };
 
 /**

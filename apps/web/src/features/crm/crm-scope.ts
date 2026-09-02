@@ -33,6 +33,8 @@ export interface CrmScopeValue {
   domain: 'audience' | 'commercial';
   /** Si lo que se mira es el embudo propio de Espartanos. */
   esAgencia: boolean;
+  /** El CRM se está usando desde el portal de una empresa cliente. */
+  esPortalCliente: boolean;
   /** Nombre de la empresa en pantalla, para los encabezados. */
   empresa: string;
   /**
