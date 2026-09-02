@@ -193,8 +193,7 @@ export function CrmHomePage(): JSX.Element {
       <section className="crm-home-kpis">
         <article>
           <strong>{leadsEnCartera}</strong>
-          <span>{termino('leads')} del mes</span>
-          <small>ingresados</small>
+          <span>Leads ingresados este mes</span>
         </article>
         <article>
           <strong>{ventasDelMes}</strong>
