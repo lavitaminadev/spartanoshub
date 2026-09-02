@@ -4,6 +4,8 @@ import { Repository, LessThan } from 'typeorm';
 import { Invoice } from '../../../modules/billing/invoice.entity';
 import { Client } from '../../../modules/clients/client.entity';
 import { EmailService } from '../../notifications/email.service';
+import { ParameterResolver } from '../../parameters/parameter-resolver.service';
+import { componerCorreo } from '../../notifications/plantilla-de-correo';
 
 @Injectable()
 export class CollectionEmailsJob {
@@ -13,6 +15,7 @@ export class CollectionEmailsJob {
     @InjectRepository(Invoice) private invoiceRepo: Repository<Invoice>,
     @InjectRepository(Client) private clientRepo: Repository<Client>,
     private emailService: EmailService,
+    private readonly parametros: ParameterResolver,
   ) {}
 
   async handle(): Promise<void> {
@@ -45,13 +48,28 @@ export class CollectionEmailsJob {
           ? invoice.dueAt.toISOString().split('T')[0]
           : String(invoice.dueAt);
 
-        const delivered = await this.emailService.sendCollectionEmail(
-          client.name,
-          email,
-          invoice.number,
-          Number(invoice.total),
-          dueDateStr,
+        // La cobranza ya era automática; este interruptor permite pausarla por empresa sin
+        // borrar la plantilla. El valor de fábrica es true para no cambiar los avisos vigentes.
+        const enabled = await this.parametros.get(
+          'email.collection_overdue_enabled', client.id, null, invoice.organizationId,
         );
+        if (enabled !== true) continue;
+
+        const [subjectTemplate, bodyTemplate] = await Promise.all([
+          this.parametros.get('email.collection_overdue_subject', client.id, null, invoice.organizationId),
+          this.parametros.get('email.collection_overdue_body', client.id, null, invoice.organizationId),
+        ]);
+        const monto = new Intl.NumberFormat('es-CL', {
+          style: 'currency', currency: invoice.currency || client.currency || 'CLP',
+          maximumFractionDigits: 0,
+        }).format(Number(invoice.total));
+        const { subject, html } = componerCorreo(
+          String(subjectTemplate ?? 'Recordatorio de pago: factura {{factura}} vencida'),
+          String(bodyTemplate ?? 'La factura {{factura}} de {{empresa}} venció el {{vencimiento}}.'),
+          { empresa: client.name, factura: invoice.number, monto, vencimiento: dueDateStr },
+        );
+
+        const delivered = await this.emailService.send(email, subject, html);
 
         // Only flip to 'overdue' once the email actually goes out. This job only
         // ever queries status:'pending' — marking it 'overdue' unconditionally on

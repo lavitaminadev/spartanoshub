@@ -290,6 +290,9 @@ export class LeadController {
     if (req.user.role === UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== req.user.clientId) {
       throw new ForbiddenException('El portal no puede mover contactos fuera de su empresa');
     }
+    if (req.user.role === UserRole.CLIENT && dto.excludedFromMeta !== undefined) {
+      throw new ForbiddenException('El portal no puede cambiar la medición publicitaria');
+    }
     const clientIdDestino = dto.clientId !== undefined ? (dto.clientId ?? undefined) : (lead.clientId ?? undefined);
     await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
     // Mover un lead a una empresa sin CRM lo haría desaparecer de toda pantalla salvo la base.

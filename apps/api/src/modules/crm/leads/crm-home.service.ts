@@ -129,7 +129,7 @@ export class CrmHomeService {
     };
     const abierto = { ...base, status: In(this.openStatuses()) };
 
-    const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, parados, equipo] = await Promise.all([
+    const [delMes, ventasDelMes, montoDelMes, sinContactar, sinAsignar, calificadosSinVisita, parados, equipo, recentLeads] = await Promise.all([
       // Las cifras del mes cuentan lo mismo que muestran los avisos y el tablero. Si contaran el
       // embudo entero, el encabezado estaría diciendo por arriba lo que el filtro oculta abajo.
       this.leads.count({ where: this.soloLoSuyo({ ...base, createdAt: MoreThanOrEqual(inicioDeMes) }, alcance.onlyAssignedTo) as never }),
@@ -183,6 +183,12 @@ export class CrmHomeService {
       alcance.onlyAssignedTo || alcance.ocultarEquipo
         ? Promise.resolve([])
         : this.teamLoad(base, limiteFrio),
+      this.leads.find({
+        where: this.soloLoSuyo(base, alcance.onlyAssignedTo) as never,
+        order: { createdAt: 'DESC' },
+        take: 8,
+        select: { id: true, name: true, source: true, campaignName: true, createdAt: true },
+      }),
     ]);
 
     const alerts = [sinContactar, sinAsignar, calificadosSinVisita, parados].filter((a) => a.count > 0);
@@ -203,6 +209,7 @@ export class CrmHomeService {
         .reduce((suma, a) => suma + a.count, 0),
       alerts,
       team: equipo,
+      recentLeads,
       coolingDays,
     };
   }

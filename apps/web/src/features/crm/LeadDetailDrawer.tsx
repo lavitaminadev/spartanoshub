@@ -81,6 +81,16 @@ interface Interaccion {
   date: string;
 }
 
+/** Hace legible el historial que se guardó antes de traducir los nombres técnicos del origen. */
+function descripcionDeActividad(registro: Interaccion): string | undefined {
+  if (registro.type !== 'lead_ingested' || !registro.description) return registro.description;
+
+  const coincidencia = /^Lead ingresado desde (.+)\.$/i.exec(registro.description);
+  if (!coincidencia) return registro.description;
+
+  return `Lead recibido desde ${etiquetaDeFuente(coincidencia[1]) || coincidencia[1]}.`;
+}
+
 interface Props {
   lead: Lead;
   /** Nombre de la etapa, con el vocabulario del tablero. */
@@ -408,7 +418,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
        */
       fitStatus: calificacion === (lead.fitStatus ?? 'review') ? undefined : calificacion,
       trafficLight: semaforo || null,
-      excludedFromMeta: fueraDeMeta,
+      // La exclusión afecta la medición publicitaria de la cuenta. El portal puede trabajar su
+      // embudo, pero no debe cambiar esa decisión interna de la agencia.
+      excludedFromMeta: scope.esPortalCliente ? undefined : fueraDeMeta,
       // Se separan por coma, como en la importación, para que la misma persona escriba igual en
       // los dos sitios. Vacío limpia las etiquetas en vez de dejarlas como estaban.
       tags: etiquetas.split(',').map((t) => t.trim()).filter(Boolean),
@@ -590,7 +602,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     && calificacion === (lead.fitStatus ?? 'review')
     && semaforo === (lead.trafficLight ?? '')
     && etiquetas === (lead.tags ?? []).join(', ')
-    && fueraDeMeta === Boolean(lead.excludedFromMeta)
+    && (scope.esPortalCliente || fueraDeMeta === Boolean(lead.excludedFromMeta))
     && fuente === (lead.source ?? '')
     && empresaDelContacto === (lead.company ?? '')
     && campana === (lead.campaignName ?? '')
@@ -839,7 +851,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             Vale solo para este lead. La misma persona entrando por otra campaña es otro lead y
             se decide por separado.
           */}
-          <label className="lead-fuera-de-meta">
+          {!scope.esPortalCliente ? <label className="lead-fuera-de-meta">
             <input
               type="checkbox"
               checked={fueraDeMeta}
@@ -847,10 +859,11 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               disabled={!scope.puedeEditar}
             />
             <span>
-              No reportar a Meta
-              <small>Para pruebas y duplicados. Se conserva el lead; solo deja de enviarse su señal.</small>
+              Excluir de medición publicitaria
+              <small>Úsalo para pruebas o duplicados. El lead se conserva y no se considera en conversiones de Meta.</small>
             </span>
           </label>
+          : null}
 
           <label>
             <span>{termino('semaforo')}</span>
@@ -1068,15 +1081,18 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <p className="lead-detail-vacio">Sin actividad registrada todavía.</p>
           ) : (
             <ul className="lead-detail-actividades">
-              {actividades.data.map((registro) => (
-                <li key={registro.id}>
-                  <time>{new Date(registro.date).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</time>
-                  <div>
-                    <strong>{TIPO_DE_ACTIVIDAD[registro.type] ?? registro.type}</strong>
-                    {registro.description ? <span>{registro.description}</span> : null}
-                  </div>
-                </li>
-              ))}
+              {actividades.data.map((registro) => {
+                const descripcion = descripcionDeActividad(registro);
+                return (
+                  <li key={registro.id}>
+                    <time>{new Date(registro.date).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</time>
+                    <div>
+                      <strong>{TIPO_DE_ACTIVIDAD[registro.type] ?? registro.type}</strong>
+                      {descripcion ? <span>{descripcion}</span> : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -1165,18 +1181,18 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           Borrar los datos de una persona o llevárselos son decisiones de quien responde por
           ellos ante la ley, y eso es la agencia. El portal del cliente los ve, no los administra.
         */}
-        {scope.puedeEditar ? (
+        {scope.puedeEditar && !scope.esPortalCliente ? (
         <section className="lead-detail-privacidad">
           <h3>Datos personales</h3>
           <div className="lead-detail-acciones">
             <button type="button" className="btn btn-outline btn-sm" disabled={exportar.isPending} onClick={() => exportar.mutate()}>
-              Descargar sus datos
+              Descargar ficha del lead
             </button>
             <button type="button" className="btn btn-outline btn-sm" onClick={() => setConfirmarAnonimizar(true)}>
-              Anonimizar
+              Anonimizar datos del lead
             </button>
           </div>
-          <small>Anonimizar es irreversible: borra los datos de contacto y conserva las cifras agregadas.</small>
+          <small>Acción irreversible: elimina los datos de contacto y conserva solo cifras agregadas.</small>
         </section>
         ) : null}
 

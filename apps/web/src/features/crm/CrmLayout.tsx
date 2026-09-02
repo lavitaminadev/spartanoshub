@@ -125,6 +125,7 @@ export function CrmLayout(): JSX.Element {
     nombreDe,
     domain,
     esAgencia,
+    esPortalCliente,
     // La misma matriz que autoriza la API gobierna todos los controles de escritura. Derivarlo
     // del cargo dejaba excepciones web sin efecto y mostraba drag-and-drop a personas `view`.
     puedeEditar: canEditCrm(user?.permissions?.crm),
