@@ -52,6 +52,7 @@ export class UpdateLeadUseCase {
     },
     organizationId: string,
     actorId?: string,
+    actorClientId?: string | null,
   ) {
     const lead = await this.repo.findOne({ where: { id, organizationId } });
     if (!lead) throw new NotFoundException('Lead not found');
@@ -127,6 +128,29 @@ export class UpdateLeadUseCase {
     if (data.fitStatus === undefined && lead.domain === 'commercial' && etapaPrevia !== lead.status) {
       const automatica = DESENLACES[lead.status as LeadStatus];
       if (automatica) lead.fitStatus = automatica;
+    }
+
+    /*
+     * Mover un lead sin dueño lo pone a nombre de quien lo movió.
+     *
+     * Avanzar la etapa es la afirmación de haberlo trabajado, y quien lo trabaja es su
+     * responsable: la asignación deja de ser un trámite aparte que hay que recordar.
+     *
+     * Solo alcanza a quien pertenece a la misma empresa que el lead. Desde la agencia se
+     * supervisa el embudo de una cuenta sin venderlo, y quedarse como responsable por haber
+     * corregido una etapa atribuiría ese trabajo a quien no lo hace.
+     *
+     * Una asignación explícita en la misma petición manda: quien eligió responsable ya decidió.
+     */
+    if (
+      data.assignedTo === undefined
+      && !lead.assignedTo
+      && actorId
+      && etapaPrevia !== lead.status
+      && lead.clientId
+      && actorClientId === lead.clientId
+    ) {
+      lead.assignedTo = actorId;
     }
 
     /*

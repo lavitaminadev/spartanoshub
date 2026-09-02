@@ -594,8 +594,15 @@ export class LeadIntakeService {
       };
     }
 
+    /*
+     * El puntaje ordena la bandeja; no afirma que el lead valga la pena.
+     *
+     * Calificar es un juicio humano —alguien miró este perfil y dijo que interesa— y es la señal
+     * que el embudo reporta como tal. El puntaje y sus señales se guardan igual, así que quien
+     * revisa llega con el trabajo hecho y solo tiene que confirmarlo.
+     */
     if (qualityScore >= 70) {
-      return { qualityScore, fitStatus: LeadFitStatus.QUALIFIED, scoringSignals: signals };
+      return { qualityScore, fitStatus: LeadFitStatus.REVIEW, scoringSignals: signals };
     }
 
     if (qualityScore >= 35) {

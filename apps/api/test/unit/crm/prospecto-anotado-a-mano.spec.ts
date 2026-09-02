@@ -90,7 +90,7 @@ describe('prospecto anotado a mano', () => {
     expect(lead.discardReason).toBeFalsy();
   });
 
-  it('si el puntaje da para calificado, califica igual: la regla no baja el techo', async () => {
+  it('un puntaje alto no descarta ni califica: queda a revisión como cualquier otro', async () => {
     const lead = await service.captureLead({
       organizationId: 'org-1',
       name: 'Clínica Norte',
@@ -103,6 +103,7 @@ describe('prospecto anotado a mano', () => {
       enteredByPerson: true,
     });
 
-    expect(lead.fitStatus).toBe(LeadFitStatus.QUALIFIED);
+    expect(lead.fitStatus).toBe(LeadFitStatus.REVIEW);
+    expect(lead.qualityScore).toBeGreaterThanOrEqual(70);
   });
 });
