@@ -1,3 +1,4 @@
+import { createResponsablesDouble } from '../../helpers/responsables-del-crm.double';
 import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { UpdateLeadUseCase } from '../../../src/modules/crm/leads/use-cases/update-lead.use-case';
@@ -19,7 +20,7 @@ function caso(lead: Record<string, unknown>) {
   const cierre = { avisar: vi.fn() };
   const events = { emit: vi.fn() };
   return {
-    uso: new UpdateLeadUseCase(repo as never, history as never, cierre as never, events as never),
+    uso: new UpdateLeadUseCase(repo as never, history as never, cierre as never, events as never, createResponsablesDouble()),
     repo,
     events,
   };

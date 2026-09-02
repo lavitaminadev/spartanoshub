@@ -12,7 +12,7 @@ import { Campaign } from '../../../crm/campaigns/campaign.entity';
 import { atribucionDelLead } from '../atribucion-del-lead';
 
 /** Forma de un identificador de lead de Meta: 15 a 17 dígitos, nada más. */
-const LEADGEN_ID = /^d{15,17}$/;
+const LEADGEN_ID = /^\d{15,17}$/;
 
 @Injectable()
 export class LeadConvertedHandler {

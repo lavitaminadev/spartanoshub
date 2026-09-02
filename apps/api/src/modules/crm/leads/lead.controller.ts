@@ -297,7 +297,7 @@ export class LeadController {
     await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
     // Mover un lead a una empresa sin CRM lo haría desaparecer de toda pantalla salvo la base.
     await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
-    return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
+    return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.clientId ?? null);
   }
 
   /**

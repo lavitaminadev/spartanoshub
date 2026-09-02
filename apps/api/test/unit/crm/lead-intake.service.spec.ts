@@ -32,7 +32,7 @@ describe('LeadIntakeService', () => {
     audit.log.mockResolvedValue(undefined);
   });
 
-  it('qualifies a strong lead with contact data and campaign context', async () => {
+  it('puntúa alto un lead con contacto y campaña, y lo deja a revisión de una persona', async () => {
     repo.findOne.mockResolvedValue(null);
 
     const lead = await service.captureLead({
@@ -46,7 +46,7 @@ describe('LeadIntakeService', () => {
       notes: 'Quiere presupuesto para marketing y ads',
     });
 
-    expect(lead.fitStatus).toBe(LeadFitStatus.QUALIFIED);
+    expect(lead.fitStatus).toBe(LeadFitStatus.REVIEW);
     expect(lead.qualityScore).toBeGreaterThanOrEqual(70);
     expect(automation.runForLead).toHaveBeenCalled();
   });

@@ -335,7 +335,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
             };
         }
         if (qualityScore >= 70) {
-            return { qualityScore, fitStatus: lead_fit_status_enum_1.LeadFitStatus.QUALIFIED, scoringSignals: signals };
+            return { qualityScore, fitStatus: lead_fit_status_enum_1.LeadFitStatus.REVIEW, scoringSignals: signals };
         }
         if (qualityScore >= 35) {
             return { qualityScore, fitStatus: lead_fit_status_enum_1.LeadFitStatus.REVIEW, scoringSignals: signals };

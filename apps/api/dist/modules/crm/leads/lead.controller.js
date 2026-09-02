@@ -157,7 +157,7 @@ let LeadController = class LeadController {
         const clientIdDestino = dto.clientId !== undefined ? (dto.clientId ?? undefined) : (lead.clientId ?? undefined);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
         await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
-        return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
+        return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.clientId ?? null);
     }
     async assertLeadAccess(req, lead) {
         if (!lead)
