@@ -7,6 +7,7 @@ import { LeadFitStatus } from '../lead-fit-status.enum';
 import { ProcessHistoryService } from '../../../../core/process-history/process-history.service';
 import { ProcessSubject } from '../../../../core/process-history/process-stage-change.entity';
 import { LeadCierreService } from '../lead-cierre.service';
+import { ResponsablesDelCrmService } from '../responsables-del-crm.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 /** Nombre del dominio en los mensajes de error, para que digan algo accionable. */
@@ -38,6 +39,7 @@ export class UpdateLeadUseCase {
     private readonly history: ProcessHistoryService,
     private readonly cierre: LeadCierreService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly responsables: ResponsablesDelCrmService,
   ) {}
 
   async execute(
@@ -131,14 +133,21 @@ export class UpdateLeadUseCase {
     }
 
     /*
-     * Mover un lead sin dueño lo pone a nombre de quien lo movió.
+     * Mover un lead sin dueño lo pone a nombre de quien lo movió, si es el único que puede
+     * atenderlo.
      *
-     * Avanzar la etapa es la afirmación de haberlo trabajado, y quien lo trabaja es su
-     * responsable: la asignación deja de ser un trámite aparte que hay que recordar.
+     * En una empresa con una sola persona en el CRM, elegir responsable es escoger de una lista
+     * de uno: el trámite no aporta la información que un responsable debería aportar, y el lead
+     * se queda sin dueño por pura fricción. Avanzar la etapa ya afirma haberlo trabajado.
      *
-     * Solo alcanza a quien pertenece a la misma empresa que el lead. Desde la agencia se
-     * supervisa el embudo de una cuenta sin venderlo, y quedarse como responsable por haber
-     * corregido una etapa atribuiría ese trabajo a quien no lo hace.
+     * Con dos o más, la regla se retira y la asignación vuelve a ser explícita. Quién atiende a
+     * quién es entonces un reparto real, y el CRM ya lo ofrece en la ficha y en el botón «Tomar»
+     * de la tarjeta. Además, el perfil de venta solo ve lo suyo: asignar por haber movido una
+     * etapa le quitaría el lead de la vista a sus compañeros sin que nadie lo decidiera.
+     *
+     * Solo alcanza a quien pertenece a la empresa del lead. Desde la agencia se supervisa un
+     * embudo sin venderlo, y quedarse como responsable por corregir una etapa atribuiría ese
+     * trabajo a quien no lo hace.
      *
      * Una asignación explícita en la misma petición manda: quien eligió responsable ya decidió.
      */
@@ -150,7 +159,8 @@ export class UpdateLeadUseCase {
       && lead.clientId
       && actorClientId === lead.clientId
     ) {
-      lead.assignedTo = actorId;
+      const equipo = await this.responsables.execute(organizationId, lead.clientId);
+      if (equipo.length === 1 && equipo[0].id === actorId) lead.assignedTo = actorId;
     }
 
     /*

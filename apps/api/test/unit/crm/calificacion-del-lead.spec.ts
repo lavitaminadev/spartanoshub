@@ -1,3 +1,4 @@
+import { createResponsablesDouble } from '../../helpers/responsables-del-crm.double';
 import { describe, expect, it, vi } from 'vitest';
 import { UpdateLeadUseCase } from '../../../src/modules/crm/leads/use-cases/update-lead.use-case';
 import { LeadStatus } from '../../../src/modules/crm/leads/lead-status.enum';
@@ -21,6 +22,7 @@ function caso(lead: Record<string, unknown>) {
       { recordStageChange: vi.fn() } as never,
       { avisar: vi.fn() } as never,
       { emit } as never,
+      createResponsablesDouble(),
     ),
   };
 }
