@@ -20,6 +20,12 @@ cleanup_cache
 /bin/mkdir -p "$NPM_CACHE_DIR"
 export npm_config_cache="$NPM_CACHE_DIR"
 
+if [ -e "$APP_ROOT/node_modules" ] && [ ! -L "$APP_ROOT/node_modules" ]; then
+  echo "NPM INSTALL: node_modules es una carpeta fisica; CloudLinux exige un symlink al Node.js Selector." >&2
+  echo "NPM INSTALL: restaura el enlace desde Setup Node.js App antes de desplegar." >&2
+  exit 1
+fi
+
 # `npm install` y no `npm ci`, aunque `ci` sea lo habitual en un despliegue.
 #
 # `npm ci` borra `node_modules` antes de instalar. Aquí eso no es limpieza: en CloudLinux el
