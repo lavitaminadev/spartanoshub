@@ -32,13 +32,10 @@ export npm_config_cache="$NPM_CACHE_DIR"
 # `npm install` escribe dentro del enlace sin tocarlo. A cambio no garantiza la instalación exacta
 # del `package-lock.json`, y esa es la contrapartida aceptada: una versión menor distinta es
 # recuperable, un despliegue que deja la aplicación sin arrancar no lo es.
-# El selector Node de cPanel puede desactivar implícitamente los workspaces. Si eso
-# ocurre, npm conserva sólo las dependencias de la raíz y poda las de la API (por
-# ejemplo, dotenv). Declaramos los dos workspaces de ejecución de forma explícita;
-# el frontend ya llega compilado y no requiere dependencias en el servidor.
-npm install --omit=dev --include-workspace-root \
-  --workspace=@espartanos/api \
-  --workspace=@espartanos/shared
+# El selector Node de cPanel no resuelve de forma fiable selectores de workspace por
+# nombre. Al activar la instalación de workspaces, npm instala las dependencias de
+# producción declaradas por el monorepo (incluida la API y dotenv), sin devDependencies.
+npm install --omit=dev --workspaces --include-workspace-root
 
 # El enlace tiene que seguir siendo un enlace al terminar. Si algo lo convirtió en carpeta, la
 # aplicación arrancaría a medias y el fallo aparecería horas después, lejos del despliegue.
