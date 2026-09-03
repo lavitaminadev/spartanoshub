@@ -147,6 +147,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const [columnasAbierto, setColumnasAbierto] = useState(false);
   /** Lead que se está descartando, mientras se elige el motivo. */
   const [descartando, setDescartando] = useState<{ lead: Lead; motivo: string; detalle: string } | null>(null);
+  /** Tanda que se descarta con una causa común, elegida antes de escribir nada. */
+  const [descartandoEnLote, setDescartandoEnLote] = useState<{ ids: string[]; motivo: string; detalle: string } | null>(null);
   /*
    * Ver también los descartados de meses cerrados.
    *
@@ -341,8 +343,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * que reintentar es volver a pulsar y no rehacer la selección a mano.
    */
   const moverEnLote = useMutation({
-    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
-      const resultados = await Promise.allSettled(ids.map((id) => api.put(`/crm/leads/${id}`, { status })));
+    mutationFn: async ({ ids, status, discardReason }: { ids: string[]; status: string; discardReason?: string }) => {
+      const cuerpo = discardReason ? { status, discardReason } : { status };
+      const resultados = await Promise.allSettled(ids.map((id) => api.put(`/crm/leads/${id}`, cuerpo)));
       const fallidos = ids.filter((_, indice) => resultados[indice]?.status === 'rejected');
       return { actualizados: ids.length - fallidos.length, fallidos };
     },
@@ -673,7 +676,15 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             type="button"
             className="btn btn-sm btn-accent"
             disabled={moverEnLote.isPending || !etapaEnLote}
-            onClick={() => moverEnLote.mutate({ ids: seleccionVisible, status: etapaEnLote })}
+            onClick={() => {
+              // Descartar exige una causa en el servidor. Pedir una común acá conserva la
+              // acción masiva sin convertir el informe de pérdidas en filas sin explicación.
+              if (etapaEnLote === 'lost') {
+                setDescartandoEnLote({ ids: seleccionVisible, motivo: '', detalle: '' });
+                return;
+              }
+              moverEnLote.mutate({ ids: seleccionVisible, status: etapaEnLote });
+            }}
           >
             {moverEnLote.isPending ? 'Aplicando...' : 'Mover etapa'}
           </button>
@@ -1047,6 +1058,40 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               >
                 Descartar
               </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {descartandoEnLote ? (
+        <Modal open onClose={() => setDescartandoEnLote(null)} title={`¿Por qué descartar ${descartandoEnLote.ids.length} leads?`}>
+          <div className="modal-form">
+            <p className="crm-admin-ayuda">El mismo motivo se guardará en todos los seleccionados. Si no comparten causa, descártalos individualmente.</p>
+            <label>
+              Motivo
+              <select className="input" value={descartandoEnLote.motivo} onChange={(evento) => setDescartandoEnLote({ ...descartandoEnLote, motivo: evento.target.value })}>
+                <option value="">— Elige uno —</option>
+                {LEAD_DISCARD_REASONS.map((razon) => <option key={razon} value={razon}>{razon}</option>)}
+              </select>
+            </label>
+            {descartandoEnLote.motivo === 'Otro' ? (
+              <label>Cuál<input className="input" value={descartandoEnLote.detalle} onChange={(evento) => setDescartandoEnLote({ ...descartandoEnLote, detalle: evento.target.value })} placeholder="En pocas palabras" /></label>
+            ) : null}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setDescartandoEnLote(null)}>Cancelar</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={moverEnLote.isPending || !descartandoEnLote.motivo || (descartandoEnLote.motivo === 'Otro' && !descartandoEnLote.detalle.trim())}
+                onClick={() => {
+                  moverEnLote.mutate({
+                    ids: descartandoEnLote.ids,
+                    status: 'lost',
+                    discardReason: descartandoEnLote.motivo === 'Otro' ? `Otro: ${descartandoEnLote.detalle.trim()}` : descartandoEnLote.motivo,
+                  });
+                  setDescartandoEnLote(null);
+                }}
+              >Descartar {descartandoEnLote.ids.length} leads</button>
             </div>
           </div>
         </Modal>

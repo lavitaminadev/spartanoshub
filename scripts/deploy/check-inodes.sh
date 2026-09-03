@@ -67,9 +67,7 @@ check_limit "node_modules productivo" "$NODE_MODULES_INODES" "$MAX_NODE_MODULES_
 # dependency installation. A pipeline is used instead of /dev/fd because CloudLinux CageFS does
 # not expose that interface to cPanel deployment tasks.
 UNAUTHORIZED_TREES="$(
-  # The Node.js Selector runtime is an intentional dependency tree, not a second app install.
-  find "$EXPECTED_HOME" -xdev -path "$EXPECTED_HOME/nodevenv" -prune -o \
-    -type d -name node_modules -prune -print 2>/dev/null |
+  find "$EXPECTED_HOME" -xdev -type d -name node_modules -prune -print 2>/dev/null |
     while IFS= read -r dependency_tree; do
       if [ "$dependency_tree" != "$EXPECTED_APP_ROOT/node_modules" ] &&
         [ -n "$(find "$dependency_tree" -xdev -mindepth 1 ! -type d -print -quit 2>/dev/null)" ]; then

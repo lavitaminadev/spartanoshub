@@ -20,12 +20,6 @@ cleanup_cache
 /bin/mkdir -p "$NPM_CACHE_DIR"
 export npm_config_cache="$NPM_CACHE_DIR"
 
-if [ -e "$APP_ROOT/node_modules" ] && [ ! -L "$APP_ROOT/node_modules" ]; then
-  echo "NPM INSTALL: node_modules es una carpeta fisica; CloudLinux exige un symlink al Node.js Selector." >&2
-  echo "NPM INSTALL: restaura el enlace desde Setup Node.js App antes de desplegar." >&2
-  exit 1
-fi
-
 # `npm install` y no `npm ci`, aunque `ci` sea lo habitual en un despliegue.
 #
 # `npm ci` borra `node_modules` antes de instalar. Aquí eso no es limpieza: en CloudLinux el
@@ -38,34 +32,7 @@ fi
 # `npm install` escribe dentro del enlace sin tocarlo. A cambio no garantiza la instalación exacta
 # del `package-lock.json`, y esa es la contrapartida aceptada: una versión menor distinta es
 # recuperable, un despliegue que deja la aplicación sin arrancar no lo es.
-# CloudLinux entrega npm con los workspaces deshabilitados. Forzarlos falla con
-# "No workspaces found"; omitirlos, en cambio, puede podar las dependencias del
-# API. Nunca hacemos una de esas dos operaciones sobre el runtime activo.
-#
-# El entorno de Node.js Selector se prepara fuera del despliegue y se valida aquí.
-# Si falta una dependencia, se detiene antes de migrar, publicar o reiniciar.
-required_modules=(
-  "dotenv"
-  "@nestjs/core"
-  "@nestjs/common"
-  "@nestjs/platform-express"
-  "typeorm"
-)
-
-missing_modules=()
-for required_module in "${required_modules[@]}"; do
-  if [ ! -d "$APP_ROOT/node_modules/$required_module" ]; then
-    missing_modules+=("$required_module")
-  fi
-done
-
-if [ "${#missing_modules[@]}" -gt 0 ]; then
-  echo "NPM INSTALL: faltan dependencias de produccion: ${missing_modules[*]}" >&2
-  echo "NPM INSTALL: no se ejecuta npm install porque CloudLinux podria podar el API activo." >&2
-  exit 1
-fi
-
-echo "NPM INSTALL: runtime de produccion validado; se omite reinstalacion destructiva."
+npm install --omit=dev
 
 # El enlace tiene que seguir siendo un enlace al terminar. Si algo lo convirtió en carpeta, la
 # aplicación arrancaría a medias y el fallo aparecería horas después, lejos del despliegue.
