@@ -38,7 +38,10 @@ fi
 # `npm install` escribe dentro del enlace sin tocarlo. A cambio no garantiza la instalación exacta
 # del `package-lock.json`, y esa es la contrapartida aceptada: una versión menor distinta es
 # recuperable, un despliegue que deja la aplicación sin arrancar no lo es.
-npm install --omit=dev
+# Fuerza los workspaces: sin esta opción npm puede conservar solo las dependencias
+# de la raíz y podar las del API, dejando módulos de producción como dotenv fuera
+# del entorno de Passenger.
+npm install --omit=dev --workspaces --include-workspace-root
 
 # El enlace tiene que seguir siendo un enlace al terminar. Si algo lo convirtió en carpeta, la
 # aplicación arrancaría a medias y el fallo aparecería horas después, lejos del despliegue.
