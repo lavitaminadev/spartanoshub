@@ -49,7 +49,34 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
+      # El endpoint de auditoría de npm es externo y puede responder 5xx aunque el lockfile
+      # sea correcto. Reintentamos únicamente esos fallos transitorios; una vulnerabilidad
+      # real de nivel high sigue fallando el job de inmediato.
+      - name: Auditoría de dependencias productivas
+        run: |
+          for attempt in 1 2 3; do
+            set +e
+            audit_output="$(npm audit --omit=dev --audit-level=high 2>&1)"
+            audit_status=$?
+            set -e
+            printf '%s\n' "$audit_output"
+
+            if [ "$audit_status" -eq 0 ]; then
+              exit 0
+            fi
+
+            if printf '%s\n' "$audit_output" | grep -Eq '(429|500|502|503|504) (Service Unavailable|Bad Gateway|Gateway Timeout|Too Many Requests)|audit endpoint returned an error'; then
+              if [ "$attempt" -lt 3 ]; then
+                echo "npm audit no disponible temporalmente; reintento $attempt/3."
+                sleep $((attempt * 15))
+                continue
+              fi
+            fi
+
+            exit "$audit_status"
+          done
+
+          exit "$audit_status"
 
       - run: npm run lint:shared
       - run: npm run lint:api
