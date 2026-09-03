@@ -45,7 +45,7 @@ runtime_dependencies_resolve() {
 # manifiesto ni el lockfile. Así un comportamiento particular de npm no bloquea un deploy.
 if ! npm install --omit=dev --workspaces --include-workspace-root || ! runtime_dependencies_resolve; then
   echo "NPM INSTALL: workspaces no disponibles; usando instalacion compatible de runtime."
-  RUNTIME_PACKAGES="$(node -e 'const api = require("./apps/api/package.json"); process.stdout.write(Object.keys(api.dependencies).filter((name) => name !== "@espartanos/shared").join(" "));')"
+  RUNTIME_PACKAGES="$(node -e 'const api = require("./apps/api/package.json"); process.stdout.write(Object.entries(api.dependencies).filter(([name]) => name !== "@espartanos/shared").map(([name, version]) => `${name}@${version}`).join(" "));')"
   test -n "$RUNTIME_PACKAGES" || { echo "NPM INSTALL: no se encontraron dependencias productivas de la API" >&2; exit 1; }
   npm install --omit=dev --workspaces=false --no-save --package-lock=false ./packages/shared $RUNTIME_PACKAGES
 fi
