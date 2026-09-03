@@ -8,6 +8,7 @@ readonly MAX_ACCOUNT_INODES=55000
 readonly MAX_TRASH_INODES=2000
 readonly MAX_NPM_CACHE_INODES=500
 readonly MAX_NODE_MODULES_INODES=28000
+readonly CLOUDLINUX_NODE_RUNTIME="$EXPECTED_HOME/nodevenv/repositories/spartanoshub/22/lib/node_modules"
 
 if [ "${HOME:-}" != "$EXPECTED_HOME" ]; then
   echo "INODE GUARD: HOME no autorizado: ${HOME:-sin-definir}" >&2
@@ -69,7 +70,12 @@ check_limit "node_modules productivo" "$NODE_MODULES_INODES" "$MAX_NODE_MODULES_
 UNAUTHORIZED_TREES="$(
   find "$EXPECTED_HOME" -xdev -type d -name node_modules -prune -print 2>/dev/null |
     while IFS= read -r dependency_tree; do
+      # CloudLinux stores the Node 22 runtime's own modules outside the checkout.
+      # It is managed by cPanel, is required to run the selected application, and is
+      # not a second project dependency tree. Every other populated node_modules
+      # directory remains a deploy blocker.
       if [ "$dependency_tree" != "$EXPECTED_APP_ROOT/node_modules" ] &&
+        [ "$dependency_tree" != "$CLOUDLINUX_NODE_RUNTIME" ] &&
         [ -n "$(find "$dependency_tree" -xdev -mindepth 1 ! -type d -print -quit 2>/dev/null)" ]; then
         printf '%s\n' "$dependency_tree"
       fi
