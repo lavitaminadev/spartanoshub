@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -32,6 +32,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
  */
 const RECOMMENDED_FIELD_COUNT = 5;
 const STEPS = ['Lo esencial', 'Disponibilidad', 'Diseño público', 'Medición opcional', 'Publicar'];
+const STEP_BY_SECTION: Record<string, number> = { esencial: 0, disponibilidad: 1, diseno: 2, medicion: 3, publicar: 4 };
 const TIMEZONES = (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') ? Intl.supportedValuesOf('timeZone').filter((tz: string) => tz.includes('America') || tz.includes('Europe/Madrid') || tz.includes('Atlantic')) : ['America/Santiago', 'America/Argentina/Buenos_Aires', 'America/Lima', 'America/Bogota', 'America/Mexico_City', 'America/New_York', 'Europe/Madrid'];
 const DESIGN_TEMPLATES: Array<{ name: string; config: Record<string, string> }> = [
   { name: 'Espartano', config: { primaryColor: '#0ec6b8', accentColor: '#ea0f63', backgroundColor: '#f4f5f7', textColor: '#0b0b0c', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
@@ -148,10 +149,12 @@ function updatePayload(form: Partial<ReservationForm>): Partial<ReservationForm>
 
 export function ReservationBuilderPage() {
   const { id = '' } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const clientMode = user?.role === 'client';
   const qc = useQueryClient();
-  const [step, setStep] = useState(clientMode ? 1 : 0);
+  const requestedStep = STEP_BY_SECTION[new URLSearchParams(location.search).get('section') || ''];
+  const [step, setStep] = useState(requestedStep ?? (clientMode ? 1 : 0));
   const [draft, setDraft] = useState<ReservationForm | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
@@ -177,6 +180,7 @@ export function ReservationBuilderPage() {
   const { data, isLoading } = useQuery<ReservationForm>({ queryKey: ['reservation-form', id], queryFn: () => api.get(`/reservations/forms/${id}`) });
   const { data: blocks = [] } = useQuery<Array<{ id: string; startsAt: string; endsAt: string; reason?: string }>>({ queryKey: ['reservation-blocks', id], queryFn: () => api.get(`/reservations/forms/${id}/blocks`) });
   useEffect(() => { if (data) setDraft(data); }, [data]);
+  useEffect(() => { if (requestedStep !== undefined) setStep(requestedStep); }, [requestedStep]);
   useEffect(() => {
     if (saved) return undefined;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -340,7 +344,7 @@ export function ReservationBuilderPage() {
       <div><Link to={clientMode ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`}>← Volver al local</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
       <div className="builder-top-actions">
         {draft.metaCapiEnabled && <span className="meta-conversion is-ok" title="La medición está activada en este local. Revisa la cola y Events Manager para confirmar que Meta la recibe.">CAPI activada</span>}
-        {!draft.metaCapiEnabled && <span className="meta-conversion is-warn" title="Activa CAPI en Medición para enviar conversiones cuando exista consentimiento.">CAPI desactivada</span>}
+        {draft.metaCapiEnabled && <span className="meta-conversion" title="La conversión se enviará cuando exista consentimiento de medición.">CAPI activada</span>}
         <button type="button" className="btn btn-outline btn-sm" onClick={openPreview}>{previewLabel}</button><button className="btn btn-primary btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>{saveMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button></div>
     </header>
     {saveMutation.error && <div className="builder-error alert alert-error">{saveMutation.error.message}</div>}

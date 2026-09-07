@@ -185,6 +185,14 @@ const VISUAL_RESERVATIONS = [
   { id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended', startsAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(), partySize: 4, guestName: 'Sebastián Vera', guestPhone: '+56 9 7456 1234', guestEmail: 'sebastian@example.test' },
 ];
 
+/** Reserva pública demostrativa: permite revisar el resultado, el enlace de gestión y cancelar sin API. */
+const visualManagedReservation = {
+  token: 'visual-management-token', referenceCode: 'CC-1044', guestName: 'Alexis Muñoz',
+  startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), partySize: 2,
+  status: 'confirmed', guestConfirmedAt: null, canCancel: true, canReschedule: true,
+  timezone: 'America/Santiago',
+};
+
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/auth\/session$/, () => ({ authenticated: true, accessToken: syntheticJwt() })],
   [/\/auth\/refresh$/, () => ({ accessToken: syntheticJwt() })],
@@ -331,6 +339,35 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     const day = new Date(); day.setDate(day.getDate() + 1); day.setHours(20, 0, 0, 0);
     const first = day.toISOString(); day.setHours(21, 30, 0, 0); const second = day.toISOString();
     return { slots: [{ startsAt: first, available: 18 }, { startsAt: second, available: 12 }], fullDays: [] };
+  }],
+  [/\/public\/reservations\/manage\/[^/?]+\/cancel$/, () => {
+    visualManagedReservation.status = 'cancelled_client';
+    visualManagedReservation.canCancel = false;
+    visualManagedReservation.canReschedule = false;
+    return { cancelled: true, referenceCode: visualManagedReservation.referenceCode, status: visualManagedReservation.status };
+  }],
+  [/\/public\/reservations\/manage\/[^/?]+\/confirm$/, () => {
+    visualManagedReservation.guestConfirmedAt = new Date().toISOString();
+    return { confirmed: true, referenceCode: visualManagedReservation.referenceCode };
+  }],
+  [/\/public\/reservations\/manage\/[^/?]+\/reschedule$/, (config) => {
+    const body = visualRequestBody(config);
+    if (body.startsAt) visualManagedReservation.startsAt = body.startsAt;
+    visualManagedReservation.status = 'rescheduled';
+    return { referenceCode: visualManagedReservation.referenceCode, startsAt: visualManagedReservation.startsAt, status: visualManagedReservation.status };
+  }],
+  [/\/public\/reservations\/manage\/[^/?]+$/, () => ({ ...visualManagedReservation })],
+  [/\/public\/reservations\/[^/?]+$/, (config) => {
+    const slug = (config?.url?.match(/\/public\/reservations\/([^/?]+)/) ?? [])[1];
+    if (config?.method?.toLowerCase() !== 'post') return visualReservationForms.find((form) => form.publicSlug === slug) || VISUAL_RESERVATION_LOCAL;
+    const body = visualRequestBody(config);
+    visualManagedReservation.guestName = String(body.guestName || visualManagedReservation.guestName);
+    visualManagedReservation.partySize = Number(body.partySize || visualManagedReservation.partySize);
+    visualManagedReservation.status = 'confirmed';
+    visualManagedReservation.canCancel = true;
+    visualManagedReservation.canReschedule = true;
+    visualManagedReservation.guestConfirmedAt = null;
+    return { id: 'visual-booking-3', referenceCode: visualManagedReservation.referenceCode, status: 'confirmed', startsAt: visualManagedReservation.startsAt, managementToken: visualManagedReservation.token };
   }],
   [/\/public\/reservations\/[^/?]+(?:\?|$)/, (config) => {
     const slug = (config?.url?.match(/\/public\/reservations\/([^/?]+)/) ?? [])[1];
