@@ -154,7 +154,7 @@ export function ReservationBuilderPage() {
   const clientMode = user?.role === 'client';
   const qc = useQueryClient();
   const requestedStep = STEP_BY_SECTION[new URLSearchParams(location.search).get('section') || ''];
-  const [step, setStep] = useState(requestedStep ?? (clientMode ? 1 : 0));
+  const [step, setStep] = useState(clientMode && requestedStep === 3 ? 4 : requestedStep ?? 0);
   const [draft, setDraft] = useState<ReservationForm | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
@@ -180,7 +180,7 @@ export function ReservationBuilderPage() {
   const { data, isLoading } = useQuery<ReservationForm>({ queryKey: ['reservation-form', id], queryFn: () => api.get(`/reservations/forms/${id}`) });
   const { data: blocks = [] } = useQuery<Array<{ id: string; startsAt: string; endsAt: string; reason?: string }>>({ queryKey: ['reservation-blocks', id], queryFn: () => api.get(`/reservations/forms/${id}/blocks`) });
   useEffect(() => { if (data) setDraft(data); }, [data]);
-  useEffect(() => { if (requestedStep !== undefined) setStep(requestedStep); }, [requestedStep]);
+  useEffect(() => { if (requestedStep !== undefined) setStep(clientMode && requestedStep === 3 ? 4 : requestedStep); }, [clientMode, requestedStep]);
   useEffect(() => {
     if (saved) return undefined;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -343,12 +343,11 @@ export function ReservationBuilderPage() {
     <header className="builder-top">
       <div><Link to={clientMode ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`}>← Volver al local</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
       <div className="builder-top-actions">
-        {draft.metaCapiEnabled && <span className="meta-conversion is-ok" title="La medición está activada en este local. Revisa la cola y Events Manager para confirmar que Meta la recibe.">CAPI activada</span>}
         {draft.metaCapiEnabled && <span className="meta-conversion" title="La conversión se enviará cuando exista consentimiento de medición.">CAPI activada</span>}
         <button type="button" className="btn btn-outline btn-sm" onClick={openPreview}>{previewLabel}</button><button className="btn btn-primary btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>{saveMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button></div>
     </header>
     {saveMutation.error && <div className="builder-error alert alert-error">{saveMutation.error.message}</div>}
-    {!clientMode && <div className="builder-progress">{STEPS.map((label, index) => <button className={step === index ? 'active' : step > index ? 'done' : ''} key={label} onClick={() => setStep(index)}><span>{step > index ? '✓' : index + 1}</span>{label}</button>)}</div>}
+    <div className="builder-progress">{STEPS.filter((_, index) => !clientMode || index !== 3).map((label, index) => { const targetStep = clientMode && index === 3 ? 4 : index; return <button className={step === targetStep ? 'active' : step > targetStep ? 'done' : ''} key={label} onClick={() => setStep(targetStep)}><span>{step > targetStep ? '✓' : index + 1}</span>{label}</button>; })}</div>
 
     {step === 0 && <Fragment>
       <div className="builder-grid">
@@ -441,7 +440,7 @@ export function ReservationBuilderPage() {
       </div>
     </div>}
 
-    {step === 3 && <div className="builder-stage">
+    {!clientMode && step === 3 && <div className="builder-stage">
       <div className="stage-heading"><span className="page-eyebrow">MEDICIÓN</span><h2>Conecta el origen y las conversiones.</h2><p>Esta parte es opcional para compartir el enlace, pero clave si el formulario se usará en campañas pagadas.</p></div>
       <div className="publish-grid">
         <div className="publish-summary">
@@ -537,7 +536,7 @@ export function ReservationBuilderPage() {
       </div>
     </div>}
 
-    <footer className="builder-footer"><span>Paso {step + 1} de {STEPS.length}</span>{!clientMode && step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(step - 1)}>Anterior</button>}{!clientMode && step < STEPS.length - 1 && <button className="btn btn-primary btn-sm" onClick={() => setStep(step + 1)}>Continuar</button>}<button className="btn btn-outline btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>Guardar</button></footer>
+    <footer className="builder-footer"><span>Paso {clientMode && step === 4 ? 4 : step + 1} de {clientMode ? 4 : STEPS.length}</span>{step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(clientMode && step === 4 ? 2 : step - 1)}>Anterior</button>}{step < (clientMode ? 4 : STEPS.length - 1) && <button className="btn btn-primary btn-sm" onClick={() => setStep(clientMode && step === 2 ? 4 : step + 1)}>Continuar</button>}<button className="btn btn-outline btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>Guardar</button></footer>
     <ConfirmDialog open={Boolean(confirmDeleteField)} title="Eliminar campo" description="¿Estás seguro de eliminar este campo? Los datos recopilados previamente no se perderán." confirmLabel="Eliminar" onClose={() => setConfirmDeleteField(null)} onConfirm={() => { if (confirmDeleteField) { change({ fieldSchema: fields.filter((field) => field.id !== confirmDeleteField) }); setSelected(null); } setConfirmDeleteField(null); }} />
     <ConfirmDialog open={Boolean(confirmDeleteBlock)} title="Quitar bloqueo" description="¿Eliminar este bloqueo? La agenda volverá a mostrar disponibilidad en ese horario." confirmLabel="Quitar" onClose={() => setConfirmDeleteBlock(null)} onConfirm={() => { if (confirmDeleteBlock) { deleteBlock.mutate(confirmDeleteBlock); } setConfirmDeleteBlock(null); }} />
   </div>;
@@ -584,6 +583,8 @@ function DesignStudioControls({
         <div className="design-quick-help"><strong>Personaliza lo esencial</strong><small>El logo y el fondo se cambian aquí. Si no quieres personalizar, la plantilla Espartano ya viene lista para publicar.</small></div>
         <label>Título público<input className="input" value={design.title || ''} onChange={(event) => update({ title: event.target.value })} /></label>
         <label>Mensaje de bienvenida<textarea className="input" rows={3} value={design.welcome || ''} onChange={(event) => update({ welcome: event.target.value })} /></label>
+        <label className="toggle-row"><input type="checkbox" checked={design.welcomePopupEnabled === 'true'} onChange={(event) => update({ welcomePopupEnabled: event.target.checked ? 'true' : 'false' })} /> Mostrar una bienvenida antes de iniciar</label>
+        {design.welcomePopupEnabled === 'true' && <div className="form-row"><label>Título del popup<input className="input" value={design.welcomePopupTitle || ''} onChange={(event) => update({ welcomePopupTitle: event.target.value })} /></label><label>Texto del popup<textarea className="input" rows={2} value={design.welcomePopupText || ''} onChange={(event) => update({ welcomePopupText: event.target.value })} /></label></div>}
         <ImageUpload label="Logo de la empresa" value={design.logoUrl} onChange={(url) => onAsset('logoUrl', url)} placeholder="https://empresa.cl/logo.png" maxSizeMB={3} />
         <div className="color-controls"><label>Principal<input type="color" value={design.primaryColor || '#0ec6b8'} onChange={(event) => update({ primaryColor: event.target.value })} /></label><label>Acento<input type="color" value={design.accentColor || '#ea0f63'} onChange={(event) => update({ accentColor: event.target.value })} /></label><label>Fondo<input type="color" value={design.backgroundColor || '#f6f4f5'} onChange={(event) => update({ backgroundColor: event.target.value })} /></label><label>Letras<input type="color" value={design.textColor || '#3f4e49'} onChange={(event) => update({ textColor: event.target.value })} /></label></div>
         <label>Tipo de fondo<select className="input" value={backgroundMode} onChange={(event) => update({ backgroundMode: event.target.value, ...(event.target.value === 'gradient' && !design.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) })}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>

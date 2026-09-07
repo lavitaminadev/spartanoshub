@@ -18,6 +18,8 @@ export class ReservationGroupRequest {
   @Column({ name: 'preferred_date', type: 'date', nullable: true }) preferredDate?: string | null;
   @Column({ name: 'preferred_time', type: 'varchar', length: 80, nullable: true }) preferredTime?: string | null;
   @Column({ type: 'text', nullable: true }) notes?: string | null;
+  /** Preferencias y respuestas capturadas antes de que exista una reserva definitiva. */
+  @Column({ type: 'json', nullable: true }) details?: Record<string, unknown> | null;
   @Column({ name: 'quote_amount', type: 'decimal', precision: 12, scale: 2, nullable: true }) quoteAmount?: string | null;
   @Column({ name: 'quote_message', type: 'text', nullable: true }) quoteMessage?: string | null;
   @Column({ name: 'quote_expires_at', type: 'timestamp', nullable: true }) quoteExpiresAt?: Date | null;

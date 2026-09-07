@@ -109,6 +109,9 @@ export class ReservationsController {
         resourcesConfig: dto.resourcesConfig,
         designConfig: dto.designConfig,
         name: dto.name,
+        // Publicar o pausar es una decisión operativa del dueño de su propio local. El alcance
+        // ya queda fijado por la sesión; no habilita editar otro cliente ni configurar Meta.
+        status: dto.status,
         teamNotifications: dto.teamNotifications,
         // El portal muestra este ajuste; omitirlo aquí lo convertía en un interruptor que parecía
         // guardar pero el servidor descartaba silenciosamente para el rol cliente.
