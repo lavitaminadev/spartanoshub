@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -11,7 +11,7 @@ import type { DesignConfig, FormField, ReservationForm } from './types';
 import { localInputToUtc, plainDateInZone } from './local-time';
 import { contrastText, normalizeHexColor } from '../../shared/color-contrast';
 import { VitaIcons } from '../../shared/Icons';
-import { APP_PUBLIC_URL_IS_HTTPS, publicReservationUrl } from '../../core/public-url';
+import { publicReservationUrl } from '../../core/public-url';
 import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
 
@@ -31,7 +31,8 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
  * pero no se bloquea: hay clientes con una necesidad puntual que lo justifica.
  */
 const RECOMMENDED_FIELD_COUNT = 5;
-const STEPS = ['Formulario', 'Agenda', 'Apariencia', 'Medición opcional', 'Publicar'];
+const STEPS = ['Lo esencial', 'Disponibilidad', 'Diseño público', 'Medición opcional', 'Publicar'];
+const STEP_BY_SECTION: Record<string, number> = { esencial: 0, disponibilidad: 1, diseno: 2, medicion: 3, publicar: 4 };
 const TIMEZONES = (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') ? Intl.supportedValuesOf('timeZone').filter((tz: string) => tz.includes('America') || tz.includes('Europe/Madrid') || tz.includes('Atlantic')) : ['America/Santiago', 'America/Argentina/Buenos_Aires', 'America/Lima', 'America/Bogota', 'America/Mexico_City', 'America/New_York', 'Europe/Madrid'];
 const DESIGN_TEMPLATES: Array<{ name: string; config: Record<string, string> }> = [
   { name: 'Espartano', config: { primaryColor: '#0ec6b8', accentColor: '#ea0f63', backgroundColor: '#f4f5f7', textColor: '#0b0b0c', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
@@ -82,12 +83,10 @@ function isSurveyMode(mode?: string) {
   return mode === 'survey' || mode === 'request';
 }
 
+/** El enlace que se comparte es siempre estable y corto. La campaña se guarda en el local. */
 function campaignReservationUrl(form: ReservationForm, baseUrl = publicReservationUrl(form.publicSlug, form.publicUrl)): string {
-  if (!form.campaignId?.trim()) return baseUrl;
-  const url = new URL(baseUrl);
-  url.searchParams.set('utm_source', 'meta');
-  url.searchParams.set('utm_campaign', form.campaignId.trim());
-  return url.toString();
+  void form;
+  return baseUrl;
 }
 
 function reservationDesignStyle(design: DesignConfig): CSSProperties {
@@ -97,7 +96,7 @@ function reservationDesignStyle(design: DesignConfig): CSSProperties {
   const backgroundOpacity = imageOverlayAlpha(design.backgroundOpacity);
   const backgroundImage = design.backgroundMode === 'gradient'
     ? design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT
-    : design.backgroundMode === 'image' && design.backgroundImage
+    : (design.backgroundMode === 'image' || !design.backgroundMode) && design.backgroundImage
       ? `linear-gradient(rgba(243,245,239,${backgroundOpacity}),rgba(243,245,239,${backgroundOpacity})),url(${design.backgroundImage})`
       : undefined;
   return {
@@ -150,10 +149,12 @@ function updatePayload(form: Partial<ReservationForm>): Partial<ReservationForm>
 
 export function ReservationBuilderPage() {
   const { id = '' } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const clientMode = user?.role === 'client';
   const qc = useQueryClient();
-  const [step, setStep] = useState(clientMode ? 1 : 0);
+  const requestedStep = STEP_BY_SECTION[new URLSearchParams(location.search).get('section') || ''];
+  const [step, setStep] = useState(requestedStep ?? (clientMode ? 1 : 0));
   const [draft, setDraft] = useState<ReservationForm | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
@@ -179,6 +180,7 @@ export function ReservationBuilderPage() {
   const { data, isLoading } = useQuery<ReservationForm>({ queryKey: ['reservation-form', id], queryFn: () => api.get(`/reservations/forms/${id}`) });
   const { data: blocks = [] } = useQuery<Array<{ id: string; startsAt: string; endsAt: string; reason?: string }>>({ queryKey: ['reservation-blocks', id], queryFn: () => api.get(`/reservations/forms/${id}/blocks`) });
   useEffect(() => { if (data) setDraft(data); }, [data]);
+  useEffect(() => { if (requestedStep !== undefined) setStep(requestedStep); }, [requestedStep]);
   useEffect(() => {
     if (saved) return undefined;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -189,20 +191,21 @@ export function ReservationBuilderPage() {
   useEffect(() => () => clearTimeout(copyTimeoutRef.current), []);
   const change = useCallback((patch: Partial<ReservationForm>) => { setDraft((current) => (current ? { ...current, ...patch } : current)); setSaved(false); }, []);
   const publicUrl = useMemo(() => draft ? publicReservationUrl(draft.publicSlug, draft.publicUrl) : '', [draft]);
-  const publicUrlReady = APP_PUBLIC_URL_IS_HTTPS || publicUrl.startsWith('https://');
   const campaignUrl = useMemo(() => draft ? campaignReservationUrl(draft, publicUrl) : '', [draft, publicUrl]);
   const safeCampaignUrl = safeUrl(campaignUrl);
   const designPreviewStyle = useMemo(() => reservationDesignStyle(draft?.designConfig || {}), [draft?.designConfig]);
 
   const saveMutation = useMutation({
     mutationFn: (body: Partial<ReservationForm>) => api.patch<ReservationForm>(`/reservations/forms/${id}`, updatePayload(body)),
-    onSuccess: (next) => { setDraft(next); setSaved(true); qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast(isSurveyMode(next.mode) ? 'Encuesta guardada' : 'Formulario guardado'); },
+    onSuccess: (next) => { setDraft(next); setSaved(true); qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast(isSurveyMode(next.mode) ? 'Encuesta guardada' : 'Configuración del local guardada'); },
   });
   const saveDesignAsset = useCallback((key: 'logoUrl' | 'backgroundImage', url: string) => {
     if (!draft) return;
     const designConfig = key === 'backgroundImage' && url
       ? { ...draft.designConfig, [key]: url, backgroundMode: 'image' }
-      : { ...draft.designConfig, [key]: url };
+      : key === 'logoUrl' && url
+        ? { ...draft.designConfig, [key]: url, showLogo: 'true' }
+        : { ...draft.designConfig, [key]: url };
     change({ designConfig });
     saveMutation.mutate({ ...draft, designConfig });
   }, [change, draft, saveMutation]);
@@ -338,10 +341,10 @@ export function ReservationBuilderPage() {
 
   return <div className="reservation-builder">
     <header className="builder-top">
-      <div><Link to={clientMode ? '/portal/reservations' : '/reservations'}>← Reservas</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
+      <div><Link to={clientMode ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`}>← Volver al local</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
       <div className="builder-top-actions">
-        {draft.metaCapiEnabled && <span className="meta-conversion is-ok" title="Meta CAPI activo: las conversiones se envían a Events Manager">CAPI activo</span>}
-        {!draft.metaCapiEnabled && <span className="meta-conversion is-warn" title="Activa CAPI en Medición para medir conversiones en Meta">CAPI pendiente</span>}
+        {draft.metaCapiEnabled && <span className="meta-conversion is-ok" title="La medición está activada en este local. Revisa la cola y Events Manager para confirmar que Meta la recibe.">CAPI activada</span>}
+        {draft.metaCapiEnabled && <span className="meta-conversion" title="La conversión se enviará cuando exista consentimiento de medición.">CAPI activada</span>}
         <button type="button" className="btn btn-outline btn-sm" onClick={openPreview}>{previewLabel}</button><button className="btn btn-primary btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>{saveMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button></div>
     </header>
     {saveMutation.error && <div className="builder-error alert alert-error">{saveMutation.error.message}</div>}
@@ -480,7 +483,7 @@ export function ReservationBuilderPage() {
 
             <label>Nombre de esta campaña
               <input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" />
-              <small>Etiqueta simple para resultados y UTM. No cambia el enlace base del formulario.</small>
+              <small>Se guarda como atribución predeterminada. El enlace corto no cambia.</small>
             </label>
 
             <label>Google Analytics
@@ -506,29 +509,24 @@ export function ReservationBuilderPage() {
               <strong>{fields.length} campo{fields.length !== 1 ? 's' : ''} que se piden</strong>
               <small>Es lo que la persona completa al reservar. Puedes cambiarlo en el paso «Campos».</small>
             </li>
-            <li className={publicUrlReady ? 'is-ok' : 'is-warning'}>
-              <strong>{publicUrlReady ? 'Enlace seguro (https)' : 'El enlace todavía no es seguro'}</strong>
-              <small>{publicUrlReady ? 'Se puede compartir en cualquier parte, incluidos anuncios.' : 'Sirve para probar, pero no lo uses en anuncios hasta que el dominio esté configurado.'}</small>
-            </li>
-            <li className={draft.metaCapiEnabled || draft.ga4MeasurementId?.trim() ? 'is-ok' : 'is-warning'}>
-              <strong>{draft.metaCapiEnabled ? 'Meta CAPI activo' : draft.ga4MeasurementId?.trim() ? 'GA4 configurado' : 'Sin medición avanzada'}</strong>
-              <small>La medición se configura en el paso «Medición». Puedes publicar sin esto si el enlace se compartirá orgánicamente.</small>
+            <li className={design.logoUrl || design.backgroundImage ? 'is-ok' : 'is-warning'}>
+              <strong>{design.logoUrl || design.backgroundImage ? 'Identidad personalizada' : 'Usando la plantilla del local'}</strong>
+              <small>{design.logoUrl || design.backgroundImage ? 'El logo o la portada ya se mostrarán a quien reserva.' : 'Puedes publicar así o agregar logo y portada en «Diseño público». '}</small>
             </li>
           </ul>
         </div>
 
         <div className="publish-link">
-          <span>ENLACE PARA COMPARTIR</span>
+          <span>ENLACE PÚBLICO DEL LOCAL</span>
           <strong>{campaignUrl}</strong>
           <div>
             <button className="btn btn-outline" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar enlace'}</button>
+            <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>Personalizar vista</button>
             {publicPreviewReady && safeCampaignUrl
               ? <a className="btn btn-outline" href={safeCampaignUrl} target="_blank" rel="noreferrer">Abrir como visitante</a>
               : <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>{publishedButDirty ? 'Guarda para poder abrirlo' : 'Ver cómo se verá'}</button>}
           </div>
-          <small>{publicPreviewReady
-            ? 'Este es el enlace definitivo. Puedes repartirlo tal cual.'
-            : 'El enlace empieza a funcionar cuando publiques.'}</small>
+          <small>{publicPreviewReady ? 'Comparte este único enlace. Las etiquetas de campaña no cambian la dirección.' : 'El enlace estará disponible cuando publiques.'}</small>
 
           <button className="btn reservation-cta" disabled={saveMutation.isPending || windows.length === 0} onClick={() => saveMutation.mutate({ ...draft, status: 'published' })}>
             {saveMutation.isPending ? 'Publicando...' : draft.status === 'published' ? 'Guardar cambios' : surveyMode ? 'Publicar encuesta' : 'Publicar formulario'}

@@ -60,8 +60,12 @@ const KnowledgePage = lazy(() => import('../features/knowledge/KnowledgePage').t
 const ClientDashboard = lazy(() => import('../features/client-portal/ClientDashboard').then(m => ({ default: m.ClientDashboard })));
 const ClientLayout = lazy(() => import('../features/client-portal/ClientLayout').then(m => ({ default: m.ClientLayout })));
 const ReservationsPage = lazy(() => import('../features/reservations/ReservationsPage').then(m => ({ default: m.ReservationsPage })));
+const ReservationOperationsPage = lazy(() => import('../features/reservations/ReservationOperationsPage').then(m => ({ default: m.ReservationOperationsPage })));
+const ReservationLocalConfigPage = lazy(() => import('../features/reservations/ReservationLocalConfigPage').then(m => ({ default: m.ReservationLocalConfigPage })));
+const ReservationLocalHubPage = lazy(() => import('../features/reservations/ReservationLocalHubPage').then(m => ({ default: m.ReservationLocalHubPage })));
 const ReservationBuilderPage = lazy(() => import('../features/reservations/ReservationBuilderPage').then(m => ({ default: m.ReservationBuilderPage })));
 const PublicReservationPage = lazy(() => import('../features/reservations/PublicReservationPage').then(m => ({ default: m.PublicReservationPage })));
+const PublicReservationManagementPage = lazy(() => import('../features/reservations/PublicReservationManagementPage').then(m => ({ default: m.PublicReservationManagementPage })));
 const PublicSurveyPage = lazy(() => import('../features/surveys/PublicSurveyPage').then(m => ({ default: m.PublicSurveyPage })));
 const AudiovisualPage = lazy(() => import('../features/audiovisual/AudiovisualPage').then(m => ({ default: m.AudiovisualPage })));
 const GovernancePage = lazy(() => import('../features/governance/GovernancePage').then(m => ({ default: m.GovernancePage })));
@@ -103,6 +107,7 @@ export function AppRouter() {
         <Route path="/solicitudes" element={<SafeSuspense><SolicitudesPage /></SafeSuspense>} />
         <Route path="/first-access" element={<ProtectedRoute path="/first-access"><SafeSuspense><FirstAccessPage /></SafeSuspense></ProtectedRoute>} />
         <Route path="/change-password" element={<ProtectedRoute path="/change-password"><SafeSuspense><ChangePasswordPage /></SafeSuspense></ProtectedRoute>} />
+        <Route path="/book/manage/:token" element={<SafeSuspense><PublicReservationManagementPage /></SafeSuspense>} />
         <Route path="/book/:slug" element={<SafeSuspense><PublicReservationPage /></SafeSuspense>} />
         <Route path="/survey/:id" element={<SafeSuspense><PublicSurveyPage /></SafeSuspense>} />
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
@@ -174,8 +179,14 @@ export function AppRouter() {
             `ProtectedRoute`, así que quién entra a cada una no cambia por estar anidadas.
           */}
           <Route element={<SafeSuspense><ReservationsLayout /></SafeSuspense>}>
-            <Route path="/reservations" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />
-            <Route path="/reservations/forms/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationOperationsPage /></SafeSuspense></ProtectedRoute>} />
+            {/* Administración conserva la pantalla completa de altas, empresa y Pixel. La
+                operación diaria no la oculta: se entra explícitamente desde la barra. */}
+            <Route path="/reservations/manage" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/forms/:id/design" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/locals/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/forms/:id/advanced" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationLocalConfigPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/forms/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/agenda" element={<ProtectedRoute path="/reservations/agenda"><SafeSuspense><AgendaPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/calendar" element={<ProtectedRoute path="/reservations/calendar"><SafeSuspense><AvailabilityCalendarPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/waitlist" element={<ProtectedRoute path="/reservations/waitlist"><SafeSuspense><WaitlistPage /></SafeSuspense></ProtectedRoute>} />
@@ -185,7 +196,12 @@ export function AppRouter() {
         <Route path="/portal" element={<ClientRoute><SafeSuspense><ClientLayout /></SafeSuspense></ClientRoute>}>
           <Route index element={<SafeSuspense><ClientDashboard /></SafeSuspense>} />
           <Route path="reservations" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationsPage clientView /></SafeSuspense></ClientRoute>} />
-          <Route path="reservations/forms/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ClientRoute>} />
+          {/* La empresa configura su propio local primero; el editor visual queda como una
+              segunda pantalla, no como la única forma de operar reservas. */}
+          <Route path="reservations/locals/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ClientRoute>} />
+          <Route path="reservations/forms/:id/advanced" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalConfigPage /></SafeSuspense></ClientRoute>} />
+          <Route path="reservations/forms/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ClientRoute>} />
+          <Route path="reservations/forms/:id/design" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ClientRoute>} />
         </Route>
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/404" element={<NotFoundPage />} />

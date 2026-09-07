@@ -177,9 +177,39 @@
 
 /* ===== Filtros ===== */
 .reservation-module .reservation-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(150px, 1fr)) auto auto auto auto;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+  margin: 14px 0;
   background: var(--blanco);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
+}
+
+.reservation-module .reservation-filters .filter-date {
+  display: grid;
+  gap: 6px;
+  color: var(--txt-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.reservation-module .reservation-filters .filter-result-count {
+  align-self: center;
+  color: var(--txt-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .reservation-module .reservation-filters {
+    grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(150px, 1fr)) auto;
+  }
 }
 
 .reservation-module .reservation-filters .input {
@@ -278,6 +308,17 @@
 
 /* ===== Móvil: la fila se convierte en tarjeta apilada, sin scroll horizontal forzoso ===== */
 @media (max-width: 700px) {
+  .reservation-module .reservation-filters {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .reservation-module .reservation-filters .btn,
+  .reservation-module .reservation-filters .filter-result-count {
+    width: 100%;
+  }
+
   .reservation-module .booking-row {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -319,3 +360,5 @@
     -webkit-overflow-scrolling: touch;
   }
 }
+.reservation-scope-banner { margin: 18px 0; padding: 15px 18px; display: flex; justify-content: space-between; gap: 16px; align-items: center; border: 1px solid #99f6e4; border-radius: 14px; background: #f0fdfa; }.reservation-scope-banner > div { display: grid; gap: 3px; }.reservation-scope-banner span { color: #0f766e; font-size: .72rem; font-weight: 800; letter-spacing: .08em; }.reservation-scope-banner strong { font-size: 1.05rem; }.reservation-scope-banner small { color: #4b5563; }
+@media (max-width: 680px) { .reservation-scope-banner { align-items: stretch; flex-direction: column; }.reservation-scope-banner .btn { width: 100%; } }

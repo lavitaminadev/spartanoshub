@@ -77,7 +77,7 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
    * El `eventId` es la clave de deduplicación que Meta usa para no contar dos veces la misma
    * conversión, así que sin él no se puede encolar nada.
    */
-  async enqueue(organizationId: string, pixelId: string, event: ConversionEvent): Promise<MetaConversionOutbox> {
+  async enqueue(organizationId: string, pixelId: string, event: ConversionEvent, clientId?: string | null): Promise<MetaConversionOutbox> {
     const eventId = event.eventId;
     if (!eventId) throw new Error('A stable eventId is required for Meta CAPI');
     const existing = await this.repository.findOne({ where: { organizationId, eventId } });
@@ -111,7 +111,7 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
 
     const permitido = construirEventoPermitido(event as unknown as Record<string, unknown>);
     const evento = { ...permitido, userData: prepararIdentificadores(permitido.userData as Record<string, unknown>) };
-    return this.repository.save(this.repository.create({ organizationId, pixelId, eventId, eventData: evento }));
+    return this.repository.save(this.repository.create({ organizationId, clientId: clientId ?? null, pixelId, eventId, eventData: evento }));
   }
 
   /**
@@ -202,7 +202,7 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
   }
 
   protected async send(item: MetaConversionOutbox): Promise<void> {
-    const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId);
+    const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId, item.clientId);
     if (!token) throw new Error('Meta conversion token is unavailable');
     const respuesta = await this.conversions.sendServerEvent(item.pixelId, token, item.eventData as ConversionEvent);
 

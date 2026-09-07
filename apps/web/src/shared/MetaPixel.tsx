@@ -2,11 +2,12 @@ import { useEffect } from 'react';
 
 interface MetaPixelProps {
   pixelId?: string;
+  enabled?: boolean;
 }
 
-export function MetaPixel({ pixelId }: MetaPixelProps) {
+export function MetaPixel({ pixelId, enabled = false }: MetaPixelProps) {
   useEffect(() => {
-    if (!pixelId) return;
+    if (!pixelId || !enabled) return;
     if (!window.fbq) {
       const queue = ((...args: unknown[]) => {
         if (queue.callMethod) queue.callMethod(...args);
@@ -34,7 +35,7 @@ export function MetaPixel({ pixelId }: MetaPixelProps) {
       window.__espartanosMetaPixels.add(pixelId);
     }
     window.fbq('trackSingle', pixelId, 'PageView');
-  }, [pixelId]);
+  }, [pixelId, enabled]);
 
   return null;
 }
