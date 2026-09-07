@@ -11,7 +11,7 @@ import type { DesignConfig, FormField, ReservationForm } from './types';
 import { localInputToUtc, plainDateInZone } from './local-time';
 import { contrastText, normalizeHexColor } from '../../shared/color-contrast';
 import { VitaIcons } from '../../shared/Icons';
-import { APP_PUBLIC_URL_IS_HTTPS, publicReservationUrl } from '../../core/public-url';
+import { publicReservationUrl } from '../../core/public-url';
 import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
 
@@ -31,7 +31,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
  * pero no se bloquea: hay clientes con una necesidad puntual que lo justifica.
  */
 const RECOMMENDED_FIELD_COUNT = 5;
-const STEPS = ['Datos del local', 'Horarios y cupos', 'Enlace público', 'Medición', 'Publicar'];
+const STEPS = ['Lo esencial', 'Disponibilidad', 'Diseño público', 'Medición opcional', 'Publicar'];
 const TIMEZONES = (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') ? Intl.supportedValuesOf('timeZone').filter((tz: string) => tz.includes('America') || tz.includes('Europe/Madrid') || tz.includes('Atlantic')) : ['America/Santiago', 'America/Argentina/Buenos_Aires', 'America/Lima', 'America/Bogota', 'America/Mexico_City', 'America/New_York', 'Europe/Madrid'];
 const DESIGN_TEMPLATES: Array<{ name: string; config: Record<string, string> }> = [
   { name: 'Espartano', config: { primaryColor: '#0ec6b8', accentColor: '#ea0f63', backgroundColor: '#f4f5f7', textColor: '#0b0b0c', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
@@ -187,7 +187,6 @@ export function ReservationBuilderPage() {
   useEffect(() => () => clearTimeout(copyTimeoutRef.current), []);
   const change = useCallback((patch: Partial<ReservationForm>) => { setDraft((current) => (current ? { ...current, ...patch } : current)); setSaved(false); }, []);
   const publicUrl = useMemo(() => draft ? publicReservationUrl(draft.publicSlug, draft.publicUrl) : '', [draft]);
-  const publicUrlReady = APP_PUBLIC_URL_IS_HTTPS || publicUrl.startsWith('https://');
   const campaignUrl = useMemo(() => draft ? campaignReservationUrl(draft, publicUrl) : '', [draft, publicUrl]);
   const safeCampaignUrl = safeUrl(campaignUrl);
   const designPreviewStyle = useMemo(() => reservationDesignStyle(draft?.designConfig || {}), [draft?.designConfig]);
@@ -506,29 +505,24 @@ export function ReservationBuilderPage() {
               <strong>{fields.length} campo{fields.length !== 1 ? 's' : ''} que se piden</strong>
               <small>Es lo que la persona completa al reservar. Puedes cambiarlo en el paso «Campos».</small>
             </li>
-            <li className={publicUrlReady ? 'is-ok' : 'is-warning'}>
-              <strong>{publicUrlReady ? 'Enlace seguro (https)' : 'El enlace todavía no es seguro'}</strong>
-              <small>{publicUrlReady ? 'Se puede compartir en cualquier parte, incluidos anuncios.' : 'Sirve para probar, pero no lo uses en anuncios hasta que el dominio esté configurado.'}</small>
-            </li>
-            <li className={draft.metaCapiEnabled || draft.ga4MeasurementId?.trim() ? 'is-ok' : 'is-warning'}>
-              <strong>{draft.metaCapiEnabled ? 'Meta CAPI activo' : draft.ga4MeasurementId?.trim() ? 'GA4 configurado' : 'Sin medición avanzada'}</strong>
-              <small>La medición se configura en el paso «Medición». Puedes publicar sin esto si el enlace se compartirá orgánicamente.</small>
+            <li className={design.logoUrl || design.backgroundImage ? 'is-ok' : 'is-warning'}>
+              <strong>{design.logoUrl || design.backgroundImage ? 'Identidad personalizada' : 'Usando la plantilla del local'}</strong>
+              <small>{design.logoUrl || design.backgroundImage ? 'El logo o la portada ya se mostrarán a quien reserva.' : 'Puedes publicar así o agregar logo y portada en «Diseño público». '}</small>
             </li>
           </ul>
         </div>
 
         <div className="publish-link">
-          <span>ENLACE ÚNICO PARA COMPARTIR</span>
+          <span>ENLACE PÚBLICO DEL LOCAL</span>
           <strong>{campaignUrl}</strong>
           <div>
             <button className="btn btn-outline" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar enlace'}</button>
+            <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>Personalizar vista</button>
             {publicPreviewReady && safeCampaignUrl
               ? <a className="btn btn-outline" href={safeCampaignUrl} target="_blank" rel="noreferrer">Abrir como visitante</a>
               : <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>{publishedButDirty ? 'Guarda para poder abrirlo' : 'Ver cómo se verá'}</button>}
           </div>
-          <small>{publicPreviewReady
-            ? 'Este es el enlace definitivo. Puedes repartirlo tal cual.'
-            : 'El enlace empieza a funcionar cuando publiques.'}</small>
+          <small>{publicPreviewReady ? 'Comparte este único enlace. Las etiquetas de campaña no cambian la dirección.' : 'El enlace estará disponible cuando publiques.'}</small>
 
           <button className="btn reservation-cta" disabled={saveMutation.isPending || windows.length === 0} onClick={() => saveMutation.mutate({ ...draft, status: 'published' })}>
             {saveMutation.isPending ? 'Publicando...' : draft.status === 'published' ? 'Guardar cambios' : surveyMode ? 'Publicar encuesta' : 'Publicar formulario'}

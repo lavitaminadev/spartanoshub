@@ -160,6 +160,26 @@ const VISUAL_RESERVATION_LOCAL = {
   campaignId: 'verano-2026', crmEnabled: false, calendarEnabled: true, metaCapiEnabled: true, teamNotifications: ['reservas@casacostanera.cl'], pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', metaReady: true, ga4MeasurementId: 'G-CC2026TEST', capabilities: { reservations: true, crm: false, metaConversions: true }, updatedAt: new Date().toISOString(),
 };
 
+/**
+ * El modo visual es una maqueta navegable, pero crear un local debe comportarse como crear un
+ * local: el listado y su hub lo tienen que volver a mostrar. Mantener este arreglo en memoria
+ * evita el falso "Formulario creado" que antes desaparecía al invalidar la consulta.
+ */
+const visualReservationForms: any[] = [VISUAL_RESERVATION_LOCAL];
+
+function visualRequestBody(config?: any): Record<string, any> {
+  if (!config?.data) return {};
+  if (typeof config.data === 'string') {
+    try { return JSON.parse(config.data); } catch { return {}; }
+  }
+  return config.data as Record<string, any>;
+}
+
+function visualSlug(value: string) {
+  return value.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'nuevo-local';
+}
+
 const VISUAL_RESERVATIONS = [
   { id: 'visual-booking-1', formId: 'visual-form', referenceCode: 'CC-1042', status: 'confirmed', startsAt: new Date(new Date().setHours(20, 0, 0, 0)).toISOString(), partySize: 2, guestName: 'Camila Rojas', guestPhone: '+56 9 8123 4567', guestEmail: 'camila@example.test' },
   { id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended', startsAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(), partySize: 4, guestName: 'Sebastián Vera', guestPhone: '+56 9 7456 1234', guestEmail: 'sebastian@example.test' },
@@ -271,14 +291,51 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   // El listado se pide tanto con filtros (`?clientId=`) como sin query. Si sólo se
   // simulaba la primera variante, Administración aparecía vacía y no se podía revisar
   // el flujo completo aunque el local de ejemplo sí estaba definido arriba.
-  [/\/reservations\/forms(?:\?|$)/, () => ([VISUAL_RESERVATION_LOCAL])],
+  [/\/uploads\/images$/, (config) => {
+    const file = config?.data instanceof FormData ? config.data.get('file') : null;
+    const url = file instanceof Blob ? URL.createObjectURL(file) : '';
+    return url ? { url, publicId: `visual/${Date.now()}` } : { url: '', publicId: '' };
+  }],
+  [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
+  [/\/reservations\/forms(?:\?|$)/, (config) => {
+    const method = config?.method?.toLowerCase();
+    if (method === 'post') {
+      const body = visualRequestBody(config);
+      const baseSlug = visualSlug(String(body.name || 'nuevo-local'));
+      const publicSlug = visualReservationForms.some((form) => form.publicSlug === baseSlug)
+        ? `${baseSlug}-${visualReservationForms.length + 1}` : baseSlug;
+      const created = {
+        ...structuredClone(VISUAL_RESERVATION_LOCAL),
+        id: `visual-form-${Date.now()}`,
+        clientId: body.clientId || 'visual-client',
+        name: String(body.name || 'Nuevo local'),
+        mode: body.mode || 'appointment',
+        publicSlug,
+        status: 'draft',
+        metaCapiEnabled: false,
+        pixelId: null,
+        pixelName: null,
+        metaReady: false,
+        ga4MeasurementId: null,
+        designConfig: { ...structuredClone(VISUAL_RESERVATION_LOCAL.designConfig), title: String(body.name || 'Nuevo local'), logoUrl: '', backgroundImage: '', backgroundMode: 'color' },
+        updatedAt: new Date().toISOString(),
+      };
+      visualReservationForms.push(created);
+      return created;
+    }
+    const clientId = new URL(config?.url || '/', window.location.origin).searchParams.get('clientId');
+    return visualReservationForms.filter((form) => !clientId || form.clientId === clientId);
+  }],
   [/\/reservations\?(?!.*analytics)/, () => ({ data: VISUAL_RESERVATIONS, total: VISUAL_RESERVATIONS.length, page: 1, pageSize: 100, pages: 1 })],
   [/\/public\/reservations\/casa-costanera\/slots/, () => {
     const day = new Date(); day.setDate(day.getDate() + 1); day.setHours(20, 0, 0, 0);
     const first = day.toISOString(); day.setHours(21, 30, 0, 0); const second = day.toISOString();
     return { slots: [{ startsAt: first, available: 18 }, { startsAt: second, available: 12 }], fullDays: [] };
   }],
-  [/\/public\/reservations\/casa-costanera(?:\?|$)/, () => VISUAL_RESERVATION_LOCAL],
+  [/\/public\/reservations\/[^/?]+(?:\?|$)/, (config) => {
+    const slug = (config?.url?.match(/\/public\/reservations\/([^/?]+)/) ?? [])[1];
+    return visualReservationForms.find((form) => form.publicSlug === slug) || VISUAL_RESERVATION_LOCAL;
+  }],
   [/\/integrations\/meta\/conversions\/outbox/, () => ({
     stats: { pending: 0, retry: 0, processing: 0, failed: 0, expired: 0, processed: 0, total: 0 },
     problems: [],
@@ -296,51 +353,14 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * segundo nivel, de modo que un formulario sin esos objetos la tumba. Se responde con un
    * formulario completo para poder revisar los cuatro pasos, incluido el entorno visual.
    */
-  [/\/reservations\/forms\/[^/?]+$/, () => ({
-    ...VISUAL_RESERVATION_LOCAL,
-    status: 'published',
-    mode: 'appointment',
-    timezone: 'America/Santiago',
-    durationMinutes: 60,
-    bufferMinutes: 10,
-    capacityPerSlot: 4,
-    dailyCapacity: 40,
-    minimumNoticeHours: 2,
-    maximumAdvanceDays: 60,
-    confirmationMode: 'automatic',
-    fieldSchema: [
-      { id: 'name', type: 'text', label: 'Nombre completo', required: true, system: true },
-      { id: 'phone', type: 'phone', label: 'Teléfono', required: true, system: true },
-      { id: 'email', type: 'email', label: 'Correo', required: false, system: true },
-      { id: 'field_partysize', type: 'number', label: 'Número de personas', required: true },
-      { id: 'field_consent', type: 'consent', label: 'Acepto la política de datos', required: true },
-    ],
-    designConfig: {
-      title: 'Reserva tu mesa',
-      welcome: 'Elige el horario que mejor te acomode.',
-      primaryColor: '#0ec6b8',
-      accentColor: '#ea0f63',
-      backgroundColor: '#f4f5f7',
-      textColor: '#0b0b0c',
-      fontFamily: 'system-ui',
-      backgroundMode: 'gradient',
-      backgroundGradient: 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)',
-      buttonRadius: '12',
-      fieldRadius: '10',
-    },
-    scheduleConfig: { windows: [{ day: 4, start: '12:00', end: '23:00' }, { day: 5, start: '12:00', end: '23:30' }] },
-    campaignId: 'verano-2026',
-    crmEnabled: true,
-    calendarEnabled: true,
-    metaCapiEnabled: false,
-    teamNotifications: ['equipo@espartanos.cl'],
-    pixelId: null,
-    pixelName: null,
-    metaReady: false,
-    ga4MeasurementId: null,
-    capabilities: { reservations: true, crm: true, metaConversions: true },
-    updatedAt: new Date().toISOString(),
-  })],
+  [/\/reservations\/forms\/[^/?]+$/, (config) => {
+    const id = (config?.url?.match(/\/reservations\/forms\/([^/?]+)$/) ?? [])[1];
+    const form = visualReservationForms.find((item) => item.id === id) || VISUAL_RESERVATION_LOCAL;
+    if (config?.method?.toLowerCase() !== 'patch') return form;
+    const body = visualRequestBody(config);
+    Object.assign(form, body, { designConfig: { ...form.designConfig, ...body.designConfig }, updatedAt: new Date().toISOString() });
+    return form;
+  }],
   [/\/roles\/permissions$/, () => {
     const VISUAL_ROLES = ['admin','commercial_director','creative_director','operations_director','art_director','av_director','ai_lead','community_manager','designer','audiovisual','client'] as const;
     const ROLE_BASE: Record<string, 'manage'|'edit'|'view'|'none'> = { admin:'manage', operations_director:'edit', commercial_director:'edit', creative_director:'edit', art_director:'edit', av_director:'edit', ai_lead:'edit', community_manager:'view', designer:'view', audiovisual:'view', client:'none' };
