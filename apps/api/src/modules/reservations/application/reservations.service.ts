@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { promises as dns } from 'dns';
 import { ReservationForm } from '../domain/reservation-form.entity';
 import { Reservation } from '../domain/reservation.entity';
@@ -10,11 +10,14 @@ import { ReservationEvent } from '../domain/reservation-event.entity';
 import { ReservationFormEvent } from '../domain/reservation-form-event.entity';
 import { ReservationCoupon } from '../domain/reservation-coupon.entity';
 import { SurveyContactRequest } from '../domain/survey-contact-request.entity';
+import { ReservationManagementToken } from '../domain/reservation-management-token.entity';
+import { ReservationHold } from '../domain/reservation-hold.entity';
+import { ReservationGroupRequest } from '../domain/reservation-group-request.entity';
 import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLocalToUtc, zonedParts } from '../domain/timezone';
 import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
-import { CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicReservationDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
+import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, RESERVATION_LEAD_SOURCE, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
@@ -75,6 +78,13 @@ type DesignConfig = {
   buttonRadius?: string;
   fieldRadius?: string;
   fontFamily?: string;
+  legalCompanyName?: string; legalCompanyId?: string; supportEmail?: string; privacyUrl?: string; termsUrl?: string;
+  cancellationPolicy?: string; reservationConsentText?: string; marketingConsentText?: string; marketingConsentVersion?: string;
+  campaignAlias?: string; welcomePopupTitle?: string; welcomePopupText?: string;
+  askChildren?: string; askAccessibility?: string; askAllergies?: string;
+  whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
+  groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
+  autoCloseAttendance?: string; autoCloseAfterMinutes?: string;
 };
 
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
@@ -112,9 +122,12 @@ export class ReservationsService {
     // dependencias existentes.
     private readonly googleOutbox: GoogleConversionOutboxService,
     @InjectRepository(SurveyContactRequest) private readonly surveyContacts: Repository<SurveyContactRequest>,
+    @InjectRepository(ReservationGroupRequest) private readonly groupRequests: Repository<ReservationGroupRequest>,
     // Al final, por el mismo motivo que el anterior: las pruebas pasan los argumentos por
     // posición y meterlo en medio desplazaría todo lo que viene detrás.
     private readonly parametros: ParameterResolver,
+    @InjectRepository(ReservationManagementToken) private readonly managementTokens: Repository<ReservationManagementToken>,
+    @InjectRepository(ReservationHold) private readonly holds: Repository<ReservationHold>,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -170,15 +183,30 @@ export class ReservationsService {
     for (const color of [design.primaryColor, design.accentColor, design.backgroundColor, design.textColor].filter(Boolean)) if (!/^#[0-9a-fA-F]{6}$/.test(color!)) throw new BadRequestException('Los colores deben usar formato hexadecimal');
     if (design.title && design.title.length > 180 || design.welcome && design.welcome.length > 1200 || design.confirmationMessage && design.confirmationMessage.length > 1200) throw new BadRequestException('Los textos de diseño exceden el largo permitido');
     if (design.backgroundMode && !['color', 'gradient', 'image'].includes(design.backgroundMode)) throw new BadRequestException('El tipo de fondo no es válido');
+    for (const [label, value, min, max] of [
+      ['El umbral de grupo', design.groupThreshold, 2, 100], ['La retención de cupo', design.holdMinutes, 1, 30],
+      ['El ritmo por franja', design.slotCadenceMinutes, 5, 240], ['La última llegada antes del cierre', design.lastReservableMinutesBeforeClose, 0, 360], ['El margen de cierre automático', design.autoCloseAfterMinutes, 15, 1440],
+    ] as Array<[string, unknown, number, number]>) {
+      if (value !== undefined && (!/^\d+$/.test(String(value)) || Number(value) < min || Number(value) > max)) throw new BadRequestException(`${label} no es válido`);
+    }
     if (design.backgroundGradient && (design.backgroundGradient.length > 500 || !/^linear-gradient\(/i.test(design.backgroundGradient.trim()))) throw new BadRequestException('El degradado de fondo no es válido');
     if (design.backgroundOpacity !== undefined && (!Number.isFinite(Number(design.backgroundOpacity)) || Number(design.backgroundOpacity) < 0 || Number(design.backgroundOpacity) > 100)) throw new BadRequestException('La opacidad de fondo no es válida');
     if (design.backgroundPosition && !['center', 'top', 'bottom', 'left', 'right'].includes(design.backgroundPosition)) throw new BadRequestException('La posición del fondo no es válida');
     if (design.buttonRadius !== undefined && (!Number.isFinite(Number(design.buttonRadius)) || Number(design.buttonRadius) < 0 || Number(design.buttonRadius) > 999)) throw new BadRequestException('La forma de botones no es válida');
     if (design.fieldRadius !== undefined && (!Number.isFinite(Number(design.fieldRadius)) || Number(design.fieldRadius) < 0 || Number(design.fieldRadius) > 80)) throw new BadRequestException('La forma de campos no es válida');
     if (design.fontFamily && (design.fontFamily.length > 120 || /[;{}]/.test(design.fontFamily))) throw new BadRequestException('La tipografía no es válida');
+    for (const [label, value, limit] of [
+      ['La razón social', design.legalCompanyName, 180], ['El RUT', design.legalCompanyId, 80], ['El correo de soporte', design.supportEmail, 190],
+      ['La política de cancelación', design.cancellationPolicy, 1200], ['El texto de reserva', design.reservationConsentText, 1200],
+      ['El texto de marketing', design.marketingConsentText, 800], ['La versión de marketing', design.marketingConsentVersion, 30],
+      ['El alias de campaña', design.campaignAlias, 80], ['El título de bienvenida', design.welcomePopupTitle, 180], ['El texto de bienvenida', design.welcomePopupText, 1200],
+      ['El mensaje de WhatsApp', design.whatsappGroupMessage, 1200],
+    ] as Array<[string, unknown, number]>) if (value !== undefined && (typeof value !== 'string' || value.length > limit)) throw new BadRequestException(`${label} no es válido`);
+    if (design.whatsappBusinessNumber && (typeof design.whatsappBusinessNumber !== 'string' || !/^\+?[1-9]\d{7,14}$/.test(design.whatsappBusinessNumber.replace(/[\s()-]/g, '')))) throw new BadRequestException('El WhatsApp del local debe usar formato internacional');
     const isValidImageUrl = (url?: string) => !url || (/^https:\/\//i.test(url) && url.length <= 2048);
     if (!isValidImageUrl(design.logoUrl)) throw new BadRequestException('El logo debe usar una URL HTTPS válida');
     if (!isValidImageUrl(design.backgroundImage)) throw new BadRequestException('La imagen de fondo debe usar una URL HTTPS válida');
+    for (const url of [design.privacyUrl, design.termsUrl]) if (url && (typeof url !== 'string' || !/^https:\/\//i.test(url) || url.length > 2048)) throw new BadRequestException('Los enlaces legales deben usar una URL HTTPS válida');
   }
 
   private validateAnswers(form: ReservationForm, answers: Record<string, unknown>): void {
@@ -305,7 +333,17 @@ export class ReservationsService {
   }
   async duplicateForm(organizationId: string, id: string, userId: string, clientIds?: string[]) { const source = await this.getForm(organizationId, id, undefined, clientIds); const copy = this.forms.create({ ...source, id: undefined, name: `${source.name} (copia)`, publicSlug: await this.uniqueSlug(source.publicSlug), status: 'draft', createdBy: userId, createdAt: undefined, updatedAt: undefined }); return this.forms.save(copy); }
 
-  async addBlock(organizationId: string, formId: string, userId: string, dto: CreateBlockDto, clientId?: string, clientIds?: string[]) { const form = await this.getForm(organizationId, formId, clientId, clientIds); const startsAt = new Date(dto.startsAt); const endsAt = new Date(dto.endsAt); if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new BadRequestException('El fin debe ser posterior al inicio'); if (endsAt.getTime() - startsAt.getTime() > 366 * 86400000) throw new BadRequestException('Un bloqueo no puede superar 366 días'); return this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason })); }
+  async addBlock(organizationId: string, formId: string, userId: string, dto: CreateBlockDto, clientId?: string, clientIds?: string[]) {
+    const form = await this.getForm(organizationId, formId, clientId, clientIds);
+    const startsAt = new Date(dto.startsAt); const endsAt = new Date(dto.endsAt);
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new BadRequestException('El fin debe ser posterior al inicio');
+    if (endsAt.getTime() - startsAt.getTime() > 366 * 86400000) throw new BadRequestException('Un bloqueo no puede superar 366 días');
+    // Nunca ocultar ni cancelar reservas existentes al crear un evento privado: primero se
+    // resuelven con el cliente y luego se cierra la franja.
+    const affected = await this.reservations.createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId, startsAt, endsAt, statuses: ACTIVE_STATUSES }).getCount();
+    if (affected > 0) throw new ConflictException(`Hay ${affected} reserva(s) en este horario. Reagenda o contacta a esas personas antes de bloquearlo.`);
+    return this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason?.trim() || undefined }));
+  }
   async listBlocks(organizationId: string, formId: string, clientId?: string, clientIds?: string[]) { await this.getForm(organizationId, formId, clientId, clientIds); return this.blocks.find({ where: { organizationId, formId }, order: { startsAt: 'ASC' } }); }
   async removeBlock(organizationId: string, id: string, clientId?: string, clientIds?: string[], actorId?: string) { const block = await this.blocks.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } }); if (!block) throw new NotFoundException('Bloqueo no encontrado'); await this.blocks.remove(block); await this.audit.log({ organizationId, actorId, entityType: 'AvailabilityBlock', entityId: id, action: 'deleted', before: { startsAt: block.startsAt, endsAt: block.endsAt, reason: block.reason, formId: block.formId } }); return { deleted: true }; }
 
@@ -342,13 +380,24 @@ export class ReservationsService {
   private effectiveRules(form: ReservationForm, serviceId?: string, resourceId?: string) {
     const { services, resources } = this.configs(form); const service = serviceId ? services.find((item) => item.id === serviceId) : undefined; const resource = resourceId ? resources.find((item) => item.id === resourceId) : undefined;
     if (serviceId && !service) throw new BadRequestException('Servicio inválido'); if (resourceId && !resource) throw new BadRequestException('Recurso inválido');
-    return { duration: service?.durationMinutes || form.durationMinutes, capacity: Math.max(1, Math.min(service?.capacity || form.capacityPerSlot, resource?.capacity || form.capacityPerSlot)), windows: resource?.windows || ((form.scheduleConfig as { windows: ScheduleWindow[] }).windows), service, resource };
+    const duration = service?.durationMinutes || form.durationMinutes;
+    const design = form.designConfig as DesignConfig;
+    const numberRule = (value: unknown, fallback: number, min: number, max: number) => {
+      const parsed = Number(value);
+      return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
+    };
+    return { duration, capacity: Math.max(1, Math.min(service?.capacity || form.capacityPerSlot, resource?.capacity || form.capacityPerSlot)), windows: resource?.windows || ((form.scheduleConfig as { windows: ScheduleWindow[] }).windows), cadence: numberRule(design.slotCadenceMinutes, duration + form.bufferMinutes, 5, 240), lastReservableBeforeClose: numberRule(design.lastReservableMinutesBeforeClose, 0, 0, 360), service, resource };
+  }
+
+  private groupThreshold(form: ReservationForm): number {
+    const value = Number((form.designConfig as DesignConfig).groupThreshold);
+    return Number.isInteger(value) && value >= 2 && value <= 100 ? value : 8;
   }
 
   private assertScheduled(form: ReservationForm, startsAt: Date, serviceId?: string, resourceId?: string) {
     const rules = this.effectiveRules(form, serviceId, resourceId); const local = zonedParts(startsAt, form.timezone); const minute = local.hour * 60 + local.minute;
-    const window = rules.windows.find((item) => item.day === local.weekday && minute >= this.minutes(item.start) && minute + rules.duration <= this.minutes(item.end));
-    if (!window || (minute - this.minutes(window.start)) % (rules.duration + form.bufferMinutes) !== 0) throw new BadRequestException('El horario no pertenece a la disponibilidad publicada');
+    const window = rules.windows.find((item) => item.day === local.weekday && minute >= this.minutes(item.start) && minute + rules.duration <= this.minutes(item.end) && minute <= this.minutes(item.end) - rules.lastReservableBeforeClose);
+    if (!window || (minute - this.minutes(window.start)) % rules.cadence !== 0) throw new BadRequestException('El horario no pertenece a la disponibilidad publicada');
     const now = Date.now(); if (startsAt.getTime() < now + form.minimumNoticeHours * 3600000 || startsAt.getTime() > now + form.maximumAdvanceDays * 86400000) throw new BadRequestException('El horario está fuera del rango permitido');
     return rules;
   }
@@ -460,10 +509,12 @@ export class ReservationsService {
   ): Promise<number> {
     const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
     const params: unknown[] = [id, start, end, ...ACTIVE_STATUSES];
-    let sql = `SELECT id FROM reservations WHERE ${column} = ? AND starts_at >= ? AND starts_at < ? AND status IN (${placeholders})`;
+    let sql = `SELECT id, party_size FROM reservations WHERE ${column} = ? AND starts_at >= ? AND starts_at < ? AND status IN (${placeholders})`;
     if (excludeId) { sql += ' AND id != ?'; params.push(excludeId); }
     const rows = await manager.query(`${sql} FOR UPDATE`, params);
-    return Array.isArray(rows) ? rows.length : 0;
+    // Los topes declarados en esta interfaz son comensales, no número de reservas:
+    // una mesa para ocho no puede consumir el mismo cupo diario que una para una persona.
+    return Array.isArray(rows) ? rows.reduce((total, row) => total + Math.max(1, Number(row.party_size ?? row.partySize ?? 1)), 0) : 0;
   }
 
   /**
@@ -502,29 +553,52 @@ export class ReservationsService {
     return Number(rows?.[0]?.daily_reservation_cap ?? 0) || 0;
   }
 
-  private async availability(manager: EntityManager, form: ReservationForm, startsAt: Date, partySize: number, serviceId?: string, resourceId?: string, excludeId?: string) {
+  private async availability(manager: EntityManager, form: ReservationForm, startsAt: Date, partySize: number, serviceId?: string, resourceId?: string, excludeId?: string, excludeHoldKey?: string) {
     const rules = this.assertScheduled(form, startsAt, serviceId, resourceId); const endsAt = new Date(startsAt.getTime() + rules.duration * 60000);
     const block = await manager.getRepository(AvailabilityBlock).createQueryBuilder('b').where('b.form_id = :formId AND b.starts_at < :endsAt AND b.ends_at > :startsAt', { formId: form.id, startsAt, endsAt }).getOne(); if (block) throw new ConflictException('El horario está bloqueado');
     const dateKey = this.localDateKey(startsAt, form.timezone);
     if (form.dailyCapacity > 0) {
       const dailyCount = await this.dailyReservationsCount(manager, form.id, dateKey, form.timezone, excludeId);
-      if (dailyCount >= form.dailyCapacity) throw new ConflictException('Este día ya alcanzó su tope de reservas');
+      if (dailyCount + partySize > form.dailyCapacity) throw new ConflictException('Este día no tiene cupo para ese grupo');
     }
     // El tope del cliente se aplica ademas del propio del formulario: manda el mas estricto.
     const clientCap = await this.clientDailyCap(manager, form.clientId);
     if (clientCap > 0) {
       const clientCount = await this.clientDailyReservationsCount(manager, form.clientId, dateKey, form.timezone, excludeId);
-      if (clientCount >= clientCap) throw new ConflictException('Este día ya alcanzó su tope de reservas');
+      if (clientCount + partySize > clientCap) throw new ConflictException('Este día no tiene cupo para ese grupo');
     }
     const qb = manager.getRepository(Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: ACTIVE_STATUSES }).setLock('pessimistic_write');
     if (resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId }); if (excludeId) qb.andWhere('r.id != :excludeId', { excludeId });
-    const existing = await qb.getMany(); const used = existing.reduce((sum, item) => sum + item.partySize, 0); if (used + partySize > rules.capacity) throw new ConflictException('Ese horario acaba de ocuparse. Selecciona una alternativa.'); return { ...rules, endsAt, available: rules.capacity - used };
+    const existing = await qb.getMany();
+    const holdsQb = manager.getRepository(ReservationHold).createQueryBuilder('h')
+      .where('h.form_id = :formId AND h.expires_at > :now AND h.starts_at < :endsAt AND h.ends_at > :startsAt', { formId: form.id, now: new Date(), startsAt, endsAt })
+      .setLock('pessimistic_write');
+    if (resourceId) holdsQb.andWhere('h.resource_id = :resourceId', { resourceId });
+    if (excludeHoldKey) holdsQb.andWhere('h.hold_key != :excludeHoldKey', { excludeHoldKey });
+    const activeHolds = await holdsQb.getMany();
+    const used = existing.reduce((sum, item) => sum + item.partySize, 0) + activeHolds.reduce((sum, item) => sum + item.partySize, 0);
+    if (used + partySize > rules.capacity) throw new ConflictException('Ese horario acaba de ocuparse. Selecciona una alternativa.');
+    return { ...rules, endsAt, available: rules.capacity - used };
   }
 
-  async slots(slug: string, from: string, days = 14, serviceId?: string, resourceId?: string) {
+  /** Texto generado por el servidor: el navegador no puede falsificar lo que se aceptó. */
+  private consentTexts(form: ReservationForm) {
+    const design = form.designConfig as DesignConfig;
+    const controller = String(design.legalCompanyName || form.name).trim();
+    const identifier = design.legalCompanyId ? `, ${String(design.legalCompanyId).trim()}` : '';
+    const contact = design.supportEmail ? ` Puedes ejercer tus derechos de acceso, rectificación, supresión u oposición escribiendo a ${String(design.supportEmail).trim()}.` : '';
+    const privacy = design.privacyUrl ? ` Revisa la política de privacidad en ${String(design.privacyUrl).trim()}.` : '';
+    return {
+      reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mis datos de contacto y los antecedentes de esta solicitud exclusivamente para gestionar, confirmar, modificar o cancelar mi reserva y comunicarse conmigo respecto de ella.${contact}${privacy}`),
+      marketing: String(design.marketingConsentText || `Autorizo voluntariamente a ${controller}${identifier} a enviarme novedades, promociones y comunicaciones comerciales por los datos de contacto indicados. Esta autorización es opcional, no condiciona mi reserva y puedo solicitar su revocación.${contact}${privacy}`),
+    };
+  }
+
+  async slots(slug: string, from: string, days = 14, serviceId?: string, resourceId?: string, partySize = 1) {
     const form = await this.publishedForm(slug);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new BadRequestException('Fecha inválida');
     if (!Number.isInteger(days) || days < 1 || days > 31) throw new BadRequestException('El rango debe contener entre 1 y 31 días');
+    if (!Number.isInteger(partySize) || partySize < 1 || partySize > 500) throw new BadRequestException('Cantidad de personas inválida');
     const rules = this.effectiveRules(form, serviceId, resourceId);
     const count = days;
     const rangeStart = startOfLocalDayUtc(from, form.timezone);
@@ -536,7 +610,9 @@ export class ReservationsService {
     const blocksQb = this.blocks.createQueryBuilder('b')
       .select(['b.id', 'b.startsAt', 'b.endsAt'])
       .where('b.form_id = :formId AND b.starts_at < :end AND b.ends_at > :start', { formId: form.id, start: rangeStart, end: rangeEnd });
-    const [existing, blocks] = await Promise.all([existingQb.getMany(), blocksQb.getMany()]);
+    const holdsQb = this.holds?.createQueryBuilder('h').where('h.form_id = :formId AND h.expires_at > :now AND h.starts_at < :end AND h.ends_at > :start', { formId: form.id, now: new Date(), start: rangeStart, end: rangeEnd });
+    if (resourceId) holdsQb?.andWhere('h.resource_id = :resourceId', { resourceId });
+    const [existing, blocks, holds] = await Promise.all([existingQb.getMany(), blocksQb.getMany(), holdsQb ? holdsQb.getMany() : Promise.resolve([] as ReservationHold[])]);
     // El tope efectivo del dia es el mas estricto entre el del formulario y el del cliente.
     // El del cliente cuenta las reservas de todos sus formularios, no solo las de este.
     const clientCap = await this.clientDailyCap(this.dataSource, form.clientId);
@@ -547,16 +623,17 @@ export class ReservationsService {
         .getMany();
       for (const item of clientRows) {
         const key = this.localDateKey(item.startsAt, form.timezone);
-        clientCounts.set(key, (clientCounts.get(key) ?? 0) + 1);
+        clientCounts.set(key, (clientCounts.get(key) ?? 0) + item.partySize);
       }
     }
     const dailyCounts = new Map<string, number>();
     const reservationsByDate = new Map<string, Reservation[]>();
+    const holdsByDate = new Map<string, ReservationHold[]>();
     const blocksByDate = new Map<string, AvailabilityBlock[]>();
     if (form.dailyCapacity > 0) {
       for (const item of existing) {
         const key = this.localDateKey(item.startsAt, form.timezone);
-        dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + 1);
+        dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + item.partySize);
       }
     }
     for (const item of existing) {
@@ -564,6 +641,12 @@ export class ReservationsService {
       const list = reservationsByDate.get(key) || [];
       list.push(item);
       reservationsByDate.set(key, list);
+    }
+    for (const item of holds) {
+      const key = this.localDateKey(item.startsAt, form.timezone);
+      const list = holdsByDate.get(key) || [];
+      list.push(item);
+      holdsByDate.set(key, list);
     }
     const lastRequestedDate = addPlainDays(from, count - 1);
     for (const block of blocks) {
@@ -593,16 +676,17 @@ export class ReservationsService {
       const date = addPlainDays(from, offset);
       const { weekday } = plainDateParts(date);
       const dayWindows = windowsByWeekday.get(weekday) || [];
-      const formFull = form.dailyCapacity > 0 && (dailyCounts.get(date) ?? 0) >= form.dailyCapacity;
-      const clientFull = clientCap > 0 && (clientCounts.get(date) ?? 0) >= clientCap;
+      const formFull = form.dailyCapacity > 0 && (dailyCounts.get(date) ?? 0) + partySize > form.dailyCapacity;
+      const clientFull = clientCap > 0 && (clientCounts.get(date) ?? 0) + partySize > clientCap;
       if (formFull || clientFull) {
         if (dayWindows.length > 0) fullDays.push(date);
         continue;
       }
       const dayReservations = reservationsByDate.get(date) || [];
+      const dayHolds = holdsByDate.get(date) || [];
       const dayBlocks = blocksByDate.get(date) || [];
       for (const window of dayWindows) {
-        for (let minute = this.minutes(window.start); minute + rules.duration <= this.minutes(window.end); minute += rules.duration + form.bufferMinutes) {
+        for (let minute = this.minutes(window.start); minute + rules.duration <= this.minutes(window.end) && minute <= this.minutes(window.end) - rules.lastReservableBeforeClose; minute += rules.cadence) {
           // Un cupo que cae en el salto de horario de verano no existe como hora local, así
           // que se omite en vez de tumbar la consulta entera del calendario.
           const startsAt = tryLocalToUtc(date, `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`, form.timezone);
@@ -610,8 +694,8 @@ export class ReservationsService {
           const endsAt = new Date(startsAt.getTime() + rules.duration * 60000);
           if (startsAt.getTime() < minStart || startsAt.getTime() > maxStart) continue;
           if (dayBlocks.some((block) => this.overlaps(startsAt, endsAt, block.startsAt, block.endsAt))) continue;
-          const used = dayReservations.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0);
-          if (used < rules.capacity) result.push({ startsAt: startsAt.toISOString(), available: rules.capacity - used });
+          const used = dayReservations.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0) + dayHolds.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0);
+          if (used + partySize <= rules.capacity) result.push({ startsAt: startsAt.toISOString(), available: rules.capacity - used });
         }
       }
     }
@@ -630,7 +714,7 @@ export class ReservationsService {
       this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmCampaign: dto.utmCampaign }),
     );
 
-    if (dto.type === 'start') {
+    if (dto.type === 'start' && dto.measurementConsent) {
       await this.enqueueMetaInitiateCheckout(saved, form, dto, ipAddress, userAgent);
     }
     return saved;
@@ -685,7 +769,7 @@ export class ReservationsService {
         customData: { contentIds: [form.id], contentType: 'reservation' },
         // Mismo identificador que dispara el navegador, o Meta cuenta el inicio dos veces.
         eventId: metaEventId(META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
-      });
+      }, form.clientId);
     } catch (err) {
       this.logger.warn(`Meta CAPI InitiateCheckout enqueue failed for form event ${event.id}: ${err instanceof Error ? err.message : err}`);
     }
@@ -748,7 +832,7 @@ export class ReservationsService {
       },
     }));
     const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
-    if (form.metaCapiEnabled && capabilities.metaConversions) {
+    if (dto.measurementConsent && form.metaCapiEnabled && capabilities.metaConversions) {
       try {
         await this.enqueueMetaSurveyConversion(response, form, dto, ipAddress, userAgent, eventSourceUrl);
       } catch (err) {
@@ -819,21 +903,22 @@ export class ReservationsService {
     }
   }
 
-  async listSurveyContactRequests(organizationId: string, clientId?: string): Promise<SurveyContactRequest[]> {
+  async listSurveyContactRequests(organizationId: string, clientId?: string, clientIds?: string[]): Promise<SurveyContactRequest[]> {
     return this.surveyContacts.find({
-      where: { organizationId, ...(clientId ? { clientId } : {}) },
+      where: this.scope(organizationId, clientId, clientIds),
       order: { createdAt: 'DESC' },
       take: 200,
     });
   }
 
-  async updateSurveyContactRequest(organizationId: string, id: string, body: { status?: string; notes?: string }): Promise<SurveyContactRequest> {
-    const row = await this.surveyContacts.findOne({ where: { id, organizationId } });
+  async updateSurveyContactRequest(organizationId: string, id: string, body: { status?: string; notes?: string }, clientId?: string, clientIds?: string[], actorId?: string): Promise<SurveyContactRequest> {
+    const row = await this.surveyContacts.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
     if (!row) throw new NotFoundException('La solicitud de contacto no existe');
     if (body.status) row.status = body.status;
     if (body.notes !== undefined) row.notes = body.notes;
     if (body.status === 'resolved') {
       row.resolvedAt = new Date();
+      row.resolvedBy = actorId ?? null;
     }
     return this.surveyContacts.save(row);
   }
@@ -861,6 +946,198 @@ export class ReservationsService {
     this.dataSource.query('INSERT INTO audit_logs (organization_id, entity_type, entity_id, action, metadata, occurred_at) VALUES (?, ?, ?, ?, ?, NOW())', [null, 'email_validation', _domain, 'mx_failed', JSON.stringify({ domain: _domain })]).catch(() => undefined);
   }
 
+  private managementHash(token: string) { return createHash('sha256').update(token).digest('hex'); }
+
+  private async createManagementToken(reservationId: string, manager?: EntityManager): Promise<string> {
+    const token = randomBytes(32).toString('base64url');
+    const repository = manager?.getRepository(ReservationManagementToken) || this.managementTokens;
+    if (!repository) throw new Error('El repositorio de enlaces de gestión no está disponible');
+    await repository.save(repository.create({ reservationId, tokenHash: this.managementHash(token), expiresAt: new Date(Date.now() + 180 * 86400000) }));
+    return token;
+  }
+
+  private async managementReservation(token: string) {
+    const record = await this.managementTokens.findOne({ where: { tokenHash: this.managementHash(token) } });
+    if (!record || record.revokedAt || record.expiresAt <= new Date()) throw new NotFoundException('El enlace de gestión no está disponible');
+    const reservation = await this.reservations.findOne({ where: { id: record.reservationId } });
+    if (!reservation) throw new NotFoundException('La reserva no existe');
+    return { record, reservation };
+  }
+
+  async publicManagement(token: string) {
+    const { reservation } = await this.managementReservation(token);
+    const form = await this.forms.findOne({ where: { id: reservation.formId } });
+    if (!form) throw new NotFoundException('El formulario ya no existe');
+    return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status), canReschedule: ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone };
+  }
+
+  async cancelPublicManagement(token: string) {
+    const { record, reservation } = await this.managementReservation(token);
+    if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede cancelar');
+    const saved = await this.transaction('cancelar reserva pública', async (manager) => {
+      const booking = await manager.getRepository(Reservation).createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id', { id: reservation.id }).getOne();
+      if (!booking || !ACTIVE_STATUSES.includes(booking.status)) throw new ConflictException('Esta reserva ya no se puede cancelar');
+      const previous = booking.status; booking.status = 'cancelled_client';
+      await manager.save(booking);
+      await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'cancelled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link' } }));
+      return booking;
+    });
+    record.usedAt = new Date(); await this.managementTokens.save(record);
+    void this.sendCalendarUpdate(reservation, 'CANCELLED');
+    return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
+  }
+
+  async confirmPublicManagement(token: string) {
+    const { record, reservation } = await this.managementReservation(token);
+    if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede confirmar');
+    if (!reservation.guestConfirmedAt) {
+      reservation.guestConfirmedAt = new Date();
+      await this.reservations.save(reservation);
+    }
+    record.usedAt = new Date();
+    await this.managementTokens.save(record);
+    await this.events.save(this.events.create({ organizationId: reservation.organizationId, clientId: reservation.clientId, reservationId: reservation.id, type: 'guest_confirmed', fromStatus: reservation.status, toStatus: reservation.status, actorType: 'guest', metadata: { via: 'management_link' } }));
+    return { confirmed: true, referenceCode: reservation.referenceCode };
+  }
+
+  private calendarIcs(form: ReservationForm, booking: Reservation, method: 'PUBLISH' | 'CANCEL', cancellationReason?: string): string {
+    const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+    const configuredAddress = typeof form.designConfig?.venueAddress === 'string' ? form.designConfig.venueAddress.trim() : '';
+    const description = [`Código: ${booking.referenceCode}`, `Personas: ${booking.partySize}`, ...(configuredAddress ? [`Dirección: ${configuredAddress}`] : []), ...(method === 'CANCEL' && cancellationReason ? [`Motivo de cancelación: ${cancellationReason}`] : [])].join('\n');
+    return ['BEGIN:VCALENDAR', 'VERSION:2.0', `METHOD:${method}`, 'PRODID:-//Espartanos//Reservas//ES', 'BEGIN:VEVENT', `UID:reservation-${booking.id}@espartanos`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(booking.startsAt)}`, `DTEND:${stamp(booking.endsAt)}`, `SUMMARY:${escape(`${form.name} · Reserva`)}`, ...(configuredAddress ? [`LOCATION:${escape(configuredAddress)}`] : []), `DESCRIPTION:${escape(description)}`, `STATUS:${method === 'CANCEL' ? 'CANCELLED' : 'CONFIRMED'}`, 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
+  }
+
+  private async sendCalendarUpdate(booking: Reservation, method: 'CANCELLED' | 'PUBLISH', cancellationReason?: string): Promise<void> {
+    if (!booking.guestEmail) return;
+    const form = await this.forms.findOne({ where: { id: booking.formId } });
+    if (!form) return;
+    const cancelled = method === 'CANCELLED';
+    const reason = cancellationReason?.trim();
+    const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+    const body = cancelled
+      ? `<p>Tu reserva fue cancelada.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
+      : '<p>Tu reserva fue actualizada. Adjuntamos la nueva cita de calendario.</p>';
+    void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
+      .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
+  }
+
+  async reschedulePublicManagement(token: string, requestedStartsAt: string) {
+    const { record, reservation } = await this.managementReservation(token);
+    if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede reagendar');
+    const startsAt = new Date(requestedStartsAt);
+    if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
+    const saved = await this.transaction('reagendar reserva pública', async (manager) => {
+      const booking = await manager.getRepository(Reservation).createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id', { id: reservation.id }).getOne();
+      if (!booking || !ACTIVE_STATUSES.includes(booking.status)) throw new ConflictException('Esta reserva ya no se puede reagendar');
+      const form = await manager.getRepository(ReservationForm).findOne({ where: { id: booking.formId } });
+      if (!form || form.status !== 'published') throw new ConflictException('La agenda ya no está disponible');
+      await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+      const availability = await this.availability(manager, form, startsAt, booking.partySize, booking.serviceId, booking.resourceId, booking.id);
+      const previous = booking.status;
+      const previousStartsAt = booking.startsAt;
+      booking.startsAt = startsAt;
+      booking.endsAt = availability.endsAt;
+      booking.status = 'rescheduled';
+      await manager.save(booking);
+      await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'rescheduled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link', previousStartsAt: previousStartsAt.toISOString(), startsAt: startsAt.toISOString() } }));
+      return booking;
+    });
+    record.usedAt = new Date();
+    await this.managementTokens.save(record);
+    void this.sendCalendarUpdate(saved, 'PUBLISH');
+    return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
+  }
+
+  /** Conserva un cupo por diez minutos mientras la persona termina el formulario. */
+  async holdPublic(slug: string, dto: PublicReservationHoldDto) {
+    const startsAt = new Date(dto.startsAt);
+    if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
+    return this.transaction('retener cupo público', async (manager) => {
+      const form = await this.publishedForm(slug, manager);
+      await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+      const partySize = dto.partySize || 1;
+      const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
+      const repo = manager.getRepository(ReservationHold);
+      const current = await repo.findOne({ where: { formId: form.id, holdKey: dto.holdKey } });
+      const configuredMinutes = Number((form.designConfig as DesignConfig).holdMinutes);
+      const holdMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 30 ? configuredMinutes : 10;
+      const expiresAt = new Date(Date.now() + holdMinutes * 60_000);
+      const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt });
+      hold.startsAt = startsAt; hold.endsAt = availability.endsAt; hold.partySize = partySize; hold.serviceId = dto.serviceId; hold.resourceId = dto.resourceId; hold.expiresAt = expiresAt;
+      await repo.save(hold);
+      return { expiresAt: hold.expiresAt, available: availability.available };
+    });
+  }
+
+  async createPublicGroupRequest(slug: string, dto: PublicGroupRequestDto) {
+    if (dto.website) throw new BadRequestException('Solicitud inválida');
+    if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
+    if (!dto.reservationConsent) throw new BadRequestException('Debes aceptar las condiciones para enviar la solicitud');
+    if (!dto.guestEmail?.trim() && !dto.guestPhone?.trim()) throw new BadRequestException('Indica un correo o teléfono para responderte');
+    this.validateEmailDomain(dto.guestEmail);
+    const form = await this.publishedForm(slug);
+    const consent = this.consentTexts(form);
+    const existing = await this.groupRequests.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
+    if (existing) return { id: existing.id, status: existing.status, kind: 'group_request' };
+    const request = await this.groupRequests.save(this.groupRequests.create({
+      organizationId: form.organizationId, clientId: form.clientId, formId: form.id, idempotencyKey: dto.idempotencyKey,
+      guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase() || null, guestPhone: normalizePhone(dto.guestPhone) || null,
+      partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
+      notes: dto.notes?.trim() || null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+      marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
+      utmSource: dto.utmSource || null, utmCampaign: dto.utmCampaign || null, status: 'pending',
+    }));
+    // Es una solicitud, no una conversión de reserva: no toma cupo ni dispara Schedule.
+    return { id: request.id, status: request.status, kind: 'group_request' };
+  }
+
+  /** Lista de espera no toma cupo: conservar la solicitud no puede volver a sobrecargar el turno. */
+  async joinPublicWaitlist(slug: string, dto: PublicReservationDto) {
+    if (dto.website) throw new BadRequestException('Solicitud inválida');
+    if (!dto.reservationConsent) throw new BadRequestException('Debes aceptar las condiciones para unirte a la lista de espera');
+    const startsAt = new Date(dto.startsAt);
+    if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
+    return this.transaction('crear espera pública', async (manager) => {
+      const form = await this.publishedForm(slug, manager);
+      const existing = await manager.getRepository(Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
+      if (existing) return existing;
+      const rules = this.assertScheduled(form, startsAt, dto.serviceId, dto.resourceId);
+      this.validateSubmission(form, dto.answers, dto);
+      const consent = this.consentTexts(form);
+      const item = await manager.save(Reservation, manager.create(Reservation, {
+        organizationId: form.organizationId, clientId: form.clientId, formId: form.id,
+        idempotencyKey: dto.idempotencyKey, referenceCode: randomBytes(6).toString('hex').toUpperCase(),
+        status: 'waitlist', startsAt, endsAt: new Date(startsAt.getTime() + rules.duration * 60_000), partySize: dto.partySize || 1,
+        guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: normalizePhone(dto.guestPhone),
+        serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers,
+        consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+        marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
+        marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
+        utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent,
+      }));
+      await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: form.organizationId, clientId: form.clientId, reservationId: item.id, type: 'waitlist_joined', toStatus: 'waitlist', actorType: 'guest', metadata: { startsAt: startsAt.toISOString() } }));
+      return item;
+    });
+  }
+
+  async listGroupRequests(organizationId: string, formId: string, clientId?: string, clientIds?: string[]) {
+    await this.getForm(organizationId, formId, clientId, clientIds);
+    return this.groupRequests.find({ where: { organizationId, formId }, order: { createdAt: 'DESC' }, take: 50 });
+  }
+  async updateGroupRequest(organizationId: string, id: string, dto: { status: string; quoteAmount?: number; quoteMessage?: string; quoteExpiresAt?: string }, actorId: string, clientId?: string, clientIds?: string[]) {
+    const item = await this.groupRequests.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
+    if (!item) throw new NotFoundException('Solicitud no encontrada');
+    if (dto.status === 'quoted' && (dto.quoteAmount === undefined || !dto.quoteMessage?.trim())) throw new BadRequestException('Una cotización necesita monto y mensaje para el cliente');
+    item.status = dto.status;
+    if (dto.quoteAmount !== undefined) item.quoteAmount = String(dto.quoteAmount);
+    if (dto.quoteMessage !== undefined) item.quoteMessage = dto.quoteMessage.trim() || null;
+    if (dto.quoteExpiresAt !== undefined) item.quoteExpiresAt = new Date(dto.quoteExpiresAt);
+    const saved = await this.groupRequests.save(item);
+    await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'status_changed', after: { status: dto.status, quoteAmount: dto.quoteAmount, quoteExpiresAt: dto.quoteExpiresAt } });
+    return saved;
+  }
+
   async createPublic(slug: string, dto: PublicReservationDto, ipAddress?: string, userAgent?: string, eventSourceUrl?: string) {
     if (dto.website) throw new BadRequestException('Solicitud inválida');
     if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
@@ -870,6 +1147,7 @@ export class ReservationsService {
       // El formulario se lee sin bloquear: lo que hay que serializar no es el formulario sino el
       // día del cliente, y para saber cuál es hace falta primero su zona horaria.
       const form = await this.publishedForm(slug, manager);
+      const consent = this.consentTexts(form);
       const existingIdempotent = await manager.getRepository(Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
       if (existingIdempotent) return { booking: existingIdempotent, form, created: false };
 
@@ -881,7 +1159,7 @@ export class ReservationsService {
       }
       if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
       const partySize = dto.partySize || 1;
-      const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId);
+      const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.idempotencyKey);
       this.validateSubmission(form, dto.answers, dto);
 
       const coupon = await this.validateCoupon(dto.couponCode, form, manager, startsAt);
@@ -890,7 +1168,9 @@ export class ReservationsService {
         await manager.save(ReservationCoupon, coupon);
       }
 
-      const status = form.confirmationMode === 'manual' ? 'pending' : 'confirmed';
+      // Los grupos grandes siempre pasan por el equipo: aunque exista cupo físico, un evento
+      // puede requerir menú, montaje o confirmación especial.
+      const status = form.confirmationMode === 'manual' || partySize > this.groupThreshold(form) ? 'pending' : 'confirmed';
       const booking = await manager.save(Reservation, manager.create(Reservation, {
         organizationId: form.organizationId,
         clientId: form.clientId,
@@ -906,8 +1186,20 @@ export class ReservationsService {
         guestPhone: normalizePhone(dto.guestPhone),
         serviceId: dto.serviceId,
         resourceId: dto.resourceId,
-        answers: dto.answers,
+        answers: {
+          ...dto.answers,
+          ...(dto.partySize && dto.partySize > this.groupThreshold(form) ? { groupEventType: dto.groupEventType || 'otro', groupEventNotes: dto.groupEventNotes?.trim() || null } : {}),
+          ...(dto.childrenCount ? { childrenCount: dto.childrenCount } : {}),
+          ...(dto.accessibilityNeed?.trim() ? { accessibilityNeed: dto.accessibilityNeed.trim() } : {}),
+          ...(dto.dietaryNotes?.trim() ? { dietaryNotes: dto.dietaryNotes.trim() } : {}),
+        },
         consentVersion: dto.consentVersion,
+        reservationConsentAt: dto.reservationConsent ? new Date() : null,
+        reservationConsentText: dto.reservationConsent ? consent.reservation : null,
+        marketingConsentAt: dto.marketingConsent ? new Date() : null,
+        marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
+        marketingConsentText: dto.marketingConsent ? consent.marketing : null,
+        measurementConsentAt: dto.measurementConsent ? new Date() : null,
         // La casilla llega como booleano y se guarda con su instante, que es lo que se puede
         // mostrar. Sin marcar no se inventa una fecha: queda como «no consta», que es la verdad.
         adultDeclaredAt: dto.adultDeclared ? new Date() : null,
@@ -939,7 +1231,10 @@ export class ReservationsService {
         metadata: { startsAt: startsAt.toISOString(), serviceId: dto.serviceId, resourceId: dto.resourceId },
       }));
 
-      return { booking, form, created: true };
+      await manager.getRepository(ReservationHold).delete({ formId: form.id, holdKey: dto.idempotencyKey });
+
+      const managementToken = await this.createManagementToken(booking.id, manager);
+      return { booking, form, created: true, managementToken };
     });
 
     /*
@@ -1018,7 +1313,7 @@ export class ReservationsService {
         .catch((err) => this.logger.warn(`Evento de calendario pendiente para la reserva ${booking.id}: ${err instanceof Error ? err.message : err}`));
     }
 
-    if (result.created && result.form.metaCapiEnabled && capabilities.metaConversions) {
+    if (result.created && result.booking.measurementConsentAt && result.form.metaCapiEnabled && capabilities.metaConversions) {
       try {
         await this.enqueueMetaConversion(result.booking, result.form, META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
       } catch (err) {
@@ -1027,7 +1322,7 @@ export class ReservationsService {
       }
     }
 
-    if (result.created) {
+    if (result.created && result.booking.measurementConsentAt) {
       try {
         await this.enqueueGoogleConversion(result.booking, result.form, 'schedule', result.booking.createdAt);
       } catch (err) {
@@ -1036,8 +1331,9 @@ export class ReservationsService {
       }
     }
 
-    if (result.created) await this.notifyNewBooking(result.form, result.booking);
-    return result.booking;
+    const managementToken = result.created ? result.managementToken : undefined;
+    if (result.created) await this.notifyNewBooking(result.form, result.booking, managementToken);
+    return { ...result.booking, managementToken };
   }
 
   private async recordIntegrationFailure(booking: Reservation, provider: string) {
@@ -1131,7 +1427,7 @@ export class ReservationsService {
       // El identificador sale de la función compartida con el navegador: si los dos lados no
       // coinciden, Meta cuenta dos conversiones donde hubo una y nadie se entera.
       eventId: metaEventId(eventName as MetaEvent, booking.id),
-    });
+    }, form.clientId);
   }
 
   private async enqueueMetaSurveyConversion(response: ReservationFormEvent, form: ReservationForm, dto: PublicSurveyResponseDto, ipAddress?: string, userAgent?: string, eventSourceUrl?: string) {
@@ -1172,7 +1468,7 @@ export class ReservationsService {
        */
       customData: { contentIds: [form.id], contentType: 'survey' },
       eventId: metaEventId(META_DEDUPLICATED_EVENTS.LEAD, response.id),
-    });
+    }, form.clientId);
   }
 
 
@@ -1191,7 +1487,7 @@ export class ReservationsService {
    * Nunca revierte la reserva: si el correo falla, la reserva ya está confirmada y perderla por
    * un servidor de correo caído sería mucho peor que un comprobante que no llegó.
    */
-  private async enviarComprobante(form: ReservationForm, booking: Reservation): Promise<void> {
+  private async enviarComprobante(form: ReservationForm, booking: Reservation, managementToken?: string): Promise<void> {
     try {
       if (!booking.guestEmail) return;
 
@@ -1205,6 +1501,9 @@ export class ReservationsService {
         this.parametros.get('email.reservation_confirmation_body', form.clientId, null, form.organizationId),
       ]);
 
+      const managementUrl = managementToken && process.env.APP_PUBLIC_URL
+        ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${managementToken}` : undefined;
+
       const { subject, html } = componerCorreo(
         String(asunto ?? 'Tu reserva en {{local}} está confirmada'),
         String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
@@ -1214,7 +1513,9 @@ export class ReservationsService {
           fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
           personas: booking.partySize,
           codigo: booking.referenceCode,
+          gestion: managementUrl || '',
         },
+        managementUrl ? { texto: 'Gestionar mi reserva', url: managementUrl } : undefined,
       );
 
       /*
@@ -1223,7 +1524,7 @@ export class ReservationsService {
        * El envío es un saludo TLS más una entrega, y con el servidor de correo lento eso se
        * sumaba entero a lo que espera quien está reservando en la página.
        */
-      void this.emails.send(booking.guestEmail, subject, html).catch((err) => this.logger.warn(
+      void this.emails.send(booking.guestEmail, subject, html, { attachments: [{ filename: 'reserva.ics', content: this.calendarIcs(form, booking, 'PUBLISH'), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }).catch((err) => this.logger.warn(
         `Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`,
       ));
     } catch (err) {
@@ -1233,10 +1534,10 @@ export class ReservationsService {
     }
   }
 
-  private async notifyNewBooking(form: ReservationForm, booking: Reservation): Promise<void> {
+  private async notifyNewBooking(form: ReservationForm, booking: Reservation, managementToken?: string): Promise<void> {
     // El comprobante va aparte del aviso al equipo: son dos destinatarios con dos motivos, y
     // que falle el de dentro no puede impedir el de fuera.
-    void this.enviarComprobante(form, booking);
+    void this.enviarComprobante(form, booking, managementToken);
     try {
       const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR id = (SELECT community_manager_id FROM clients WHERE id = ? AND organization_id = ?))`, [form.organizationId, form.clientId, form.clientId, form.organizationId]);
       const userIds = (rows as Array<{ id: string }>).map((row) => row.id).filter(Boolean);
@@ -1314,6 +1615,7 @@ export class ReservationsService {
   async updateReservation(organizationId: string, id: string, dto: UpdateReservationDto, actorId: string, actorType: string, clientId?: string, clientIds?: string[]) {
     let formForMeta: ReservationForm | undefined;
     let statusChangedTo: string | undefined;
+    let calendarNotification: 'CANCELLED' | 'PUBLISH' | undefined;
     const saved = await this.transaction('actualizar reserva', async (manager) => { const repo = manager.getRepository(Reservation); const qb = repo.createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id AND r.organization_id = :organizationId', { id, organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); const item = await qb.getOne(); if (!item) throw new NotFoundException('Reserva no encontrada'); const previousStatus = item.status; const previousStart = item.startsAt;
       if (dto.startsAt) {
         if (!['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(item.status)) throw new ConflictException(`No se puede reagendar una reserva en estado ${item.status}`);
@@ -1321,6 +1623,7 @@ export class ReservationsService {
       }
       if (dto.status && dto.status !== item.status) {
         if (!STATUS_TRANSITIONS[item.status]?.includes(dto.status)) throw new ConflictException(`No se puede pasar de ${item.status} a ${dto.status}`);
+        if (dto.status === 'cancelled_business' && !dto.cancellationReason?.trim()) throw new BadRequestException('Indica el motivo para cancelar una reserva desde el local');
         if (item.status === 'waitlist' && dto.status === 'confirmed') {
           const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
           await this.availability(manager, form, item.startsAt, item.partySize, item.serviceId, item.resourceId, item.id);
@@ -1330,8 +1633,9 @@ export class ReservationsService {
         }
         statusChangedTo = dto.status;
         item.status = dto.status;
+        if (dto.status === 'cancelled_business') calendarNotification = 'CANCELLED';
       }
-      if (dto.internalNotes !== undefined) item.internalNotes = dto.internalNotes; const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : undefined })); return result; });
+      if (dto.internalNotes !== undefined) item.internalNotes = dto.internalNotes; const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) calendarNotification = 'PUBLISH'; if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
     const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
     // Intencionalmente no se envía evento de Meta CAPI para 'no_show': la Conversions API no tiene
     // concepto de conversión negativa/revertida, así que no hay nada correcto que enviarle a Meta
@@ -1339,10 +1643,31 @@ export class ReservationsService {
     // que es lo opuesto de lo que pasó. 'attended' es el único resultado que produce una señal
     // de conversión real. Ambos resultados igual se sincronizan al CRM abajo para que el equipo
     // pueda ver/reportar las inasistencias internamente.
-    if (statusChangedTo === 'attended' && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
+    if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
     if (statusChangedTo === 'attended' && formForMeta) { try { await this.enqueueGoogleConversion(saved, formForMeta, 'attended', saved.startsAt); } catch (err) { this.logger.warn(`Google Ads attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'google_ads'); } }
     if (statusChangedTo === 'attended' || statusChangedTo === 'no_show') { try { await this.leadIntake.updateStatusByContact(organizationId, statusChangedTo === 'attended' ? 'attended' : 'no_show', saved.guestEmail, saved.guestPhone, saved.clientId); } catch (err) { this.logger.warn(`CRM status sync failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); /* CRM sync is best-effort */ } }
+    if (calendarNotification) void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
     return saved;
+  }
+
+  /** Cierra un turno sin obligar al encargado a marcar una por una las asistencias. */
+  async closeDayByException(organizationId: string, dto: CloseReservationDayDto, actorId: string, clientId?: string, clientIds?: string[]) {
+    const form = await this.getForm(organizationId, dto.formId, clientId, clientIds);
+    const start = startOfLocalDayUtc(dto.date, form.timezone);
+    const end = startOfLocalDayUtc(addPlainDays(dto.date, 1), form.timezone);
+    if (end > new Date()) throw new BadRequestException('Solo puedes cerrar un turno que ya terminó');
+    return this.transaction('cerrar turno por excepción', async (manager) => {
+      await this.lockClientDay(manager, form.clientId, dto.date);
+      const bookings = await manager.getRepository(Reservation).createQueryBuilder('r').setLock('pessimistic_write')
+        .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start, end, statuses: ACTIVE_STATUSES }).getMany();
+      for (const booking of bookings) {
+        const previous = booking.status;
+        booking.status = 'attended';
+        await manager.save(booking);
+        await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: form.clientId, reservationId: booking.id, type: 'status_changed', fromStatus: previous, toStatus: 'attended', actorId, actorType: 'team', metadata: { via: 'exception_day_close', reason: dto.reason || null, automaticAttendance: true } }));
+      }
+      return { closed: bookings.length, date: dto.date, formId: form.id };
+    });
   }
   async history(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) { const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } }); if (!reservation) throw new NotFoundException('Reserva no encontrada'); return this.events.find({ where: { reservationId, organizationId }, order: { createdAt: 'DESC' } }); }
   /**
@@ -1364,12 +1689,12 @@ export class ReservationsService {
 
     const scope = this.sqlClientScope(clientId, clientIds);
     const [row] = await this.dataSource.query(
-      `SELECT COUNT(*) total,
-              SUM(status = 'attended') attended,
-              SUM(status = 'pending') pending,
-              SUM(status = 'no_show') noShow
+      `SELECT COALESCE(SUM(party_size), 0) total,
+              COALESCE(SUM(status = 'attended' AND starts_at <= NOW()), 0) attended,
+              COALESCE(SUM(status = 'pending' AND starts_at > NOW()), 0) pending,
+              COALESCE(SUM(status = 'no_show'), 0) noShow
        FROM reservations
-       WHERE organization_id = ? AND starts_at >= ? AND starts_at < ? AND status NOT LIKE 'cancelled%'${scope.clause}`,
+       WHERE organization_id = ? AND starts_at >= ? AND starts_at < ? AND status IN ('pending','confirmed','rescheduled','attended','no_show')${scope.clause}`,
       [organizationId, from, to, ...scope.params],
     );
 
@@ -1434,11 +1759,12 @@ export class ReservationsService {
    * El tope es por cliente (no por formulario, ver `clientDailyCap`), así que el porcentaje
    * es el mismo sin importar qué formulario haya generado la reserva.
    */
-  async occupancyCalendar(organizationId: string, month: string, clientId?: string, clientIds?: string[]) {
+  async occupancyCalendar(organizationId: string, month: string, clientId?: string, clientIds?: string[], formId?: string) {
     if (!clientId) throw new BadRequestException('Selecciona un cliente para ver su ocupación');
     if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('Formato de mes inválido, usa YYYY-MM');
     if (clientIds !== undefined && !clientIds.includes(clientId)) throw new ForbiddenException('No tienes acceso a este cliente');
-    const capacity = await this.clientDailyCap(this.dataSource, clientId);
+    const form = formId ? await this.getForm(organizationId, formId, clientId, clientIds) : null;
+    const capacity = form?.dailyCapacity ?? await this.clientDailyCap(this.dataSource, clientId);
 
     // El día se agrupa en la zona del cliente, no en la de la sesión de MySQL. Con la base en
     // UTC, agrupar por `DATE(starts_at)` mandaba al día siguiente toda reserva desde las 21:00
@@ -1449,7 +1775,7 @@ export class ReservationsService {
     // Se agrupa en la aplicación y no con `CONVERT_TZ` porque esa función devuelve nulo
     // cuando el servidor no tiene cargadas las tablas de zonas horarias, algo corriente en
     // alojamiento compartido: el cálculo fallaría en silencio dejando el calendario vacío.
-    const timezone = await this.clientTimezone(clientId, organizationId);
+    const timezone = form?.timezone ?? await this.clientTimezone(clientId, organizationId);
     const [year, monthNumber] = month.split('-').map(Number);
     const nextMonth = monthNumber === 12 ? `${year + 1}-01` : `${year}-${String(monthNumber + 1).padStart(2, '0')}`;
     const from = startOfLocalDayUtc(`${month}-01`, timezone);
@@ -1458,6 +1784,7 @@ export class ReservationsService {
     const reservations = await this.reservations.createQueryBuilder('r')
       .select(['r.startsAt'])
       .where('r.organization_id = :organizationId AND r.client_id = :clientId', { organizationId, clientId })
+      .andWhere(formId ? 'r.form_id = :formId' : '1=1', formId ? { formId } : {})
       .andWhere("r.status NOT LIKE 'cancelled%'")
       .andWhere('r.starts_at >= :from AND r.starts_at < :to', { from, to })
       .getMany();
@@ -1513,7 +1840,7 @@ export class ReservationsService {
     }
     const keys = [...answerKeys].sort();
 
-    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
     const toLine = (row: unknown[]) => row.map(escape).join(',');
 
     yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'campana', 'cupon', 'personas', 'notas_internas', ...keys]);
@@ -1549,7 +1876,8 @@ export class ReservationsService {
     format: 'csv' | 'json' | 'pdf' = 'csv',
     dateFrom?: string,
     dateTo?: string,
-    fields: string[] = ['name', 'phone', 'email', 'date', 'status', 'attendance']
+    fields: string[] = ['name', 'phone', 'email', 'date', 'status', 'attendance'],
+    includeInternalNotes = true,
   ) {
     const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }).andWhere('r.form_id = :formId', { formId });
     if (clientId) qb.andWhere('r.client_id = :clientId', { clientId });
@@ -1573,18 +1901,19 @@ export class ReservationsService {
       party_size: (item) => item.partySize,
     };
 
+    const allowedFields = includeInternalNotes ? fields : fields.filter((field) => field !== 'notes');
     if (format === 'json') {
       return items.map((item) => {
         const record: Record<string, any> = {};
-        for (const field of fields) {
+        for (const field of allowedFields) {
           record[field] = fieldMap[field]?.(item) ?? '-';
         }
         return record;
       });
     } else if (format === 'csv') {
-      const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-      const headers = fields;
-      return [headers, ...items.map((item) => fields.map((field) => fieldMap[field]?.(item) ?? '-'))].map((row) => row.map(escape).join(',')).join('\r\n');
+      const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+      const headers = allowedFields;
+      return [headers, ...items.map((item) => allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'))].map((row) => row.map(escape).join(',')).join('\r\n');
     }
 
     // El formato PDF se retiró: devolvía texto separado por tabuladores con cabecera de PDF,

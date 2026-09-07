@@ -13,7 +13,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 
 @ApiTags('Reservas')
@@ -106,7 +106,13 @@ export class ReservationsController {
         maximumAdvanceDays: dto.maximumAdvanceDays,
         confirmationMode: dto.confirmationMode,
         scheduleConfig: dto.scheduleConfig,
+        resourcesConfig: dto.resourcesConfig,
+        designConfig: dto.designConfig,
+        name: dto.name,
         teamNotifications: dto.teamNotifications,
+        // El portal muestra este ajuste; omitirlo aquí lo convertía en un interruptor que parecía
+        // guardar pero el servidor descartaba silenciosamente para el rol cliente.
+        calendarEnabled: dto.calendarEnabled,
       };
       const form = await this.service.updateForm(req.organizationId, id, allowed, scope.clientId, scope.clientIds);
       return this.decorateForm(req.organizationId, form.clientId, form);
@@ -206,6 +212,27 @@ export class ReservationsController {
     );
   }
 
+  @Get('forms/:id/group-requests')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async groupRequests(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const scope = await this.scope(req);
+    return this.service.listGroupRequests(req.organizationId, id, scope.clientId, scope.clientIds);
+  }
+
+  @Patch('group-requests/:id')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async updateGroupRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateGroupRequestDto) {
+    const scope = await this.scope(req);
+    return this.service.updateGroupRequest(req.organizationId, id, dto, req.user.id, scope.clientId, scope.clientIds);
+  }
+
+  @Post('close-day')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  async closeDay(@Req() req: AuthenticatedRequest, @Body() dto: CloseReservationDayDto) {
+    const scope = await this.scope(req);
+    return this.service.closeDayByException(req.organizationId, dto, req.user.id, scope.clientId, scope.clientIds);
+  }
+
   @Get(':id/history')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async history(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -223,7 +250,11 @@ export class ReservationsController {
   @Post('coupons')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async createCoupon(@Req() req: AuthenticatedRequest, @Body() dto: CreateCouponDto) {
-    return this.service.createCoupon(req.organizationId, req.user.id, dto, this.client(req));
+    // El cupón modifica la oferta pública de una empresa: no basta con el permiso del
+    // módulo; quien lo crea debe alcanzar esa empresa y tener Reservas contratado.
+    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+    await this.capabilities.assert(req.organizationId, dto.clientId, 'reservations');
+    return this.service.createCoupon(req.organizationId, req.user.id, dto, dto.clientId);
   }
 
   @Patch('coupons/:id')
@@ -273,7 +304,8 @@ export class ReservationsController {
       body.format,
       body.dateFrom,
       body.dateTo,
-      body.fields
+      body.fields,
+      req.user.role !== UserRole.CLIENT,
     );
 
     if (body.format === 'json') {
@@ -306,23 +338,26 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async occupancy(@Req() req: AuthenticatedRequest, @Query() query: OccupancyQueryDto) {
     const scope = await this.requestedScope(req, query.clientId);
-    return this.service.occupancyCalendar(req.organizationId, query.month, scope.clientId, scope.clientIds);
+    if (query.formId) await this.service.getForm(req.organizationId, query.formId, scope.clientId, scope.clientIds);
+    return this.service.occupancyCalendar(req.organizationId, query.month, scope.clientId, scope.clientIds, query.formId);
   }
 
   /** Revisión de encuestas post-visita con calificación baja. */
   @Get('survey-contact-requests')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
-  surveyContacts(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    return this.service.listSurveyContactRequests(req.organizationId, clientId);
+  async surveyContacts(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    const scope = await this.requestedScope(req, clientId);
+    return this.service.listSurveyContactRequests(req.organizationId, scope.clientId, scope.clientIds);
   }
 
   @Put('survey-contact-requests/:id')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER)
-  updateSurveyContact(
+  async updateSurveyContact(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() body: { status?: string; notes?: string },
+    @Body() body: UpdateContactRequestDto,
   ) {
-    return this.service.updateSurveyContactRequest(req.organizationId, id, body);
+    const scope = await this.scope(req);
+    return this.service.updateSurveyContactRequest(req.organizationId, id, body, scope.clientId, scope.clientIds, req.user.id);
   }
 }

@@ -41,7 +41,7 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         this.entity = meta_conversion_outbox_entity_1.MetaConversionOutbox;
         this.label = 'Meta CAPI';
     }
-    async enqueue(organizationId, pixelId, event) {
+    async enqueue(organizationId, pixelId, event, clientId) {
         const eventId = event.eventId;
         if (!eventId)
             throw new Error('A stable eventId is required for Meta CAPI');
@@ -55,7 +55,7 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         }
         const permitido = (0, politica_meta_capi_1.construirEventoPermitido)(event);
         const evento = { ...permitido, userData: (0, identificadores_meta_1.prepararIdentificadores)(permitido.userData) };
-        return this.repository.save(this.repository.create({ organizationId, pixelId, eventId, eventData: evento }));
+        return this.repository.save(this.repository.create({ organizationId, clientId: clientId ?? null, pixelId, eventId, eventData: evento }));
     }
     async stats(organizationId) {
         const scope = organizationId ? { organizationId } : {};
@@ -103,7 +103,7 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         return 'El lead que originó este evento ya no existe en el CRM, así que no se reporta.';
     }
     async send(item) {
-        const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId);
+        const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId, item.clientId);
         if (!token)
             throw new Error('Meta conversion token is unavailable');
         const respuesta = await this.conversions.sendServerEvent(item.pixelId, token, item.eventData);

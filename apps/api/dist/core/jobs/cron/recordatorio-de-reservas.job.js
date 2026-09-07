@@ -22,15 +22,18 @@ const reservation_form_entity_1 = require("../../../modules/reservations/domain/
 const email_service_1 = require("../../notifications/email.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
+const reservation_management_token_entity_1 = require("../../../modules/reservations/domain/reservation-management-token.entity");
+const crypto_1 = require("crypto");
 const UNA_HORA = 3_600_000;
 const HORAS_POR_DEFECTO = 24;
 const CERRADAS = ['cancelled', 'no_show', 'attended', 'completed'];
 let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class RecordatorioDeReservasJob {
-    constructor(reservas, formularios, correo, parametros) {
+    constructor(reservas, formularios, correo, parametros, enlaces) {
         this.reservas = reservas;
         this.formularios = formularios;
         this.correo = correo;
         this.parametros = parametros;
+        this.enlaces = enlaces;
         this.logger = new common_1.Logger(RecordatorioDeReservasJob_1.name);
     }
     async handle() {
@@ -40,6 +43,15 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
                 startsAt: (0, typeorm_2.Between)(ahora, new Date(ahora.getTime() + 168 * UNA_HORA)),
                 status: (0, typeorm_2.Not)((0, typeorm_2.In)(CERRADAS)),
                 reminderSentAt: (0, typeorm_2.IsNull)(),
+            },
+            take: 500,
+        });
+        const seguimientos = await this.reservas.find({
+            where: {
+                startsAt: (0, typeorm_2.Between)(ahora, new Date(ahora.getTime() + 168 * UNA_HORA)),
+                status: (0, typeorm_2.Not)((0, typeorm_2.In)(CERRADAS)),
+                reminderFollowupSentAt: (0, typeorm_2.IsNull)(),
+                reminderSentAt: (0, typeorm_2.Between)(new Date(ahora.getTime() - 48 * UNA_HORA), new Date(ahora.getTime() - 3 * UNA_HORA)),
             },
             take: 500,
         });
@@ -70,7 +82,27 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
                 this.logger.error(`No se pudo recordar la reserva ${reserva.id}: ${error instanceof Error ? error.message : error}`);
             }
         }
-        this.logger.log(`Recordatorios de reserva enviados: ${enviados} de ${candidatas.length} revisadas`);
+        for (const reserva of seguimientos) {
+            try {
+                if (!reserva.guestEmail || !this.enlaces)
+                    continue;
+                const respondio = await this.enlaces.findOne({ where: { reservationId: reserva.id, usedAt: (0, typeorm_2.Not)((0, typeorm_2.IsNull)()) } });
+                if (respondio) {
+                    await this.reservas.update(reserva.id, { reminderFollowupSentAt: new Date() });
+                    continue;
+                }
+                const form = await this.formularios.findOne({ where: { id: reserva.formId } });
+                if (!form || !(await this.ajustesDe(form)).encendido)
+                    continue;
+                await this.enviar(form, reserva);
+                await this.reservas.update(reserva.id, { reminderFollowupSentAt: new Date() });
+                enviados += 1;
+            }
+            catch (error) {
+                this.logger.error(`No se pudo enviar seguimiento de la reserva ${reserva.id}: ${error instanceof Error ? error.message : error}`);
+            }
+        }
+        this.logger.log(`Recordatorios de reserva enviados: ${enviados} de ${candidatas.length + seguimientos.length} revisadas`);
     }
     async ajustesDe(form) {
         const [encendido, horas] = await Promise.all([
@@ -87,14 +119,29 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
             this.parametros.get('email.reservation_reminder_subject', form.clientId, null, form.organizationId),
             this.parametros.get('email.reservation_reminder_body', form.clientId, null, form.organizationId),
         ]);
+        const token = await this.crearEnlace(reserva.id);
+        const gestion = token && process.env.APP_PUBLIC_URL
+            ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${token}` : '';
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? 'Mañana te esperamos en {{local}}'), String(cuerpo ?? 'Te recordamos tu reserva en {{local}} el {{fecha}}.'), {
             nombre: reserva.guestName,
             local: form.name,
             fecha: reserva.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
             personas: reserva.partySize,
             codigo: reserva.referenceCode,
-        });
+            gestion,
+        }, gestion ? { texto: 'Confirmar, reagendar o cancelar', url: gestion } : undefined);
         await this.correo.send(reserva.guestEmail, subject, html);
+    }
+    async crearEnlace(reservationId) {
+        if (!this.enlaces)
+            return undefined;
+        const token = (0, crypto_1.randomBytes)(32).toString('base64url');
+        await this.enlaces.save(this.enlaces.create({
+            reservationId,
+            tokenHash: (0, crypto_1.createHash)('sha256').update(token).digest('hex'),
+            expiresAt: new Date(Date.now() + 180 * 86400000),
+        }));
+        return token;
     }
 };
 exports.RecordatorioDeReservasJob = RecordatorioDeReservasJob;
@@ -102,8 +149,10 @@ exports.RecordatorioDeReservasJob = RecordatorioDeReservasJob = RecordatorioDeRe
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
+    __param(4, (0, typeorm_1.InjectRepository)(reservation_management_token_entity_1.ReservationManagementToken)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        typeorm_2.Repository])
 ], RecordatorioDeReservasJob);

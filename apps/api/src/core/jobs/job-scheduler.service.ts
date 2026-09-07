@@ -16,6 +16,7 @@ import { OperationalAlertsJob } from './cron/operational-alerts.job';
 import { AutomationRunnerService } from '../../modules/automations/automation-runner.service';
 import { AutomationScheduleJob } from '../../modules/automations/automation-schedule.job';
 import { WebhookDeliveryService } from '../../modules/automations/webhook-delivery.service';
+import { AutoCloseReservationsJob } from './cron/auto-close-reservations.job';
 
 @Injectable()
 export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown {
@@ -32,6 +33,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly resumen: ResumenDiarioJob,
     private readonly cumpleanos: SaludoDeCumpleanosJob,
     private readonly recordatorioReservas: RecordatorioDeReservasJob,
+    private readonly autoCloseReservations: AutoCloseReservationsJob,
     private readonly collections: CollectionEmailsJob,
     private readonly purge: PurgeExpiredLeadsJob,
     private readonly metaRecovery: MetaLeadRecoveryJob,
@@ -96,6 +98,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     // Cada media hora: la anticipación se configura en horas, y con una cadencia mayor el
     // recordatorio saldría con menos margen del que la empresa eligió.
     this.schedule('recordatorio-reservas', 30 * 60_000, () => this.recordatorioReservas.handle());
+    this.schedule('auto-close-reservations', 15 * 60_000, () => this.autoCloseReservations.handle());
     this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
     this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
     this.schedule('collection-emails', 24 * 60 * 60_000, () => this.collections.handle());

@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { ReservationsService } from './application/reservations.service';
-import { CouponValidateDto, PublicFormEventDto, PublicReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
+import { CouponValidateDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicRescheduleReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
 
 @Public()
 @ApiTags('Reservas pÃºblicas')
@@ -34,6 +34,29 @@ export class PublicReservationsController {
     }
   }
 
+  /** Enlace opaco enviado sólo a quien hizo la reserva. */
+  @Get('manage/:token')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  management(@Param('token') token: string) { return this.service.publicManagement(token); }
+
+  @Post('manage/:token/cancel')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  cancelManagement(@Param('token') token: string) { return this.service.cancelPublicManagement(token); }
+
+  @Post('manage/:token/reschedule')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  rescheduleManagement(@Param('token') token: string, @Body() dto: PublicRescheduleReservationDto) {
+    return this.service.reschedulePublicManagement(token, dto.startsAt);
+  }
+
+  @Post('manage/:token/confirm')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  confirmManagement(@Param('token') token: string) { return this.service.confirmPublicManagement(token); }
+
+  @Post(':slug/hold')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  hold(@Param('slug') slug: string, @Body() dto: PublicReservationHoldDto) { return this.service.holdPublic(slug, dto); }
+
   @Get(':slug')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   form(@Param('slug') slug: string) {
@@ -46,10 +69,11 @@ export class PublicReservationsController {
     @Param('slug') slug: string,
     @Query('from') from: string,
     @Query('days') days?: string,
+    @Query('partySize') partySize?: string,
     @Query('serviceId') serviceId?: string,
     @Query('resourceId') resourceId?: string,
   ) {
-    return this.service.slots(slug, from, Number(days || 14), serviceId, resourceId);
+    return this.service.slots(slug, from, Number(days || 14), serviceId, resourceId, Number(partySize || 1));
   }
 
   @Post(':slug/events')
@@ -82,6 +106,18 @@ export class PublicReservationsController {
     @Headers('user-agent') userAgent: string | undefined,
   ) {
     return this.service.createPublicSurveyResponse(slug, dto, ipAddress, userAgent, this.eventSourceUrl(slug, dto.eventSourceUrl));
+  }
+
+  @Post(':slug/group-request')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  groupRequest(@Param('slug') slug: string, @Body() dto: PublicGroupRequestDto) {
+    return this.service.createPublicGroupRequest(slug, dto);
+  }
+
+  @Post(':slug/waitlist')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  waitlist(@Param('slug') slug: string, @Body() dto: PublicReservationDto) {
+    return this.service.joinPublicWaitlist(slug, dto);
   }
 
   @Post(':slug')

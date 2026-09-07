@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 interface Ga4TagProps {
   measurementId?: string | null;
+  enabled?: boolean;
 }
 
 /**
@@ -11,9 +12,9 @@ interface Ga4TagProps {
  * mantiene un registro de las propiedades ya inicializadas para soportar
  * varios formularios en la misma sesión sin duplicar configuraciones.
  */
-export function Ga4Tag({ measurementId }: Ga4TagProps) {
+export function Ga4Tag({ measurementId, enabled = false }: Ga4TagProps) {
   useEffect(() => {
-    if (!measurementId) return;
+    if (!measurementId || !enabled) return;
 
     if (!window.dataLayer) window.dataLayer = [];
     if (!window.gtag) {
@@ -36,7 +37,7 @@ export function Ga4Tag({ measurementId }: Ga4TagProps) {
       window.gtag('config', measurementId);
       window.__espartanosGa4Properties.add(measurementId);
     }
-  }, [measurementId]);
+  }, [measurementId, enabled]);
 
   return null;
 }

@@ -66,21 +66,21 @@ describe('inicio del formulario hacia Meta', () => {
   });
 
   it('encola InitiateCheckout cuando alguien empieza a llenar', async () => {
-    await service.trackPublicEvent('cocina-norte', { type: 'start', sessionId: 's-1' }, '1.2.3.4', 'Mozilla');
+    await service.trackPublicEvent('cocina-norte', { type: 'start', sessionId: 's-1', measurementConsent: true }, '1.2.3.4', 'Mozilla');
 
     expect(metaOutbox.enqueue).toHaveBeenCalledWith('org-1', 'pixel-1', expect.objectContaining({
       eventName: 'InitiateCheckout',
       actionSource: 'website',
-    }));
+    }), 'client-1');
   });
 
   /** Sin el mismo identificador en ambos lados, Meta cuenta el inicio dos veces. */
   it('usa el identificador que el navegador puede repetir', async () => {
-    await service.trackPublicEvent('cocina-norte', { type: 'start', sessionId: 's-1' });
+    await service.trackPublicEvent('cocina-norte', { type: 'start', sessionId: 's-1', measurementConsent: true });
 
     expect(metaOutbox.enqueue).toHaveBeenCalledWith('org-1', 'pixel-1', expect.objectContaining({
       eventId: 'initiatecheckout:evento-1',
-    }));
+    }), 'client-1');
   });
 
   /** Abrir la página no es interesarse: mandar ambos haría indistinguibles las dos cosas. */
@@ -96,7 +96,7 @@ describe('inicio del formulario hacia Meta', () => {
   it('manda las señales del navegador para poder emparejar', async () => {
     await service.trackPublicEvent(
       'cocina-norte',
-      { type: 'start', sessionId: 's-1', fbp: 'fb.1.123', fbc: 'fb.1.456' },
+      { type: 'start', sessionId: 's-1', measurementConsent: true, fbp: 'fb.1.123', fbc: 'fb.1.456' },
       '1.2.3.4',
       'Mozilla/5.0',
     );
@@ -106,7 +106,7 @@ describe('inicio del formulario hacia Meta', () => {
         fbp: 'fb.1.123', fbc: 'fb.1.456',
         client_ip_address: '1.2.3.4', client_user_agent: 'Mozilla/5.0',
       }),
-    }));
+    }), 'client-1');
   });
 
   it('no encola si el formulario tiene la integración apagada', async () => {
@@ -129,7 +129,7 @@ describe('inicio del formulario hacia Meta', () => {
     metaOutbox.enqueue.mockRejectedValueOnce(new Error('Meta caído'));
 
     await expect(
-      service.trackPublicEvent('cocina-norte', { type: 'start', sessionId: 's-1' }),
+      service.trackPublicEvent('cocina-norte', { type: 'start', sessionId: 's-1', measurementConsent: true }),
     ).resolves.toMatchObject({ id: 'evento-1' });
     expect(formEvents.save).toHaveBeenCalled();
   });

@@ -23,6 +23,10 @@ __decorate([
     __metadata("design:type", String)
 ], MetaConversionOutbox.prototype, "organizationId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'client_id', type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], MetaConversionOutbox.prototype, "clientId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'event_id', type: 'varchar', length: 255 }),
     __metadata("design:type", String)
 ], MetaConversionOutbox.prototype, "eventId", void 0);
@@ -64,5 +68,6 @@ __decorate([
 ], MetaConversionOutbox.prototype, "updatedAt", void 0);
 exports.MetaConversionOutbox = MetaConversionOutbox = __decorate([
     (0, typeorm_1.Entity)('meta_conversion_outbox'),
-    (0, typeorm_1.Index)('UQ_meta_conversion_event', ['organizationId', 'eventId'], { unique: true })
+    (0, typeorm_1.Index)('UQ_meta_conversion_event', ['organizationId', 'eventId'], { unique: true }),
+    (0, typeorm_1.Index)('IDX_meta_conversion_outbox_client_pixel', ['organizationId', 'clientId', 'pixelId'])
 ], MetaConversionOutbox);

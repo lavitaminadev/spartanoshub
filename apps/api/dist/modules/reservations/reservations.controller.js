@@ -97,7 +97,11 @@ let ReservationsController = class ReservationsController {
                 maximumAdvanceDays: dto.maximumAdvanceDays,
                 confirmationMode: dto.confirmationMode,
                 scheduleConfig: dto.scheduleConfig,
+                resourcesConfig: dto.resourcesConfig,
+                designConfig: dto.designConfig,
+                name: dto.name,
                 teamNotifications: dto.teamNotifications,
+                calendarEnabled: dto.calendarEnabled,
             };
             const form = await this.service.updateForm(req.organizationId, id, allowed, scope.clientId, scope.clientIds);
             return this.decorateForm(req.organizationId, form.clientId, form);
@@ -157,6 +161,18 @@ let ReservationsController = class ReservationsController {
         }
         return this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds);
     }
+    async groupRequests(req, id) {
+        const scope = await this.scope(req);
+        return this.service.listGroupRequests(req.organizationId, id, scope.clientId, scope.clientIds);
+    }
+    async updateGroupRequest(req, id, dto) {
+        const scope = await this.scope(req);
+        return this.service.updateGroupRequest(req.organizationId, id, dto, req.user.id, scope.clientId, scope.clientIds);
+    }
+    async closeDay(req, dto) {
+        const scope = await this.scope(req);
+        return this.service.closeDayByException(req.organizationId, dto, req.user.id, scope.clientId, scope.clientIds);
+    }
     async history(req, id) {
         const scope = await this.scope(req);
         return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
@@ -166,7 +182,9 @@ let ReservationsController = class ReservationsController {
         return this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds);
     }
     async createCoupon(req, dto) {
-        return this.service.createCoupon(req.organizationId, req.user.id, dto, this.client(req));
+        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+        await this.capabilities.assert(req.organizationId, dto.clientId, 'reservations');
+        return this.service.createCoupon(req.organizationId, req.user.id, dto, dto.clientId);
     }
     async updateCoupon(req, id, dto) {
         const scope = await this.scope(req);
@@ -190,7 +208,7 @@ let ReservationsController = class ReservationsController {
     }
     async exportForm(req, formId, body, res) {
         const scope = await this.scope(req);
-        const result = await this.service.exportFormReservations(req.organizationId, formId, scope.clientId, scope.clientIds, body.format, body.dateFrom, body.dateTo, body.fields);
+        const result = await this.service.exportFormReservations(req.organizationId, formId, scope.clientId, scope.clientIds, body.format, body.dateFrom, body.dateTo, body.fields, req.user.role !== user_role_enum_1.UserRole.CLIENT);
         if (body.format === 'json') {
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.json"`);
@@ -212,13 +230,17 @@ let ReservationsController = class ReservationsController {
     }
     async occupancy(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
-        return this.service.occupancyCalendar(req.organizationId, query.month, scope.clientId, scope.clientIds);
+        if (query.formId)
+            await this.service.getForm(req.organizationId, query.formId, scope.clientId, scope.clientIds);
+        return this.service.occupancyCalendar(req.organizationId, query.month, scope.clientId, scope.clientIds, query.formId);
     }
-    surveyContacts(req, clientId) {
-        return this.service.listSurveyContactRequests(req.organizationId, clientId);
+    async surveyContacts(req, clientId) {
+        const scope = await this.requestedScope(req, clientId);
+        return this.service.listSurveyContactRequests(req.organizationId, scope.clientId, scope.clientIds);
     }
-    updateSurveyContact(req, id, body) {
-        return this.service.updateSurveyContactRequest(req.organizationId, id, body);
+    async updateSurveyContact(req, id, body) {
+        const scope = await this.scope(req);
+        return this.service.updateSurveyContactRequest(req.organizationId, id, body, scope.clientId, scope.clientIds, req.user.id);
     }
 };
 exports.ReservationsController = ReservationsController;
@@ -346,6 +368,34 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "updateReservation", null);
 __decorate([
+    (0, common_1.Get)('forms/:id/group-requests'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "groupRequests", null);
+__decorate([
+    (0, common_1.Patch)('group-requests/:id'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.UpdateGroupRequestDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "updateGroupRequest", null);
+__decorate([
+    (0, common_1.Post)('close-day'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.CloseReservationDayDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "closeDay", null);
+__decorate([
     (0, common_1.Get)(':id/history'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
@@ -436,7 +486,7 @@ __decorate([
     __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "surveyContacts", null);
 __decorate([
     (0, common_1.Put)('survey-contact-requests/:id'),
@@ -445,8 +495,8 @@ __decorate([
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.UpdateContactRequestDto]),
+    __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "updateSurveyContact", null);
 exports.ReservationsController = ReservationsController = __decorate([
     (0, swagger_1.ApiTags)('Reservas'),

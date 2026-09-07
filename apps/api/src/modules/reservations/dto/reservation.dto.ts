@@ -5,6 +5,14 @@ import { Type } from 'class-transformer';
 export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'] as const;
 
 /**
+ * Número móvil chileno, con o sin prefijo de país y con espacios o guiones
+ * opcionales. No se normaliza aquí: la validación protege la puerta pública y
+ * la normalización de identidad ocurre en el servicio que consume el dato.
+ */
+export const CHILEAN_MOBILE_PHONE = /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/;
+export const CHILEAN_MOBILE_PHONE_MESSAGE = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
+
+/**
  * Una pregunta del esquema de un formulario o encuesta.
  *
  * Se valida con `class-validator` en vez de aceptar JSON libre porque `fieldSchema` viaja a la
@@ -70,13 +78,22 @@ export class PublicReservationDto {
   @IsDateString() startsAt: string;
   @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) guestName: string;
   @IsOptional() @IsEmail() guestEmail?: string;
-  @IsOptional() @IsString() @MaxLength(50) guestPhone?: string;
+  @IsOptional() @IsString() @Matches(CHILEAN_MOBILE_PHONE, { message: CHILEAN_MOBILE_PHONE_MESSAGE }) @MaxLength(50) guestPhone?: string;
   @IsOptional() @IsInt() @Min(1) @Max(500) partySize?: number;
+  @IsOptional() @IsIn(['cumpleanos', 'aniversario', 'empresa', 'otro']) groupEventType?: string;
+  @IsOptional() @IsString() @MaxLength(1000) groupEventNotes?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(20) childrenCount?: number;
+  @IsOptional() @IsString() @MaxLength(500) accessibilityNeed?: string;
+  @IsOptional() @IsString() @MaxLength(1000) dietaryNotes?: string;
   @IsOptional() @IsString() @MaxLength(80) serviceId?: string;
   @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
   @IsObject() answers: Record<string, unknown>;
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(80) consentVersion?: string;
+  @IsOptional() @IsBoolean() reservationConsent?: boolean;
+  @IsOptional() @IsBoolean() marketingConsent?: boolean;
+  @IsOptional() @IsBoolean() measurementConsent?: boolean;
+  @IsOptional() @IsString() @MaxLength(30) marketingConsentVersion?: string;
   /**
    * Si marcó la casilla de ser mayor de 18 años.
    *
@@ -101,10 +118,48 @@ export class PublicReservationDto {
   @IsOptional() @IsDateString() renderedAt?: string;
   @IsOptional() @IsString() @MaxLength(80) couponCode?: string;
 }
+/** Solicitud comercial/operativa sin tomar un horario de la agenda. */
+export class PublicGroupRequestDto {
+  @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) guestName: string;
+  @IsOptional() @IsEmail() guestEmail?: string;
+  @IsOptional() @IsString() @Matches(CHILEAN_MOBILE_PHONE, { message: CHILEAN_MOBILE_PHONE_MESSAGE }) @MaxLength(50) guestPhone?: string;
+  @IsInt() @Min(2) @Max(500) partySize: number;
+  @IsIn(['cumpleanos', 'aniversario', 'empresa', 'otro']) eventType: string;
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) preferredDate?: string;
+  @IsOptional() @IsString() @MaxLength(80) preferredTime?: string;
+  @IsOptional() @IsString() @MaxLength(2000) notes?: string;
+  @IsBoolean() reservationConsent: boolean;
+  @IsOptional() @IsBoolean() marketingConsent?: boolean;
+  @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
+  @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
+  @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
+  @IsOptional() @IsString() @MaxLength(200) website?: string;
+  @IsOptional() @IsDateString() renderedAt?: string;
+}
+/** Cambio de horario desde el enlace privado que recibió quien reservó. */
+export class PublicRescheduleReservationDto {
+  @IsDateString() startsAt: string;
+}
+export class PublicReservationHoldDto {
+  @IsDateString() startsAt: string;
+  @IsOptional() @IsInt() @Min(1) @Max(500) partySize?: number;
+  /** Datos operativos para solicitudes de grupo; no se usan como perfil de marketing. */
+  @IsOptional() @IsIn(['cumpleanos', 'aniversario', 'empresa', 'otro']) groupEventType?: string;
+  @IsOptional() @IsString() @MaxLength(1000) groupEventNotes?: string;
+  @IsOptional() @IsString() @MaxLength(80) serviceId?: string;
+  @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
+  @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de retención no es válida' }) holdKey: string;
+}
+export class CloseReservationDayDto {
+  @IsUUID() formId: string;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/) date: string;
+  @IsOptional() @IsString() @MaxLength(500) reason?: string;
+}
 export class UpdateReservationDto {
   @IsOptional() @IsIn(['pending','confirmed','rescheduled','cancelled_client','cancelled_business','attended','no_show','waitlist']) status?: string;
   @IsOptional() @IsString() @MaxLength(10000) internalNotes?: string;
   @IsOptional() @IsDateString() startsAt?: string;
+  @IsOptional() @IsString() @MaxLength(500) cancellationReason?: string;
   /**
    * Etapa del flujo de producción agencia → cliente.
    *
@@ -113,6 +168,7 @@ export class UpdateReservationDto {
    */
   @IsOptional() @IsIn(['draft','sent','confirmed','preparation','execution','delivered']) workflowState?: string;
 }
+export class UpdateGroupRequestDto { @IsIn(['pending', 'contacted', 'quoted', 'closed']) status: string; @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(999999999) quoteAmount?: number; @IsOptional() @IsString() @MaxLength(5000) quoteMessage?: string; @IsOptional() @IsDateString() quoteExpiresAt?: string; }
 /**
  * Evento de uso del formulario público.
  *
@@ -122,6 +178,8 @@ export class UpdateReservationDto {
  */
 export class PublicFormEventDto {
   @IsIn(['view', 'start']) type: string;
+  /** Sin aceptación no se envía el evento a proveedores de medición. */
+  @IsOptional() @IsBoolean() measurementConsent?: boolean;
   @IsOptional() @IsString() @MaxLength(80) sessionId?: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
@@ -134,6 +192,7 @@ export class PublicSurveyResponseDto {
   @IsOptional() @IsEmail() guestEmail?: string;
   @IsOptional() @IsString() @MaxLength(50) guestPhone?: string;
   @IsObject() answers: Record<string, unknown>;
+  @IsOptional() @IsBoolean() measurementConsent?: boolean;
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
@@ -259,4 +318,6 @@ export class ReservationScopeDto {
 export class OccupancyQueryDto extends ReservationScopeDto {
   @IsString() @Matches(/^\d{4}-\d{2}$/, { message: 'El mes debe tener el formato YYYY-MM' })
   month: string;
+  /** Si se elige un local, nunca se agregan sus reservas con las de los demás locales del cliente. */
+  @IsOptional() @IsUUID() formId?: string;
 }

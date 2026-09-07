@@ -41,6 +41,17 @@ export class Reservation {
   @Column({ name: 'guest_phone', type: 'varchar', length: 50, nullable: true }) guestPhone?: string | null;
   @Column({ name: 'answers', type: 'json' }) answers: Record<string, unknown>;
   @Column({ name: 'consent_version', type: 'varchar', length: 30, nullable: true }) consentVersion?: string;
+  /** Evidencia separada: necesaria para operar la reserva, no autoriza campañas. */
+  @Column({ name: 'reservation_consent_at', type: 'timestamp', nullable: true }) reservationConsentAt?: Date | null;
+  @Column({ name: 'reservation_consent_text', type: 'text', nullable: true }) reservationConsentText?: string | null;
+  /** Marketing es opt-in, revocable y nunca se infiere desde una reserva. */
+  @Column({ name: 'marketing_consent_at', type: 'timestamp', nullable: true }) marketingConsentAt?: Date | null;
+  @Column({ name: 'marketing_consent_version', type: 'varchar', length: 30, nullable: true }) marketingConsentVersion?: string | null;
+  @Column({ name: 'marketing_consent_text', type: 'text', nullable: true }) marketingConsentText?: string | null;
+  /** Confirmación explícita desde el enlace privado; no altera la asistencia real. */
+  @Column({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }) guestConfirmedAt?: Date | null;
+  /** Opt-in separado para analítica/conversiones; nunca se deduce del consentimiento operativo. */
+  @Column({ name: 'measurement_consent_at', type: 'timestamp', nullable: true }) measurementConsentAt?: Date | null;
   /**
    * Cuándo declaró ser mayor de 18 años.
    *
@@ -63,6 +74,9 @@ export class Reservation {
    */
   @Column({ name: 'reminder_sent_at', type: 'timestamp', nullable: true })
   reminderSentAt?: Date | null;
+  /** Segundo recordatorio si no hubo interacción con el enlace de gestión. */
+  @Column({ name: 'reminder_followup_sent_at', type: 'timestamp', nullable: true })
+  reminderFollowupSentAt?: Date | null;
   @Column({ name: 'internal_notes', type: 'text', nullable: true }) internalNotes?: string | null;
   @Column({ name: 'utm_source', type: 'varchar', length: 120, nullable: true }) utmSource?: string;
   @Column({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }) utmMedium?: string;

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { Client } from '../../clients/client.entity';
 import { protectSecret, revealSecret } from '../../../shared/security/integration-secrets';
 import { Integration } from '../integration.entity';
@@ -269,6 +269,18 @@ export class MetaClientPixelService {
   private async configureRecord(integration: Integration, organizationId: string, clientId: string, pixelId: string, accessToken?: string, pixelName?: string) {
     const client = await this.clients.findOne({ where: { id: clientId, organizationId } });
     if (!client) throw new NotFoundException('Cliente no encontrado');
+    // Reservas es multiempresa: compartir un Pixel entre dos empresas mezcla sus conversiones
+    // en el Events Manager aunque los formularios y la base estén aislados. La configuración
+    // explícita de agencia sigue siendo otro camino (`agencyPixelId`), no una excepción acá.
+    const assignedInLegacyMap = Object.entries(this.records(integration))
+      .some(([ownerId, record]) => ownerId !== clientId && record?.pixelId === pixelId);
+    const assignedInTable = await this.pixelesGuardados.findOne({
+      where: { organizationId, pixelId, clientId: Not(clientId) },
+      select: { id: true },
+    });
+    if (assignedInLegacyMap || assignedInTable) {
+      throw new BadRequestException('Este Pixel ya está asignado a otra empresa de Reservas. Cada empresa debe usar su propio Pixel.');
+    }
     const existing = this.records(integration)[clientId];
     const token = accessToken?.trim() || this.tokenDePixel(integration, pixelId);
     if (!token) throw new BadRequestException('Se requiere un token CAPI para este cliente');
@@ -363,7 +375,7 @@ export class MetaClientPixelService {
       // El token se busca por el Pixel, no por la empresa: el permiso depende del Pixel, y así
       // una empresa que cambia de Pixel no arrastra la credencial equivocada.
       accessToken: record?.pixelId
-        ? this.tokenDePixel(integration, record.pixelId)
+        ? this.tokenDePixel(integration, record.pixelId, clientId)
         : process.env.META_CONVERSIONS_ACCESS_TOKEN,
     };
   }
@@ -505,18 +517,18 @@ export class MetaClientPixelService {
     });
   }
 
-  async resolveByPixel(organizationId: string, pixelId: string): Promise<string | undefined> {
+  async resolveByPixel(organizationId: string, pixelId: string, clientId?: string | null): Promise<string | undefined> {
     /*
      * La tabla primero, el JSON como red.
      *
      * Mientras conviven las dos formas, una credencial que todavía no se haya copiado sigue
      * encontrándose donde estaba. Cuando el JSON se retire, esta segunda consulta desaparece.
      */
-    const enTabla = await this.tokenEnTabla(organizationId, pixelId);
+    const enTabla = await this.tokenEnTabla(organizationId, pixelId, clientId);
     if (enTabla) return enTabla;
 
     const integration = await this.organizationIntegration(organizationId);
-    return this.tokenDePixel(integration, pixelId);
+    return this.tokenDePixel(integration, pixelId, clientId);
   }
 
   /**

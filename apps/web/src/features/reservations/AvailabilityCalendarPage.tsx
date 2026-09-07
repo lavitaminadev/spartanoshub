@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
+import type { ReservationForm } from './types';
 import './AvailabilityCalendarPage.css';
 
 interface Client { id: string; name: string }
@@ -51,16 +53,21 @@ function buildMonthGrid(date: Date): Array<Array<number | null>> {
 }
 
 export function AvailabilityCalendarPage() {
+  const [searchParams] = useSearchParams();
   const [cursor, setCursor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [clientId, setClientId] = useState('');
+  const [clientId, setClientId] = useState(searchParams.get('clientId') ?? '');
+  const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
 
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
+  const { data: forms = [] } = useQuery<ReservationForm[]>({
+    queryKey: ['reservation-forms', clientId], queryFn: () => api.get(`/reservations/forms?clientId=${encodeURIComponent(clientId)}`), enabled: Boolean(clientId),
+  });
 
   const month = monthKey(cursor);
   const { data: occupancy, isLoading, error, refetch, isFetching } = useQuery<OccupancyResponse>({
-    queryKey: ['reservation-occupancy', month, clientId],
-    queryFn: () => api.get(`/reservations/analytics/occupancy?month=${month}&clientId=${encodeURIComponent(clientId)}`),
+    queryKey: ['reservation-occupancy', month, clientId, formId],
+    queryFn: () => api.get(`/reservations/analytics/occupancy?${new URLSearchParams({ month, clientId, ...(formId ? { formId } : {}) })}`),
     enabled: Boolean(clientId),
   });
 
@@ -82,9 +89,13 @@ export function AvailabilityCalendarPage() {
     </div>
 
     <div className="availability-toolbar">
-      <select className="input" aria-label="Selecciona un cliente" value={clientId} onChange={(event) => setClientId(event.target.value)}>
+      <select className="input" aria-label="Selecciona un cliente" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
         <option value="">Selecciona un cliente</option>
         {clients.map((client: Client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+      </select>
+      <select className="input" aria-label="Selecciona un local" value={formId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
+        <option value="">Todos los locales de la empresa</option>
+        {forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}
       </select>
       <div className="availability-month-nav">
         <button type="button" className="btn btn-outline btn-sm" aria-label="Mes anterior" onClick={() => setCursor((current) => addMonths(current, -1))}>◀</button>
@@ -95,7 +106,7 @@ export function AvailabilityCalendarPage() {
     </div>
 
     {!clientId ? (
-      <EmptyState icon="calendar" title="Elige un cliente" description="Selecciona un cliente para ver la ocupación diaria de su calendario." />
+      <EmptyState icon="calendar" title="Elige una empresa" description="Después puedes elegir un local para evitar mezclar su ocupación con otros locales." />
     ) : isLoading ? (
       <LoadingSpinner text="Calculando ocupación..." />
     ) : error ? (
