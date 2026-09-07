@@ -6,6 +6,8 @@ import { ReservationForm } from '../../../modules/reservations/domain/reservatio
 import { EmailService } from '../../notifications/email.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
+import { ReservationManagementToken } from '../../../modules/reservations/domain/reservation-management-token.entity';
+import { createHash, randomBytes } from 'crypto';
 
 const UNA_HORA = 3_600_000;
 
@@ -42,6 +44,7 @@ export class RecordatorioDeReservasJob {
     @InjectRepository(ReservationForm) private readonly formularios: Repository<ReservationForm>,
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
+    @InjectRepository(ReservationManagementToken) private readonly enlaces?: Repository<ReservationManagementToken>,
   ) {}
 
   async handle(): Promise<void> {
@@ -59,6 +62,15 @@ export class RecordatorioDeReservasJob {
         startsAt: Between(ahora, new Date(ahora.getTime() + 168 * UNA_HORA)),
         status: Not(In(CERRADAS)),
         reminderSentAt: IsNull(),
+      },
+      take: 500,
+    });
+    const seguimientos = await this.reservas.find({
+      where: {
+        startsAt: Between(ahora, new Date(ahora.getTime() + 168 * UNA_HORA)),
+        status: Not(In(CERRADAS)),
+        reminderFollowupSentAt: IsNull(),
+        reminderSentAt: Between(new Date(ahora.getTime() - 48 * UNA_HORA), new Date(ahora.getTime() - 3 * UNA_HORA)),
       },
       take: 500,
     });
@@ -97,7 +109,24 @@ export class RecordatorioDeReservasJob {
       }
     }
 
-    this.logger.log(`Recordatorios de reserva enviados: ${enviados} de ${candidatas.length} revisadas`);
+    for (const reserva of seguimientos) {
+      try {
+        if (!reserva.guestEmail || !this.enlaces) continue;
+        // Una interacción (confirmar, cancelar o reagendar) responde el recordatorio y evita
+        // el segundo correo. No se intenta interpretar respuestas SMTP, que no son seguras.
+        const respondio = await this.enlaces.findOne({ where: { reservationId: reserva.id, usedAt: Not(IsNull()) } });
+        if (respondio) { await this.reservas.update(reserva.id, { reminderFollowupSentAt: new Date() }); continue; }
+        const form = await this.formularios.findOne({ where: { id: reserva.formId } });
+        if (!form || !(await this.ajustesDe(form)).encendido) continue;
+        await this.enviar(form, reserva);
+        await this.reservas.update(reserva.id, { reminderFollowupSentAt: new Date() });
+        enviados += 1;
+      } catch (error) {
+        this.logger.error(`No se pudo enviar seguimiento de la reserva ${reserva.id}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
+    this.logger.log(`Recordatorios de reserva enviados: ${enviados} de ${candidatas.length + seguimientos.length} revisadas`);
   }
 
   /** Si esa empresa manda recordatorios, y con cuánta anticipación. */
@@ -118,6 +147,9 @@ export class RecordatorioDeReservasJob {
       this.parametros.get('email.reservation_reminder_body', form.clientId, null, form.organizationId),
     ]);
 
+    const token = await this.crearEnlace(reserva.id);
+    const gestion = token && process.env.APP_PUBLIC_URL
+      ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${token}` : '';
     const { subject, html } = componerCorreo(
       String(asunto ?? 'Mañana te esperamos en {{local}}'),
       String(cuerpo ?? 'Te recordamos tu reserva en {{local}} el {{fecha}}.'),
@@ -129,9 +161,22 @@ export class RecordatorioDeReservasJob {
         fecha: reserva.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
         personas: reserva.partySize,
         codigo: reserva.referenceCode,
+        gestion,
       },
+      gestion ? { texto: 'Confirmar, reagendar o cancelar', url: gestion } : undefined,
     );
-
     await this.correo.send(reserva.guestEmail as string, subject, html);
+  }
+
+  /** Cada correo lleva su propio enlace opaco: los anteriores siguen vigentes hasta vencer. */
+  private async crearEnlace(reservationId: string): Promise<string | undefined> {
+    if (!this.enlaces) return undefined;
+    const token = randomBytes(32).toString('base64url');
+    await this.enlaces.save(this.enlaces.create({
+      reservationId,
+      tokenHash: createHash('sha256').update(token).digest('hex'),
+      expiresAt: new Date(Date.now() + 180 * 86400000),
+    }));
+    return token;
   }
 }

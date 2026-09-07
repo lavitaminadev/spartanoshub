@@ -59,7 +59,7 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
   {
     id: 'reservations',
     label: 'Reservas',
-    paths: ['/reservations', '/reservations/agenda', '/reservations/calendar', '/reservations/waitlist', '/reservations/analytics'],
+    paths: ['/reservations', '/reservations/agenda', '/reservations/calendar', '/reservations/waitlist', '/reservations/analytics', '/reservations/manage'],
   },
   {
     id: 'production',
@@ -222,6 +222,7 @@ const PATH_FEATURE: Record<string, string> = {
   '/reservations/calendar': 'reservations',
   '/reservations/waitlist': 'reservations',
   '/reservations/analytics': 'reservations',
+  '/reservations/manage': 'reservations',
   // Encuestas propias, distintas de la encuesta post-visita que vive dentro de reservas. El
   // módulo declara su propio estado de producto en `ORGANIZATION_MODULE_CATALOG`, y esta
   // entrada es lo que hace que ese estado gobierne el menú: sin ella la ruta no pertenece a

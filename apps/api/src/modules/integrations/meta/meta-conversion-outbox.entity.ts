@@ -2,9 +2,12 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 
 @Entity('meta_conversion_outbox')
 @Index('UQ_meta_conversion_event', ['organizationId', 'eventId'], { unique: true })
+@Index('IDX_meta_conversion_outbox_client_pixel', ['organizationId', 'clientId', 'pixelId'])
 export class MetaConversionOutbox {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ name: 'organization_id', type: 'uuid' }) organizationId: string;
+  /** Empresa de Reservas que originó el evento; nulo conserva eventos históricos/CRM. */
+  @Column({ name: 'client_id', type: 'uuid', nullable: true }) clientId?: string | null;
   @Column({ name: 'event_id', type: 'varchar', length: 255 }) eventId: string;
   @Column({ name: 'pixel_id', type: 'varchar', length: 255 }) pixelId: string;
   @Column({ name: 'event_data', type: 'json' }) eventData: Record<string, any>;

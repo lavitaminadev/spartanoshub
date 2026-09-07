@@ -31,7 +31,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
  * pero no se bloquea: hay clientes con una necesidad puntual que lo justifica.
  */
 const RECOMMENDED_FIELD_COUNT = 5;
-const STEPS = ['Formulario', 'Agenda', 'Apariencia', 'Medición opcional', 'Publicar'];
+const STEPS = ['Datos del local', 'Horarios y cupos', 'Enlace público', 'Medición', 'Publicar'];
 const TIMEZONES = (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') ? Intl.supportedValuesOf('timeZone').filter((tz: string) => tz.includes('America') || tz.includes('Europe/Madrid') || tz.includes('Atlantic')) : ['America/Santiago', 'America/Argentina/Buenos_Aires', 'America/Lima', 'America/Bogota', 'America/Mexico_City', 'America/New_York', 'Europe/Madrid'];
 const DESIGN_TEMPLATES: Array<{ name: string; config: Record<string, string> }> = [
   { name: 'Espartano', config: { primaryColor: '#0ec6b8', accentColor: '#ea0f63', backgroundColor: '#f4f5f7', textColor: '#0b0b0c', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
@@ -82,12 +82,10 @@ function isSurveyMode(mode?: string) {
   return mode === 'survey' || mode === 'request';
 }
 
+/** El enlace que se comparte es siempre estable y corto. La campaña se guarda en el local. */
 function campaignReservationUrl(form: ReservationForm, baseUrl = publicReservationUrl(form.publicSlug, form.publicUrl)): string {
-  if (!form.campaignId?.trim()) return baseUrl;
-  const url = new URL(baseUrl);
-  url.searchParams.set('utm_source', 'meta');
-  url.searchParams.set('utm_campaign', form.campaignId.trim());
-  return url.toString();
+  void form;
+  return baseUrl;
 }
 
 function reservationDesignStyle(design: DesignConfig): CSSProperties {
@@ -97,7 +95,7 @@ function reservationDesignStyle(design: DesignConfig): CSSProperties {
   const backgroundOpacity = imageOverlayAlpha(design.backgroundOpacity);
   const backgroundImage = design.backgroundMode === 'gradient'
     ? design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT
-    : design.backgroundMode === 'image' && design.backgroundImage
+    : (design.backgroundMode === 'image' || !design.backgroundMode) && design.backgroundImage
       ? `linear-gradient(rgba(243,245,239,${backgroundOpacity}),rgba(243,245,239,${backgroundOpacity})),url(${design.backgroundImage})`
       : undefined;
   return {
@@ -196,13 +194,15 @@ export function ReservationBuilderPage() {
 
   const saveMutation = useMutation({
     mutationFn: (body: Partial<ReservationForm>) => api.patch<ReservationForm>(`/reservations/forms/${id}`, updatePayload(body)),
-    onSuccess: (next) => { setDraft(next); setSaved(true); qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast(isSurveyMode(next.mode) ? 'Encuesta guardada' : 'Formulario guardado'); },
+    onSuccess: (next) => { setDraft(next); setSaved(true); qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast(isSurveyMode(next.mode) ? 'Encuesta guardada' : 'Configuración del local guardada'); },
   });
   const saveDesignAsset = useCallback((key: 'logoUrl' | 'backgroundImage', url: string) => {
     if (!draft) return;
     const designConfig = key === 'backgroundImage' && url
       ? { ...draft.designConfig, [key]: url, backgroundMode: 'image' }
-      : { ...draft.designConfig, [key]: url };
+      : key === 'logoUrl' && url
+        ? { ...draft.designConfig, [key]: url, showLogo: 'true' }
+        : { ...draft.designConfig, [key]: url };
     change({ designConfig });
     saveMutation.mutate({ ...draft, designConfig });
   }, [change, draft, saveMutation]);
@@ -338,10 +338,10 @@ export function ReservationBuilderPage() {
 
   return <div className="reservation-builder">
     <header className="builder-top">
-      <div><Link to={clientMode ? '/portal/reservations' : '/reservations'}>← Reservas</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
+      <div><Link to={clientMode ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`}>← Volver al local</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
       <div className="builder-top-actions">
-        {draft.metaCapiEnabled && <span className="meta-conversion is-ok" title="Meta CAPI activo: las conversiones se envían a Events Manager">CAPI activo</span>}
-        {!draft.metaCapiEnabled && <span className="meta-conversion is-warn" title="Activa CAPI en Medición para medir conversiones en Meta">CAPI pendiente</span>}
+        {draft.metaCapiEnabled && <span className="meta-conversion is-ok" title="La medición está activada en este local. Revisa la cola y Events Manager para confirmar que Meta la recibe.">CAPI activada</span>}
+        {!draft.metaCapiEnabled && <span className="meta-conversion is-warn" title="Activa CAPI en Medición para enviar conversiones cuando exista consentimiento.">CAPI desactivada</span>}
         <button type="button" className="btn btn-outline btn-sm" onClick={openPreview}>{previewLabel}</button><button className="btn btn-primary btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>{saveMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button></div>
     </header>
     {saveMutation.error && <div className="builder-error alert alert-error">{saveMutation.error.message}</div>}
@@ -480,7 +480,7 @@ export function ReservationBuilderPage() {
 
             <label>Nombre de esta campaña
               <input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" />
-              <small>Etiqueta simple para resultados y UTM. No cambia el enlace base del formulario.</small>
+              <small>Se guarda como atribución predeterminada. El enlace corto no cambia.</small>
             </label>
 
             <label>Google Analytics
@@ -518,7 +518,7 @@ export function ReservationBuilderPage() {
         </div>
 
         <div className="publish-link">
-          <span>ENLACE PARA COMPARTIR</span>
+          <span>ENLACE ÚNICO PARA COMPARTIR</span>
           <strong>{campaignUrl}</strong>
           <div>
             <button className="btn btn-outline" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar enlace'}</button>

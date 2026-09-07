@@ -137,6 +137,34 @@ function emptyPayload(depth = 0): unknown {
 /** Bandeja de solicitudes en memoria para el modo visual. */
 const visualRequests: any[] = [];
 
+/** Un local realista permite revisar Reservas sin confundir una pantalla vacía con un flujo listo. */
+const VISUAL_RESERVATION_LOCAL = {
+  id: 'visual-form', clientId: 'visual-client', name: 'Casa Costanera - Providencia', publicSlug: 'casa-costanera',
+  status: 'published', mode: 'appointment', timezone: 'America/Santiago', durationMinutes: 90, bufferMinutes: 15,
+  capacityPerSlot: 24, dailyCapacity: 120, minimumNoticeHours: 2, maximumAdvanceDays: 45, confirmationMode: 'automatic',
+  fieldSchema: [
+    { id: 'name', type: 'text', label: 'Nombre y apellido', required: true, system: true },
+    { id: 'phone', type: 'phone', label: 'Teléfono celular', required: true, system: true },
+    { id: 'email', type: 'email', label: 'Correo electrónico', required: true, system: true },
+  ],
+  designConfig: {
+    title: 'Reserva tu mesa', welcome: 'Elige personas, fecha y horario.', primaryColor: '#0f766e', accentColor: '#e11d48', backgroundColor: '#f8fafc', fontFamily: 'system-ui',
+    legalCompanyName: 'Casa Costanera SpA', legalCompanyId: '76.123.456-7', supportEmail: 'reservas@casacostanera.cl', privacyUrl: 'https://casacostanera.cl/privacidad', termsUrl: 'https://casacostanera.cl/condiciones',
+    reservationConsentText: 'Acepto que Casa Costanera use mis datos para coordinar esta reserva, enviarme su confirmación y ayudarme si necesito cambiarla.',
+    marketingConsentText: 'Quiero recibir novedades, experiencias y beneficios de Casa Costanera.', marketingConsentVersion: 'cc-2026-01',
+    welcomePopupTitle: 'Bienvenido a Casa Costanera', welcomePopupText: 'Reserva en pocos pasos. Si organizas una celebración o grupo, también puedes enviar una solicitud sin tomar un horario.',
+    askChildren: 'true', askAccessibility: 'true', askAllergies: 'true', whatsappBusinessNumber: '+56 9 1234 5678', whatsappGroupMessage: 'Hola, envié una solicitud de grupo desde Casa Costanera y me gustaría coordinar los detalles.',
+  },
+  scheduleConfig: { windows: [{ day: 1, start: '13:00', end: '23:00' }, { day: 2, start: '13:00', end: '23:00' }, { day: 3, start: '13:00', end: '23:00' }, { day: 4, start: '13:00', end: '23:00' }, { day: 5, start: '13:00', end: '23:30' }, { day: 6, start: '13:00', end: '23:30' }] },
+  resourcesConfig: [{ id: 'terrace', name: 'Terraza', capacity: 40, description: 'Exterior techado', smokingAllowed: false }, { id: 'salon', name: 'Salón', capacity: 80, description: 'Interior climatizado', smokingAllowed: false }],
+  campaignId: 'verano-2026', crmEnabled: false, calendarEnabled: true, metaCapiEnabled: true, teamNotifications: ['reservas@casacostanera.cl'], pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', metaReady: true, ga4MeasurementId: 'G-CC2026TEST', capabilities: { reservations: true, crm: false, metaConversions: true }, updatedAt: new Date().toISOString(),
+};
+
+const VISUAL_RESERVATIONS = [
+  { id: 'visual-booking-1', formId: 'visual-form', referenceCode: 'CC-1042', status: 'confirmed', startsAt: new Date(new Date().setHours(20, 0, 0, 0)).toISOString(), partySize: 2, guestName: 'Camila Rojas', guestPhone: '+56 9 8123 4567', guestEmail: 'camila@example.test' },
+  { id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended', startsAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(), partySize: 4, guestName: 'Sebastián Vera', guestPhone: '+56 9 7456 1234', guestEmail: 'sebastian@example.test' },
+];
+
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/auth\/session$/, () => ({ authenticated: true, accessToken: syntheticJwt() })],
   [/\/auth\/refresh$/, () => ({ accessToken: syntheticJwt() })],
@@ -145,6 +173,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/me\/permissions$/, () => ({ permissions: forEveryModule('manage') })],
   [/\/auth\/logout$/, () => ({})],
   [/\/notifications\/unread/, () => ({ unread: 0 })],
+  [/\/clients(?:\?|$)/, () => ({ data: [{ id: 'visual-client', name: 'Casa Costanera' }] })],
   /*
    * Datos de ejemplo del CRM.
    *
@@ -233,6 +262,23 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     today: { total: 0, attended: 0, pending: 0, noShow: 0, dailyCap: 0, occupancyPct: null },
     upcoming: [],
   })],
+  // Datos demostrativos únicamente: permiten revisar el estado de integración sin exponer
+  // credenciales ni intentar enviar eventos a Meta desde el modo visual.
+  [/\/integrations\/meta\/client-pixels\/catalog/, () => ({
+    bindings: [{ clientId: 'visual-client', pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', tokenConfigured: true }],
+    pixels: [{ pixelId: '123456789012345', pixelNames: ['Casa Costanera · Reservas'], usageCount: 1, tokenConfigured: true }],
+  })],
+  // El listado se pide tanto con filtros (`?clientId=`) como sin query. Si sólo se
+  // simulaba la primera variante, Administración aparecía vacía y no se podía revisar
+  // el flujo completo aunque el local de ejemplo sí estaba definido arriba.
+  [/\/reservations\/forms(?:\?|$)/, () => ([VISUAL_RESERVATION_LOCAL])],
+  [/\/reservations\?(?!.*analytics)/, () => ({ data: VISUAL_RESERVATIONS, total: VISUAL_RESERVATIONS.length, page: 1, pageSize: 100, pages: 1 })],
+  [/\/public\/reservations\/casa-costanera\/slots/, () => {
+    const day = new Date(); day.setDate(day.getDate() + 1); day.setHours(20, 0, 0, 0);
+    const first = day.toISOString(); day.setHours(21, 30, 0, 0); const second = day.toISOString();
+    return { slots: [{ startsAt: first, available: 18 }, { startsAt: second, available: 12 }], fullDays: [] };
+  }],
+  [/\/public\/reservations\/casa-costanera(?:\?|$)/, () => VISUAL_RESERVATION_LOCAL],
   [/\/integrations\/meta\/conversions\/outbox/, () => ({
     stats: { pending: 0, retry: 0, processing: 0, failed: 0, expired: 0, processed: 0, total: 0 },
     problems: [],
@@ -251,12 +297,9 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * formulario completo para poder revisar los cuatro pasos, incluido el entorno visual.
    */
   [/\/reservations\/forms\/[^/?]+$/, () => ({
-    id: 'visual-form',
-    clientId: 'visual-client',
-    name: 'Reservas de verano',
-    publicSlug: 'reservas-de-verano',
+    ...VISUAL_RESERVATION_LOCAL,
     status: 'published',
-    mode: 'reservation',
+    mode: 'appointment',
     timezone: 'America/Santiago',
     durationMinutes: 60,
     bufferMinutes: 10,

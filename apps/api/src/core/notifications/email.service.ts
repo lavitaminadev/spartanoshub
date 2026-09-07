@@ -1,6 +1,6 @@
 import { BRAND } from '../../shared/brand';
 import { Injectable, Logger } from '@nestjs/common';
-import nodemailer, { Transporter } from 'nodemailer';
+import nodemailer, { SendMailOptions, Transporter } from 'nodemailer';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -43,7 +43,7 @@ export class EmailService {
     });
   }
 
-  async send(to: string, subject: string, html: string): Promise<boolean> {
+  async send(to: string, subject: string, html: string, options?: Pick<SendMailOptions, 'attachments'>): Promise<boolean> {
     const recipient = to.trim().toLowerCase();
     if (!validRecipient(recipient)) {
       this.logger.warn('Email skipped because the recipient is invalid');
@@ -61,6 +61,7 @@ export class EmailService {
         replyTo: this.replyTo,
         subject: subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255),
         html,
+        attachments: options?.attachments,
       });
       const accepted = Array.isArray(result.accepted) ? result.accepted.length : 0;
       if (!accepted) this.logger.warn(`SMTP rejected message ${result.messageId}`);

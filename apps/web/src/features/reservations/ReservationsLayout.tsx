@@ -1,10 +1,9 @@
 /**
  * @fileoverview Barra propia de Reservas, para que la lateral tenga una sola entrada.
  *
- * Reservas se recorre igual que el CRM: se mira la bandeja, se abre la agenda del día, se
- * revisa la disponibilidad y se vuelve. Repartir esas cinco pantallas en la lateral general
- * ponía cinco entradas de un módulo entre las demás, y desde cualquiera de ellas había que
- * volver al menú para pasar a la de al lado.
+ * La barra global sólo mueve entre contextos. Agenda, disponibilidad, cupones y ajustes se
+ * abren desde un local seleccionado: mostrarlos aquí hacía parecer que operaban toda la empresa
+ * a la vez y era la principal fuente de vistas mezcladas.
  *
  * Es el mismo patrón de navegación que usa el CRM, pero **no comparte nada con él**: son dos
  * servicios distintos, con datos y personas distintas. Lo único común es la forma de moverse, y
@@ -21,10 +20,8 @@ import '../../shared/section-nav.css';
 /** Secciones, en el orden en que se usan durante el día. */
 const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
   // `end` porque su ruta es prefijo de las demás: sin eso quedaría marcada como activa siempre.
-  { to: '/reservations', label: 'Reservas', end: true },
-  { to: '/reservations/agenda', label: 'Agenda del día' },
-  { to: '/reservations/calendar', label: 'Disponibilidad' },
-  { to: '/reservations/waitlist', label: 'Lista de espera' },
+  { to: '/reservations', label: 'Hoy', end: true },
+  { to: '/reservations/manage', label: 'Locales' },
   { to: '/reservations/analytics', label: 'Resultados' },
 ];
 
