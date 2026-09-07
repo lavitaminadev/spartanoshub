@@ -5,6 +5,14 @@ import { Type } from 'class-transformer';
 export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'] as const;
 
 /**
+ * Número móvil chileno, con o sin prefijo de país y con espacios o guiones
+ * opcionales. No se normaliza aquí: la validación protege la puerta pública y
+ * la normalización de identidad ocurre en el servicio que consume el dato.
+ */
+export const CHILEAN_MOBILE_PHONE = /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/;
+export const CHILEAN_MOBILE_PHONE_MESSAGE = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
+
+/**
  * Una pregunta del esquema de un formulario o encuesta.
  *
  * Se valida con `class-validator` en vez de aceptar JSON libre porque `fieldSchema` viaja a la
@@ -70,7 +78,7 @@ export class PublicReservationDto {
   @IsDateString() startsAt: string;
   @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) guestName: string;
   @IsOptional() @IsEmail() guestEmail?: string;
-  @IsOptional() @IsString() @MaxLength(50) guestPhone?: string;
+  @IsOptional() @IsString() @Matches(CHILEAN_MOBILE_PHONE, { message: CHILEAN_MOBILE_PHONE_MESSAGE }) @MaxLength(50) guestPhone?: string;
   @IsOptional() @IsInt() @Min(1) @Max(500) partySize?: number;
   @IsOptional() @IsIn(['cumpleanos', 'aniversario', 'empresa', 'otro']) groupEventType?: string;
   @IsOptional() @IsString() @MaxLength(1000) groupEventNotes?: string;
@@ -114,7 +122,7 @@ export class PublicReservationDto {
 export class PublicGroupRequestDto {
   @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) guestName: string;
   @IsOptional() @IsEmail() guestEmail?: string;
-  @IsOptional() @IsString() @MaxLength(50) guestPhone?: string;
+  @IsOptional() @IsString() @Matches(CHILEAN_MOBILE_PHONE, { message: CHILEAN_MOBILE_PHONE_MESSAGE }) @MaxLength(50) guestPhone?: string;
   @IsInt() @Min(2) @Max(500) partySize: number;
   @IsIn(['cumpleanos', 'aniversario', 'empresa', 'otro']) eventType: string;
   @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) preferredDate?: string;

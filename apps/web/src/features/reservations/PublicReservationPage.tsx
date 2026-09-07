@@ -25,6 +25,10 @@ const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f6f4f5 0%, var(--s
 
 /** Clave de `sessionStorage` donde vive la clave de idempotencia de la reserva en curso. */
 const BOOKING_KEY_STORAGE = 'vh-booking-key';
+/** Mantiene la misma regla visible que protege la API pública. */
+export function isValidChileanMobilePhone(value: string): boolean {
+  return /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/.test(value.trim());
+}
 function businessWhatsAppUrl(rawNumber: string | undefined, message: string): string | undefined {
   const number = rawNumber?.replace(/\D/g, '');
   return number && /^[1-9]\d{7,14}$/.test(number) ? `https://wa.me/${number}?text=${encodeURIComponent(message)}` : undefined;
@@ -273,6 +277,7 @@ export function PublicReservationPage() {
     if (!isSurvey && !reservationConsent) errs.reservationConsent = requestMode ? 'Debes aceptar las condiciones para enviar la solicitud' : 'Debes aceptar las condiciones para gestionar la reserva';
     if (!isSurvey && (guest.partySize > groupThreshold || requestMode) && !groupEventType) errs.groupEvent = 'Cuéntanos qué tipo de grupo o celebración es';
     if (systemFields.phone?.required && !guest.guestPhone.trim()) errs.phone = 'El teléfono es obligatorio';
+    else if (guest.guestPhone.trim() && !isValidChileanMobilePhone(guest.guestPhone)) errs.phone = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
     if (systemFields.email?.required && !guest.guestEmail.trim()) errs.email = 'El correo es obligatorio';
     else if (guest.guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guest.guestEmail)) errs.email = 'Correo inválido';
     for (const field of customFields) {

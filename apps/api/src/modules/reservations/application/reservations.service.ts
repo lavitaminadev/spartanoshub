@@ -1000,20 +1000,25 @@ export class ReservationsService {
     return { confirmed: true, referenceCode: reservation.referenceCode };
   }
 
-  private calendarIcs(form: ReservationForm, booking: Reservation, method: 'PUBLISH' | 'CANCEL'): string {
+  private calendarIcs(form: ReservationForm, booking: Reservation, method: 'PUBLISH' | 'CANCEL', cancellationReason?: string): string {
     const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
     const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
     const configuredAddress = typeof form.designConfig?.venueAddress === 'string' ? form.designConfig.venueAddress.trim() : '';
-    const description = [`Código: ${booking.referenceCode}`, `Personas: ${booking.partySize}`, ...(configuredAddress ? [`Dirección: ${configuredAddress}`] : [])].join('\n');
+    const description = [`Código: ${booking.referenceCode}`, `Personas: ${booking.partySize}`, ...(configuredAddress ? [`Dirección: ${configuredAddress}`] : []), ...(method === 'CANCEL' && cancellationReason ? [`Motivo de cancelación: ${cancellationReason}`] : [])].join('\n');
     return ['BEGIN:VCALENDAR', 'VERSION:2.0', `METHOD:${method}`, 'PRODID:-//Espartanos//Reservas//ES', 'BEGIN:VEVENT', `UID:reservation-${booking.id}@espartanos`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(booking.startsAt)}`, `DTEND:${stamp(booking.endsAt)}`, `SUMMARY:${escape(`${form.name} · Reserva`)}`, ...(configuredAddress ? [`LOCATION:${escape(configuredAddress)}`] : []), `DESCRIPTION:${escape(description)}`, `STATUS:${method === 'CANCEL' ? 'CANCELLED' : 'CONFIRMED'}`, 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
   }
 
-  private async sendCalendarUpdate(booking: Reservation, method: 'CANCELLED' | 'PUBLISH'): Promise<void> {
+  private async sendCalendarUpdate(booking: Reservation, method: 'CANCELLED' | 'PUBLISH', cancellationReason?: string): Promise<void> {
     if (!booking.guestEmail) return;
     const form = await this.forms.findOne({ where: { id: booking.formId } });
     if (!form) return;
     const cancelled = method === 'CANCELLED';
-    void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, cancelled ? '<p>Tu reserva fue cancelada.</p>' : '<p>Tu reserva fue actualizada. Adjuntamos la nueva cita de calendario.</p>', { attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH'), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
+    const reason = cancellationReason?.trim();
+    const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+    const body = cancelled
+      ? `<p>Tu reserva fue cancelada.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
+      : '<p>Tu reserva fue actualizada. Adjuntamos la nueva cita de calendario.</p>';
+    void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
       .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
   }
 
@@ -1641,7 +1646,7 @@ export class ReservationsService {
     if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
     if (statusChangedTo === 'attended' && formForMeta) { try { await this.enqueueGoogleConversion(saved, formForMeta, 'attended', saved.startsAt); } catch (err) { this.logger.warn(`Google Ads attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'google_ads'); } }
     if (statusChangedTo === 'attended' || statusChangedTo === 'no_show') { try { await this.leadIntake.updateStatusByContact(organizationId, statusChangedTo === 'attended' ? 'attended' : 'no_show', saved.guestEmail, saved.guestPhone, saved.clientId); } catch (err) { this.logger.warn(`CRM status sync failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); /* CRM sync is best-effort */ } }
-    if (calendarNotification) void this.sendCalendarUpdate(saved, calendarNotification);
+    if (calendarNotification) void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
     return saved;
   }
 
