@@ -20,7 +20,7 @@ export function ReservationLocalHubPage() {
     queryKey: ['reservation-local', id], queryFn: () => api.get(`/reservations/forms/${id}`), enabled: Boolean(id),
   });
   if (isLoading) return <LoadingSpinner text="Abriendo el local..." />;
-  if (error || !local) return <QueryErrorState error={error} onRetry={() => refetch()} />;
+  if (error || !local) return <QueryErrorState message={error?.message || 'No encontramos este local.'} onRetry={() => { void refetch(); }} />;
   const publicUrl = local.publicUrl || `/book/${local.publicSlug}`;
   const hasLogo = Boolean(local.designConfig?.logoUrl);
   const hasBackground = Boolean(local.designConfig?.backgroundImage);

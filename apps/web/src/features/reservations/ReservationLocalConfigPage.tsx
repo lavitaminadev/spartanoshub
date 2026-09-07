@@ -20,7 +20,7 @@ export function ReservationLocalConfigPage() {
   const design = (key: string, value: string) => update({ designConfig: { ...draft?.designConfig, [key]: value } });
   const save = useMutation({ mutationFn: () => api.patch<ReservationForm>(`/reservations/forms/${id}`, { designConfig: draft?.designConfig, resourcesConfig: draft?.resourcesConfig, teamNotifications: draft?.teamNotifications, calendarEnabled: draft?.calendarEnabled }), onSuccess: (next) => { setDraft(next); qc.invalidateQueries({ queryKey: ['reservation-locals'] }); } });
   if (isLoading || !draft) return <LoadingSpinner text="Abriendo ajustes especiales..." />;
-  if (error) return <QueryErrorState error={error} onRetry={() => void refetch()} />;
+  if (error) return <QueryErrorState message={error.message} onRetry={() => void refetch()} />;
   const zones = draft.resourcesConfig ?? [];
   const setZones = (next: NonNullable<ReservationForm['resourcesConfig']>) => update({ resourcesConfig: next });
   const updateZone = (index: number, patch: Partial<NonNullable<ReservationForm['resourcesConfig']>[number]>) => setZones(zones.map((zone, current) => current === index ? { ...zone, ...patch } : zone));

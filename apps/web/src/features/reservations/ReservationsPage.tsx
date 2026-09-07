@@ -280,7 +280,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     onSuccess: (created) => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); qc.invalidateQueries({ queryKey: ['meta-client-pixels'] }); closeCreateFlow(); triggerToast(`${flowName(created.mode)} creado`); navigate(`/reservations/locals/${created.id}`); },
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { status?: string; startsAt?: string; internalNotes?: string; workflowState?: ReservationState } }) => api.patch<Reservation>(`/reservations/${id}`, body),
+    mutationFn: ({ id, body }: { id: string; body: { status?: string; startsAt?: string; internalNotes?: string; cancellationReason?: string; workflowState?: ReservationState } }) => api.patch<Reservation>(`/reservations/${id}`, body),
     onSuccess: (updated, vars) => {
       qc.invalidateQueries({ queryKey: ['reservations'] });
       qc.invalidateQueries({ queryKey: ['reservation-metrics'] });
