@@ -99,7 +99,7 @@
 /*
  * Unified toast/notification system (shared/Toast.tsx). Handles both plain
  * success/error/info messages and richer API-error toasts (title + icon +
- * optional retry action) through the same markup â€” see the component for
+ * optional retry action) through the same markup - see the component for
  * why these used to be two separate popup systems.
  */
 .toast-container { position: fixed; z-index: 1400; top: 22px; right: 24px; display: flex; flex-direction: column; gap: 10px; max-width: min(420px, calc(100vw - 32px)); pointer-events: none; }
@@ -145,7 +145,7 @@
 @keyframes spin { to { transform:rotate(360deg); } }
 
 
-/* Estado de conversiones a Meta por formulario. El color acompaÃ±a al texto, nunca lo reemplaza. */
+/* Estado de conversiones a Meta por formulario. El color acompana al texto, nunca lo reemplaza. */
 .meta-readiness { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 4px 9px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .02em; }
 .meta-readiness::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .meta-readiness.is-ok { background: var(--success-bg); color: var(--success-deep); }

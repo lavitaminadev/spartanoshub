@@ -7,9 +7,9 @@
 .schedule-card:first-child > h3:first-child::before { content:'1'; }
 .schedule-card:first-child > h3:nth-of-type(2)::before { content:'2'; }
 .schedule-card:nth-child(2) > h3::before { content:'3'; }
-.schedule-card:first-child > h3:first-child::after { content:'Define duraciÃ³n, cupos y lÃ­mites antes de mostrar horarios.'; display:block; margin-left:auto; color:var(--muted); font-size:11px; font-weight:600; letter-spacing:0; }
+.schedule-card:first-child > h3:first-child::after { content:'Define duracion, cupos y limites antes de mostrar horarios.'; display:block; margin-left:auto; color:var(--muted); font-size:11px; font-weight:600; letter-spacing:0; }
 .schedule-card:first-child > h3:nth-of-type(2) { margin-top:30px; padding-top:22px; border-top:1px solid var(--soft); }
-.schedule-card:first-child > h3:nth-of-type(2)::after { content:'Marca los dÃ­as abiertos y agrega mÃ¡s franjas si atienden en turnos.'; display:block; margin-left:auto; color:var(--muted); font-size:11px; font-weight:600; letter-spacing:0; }
+.schedule-card:first-child > h3:nth-of-type(2)::after { content:'Marca los dias abiertos y agrega mas franjas si atienden en turnos.'; display:block; margin-left:auto; color:var(--muted); font-size:11px; font-weight:600; letter-spacing:0; }
 .schedule-card:nth-child(2) > .page-subtitle { margin:0 0 18px; padding:12px 14px; border-radius: var(--radius-md); background:var(--soft); color:var(--muted); font-size:13px; line-height:1.45; }
 /* Capacidad: lo que el brief exige decidir primero. El tope diario ocupa la fila completa
    porque gobierna cuando un dia se muestra completo en la pagina publica. */
@@ -23,7 +23,7 @@
 /* Ajustes que rara vez se tocan tras el onboarding: presentes pero fuera del camino. */
 .schedule-advanced { margin-bottom:24px; border:1px solid var(--surface-sage); border-radius: var(--radius-md); background:var(--soft); }
 .schedule-advanced > summary { padding:13px 16px; color:var(--ink); font-size:12px; font-weight:900; cursor:pointer; list-style:none; }
-.schedule-advanced > summary::after { content:'â–¾'; float:right; transition:transform .15s ease; }
+.schedule-advanced > summary::after { content:'v'; float:right; transition:transform .15s ease; }
 .schedule-advanced[open] > summary::after { transform:rotate(180deg); }
 .schedule-advanced > summary::-webkit-details-marker { display:none; }
 .schedule-advanced .schedule-settings-wide { margin:0; border:0; background:transparent; }.schedule-settings{
@@ -79,11 +79,11 @@
 
 .block-range { margin-top:16px; border:1px solid var(--surface-sage); border-radius: var(--radius-md); background:var(--soft); }
 .block-range > summary { padding:11px 14px; color:var(--ink); font-size:12px; font-weight:900; cursor:pointer; list-style:none; }
-.block-range > summary::after { content:'â–¾'; float:right; }
+.block-range > summary::after { content:'v'; float:right; }
 .block-range > summary::-webkit-details-marker { display:none; }
 .block-range .block-form { padding:0 14px 14px; }
 
-/* Aviso de alcance del formulario pÃºblico: informa, no bloquea. */
+/* Aviso de alcance del formulario publico: informa, no bloquea. */
 .canvas-scope-hint { display:grid; gap:4px; margin:0 0 16px; padding:12px 14px; border:1px solid var(--lime); border-left:3px solid var(--amber-deep); border-radius: var(--radius-md); background:#fff6e7; }
 .canvas-scope-hint strong { color:var(--amber-deep); font-size:12px; }
 .canvas-scope-hint span { color:#6d6250; font-size:11px; line-height:1.5; }.block-list{
@@ -127,7 +127,7 @@
 .builder-canvas::before { content:'Puedes soltar campos en cualquier lugar de esta zona'; position:absolute; top:14px; right:18px; padding:7px 11px; border-radius:999px; background:var(--success-bg); color:var(--ink); font-size:10px; font-weight:900; letter-spacing:.02em; pointer-events:none; }.builder-canvas.drag-over{
   border-color: var(--cian);background: var(--soft);box-shadow: 0 0 0 4px rgba(8,126,121,.16),0 18px 45px rgba(34,22,29,.1);
 }
-.builder-canvas.drag-over::after { content:'Suelta aquÃ­ para agregar u ordenar'; position:absolute; inset:18px; display:grid; place-items:center; border:2px dashed var(--cian); border-radius: var(--radius-lg); background:rgba(245,251,239,.78); color:#4a4247; font-size:22px; font-weight:900; z-index:6; pointer-events:none; }
+.builder-canvas.drag-over::after { content:'Suelta aqui para agregar u ordenar'; position:absolute; inset:18px; display:grid; place-items:center; border:2px dashed var(--cian); border-radius: var(--radius-lg); background:rgba(245,251,239,.78); color:#4a4247; font-size:22px; font-weight:900; z-index:6; pointer-events:none; }
 .builder-canvas.drag-over .canvas-field,
 .builder-canvas.drag-over .canvas-intro,
 .builder-canvas.drag-over .canvas-drop { position:relative; z-index:1; }.canvas-drop{
@@ -204,7 +204,7 @@
 .design-section > summary { padding:12px 14px; font-size:12px; font-weight:800; cursor:pointer; list-style:none; }
 .design-section > summary::-webkit-details-marker { display:none; }
 .design-section > summary::after { content:'+'; float:right; color:var(--muted); font-weight:700; }
-.design-section[open] > summary::after { content:'âˆ’'; }
+.design-section[open] > summary::after { content:'-'; }
 .design-section[open] > summary { border-bottom:1px solid var(--border); }.design-section-body{
   display: grid;gap: 13px;padding: 14px;
 }
@@ -212,7 +212,7 @@
 .design-reset { align-self:flex-start; }
 
 /* La vista previa mantiene el selector de dispositivo a la vista mientras se desplazan los
-   controles: comprobar el resultado en mÃ³vil es parte de decidir, no un paso posterior. */
+   controles: comprobar el resultado en movil es parte de decidir, no un paso posterior. */
 .design-preview-column { display:flex; flex-direction:column; gap:10px; }
 .design-preview-column .preview-device-toggle { position:sticky; top:0; z-index:1; }
 
@@ -230,7 +230,7 @@
 /* Calendar grid */
 /* El calendario se arma por semanas: la rejilla de 7 columnas va en la fila, no en el
    contenedor, que solo apila las semanas. La cabecera repite la misma rejilla para que los
-   nombres de dÃ­a queden sobre su columna. */
+   nombres de dia queden sobre su columna. */
 .calendar-grid { display:grid; gap:4px; margin:16px 0; }
 .calendar-weekdays,
 .calendar-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; align-items:stretch; grid-auto-rows:minmax(58px,auto); }
@@ -239,7 +239,7 @@
 .calendar-day { display:flex; flex-direction:column; align-items:center; padding:8px 4px; border-radius:var(--booking-field-radius,10px); border:1px solid var(--border); background:transparent; cursor:pointer; transition:.15s; }
 .calendar-day.has-slots { border-color:var(--booking-primary,var(--surface-dark)); }
 .calendar-day.no-slots { opacity:.35; cursor:default; }
-/* Alto uniforme para que la etiqueta Â«CompletoÂ» no descuadre la fila. */
+/* Alto uniforme para que la etiqueta Completo no descuadre la fila. */
 .calendar-day { min-height:58px; height:100%; justify-content:center; }
 .calendar-day.is-empty { border:0; background:transparent; cursor:default; }
 /* Dia que agoto su tope diario: se muestra presente pero sin cupo, no apagado como un cierre. */
@@ -317,14 +317,14 @@
 .field-editor-actions{display:flex;gap:8px;padding-top:8px;border-top:1px solid var(--soft)}
 .field-editor-footer{display:flex;justify-content:flex-end;gap:8px;padding-top:12px;border-top:1px solid var(--soft)}
 
-/* PublicaciÃ³n: primero si se puede publicar, despuÃ©s el enlace, y la mediciÃ³n plegada.
-   El orden reproduce la decisiÃ³n real â€”Â¿estÃ¡ listo? Â¿dÃ³nde estÃ¡ el enlace?â€” en vez de abrir
-   con la configuraciÃ³n de anuncios, que solo hace falta cuando hay campaÃ±a pagada. */
+/* Publicacion: primero si se puede publicar, despues el enlace, y la medicion plegada.
+   El orden reproduce la decision real: esta listo y donde esta el enlace, antes de abrir
+   la configuracion de anuncios, que solo hace falta cuando hay campana pagada. */
 .publish-checklist { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
 .publish-checklist li { display:grid; gap:3px; padding:12px 14px 12px 34px; position:relative; border:1px solid var(--border); border-radius: var(--radius-md); background:var(--white); }
 .publish-checklist li::before { position:absolute; left:12px; top:12px; font-size:13px; font-weight:900; }
 .publish-checklist li.is-ok { border-color:var(--surface-sage); background:var(--soft); }
-.publish-checklist li.is-ok::before { content:'âœ“'; color:var(--success-deep); }
+.publish-checklist li.is-ok::before { content:'OK'; color:var(--success-deep); font-size:10px; }
 .publish-checklist li.is-warning { border-color:var(--lime); background:#fff6e7; }
 .publish-checklist li.is-warning::before { content:'!'; color:var(--amber-deep); }
 .publish-checklist li.is-blocking { border-color:#e6bdba; background:#fdf6f5; }
@@ -336,7 +336,7 @@
 .publish-tracking > summary { padding:12px 14px; color:var(--ink); font-size:12px; font-weight:800; cursor:pointer; list-style:none; }
 .publish-tracking > summary::-webkit-details-marker { display:none; }
 .publish-tracking > summary::after { content:'+'; float:right; color:var(--muted); }
-.publish-tracking[open] > summary::after { content:'âˆ’'; }
+.publish-tracking[open] > summary::after { content:'-'; }
 .publish-tracking > summary em { color:var(--muted); font-style:normal; font-weight:600; }
 .publish-tracking-body { display:grid; gap:13px; padding:0 14px 14px; }
 .publish-tracking-body > .page-subtitle { margin:0; font-size:11px; line-height:1.5; }

@@ -144,7 +144,7 @@ export function AgendaPage() {
   if (!clientMode && clientsError) return isForbiddenError(clientsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir la agenda" message={clientsError.message} onRetry={() => void refetchClients()} />;
 
   const goToReservation = (reservation: Reservation) => {
-    navigate(`${clientMode ? '/portal/reservations/manage' : '/reservations/manage'}?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}`);
+    navigate(`${clientMode ? '/portal/reservations' : '/reservations'}?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}`);
   };
 
   return <div className="page agenda-page">

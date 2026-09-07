@@ -54,7 +54,7 @@ let PublicReservationsController = class PublicReservationsController {
     async validateCoupon(slug, dto) {
         const code = dto.code?.trim();
         if (!code)
-            throw new common_1.BadRequestException('CÃ³digo requerido');
+            throw new common_1.BadRequestException('Codigo requerido');
         return this.service.validatePublicCoupon(slug, code, dto.startsAt ? new Date(dto.startsAt) : undefined);
     }
     survey(slug, dto, ipAddress, userAgent) {
@@ -196,7 +196,7 @@ __decorate([
 ], PublicReservationsController.prototype, "create", null);
 exports.PublicReservationsController = PublicReservationsController = __decorate([
     (0, public_decorator_1.Public)(),
-    (0, swagger_1.ApiTags)('Reservas pÃºblicas'),
+    (0, swagger_1.ApiTags)('Reservas publicas'),
     (0, common_1.Controller)('public/reservations'),
     __metadata("design:paramtypes", [reservations_service_1.ReservationsService])
 ], PublicReservationsController);
