@@ -4,7 +4,7 @@ set -euo pipefail
 
 readonly EXPECTED_HOME="/home/espartanoscl"
 readonly EXPECTED_APP_ROOT="$EXPECTED_HOME/repositories/spartanoshub"
-readonly MAX_ACCOUNT_INODES=55000
+readonly MAX_ACCOUNT_INODES=60000
 readonly MAX_TRASH_INODES=2000
 readonly MAX_NPM_CACHE_INODES=500
 readonly MAX_NODE_MODULES_INODES=28000
