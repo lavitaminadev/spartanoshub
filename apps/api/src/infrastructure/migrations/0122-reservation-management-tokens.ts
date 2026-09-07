@@ -17,7 +17,7 @@ export class ReservationManagementTokens1758310000000 implements MigrationInterf
       return;
     }
     await queryRunner.query(`CREATE TABLE reservation_management_tokens (
-      id char(36) NOT NULL, reservation_id char(36) NOT NULL, token_hash char(64) NOT NULL,
+      id uuid NOT NULL, reservation_id uuid NOT NULL, token_hash char(64) NOT NULL,
       expires_at timestamp NOT NULL, revoked_at timestamp NULL, used_at timestamp NULL,
       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (id), UNIQUE KEY UQ_reservation_management_token_hash (token_hash),
