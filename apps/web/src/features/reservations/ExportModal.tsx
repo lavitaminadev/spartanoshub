@@ -48,9 +48,15 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
       if (!formId) throw new Error('Selecciona un formulario antes de exportar');
       // El cliente de API adjunta la sesión y renueva el token; una llamada directa a axios
       // no lleva la cabecera de autorización.
+      const { dateFrom, dateTo, ...exportOptions } = options;
+      const payload = {
+        ...exportOptions,
+        ...(dateFrom ? { dateFrom } : {}),
+        ...(dateTo ? { dateTo } : {}),
+      };
       return api.post<Blob>(
         `/reservations/forms/${formId}/export`,
-        clientView ? { ...options, fields: options.fields.filter((field) => field !== 'notes') } : options,
+        clientView ? { ...payload, fields: options.fields.filter((field) => field !== 'notes') } : payload,
         { responseType: 'blob' },
       );
     },

@@ -80,7 +80,7 @@ type DesignConfig = {
   fontFamily?: string;
   legalCompanyName?: string; legalCompanyId?: string; supportEmail?: string; privacyUrl?: string; termsUrl?: string;
   cancellationPolicy?: string; reservationConsentText?: string; marketingConsentText?: string; marketingConsentVersion?: string;
-  campaignAlias?: string; welcomePopupTitle?: string; welcomePopupText?: string;
+  campaignAlias?: string; welcomePopupEnabled?: string; welcomePopupTitle?: string; welcomePopupText?: string;
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
@@ -202,6 +202,7 @@ export class ReservationsService {
       ['El alias de campaña', design.campaignAlias, 80], ['El título de bienvenida', design.welcomePopupTitle, 180], ['El texto de bienvenida', design.welcomePopupText, 1200],
       ['El mensaje de WhatsApp', design.whatsappGroupMessage, 1200],
     ] as Array<[string, unknown, number]>) if (value !== undefined && (typeof value !== 'string' || value.length > limit)) throw new BadRequestException(`${label} no es válido`);
+    if (design.welcomePopupEnabled !== undefined && design.welcomePopupEnabled !== 'true' && design.welcomePopupEnabled !== 'false') throw new BadRequestException('La bienvenida no es válida');
     if (design.whatsappBusinessNumber && (typeof design.whatsappBusinessNumber !== 'string' || !/^\+?[1-9]\d{7,14}$/.test(design.whatsappBusinessNumber.replace(/[\s()-]/g, '')))) throw new BadRequestException('El WhatsApp del local debe usar formato internacional');
     const isValidImageUrl = (url?: string) => !url || (/^https:\/\//i.test(url) && url.length <= 2048);
     if (!isValidImageUrl(design.logoUrl)) throw new BadRequestException('El logo debe usar una URL HTTPS válida');
@@ -1084,7 +1085,7 @@ export class ReservationsService {
       organizationId: form.organizationId, clientId: form.clientId, formId: form.id, idempotencyKey: dto.idempotencyKey,
       guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase() || null, guestPhone: normalizePhone(dto.guestPhone) || null,
       partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
-      notes: dto.notes?.trim() || null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+      notes: dto.notes?.trim() || null, details: dto.details ?? null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
       marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
       utmSource: dto.utmSource || null, utmCampaign: dto.utmCampaign || null, status: 'pending',
     }));

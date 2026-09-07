@@ -212,6 +212,14 @@ export function PublicReservationPage() {
         partySize: Math.max(groupThreshold + 1, guest.partySize), eventType: groupEventType, notes: groupEventNotes.trim() || undefined,
         preferredDate: requestPreference.date || undefined, preferredTime: requestPreference.time || undefined,
         reservationConsent, marketingConsent, idempotencyKey, website, renderedAt, utmSource, utmCampaign,
+        details: {
+          answers: reservationAnswers,
+          serviceId: serviceId || undefined,
+          resourceId: resourceId || undefined,
+          childrenCount: visitNeeds.childrenCount || undefined,
+          accessibilityNeed: visitNeeds.accessibilityNeed.trim() || undefined,
+          dietaryNotes: visitNeeds.dietaryNotes.trim() || undefined,
+        },
       });
       return api.post<Created>(`/public/reservations/${slug}`, {
         startsAt: selected, serviceId: serviceId || undefined, resourceId: resourceId || undefined,
@@ -502,7 +510,7 @@ export function PublicReservationPage() {
   return <main className={`public-booking layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style} onFocusCapture={markStarted} onPointerDown={markStarted}>
     <MetaPixel pixelId={form.pixelId} enabled={measurementConsent} />
     <Ga4Tag measurementId={form.ga4MeasurementId} enabled={measurementConsent} />
-    {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled !== 'false' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" style={{ position: 'fixed', inset: 0, zIndex: 20, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(18,35,31,.55)' }}><section style={{ maxWidth: 430, background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,.28)' }}>{form.designConfig?.logoUrl && <img src={form.designConfig.logoUrl} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<span style={{ fontSize: 28, display: 'block', marginTop: 8 }}>👋</span><h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Elige cuántas personas vienen, fecha y horario. Recibirás un enlace seguro para gestionar o cancelar tu reserva.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>Comenzar reserva</button></section></div>}
+    {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" style={{ position: 'fixed', inset: 0, zIndex: 20, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(18,35,31,.55)' }}><section style={{ maxWidth: 430, background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,.28)' }}>{form.designConfig?.logoUrl && <img src={form.designConfig.logoUrl} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>Continuar</button></section></div>}
     {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}
     <div className="public-booking-layout">
       <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div><div><strong>{design.timezoneValue || form.timezone.split('/').pop()?.replaceAll('_', ' ')}</strong><span>{timezoneLabel}</span></div></div>}</section>

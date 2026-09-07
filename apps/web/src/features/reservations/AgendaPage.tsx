@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { ForbiddenState } from '../../shared/ForbiddenState';
@@ -25,7 +26,7 @@ import './AgendaPage.css';
 interface Client { id: string; name: string }
 /** Página de reservas. `data` es el nombre con que responden todas las listas del sistema. */
 interface ReservationPage { data: Reservation[]; total: number; page: number; pageSize: number; pages: number }
-interface GroupRequest { id: string; guestName: string; guestEmail?: string; guestPhone?: string; partySize: number; eventType: string; preferredDate?: string; preferredTime?: string; notes?: string; status: string; quoteAmount?: string; quoteMessage?: string; quoteExpiresAt?: string; createdAt: string }
+interface GroupRequest { id: string; guestName: string; guestEmail?: string; guestPhone?: string; partySize: number; eventType: string; preferredDate?: string; preferredTime?: string; notes?: string; details?: Record<string, unknown>; status: string; quoteAmount?: string; quoteMessage?: string; quoteExpiresAt?: string; createdAt: string }
 
 const GENERAL_ZONE_ID = '__general__';
 const NO_SHOW_STATUSES = new Set(['no_show']);
@@ -51,9 +52,11 @@ function formatDateLabel(key: string): string {
 
 export function AgendaPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const clientMode = user?.role === 'client';
   const [searchParams] = useSearchParams();
   const [dateFilter, setDateFilter] = useState(() => dateKey(new Date()));
-  const [clientId, setClientId] = useState(searchParams.get('clientId') ?? '');
+  const [clientId, setClientId] = useState(() => clientMode ? user?.clientId || '' : searchParams.get('clientId') ?? '');
   // La entrada desde el centro del local debe abrir ese local, no el primero de otra lista.
   const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
   const [mobileZone, setMobileZone] = useState<string>('');
@@ -66,9 +69,9 @@ export function AgendaPage() {
 
   const { data: clientsResp, isLoading: loadingClients, error: clientsError, refetch: refetchClients } = useQuery<{ data: Client[] }>({
     queryKey: ['clients'],
-    queryFn: () => api.get('/clients'),
+    queryFn: () => api.get('/clients'), enabled: !clientMode,
   });
-  const clients = Array.isArray(clientsResp?.data) ? clientsResp!.data : [];
+  const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : Array.isArray(clientsResp?.data) ? clientsResp!.data : [];
 
   const { data: formsArray = [], isLoading: loadingForms } = useQuery<ReservationForm[]>({
     queryKey: ['reservation-forms', clientId],
@@ -136,12 +139,12 @@ export function AgendaPage() {
     return { total, noShows, occupancyPct };
   }, [reservations, activeForm]);
 
-  const isLoading = loadingClients || (Boolean(clientId) && loadingForms);
+  const isLoading = (!clientMode && loadingClients) || (Boolean(clientId) && loadingForms);
   if (isLoading) return <LoadingSpinner text="Preparando la agenda del servicio..." />;
-  if (clientsError) return isForbiddenError(clientsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir la agenda" message={clientsError.message} onRetry={() => void refetchClients()} />;
+  if (!clientMode && clientsError) return isForbiddenError(clientsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir la agenda" message={clientsError.message} onRetry={() => void refetchClients()} />;
 
   const goToReservation = (reservation: Reservation) => {
-    navigate(`/reservations?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}`);
+    navigate(`${clientMode ? '/portal/reservations/manage' : '/reservations/manage'}?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}`);
   };
 
   return <div className="page agenda-page">
@@ -154,10 +157,10 @@ export function AgendaPage() {
     </div>
 
     <div className="agenda-controls">
-      <select className="input" aria-label="Cliente" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
+      {!clientMode && <select className="input" aria-label="Cliente" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
         <option value="">Selecciona un cliente</option>
         {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-      </select>
+      </select>}
       <select className="input" aria-label="Local" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
         {forms.length === 0
           ? <option value="">Sin locales configurados</option>
@@ -171,7 +174,7 @@ export function AgendaPage() {
       </div>
       <strong className="agenda-date-label">{formatDateLabel(dateFilter)}</strong>
       <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId} onClick={() => { setBlockStart(`${dateFilter}T13:00`); setBlockEnd(`${dateFilter}T23:00`); setBlockOpen(true); }}>Bloquear por evento</button>
-      <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId || closeDay.isPending || new Date(`${dateFilter}T23:59:59`) > new Date()} onClick={() => { if (window.confirm('Se marcarán como asistidas las reservas abiertas de este turno y quedará registrado.')) closeDay.mutate(); }}>{closeDay.isPending ? 'Cerrando...' : 'Cerrar turno'}</button>
+      {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId || closeDay.isPending || new Date(`${dateFilter}T23:59:59`) > new Date()} onClick={() => { if (window.confirm('Se marcarán como asistidas las reservas abiertas de este turno y quedará registrado.')) closeDay.mutate(); }}>{closeDay.isPending ? 'Cerrando...' : 'Cerrar turno'}</button>}
     </div>
 
     {!clientId
@@ -184,7 +187,7 @@ export function AgendaPage() {
             <div className="agenda-summary-badge"><strong>{summary.occupancyPct === null ? '—' : `${summary.occupancyPct}%`}</strong><span>Ocupación</span></div>
             <div className="agenda-summary-badge is-warn"><strong>{fetchingReservations ? '—' : summary.noShows}</strong><span>No-shows</span></div>
           </div>
-          <section className="reservation-readiness"><div><span className="page-eyebrow">SOLICITUDES SIN CUPO</span><h2>Grupos y eventos</h2><p className="page-subtitle">No ocupan agenda hasta que el equipo acuerde una fecha y cree la reserva definitiva.</p></div>{groupRequests.length === 0 ? <p className="page-subtitle">No hay solicitudes pendientes para este local.</p> : <div className="reservation-request-list">{groupRequests.map((request) => <article key={request.id} className="reservation-request-card"><div><strong>{request.guestName} · {request.partySize} personas</strong><span>{request.eventType} {request.preferredDate ? `· ${request.preferredDate}` : ''} {request.preferredTime ? `· ${request.preferredTime}` : ''}</span><small>{request.guestPhone || request.guestEmail || 'Sin contacto'}{request.notes ? ` · ${request.notes}` : ''}</small>{request.quoteAmount && <small>Cotización interna: ${Number(request.quoteAmount).toLocaleString('es-CL')} {request.quoteExpiresAt ? `· vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}</div><div><span className="reservation-channel-status">{request.status}</span>{request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={updateGroupRequest.isPending} onClick={() => updateGroupRequest.mutate({ id: request.id, body: { status: 'contacted' } })}>Marcar contactada</button>}{['pending', 'contacted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setQuoteRequest(request); setQuote({ amount: '', message: '', expiresAt: '' }); }}>Registrar cotización</button>}</div></article>)}</div>}</section>
+          <section className="reservation-readiness"><div><span className="page-eyebrow">SOLICITUDES SIN CUPO</span><h2>Grupos y eventos</h2><p className="page-subtitle">No ocupan agenda hasta que el equipo acuerde una fecha y cree la reserva definitiva.</p></div>{groupRequests.length === 0 ? <p className="page-subtitle">No hay solicitudes pendientes para este local.</p> : <div className="reservation-request-list">{groupRequests.map((request) => { const details = request.details || {}; return <article key={request.id} className="reservation-request-card"><div><strong>{request.guestName} · {request.partySize} personas</strong><span>{request.eventType} {request.preferredDate ? `· ${request.preferredDate}` : ''} {request.preferredTime ? `· ${request.preferredTime}` : ''}</span><small>{request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>{request.notes && <p className="page-subtitle">{request.notes}</p>}<details><summary>Ver detalles ingresados</summary><dl className="success-summary"><dt>Fecha solicitada</dt><dd>{request.preferredDate || 'Por acordar'} {request.preferredTime || ''}</dd>{details.serviceId && <><dt>Servicio</dt><dd>{String(details.serviceId)}</dd></>}{details.resourceId && <><dt>Zona</dt><dd>{String(details.resourceId)}</dd></>}{details.childrenCount && <><dt>Niños</dt><dd>{String(details.childrenCount)}</dd></>}{details.accessibilityNeed && <><dt>Accesibilidad</dt><dd>{String(details.accessibilityNeed)}</dd></>}{details.dietaryNotes && <><dt>Restricciones alimentarias</dt><dd>{String(details.dietaryNotes)}</dd></>}</dl></details>{request.quoteAmount && <small>Cotización interna: ${Number(request.quoteAmount).toLocaleString('es-CL')} {request.quoteExpiresAt ? `· vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}</div><div><span className="reservation-channel-status">{request.status}</span>{request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={updateGroupRequest.isPending} onClick={() => updateGroupRequest.mutate({ id: request.id, body: { status: 'contacted' } })}>Marcar contactada</button>}{['pending', 'contacted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setQuoteRequest(request); setQuote({ amount: '', message: '', expiresAt: '' }); }}>Registrar cotización</button>}</div></article>; })}</div>}</section>
           {closeDay.error && <p className="error-text">No se pudo cerrar el turno. Verifica que la fecha ya haya terminado.</p>}
 
           {reservationsError

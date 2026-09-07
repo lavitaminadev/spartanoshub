@@ -192,6 +192,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         ])
             if (value !== undefined && (typeof value !== 'string' || value.length > limit))
                 throw new common_1.BadRequestException(`${label} no es válido`);
+        if (design.welcomePopupEnabled !== undefined && design.welcomePopupEnabled !== 'true' && design.welcomePopupEnabled !== 'false')
+            throw new common_1.BadRequestException('La bienvenida no es válida');
         if (design.whatsappBusinessNumber && (typeof design.whatsappBusinessNumber !== 'string' || !/^\+?[1-9]\d{7,14}$/.test(design.whatsappBusinessNumber.replace(/[\s()-]/g, ''))))
             throw new common_1.BadRequestException('El WhatsApp del local debe usar formato internacional');
         const isValidImageUrl = (url) => !url || (/^https:\/\//i.test(url) && url.length <= 2048);
@@ -985,7 +987,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             organizationId: form.organizationId, clientId: form.clientId, formId: form.id, idempotencyKey: dto.idempotencyKey,
             guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase() || null, guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone) || null,
             partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
-            notes: dto.notes?.trim() || null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+            notes: dto.notes?.trim() || null, details: dto.details ?? null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
             marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
             utmSource: dto.utmSource || null, utmCampaign: dto.utmCampaign || null, status: 'pending',
         }));

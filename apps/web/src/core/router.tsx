@@ -199,6 +199,9 @@ export function AppRouter() {
           {/* La empresa configura su propio local primero; el editor visual queda como una
               segunda pantalla, no como la única forma de operar reservas. */}
           <Route path="reservations/locals/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ClientRoute>} />
+          <Route path="reservations/manage" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationsPage clientView /></SafeSuspense></ClientRoute>} />
+          <Route path="reservations/agenda" element={<ClientRoute capability="reservations"><SafeSuspense><AgendaPage /></SafeSuspense></ClientRoute>} />
+          <Route path="reservations/calendar" element={<ClientRoute capability="reservations"><SafeSuspense><AvailabilityCalendarPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/forms/:id/advanced" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalConfigPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/forms/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/forms/:id/design" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ClientRoute>} />

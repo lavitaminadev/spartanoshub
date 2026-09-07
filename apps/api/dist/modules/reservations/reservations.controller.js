@@ -100,6 +100,7 @@ let ReservationsController = class ReservationsController {
                 resourcesConfig: dto.resourcesConfig,
                 designConfig: dto.designConfig,
                 name: dto.name,
+                status: dto.status,
                 teamNotifications: dto.teamNotifications,
                 calendarEnabled: dto.calendarEnabled,
             };

@@ -67,6 +67,10 @@ __decorate([
     __metadata("design:type", Object)
 ], ReservationGroupRequest.prototype, "notes", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'json', nullable: true }),
+    __metadata("design:type", Object)
+], ReservationGroupRequest.prototype, "details", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'quote_amount', type: 'decimal', precision: 12, scale: 2, nullable: true }),
     __metadata("design:type", Object)
 ], ReservationGroupRequest.prototype, "quoteAmount", void 0);

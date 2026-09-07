@@ -534,6 +534,11 @@ __decorate([
 ], PublicGroupRequestDto.prototype, "utmCampaign", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], PublicGroupRequestDto.prototype, "details", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
