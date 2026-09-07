@@ -559,13 +559,13 @@ export class ReservationsService {
     const dateKey = this.localDateKey(startsAt, form.timezone);
     if (form.dailyCapacity > 0) {
       const dailyCount = await this.dailyReservationsCount(manager, form.id, dateKey, form.timezone, excludeId);
-      if (dailyCount >= form.dailyCapacity) throw new ConflictException('Este día ya alcanzó su tope de reservas');
+      if (dailyCount + partySize > form.dailyCapacity) throw new ConflictException('Este día no tiene cupo para ese grupo');
     }
     // El tope del cliente se aplica ademas del propio del formulario: manda el mas estricto.
     const clientCap = await this.clientDailyCap(manager, form.clientId);
     if (clientCap > 0) {
       const clientCount = await this.clientDailyReservationsCount(manager, form.clientId, dateKey, form.timezone, excludeId);
-      if (clientCount >= clientCap) throw new ConflictException('Este día ya alcanzó su tope de reservas');
+      if (clientCount + partySize > clientCap) throw new ConflictException('Este día no tiene cupo para ese grupo');
     }
     const qb = manager.getRepository(Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: ACTIVE_STATUSES }).setLock('pessimistic_write');
     if (resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId }); if (excludeId) qb.andWhere('r.id != :excludeId', { excludeId });
@@ -1689,12 +1689,12 @@ export class ReservationsService {
 
     const scope = this.sqlClientScope(clientId, clientIds);
     const [row] = await this.dataSource.query(
-      `SELECT COUNT(*) total,
-              SUM(status = 'attended') attended,
-              SUM(status = 'pending') pending,
-              SUM(status = 'no_show') noShow
+      `SELECT COALESCE(SUM(party_size), 0) total,
+              COALESCE(SUM(status = 'attended' AND starts_at <= NOW()), 0) attended,
+              COALESCE(SUM(status = 'pending' AND starts_at > NOW()), 0) pending,
+              COALESCE(SUM(status = 'no_show'), 0) noShow
        FROM reservations
-       WHERE organization_id = ? AND starts_at >= ? AND starts_at < ? AND status NOT LIKE 'cancelled%'${scope.clause}`,
+       WHERE organization_id = ? AND starts_at >= ? AND starts_at < ? AND status IN ('pending','confirmed','rescheduled','attended','no_show')${scope.clause}`,
       [organizationId, from, to, ...scope.params],
     );
 
@@ -1840,7 +1840,7 @@ export class ReservationsService {
     }
     const keys = [...answerKeys].sort();
 
-    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
     const toLine = (row: unknown[]) => row.map(escape).join(',');
 
     yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'campana', 'cupon', 'personas', 'notas_internas', ...keys]);
@@ -1876,7 +1876,8 @@ export class ReservationsService {
     format: 'csv' | 'json' | 'pdf' = 'csv',
     dateFrom?: string,
     dateTo?: string,
-    fields: string[] = ['name', 'phone', 'email', 'date', 'status', 'attendance']
+    fields: string[] = ['name', 'phone', 'email', 'date', 'status', 'attendance'],
+    includeInternalNotes = true,
   ) {
     const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }).andWhere('r.form_id = :formId', { formId });
     if (clientId) qb.andWhere('r.client_id = :clientId', { clientId });
@@ -1900,18 +1901,19 @@ export class ReservationsService {
       party_size: (item) => item.partySize,
     };
 
+    const allowedFields = includeInternalNotes ? fields : fields.filter((field) => field !== 'notes');
     if (format === 'json') {
       return items.map((item) => {
         const record: Record<string, any> = {};
-        for (const field of fields) {
+        for (const field of allowedFields) {
           record[field] = fieldMap[field]?.(item) ?? '-';
         }
         return record;
       });
     } else if (format === 'csv') {
-      const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-      const headers = fields;
-      return [headers, ...items.map((item) => fields.map((field) => fieldMap[field]?.(item) ?? '-'))].map((row) => row.map(escape).join(',')).join('\r\n');
+      const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+      const headers = allowedFields;
+      return [headers, ...items.map((item) => allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'))].map((row) => row.map(escape).join(',')).join('\r\n');
     }
 
     // El formato PDF se retiró: devolvía texto separado por tabuladores con cabecera de PDF,

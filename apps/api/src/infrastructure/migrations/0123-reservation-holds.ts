@@ -6,7 +6,7 @@ export class ReservationHolds1757500000000 implements MigrationInterface {
   async up(queryRunner: QueryRunner): Promise<void> {
     if (await queryRunner.hasTable('reservation_holds')) return;
     await queryRunner.query(`CREATE TABLE reservation_holds (
-      id char(36) NOT NULL, form_id char(36) NOT NULL, hold_key varchar(80) NOT NULL,
+      id uuid NOT NULL, form_id uuid NOT NULL, hold_key varchar(80) NOT NULL,
       starts_at timestamp NOT NULL, ends_at timestamp NOT NULL, party_size smallint NOT NULL,
       service_id varchar(120) NULL, resource_id varchar(120) NULL, expires_at timestamp NOT NULL,
       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

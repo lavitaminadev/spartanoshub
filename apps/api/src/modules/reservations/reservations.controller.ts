@@ -13,7 +13,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateCouponDto, UpdateGroupRequestDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 
 @ApiTags('Reservas')
@@ -304,7 +304,8 @@ export class ReservationsController {
       body.format,
       body.dateFrom,
       body.dateTo,
-      body.fields
+      body.fields,
+      req.user.role !== UserRole.CLIENT,
     );
 
     if (body.format === 'json') {
@@ -354,7 +355,7 @@ export class ReservationsController {
   async updateSurveyContact(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() body: { status?: string; notes?: string },
+    @Body() body: UpdateContactRequestDto,
   ) {
     const scope = await this.scope(req);
     return this.service.updateSurveyContactRequest(req.organizationId, id, body, scope.clientId, scope.clientIds, req.user.id);

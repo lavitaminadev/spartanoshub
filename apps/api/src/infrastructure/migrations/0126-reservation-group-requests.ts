@@ -5,7 +5,7 @@ export class ReservationGroupRequests1757800000000 implements MigrationInterface
   async up(queryRunner: QueryRunner): Promise<void> {
     if (await queryRunner.hasTable('reservation_group_requests')) return;
     await queryRunner.query(`CREATE TABLE reservation_group_requests (
-      id char(36) NOT NULL, organization_id char(36) NOT NULL, client_id char(36) NOT NULL, form_id char(36) NOT NULL,
+      id uuid NOT NULL, organization_id uuid NOT NULL, client_id uuid NOT NULL, form_id uuid NOT NULL,
       idempotency_key varchar(80) NOT NULL, guest_name varchar(180) NOT NULL, guest_email varchar(190) NULL, guest_phone varchar(50) NULL,
       party_size smallint NOT NULL, event_type varchar(30) NOT NULL, preferred_date date NULL, preferred_time varchar(80) NULL,
       notes text NULL, reservation_consent_at timestamp NULL, marketing_consent_at timestamp NULL,
