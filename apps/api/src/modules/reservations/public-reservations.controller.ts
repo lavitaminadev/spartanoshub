@@ -6,7 +6,7 @@ import { ReservationsService } from './application/reservations.service';
 import { CouponValidateDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicRescheduleReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
 
 @Public()
-@ApiTags('Reservas pÃºblicas')
+@ApiTags('Reservas publicas')
 @Controller('public/reservations')
 export class PublicReservationsController {
   constructor(private service: ReservationsService) {}
@@ -93,7 +93,7 @@ export class PublicReservationsController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async validateCoupon(@Param('slug') slug: string, @Body() dto: CouponValidateDto) {
     const code = dto.code?.trim();
-    if (!code) throw new BadRequestException('CÃ³digo requerido');
+    if (!code) throw new BadRequestException('Codigo requerido');
     return this.service.validatePublicCoupon(slug, code, dto.startsAt ? new Date(dto.startsAt) : undefined);
   }
 

@@ -20,8 +20,7 @@ import '../../shared/section-nav.css';
 /** Secciones, en el orden en que se usan durante el día. */
 const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
   // `end` porque su ruta es prefijo de las demás: sin eso quedaría marcada como activa siempre.
-  { to: '/reservations', label: 'Hoy', end: true },
-  { to: '/reservations/manage', label: 'Locales' },
+  { to: '/reservations', label: 'Locales', end: true },
   { to: '/reservations/analytics', label: 'Resultados' },
 ];
 

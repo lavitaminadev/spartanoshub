@@ -60,7 +60,6 @@ const KnowledgePage = lazy(() => import('../features/knowledge/KnowledgePage').t
 const ClientDashboard = lazy(() => import('../features/client-portal/ClientDashboard').then(m => ({ default: m.ClientDashboard })));
 const ClientLayout = lazy(() => import('../features/client-portal/ClientLayout').then(m => ({ default: m.ClientLayout })));
 const ReservationsPage = lazy(() => import('../features/reservations/ReservationsPage').then(m => ({ default: m.ReservationsPage })));
-const ReservationOperationsPage = lazy(() => import('../features/reservations/ReservationOperationsPage').then(m => ({ default: m.ReservationOperationsPage })));
 const ReservationLocalConfigPage = lazy(() => import('../features/reservations/ReservationLocalConfigPage').then(m => ({ default: m.ReservationLocalConfigPage })));
 const ReservationLocalHubPage = lazy(() => import('../features/reservations/ReservationLocalHubPage').then(m => ({ default: m.ReservationLocalHubPage })));
 const ReservationBuilderPage = lazy(() => import('../features/reservations/ReservationBuilderPage').then(m => ({ default: m.ReservationBuilderPage })));
@@ -179,7 +178,7 @@ export function AppRouter() {
             `ProtectedRoute`, así que quién entra a cada una no cambia por estar anidadas.
           */}
           <Route element={<SafeSuspense><ReservationsLayout /></SafeSuspense>}>
-            <Route path="/reservations" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationOperationsPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />
             {/* Administración conserva la pantalla completa de altas, empresa y Pixel. La
                 operación diaria no la oculta: se entra explícitamente desde la barra. */}
             <Route path="/reservations/manage" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />

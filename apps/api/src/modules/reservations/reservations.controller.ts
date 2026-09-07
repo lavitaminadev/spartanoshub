@@ -105,7 +105,11 @@ export class ReservationsController {
         minimumNoticeHours: dto.minimumNoticeHours,
         maximumAdvanceDays: dto.maximumAdvanceDays,
         confirmationMode: dto.confirmationMode,
+        // El cliente puede editar los campos y servicios de SU local. Antes el constructor
+        // los mostraba editables pero el controlador los descartaba sin avisar al guardar.
+        fieldSchema: dto.fieldSchema,
         scheduleConfig: dto.scheduleConfig,
+        servicesConfig: dto.servicesConfig,
         resourcesConfig: dto.resourcesConfig,
         designConfig: dto.designConfig,
         name: dto.name,
@@ -149,7 +153,7 @@ export class ReservationsController {
   @Post('forms/:id/blocks/batch')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async batchBlock(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body(new ParseArrayPipe({ items: CreateBlockDto, whitelist: true, forbidNonWhitelisted: true })) dtos: CreateBlockDto[]) {
-    if (dtos.length > 365) throw new BadRequestException('No puedes crear mÃ¡s de 365 bloqueos por lote');
+    if (dtos.length > 365) throw new BadRequestException('No puedes crear mas de 365 bloqueos por lote');
     const scope = await this.scope(req);
     const errors: string[] = [];
     const results = await Promise.all(dtos.map((dto) => this.service.addBlock(req.organizationId, id, req.user.id, dto, scope.clientId, scope.clientIds).catch((err: Error) => { errors.push(err.message); return null; })));
