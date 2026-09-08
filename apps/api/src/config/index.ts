@@ -3,7 +3,9 @@ import { randomBytes } from 'node:crypto';
 const developmentJwtSecret = randomBytes(32).toString('hex');
 
 export const config = {
-  port: parseInt(process.env.PORT || '3000', 10),
+  // Passenger puede entregar PORT como ruta de socket Unix, no solo como un
+  // número. Mantenerlo como string evita convertirlo accidentalmente a 3000.
+  port: process.env.PORT || '3000',
   nodeEnv: process.env.NODE_ENV || 'development',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   db: {
