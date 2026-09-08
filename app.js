@@ -15,6 +15,15 @@ if (fs.existsSync(nodevenvLib)) {
     .filter(Boolean)
     .join(path.delimiter);
   Module._initPaths();
+
+  // Passenger wraps CommonJS loading and can bypass NODE_PATH for modules
+  // loaded below the entry point. Add the managed Node Selector directory to
+  // every subsequently created module lookup path as an explicit fallback.
+  const originalNodeModulePaths = Module._nodeModulePaths;
+  Module._nodeModulePaths = function nodeModulePathsWithNodevenv(from) {
+    const paths = originalNodeModulePaths.call(this, from);
+    return paths.includes(nodevenvLib) ? paths : [nodevenvLib, ...paths];
+  };
 }
 
 require(path.join(__dirname, 'apps', 'api', 'dist', 'main'));
