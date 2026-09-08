@@ -54,8 +54,8 @@ const DEFAULT_VENUE_TIPS = [
 ].join('\n');
 
 type ScheduleWindow = { day: number; start: string; end: string };
-type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number };
-type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[] };
+type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean };
+type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[]; active?: boolean };
 type FieldConfig = { id: string; type: string; label: string; required?: boolean; internal?: boolean; options?: string[] };
 type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string };
 type DesignConfig = {
@@ -169,12 +169,13 @@ export class ReservationsService {
     const validateWindowsIfPresent = (windows: unknown, label: string) => { if (windows !== undefined && windows !== null) validateWindows(windows, label); };
     const windows = (form.scheduleConfig as { windows?: ScheduleWindow[] })?.windows;
     validateWindowsIfPresent(windows, 'La agenda semanal');
-    for (const collection of [form.servicesConfig || [], form.resourcesConfig || []] as Array<Array<{ id?: unknown; name?: unknown; durationMinutes?: unknown; capacity?: unknown; windows?: unknown }>>) {
+    for (const collection of [form.servicesConfig || [], form.resourcesConfig || []] as Array<Array<{ id?: unknown; name?: unknown; durationMinutes?: unknown; capacity?: unknown; windows?: unknown; active?: unknown }>>) {
       const ids = new Set<string>();
       for (const item of collection) {
         if (typeof item?.id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(item.id) || ids.has(item.id) || typeof item.name !== 'string' || !item.name.trim() || item.name.length > 180) throw new BadRequestException('Servicios y recursos requieren ID y nombre únicos');
         if (item.durationMinutes !== undefined && (!Number.isInteger(item.durationMinutes) || Number(item.durationMinutes) < 5 || Number(item.durationMinutes) > 1440)) throw new BadRequestException('La duración del servicio no es válida');
         if (item.capacity !== undefined && (!Number.isInteger(item.capacity) || Number(item.capacity) < 1 || Number(item.capacity) > 500)) throw new BadRequestException('La capacidad del servicio o recurso no es válida');
+        if (item.active !== undefined && typeof item.active !== 'boolean') throw new BadRequestException('El estado del servicio o recurso no es válido');
         if (item.windows !== undefined && item.windows !== null) validateWindowsIfPresent(item.windows, `La agenda de ${item.name}`);
         ids.add(item.id);
       }
@@ -369,7 +370,10 @@ export class ReservationsService {
     const meta = capabilities.metaConversions
       ? await this.getClientMetaConfig(form.clientId, form.organizationId, form)
       : { pixelId: '', pixelName: null as string | null, accessToken: undefined as string | undefined };
-    return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: form.servicesConfig, resourcesConfig: form.resourcesConfig, pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
+    const { services, resources } = this.configs(form);
+    // Desactivar una zona o servicio nunca elimina su configuración ni afecta reservas
+    // históricas; simplemente deja de ofrecerlo para nuevas reservas públicas.
+    return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
   }
 
   async formContext(organizationId: string, clientId: string) {
@@ -381,6 +385,8 @@ export class ReservationsService {
   private effectiveRules(form: ReservationForm, serviceId?: string, resourceId?: string) {
     const { services, resources } = this.configs(form); const service = serviceId ? services.find((item) => item.id === serviceId) : undefined; const resource = resourceId ? resources.find((item) => item.id === resourceId) : undefined;
     if (serviceId && !service) throw new BadRequestException('Servicio inválido'); if (resourceId && !resource) throw new BadRequestException('Recurso inválido');
+    if (service?.active === false) throw new BadRequestException('Este servicio ya no acepta nuevas reservas');
+    if (resource?.active === false) throw new BadRequestException('Esta zona ya no acepta nuevas reservas');
     const duration = service?.durationMinutes || form.durationMinutes;
     const design = form.designConfig as DesignConfig;
     const numberRule = (value: unknown, fallback: number, min: number, max: number) => {

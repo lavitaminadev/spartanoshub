@@ -81,6 +81,7 @@ jobs:
       - run: npm run lint:shared
       - run: npm run lint:api
       - run: npm run lint:web
+      - run: npm run check:reservations-text
 
       - name: Confirmar el motor de base de datos
         run: |

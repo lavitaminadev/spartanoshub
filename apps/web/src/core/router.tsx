@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
 import { ClientRoute } from './ClientRoute';
@@ -86,6 +86,12 @@ function HomeRedirect() {
   if (!user) return <Navigate to="/login" replace />;
   if (user.mustChangePassword || user.mustCompleteProfile || user.mustAcceptTerms) return <Navigate to="/first-access" replace />;
   return <Navigate to={user.role === 'client' ? '/portal' : '/dashboard'} replace />;
+}
+
+/** Conserva enlaces antiguos sin mantener una segunda pantalla de Reservas. */
+function LegacyReservationsRedirect({ portal = false }: { portal?: boolean }) {
+  const { search } = useLocation();
+  return <Navigate to={`${portal ? '/portal' : ''}/reservations${search}`} replace />;
 }
 
 function LoginRoute() {
@@ -179,9 +185,7 @@ export function AppRouter() {
           */}
           <Route element={<SafeSuspense><ReservationsLayout /></SafeSuspense>}>
             <Route path="/reservations" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />
-            {/* Administración conserva la pantalla completa de altas, empresa y Pixel. La
-                operación diaria no la oculta: se entra explícitamente desde la barra. */}
-            <Route path="/reservations/manage" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationsPage /></SafeSuspense></ProtectedRoute>} />
+            <Route path="/reservations/manage" element={<ProtectedRoute path="/reservations"><LegacyReservationsRedirect /></ProtectedRoute>} />
             <Route path="/reservations/forms/:id/design" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/locals/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/forms/:id/advanced" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationLocalConfigPage /></SafeSuspense></ProtectedRoute>} />
@@ -198,7 +202,7 @@ export function AppRouter() {
           {/* La empresa configura su propio local primero; el editor visual queda como una
               segunda pantalla, no como la única forma de operar reservas. */}
           <Route path="reservations/locals/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ClientRoute>} />
-          <Route path="reservations/manage" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationsPage clientView /></SafeSuspense></ClientRoute>} />
+          <Route path="reservations/manage" element={<ClientRoute capability="reservations"><LegacyReservationsRedirect portal /></ClientRoute>} />
           <Route path="reservations/agenda" element={<ClientRoute capability="reservations"><SafeSuspense><AgendaPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/calendar" element={<ClientRoute capability="reservations"><SafeSuspense><AvailabilityCalendarPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/forms/:id/advanced" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalConfigPage /></SafeSuspense></ClientRoute>} />

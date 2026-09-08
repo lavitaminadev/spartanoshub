@@ -197,7 +197,7 @@ export function ReservationBuilderPage() {
 
   const saveMutation = useMutation({
     mutationFn: (body: Partial<ReservationForm>) => api.patch<ReservationForm>(`/reservations/forms/${id}`, updatePayload(body)),
-    onSuccess: (next) => { setDraft(next); setSaved(true); qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast(isSurveyMode(next.mode) ? 'Encuesta guardada' : 'Configuración del local guardada'); },
+    onSuccess: (next) => { setDraft(next); setSaved(true); qc.setQueryData(['reservation-form', id], next); qc.setQueryData(['reservation-local', id], next); void qc.invalidateQueries({ queryKey: ['reservation-forms'] }); void qc.invalidateQueries({ queryKey: ['reservation-locals'] }); triggerToast(isSurveyMode(next.mode) ? 'Encuesta guardada' : 'Configuración del local guardada'); },
   });
   const saveDesignAsset = useCallback((key: 'logoUrl' | 'backgroundImage', url: string) => {
     if (!draft) return;

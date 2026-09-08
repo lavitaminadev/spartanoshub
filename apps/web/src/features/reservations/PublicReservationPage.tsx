@@ -62,6 +62,7 @@ export function PublicReservationPage() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [slotDays, setSlotDays] = useState(14);
   const [welcomeOpen, setWelcomeOpen] = useState(true);
+  const [slotIssue, setSlotIssue] = useState('');
 
   const started = useRef(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -128,15 +129,28 @@ export function PublicReservationPage() {
   /** Dias que alcanzaron el tope diario: se muestran completos, no cerrados. */
   const fullDays = useMemo(() => new Set(availability?.fullDays ?? []), [availability]);
 
+  const hold = useMutation({
+    mutationFn: () => api.post(`/public/reservations/${slug}/hold`, {
+      startsAt: selected, partySize: guest.partySize, serviceId: serviceId || undefined,
+      resourceId: resourceId || undefined, holdKey: idempotencyKey,
+    }),
+    onSuccess: () => setSlotIssue(''),
+    onError: (err: Error) => {
+      setSlotIssue(err.message || 'No pudimos retener ese horario. Elige otro para continuar.');
+      setSelected('');
+      setSelectedDate('');
+      setStep(1);
+    },
+  });
+
   // Retiene el turno mientras se completan los datos. El servidor vuelve a validar al
   // confirmar y la retención vence sola, así que cerrar la pestaña nunca bloquea la agenda.
   useEffect(() => {
     if (!selected || !form || isSurvey) return;
-    api.post(`/public/reservations/${slug}/hold`, {
-      startsAt: selected, partySize: guest.partySize, serviceId: serviceId || undefined,
-      resourceId: resourceId || undefined, holdKey: idempotencyKey,
-    }).catch(() => undefined);
-  }, [selected, form, guest.partySize, idempotencyKey, isSurvey, resourceId, serviceId, slug]);
+    hold.mutate();
+  // `mutate` es estable; depende de los datos que definen exactamente el turno retenido.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, form, guest.partySize, idempotencyKey, isSurvey, resourceId, serviceId, slug, hold.mutate]);
 
   const pageTitle = useMemo(() => form ? `${form.name} · Reserva en línea · Espartanos` : 'Reserva en línea · Espartanos', [form]);
   const pageDescription = useMemo(() => form ? `Reserva tu hora para ${form.name}. ${form.designConfig?.welcome || 'Agenda fácil y segura.'}` : 'Agenda tu hora de forma fácil y segura.', [form]);
@@ -550,9 +564,10 @@ export function PublicReservationPage() {
           </div>}
           {!loadingSlots && calendarDays.rawDays.length === 0 && <div className="no-slots"><strong>Sin horarios disponibles</strong><p>Prueba otro servicio o contacta al local.</p></div>}
 
+          {slotIssue && <div className="alert alert-error" role="alert">{slotIssue}</div>}
           {selectedDate && <div className="slot-time-picker">
             <h3>Horarios de {calendarDays.rawDays.find((d) => d.date === selectedDate)?.weekday} {calendarDays.rawDays.find((d) => d.date === selectedDate)?.day}</h3>
-            <div className="slot-time-grid">{selectedDaySlots.map((slot) => <button type="button" className={`slot-time-btn ${selected === slot.startsAt ? 'active' : ''}`} onClick={() => { setSelected(slot.startsAt); goToForm(); }} key={slot.startsAt}>
+            <div className="slot-time-grid">{selectedDaySlots.map((slot) => <button type="button" className={`slot-time-btn ${selected === slot.startsAt ? 'active' : ''}`} onClick={() => { setSlotIssue(''); setSelected(slot.startsAt); goToForm(); }} key={slot.startsAt}>
               <strong>{new Date(slot.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>
               <small>{slot.available} cupo{slot.available !== 1 ? 's' : ''}</small>
             </button>)}</div>
@@ -561,7 +576,7 @@ export function PublicReservationPage() {
 
         {step === 2 && <div ref={formRef}>
           <div className="booking-step-title"><span>{isSurvey ? '01' : '02'}</span><div><strong>{isSurvey ? (design.surveyTitle || 'Cuéntanos cómo fue tu experiencia') : requestMode ? 'Solicita tu evento' : 'Tus datos'}</strong><small>{isSurvey ? (design.surveyHelpText || 'Tus respuestas ayudan al local a mejorar cada visita.') : requestMode ? 'No se reservará un horario hasta que el local confirme contigo.' : 'Se usarán solo para gestionar tu atención.'}</small></div></div>
-          <div className="booking-selected-slot">{selected && <div className="selected-slot-badge"><span><VitaIcons.calendar /></span><strong>{new Date(selected).toLocaleString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong><button type="button" className="btn btn-outline btn-xs" onClick={goBackToSlots}>Cambiar</button></div>}</div>
+          <div className="booking-selected-slot">{selected && <div className="selected-slot-badge"><span><VitaIcons.calendar /></span><strong>{new Date(selected).toLocaleString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>{hold.isPending && <small aria-live="polite">Guardando tu cupo...</small>}{hold.isSuccess && <small className="success-text" aria-live="polite">Cupo retenido mientras completas tus datos.</small>}<button type="button" className="btn btn-outline btn-xs" onClick={goBackToSlots}>Cambiar</button></div>}</div>
           <div className="public-form-fields">
             {systemFields.name && <div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div>}
             {systemFields.phone && <div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div>}

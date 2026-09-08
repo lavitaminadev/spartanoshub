@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -66,6 +66,11 @@ export function AvailabilityCalendarPage() {
   const { data: forms = [] } = useQuery<ReservationForm[]>({
     queryKey: ['reservation-forms', clientId], queryFn: () => api.get(`/reservations/forms?clientId=${encodeURIComponent(clientId)}`), enabled: Boolean(clientId),
   });
+  // Un local recién creado ya queda seleccionado en el calendario. Así la empresa
+  // no aterriza en una vista "todos" sin darse cuenta de que debe elegir su local.
+  useEffect(() => {
+    if (clientMode && !formId && forms.length === 1) setFormId(forms[0].id);
+  }, [clientMode, formId, forms]);
 
   const month = monthKey(cursor);
   const { data: occupancy, isLoading, error, refetch, isFetching } = useQuery<OccupancyResponse>({
