@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { browserDateBoundaryUtc, localDateBoundsUtc } from './local-time';
+import { browserDateBoundaryUtc, localDateBoundsUtc, utcToLocalInput } from './local-time';
 
 describe('reservation date boundaries', () => {
   it('uses the reservation form timezone for a complete local day', () => {
@@ -11,5 +11,9 @@ describe('reservation date boundaries', () => {
   it('makes the selected end date inclusive', () => {
     const boundary = browserDateBoundaryUtc('2026-08-10', true);
     expect(new Date(boundary).getTime()).toBeGreaterThan(new Date(browserDateBoundaryUtc('2026-08-10')).getTime());
+  });
+
+  it('renders a UTC booking pause in the local timezone input', () => {
+    expect(utcToLocalInput('2026-01-20T03:30:00.000Z', 'America/Santiago')).toBe('2026-01-20T00:30');
   });
 });

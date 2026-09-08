@@ -124,7 +124,7 @@ export function PublicReservationPage() {
   }, [from, monthOffset, form]);
 
   const slotParams = new URLSearchParams({ from: fromDate, days: String(slotDays), partySize: String(guest.partySize), ...(serviceId ? { serviceId } : {}), ...(resourceId ? { resourceId } : {}) });
-  const { data: availability, isFetching: loadingSlots } = useQuery<{ slots: Slot[]; fullDays: string[] }>({ queryKey: ['public-slots', slug, fromDate, slotDays, guest.partySize, serviceId, resourceId], queryFn: () => api.get(`/public/reservations/${slug}/slots?${slotParams}`), enabled: Boolean(form) && !isSurvey, staleTime: 30_000, gcTime: 60_000 });
+  const { data: availability, isFetching: loadingSlots } = useQuery<{ slots: Slot[]; fullDays: string[]; pausedUntil?: string }>({ queryKey: ['public-slots', slug, fromDate, slotDays, guest.partySize, serviceId, resourceId], queryFn: () => api.get(`/public/reservations/${slug}/slots?${slotParams}`), enabled: Boolean(form) && !isSurvey, staleTime: 30_000, gcTime: 60_000 });
   const slots = useMemo(() => availability?.slots ?? [], [availability]);
   /** Dias que alcanzaron el tope diario: se muestran completos, no cerrados. */
   const fullDays = useMemo(() => new Set(availability?.fullDays ?? []), [availability]);
@@ -562,7 +562,8 @@ export function PublicReservationPage() {
             <div className="calendar-hint"><span className="dot available" /> Disponible <span className="dot full" /> Completo <span className="dot taken" /> Cerrado</div>
             {slotDays <= 60 && <button type="button" className="btn btn-outline btn-sm calendar-load-more" onClick={() => setSlotDays((d) => d + 14)}>Cargar más fechas</button>}
           </div>}
-          {!loadingSlots && calendarDays.rawDays.length === 0 && <div className="no-slots"><strong>Sin horarios disponibles</strong><p>Prueba otro servicio o contacta al local.</p></div>}
+          {!loadingSlots && availability?.pausedUntil && <div className="no-slots"><strong>Las reservas están pausadas temporalmente</strong><p>Volverán a estar disponibles el {new Date(availability.pausedUntil).toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone })}.</p></div>}
+          {!loadingSlots && !availability?.pausedUntil && calendarDays.rawDays.length === 0 && <div className="no-slots"><strong>Sin horarios disponibles</strong><p>Prueba otro servicio o contacta al local.</p></div>}
 
           {slotIssue && <div className="alert alert-error" role="alert">{slotIssue}</div>}
           {selectedDate && <div className="slot-time-picker">

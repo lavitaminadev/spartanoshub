@@ -72,7 +72,7 @@ function beginExistingFieldDrag(event: DragEvent<HTMLElement>, fieldId: string) 
   event.dataTransfer.setData('text/plain', `field:${fieldId}`);
 }
 
-function builderDragPayload(event: DragEvent<HTMLElement>) {
+export function builderDragPayload(event: Pick<DragEvent<HTMLElement>, 'dataTransfer'>) {
   const plain = event.dataTransfer.getData('text/plain');
   const newField = event.dataTransfer.getData(NEW_FIELD_TRANSFER) || (plain.startsWith('new-field:') ? plain.slice('new-field:'.length) : '');
   const fieldId = event.dataTransfer.getData(EXISTING_FIELD_TRANSFER) || (plain.startsWith('field:') ? plain.slice('field:'.length) : '');
@@ -139,7 +139,7 @@ function updatePayload(form: Partial<ReservationForm>): Partial<ReservationForm>
     fieldSchema: form.fieldSchema, designConfig: form.designConfig,
     scheduleConfig: form.scheduleConfig, servicesConfig: form.servicesConfig,
     resourcesConfig: form.resourcesConfig, campaignId: form.campaignId,
-    crmEnabled: form.crmEnabled, calendarEnabled: form.calendarEnabled,
+    calendarEnabled: form.calendarEnabled,
     metaCapiEnabled: form.metaCapiEnabled,
     ga4MeasurementId: form.ga4MeasurementId,
     teamNotifications: form.teamNotifications,

@@ -18,6 +18,7 @@ export interface DesignConfig {
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
   autoCloseAttendance?: string; autoCloseAfterMinutes?: string;
+  bookingPausedUntil?: string; enforceCompanyDailyCap?: string;
   metaMeasurementEnabled?: string; metaMeasurementNote?: string;
   buttonRadius?: string; fieldRadius?: string; fontFamily?: string; couponEnabled?: string;
   [key: string]: string | undefined;
