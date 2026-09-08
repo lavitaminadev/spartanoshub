@@ -15,9 +15,6 @@ const private_api_cache_middleware_1 = require("./core/http/private-api-cache.mi
 async function bootstrap() {
     const logger = new common_1.Logger('Bootstrap');
     (0, environment_1.validateEnvironment)();
-    const passenger = globalThis.PhusionPassenger;
-    if (passenger)
-        passenger.configure({ autoInstall: false });
     const app = await core_1.NestFactory.create(app_module_1.AppModule, { rawBody: true });
     const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? (process.env.NODE_ENV === 'production' ? 1 : 0));
     if (trustProxyHops > 0) {
@@ -64,9 +61,9 @@ async function bootstrap() {
         swagger_1.SwaggerModule.setup('api/docs', app, document);
     }
     app.enableShutdownHooks();
-    const listenTarget = passenger ? 'passenger' : (process.env.PORT || 3000);
-    await app.listen(listenTarget);
-    logger.log(`Espartanos API listening on ${passenger ? 'Passenger socket' : listenTarget}`);
+    const port = process.env.PORT || 3000;
+    await app.listen(port);
+    logger.log(`Espartanos API listening on ${port}`);
 }
 bootstrap().catch((error) => {
     const logger = new common_1.Logger('Bootstrap');
