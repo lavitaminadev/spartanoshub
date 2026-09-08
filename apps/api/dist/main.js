@@ -61,8 +61,12 @@ async function bootstrap() {
         swagger_1.SwaggerModule.setup('api/docs', app, document);
     }
     app.enableShutdownHooks();
-    await app.listen(process.env.PORT || 3000);
-    logger.log(`Espartanos API running on port ${process.env.PORT || 3000}`);
+    const passenger = globalThis.PhusionPassenger;
+    if (passenger)
+        passenger.configure({ autoInstall: false });
+    const listenTarget = passenger ? 'passenger' : (process.env.PORT || 3000);
+    await app.listen(listenTarget);
+    logger.log(`Espartanos API listening on ${passenger ? 'Passenger socket' : listenTarget}`);
 }
 bootstrap().catch((error) => {
     const logger = new common_1.Logger('Bootstrap');

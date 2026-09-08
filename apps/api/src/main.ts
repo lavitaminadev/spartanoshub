@@ -72,8 +72,17 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  await app.listen(process.env.PORT || 3000);
-  logger.log(`Espartanos API running on port ${process.env.PORT || 3000}`);
+  // Passenger invierte el bind del primer servidor HTTP. Al seleccionar el
+  // socket "passenger" explícitamente evitamos caer en un puerto TCP local
+  // cuando Node Selector no expone PORT al proceso.
+  const passenger = (globalThis as typeof globalThis & {
+    PhusionPassenger?: { configure(options: { autoInstall: boolean }): void };
+  }).PhusionPassenger;
+  if (passenger) passenger.configure({ autoInstall: false });
+
+  const listenTarget = passenger ? 'passenger' : (process.env.PORT || 3000);
+  await app.listen(listenTarget);
+  logger.log(`Espartanos API listening on ${passenger ? 'Passenger socket' : listenTarget}`);
 }
 
 // Sin este catch, un fallo de arranque (ej. no puede conectar a la base de
