@@ -15,7 +15,6 @@ const events = { create: vi.fn((value) => value), save: vi.fn((value) => value),
 const formEvents = { create: vi.fn((value) => value), save: vi.fn((value) => value), findOne: vi.fn() };
 const coupons = { findOne: vi.fn(), create: vi.fn((value) => value), save: vi.fn((value) => value), createQueryBuilder: vi.fn() };
 const dataSource = { transaction: vi.fn(), query: vi.fn() };
-const leadIntake = { captureLead: vi.fn() };
 const calendar = { createEvent: vi.fn() };
 const metaOutbox = { enqueue: vi.fn(), processPending: vi.fn() };
 const clientPixels = { resolve: vi.fn().mockResolvedValue({ pixelId: '', accessToken: undefined }) };
@@ -44,7 +43,7 @@ describe('ReservationsService', () => {
     dataSource.query.mockReset();
     dataSource.query.mockResolvedValue([{ status: 'active', capabilities: { reservations: true, crm: true, metaConversions: false } }]);
     formQuery.where.mockReturnValue(formQuery); formQuery.setLock.mockReturnValue(formQuery);
-    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, leadIntake as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
+    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
   });
 
   it('does not expose tenant or attribution configuration in the public form', async () => {
@@ -437,7 +436,7 @@ describe('ReservationsService — portada operativa', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dataSource.query.mockReset();
-    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, leadIntake as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
+    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
   });
 
   /** Constructor de consultas encadenable que devuelve las reservas indicadas. */

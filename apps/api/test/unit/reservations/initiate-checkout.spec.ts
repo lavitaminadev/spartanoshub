@@ -62,7 +62,7 @@ describe('inicio del formulario hacia Meta', () => {
     formQuery.getOne.mockResolvedValue(formularioPublicado());
     formEvents.findOne.mockResolvedValue(null);
     clientPixels.resolveForScope.mockResolvedValue({ pixelId: 'pixel-1', accessToken: 'token-1' });
-    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, leadIntake as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
+    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
   });
 
   it('encola InitiateCheckout cuando alguien empieza a llenar', async () => {

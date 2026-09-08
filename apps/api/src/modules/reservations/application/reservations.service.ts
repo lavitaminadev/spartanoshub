@@ -18,8 +18,7 @@ import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
-import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
-import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, RESERVATION_LEAD_SOURCE, type MetaEvent } from '@espartanos/shared';
+import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
@@ -54,8 +53,8 @@ const DEFAULT_VENUE_TIPS = [
 ].join('\n');
 
 type ScheduleWindow = { day: number; start: string; end: string };
-type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number };
-type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[] };
+type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean };
+type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[]; active?: boolean };
 type FieldConfig = { id: string; type: string; label: string; required?: boolean; internal?: boolean; options?: string[] };
 type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string };
 type DesignConfig = {
@@ -85,6 +84,10 @@ type DesignConfig = {
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
   autoCloseAttendance?: string; autoCloseAfterMinutes?: string;
+  /** Instante UTC hasta el cual la página pública no ofrece nuevos horarios. */
+  bookingPausedUntil?: string;
+  /** Por defecto se conserva el límite global histórico de la empresa. */
+  enforceCompanyDailyCap?: string;
 };
 
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
@@ -110,7 +113,6 @@ export class ReservationsService {
     @InjectRepository(ReservationFormEvent) private readonly formEvents: Repository<ReservationFormEvent>,
     @InjectRepository(ReservationCoupon) private readonly coupons: Repository<ReservationCoupon>,
     private readonly dataSource: DataSource,
-    private readonly leadIntake: LeadIntakeService,
     private readonly calendar: GoogleCalendarService,
     private readonly metaOutbox: MetaConversionOutboxService,
     private readonly clientPixels: MetaClientPixelService,
@@ -169,12 +171,13 @@ export class ReservationsService {
     const validateWindowsIfPresent = (windows: unknown, label: string) => { if (windows !== undefined && windows !== null) validateWindows(windows, label); };
     const windows = (form.scheduleConfig as { windows?: ScheduleWindow[] })?.windows;
     validateWindowsIfPresent(windows, 'La agenda semanal');
-    for (const collection of [form.servicesConfig || [], form.resourcesConfig || []] as Array<Array<{ id?: unknown; name?: unknown; durationMinutes?: unknown; capacity?: unknown; windows?: unknown }>>) {
+    for (const collection of [form.servicesConfig || [], form.resourcesConfig || []] as Array<Array<{ id?: unknown; name?: unknown; durationMinutes?: unknown; capacity?: unknown; windows?: unknown; active?: unknown }>>) {
       const ids = new Set<string>();
       for (const item of collection) {
         if (typeof item?.id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(item.id) || ids.has(item.id) || typeof item.name !== 'string' || !item.name.trim() || item.name.length > 180) throw new BadRequestException('Servicios y recursos requieren ID y nombre únicos');
         if (item.durationMinutes !== undefined && (!Number.isInteger(item.durationMinutes) || Number(item.durationMinutes) < 5 || Number(item.durationMinutes) > 1440)) throw new BadRequestException('La duración del servicio no es válida');
         if (item.capacity !== undefined && (!Number.isInteger(item.capacity) || Number(item.capacity) < 1 || Number(item.capacity) > 500)) throw new BadRequestException('La capacidad del servicio o recurso no es válida');
+        if (item.active !== undefined && typeof item.active !== 'boolean') throw new BadRequestException('El estado del servicio o recurso no es válido');
         if (item.windows !== undefined && item.windows !== null) validateWindowsIfPresent(item.windows, `La agenda de ${item.name}`);
         ids.add(item.id);
       }
@@ -183,6 +186,11 @@ export class ReservationsService {
     for (const color of [design.primaryColor, design.accentColor, design.backgroundColor, design.textColor].filter(Boolean)) if (!/^#[0-9a-fA-F]{6}$/.test(color!)) throw new BadRequestException('Los colores deben usar formato hexadecimal');
     if (design.title && design.title.length > 180 || design.welcome && design.welcome.length > 1200 || design.confirmationMessage && design.confirmationMessage.length > 1200) throw new BadRequestException('Los textos de diseño exceden el largo permitido');
     if (design.backgroundMode && !['color', 'gradient', 'image'].includes(design.backgroundMode)) throw new BadRequestException('El tipo de fondo no es válido');
+    if (design.bookingPausedUntil !== undefined && design.bookingPausedUntil !== '') {
+      const pausedUntil = new Date(design.bookingPausedUntil);
+      if (typeof design.bookingPausedUntil !== 'string' || Number.isNaN(pausedUntil.getTime()) || !/^\d{4}-\d{2}-\d{2}T/.test(design.bookingPausedUntil)) throw new BadRequestException('La pausa de reservas no tiene una fecha válida');
+    }
+    if (design.enforceCompanyDailyCap !== undefined && !['true', 'false'].includes(design.enforceCompanyDailyCap)) throw new BadRequestException('La regla de cupo global no es válida');
     for (const [label, value, min, max] of [
       ['El umbral de grupo', design.groupThreshold, 2, 100], ['La retención de cupo', design.holdMinutes, 1, 30],
       ['El ritmo por franja', design.slotCadenceMinutes, 5, 240], ['La última llegada antes del cierre', design.lastReservableMinutesBeforeClose, 0, 360], ['El margen de cierre automático', design.autoCloseAfterMinutes, 15, 1440],
@@ -312,7 +320,7 @@ export class ReservationsService {
       designConfig: isSurvey
         ? { primaryColor: '#1f5b2d', accentColor: '#d79b3a', backgroundColor: '#f5eedf', textColor: '#263241', title: dto.name, welcome: 'Gracias por ser parte de nuestra experiencia. Tu opinión es fundamental para seguir mejorando.', confirmationMessage: 'Gracias por tu tiempo. Tu respuesta fue registrada.', backgroundMode: 'image', backgroundOpacity: '82', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'center', buttonRadius: '6', fieldRadius: '6', fontFamily: 'Inter, sans-serif', showFacts: 'false', showSecureBadge: 'false', showPoweredBy: 'false', googleReviewUrl: '', googleReviewMinRating: '4' }
         : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
-      scheduleConfig: { windows: [1,2,3,4,5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: capabilities.crm, calendarEnabled: false, metaCapiEnabled: false,
+      scheduleConfig: { windows: [1,2,3,4,5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: false, calendarEnabled: false, metaCapiEnabled: false,
     });
     this.validateConfiguration(form); return this.forms.save(form);
   }
@@ -323,10 +331,11 @@ export class ReservationsService {
     const form = await this.getForm(organizationId, id, clientId, clientIds);
     const capabilities = await this.clientCapabilities(organizationId, form.clientId);
     if (!capabilities.reservations) throw new ForbiddenException('Reservas no está habilitado para esta empresa');
-    if (dto.crmEnabled && !capabilities.crm) throw new BadRequestException('CRM no está habilitado para esta empresa');
+    // Reservas y CRM son capacidades independientes. No se crea ni sincroniza un lead
+    // desde una reserva; se conserva la columna histórica solo para no borrar datos.
     if (dto.metaCapiEnabled && !capabilities.metaConversions) throw new BadRequestException('Meta Pixel + CAPI no está habilitado para esta empresa');
     Object.assign(form, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
-    if (!capabilities.crm) form.crmEnabled = false;
+    form.crmEnabled = false;
     if (!capabilities.metaConversions) form.metaCapiEnabled = false;
     this.validateConfiguration(form);
     if (form.status === 'published' && ((form.scheduleConfig as { windows?: unknown[] }).windows?.length || 0) === 0) throw new BadRequestException('No puedes publicar sin disponibilidad');
@@ -369,7 +378,10 @@ export class ReservationsService {
     const meta = capabilities.metaConversions
       ? await this.getClientMetaConfig(form.clientId, form.organizationId, form)
       : { pixelId: '', pixelName: null as string | null, accessToken: undefined as string | undefined };
-    return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: form.servicesConfig, resourcesConfig: form.resourcesConfig, pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
+    const { services, resources } = this.configs(form);
+    // Desactivar una zona o servicio nunca elimina su configuración ni afecta reservas
+    // históricas; simplemente deja de ofrecerlo para nuevas reservas públicas.
+    return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
   }
 
   async formContext(organizationId: string, clientId: string) {
@@ -381,6 +393,8 @@ export class ReservationsService {
   private effectiveRules(form: ReservationForm, serviceId?: string, resourceId?: string) {
     const { services, resources } = this.configs(form); const service = serviceId ? services.find((item) => item.id === serviceId) : undefined; const resource = resourceId ? resources.find((item) => item.id === resourceId) : undefined;
     if (serviceId && !service) throw new BadRequestException('Servicio inválido'); if (resourceId && !resource) throw new BadRequestException('Recurso inválido');
+    if (service?.active === false) throw new BadRequestException('Este servicio ya no acepta nuevas reservas');
+    if (resource?.active === false) throw new BadRequestException('Esta zona ya no acepta nuevas reservas');
     const duration = service?.durationMinutes || form.durationMinutes;
     const design = form.designConfig as DesignConfig;
     const numberRule = (value: unknown, fallback: number, min: number, max: number) => {
@@ -388,6 +402,24 @@ export class ReservationsService {
       return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
     };
     return { duration, capacity: Math.max(1, Math.min(service?.capacity || form.capacityPerSlot, resource?.capacity || form.capacityPerSlot)), windows: resource?.windows || ((form.scheduleConfig as { windows: ScheduleWindow[] }).windows), cadence: numberRule(design.slotCadenceMinutes, duration + form.bufferMinutes, 5, 240), lastReservableBeforeClose: numberRule(design.lastReservableMinutesBeforeClose, 0, 0, 360), service, resource };
+  }
+
+  private publicPauseUntil(form: ReservationForm): Date | undefined {
+    const value = (form.designConfig as DesignConfig).bookingPausedUntil;
+    if (!value) return undefined;
+    const until = new Date(value);
+    return Number.isNaN(until.getTime()) || until.getTime() <= Date.now() ? undefined : until;
+  }
+
+  private assertPublicBookingOpen(form: ReservationForm): void {
+    const until = this.publicPauseUntil(form);
+    if (until) throw new ConflictException(`Las reservas están pausadas hasta ${until.toLocaleString('es-CL', { timeZone: form.timezone, dateStyle: 'medium', timeStyle: 'short' })}`);
+  }
+
+  private usesCompanyDailyCap(form: ReservationForm): boolean {
+    // Las configuraciones existentes conservan el comportamiento histórico hasta que la
+    // empresa elija explícitamente independizar sus sedes.
+    return (form.designConfig as DesignConfig).enforceCompanyDailyCap !== 'false';
   }
 
   private groupThreshold(form: ReservationForm): number {
@@ -563,7 +595,7 @@ export class ReservationsService {
       if (dailyCount + partySize > form.dailyCapacity) throw new ConflictException('Este día no tiene cupo para ese grupo');
     }
     // El tope del cliente se aplica ademas del propio del formulario: manda el mas estricto.
-    const clientCap = await this.clientDailyCap(manager, form.clientId);
+    const clientCap = this.usesCompanyDailyCap(form) ? await this.clientDailyCap(manager, form.clientId) : 0;
     if (clientCap > 0) {
       const clientCount = await this.clientDailyReservationsCount(manager, form.clientId, dateKey, form.timezone, excludeId);
       if (clientCount + partySize > clientCap) throw new ConflictException('Este día no tiene cupo para ese grupo');
@@ -600,6 +632,8 @@ export class ReservationsService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new BadRequestException('Fecha inválida');
     if (!Number.isInteger(days) || days < 1 || days > 31) throw new BadRequestException('El rango debe contener entre 1 y 31 días');
     if (!Number.isInteger(partySize) || partySize < 1 || partySize > 500) throw new BadRequestException('Cantidad de personas inválida');
+    const pausedUntil = this.publicPauseUntil(form);
+    if (pausedUntil) return { slots: [], fullDays: [], pausedUntil: pausedUntil.toISOString() };
     const rules = this.effectiveRules(form, serviceId, resourceId);
     const count = days;
     const rangeStart = startOfLocalDayUtc(from, form.timezone);
@@ -616,7 +650,7 @@ export class ReservationsService {
     const [existing, blocks, holds] = await Promise.all([existingQb.getMany(), blocksQb.getMany(), holdsQb ? holdsQb.getMany() : Promise.resolve([] as ReservationHold[])]);
     // El tope efectivo del dia es el mas estricto entre el del formulario y el del cliente.
     // El del cliente cuenta las reservas de todos sus formularios, no solo las de este.
-    const clientCap = await this.clientDailyCap(this.dataSource, form.clientId);
+    const clientCap = this.usesCompanyDailyCap(form) ? await this.clientDailyCap(this.dataSource, form.clientId) : 0;
     const clientCounts = new Map<string, number>();
     if (clientCap > 0) {
       const clientRows = await this.reservations.createQueryBuilder('r')
@@ -1033,6 +1067,7 @@ export class ReservationsService {
       if (!booking || !ACTIVE_STATUSES.includes(booking.status)) throw new ConflictException('Esta reserva ya no se puede reagendar');
       const form = await manager.getRepository(ReservationForm).findOne({ where: { id: booking.formId } });
       if (!form || form.status !== 'published') throw new ConflictException('La agenda ya no está disponible');
+      this.assertPublicBookingOpen(form);
       await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
       const availability = await this.availability(manager, form, startsAt, booking.partySize, booking.serviceId, booking.resourceId, booking.id);
       const previous = booking.status;
@@ -1056,6 +1091,7 @@ export class ReservationsService {
     if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
     return this.transaction('retener cupo público', async (manager) => {
       const form = await this.publishedForm(slug, manager);
+      this.assertPublicBookingOpen(form);
       await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
       const partySize = dto.partySize || 1;
       const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
@@ -1101,6 +1137,7 @@ export class ReservationsService {
     if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
     return this.transaction('crear espera pública', async (manager) => {
       const form = await this.publishedForm(slug, manager);
+      this.assertPublicBookingOpen(form);
       const existing = await manager.getRepository(Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
       if (existing) return existing;
       const rules = this.assertScheduled(form, startsAt, dto.serviceId, dto.resourceId);
@@ -1261,41 +1298,8 @@ export class ReservationsService {
      */
     const capabilities = await this.clientCapabilities(result.form.organizationId, result.form.clientId);
 
-    if (result.created && result.form.crmEnabled && capabilities.crm) {
-      try {
-        // Quien reserva una mesa es audiencia del local, no un prospecto para vender Espartanos:
-        // `captureAudience` mantiene la captura fuera del embudo comercial y devuelve el contacto.
-        const { contact } = await this.leadIntake.captureAudience({
-          organizationId: result.form.organizationId,
-          clientId: result.form.clientId,
-          name: result.booking.guestName,
-          email: result.booking.guestEmail ?? undefined,
-          phone: result.booking.guestPhone ?? undefined,
-          source: RESERVATION_LEAD_SOURCE,
-          sourceDetail: result.form.name,
-          status: 'reserved',
-          externalLeadId: `reservation:${result.booking.id}`,
-          externalFormId: result.form.id,
-          externalCampaignId: result.form.campaignId,
-          campaignName: result.booking.utmCampaign,
-          consentCapturedAt: new Date(),
-          metadata: {
-            reservationId: result.booking.id,
-            referenceCode: result.booking.referenceCode,
-            startsAt: result.booking.startsAt.toISOString(),
-          },
-        });
-        // El vínculo se guarda en la reserva para que la ficha del comensal pueda listar sus
-        // reservas por clave, sin cruzar teléfonos que además cambian cuando alguien los corrige.
-        if (contact?.id && result.booking.contactId !== contact.id) {
-          result.booking.contactId = contact.id;
-          await this.reservations.update(result.booking.id, { contactId: contact.id });
-        }
-      } catch (err) {
-        this.logger.warn(`CRM intake failed for booking ${result.booking.id}: ${err instanceof Error ? err.message : err}`);
-        await this.recordIntegrationFailure(result.booking, 'crm');
-      }
-    }
+    // Reservas no crea ni modifica registros CRM. Las reservas y los contactos históricos
+    // permanecen intactos, pero las nuevas operaciones ya no cruzan módulos.
 
     if (result.created && result.form.calendarEnabled) {
       // Sin esperar: crear el evento es una llamada HTTP a Google de varios cientos de
@@ -1642,11 +1646,9 @@ export class ReservationsService {
     // concepto de conversión negativa/revertida, así que no hay nada correcto que enviarle a Meta
     // por una inasistencia — enviar cualquier cosa le diría al algoritmo "esta persona convirtió",
     // que es lo opuesto de lo que pasó. 'attended' es el único resultado que produce una señal
-    // de conversión real. Ambos resultados igual se sincronizan al CRM abajo para que el equipo
-    // pueda ver/reportar las inasistencias internamente.
+    // de conversión real. Los resultados se mantienen exclusivamente en Reservas.
     if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
     if (statusChangedTo === 'attended' && formForMeta) { try { await this.enqueueGoogleConversion(saved, formForMeta, 'attended', saved.startsAt); } catch (err) { this.logger.warn(`Google Ads attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'google_ads'); } }
-    if (statusChangedTo === 'attended' || statusChangedTo === 'no_show') { try { await this.leadIntake.updateStatusByContact(organizationId, statusChangedTo === 'attended' ? 'attended' : 'no_show', saved.guestEmail, saved.guestPhone, saved.clientId); } catch (err) { this.logger.warn(`CRM status sync failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); /* CRM sync is best-effort */ } }
     if (calendarNotification) void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
     return saved;
   }

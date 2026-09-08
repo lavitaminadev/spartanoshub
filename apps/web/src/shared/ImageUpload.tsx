@@ -83,10 +83,10 @@ export function ImageUpload({
       setLastPublicId(undefined);
       onChange('');
     },
-    onError: () => {
-      // Aunque falle la eliminación en Cloudinary, se limpia la selección local para que el usuario pueda continuar.
-      setLastPublicId(undefined);
-      onChange('');
+    onError: (error: Error) => {
+      // La referencia no se borra hasta que Cloudinary confirma la eliminación. De otro
+      // modo un corte de red podía hacer desaparecer el logo o portada al siguiente guardado.
+      setValidationError(error.message || 'No pudimos quitar la imagen. Inténtalo nuevamente.');
     },
   });
 

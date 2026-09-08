@@ -24,6 +24,15 @@ export function localInputToUtc(value: string, timeZone: string): string {
   return new Date(guess).toISOString();
 }
 
+/** Valor seguro para un control `datetime-local`, respetando la zona del local. */
+export function utcToLocalInput(value: string | undefined, timeZone: string): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const valueParts = parts(date, timeZone);
+  return `${valueParts.year}-${valueParts.month}-${valueParts.day}T${valueParts.hour}:${valueParts.minute}`;
+}
+
 function addPlainDays(value: string, days: number): string {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);

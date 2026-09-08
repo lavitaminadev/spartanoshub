@@ -33,7 +33,6 @@ const timezone_1 = require("../domain/timezone");
 const phone_1 = require("../../../shared/phone");
 const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
-const lead_intake_service_1 = require("../../crm/leads/lead-intake.service");
 const shared_1 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
@@ -62,7 +61,7 @@ const STATUS_TRANSITIONS = {
     attended: [], no_show: [], cancelled_client: [], cancelled_business: [],
 };
 let ReservationsService = ReservationsService_1 = class ReservationsService {
-    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, leadIntake, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds) {
+    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds) {
         this.forms = forms;
         this.reservations = reservations;
         this.blocks = blocks;
@@ -70,7 +69,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.formEvents = formEvents;
         this.coupons = coupons;
         this.dataSource = dataSource;
-        this.leadIntake = leadIntake;
         this.calendar = calendar;
         this.metaOutbox = metaOutbox;
         this.clientPixels = clientPixels;
@@ -151,6 +149,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     throw new common_1.BadRequestException('La duración del servicio no es válida');
                 if (item.capacity !== undefined && (!Number.isInteger(item.capacity) || Number(item.capacity) < 1 || Number(item.capacity) > 500))
                     throw new common_1.BadRequestException('La capacidad del servicio o recurso no es válida');
+                if (item.active !== undefined && typeof item.active !== 'boolean')
+                    throw new common_1.BadRequestException('El estado del servicio o recurso no es válido');
                 if (item.windows !== undefined && item.windows !== null)
                     validateWindowsIfPresent(item.windows, `La agenda de ${item.name}`);
                 ids.add(item.id);
@@ -164,6 +164,13 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Los textos de diseño exceden el largo permitido');
         if (design.backgroundMode && !['color', 'gradient', 'image'].includes(design.backgroundMode))
             throw new common_1.BadRequestException('El tipo de fondo no es válido');
+        if (design.bookingPausedUntil !== undefined && design.bookingPausedUntil !== '') {
+            const pausedUntil = new Date(design.bookingPausedUntil);
+            if (typeof design.bookingPausedUntil !== 'string' || Number.isNaN(pausedUntil.getTime()) || !/^\d{4}-\d{2}-\d{2}T/.test(design.bookingPausedUntil))
+                throw new common_1.BadRequestException('La pausa de reservas no tiene una fecha válida');
+        }
+        if (design.enforceCompanyDailyCap !== undefined && !['true', 'false'].includes(design.enforceCompanyDailyCap))
+            throw new common_1.BadRequestException('La regla de cupo global no es válida');
         for (const [label, value, min, max] of [
             ['El umbral de grupo', design.groupThreshold, 2, 100], ['La retención de cupo', design.holdMinutes, 1, 30],
             ['El ritmo por franja', design.slotCadenceMinutes, 5, 240], ['La última llegada antes del cierre', design.lastReservableMinutesBeforeClose, 0, 360], ['El margen de cierre automático', design.autoCloseAfterMinutes, 15, 1440],
@@ -305,7 +312,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             designConfig: isSurvey
                 ? { primaryColor: '#1f5b2d', accentColor: '#d79b3a', backgroundColor: '#f5eedf', textColor: '#263241', title: dto.name, welcome: 'Gracias por ser parte de nuestra experiencia. Tu opinión es fundamental para seguir mejorando.', confirmationMessage: 'Gracias por tu tiempo. Tu respuesta fue registrada.', backgroundMode: 'image', backgroundOpacity: '82', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'center', buttonRadius: '6', fieldRadius: '6', fontFamily: 'Inter, sans-serif', showFacts: 'false', showSecureBadge: 'false', showPoweredBy: 'false', googleReviewUrl: '', googleReviewMinRating: '4' }
                 : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
-            scheduleConfig: { windows: [1, 2, 3, 4, 5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: capabilities.crm, calendarEnabled: false, metaCapiEnabled: false,
+            scheduleConfig: { windows: [1, 2, 3, 4, 5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: false, calendarEnabled: false, metaCapiEnabled: false,
         });
         this.validateConfiguration(form);
         return this.forms.save(form);
@@ -318,13 +325,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = await this.clientCapabilities(organizationId, form.clientId);
         if (!capabilities.reservations)
             throw new common_1.ForbiddenException('Reservas no está habilitado para esta empresa');
-        if (dto.crmEnabled && !capabilities.crm)
-            throw new common_1.BadRequestException('CRM no está habilitado para esta empresa');
         if (dto.metaCapiEnabled && !capabilities.metaConversions)
             throw new common_1.BadRequestException('Meta Pixel + CAPI no está habilitado para esta empresa');
         Object.assign(form, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
-        if (!capabilities.crm)
-            form.crmEnabled = false;
+        form.crmEnabled = false;
         if (!capabilities.metaConversions)
             form.metaCapiEnabled = false;
         this.validateConfiguration(form);
@@ -376,7 +380,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const meta = capabilities.metaConversions
             ? await this.getClientMetaConfig(form.clientId, form.organizationId, form)
             : { pixelId: '', pixelName: null, accessToken: undefined };
-        return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: form.fieldSchema.filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: form.servicesConfig, resourcesConfig: form.resourcesConfig, pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
+        const { services, resources } = this.configs(form);
+        return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: form.fieldSchema.filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
     }
     async formContext(organizationId, clientId) {
         const capabilities = await this.clientCapabilities(organizationId, clientId);
@@ -391,6 +396,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Servicio inválido');
         if (resourceId && !resource)
             throw new common_1.BadRequestException('Recurso inválido');
+        if (service?.active === false)
+            throw new common_1.BadRequestException('Este servicio ya no acepta nuevas reservas');
+        if (resource?.active === false)
+            throw new common_1.BadRequestException('Esta zona ya no acepta nuevas reservas');
         const duration = service?.durationMinutes || form.durationMinutes;
         const design = form.designConfig;
         const numberRule = (value, fallback, min, max) => {
@@ -398,6 +407,21 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
         };
         return { duration, capacity: Math.max(1, Math.min(service?.capacity || form.capacityPerSlot, resource?.capacity || form.capacityPerSlot)), windows: resource?.windows || (form.scheduleConfig.windows), cadence: numberRule(design.slotCadenceMinutes, duration + form.bufferMinutes, 5, 240), lastReservableBeforeClose: numberRule(design.lastReservableMinutesBeforeClose, 0, 0, 360), service, resource };
+    }
+    publicPauseUntil(form) {
+        const value = form.designConfig.bookingPausedUntil;
+        if (!value)
+            return undefined;
+        const until = new Date(value);
+        return Number.isNaN(until.getTime()) || until.getTime() <= Date.now() ? undefined : until;
+    }
+    assertPublicBookingOpen(form) {
+        const until = this.publicPauseUntil(form);
+        if (until)
+            throw new common_1.ConflictException(`Las reservas están pausadas hasta ${until.toLocaleString('es-CL', { timeZone: form.timezone, dateStyle: 'medium', timeStyle: 'short' })}`);
+    }
+    usesCompanyDailyCap(form) {
+        return form.designConfig.enforceCompanyDailyCap !== 'false';
     }
     groupThreshold(form) {
         const value = Number(form.designConfig.groupThreshold);
@@ -504,7 +528,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             if (dailyCount + partySize > form.dailyCapacity)
                 throw new common_1.ConflictException('Este día no tiene cupo para ese grupo');
         }
-        const clientCap = await this.clientDailyCap(manager, form.clientId);
+        const clientCap = this.usesCompanyDailyCap(form) ? await this.clientDailyCap(manager, form.clientId) : 0;
         if (clientCap > 0) {
             const clientCount = await this.clientDailyReservationsCount(manager, form.clientId, dateKey, form.timezone, excludeId);
             if (clientCount + partySize > clientCap)
@@ -548,6 +572,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('El rango debe contener entre 1 y 31 días');
         if (!Number.isInteger(partySize) || partySize < 1 || partySize > 500)
             throw new common_1.BadRequestException('Cantidad de personas inválida');
+        const pausedUntil = this.publicPauseUntil(form);
+        if (pausedUntil)
+            return { slots: [], fullDays: [], pausedUntil: pausedUntil.toISOString() };
         const rules = this.effectiveRules(form, serviceId, resourceId);
         const count = days;
         const rangeStart = (0, timezone_1.startOfLocalDayUtc)(from, form.timezone);
@@ -564,7 +591,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (resourceId)
             holdsQb?.andWhere('h.resource_id = :resourceId', { resourceId });
         const [existing, blocks, holds] = await Promise.all([existingQb.getMany(), blocksQb.getMany(), holdsQb ? holdsQb.getMany() : Promise.resolve([])]);
-        const clientCap = await this.clientDailyCap(this.dataSource, form.clientId);
+        const clientCap = this.usesCompanyDailyCap(form) ? await this.clientDailyCap(this.dataSource, form.clientId) : 0;
         const clientCounts = new Map();
         if (clientCap > 0) {
             const clientRows = await this.reservations.createQueryBuilder('r')
@@ -927,6 +954,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOne({ where: { id: booking.formId } });
             if (!form || form.status !== 'published')
                 throw new common_1.ConflictException('La agenda ya no está disponible');
+            this.assertPublicBookingOpen(form);
             await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
             const availability = await this.availability(manager, form, startsAt, booking.partySize, booking.serviceId, booking.resourceId, booking.id);
             const previous = booking.status;
@@ -949,6 +977,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Fecha inválida');
         return this.transaction('retener cupo público', async (manager) => {
             const form = await this.publishedForm(slug, manager);
+            this.assertPublicBookingOpen(form);
             await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
             const partySize = dto.partySize || 1;
             const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
@@ -1003,6 +1032,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Fecha inválida');
         return this.transaction('crear espera pública', async (manager) => {
             const form = await this.publishedForm(slug, manager);
+            this.assertPublicBookingOpen(form);
             const existing = await manager.getRepository(reservation_entity_1.Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
             if (existing)
                 return existing;
@@ -1131,38 +1161,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return { booking, form, created: true, managementToken };
         });
         const capabilities = await this.clientCapabilities(result.form.organizationId, result.form.clientId);
-        if (result.created && result.form.crmEnabled && capabilities.crm) {
-            try {
-                const { contact } = await this.leadIntake.captureAudience({
-                    organizationId: result.form.organizationId,
-                    clientId: result.form.clientId,
-                    name: result.booking.guestName,
-                    email: result.booking.guestEmail ?? undefined,
-                    phone: result.booking.guestPhone ?? undefined,
-                    source: shared_1.RESERVATION_LEAD_SOURCE,
-                    sourceDetail: result.form.name,
-                    status: 'reserved',
-                    externalLeadId: `reservation:${result.booking.id}`,
-                    externalFormId: result.form.id,
-                    externalCampaignId: result.form.campaignId,
-                    campaignName: result.booking.utmCampaign,
-                    consentCapturedAt: new Date(),
-                    metadata: {
-                        reservationId: result.booking.id,
-                        referenceCode: result.booking.referenceCode,
-                        startsAt: result.booking.startsAt.toISOString(),
-                    },
-                });
-                if (contact?.id && result.booking.contactId !== contact.id) {
-                    result.booking.contactId = contact.id;
-                    await this.reservations.update(result.booking.id, { contactId: contact.id });
-                }
-            }
-            catch (err) {
-                this.logger.warn(`CRM intake failed for booking ${result.booking.id}: ${err instanceof Error ? err.message : err}`);
-                await this.recordIntegrationFailure(result.booking, 'crm');
-            }
-        }
         if (result.created && result.form.calendarEnabled) {
             const { form, booking } = result;
             void this.calendar.createEvent(form.organizationId, {
@@ -1469,14 +1467,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             catch (err) {
                 this.logger.warn(`Google Ads attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);
                 await this.recordIntegrationFailure(saved, 'google_ads');
-            }
-        }
-        if (statusChangedTo === 'attended' || statusChangedTo === 'no_show') {
-            try {
-                await this.leadIntake.updateStatusByContact(organizationId, statusChangedTo === 'attended' ? 'attended' : 'no_show', saved.guestEmail, saved.guestPhone, saved.clientId);
-            }
-            catch (err) {
-                this.logger.warn(`CRM status sync failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);
             }
         }
         if (calendarNotification)
@@ -1811,10 +1801,10 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
     __param(3, (0, typeorm_1.InjectRepository)(reservation_event_entity_1.ReservationEvent)),
     __param(4, (0, typeorm_1.InjectRepository)(reservation_form_event_entity_1.ReservationFormEvent)),
     __param(5, (0, typeorm_1.InjectRepository)(reservation_coupon_entity_1.ReservationCoupon)),
-    __param(15, (0, typeorm_1.InjectRepository)(survey_contact_request_entity_1.SurveyContactRequest)),
-    __param(16, (0, typeorm_1.InjectRepository)(reservation_group_request_entity_1.ReservationGroupRequest)),
-    __param(18, (0, typeorm_1.InjectRepository)(reservation_management_token_entity_1.ReservationManagementToken)),
-    __param(19, (0, typeorm_1.InjectRepository)(reservation_hold_entity_1.ReservationHold)),
+    __param(14, (0, typeorm_1.InjectRepository)(survey_contact_request_entity_1.SurveyContactRequest)),
+    __param(15, (0, typeorm_1.InjectRepository)(reservation_group_request_entity_1.ReservationGroupRequest)),
+    __param(17, (0, typeorm_1.InjectRepository)(reservation_management_token_entity_1.ReservationManagementToken)),
+    __param(18, (0, typeorm_1.InjectRepository)(reservation_hold_entity_1.ReservationHold)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -1822,7 +1812,6 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.DataSource,
-        lead_intake_service_1.LeadIntakeService,
         google_calendar_service_1.GoogleCalendarService,
         meta_conversion_outbox_service_1.MetaConversionOutboxService,
         meta_client_pixel_service_1.MetaClientPixelService,
