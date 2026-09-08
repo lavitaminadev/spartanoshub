@@ -35,11 +35,18 @@ let PublicReservationsController = class PublicReservationsController {
             return fallback;
         }
     }
+    management(token) { return this.service.publicManagement(token); }
+    cancelManagement(token) { return this.service.cancelPublicManagement(token); }
+    rescheduleManagement(token, dto) {
+        return this.service.reschedulePublicManagement(token, dto.startsAt);
+    }
+    confirmManagement(token) { return this.service.confirmPublicManagement(token); }
+    hold(slug, dto) { return this.service.holdPublic(slug, dto); }
     form(slug) {
         return this.service.publicForm(slug);
     }
-    slots(slug, from, days, serviceId, resourceId) {
-        return this.service.slots(slug, from, Number(days || 14), serviceId, resourceId);
+    slots(slug, from, days, partySize, serviceId, resourceId) {
+        return this.service.slots(slug, from, Number(days || 14), serviceId, resourceId, Number(partySize || 1));
     }
     event(slug, dto, ipAddress, userAgent) {
         return this.service.trackPublicEvent(slug, dto, ipAddress, userAgent);
@@ -47,17 +54,65 @@ let PublicReservationsController = class PublicReservationsController {
     async validateCoupon(slug, dto) {
         const code = dto.code?.trim();
         if (!code)
-            throw new common_1.BadRequestException('CÃ³digo requerido');
+            throw new common_1.BadRequestException('Codigo requerido');
         return this.service.validatePublicCoupon(slug, code, dto.startsAt ? new Date(dto.startsAt) : undefined);
     }
     survey(slug, dto, ipAddress, userAgent) {
         return this.service.createPublicSurveyResponse(slug, dto, ipAddress, userAgent, this.eventSourceUrl(slug, dto.eventSourceUrl));
+    }
+    groupRequest(slug, dto) {
+        return this.service.createPublicGroupRequest(slug, dto);
+    }
+    waitlist(slug, dto) {
+        return this.service.joinPublicWaitlist(slug, dto);
     }
     create(slug, dto, ipAddress, userAgent) {
         return this.service.createPublic(slug, dto, ipAddress, userAgent, this.eventSourceUrl(slug, dto.eventSourceUrl));
     }
 };
 exports.PublicReservationsController = PublicReservationsController;
+__decorate([
+    (0, common_1.Get)('manage/:token'),
+    (0, throttler_1.Throttle)({ default: { limit: 20, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('token')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "management", null);
+__decorate([
+    (0, common_1.Post)('manage/:token/cancel'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('token')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "cancelManagement", null);
+__decorate([
+    (0, common_1.Post)('manage/:token/reschedule'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('token')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, reservation_dto_1.PublicRescheduleReservationDto]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "rescheduleManagement", null);
+__decorate([
+    (0, common_1.Post)('manage/:token/confirm'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('token')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "confirmManagement", null);
+__decorate([
+    (0, common_1.Post)(':slug/hold'),
+    (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('slug')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, reservation_dto_1.PublicReservationHoldDto]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "hold", null);
 __decorate([
     (0, common_1.Get)(':slug'),
     (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),
@@ -72,10 +127,11 @@ __decorate([
     __param(0, (0, common_1.Param)('slug')),
     __param(1, (0, common_1.Query)('from')),
     __param(2, (0, common_1.Query)('days')),
-    __param(3, (0, common_1.Query)('serviceId')),
-    __param(4, (0, common_1.Query)('resourceId')),
+    __param(3, (0, common_1.Query)('partySize')),
+    __param(4, (0, common_1.Query)('serviceId')),
+    __param(5, (0, common_1.Query)('resourceId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "slots", null);
 __decorate([
@@ -110,6 +166,24 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "survey", null);
 __decorate([
+    (0, common_1.Post)(':slug/group-request'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('slug')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, reservation_dto_1.PublicGroupRequestDto]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "groupRequest", null);
+__decorate([
+    (0, common_1.Post)(':slug/waitlist'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('slug')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, reservation_dto_1.PublicReservationDto]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "waitlist", null);
+__decorate([
     (0, common_1.Post)(':slug'),
     (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60000 } }),
     __param(0, (0, common_1.Param)('slug')),
@@ -122,7 +196,7 @@ __decorate([
 ], PublicReservationsController.prototype, "create", null);
 exports.PublicReservationsController = PublicReservationsController = __decorate([
     (0, public_decorator_1.Public)(),
-    (0, swagger_1.ApiTags)('Reservas pÃºblicas'),
+    (0, swagger_1.ApiTags)('Reservas publicas'),
     (0, common_1.Controller)('public/reservations'),
     __metadata("design:paramtypes", [reservations_service_1.ReservationsService])
 ], PublicReservationsController);

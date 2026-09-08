@@ -26,11 +26,13 @@ const reservation_event_entity_1 = require("../domain/reservation-event.entity")
 const reservation_form_event_entity_1 = require("../domain/reservation-form-event.entity");
 const reservation_coupon_entity_1 = require("../domain/reservation-coupon.entity");
 const survey_contact_request_entity_1 = require("../domain/survey-contact-request.entity");
+const reservation_management_token_entity_1 = require("../domain/reservation-management-token.entity");
+const reservation_hold_entity_1 = require("../domain/reservation-hold.entity");
+const reservation_group_request_entity_1 = require("../domain/reservation-group-request.entity");
 const timezone_1 = require("../domain/timezone");
 const phone_1 = require("../../../shared/phone");
 const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
-const lead_intake_service_1 = require("../../crm/leads/lead-intake.service");
 const shared_1 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
@@ -59,7 +61,7 @@ const STATUS_TRANSITIONS = {
     attended: [], no_show: [], cancelled_client: [], cancelled_business: [],
 };
 let ReservationsService = ReservationsService_1 = class ReservationsService {
-    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, leadIntake, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, parametros) {
+    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds) {
         this.forms = forms;
         this.reservations = reservations;
         this.blocks = blocks;
@@ -67,7 +69,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.formEvents = formEvents;
         this.coupons = coupons;
         this.dataSource = dataSource;
-        this.leadIntake = leadIntake;
         this.calendar = calendar;
         this.metaOutbox = metaOutbox;
         this.clientPixels = clientPixels;
@@ -76,7 +77,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.audit = audit;
         this.googleOutbox = googleOutbox;
         this.surveyContacts = surveyContacts;
+        this.groupRequests = groupRequests;
         this.parametros = parametros;
+        this.managementTokens = managementTokens;
+        this.holds = holds;
         this.logger = new common_1.Logger(ReservationsService_1.name);
     }
     slug(value) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 140); }
@@ -145,6 +149,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     throw new common_1.BadRequestException('La duración del servicio no es válida');
                 if (item.capacity !== undefined && (!Number.isInteger(item.capacity) || Number(item.capacity) < 1 || Number(item.capacity) > 500))
                     throw new common_1.BadRequestException('La capacidad del servicio o recurso no es válida');
+                if (item.active !== undefined && typeof item.active !== 'boolean')
+                    throw new common_1.BadRequestException('El estado del servicio o recurso no es válido');
                 if (item.windows !== undefined && item.windows !== null)
                     validateWindowsIfPresent(item.windows, `La agenda de ${item.name}`);
                 ids.add(item.id);
@@ -158,6 +164,20 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Los textos de diseño exceden el largo permitido');
         if (design.backgroundMode && !['color', 'gradient', 'image'].includes(design.backgroundMode))
             throw new common_1.BadRequestException('El tipo de fondo no es válido');
+        if (design.bookingPausedUntil !== undefined && design.bookingPausedUntil !== '') {
+            const pausedUntil = new Date(design.bookingPausedUntil);
+            if (typeof design.bookingPausedUntil !== 'string' || Number.isNaN(pausedUntil.getTime()) || !/^\d{4}-\d{2}-\d{2}T/.test(design.bookingPausedUntil))
+                throw new common_1.BadRequestException('La pausa de reservas no tiene una fecha válida');
+        }
+        if (design.enforceCompanyDailyCap !== undefined && !['true', 'false'].includes(design.enforceCompanyDailyCap))
+            throw new common_1.BadRequestException('La regla de cupo global no es válida');
+        for (const [label, value, min, max] of [
+            ['El umbral de grupo', design.groupThreshold, 2, 100], ['La retención de cupo', design.holdMinutes, 1, 30],
+            ['El ritmo por franja', design.slotCadenceMinutes, 5, 240], ['La última llegada antes del cierre', design.lastReservableMinutesBeforeClose, 0, 360], ['El margen de cierre automático', design.autoCloseAfterMinutes, 15, 1440],
+        ]) {
+            if (value !== undefined && (!/^\d+$/.test(String(value)) || Number(value) < min || Number(value) > max))
+                throw new common_1.BadRequestException(`${label} no es válido`);
+        }
         if (design.backgroundGradient && (design.backgroundGradient.length > 500 || !/^linear-gradient\(/i.test(design.backgroundGradient.trim())))
             throw new common_1.BadRequestException('El degradado de fondo no es válido');
         if (design.backgroundOpacity !== undefined && (!Number.isFinite(Number(design.backgroundOpacity)) || Number(design.backgroundOpacity) < 0 || Number(design.backgroundOpacity) > 100))
@@ -170,11 +190,27 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('La forma de campos no es válida');
         if (design.fontFamily && (design.fontFamily.length > 120 || /[;{}]/.test(design.fontFamily)))
             throw new common_1.BadRequestException('La tipografía no es válida');
+        for (const [label, value, limit] of [
+            ['La razón social', design.legalCompanyName, 180], ['El RUT', design.legalCompanyId, 80], ['El correo de soporte', design.supportEmail, 190],
+            ['La política de cancelación', design.cancellationPolicy, 1200], ['El texto de reserva', design.reservationConsentText, 1200],
+            ['El texto de marketing', design.marketingConsentText, 800], ['La versión de marketing', design.marketingConsentVersion, 30],
+            ['El alias de campaña', design.campaignAlias, 80], ['El título de bienvenida', design.welcomePopupTitle, 180], ['El texto de bienvenida', design.welcomePopupText, 1200],
+            ['El mensaje de WhatsApp', design.whatsappGroupMessage, 1200],
+        ])
+            if (value !== undefined && (typeof value !== 'string' || value.length > limit))
+                throw new common_1.BadRequestException(`${label} no es válido`);
+        if (design.welcomePopupEnabled !== undefined && design.welcomePopupEnabled !== 'true' && design.welcomePopupEnabled !== 'false')
+            throw new common_1.BadRequestException('La bienvenida no es válida');
+        if (design.whatsappBusinessNumber && (typeof design.whatsappBusinessNumber !== 'string' || !/^\+?[1-9]\d{7,14}$/.test(design.whatsappBusinessNumber.replace(/[\s()-]/g, ''))))
+            throw new common_1.BadRequestException('El WhatsApp del local debe usar formato internacional');
         const isValidImageUrl = (url) => !url || (/^https:\/\//i.test(url) && url.length <= 2048);
         if (!isValidImageUrl(design.logoUrl))
             throw new common_1.BadRequestException('El logo debe usar una URL HTTPS válida');
         if (!isValidImageUrl(design.backgroundImage))
             throw new common_1.BadRequestException('La imagen de fondo debe usar una URL HTTPS válida');
+        for (const url of [design.privacyUrl, design.termsUrl])
+            if (url && (typeof url !== 'string' || !/^https:\/\//i.test(url) || url.length > 2048))
+                throw new common_1.BadRequestException('Los enlaces legales deben usar una URL HTTPS válida');
     }
     validateAnswers(form, answers) {
         const fields = form.fieldSchema.filter((f) => f.type !== 'coupon');
@@ -276,7 +312,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             designConfig: isSurvey
                 ? { primaryColor: '#1f5b2d', accentColor: '#d79b3a', backgroundColor: '#f5eedf', textColor: '#263241', title: dto.name, welcome: 'Gracias por ser parte de nuestra experiencia. Tu opinión es fundamental para seguir mejorando.', confirmationMessage: 'Gracias por tu tiempo. Tu respuesta fue registrada.', backgroundMode: 'image', backgroundOpacity: '82', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'center', buttonRadius: '6', fieldRadius: '6', fontFamily: 'Inter, sans-serif', showFacts: 'false', showSecureBadge: 'false', showPoweredBy: 'false', googleReviewUrl: '', googleReviewMinRating: '4' }
                 : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
-            scheduleConfig: { windows: [1, 2, 3, 4, 5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: capabilities.crm, calendarEnabled: false, metaCapiEnabled: false,
+            scheduleConfig: { windows: [1, 2, 3, 4, 5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: false, calendarEnabled: false, metaCapiEnabled: false,
         });
         this.validateConfiguration(form);
         return this.forms.save(form);
@@ -289,13 +325,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = await this.clientCapabilities(organizationId, form.clientId);
         if (!capabilities.reservations)
             throw new common_1.ForbiddenException('Reservas no está habilitado para esta empresa');
-        if (dto.crmEnabled && !capabilities.crm)
-            throw new common_1.BadRequestException('CRM no está habilitado para esta empresa');
         if (dto.metaCapiEnabled && !capabilities.metaConversions)
             throw new common_1.BadRequestException('Meta Pixel + CAPI no está habilitado para esta empresa');
         Object.assign(form, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
-        if (!capabilities.crm)
-            form.crmEnabled = false;
+        form.crmEnabled = false;
         if (!capabilities.metaConversions)
             form.metaCapiEnabled = false;
         this.validateConfiguration(form);
@@ -304,9 +337,19 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         return this.forms.save(form);
     }
     async duplicateForm(organizationId, id, userId, clientIds) { const source = await this.getForm(organizationId, id, undefined, clientIds); const copy = this.forms.create({ ...source, id: undefined, name: `${source.name} (copia)`, publicSlug: await this.uniqueSlug(source.publicSlug), status: 'draft', createdBy: userId, createdAt: undefined, updatedAt: undefined }); return this.forms.save(copy); }
-    async addBlock(organizationId, formId, userId, dto, clientId, clientIds) { const form = await this.getForm(organizationId, formId, clientId, clientIds); const startsAt = new Date(dto.startsAt); const endsAt = new Date(dto.endsAt); if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt)
-        throw new common_1.BadRequestException('El fin debe ser posterior al inicio'); if (endsAt.getTime() - startsAt.getTime() > 366 * 86400000)
-        throw new common_1.BadRequestException('Un bloqueo no puede superar 366 días'); return this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason })); }
+    async addBlock(organizationId, formId, userId, dto, clientId, clientIds) {
+        const form = await this.getForm(organizationId, formId, clientId, clientIds);
+        const startsAt = new Date(dto.startsAt);
+        const endsAt = new Date(dto.endsAt);
+        if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt)
+            throw new common_1.BadRequestException('El fin debe ser posterior al inicio');
+        if (endsAt.getTime() - startsAt.getTime() > 366 * 86400000)
+            throw new common_1.BadRequestException('Un bloqueo no puede superar 366 días');
+        const affected = await this.reservations.createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId, startsAt, endsAt, statuses: ACTIVE_STATUSES }).getCount();
+        if (affected > 0)
+            throw new common_1.ConflictException(`Hay ${affected} reserva(s) en este horario. Reagenda o contacta a esas personas antes de bloquearlo.`);
+        return this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason?.trim() || undefined }));
+    }
     async listBlocks(organizationId, formId, clientId, clientIds) { await this.getForm(organizationId, formId, clientId, clientIds); return this.blocks.find({ where: { organizationId, formId }, order: { startsAt: 'ASC' } }); }
     async removeBlock(organizationId, id, clientId, clientIds, actorId) { const block = await this.blocks.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } }); if (!block)
         throw new common_1.NotFoundException('Bloqueo no encontrado'); await this.blocks.remove(block); await this.audit.log({ organizationId, actorId, entityType: 'AvailabilityBlock', entityId: id, action: 'deleted', before: { startsAt: block.startsAt, endsAt: block.endsAt, reason: block.reason, formId: block.formId } }); return { deleted: true }; }
@@ -337,7 +380,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const meta = capabilities.metaConversions
             ? await this.getClientMetaConfig(form.clientId, form.organizationId, form)
             : { pixelId: '', pixelName: null, accessToken: undefined };
-        return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: form.fieldSchema.filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: form.servicesConfig, resourcesConfig: form.resourcesConfig, pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
+        const { services, resources } = this.configs(form);
+        return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: form.fieldSchema.filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
     }
     async formContext(organizationId, clientId) {
         const capabilities = await this.clientCapabilities(organizationId, clientId);
@@ -352,14 +396,43 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Servicio inválido');
         if (resourceId && !resource)
             throw new common_1.BadRequestException('Recurso inválido');
-        return { duration: service?.durationMinutes || form.durationMinutes, capacity: Math.max(1, Math.min(service?.capacity || form.capacityPerSlot, resource?.capacity || form.capacityPerSlot)), windows: resource?.windows || (form.scheduleConfig.windows), service, resource };
+        if (service?.active === false)
+            throw new common_1.BadRequestException('Este servicio ya no acepta nuevas reservas');
+        if (resource?.active === false)
+            throw new common_1.BadRequestException('Esta zona ya no acepta nuevas reservas');
+        const duration = service?.durationMinutes || form.durationMinutes;
+        const design = form.designConfig;
+        const numberRule = (value, fallback, min, max) => {
+            const parsed = Number(value);
+            return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
+        };
+        return { duration, capacity: Math.max(1, Math.min(service?.capacity || form.capacityPerSlot, resource?.capacity || form.capacityPerSlot)), windows: resource?.windows || (form.scheduleConfig.windows), cadence: numberRule(design.slotCadenceMinutes, duration + form.bufferMinutes, 5, 240), lastReservableBeforeClose: numberRule(design.lastReservableMinutesBeforeClose, 0, 0, 360), service, resource };
+    }
+    publicPauseUntil(form) {
+        const value = form.designConfig.bookingPausedUntil;
+        if (!value)
+            return undefined;
+        const until = new Date(value);
+        return Number.isNaN(until.getTime()) || until.getTime() <= Date.now() ? undefined : until;
+    }
+    assertPublicBookingOpen(form) {
+        const until = this.publicPauseUntil(form);
+        if (until)
+            throw new common_1.ConflictException(`Las reservas están pausadas hasta ${until.toLocaleString('es-CL', { timeZone: form.timezone, dateStyle: 'medium', timeStyle: 'short' })}`);
+    }
+    usesCompanyDailyCap(form) {
+        return form.designConfig.enforceCompanyDailyCap !== 'false';
+    }
+    groupThreshold(form) {
+        const value = Number(form.designConfig.groupThreshold);
+        return Number.isInteger(value) && value >= 2 && value <= 100 ? value : 8;
     }
     assertScheduled(form, startsAt, serviceId, resourceId) {
         const rules = this.effectiveRules(form, serviceId, resourceId);
         const local = (0, timezone_1.zonedParts)(startsAt, form.timezone);
         const minute = local.hour * 60 + local.minute;
-        const window = rules.windows.find((item) => item.day === local.weekday && minute >= this.minutes(item.start) && minute + rules.duration <= this.minutes(item.end));
-        if (!window || (minute - this.minutes(window.start)) % (rules.duration + form.bufferMinutes) !== 0)
+        const window = rules.windows.find((item) => item.day === local.weekday && minute >= this.minutes(item.start) && minute + rules.duration <= this.minutes(item.end) && minute <= this.minutes(item.end) - rules.lastReservableBeforeClose);
+        if (!window || (minute - this.minutes(window.start)) % rules.cadence !== 0)
             throw new common_1.BadRequestException('El horario no pertenece a la disponibilidad publicada');
         const now = Date.now();
         if (startsAt.getTime() < now + form.minimumNoticeHours * 3600000 || startsAt.getTime() > now + form.maximumAdvanceDays * 86400000)
@@ -419,13 +492,13 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async currentReservationCount(manager, column, id, start, end, excludeId) {
         const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
         const params = [id, start, end, ...ACTIVE_STATUSES];
-        let sql = `SELECT id FROM reservations WHERE ${column} = ? AND starts_at >= ? AND starts_at < ? AND status IN (${placeholders})`;
+        let sql = `SELECT id, party_size FROM reservations WHERE ${column} = ? AND starts_at >= ? AND starts_at < ? AND status IN (${placeholders})`;
         if (excludeId) {
             sql += ' AND id != ?';
             params.push(excludeId);
         }
         const rows = await manager.query(`${sql} FOR UPDATE`, params);
-        return Array.isArray(rows) ? rows.length : 0;
+        return Array.isArray(rows) ? rows.reduce((total, row) => total + Math.max(1, Number(row.party_size ?? row.partySize ?? 1)), 0) : 0;
     }
     async clientDailyReservationsCount(manager, clientId, dateKey, timeZone, excludeId) {
         const start = (0, timezone_1.startOfLocalDayUtc)(dateKey, timeZone);
@@ -443,7 +516,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const rows = await runner.query('SELECT daily_reservation_cap FROM clients WHERE id = ?', [clientId]);
         return Number(rows?.[0]?.daily_reservation_cap ?? 0) || 0;
     }
-    async availability(manager, form, startsAt, partySize, serviceId, resourceId, excludeId) {
+    async availability(manager, form, startsAt, partySize, serviceId, resourceId, excludeId, excludeHoldKey) {
         const rules = this.assertScheduled(form, startsAt, serviceId, resourceId);
         const endsAt = new Date(startsAt.getTime() + rules.duration * 60000);
         const block = await manager.getRepository(availability_block_entity_1.AvailabilityBlock).createQueryBuilder('b').where('b.form_id = :formId AND b.starts_at < :endsAt AND b.ends_at > :startsAt', { formId: form.id, startsAt, endsAt }).getOne();
@@ -452,14 +525,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const dateKey = this.localDateKey(startsAt, form.timezone);
         if (form.dailyCapacity > 0) {
             const dailyCount = await this.dailyReservationsCount(manager, form.id, dateKey, form.timezone, excludeId);
-            if (dailyCount >= form.dailyCapacity)
-                throw new common_1.ConflictException('Este día ya alcanzó su tope de reservas');
+            if (dailyCount + partySize > form.dailyCapacity)
+                throw new common_1.ConflictException('Este día no tiene cupo para ese grupo');
         }
-        const clientCap = await this.clientDailyCap(manager, form.clientId);
+        const clientCap = this.usesCompanyDailyCap(form) ? await this.clientDailyCap(manager, form.clientId) : 0;
         if (clientCap > 0) {
             const clientCount = await this.clientDailyReservationsCount(manager, form.clientId, dateKey, form.timezone, excludeId);
-            if (clientCount >= clientCap)
-                throw new common_1.ConflictException('Este día ya alcanzó su tope de reservas');
+            if (clientCount + partySize > clientCap)
+                throw new common_1.ConflictException('Este día no tiene cupo para ese grupo');
         }
         const qb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: ACTIVE_STATUSES }).setLock('pessimistic_write');
         if (resourceId)
@@ -467,17 +540,41 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (excludeId)
             qb.andWhere('r.id != :excludeId', { excludeId });
         const existing = await qb.getMany();
-        const used = existing.reduce((sum, item) => sum + item.partySize, 0);
+        const holdsQb = manager.getRepository(reservation_hold_entity_1.ReservationHold).createQueryBuilder('h')
+            .where('h.form_id = :formId AND h.expires_at > :now AND h.starts_at < :endsAt AND h.ends_at > :startsAt', { formId: form.id, now: new Date(), startsAt, endsAt })
+            .setLock('pessimistic_write');
+        if (resourceId)
+            holdsQb.andWhere('h.resource_id = :resourceId', { resourceId });
+        if (excludeHoldKey)
+            holdsQb.andWhere('h.hold_key != :excludeHoldKey', { excludeHoldKey });
+        const activeHolds = await holdsQb.getMany();
+        const used = existing.reduce((sum, item) => sum + item.partySize, 0) + activeHolds.reduce((sum, item) => sum + item.partySize, 0);
         if (used + partySize > rules.capacity)
             throw new common_1.ConflictException('Ese horario acaba de ocuparse. Selecciona una alternativa.');
         return { ...rules, endsAt, available: rules.capacity - used };
     }
-    async slots(slug, from, days = 14, serviceId, resourceId) {
+    consentTexts(form) {
+        const design = form.designConfig;
+        const controller = String(design.legalCompanyName || form.name).trim();
+        const identifier = design.legalCompanyId ? `, ${String(design.legalCompanyId).trim()}` : '';
+        const contact = design.supportEmail ? ` Puedes ejercer tus derechos de acceso, rectificación, supresión u oposición escribiendo a ${String(design.supportEmail).trim()}.` : '';
+        const privacy = design.privacyUrl ? ` Revisa la política de privacidad en ${String(design.privacyUrl).trim()}.` : '';
+        return {
+            reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mis datos de contacto y los antecedentes de esta solicitud exclusivamente para gestionar, confirmar, modificar o cancelar mi reserva y comunicarse conmigo respecto de ella.${contact}${privacy}`),
+            marketing: String(design.marketingConsentText || `Autorizo voluntariamente a ${controller}${identifier} a enviarme novedades, promociones y comunicaciones comerciales por los datos de contacto indicados. Esta autorización es opcional, no condiciona mi reserva y puedo solicitar su revocación.${contact}${privacy}`),
+        };
+    }
+    async slots(slug, from, days = 14, serviceId, resourceId, partySize = 1) {
         const form = await this.publishedForm(slug);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(from))
             throw new common_1.BadRequestException('Fecha inválida');
         if (!Number.isInteger(days) || days < 1 || days > 31)
             throw new common_1.BadRequestException('El rango debe contener entre 1 y 31 días');
+        if (!Number.isInteger(partySize) || partySize < 1 || partySize > 500)
+            throw new common_1.BadRequestException('Cantidad de personas inválida');
+        const pausedUntil = this.publicPauseUntil(form);
+        if (pausedUntil)
+            return { slots: [], fullDays: [], pausedUntil: pausedUntil.toISOString() };
         const rules = this.effectiveRules(form, serviceId, resourceId);
         const count = days;
         const rangeStart = (0, timezone_1.startOfLocalDayUtc)(from, form.timezone);
@@ -490,8 +587,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const blocksQb = this.blocks.createQueryBuilder('b')
             .select(['b.id', 'b.startsAt', 'b.endsAt'])
             .where('b.form_id = :formId AND b.starts_at < :end AND b.ends_at > :start', { formId: form.id, start: rangeStart, end: rangeEnd });
-        const [existing, blocks] = await Promise.all([existingQb.getMany(), blocksQb.getMany()]);
-        const clientCap = await this.clientDailyCap(this.dataSource, form.clientId);
+        const holdsQb = this.holds?.createQueryBuilder('h').where('h.form_id = :formId AND h.expires_at > :now AND h.starts_at < :end AND h.ends_at > :start', { formId: form.id, now: new Date(), start: rangeStart, end: rangeEnd });
+        if (resourceId)
+            holdsQb?.andWhere('h.resource_id = :resourceId', { resourceId });
+        const [existing, blocks, holds] = await Promise.all([existingQb.getMany(), blocksQb.getMany(), holdsQb ? holdsQb.getMany() : Promise.resolve([])]);
+        const clientCap = this.usesCompanyDailyCap(form) ? await this.clientDailyCap(this.dataSource, form.clientId) : 0;
         const clientCounts = new Map();
         if (clientCap > 0) {
             const clientRows = await this.reservations.createQueryBuilder('r')
@@ -499,16 +599,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 .getMany();
             for (const item of clientRows) {
                 const key = this.localDateKey(item.startsAt, form.timezone);
-                clientCounts.set(key, (clientCounts.get(key) ?? 0) + 1);
+                clientCounts.set(key, (clientCounts.get(key) ?? 0) + item.partySize);
             }
         }
         const dailyCounts = new Map();
         const reservationsByDate = new Map();
+        const holdsByDate = new Map();
         const blocksByDate = new Map();
         if (form.dailyCapacity > 0) {
             for (const item of existing) {
                 const key = this.localDateKey(item.startsAt, form.timezone);
-                dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + 1);
+                dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + item.partySize);
             }
         }
         for (const item of existing) {
@@ -516,6 +617,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const list = reservationsByDate.get(key) || [];
             list.push(item);
             reservationsByDate.set(key, list);
+        }
+        for (const item of holds) {
+            const key = this.localDateKey(item.startsAt, form.timezone);
+            const list = holdsByDate.get(key) || [];
+            list.push(item);
+            holdsByDate.set(key, list);
         }
         const lastRequestedDate = (0, timezone_1.addPlainDays)(from, count - 1);
         for (const block of blocks) {
@@ -543,17 +650,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const date = (0, timezone_1.addPlainDays)(from, offset);
             const { weekday } = (0, timezone_1.plainDateParts)(date);
             const dayWindows = windowsByWeekday.get(weekday) || [];
-            const formFull = form.dailyCapacity > 0 && (dailyCounts.get(date) ?? 0) >= form.dailyCapacity;
-            const clientFull = clientCap > 0 && (clientCounts.get(date) ?? 0) >= clientCap;
+            const formFull = form.dailyCapacity > 0 && (dailyCounts.get(date) ?? 0) + partySize > form.dailyCapacity;
+            const clientFull = clientCap > 0 && (clientCounts.get(date) ?? 0) + partySize > clientCap;
             if (formFull || clientFull) {
                 if (dayWindows.length > 0)
                     fullDays.push(date);
                 continue;
             }
             const dayReservations = reservationsByDate.get(date) || [];
+            const dayHolds = holdsByDate.get(date) || [];
             const dayBlocks = blocksByDate.get(date) || [];
             for (const window of dayWindows) {
-                for (let minute = this.minutes(window.start); minute + rules.duration <= this.minutes(window.end); minute += rules.duration + form.bufferMinutes) {
+                for (let minute = this.minutes(window.start); minute + rules.duration <= this.minutes(window.end) && minute <= this.minutes(window.end) - rules.lastReservableBeforeClose; minute += rules.cadence) {
                     const startsAt = (0, timezone_1.tryLocalToUtc)(date, `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`, form.timezone);
                     if (!startsAt)
                         continue;
@@ -562,8 +670,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                         continue;
                     if (dayBlocks.some((block) => this.overlaps(startsAt, endsAt, block.startsAt, block.endsAt)))
                         continue;
-                    const used = dayReservations.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0);
-                    if (used < rules.capacity)
+                    const used = dayReservations.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0) + dayHolds.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0);
+                    if (used + partySize <= rules.capacity)
                         result.push({ startsAt: startsAt.toISOString(), available: rules.capacity - used });
                 }
             }
@@ -578,7 +686,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 return existing;
         }
         const saved = await this.saveFormEventOnce(this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmCampaign: dto.utmCampaign }));
-        if (dto.type === 'start') {
+        if (dto.type === 'start' && dto.measurementConsent) {
             await this.enqueueMetaInitiateCheckout(saved, form, dto, ipAddress, userAgent);
         }
         return saved;
@@ -610,7 +718,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 },
                 customData: { contentIds: [form.id], contentType: 'reservation' },
                 eventId: (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
-            });
+            }, form.clientId);
         }
         catch (err) {
             this.logger.warn(`Meta CAPI InitiateCheckout enqueue failed for form event ${event.id}: ${err instanceof Error ? err.message : err}`);
@@ -667,7 +775,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             },
         }));
         const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
-        if (form.metaCapiEnabled && capabilities.metaConversions) {
+        if (dto.measurementConsent && form.metaCapiEnabled && capabilities.metaConversions) {
             try {
                 await this.enqueueMetaSurveyConversion(response, form, dto, ipAddress, userAgent, eventSourceUrl);
             }
@@ -718,15 +826,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             this.logger.warn(`Survey low rating notification failed: ${err instanceof Error ? err.message : err}`);
         }
     }
-    async listSurveyContactRequests(organizationId, clientId) {
+    async listSurveyContactRequests(organizationId, clientId, clientIds) {
         return this.surveyContacts.find({
-            where: { organizationId, ...(clientId ? { clientId } : {}) },
+            where: this.scope(organizationId, clientId, clientIds),
             order: { createdAt: 'DESC' },
             take: 200,
         });
     }
-    async updateSurveyContactRequest(organizationId, id, body) {
-        const row = await this.surveyContacts.findOne({ where: { id, organizationId } });
+    async updateSurveyContactRequest(organizationId, id, body, clientId, clientIds, actorId) {
+        const row = await this.surveyContacts.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
         if (!row)
             throw new common_1.NotFoundException('La solicitud de contacto no existe');
         if (body.status)
@@ -735,6 +843,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             row.notes = body.notes;
         if (body.status === 'resolved') {
             row.resolvedAt = new Date();
+            row.resolvedBy = actorId ?? null;
         }
         return this.surveyContacts.save(row);
     }
@@ -752,6 +861,220 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     reportBadEmail(_domain) {
         this.dataSource.query('INSERT INTO audit_logs (organization_id, entity_type, entity_id, action, metadata, occurred_at) VALUES (?, ?, ?, ?, ?, NOW())', [null, 'email_validation', _domain, 'mx_failed', JSON.stringify({ domain: _domain })]).catch(() => undefined);
     }
+    managementHash(token) { return (0, crypto_1.createHash)('sha256').update(token).digest('hex'); }
+    async createManagementToken(reservationId, manager) {
+        const token = (0, crypto_1.randomBytes)(32).toString('base64url');
+        const repository = manager?.getRepository(reservation_management_token_entity_1.ReservationManagementToken) || this.managementTokens;
+        if (!repository)
+            throw new Error('El repositorio de enlaces de gestión no está disponible');
+        await repository.save(repository.create({ reservationId, tokenHash: this.managementHash(token), expiresAt: new Date(Date.now() + 180 * 86400000) }));
+        return token;
+    }
+    async managementReservation(token) {
+        const record = await this.managementTokens.findOne({ where: { tokenHash: this.managementHash(token) } });
+        if (!record || record.revokedAt || record.expiresAt <= new Date())
+            throw new common_1.NotFoundException('El enlace de gestión no está disponible');
+        const reservation = await this.reservations.findOne({ where: { id: record.reservationId } });
+        if (!reservation)
+            throw new common_1.NotFoundException('La reserva no existe');
+        return { record, reservation };
+    }
+    async publicManagement(token) {
+        const { reservation } = await this.managementReservation(token);
+        const form = await this.forms.findOne({ where: { id: reservation.formId } });
+        if (!form)
+            throw new common_1.NotFoundException('El formulario ya no existe');
+        return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status), canReschedule: ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone };
+    }
+    async cancelPublicManagement(token) {
+        const { record, reservation } = await this.managementReservation(token);
+        if (!ACTIVE_STATUSES.includes(reservation.status))
+            throw new common_1.ConflictException('Esta reserva ya no se puede cancelar');
+        const saved = await this.transaction('cancelar reserva pública', async (manager) => {
+            const booking = await manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id', { id: reservation.id }).getOne();
+            if (!booking || !ACTIVE_STATUSES.includes(booking.status))
+                throw new common_1.ConflictException('Esta reserva ya no se puede cancelar');
+            const previous = booking.status;
+            booking.status = 'cancelled_client';
+            await manager.save(booking);
+            await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'cancelled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link' } }));
+            return booking;
+        });
+        record.usedAt = new Date();
+        await this.managementTokens.save(record);
+        void this.sendCalendarUpdate(reservation, 'CANCELLED');
+        return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
+    }
+    async confirmPublicManagement(token) {
+        const { record, reservation } = await this.managementReservation(token);
+        if (!ACTIVE_STATUSES.includes(reservation.status))
+            throw new common_1.ConflictException('Esta reserva ya no se puede confirmar');
+        if (!reservation.guestConfirmedAt) {
+            reservation.guestConfirmedAt = new Date();
+            await this.reservations.save(reservation);
+        }
+        record.usedAt = new Date();
+        await this.managementTokens.save(record);
+        await this.events.save(this.events.create({ organizationId: reservation.organizationId, clientId: reservation.clientId, reservationId: reservation.id, type: 'guest_confirmed', fromStatus: reservation.status, toStatus: reservation.status, actorType: 'guest', metadata: { via: 'management_link' } }));
+        return { confirmed: true, referenceCode: reservation.referenceCode };
+    }
+    calendarIcs(form, booking, method, cancellationReason) {
+        const stamp = (date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+        const escape = (value) => value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+        const configuredAddress = typeof form.designConfig?.venueAddress === 'string' ? form.designConfig.venueAddress.trim() : '';
+        const description = [`Código: ${booking.referenceCode}`, `Personas: ${booking.partySize}`, ...(configuredAddress ? [`Dirección: ${configuredAddress}`] : []), ...(method === 'CANCEL' && cancellationReason ? [`Motivo de cancelación: ${cancellationReason}`] : [])].join('\n');
+        return ['BEGIN:VCALENDAR', 'VERSION:2.0', `METHOD:${method}`, 'PRODID:-//Espartanos//Reservas//ES', 'BEGIN:VEVENT', `UID:reservation-${booking.id}@espartanos`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(booking.startsAt)}`, `DTEND:${stamp(booking.endsAt)}`, `SUMMARY:${escape(`${form.name} · Reserva`)}`, ...(configuredAddress ? [`LOCATION:${escape(configuredAddress)}`] : []), `DESCRIPTION:${escape(description)}`, `STATUS:${method === 'CANCEL' ? 'CANCELLED' : 'CONFIRMED'}`, 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
+    }
+    async sendCalendarUpdate(booking, method, cancellationReason) {
+        if (!booking.guestEmail)
+            return;
+        const form = await this.forms.findOne({ where: { id: booking.formId } });
+        if (!form)
+            return;
+        const cancelled = method === 'CANCELLED';
+        const reason = cancellationReason?.trim();
+        const escapeHtml = (value) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+        const body = cancelled
+            ? `<p>Tu reserva fue cancelada.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
+            : '<p>Tu reserva fue actualizada. Adjuntamos la nueva cita de calendario.</p>';
+        void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
+            .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
+    }
+    async reschedulePublicManagement(token, requestedStartsAt) {
+        const { record, reservation } = await this.managementReservation(token);
+        if (!ACTIVE_STATUSES.includes(reservation.status))
+            throw new common_1.ConflictException('Esta reserva ya no se puede reagendar');
+        const startsAt = new Date(requestedStartsAt);
+        if (Number.isNaN(startsAt.getTime()))
+            throw new common_1.BadRequestException('Fecha inválida');
+        const saved = await this.transaction('reagendar reserva pública', async (manager) => {
+            const booking = await manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id', { id: reservation.id }).getOne();
+            if (!booking || !ACTIVE_STATUSES.includes(booking.status))
+                throw new common_1.ConflictException('Esta reserva ya no se puede reagendar');
+            const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOne({ where: { id: booking.formId } });
+            if (!form || form.status !== 'published')
+                throw new common_1.ConflictException('La agenda ya no está disponible');
+            this.assertPublicBookingOpen(form);
+            await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+            const availability = await this.availability(manager, form, startsAt, booking.partySize, booking.serviceId, booking.resourceId, booking.id);
+            const previous = booking.status;
+            const previousStartsAt = booking.startsAt;
+            booking.startsAt = startsAt;
+            booking.endsAt = availability.endsAt;
+            booking.status = 'rescheduled';
+            await manager.save(booking);
+            await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'rescheduled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link', previousStartsAt: previousStartsAt.toISOString(), startsAt: startsAt.toISOString() } }));
+            return booking;
+        });
+        record.usedAt = new Date();
+        await this.managementTokens.save(record);
+        void this.sendCalendarUpdate(saved, 'PUBLISH');
+        return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
+    }
+    async holdPublic(slug, dto) {
+        const startsAt = new Date(dto.startsAt);
+        if (Number.isNaN(startsAt.getTime()))
+            throw new common_1.BadRequestException('Fecha inválida');
+        return this.transaction('retener cupo público', async (manager) => {
+            const form = await this.publishedForm(slug, manager);
+            this.assertPublicBookingOpen(form);
+            await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+            const partySize = dto.partySize || 1;
+            const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
+            const repo = manager.getRepository(reservation_hold_entity_1.ReservationHold);
+            const current = await repo.findOne({ where: { formId: form.id, holdKey: dto.holdKey } });
+            const configuredMinutes = Number(form.designConfig.holdMinutes);
+            const holdMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 30 ? configuredMinutes : 10;
+            const expiresAt = new Date(Date.now() + holdMinutes * 60_000);
+            const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt });
+            hold.startsAt = startsAt;
+            hold.endsAt = availability.endsAt;
+            hold.partySize = partySize;
+            hold.serviceId = dto.serviceId;
+            hold.resourceId = dto.resourceId;
+            hold.expiresAt = expiresAt;
+            await repo.save(hold);
+            return { expiresAt: hold.expiresAt, available: availability.available };
+        });
+    }
+    async createPublicGroupRequest(slug, dto) {
+        if (dto.website)
+            throw new common_1.BadRequestException('Solicitud inválida');
+        if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800)
+            throw new common_1.BadRequestException('Completa el formulario antes de enviarlo');
+        if (!dto.reservationConsent)
+            throw new common_1.BadRequestException('Debes aceptar las condiciones para enviar la solicitud');
+        if (!dto.guestEmail?.trim() && !dto.guestPhone?.trim())
+            throw new common_1.BadRequestException('Indica un correo o teléfono para responderte');
+        this.validateEmailDomain(dto.guestEmail);
+        const form = await this.publishedForm(slug);
+        const consent = this.consentTexts(form);
+        const existing = await this.groupRequests.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
+        if (existing)
+            return { id: existing.id, status: existing.status, kind: 'group_request' };
+        const request = await this.groupRequests.save(this.groupRequests.create({
+            organizationId: form.organizationId, clientId: form.clientId, formId: form.id, idempotencyKey: dto.idempotencyKey,
+            guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase() || null, guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone) || null,
+            partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
+            notes: dto.notes?.trim() || null, details: dto.details ?? null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+            marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
+            utmSource: dto.utmSource || null, utmCampaign: dto.utmCampaign || null, status: 'pending',
+        }));
+        return { id: request.id, status: request.status, kind: 'group_request' };
+    }
+    async joinPublicWaitlist(slug, dto) {
+        if (dto.website)
+            throw new common_1.BadRequestException('Solicitud inválida');
+        if (!dto.reservationConsent)
+            throw new common_1.BadRequestException('Debes aceptar las condiciones para unirte a la lista de espera');
+        const startsAt = new Date(dto.startsAt);
+        if (Number.isNaN(startsAt.getTime()))
+            throw new common_1.BadRequestException('Fecha inválida');
+        return this.transaction('crear espera pública', async (manager) => {
+            const form = await this.publishedForm(slug, manager);
+            this.assertPublicBookingOpen(form);
+            const existing = await manager.getRepository(reservation_entity_1.Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
+            if (existing)
+                return existing;
+            const rules = this.assertScheduled(form, startsAt, dto.serviceId, dto.resourceId);
+            this.validateSubmission(form, dto.answers, dto);
+            const consent = this.consentTexts(form);
+            const item = await manager.save(reservation_entity_1.Reservation, manager.create(reservation_entity_1.Reservation, {
+                organizationId: form.organizationId, clientId: form.clientId, formId: form.id,
+                idempotencyKey: dto.idempotencyKey, referenceCode: (0, crypto_1.randomBytes)(6).toString('hex').toUpperCase(),
+                status: 'waitlist', startsAt, endsAt: new Date(startsAt.getTime() + rules.duration * 60_000), partySize: dto.partySize || 1,
+                guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone),
+                serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers,
+                consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+                marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
+                marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
+                utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent,
+            }));
+            await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId: form.organizationId, clientId: form.clientId, reservationId: item.id, type: 'waitlist_joined', toStatus: 'waitlist', actorType: 'guest', metadata: { startsAt: startsAt.toISOString() } }));
+            return item;
+        });
+    }
+    async listGroupRequests(organizationId, formId, clientId, clientIds) {
+        await this.getForm(organizationId, formId, clientId, clientIds);
+        return this.groupRequests.find({ where: { organizationId, formId }, order: { createdAt: 'DESC' }, take: 50 });
+    }
+    async updateGroupRequest(organizationId, id, dto, actorId, clientId, clientIds) {
+        const item = await this.groupRequests.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
+        if (!item)
+            throw new common_1.NotFoundException('Solicitud no encontrada');
+        if (dto.status === 'quoted' && (dto.quoteAmount === undefined || !dto.quoteMessage?.trim()))
+            throw new common_1.BadRequestException('Una cotización necesita monto y mensaje para el cliente');
+        item.status = dto.status;
+        if (dto.quoteAmount !== undefined)
+            item.quoteAmount = String(dto.quoteAmount);
+        if (dto.quoteMessage !== undefined)
+            item.quoteMessage = dto.quoteMessage.trim() || null;
+        if (dto.quoteExpiresAt !== undefined)
+            item.quoteExpiresAt = new Date(dto.quoteExpiresAt);
+        const saved = await this.groupRequests.save(item);
+        await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'status_changed', after: { status: dto.status, quoteAmount: dto.quoteAmount, quoteExpiresAt: dto.quoteExpiresAt } });
+        return saved;
+    }
     async createPublic(slug, dto, ipAddress, userAgent, eventSourceUrl) {
         if (dto.website)
             throw new common_1.BadRequestException('Solicitud inválida');
@@ -760,6 +1083,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.validateEmailDomain(dto.guestEmail);
         const result = await this.transaction('crear reserva publica', async (manager) => {
             const form = await this.publishedForm(slug, manager);
+            const consent = this.consentTexts(form);
             const existingIdempotent = await manager.getRepository(reservation_entity_1.Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
             if (existingIdempotent)
                 return { booking: existingIdempotent, form, created: false };
@@ -770,14 +1094,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             if (Number.isNaN(startsAt.getTime()))
                 throw new common_1.BadRequestException('Fecha inválida');
             const partySize = dto.partySize || 1;
-            const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId);
+            const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.idempotencyKey);
             this.validateSubmission(form, dto.answers, dto);
             const coupon = await this.validateCoupon(dto.couponCode, form, manager, startsAt);
             if (coupon) {
                 coupon.usageCount += 1;
                 await manager.save(reservation_coupon_entity_1.ReservationCoupon, coupon);
             }
-            const status = form.confirmationMode === 'manual' ? 'pending' : 'confirmed';
+            const status = form.confirmationMode === 'manual' || partySize > this.groupThreshold(form) ? 'pending' : 'confirmed';
             const booking = await manager.save(reservation_entity_1.Reservation, manager.create(reservation_entity_1.Reservation, {
                 organizationId: form.organizationId,
                 clientId: form.clientId,
@@ -793,8 +1117,20 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone),
                 serviceId: dto.serviceId,
                 resourceId: dto.resourceId,
-                answers: dto.answers,
+                answers: {
+                    ...dto.answers,
+                    ...(dto.partySize && dto.partySize > this.groupThreshold(form) ? { groupEventType: dto.groupEventType || 'otro', groupEventNotes: dto.groupEventNotes?.trim() || null } : {}),
+                    ...(dto.childrenCount ? { childrenCount: dto.childrenCount } : {}),
+                    ...(dto.accessibilityNeed?.trim() ? { accessibilityNeed: dto.accessibilityNeed.trim() } : {}),
+                    ...(dto.dietaryNotes?.trim() ? { dietaryNotes: dto.dietaryNotes.trim() } : {}),
+                },
                 consentVersion: dto.consentVersion,
+                reservationConsentAt: dto.reservationConsent ? new Date() : null,
+                reservationConsentText: dto.reservationConsent ? consent.reservation : null,
+                marketingConsentAt: dto.marketingConsent ? new Date() : null,
+                marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
+                marketingConsentText: dto.marketingConsent ? consent.marketing : null,
+                measurementConsentAt: dto.measurementConsent ? new Date() : null,
                 adultDeclaredAt: dto.adultDeclared ? new Date() : null,
                 utmSource: dto.utmSource,
                 utmMedium: dto.utmMedium,
@@ -820,41 +1156,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 actorType: 'guest',
                 metadata: { startsAt: startsAt.toISOString(), serviceId: dto.serviceId, resourceId: dto.resourceId },
             }));
-            return { booking, form, created: true };
+            await manager.getRepository(reservation_hold_entity_1.ReservationHold).delete({ formId: form.id, holdKey: dto.idempotencyKey });
+            const managementToken = await this.createManagementToken(booking.id, manager);
+            return { booking, form, created: true, managementToken };
         });
         const capabilities = await this.clientCapabilities(result.form.organizationId, result.form.clientId);
-        if (result.created && result.form.crmEnabled && capabilities.crm) {
-            try {
-                const { contact } = await this.leadIntake.captureAudience({
-                    organizationId: result.form.organizationId,
-                    clientId: result.form.clientId,
-                    name: result.booking.guestName,
-                    email: result.booking.guestEmail ?? undefined,
-                    phone: result.booking.guestPhone ?? undefined,
-                    source: shared_1.RESERVATION_LEAD_SOURCE,
-                    sourceDetail: result.form.name,
-                    status: 'reserved',
-                    externalLeadId: `reservation:${result.booking.id}`,
-                    externalFormId: result.form.id,
-                    externalCampaignId: result.form.campaignId,
-                    campaignName: result.booking.utmCampaign,
-                    consentCapturedAt: new Date(),
-                    metadata: {
-                        reservationId: result.booking.id,
-                        referenceCode: result.booking.referenceCode,
-                        startsAt: result.booking.startsAt.toISOString(),
-                    },
-                });
-                if (contact?.id && result.booking.contactId !== contact.id) {
-                    result.booking.contactId = contact.id;
-                    await this.reservations.update(result.booking.id, { contactId: contact.id });
-                }
-            }
-            catch (err) {
-                this.logger.warn(`CRM intake failed for booking ${result.booking.id}: ${err instanceof Error ? err.message : err}`);
-                await this.recordIntegrationFailure(result.booking, 'crm');
-            }
-        }
         if (result.created && result.form.calendarEnabled) {
             const { form, booking } = result;
             void this.calendar.createEvent(form.organizationId, {
@@ -866,7 +1172,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 .then((event) => this.reservations.update(booking.id, { calendarEventId: event.externalId, calendarUrl: event.calendarUrl }))
                 .catch((err) => this.logger.warn(`Evento de calendario pendiente para la reserva ${booking.id}: ${err instanceof Error ? err.message : err}`));
         }
-        if (result.created && result.form.metaCapiEnabled && capabilities.metaConversions) {
+        if (result.created && result.booking.measurementConsentAt && result.form.metaCapiEnabled && capabilities.metaConversions) {
             try {
                 await this.enqueueMetaConversion(result.booking, result.form, shared_1.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
             }
@@ -875,7 +1181,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 await this.recordIntegrationFailure(result.booking, 'meta_capi');
             }
         }
-        if (result.created) {
+        if (result.created && result.booking.measurementConsentAt) {
             try {
                 await this.enqueueGoogleConversion(result.booking, result.form, 'schedule', result.booking.createdAt);
             }
@@ -884,9 +1190,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 await this.recordIntegrationFailure(result.booking, 'google_ads');
             }
         }
+        const managementToken = result.created ? result.managementToken : undefined;
         if (result.created)
-            await this.notifyNewBooking(result.form, result.booking);
-        return result.booking;
+            await this.notifyNewBooking(result.form, result.booking, managementToken);
+        return { ...result.booking, managementToken };
     }
     async recordIntegrationFailure(booking, provider) {
         await this.events.save(this.events.create({
@@ -956,7 +1263,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             },
             customData: { contentIds: [form.id], contentType: 'reservation' },
             eventId: (0, shared_1.metaEventId)(eventName, booking.id),
-        });
+        }, form.clientId);
     }
     async enqueueMetaSurveyConversion(response, form, dto, ipAddress, userAgent, eventSourceUrl) {
         const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
@@ -988,9 +1295,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             },
             customData: { contentIds: [form.id], contentType: 'survey' },
             eventId: (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.LEAD, response.id),
-        });
+        }, form.clientId);
     }
-    async enviarComprobante(form, booking) {
+    async enviarComprobante(form, booking, managementToken) {
         try {
             if (!booking.guestEmail)
                 return;
@@ -1001,21 +1308,24 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 this.parametros.get('email.reservation_confirmation_subject', form.clientId, null, form.organizationId),
                 this.parametros.get('email.reservation_confirmation_body', form.clientId, null, form.organizationId),
             ]);
+            const managementUrl = managementToken && process.env.APP_PUBLIC_URL
+                ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${managementToken}` : undefined;
             const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? 'Tu reserva en {{local}} está confirmada'), String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'), {
                 nombre: booking.guestName,
                 local: form.name,
                 fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
                 personas: booking.partySize,
                 codigo: booking.referenceCode,
-            });
-            void this.emails.send(booking.guestEmail, subject, html).catch((err) => this.logger.warn(`Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
+                gestion: managementUrl || '',
+            }, managementUrl ? { texto: 'Gestionar mi reserva', url: managementUrl } : undefined);
+            void this.emails.send(booking.guestEmail, subject, html, { attachments: [{ filename: 'reserva.ics', content: this.calendarIcs(form, booking, 'PUBLISH'), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }).catch((err) => this.logger.warn(`Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
         catch (err) {
             this.logger.warn(`No se pudo componer el comprobante de ${booking.id}: ${err instanceof Error ? err.message : err}`);
         }
     }
-    async notifyNewBooking(form, booking) {
-        void this.enviarComprobante(form, booking);
+    async notifyNewBooking(form, booking, managementToken) {
+        void this.enviarComprobante(form, booking, managementToken);
         try {
             const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR id = (SELECT community_manager_id FROM clients WHERE id = ? AND organization_id = ?))`, [form.organizationId, form.clientId, form.clientId, form.organizationId]);
             const userIds = rows.map((row) => row.id).filter(Boolean);
@@ -1090,6 +1400,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async updateReservation(organizationId, id, dto, actorId, actorType, clientId, clientIds) {
         let formForMeta;
         let statusChangedTo;
+        let calendarNotification;
         const saved = await this.transaction('actualizar reserva', async (manager) => {
             const repo = manager.getRepository(reservation_entity_1.Reservation);
             const qb = repo.createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id AND r.organization_id = :organizationId', { id, organizationId });
@@ -1115,6 +1426,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             if (dto.status && dto.status !== item.status) {
                 if (!STATUS_TRANSITIONS[item.status]?.includes(dto.status))
                     throw new common_1.ConflictException(`No se puede pasar de ${item.status} a ${dto.status}`);
+                if (dto.status === 'cancelled_business' && !dto.cancellationReason?.trim())
+                    throw new common_1.BadRequestException('Indica el motivo para cancelar una reserva desde el local');
                 if (item.status === 'waitlist' && dto.status === 'confirmed') {
                     const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
                     await this.availability(manager, form, item.startsAt, item.partySize, item.serviceId, item.resourceId, item.id);
@@ -1124,17 +1437,21 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 }
                 statusChangedTo = dto.status;
                 item.status = dto.status;
+                if (dto.status === 'cancelled_business')
+                    calendarNotification = 'CANCELLED';
             }
             if (dto.internalNotes !== undefined)
                 item.internalNotes = dto.internalNotes;
             const result = await repo.save(item);
             const changedStart = previousStart.getTime() !== result.startsAt.getTime();
+            if (changedStart)
+                calendarNotification = 'PUBLISH';
             if (previousStatus !== result.status || changedStart)
-                await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : undefined }));
+                await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined }));
             return result;
         });
         const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
-        if (statusChangedTo === 'attended' && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) {
+        if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) {
             try {
                 await this.enqueueMetaConversion(saved, formForMeta, shared_1.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000));
             }
@@ -1152,15 +1469,28 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 await this.recordIntegrationFailure(saved, 'google_ads');
             }
         }
-        if (statusChangedTo === 'attended' || statusChangedTo === 'no_show') {
-            try {
-                await this.leadIntake.updateStatusByContact(organizationId, statusChangedTo === 'attended' ? 'attended' : 'no_show', saved.guestEmail, saved.guestPhone, saved.clientId);
-            }
-            catch (err) {
-                this.logger.warn(`CRM status sync failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);
-            }
-        }
+        if (calendarNotification)
+            void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
         return saved;
+    }
+    async closeDayByException(organizationId, dto, actorId, clientId, clientIds) {
+        const form = await this.getForm(organizationId, dto.formId, clientId, clientIds);
+        const start = (0, timezone_1.startOfLocalDayUtc)(dto.date, form.timezone);
+        const end = (0, timezone_1.startOfLocalDayUtc)((0, timezone_1.addPlainDays)(dto.date, 1), form.timezone);
+        if (end > new Date())
+            throw new common_1.BadRequestException('Solo puedes cerrar un turno que ya terminó');
+        return this.transaction('cerrar turno por excepción', async (manager) => {
+            await this.lockClientDay(manager, form.clientId, dto.date);
+            const bookings = await manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').setLock('pessimistic_write')
+                .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start, end, statuses: ACTIVE_STATUSES }).getMany();
+            for (const booking of bookings) {
+                const previous = booking.status;
+                booking.status = 'attended';
+                await manager.save(booking);
+                await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId, clientId: form.clientId, reservationId: booking.id, type: 'status_changed', fromStatus: previous, toStatus: 'attended', actorId, actorType: 'team', metadata: { via: 'exception_day_close', reason: dto.reason || null, automaticAttendance: true } }));
+            }
+            return { closed: bookings.length, date: dto.date, formId: form.id };
+        });
     }
     async history(organizationId, reservationId, clientId, clientIds) { const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } }); if (!reservation)
         throw new common_1.NotFoundException('Reserva no encontrada'); return this.events.find({ where: { reservationId, organizationId }, order: { createdAt: 'DESC' } }); }
@@ -1170,12 +1500,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const from = (0, timezone_1.startOfLocalDayUtc)(today, timezone);
         const to = (0, timezone_1.startOfLocalDayUtc)((0, timezone_1.addPlainDays)(today, 1), timezone);
         const scope = this.sqlClientScope(clientId, clientIds);
-        const [row] = await this.dataSource.query(`SELECT COUNT(*) total,
-              SUM(status = 'attended') attended,
-              SUM(status = 'pending') pending,
-              SUM(status = 'no_show') noShow
+        const [row] = await this.dataSource.query(`SELECT COALESCE(SUM(party_size), 0) total,
+              COALESCE(SUM(status = 'attended' AND starts_at <= NOW()), 0) attended,
+              COALESCE(SUM(status = 'pending' AND starts_at > NOW()), 0) pending,
+              COALESCE(SUM(status = 'no_show'), 0) noShow
        FROM reservations
-       WHERE organization_id = ? AND starts_at >= ? AND starts_at < ? AND status NOT LIKE 'cancelled%'${scope.clause}`, [organizationId, from, to, ...scope.params]);
+       WHERE organization_id = ? AND starts_at >= ? AND starts_at < ? AND status IN ('pending','confirmed','rescheduled','attended','no_show')${scope.clause}`, [organizationId, from, to, ...scope.params]);
         const total = Number(row?.total ?? 0);
         const dailyCap = clientId ? await this.clientDailyCap(this.dataSource, clientId) : 0;
         const now = new Date();
@@ -1224,15 +1554,16 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const views = Number(funnel[0]?.views || 0);
         return { totals: totals[0] || {}, daily, sources, areas, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum };
     }
-    async occupancyCalendar(organizationId, month, clientId, clientIds) {
+    async occupancyCalendar(organizationId, month, clientId, clientIds, formId) {
         if (!clientId)
             throw new common_1.BadRequestException('Selecciona un cliente para ver su ocupación');
         if (!/^\d{4}-\d{2}$/.test(month))
             throw new common_1.BadRequestException('Formato de mes inválido, usa YYYY-MM');
         if (clientIds !== undefined && !clientIds.includes(clientId))
             throw new common_1.ForbiddenException('No tienes acceso a este cliente');
-        const capacity = await this.clientDailyCap(this.dataSource, clientId);
-        const timezone = await this.clientTimezone(clientId, organizationId);
+        const form = formId ? await this.getForm(organizationId, formId, clientId, clientIds) : null;
+        const capacity = form?.dailyCapacity ?? await this.clientDailyCap(this.dataSource, clientId);
+        const timezone = form?.timezone ?? await this.clientTimezone(clientId, organizationId);
         const [year, monthNumber] = month.split('-').map(Number);
         const nextMonth = monthNumber === 12 ? `${year + 1}-01` : `${year}-${String(monthNumber + 1).padStart(2, '0')}`;
         const from = (0, timezone_1.startOfLocalDayUtc)(`${month}-01`, timezone);
@@ -1240,6 +1571,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const reservations = await this.reservations.createQueryBuilder('r')
             .select(['r.startsAt'])
             .where('r.organization_id = :organizationId AND r.client_id = :clientId', { organizationId, clientId })
+            .andWhere(formId ? 'r.form_id = :formId' : '1=1', formId ? { formId } : {})
             .andWhere("r.status NOT LIKE 'cancelled%'")
             .andWhere('r.starts_at >= :from AND r.starts_at < :to', { from, to })
             .getMany();
@@ -1282,7 +1614,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             }
         }
         const keys = [...answerKeys].sort();
-        const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+        const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
         const toLine = (row) => row.map(escape).join(',');
         yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'campana', 'cupon', 'personas', 'notas_internas', ...keys]);
         for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
@@ -1308,7 +1640,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             offset += rows.length;
         }
     }
-    async exportFormReservations(organizationId, formId, clientId, clientIds, format = 'csv', dateFrom, dateTo, fields = ['name', 'phone', 'email', 'date', 'status', 'attendance']) {
+    async exportFormReservations(organizationId, formId, clientId, clientIds, format = 'csv', dateFrom, dateTo, fields = ['name', 'phone', 'email', 'date', 'status', 'attendance'], includeInternalNotes = true) {
         const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }).andWhere('r.form_id = :formId', { formId });
         if (clientId)
             qb.andWhere('r.client_id = :clientId', { clientId });
@@ -1333,19 +1665,20 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             coupon: (item) => item.couponCode || '-',
             party_size: (item) => item.partySize,
         };
+        const allowedFields = includeInternalNotes ? fields : fields.filter((field) => field !== 'notes');
         if (format === 'json') {
             return items.map((item) => {
                 const record = {};
-                for (const field of fields) {
+                for (const field of allowedFields) {
                     record[field] = fieldMap[field]?.(item) ?? '-';
                 }
                 return record;
             });
         }
         else if (format === 'csv') {
-            const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-            const headers = fields;
-            return [headers, ...items.map((item) => fields.map((field) => fieldMap[field]?.(item) ?? '-'))].map((row) => row.map(escape).join(',')).join('\r\n');
+            const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+            const headers = allowedFields;
+            return [headers, ...items.map((item) => allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'))].map((row) => row.map(escape).join(',')).join('\r\n');
         }
         throw new common_1.BadRequestException('Formato no soportado');
     }
@@ -1468,7 +1801,10 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
     __param(3, (0, typeorm_1.InjectRepository)(reservation_event_entity_1.ReservationEvent)),
     __param(4, (0, typeorm_1.InjectRepository)(reservation_form_event_entity_1.ReservationFormEvent)),
     __param(5, (0, typeorm_1.InjectRepository)(reservation_coupon_entity_1.ReservationCoupon)),
-    __param(15, (0, typeorm_1.InjectRepository)(survey_contact_request_entity_1.SurveyContactRequest)),
+    __param(14, (0, typeorm_1.InjectRepository)(survey_contact_request_entity_1.SurveyContactRequest)),
+    __param(15, (0, typeorm_1.InjectRepository)(reservation_group_request_entity_1.ReservationGroupRequest)),
+    __param(17, (0, typeorm_1.InjectRepository)(reservation_management_token_entity_1.ReservationManagementToken)),
+    __param(18, (0, typeorm_1.InjectRepository)(reservation_hold_entity_1.ReservationHold)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -1476,7 +1812,6 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.DataSource,
-        lead_intake_service_1.LeadIntakeService,
         google_calendar_service_1.GoogleCalendarService,
         meta_conversion_outbox_service_1.MetaConversionOutboxService,
         meta_client_pixel_service_1.MetaClientPixelService,
@@ -1485,5 +1820,8 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         audit_service_1.AuditService,
         google_conversion_outbox_service_1.GoogleConversionOutboxService,
         typeorm_2.Repository,
-        parameter_resolver_service_1.ParameterResolver])
+        typeorm_2.Repository,
+        parameter_resolver_service_1.ParameterResolver,
+        typeorm_2.Repository,
+        typeorm_2.Repository])
 ], ReservationsService);

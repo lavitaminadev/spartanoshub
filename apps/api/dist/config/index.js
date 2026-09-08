@@ -4,7 +4,7 @@ exports.config = void 0;
 const node_crypto_1 = require("node:crypto");
 const developmentJwtSecret = (0, node_crypto_1.randomBytes)(32).toString('hex');
 exports.config = {
-    port: parseInt(process.env.PORT || '3000', 10),
+    port: process.env.PORT || '3000',
     nodeEnv: process.env.NODE_ENV || 'development',
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     db: {

@@ -151,10 +151,13 @@ let LeadController = class LeadController {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== req.user.clientId) {
             throw new common_1.ForbiddenException('El portal no puede mover contactos fuera de su empresa');
         }
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.excludedFromMeta !== undefined) {
+            throw new common_1.ForbiddenException('El portal no puede cambiar la medición publicitaria');
+        }
         const clientIdDestino = dto.clientId !== undefined ? (dto.clientId ?? undefined) : (lead.clientId ?? undefined);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
         await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
-        return this.updateLead.execute(id, dto, req.organizationId, req.user.id);
+        return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.clientId ?? null);
     }
     async assertLeadAccess(req, lead) {
         if (!lead)

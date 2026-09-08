@@ -167,6 +167,15 @@ let MetaClientPixelService = class MetaClientPixelService {
         const client = await this.clients.findOne({ where: { id: clientId, organizationId } });
         if (!client)
             throw new common_1.NotFoundException('Cliente no encontrado');
+        const assignedInLegacyMap = Object.entries(this.records(integration))
+            .some(([ownerId, record]) => ownerId !== clientId && record?.pixelId === pixelId);
+        const assignedInTable = await this.pixelesGuardados.findOne({
+            where: { organizationId, pixelId, clientId: (0, typeorm_2.Not)(clientId) },
+            select: { id: true },
+        });
+        if (assignedInLegacyMap || assignedInTable) {
+            throw new common_1.BadRequestException('Este Pixel ya está asignado a otra empresa de Reservas. Cada empresa debe usar su propio Pixel.');
+        }
         const existing = this.records(integration)[clientId];
         const token = accessToken?.trim() || this.tokenDePixel(integration, pixelId);
         if (!token)
@@ -226,7 +235,7 @@ let MetaClientPixelService = class MetaClientPixelService {
             pixelId: record?.pixelId || '',
             pixelName: record?.pixelName || null,
             accessToken: record?.pixelId
-                ? this.tokenDePixel(integration, record.pixelId)
+                ? this.tokenDePixel(integration, record.pixelId, clientId)
                 : process.env.META_CONVERSIONS_ACCESS_TOKEN,
         };
     }
@@ -291,12 +300,12 @@ let MetaClientPixelService = class MetaClientPixelService {
             return { agencyPixelId: limpio };
         });
     }
-    async resolveByPixel(organizationId, pixelId) {
-        const enTabla = await this.tokenEnTabla(organizationId, pixelId);
+    async resolveByPixel(organizationId, pixelId, clientId) {
+        const enTabla = await this.tokenEnTabla(organizationId, pixelId, clientId);
         if (enTabla)
             return enTabla;
         const integration = await this.organizationIntegration(organizationId);
-        return this.tokenDePixel(integration, pixelId);
+        return this.tokenDePixel(integration, pixelId, clientId);
     }
     async guardarCredencial(organizationId, pixelId, datos) {
         const integration = await this.organizationIntegration(organizationId, true);

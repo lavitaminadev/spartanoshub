@@ -9,10 +9,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateReservationDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.FORM_FIELD_TYPES = void 0;
+exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.UpdateReservationDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'];
+exports.CHILEAN_MOBILE_PHONE = /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/;
+exports.CHILEAN_MOBILE_PHONE_MESSAGE = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
 class FormFieldDto {
 }
 exports.FormFieldDto = FormFieldDto;
@@ -269,6 +271,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(exports.CHILEAN_MOBILE_PHONE, { message: exports.CHILEAN_MOBILE_PHONE_MESSAGE }),
     (0, class_validator_1.MaxLength)(50),
     __metadata("design:type", String)
 ], PublicReservationDto.prototype, "guestPhone", void 0);
@@ -279,6 +282,36 @@ __decorate([
     (0, class_validator_1.Max)(500),
     __metadata("design:type", Number)
 ], PublicReservationDto.prototype, "partySize", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['cumpleanos', 'aniversario', 'empresa', 'otro']),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "groupEventType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(1000),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "groupEventNotes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(20),
+    __metadata("design:type", Number)
+], PublicReservationDto.prototype, "childrenCount", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "accessibilityNeed", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(1000),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "dietaryNotes", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -308,6 +341,27 @@ __decorate([
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], PublicReservationDto.prototype, "consentVersion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicReservationDto.prototype, "reservationConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicReservationDto.prototype, "marketingConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicReservationDto.prototype, "measurementConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(30),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "marketingConsentVersion", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
@@ -402,6 +456,166 @@ __decorate([
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], PublicReservationDto.prototype, "couponCode", void 0);
+class PublicGroupRequestDto {
+}
+exports.PublicGroupRequestDto = PublicGroupRequestDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/\S/, { message: 'El nombre es obligatorio' }),
+    (0, class_validator_1.MaxLength)(180),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "guestName", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEmail)(),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "guestEmail", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(exports.CHILEAN_MOBILE_PHONE, { message: exports.CHILEAN_MOBILE_PHONE_MESSAGE }),
+    (0, class_validator_1.MaxLength)(50),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "guestPhone", void 0);
+__decorate([
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(2),
+    (0, class_validator_1.Max)(500),
+    __metadata("design:type", Number)
+], PublicGroupRequestDto.prototype, "partySize", void 0);
+__decorate([
+    (0, class_validator_1.IsIn)(['cumpleanos', 'aniversario', 'empresa', 'otro']),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "eventType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^\d{4}-\d{2}-\d{2}$/),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "preferredDate", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "preferredTime", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2000),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "notes", void 0);
+__decorate([
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicGroupRequestDto.prototype, "reservationConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicGroupRequestDto.prototype, "marketingConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(24),
+    (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "idempotencyKey", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(120),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "utmSource", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(180),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "utmCampaign", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], PublicGroupRequestDto.prototype, "details", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "website", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "renderedAt", void 0);
+class PublicRescheduleReservationDto {
+}
+exports.PublicRescheduleReservationDto = PublicRescheduleReservationDto;
+__decorate([
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], PublicRescheduleReservationDto.prototype, "startsAt", void 0);
+class PublicReservationHoldDto {
+}
+exports.PublicReservationHoldDto = PublicReservationHoldDto;
+__decorate([
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], PublicReservationHoldDto.prototype, "startsAt", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(500),
+    __metadata("design:type", Number)
+], PublicReservationHoldDto.prototype, "partySize", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['cumpleanos', 'aniversario', 'empresa', 'otro']),
+    __metadata("design:type", String)
+], PublicReservationHoldDto.prototype, "groupEventType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(1000),
+    __metadata("design:type", String)
+], PublicReservationHoldDto.prototype, "groupEventNotes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], PublicReservationHoldDto.prototype, "serviceId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], PublicReservationHoldDto.prototype, "resourceId", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(24),
+    (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9_-]+$/, { message: 'La clave de retención no es válida' }),
+    __metadata("design:type", String)
+], PublicReservationHoldDto.prototype, "holdKey", void 0);
+class CloseReservationDayDto {
+}
+exports.CloseReservationDayDto = CloseReservationDayDto;
+__decorate([
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CloseReservationDayDto.prototype, "formId", void 0);
+__decorate([
+    (0, class_validator_1.Matches)(/^\d{4}-\d{2}-\d{2}$/),
+    __metadata("design:type", String)
+], CloseReservationDayDto.prototype, "date", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], CloseReservationDayDto.prototype, "reason", void 0);
 class UpdateReservationDto {
 }
 exports.UpdateReservationDto = UpdateReservationDto;
@@ -423,9 +637,41 @@ __decorate([
 ], UpdateReservationDto.prototype, "startsAt", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], UpdateReservationDto.prototype, "cancellationReason", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(['draft', 'sent', 'confirmed', 'preparation', 'execution', 'delivered']),
     __metadata("design:type", String)
 ], UpdateReservationDto.prototype, "workflowState", void 0);
+class UpdateGroupRequestDto {
+}
+exports.UpdateGroupRequestDto = UpdateGroupRequestDto;
+__decorate([
+    (0, class_validator_1.IsIn)(['pending', 'contacted', 'quoted', 'closed']),
+    __metadata("design:type", String)
+], UpdateGroupRequestDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(999999999),
+    __metadata("design:type", Number)
+], UpdateGroupRequestDto.prototype, "quoteAmount", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(5000),
+    __metadata("design:type", String)
+], UpdateGroupRequestDto.prototype, "quoteMessage", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], UpdateGroupRequestDto.prototype, "quoteExpiresAt", void 0);
 class PublicFormEventDto {
 }
 exports.PublicFormEventDto = PublicFormEventDto;
@@ -433,6 +679,11 @@ __decorate([
     (0, class_validator_1.IsIn)(['view', 'start']),
     __metadata("design:type", String)
 ], PublicFormEventDto.prototype, "type", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicFormEventDto.prototype, "measurementConsent", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -493,6 +744,11 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], PublicSurveyResponseDto.prototype, "answers", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicSurveyResponseDto.prototype, "measurementConsent", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MinLength)(24),
@@ -950,3 +1206,8 @@ __decorate([
     (0, class_validator_1.Matches)(/^\d{4}-\d{2}$/, { message: 'El mes debe tener el formato YYYY-MM' }),
     __metadata("design:type", String)
 ], OccupancyQueryDto.prototype, "month", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], OccupancyQueryDto.prototype, "formId", void 0);

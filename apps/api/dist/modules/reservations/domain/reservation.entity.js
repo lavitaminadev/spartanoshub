@@ -91,6 +91,34 @@ __decorate([
     __metadata("design:type", String)
 ], Reservation.prototype, "consentVersion", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'reservation_consent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "reservationConsentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'reservation_consent_text', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "reservationConsentText", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'marketing_consent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "marketingConsentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'marketing_consent_version', type: 'varchar', length: 30, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "marketingConsentVersion", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'marketing_consent_text', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "marketingConsentText", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "guestConfirmedAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'measurement_consent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "measurementConsentAt", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'adult_declared_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "adultDeclaredAt", void 0);
@@ -98,6 +126,10 @@ __decorate([
     (0, typeorm_1.Column)({ name: 'reminder_sent_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "reminderSentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'reminder_followup_sent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "reminderFollowupSentAt", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'internal_notes', type: 'text', nullable: true }),
     __metadata("design:type", Object)

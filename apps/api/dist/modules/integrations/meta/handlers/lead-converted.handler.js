@@ -26,7 +26,7 @@ const lead_entity_1 = require("../../../crm/leads/lead.entity");
 const client_entity_1 = require("../../../clients/client.entity");
 const campaign_entity_1 = require("../../../crm/campaigns/campaign.entity");
 const atribucion_del_lead_1 = require("../atribucion-del-lead");
-const LEADGEN_ID = /^d{15,17}$/;
+const LEADGEN_ID = /^\d{15,17}$/;
 let LeadConvertedHandler = LeadConvertedHandler_1 = class LeadConvertedHandler {
     constructor(outbox, clientPixels, accountsRepo, leadRepo, clientRepo, campaignRepo) {
         this.outbox = outbox;

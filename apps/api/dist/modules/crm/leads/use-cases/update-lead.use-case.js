@@ -22,6 +22,7 @@ const lead_fit_status_enum_1 = require("../lead-fit-status.enum");
 const process_history_service_1 = require("../../../../core/process-history/process-history.service");
 const process_stage_change_entity_1 = require("../../../../core/process-history/process-stage-change.entity");
 const lead_cierre_service_1 = require("../lead-cierre.service");
+const responsables_del_crm_service_1 = require("../responsables-del-crm.service");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const DOMAIN_LABELS = {
     commercial: 'el embudo comercial',
@@ -32,13 +33,14 @@ const DESENLACES = {
     [lead_status_enum_1.LeadStatus.LOST]: lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
 };
 let UpdateLeadUseCase = class UpdateLeadUseCase {
-    constructor(repo, history, cierre, eventEmitter) {
+    constructor(repo, history, cierre, eventEmitter, responsables) {
         this.repo = repo;
         this.history = history;
         this.cierre = cierre;
         this.eventEmitter = eventEmitter;
+        this.responsables = responsables;
     }
-    async execute(id, data, organizationId, actorId) {
+    async execute(id, data, organizationId, actorId, actorClientId) {
         const lead = await this.repo.findOne({ where: { id, organizationId } });
         if (!lead)
             throw new common_1.NotFoundException('Lead not found');
@@ -90,6 +92,16 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             if (automatica)
                 lead.fitStatus = automatica;
         }
+        if (data.assignedTo === undefined
+            && !lead.assignedTo
+            && actorId
+            && etapaPrevia !== lead.status
+            && lead.clientId
+            && actorClientId === lead.clientId) {
+            const equipo = await this.responsables.execute(organizationId, lead.clientId);
+            if (equipo.length === 1 && equipo[0].id === actorId)
+                lead.assignedTo = actorId;
+        }
         if (lead.status === lead_status_enum_1.LeadStatus.LOST && etapaPrevia !== lead_status_enum_1.LeadStatus.LOST && !lead.discardReason?.trim()) {
             throw new common_1.BadRequestException('Para descartar un lead hay que indicar el motivo');
         }
@@ -128,5 +140,6 @@ exports.UpdateLeadUseCase = UpdateLeadUseCase = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         process_history_service_1.ProcessHistoryService,
         lead_cierre_service_1.LeadCierreService,
-        event_emitter_1.EventEmitter2])
+        event_emitter_1.EventEmitter2,
+        responsables_del_crm_service_1.ResponsablesDelCrmService])
 ], UpdateLeadUseCase);

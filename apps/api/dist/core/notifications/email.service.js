@@ -50,7 +50,7 @@ let EmailService = EmailService_1 = class EmailService {
             socketTimeout: 20_000,
         });
     }
-    async send(to, subject, html) {
+    async send(to, subject, html, options) {
         const recipient = to.trim().toLowerCase();
         if (!validRecipient(recipient)) {
             this.logger.warn('Email skipped because the recipient is invalid');
@@ -67,6 +67,7 @@ let EmailService = EmailService_1 = class EmailService {
                 replyTo: this.replyTo,
                 subject: subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255),
                 html,
+                attachments: options?.attachments,
             });
             const accepted = Array.isArray(result.accepted) ? result.accepted.length : 0;
             if (!accepted)
