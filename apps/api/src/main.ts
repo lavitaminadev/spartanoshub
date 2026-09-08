@@ -12,6 +12,15 @@ import { privateApiCacheMiddleware } from './core/http/private-api-cache.middlew
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   validateEnvironment();
+
+  // Passenger asigna el socket en el que la aplicacion debe escuchar. La
+  // configuracion se aplica antes de NestFactory.create() porque esa llamada
+  // ya instancia el servidor HTTP que Passenger necesita gobernar.
+  const passenger = (globalThis as typeof globalThis & {
+    PhusionPassenger?: { configure(options: { autoInstall: boolean }): void };
+  }).PhusionPassenger;
+  if (passenger) passenger.configure({ autoInstall: false });
+
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? (process.env.NODE_ENV === 'production' ? 1 : 0));
   if (trustProxyHops > 0) {
@@ -71,14 +80,6 @@ async function bootstrap() {
   }
 
   app.enableShutdownHooks();
-
-  // Passenger invierte el bind del primer servidor HTTP. Al seleccionar el
-  // socket "passenger" explícitamente evitamos caer en un puerto TCP local
-  // cuando Node Selector no expone PORT al proceso.
-  const passenger = (globalThis as typeof globalThis & {
-    PhusionPassenger?: { configure(options: { autoInstall: boolean }): void };
-  }).PhusionPassenger;
-  if (passenger) passenger.configure({ autoInstall: false });
 
   const listenTarget = passenger ? 'passenger' : (process.env.PORT || 3000);
   await app.listen(listenTarget);
