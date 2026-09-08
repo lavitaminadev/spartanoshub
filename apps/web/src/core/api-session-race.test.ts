@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const post = vi.fn();
@@ -34,8 +34,13 @@ import { getApiToken, setApiToken } from './api';
 describe('cambio de identidad durante una renovación', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // La prueba comprueba la carrera de tokens, no el navegador. JSDOM no implementa
+    // navegación completa y reporta un error aunque la promesa se rechace como corresponde.
+    vi.stubGlobal('window', { location: { href: '' } });
     setApiToken(null);
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it('ignora el refresh de la cuenta anterior cuando ya se cerró sesión', async () => {
     let finishRefresh!: (value: { data: { accessToken: string } }) => void;
