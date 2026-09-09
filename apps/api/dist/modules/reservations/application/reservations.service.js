@@ -904,7 +904,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return booking;
         });
         record.usedAt = new Date();
-        record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
         await this.managementTokens.save(record);
         void this.sendCalendarUpdate(reservation, 'CANCELLED');
         return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
@@ -971,6 +970,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return booking;
         });
         record.usedAt = new Date();
+        record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
         await this.managementTokens.save(record);
         void this.sendCalendarUpdate(saved, 'PUBLISH');
         return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
