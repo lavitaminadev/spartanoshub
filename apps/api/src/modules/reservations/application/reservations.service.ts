@@ -1035,9 +1035,7 @@ export class ReservationsService {
       return booking;
     });
     record.usedAt = new Date();
-    // Reagendar mueve la reserva, y el enlace debe seguir sirviendo hasta despues de la nueva
-    // fecha: sin esto, mover una reserva lejos la dejaba sin forma de gestionarse.
-    record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000); await this.managementTokens.save(record);
+    await this.managementTokens.save(record);
     void this.sendCalendarUpdate(reservation, 'CANCELLED');
     return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
   }
@@ -1100,6 +1098,9 @@ export class ReservationsService {
       return booking;
     });
     record.usedAt = new Date();
+    // Reagendar mueve la reserva, y el enlace debe seguir sirviendo hasta despues de la nueva
+    // fecha: sin esto, mover una reserva lejos la dejaba sin forma de gestionarse.
+    record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
     await this.managementTokens.save(record);
     void this.sendCalendarUpdate(saved, 'PUBLISH');
     return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
