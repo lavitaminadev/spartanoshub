@@ -379,6 +379,21 @@ describe('ReservationsService', () => {
         .rejects.toThrow('Completa el formulario antes de enviarlo');
     });
 
+    /**
+     * Pausar la agenda tiene que cerrar la puerta, no solo apagar la vitrina: `slots` deja de
+     * ofrecer horarios, pero una pestana abierta de antes puede enviar el formulario igual.
+     */
+    it('no acepta reservas nuevas mientras la agenda esta pausada', async () => {
+      const pausado = { ...publishedForm(), designConfig: { bookingPausedUntil: new Date(Date.now() + 3_600_000).toISOString() } };
+      formQuery.getOne.mockResolvedValue(pausado);
+      dataSource.transaction.mockImplementation(async (cb: Function) => cb({
+        query: vi.fn().mockResolvedValue([{ status: 'active', capabilities: { reservations: true, crm: true, metaConversions: false } }]),
+        getRepository: vi.fn(() => ({ createQueryBuilder: () => formQuery, findOne: vi.fn().mockResolvedValue(null) })),
+      }));
+      await expect(service.createPublic('evaluacion', { ...(validPayload as object), website: '', renderedAt: new Date(Date.now() - 30_000).toISOString() } as never))
+        .rejects.toThrow('pausadas');
+    });
+
     it('deja pasar un envío humano: campo trampa vacío y tiempo razonable', async () => {
       // No llega a crear la reserva —el escenario no está montado— pero supera las guardas.
       await expect(service.createPublic('evaluacion', { ...(validPayload as object), website: '', renderedAt: new Date(Date.now() - 30_000).toISOString() } as never))

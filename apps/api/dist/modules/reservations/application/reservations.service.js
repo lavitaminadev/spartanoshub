@@ -1089,6 +1089,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const existingIdempotent = await manager.getRepository(reservation_entity_1.Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
             if (existingIdempotent)
                 return { booking: existingIdempotent, form, created: false };
+            this.assertPublicBookingOpen(form);
             const startsAt = new Date(dto.startsAt);
             if (!Number.isNaN(startsAt.getTime())) {
                 await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
@@ -1161,6 +1162,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             await manager.getRepository(reservation_hold_entity_1.ReservationHold).delete({ formId: form.id, holdKey: dto.idempotencyKey });
             const managementToken = await this.createManagementToken(booking.id, manager);
             return { booking, form, created: true, managementToken };
+        }).catch(async (error) => {
+            if (error?.code !== 'ER_DUP_ENTRY' || !dto.idempotencyKey)
+                throw error;
+            const form = await this.publishedForm(slug);
+            const booking = await this.reservations.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
+            if (!booking)
+                throw error;
+            return { booking, form, created: false, managementToken: undefined };
         });
         const capabilities = await this.clientCapabilities(result.form.organizationId, result.form.clientId);
         if (result.created && result.form.calendarEnabled) {
