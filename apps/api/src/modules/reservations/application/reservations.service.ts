@@ -101,6 +101,14 @@ const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
  * `maximumAdvanceDays` cuando este es menor.
  */
 const MAX_SLOT_RANGE_DAYS = 62;
+/**
+ * Dias que el enlace de gestion sigue sirviendo despues de la reserva.
+ *
+ * El enlace permite cancelar y reagendar, asi que su vida se ata a la reserva y no a una
+ * ventana fija desde que se emitio: cubre el margen razonable tras la visita sin dejar
+ * abierta la puerta durante meses.
+ */
+const GESTION_TRAS_LA_VISITA_DIAS = 60;
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   pending: ['confirmed', 'cancelled_client', 'cancelled_business', 'waitlist'],
   confirmed: ['rescheduled', 'cancelled_client', 'cancelled_business', 'attended', 'no_show'],
@@ -992,11 +1000,11 @@ export class ReservationsService {
 
   private managementHash(token: string) { return createHash('sha256').update(token).digest('hex'); }
 
-  private async createManagementToken(reservationId: string, manager?: EntityManager): Promise<string> {
+  private async createManagementToken(reservationId: string, endsAt: Date, manager?: EntityManager): Promise<string> {
     const token = randomBytes(32).toString('base64url');
     const repository = manager?.getRepository(ReservationManagementToken) || this.managementTokens;
     if (!repository) throw new Error('El repositorio de enlaces de gestión no está disponible');
-    await repository.save(repository.create({ reservationId, tokenHash: this.managementHash(token), expiresAt: new Date(Date.now() + 180 * 86400000) }));
+    await repository.save(repository.create({ reservationId, tokenHash: this.managementHash(token), expiresAt: new Date(endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000) }));
     return token;
   }
 
@@ -1026,7 +1034,10 @@ export class ReservationsService {
       await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'cancelled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link' } }));
       return booking;
     });
-    record.usedAt = new Date(); await this.managementTokens.save(record);
+    record.usedAt = new Date();
+    // Reagendar mueve la reserva, y el enlace debe seguir sirviendo hasta despues de la nueva
+    // fecha: sin esto, mover una reserva lejos la dejaba sin forma de gestionarse.
+    record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000); await this.managementTokens.save(record);
     void this.sendCalendarUpdate(reservation, 'CANCELLED');
     return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
   }
@@ -1283,7 +1294,7 @@ export class ReservationsService {
 
       await manager.getRepository(ReservationHold).delete({ formId: form.id, holdKey: dto.idempotencyKey });
 
-      const managementToken = await this.createManagementToken(booking.id, manager);
+      const managementToken = await this.createManagementToken(booking.id, booking.endsAt, manager);
       return { booking, form, created: true, managementToken };
     }).catch(async (error) => {
       // Dos envios simultaneos con la misma clave pasan juntos la comprobacion previa y el

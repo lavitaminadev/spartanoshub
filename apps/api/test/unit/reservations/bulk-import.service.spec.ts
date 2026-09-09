@@ -3,8 +3,12 @@ import { MAX_IMPORT_ROWS, ReservationsBulkImportService } from '../../../src/mod
 
 const FORM_ID = '11111111-1111-1111-1111-111111111111';
 
+/** Las celdas de fecha describen la hora del local, no la del servidor. */
+const TZ = 'America/Santiago';
+
 function makeService(createManual = vi.fn().mockResolvedValue({ id: 'res-1' })) {
-  const reservations = { createManual } as any;
+  const getForm = vi.fn().mockResolvedValue({ id: FORM_ID, timezone: TZ });
+  const reservations = { createManual, getForm } as any;
   return { service: new ReservationsBulkImportService(reservations), createManual };
 }
 
@@ -13,7 +17,7 @@ const header = 'nombre,email,telefono,fecha,personas\n';
 describe('ReservationsBulkImportService.parse', () => {
   it('mapea cabeceras en espanol e ingles', () => {
     const { service } = makeService();
-    const preview = service.parse(`${header}Ana Perez,ana@test.com,912345678,2026-08-01T10:00:00Z,2`, FORM_ID);
+    const preview = service.parse(`${header}Ana Perez,ana@test.com,912345678,2026-08-01T10:00:00Z,2`, FORM_ID, TZ);
     expect(preview.totalRows).toBe(1);
     expect(preview.validRows).toBe(1);
     expect(preview.rows[0].data).toMatchObject({
@@ -27,45 +31,45 @@ describe('ReservationsBulkImportService.parse', () => {
 
   it('acepta cabeceras con acentos y mayusculas', () => {
     const { service } = makeService();
-    const preview = service.parse('Nombre,Teléfono,Fecha\nAna,912345678,2026-08-01T10:00:00Z', FORM_ID);
+    const preview = service.parse('Nombre,Teléfono,Fecha\nAna,912345678,2026-08-01T10:00:00Z', FORM_ID, TZ);
     expect(preview.rows[0].errors).toEqual([]);
     expect(preview.rows[0].data.guestPhone).toBe('912345678');
   });
 
   it('exige nombre', () => {
     const { service } = makeService();
-    const preview = service.parse(`${header},ana@test.com,,2026-08-01T10:00:00Z,`, FORM_ID);
+    const preview = service.parse(`${header},ana@test.com,,2026-08-01T10:00:00Z,`, FORM_ID, TZ);
     expect(preview.rows[0].errors).toContain('Falta el nombre');
     expect(preview.validRows).toBe(0);
   });
 
   it('exige email o telefono', () => {
     const { service } = makeService();
-    const preview = service.parse(`${header}Ana,,,2026-08-01T10:00:00Z,`, FORM_ID);
+    const preview = service.parse(`${header}Ana,,,2026-08-01T10:00:00Z,`, FORM_ID, TZ);
     expect(preview.rows[0].errors).toContain('Se requiere email o telefono'.replace('telefono', 'teléfono'));
   });
 
   it('acepta solo telefono, sin email', () => {
     const { service } = makeService();
-    const preview = service.parse(`${header}Ana,,912345678,2026-08-01T10:00:00Z,`, FORM_ID);
+    const preview = service.parse(`${header}Ana,,912345678,2026-08-01T10:00:00Z,`, FORM_ID, TZ);
     expect(preview.rows[0].errors).toEqual([]);
   });
 
   it('rechaza email malformado', () => {
     const { service } = makeService();
-    const preview = service.parse(`${header}Ana,no-es-email,,2026-08-01T10:00:00Z,`, FORM_ID);
+    const preview = service.parse(`${header}Ana,no-es-email,,2026-08-01T10:00:00Z,`, FORM_ID, TZ);
     expect(preview.rows[0].errors).toContain('Email inválido');
   });
 
   it('rechaza fecha invalida e informa el valor', () => {
     const { service } = makeService();
-    const preview = service.parse(`${header}Ana,ana@test.com,,no-es-fecha,`, FORM_ID);
+    const preview = service.parse(`${header}Ana,ana@test.com,,no-es-fecha,`, FORM_ID, TZ);
     expect(preview.rows[0].errors[0]).toMatch(/Fecha inválida: "no-es-fecha"/);
   });
 
   it('rechaza cantidad de personas fuera de rango', () => {
     const { service } = makeService();
-    const preview = service.parse(`${header}Ana,ana@test.com,,2026-08-01T10:00:00Z,0`, FORM_ID);
+    const preview = service.parse(`${header}Ana,ana@test.com,,2026-08-01T10:00:00Z,0`, FORM_ID, TZ);
     expect(preview.rows[0].errors[0]).toMatch(/Cantidad de personas inválida/);
   });
 
@@ -80,7 +84,7 @@ describe('ReservationsBulkImportService.parse', () => {
 
   it('rechaza archivos sin filas de datos', () => {
     const { service } = makeService();
-    expect(() => service.parse(header, FORM_ID)).toThrow(/no tiene filas de datos/);
+    expect(() => service.parse(header, FORM_ID, TZ)).toThrow(/no tiene filas de datos/);
   });
 
   it('rechaza archivos que superan el tope de filas', () => {
@@ -89,7 +93,32 @@ describe('ReservationsBulkImportService.parse', () => {
       { length: MAX_IMPORT_ROWS + 1 },
       (_, i) => `Ana ${i},ana${i}@test.com,,2026-08-01T10:00:00Z,`,
     ).join('\n');
-    expect(() => service.parse(`${header}${rows}`, FORM_ID)).toThrow(/supera el máximo de 500 filas/);
+    expect(() => service.parse(`${header}${rows}`, FORM_ID, TZ)).toThrow(/supera el máximo de 200 filas/);
+  });
+
+  /**
+   * La celda describe la hora del local. Sin zona, una fecha sola caia en medianoche UTC
+   * —el dia anterior en Santiago— y una fecha con hora seguia la zona del proceso.
+   */
+  it('interpreta la hora de la celda en la zona del formulario', () => {
+    const { service } = makeService();
+    const preview = service.parse(`${header}Ana,ana@test.com,,2026-08-01 10:00,2`, FORM_ID, TZ);
+    expect(preview.rows[0].errors).toEqual([]);
+    // 10:00 en Santiago (UTC-4 en agosto) es 14:00 UTC.
+    expect(preview.rows[0].data.startsAt).toBe('2026-08-01T14:00:00.000Z');
+  });
+
+  it('respeta el desfase cuando la celda lo trae explicito', () => {
+    const { service } = makeService();
+    const preview = service.parse(`${header}Ana,ana@test.com,,2026-08-01T10:00:00Z,2`, FORM_ID, TZ);
+    expect(preview.rows[0].errors).toEqual([]);
+    expect(preview.rows[0].data.startsAt).toBe('2026-08-01T10:00:00.000Z');
+  });
+
+  it('pide la hora en vez de inventar la medianoche', () => {
+    const { service } = makeService();
+    const preview = service.parse(`${header}Ana,ana@test.com,,2026-08-01,2`, FORM_ID, TZ);
+    expect(preview.rows[0].errors[0]).toMatch(/Falta la hora/);
   });
 });
 

@@ -14,7 +14,8 @@ exports.ReservationsBulkImportService = exports.MAX_IMPORT_ROWS = void 0;
 const common_1 = require("@nestjs/common");
 const papaparse_1 = require("papaparse");
 const reservations_service_1 = require("./reservations.service");
-exports.MAX_IMPORT_ROWS = 500;
+const timezone_1 = require("../domain/timezone");
+exports.MAX_IMPORT_ROWS = 200;
 const COLUMN_ALIASES = {
     guestname: 'guestName',
     guestemail: 'guestEmail',
@@ -45,7 +46,7 @@ let ReservationsBulkImportService = ReservationsBulkImportService_1 = class Rese
         this.reservations = reservations;
         this.logger = new common_1.Logger(ReservationsBulkImportService_1.name);
     }
-    parse(csvContent, formId) {
+    parse(csvContent, formId, timeZone) {
         const parsed = (0, papaparse_1.parse)(csvContent.trim(), {
             header: true,
             skipEmptyLines: true,
@@ -61,14 +62,14 @@ let ReservationsBulkImportService = ReservationsBulkImportService_1 = class Rese
         if (records.length > exports.MAX_IMPORT_ROWS) {
             throw new common_1.BadRequestException(`El archivo supera el máximo de ${exports.MAX_IMPORT_ROWS} filas. Divídelo en partes.`);
         }
-        const rows = records.map((record, index) => this.validateRow(record, index + 1, formId));
+        const rows = records.map((record, index) => this.validateRow(record, index + 1, formId, timeZone));
         return {
             totalRows: rows.length,
             validRows: rows.filter((row) => row.errors.length === 0).length,
             rows,
         };
     }
-    validateRow(record, rowNumber, formId) {
+    validateRow(record, rowNumber, formId, timeZone) {
         const errors = [];
         const guestName = (record.guestName ?? '').trim();
         const guestEmail = (record.guestEmail ?? '').trim();
@@ -83,15 +84,25 @@ let ReservationsBulkImportService = ReservationsBulkImportService_1 = class Rese
         if (guestEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(guestEmail))
             errors.push('Email inválido');
         let startsAt;
+        const cell = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::\d{2})?)?\s*(Z|[+-]\d{2}:?\d{2})?$/.exec(rawDate);
         if (!rawDate) {
             errors.push('Falta la fecha');
         }
+        else if (!cell) {
+            errors.push(`Fecha inválida: "${rawDate}". Usa el formato AAAA-MM-DD HH:MM`);
+        }
+        else if (!cell[4]) {
+            errors.push(`Falta la hora en "${rawDate}". Usa el formato AAAA-MM-DD HH:MM`);
+        }
+        else if (cell[6]) {
+            startsAt = new Date(rawDate).toISOString();
+        }
         else {
-            const parsedDate = new Date(rawDate);
-            if (Number.isNaN(parsedDate.getTime()))
-                errors.push(`Fecha inválida: "${rawDate}"`);
+            const utc = (0, timezone_1.tryLocalToUtc)(`${cell[1]}-${cell[2]}-${cell[3]}`, `${cell[4]}:${cell[5]}`, timeZone);
+            if (!utc)
+                errors.push(`Esa hora no existe en la zona horaria del formulario: "${rawDate}"`);
             else
-                startsAt = parsedDate.toISOString();
+                startsAt = utc.toISOString();
         }
         let partySize;
         const rawPartySize = (record.partySize ?? '').trim();
@@ -117,7 +128,8 @@ let ReservationsBulkImportService = ReservationsBulkImportService_1 = class Rese
         };
     }
     async import(organizationId, userId, csvContent, formId, options = {}) {
-        const preview = this.parse(csvContent, formId);
+        const form = await this.reservations.getForm(organizationId, formId, options.clientId, options.clientIds);
+        const preview = this.parse(csvContent, formId, form.timezone);
         const errors = [];
         let imported = 0;
         for (const row of preview.rows) {

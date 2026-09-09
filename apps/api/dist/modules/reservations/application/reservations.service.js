@@ -54,6 +54,7 @@ const DEFAULT_VENUE_TIPS = [
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 const MAX_SLOT_RANGE_DAYS = 62;
+const GESTION_TRAS_LA_VISITA_DIAS = 60;
 const STATUS_TRANSITIONS = {
     pending: ['confirmed', 'cancelled_client', 'cancelled_business', 'waitlist'],
     confirmed: ['rescheduled', 'cancelled_client', 'cancelled_business', 'attended', 'no_show'],
@@ -864,12 +865,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.dataSource.query('INSERT INTO audit_logs (organization_id, entity_type, entity_id, action, metadata, occurred_at) VALUES (?, ?, ?, ?, ?, NOW())', [null, 'email_validation', _domain, 'mx_failed', JSON.stringify({ domain: _domain })]).catch(() => undefined);
     }
     managementHash(token) { return (0, crypto_1.createHash)('sha256').update(token).digest('hex'); }
-    async createManagementToken(reservationId, manager) {
+    async createManagementToken(reservationId, endsAt, manager) {
         const token = (0, crypto_1.randomBytes)(32).toString('base64url');
         const repository = manager?.getRepository(reservation_management_token_entity_1.ReservationManagementToken) || this.managementTokens;
         if (!repository)
             throw new Error('El repositorio de enlaces de gestión no está disponible');
-        await repository.save(repository.create({ reservationId, tokenHash: this.managementHash(token), expiresAt: new Date(Date.now() + 180 * 86400000) }));
+        await repository.save(repository.create({ reservationId, tokenHash: this.managementHash(token), expiresAt: new Date(endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000) }));
         return token;
     }
     async managementReservation(token) {
@@ -903,6 +904,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return booking;
         });
         record.usedAt = new Date();
+        record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
         await this.managementTokens.save(record);
         void this.sendCalendarUpdate(reservation, 'CANCELLED');
         return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
@@ -1160,7 +1162,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 metadata: { startsAt: startsAt.toISOString(), serviceId: dto.serviceId, resourceId: dto.resourceId },
             }));
             await manager.getRepository(reservation_hold_entity_1.ReservationHold).delete({ formId: form.id, holdKey: dto.idempotencyKey });
-            const managementToken = await this.createManagementToken(booking.id, manager);
+            const managementToken = await this.createManagementToken(booking.id, booking.endsAt, manager);
             return { booking, form, created: true, managementToken };
         }).catch(async (error) => {
             if (error?.code !== 'ER_DUP_ENTRY' || !dto.idempotencyKey)

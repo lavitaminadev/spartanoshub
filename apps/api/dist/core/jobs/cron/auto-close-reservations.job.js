@@ -20,12 +20,14 @@ const typeorm_2 = require("typeorm");
 const reservation_entity_1 = require("../../../modules/reservations/domain/reservation.entity");
 const reservation_form_entity_1 = require("../../../modules/reservations/domain/reservation-form.entity");
 const reservation_event_entity_1 = require("../../../modules/reservations/domain/reservation-event.entity");
+const reservation_hold_entity_1 = require("../../../modules/reservations/domain/reservation-hold.entity");
 const ACTIVE = new Set(['pending', 'confirmed', 'rescheduled']);
 let AutoCloseReservationsJob = AutoCloseReservationsJob_1 = class AutoCloseReservationsJob {
-    constructor(reservations, forms, events) {
+    constructor(reservations, forms, events, holds) {
         this.reservations = reservations;
         this.forms = forms;
         this.events = events;
+        this.holds = holds;
         this.logger = new common_1.Logger(AutoCloseReservationsJob_1.name);
     }
     async handle() {
@@ -62,6 +64,18 @@ let AutoCloseReservationsJob = AutoCloseReservationsJob_1 = class AutoCloseReser
         }
         if (closed)
             this.logger.log(`Reservas cerradas automáticamente: ${closed}`);
+        await this.purgarCuposVencidos();
+    }
+    async purgarCuposVencidos() {
+        try {
+            const { affected } = await this.holds.createQueryBuilder().delete().from(reservation_hold_entity_1.ReservationHold)
+                .where('expires_at < :now', { now: new Date() }).execute();
+            if (affected)
+                this.logger.log(`Cupos retenidos vencidos eliminados: ${affected}`);
+        }
+        catch (error) {
+            this.logger.error(`No se pudieron purgar los cupos vencidos: ${error instanceof Error ? error.message : error}`);
+        }
     }
 };
 exports.AutoCloseReservationsJob = AutoCloseReservationsJob;
@@ -70,7 +84,9 @@ exports.AutoCloseReservationsJob = AutoCloseReservationsJob = AutoCloseReservati
     __param(0, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
     __param(2, (0, typeorm_1.InjectRepository)(reservation_event_entity_1.ReservationEvent)),
+    __param(3, (0, typeorm_1.InjectRepository)(reservation_hold_entity_1.ReservationHold)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], AutoCloseReservationsJob);

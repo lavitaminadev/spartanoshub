@@ -4,6 +4,7 @@ import { LessThan, Repository } from 'typeorm';
 import { Reservation } from '../../../modules/reservations/domain/reservation.entity';
 import { ReservationForm } from '../../../modules/reservations/domain/reservation-form.entity';
 import { ReservationEvent } from '../../../modules/reservations/domain/reservation-event.entity';
+import { ReservationHold } from '../../../modules/reservations/domain/reservation-hold.entity';
 
 const ACTIVE = new Set(['pending', 'confirmed', 'rescheduled']);
 
@@ -20,6 +21,7 @@ export class AutoCloseReservationsJob {
     @InjectRepository(Reservation) private readonly reservations: Repository<Reservation>,
     @InjectRepository(ReservationForm) private readonly forms: Repository<ReservationForm>,
     @InjectRepository(ReservationEvent) private readonly events: Repository<ReservationEvent>,
+    @InjectRepository(ReservationHold) private readonly holds: Repository<ReservationHold>,
   ) {}
 
   async handle(): Promise<void> {
@@ -51,5 +53,22 @@ export class AutoCloseReservationsJob {
       }
     }
     if (closed) this.logger.log(`Reservas cerradas automáticamente: ${closed}`);
+    await this.purgarCuposVencidos();
+  }
+
+  /**
+   * Borra los cupos retenidos que ya vencieron.
+   *
+   * La disponibilidad ya los ignora por fecha, asi que esto no cambia lo que se ofrece: evita
+   * que la tabla crezca sin limite con cada formulario abandonado a medio completar.
+   */
+  private async purgarCuposVencidos(): Promise<void> {
+    try {
+      const { affected } = await this.holds.createQueryBuilder().delete().from(ReservationHold)
+        .where('expires_at < :now', { now: new Date() }).execute();
+      if (affected) this.logger.log(`Cupos retenidos vencidos eliminados: ${affected}`);
+    } catch (error) {
+      this.logger.error(`No se pudieron purgar los cupos vencidos: ${error instanceof Error ? error.message : error}`);
+    }
   }
 }

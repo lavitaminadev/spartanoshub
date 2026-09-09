@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { parse } from 'papaparse';
 import { ReservationsService } from './reservations.service';
 import { CreateManualReservationDto } from '../dto/reservation.dto';
+import { tryLocalToUtc } from '../domain/timezone';
 
 /**
  * Importación masiva de reservas desde CSV.
@@ -16,8 +17,14 @@ import { CreateManualReservationDto } from '../dto/reservation.dto';
  * no puede saltarse reglas que sí aplican al alta manual.
  */
 
-/** Tope por archivo, para no exceder el tiempo de request de Passenger. */
-export const MAX_IMPORT_ROWS = 500;
+/**
+ * Tope por archivo, para no exceder el tiempo de request de Passenger.
+ *
+ * Cada fila abre su propia transaccion, toma el bloqueo del dia y consulta disponibilidad, y
+ * todas corren en serie dentro de la peticion. Un archivo que agote el tiempo deja la carga a
+ * medias y sin forma de reanudarla, asi que el tope se fija con margen sobre ese limite.
+ */
+export const MAX_IMPORT_ROWS = 200;
 
 /**
  * Cabeceras aceptadas, tolerando acentos y mayúsculas.
@@ -83,7 +90,7 @@ export class ReservationsBulkImportService {
    * Parsea y valida el CSV sin escribir nada. Es lo que alimenta la vista
    * previa antes de confirmar la importación.
    */
-  parse(csvContent: string, formId: string): ImportPreview {
+  parse(csvContent: string, formId: string, timeZone: string): ImportPreview {
     const parsed = parse<Record<string, string>>(csvContent.trim(), {
       header: true,
       skipEmptyLines: true,
@@ -101,7 +108,7 @@ export class ReservationsBulkImportService {
       throw new BadRequestException(`El archivo supera el máximo de ${MAX_IMPORT_ROWS} filas. Divídelo en partes.`);
     }
 
-    const rows = records.map((record, index) => this.validateRow(record, index + 1, formId));
+    const rows = records.map((record, index) => this.validateRow(record, index + 1, formId, timeZone));
     return {
       totalRows: rows.length,
       validRows: rows.filter((row) => row.errors.length === 0).length,
@@ -109,7 +116,7 @@ export class ReservationsBulkImportService {
     };
   }
 
-  private validateRow(record: Record<string, string>, rowNumber: number, formId: string): ParsedImportRow {
+  private validateRow(record: Record<string, string>, rowNumber: number, formId: string, timeZone: string): ParsedImportRow {
     const errors: string[] = [];
     const guestName = (record.guestName ?? '').trim();
     const guestEmail = (record.guestEmail ?? '').trim();
@@ -121,13 +128,23 @@ export class ReservationsBulkImportService {
     if (!guestEmail && !guestPhone) errors.push('Se requiere email o teléfono');
     if (guestEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(guestEmail)) errors.push('Email inválido');
 
+    // La celda describe la hora del local, no la del servidor ni UTC. `new Date` interpretaba
+    // una fecha sola como medianoche UTC y una fecha con hora segun la zona del proceso.
     let startsAt: string | undefined;
+    const cell = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::\d{2})?)?\s*(Z|[+-]\d{2}:?\d{2})?$/.exec(rawDate);
     if (!rawDate) {
       errors.push('Falta la fecha');
+    } else if (!cell) {
+      errors.push(`Fecha inválida: "${rawDate}". Usa el formato AAAA-MM-DD HH:MM`);
+    } else if (!cell[4]) {
+      errors.push(`Falta la hora en "${rawDate}". Usa el formato AAAA-MM-DD HH:MM`);
+    } else if (cell[6]) {
+      // La celda trae su propio desfase, asi que ya designa un instante exacto.
+      startsAt = new Date(rawDate).toISOString();
     } else {
-      const parsedDate = new Date(rawDate);
-      if (Number.isNaN(parsedDate.getTime())) errors.push(`Fecha inválida: "${rawDate}"`);
-      else startsAt = parsedDate.toISOString();
+      const utc = tryLocalToUtc(`${cell[1]}-${cell[2]}-${cell[3]}`, `${cell[4]}:${cell[5]}`, timeZone);
+      if (!utc) errors.push(`Esa hora no existe en la zona horaria del formulario: "${rawDate}"`);
+      else startsAt = utc.toISOString();
     }
 
     let partySize: number | undefined;
@@ -166,7 +183,8 @@ export class ReservationsBulkImportService {
     formId: string,
     options: { skipAvailability?: boolean; clientId?: string; clientIds?: string[] } = {},
   ): Promise<ImportResult> {
-    const preview = this.parse(csvContent, formId);
+    const form = await this.reservations.getForm(organizationId, formId, options.clientId, options.clientIds);
+    const preview = this.parse(csvContent, formId, form.timezone);
     const errors: Array<{ rowNumber: number; message: string }> = [];
     let imported = 0;
 

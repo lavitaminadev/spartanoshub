@@ -186,7 +186,12 @@ export class ReservationsController {
     const scope = await this.scope(req);
     // La vista previa no escribe nada: valida el archivo y devuelve fila a fila
     // qué se importaría y qué errores hay, para revisar antes de confirmar.
-    if (dto.dryRun) return this.bulkImport.parse(dto.csvContent, dto.formId);
+    if (dto.dryRun) {
+      // Se resuelve el formulario tambien en la vista previa: las fechas del archivo describen
+      // la hora del local, y de paso queda comprobado que el formulario es de quien lo pide.
+      const form = await this.service.getForm(req.organizationId, dto.formId, scope.clientId, scope.clientIds);
+      return this.bulkImport.parse(dto.csvContent, dto.formId, form.timezone);
+    }
     return this.bulkImport.import(req.organizationId, req.user.id, dto.csvContent, dto.formId, {
       skipAvailability: dto.skipAvailability,
       clientId: scope.clientId,
