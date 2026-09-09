@@ -95,7 +95,9 @@ export function AgendaPage() {
   } = useQuery<ReservationPage>({
     queryKey: ['agenda-reservations', clientId, effectiveFormId, dateFilter],
     queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, ...dayRange, pageSize: '100' })}`),
-    enabled: Boolean(clientId && effectiveFormId),
+    // Sin `activeForm` no hay zona horaria con la que calcular el rango del dia, y la
+    // consulta viajaria con `from` y `to` vacios.
+    enabled: Boolean(clientId && effectiveFormId && activeForm),
   });
   const reservations = Array.isArray(reservationPage?.data) ? reservationPage.data : EMPTY_RESERVATIONS;
   const { data: groupRequests = [], refetch: refetchGroupRequests } = useQuery<GroupRequest[]>({
