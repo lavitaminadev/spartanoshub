@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.UpdateReservationDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
+const vacioComoAusente = ({ value }) => (value === '' ? undefined : value);
 exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'];
 exports.CHILEAN_MOBILE_PHONE = /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/;
 exports.CHILEAN_MOBILE_PHONE_MESSAGE = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
@@ -1059,11 +1060,13 @@ __decorate([
 ], ListReservationsDto.prototype, "status", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Transform)(vacioComoAusente),
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], ListReservationsDto.prototype, "from", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Transform)(vacioComoAusente),
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], ListReservationsDto.prototype, "to", void 0);

@@ -123,8 +123,12 @@ export function PublicReservationPage() {
     return `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}-${String(start.getUTCDate()).padStart(2, '0')}`;
   }, [from, monthOffset, form]);
 
-  const slotParams = new URLSearchParams({ from: fromDate, days: String(slotDays), partySize: String(guest.partySize), ...(serviceId ? { serviceId } : {}), ...(resourceId ? { resourceId } : {}) });
-  const { data: availability, isFetching: loadingSlots } = useQuery<{ slots: Slot[]; fullDays: string[]; pausedUntil?: string }>({ queryKey: ['public-slots', slug, fromDate, slotDays, guest.partySize, serviceId, resourceId], queryFn: () => api.get(`/public/reservations/${slug}/slots?${slotParams}`), enabled: Boolean(form) && !isSurvey, staleTime: 30_000, gcTime: 60_000 });
+  // El calendario no ofrece mas horizonte del que el formulario permite reservar: la API
+  // acota el rango a `maximumAdvanceDays`, asi que el rango pedido se recorta a ese tope.
+  const maxSlotDays = Math.min(form?.maximumAdvanceDays || 31, 62);
+  const rangoDias = Math.min(slotDays, maxSlotDays);
+  const slotParams = new URLSearchParams({ from: fromDate, days: String(rangoDias), partySize: String(guest.partySize), ...(serviceId ? { serviceId } : {}), ...(resourceId ? { resourceId } : {}) });
+  const { data: availability, isFetching: loadingSlots } = useQuery<{ slots: Slot[]; fullDays: string[]; pausedUntil?: string }>({ queryKey: ['public-slots', slug, fromDate, rangoDias, guest.partySize, serviceId, resourceId], queryFn: () => api.get(`/public/reservations/${slug}/slots?${slotParams}`), enabled: Boolean(form) && !isSurvey, staleTime: 30_000, gcTime: 60_000 });
   const slots = useMemo(() => availability?.slots ?? [], [availability]);
   /** Dias que alcanzaron el tope diario: se muestran completos, no cerrados. */
   const fullDays = useMemo(() => new Set(availability?.fullDays ?? []), [availability]);
@@ -560,7 +564,7 @@ export function PublicReservationPage() {
               ? <span key={`empty-${dayIndex}`} className="calendar-day is-empty" aria-hidden="true" />
               : <button type="button" key={day.date} className={`calendar-day ${day.hasSlots ? 'has-slots' : day.isFull ? 'is-full' : 'no-slots'} ${selectedDate === day.date ? 'selected' : ''}`} disabled={!day.hasSlots} aria-label={`${day.weekday} ${day.day}${day.hasSlots ? '' : day.isFull ? ', completo' : ', cerrado'}`} onClick={() => { if (day.hasSlots) { setSelectedDate(day.date); setSelected(''); } }}><span className="calendar-weekday">{day.weekday}</span><span className="calendar-number">{day.day}</span>{day.isFull && !day.hasSlots && <span className="calendar-day-tag">Completo</span>}</button>)}</div>)}</div>
             <div className="calendar-hint"><span className="dot available" /> Disponible <span className="dot full" /> Completo <span className="dot taken" /> Cerrado</div>
-            {slotDays <= 60 && <button type="button" className="btn btn-outline btn-sm calendar-load-more" onClick={() => setSlotDays((d) => d + 14)}>Cargar más fechas</button>}
+            {slotDays < maxSlotDays && <button type="button" className="btn btn-outline btn-sm calendar-load-more" onClick={() => setSlotDays((d) => Math.min(d + 14, maxSlotDays))}>Cargar más fechas</button>}
           </div>}
           {!loadingSlots && availability?.pausedUntil && <div className="no-slots"><strong>Las reservas están pausadas temporalmente</strong><p>Volverán a estar disponibles el {new Date(availability.pausedUntil).toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone })}.</p></div>}
           {!loadingSlots && !availability?.pausedUntil && calendarDays.rawDays.length === 0 && <div className="no-slots"><strong>Sin horarios disponibles</strong><p>Prueba otro servicio o contacta al local.</p></div>}

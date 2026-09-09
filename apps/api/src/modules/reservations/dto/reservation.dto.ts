@@ -1,5 +1,12 @@
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEmail, IsIn, IsInt, IsObject, IsOptional, IsString, IsUrl, IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+
+/**
+ * Un filtro que el panel deja en blanco llega como cadena vacia, y `@IsOptional()` solo
+ * omite `undefined` y `null`. Normalizarla a `undefined` hace que un filtro sin usar se
+ * comporte como un filtro ausente.
+ */
+const vacioComoAusente = ({ value }: { value: unknown }) => (value === '' ? undefined : value);
 
 /** Tipos de pregunta que acepta el esquema de un formulario o encuesta. */
 export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'] as const;
@@ -276,8 +283,8 @@ export class ListReservationsDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number;
   @IsOptional() @IsUUID() formId?: string;
   @IsOptional() @IsIn(['pending','confirmed','rescheduled','cancelled_client','cancelled_business','attended','no_show','waitlist']) status?: string;
-  @IsOptional() @IsDateString() from?: string;
-  @IsOptional() @IsDateString() to?: string;
+  @IsOptional() @Transform(vacioComoAusente) @IsDateString() from?: string;
+  @IsOptional() @Transform(vacioComoAusente) @IsDateString() to?: string;
   @IsOptional() @IsString() @MaxLength(180) search?: string;
   @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsString() @MaxLength(80) couponCode?: string;

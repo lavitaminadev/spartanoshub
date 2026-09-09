@@ -294,7 +294,17 @@ describe('ReservationsService', () => {
 
   it('rechaza rangos de slots no numéricos en vez de responder 500', async () => {
     formQuery.getOne.mockResolvedValue(publishedForm());
-    await expect(service.slots('evaluacion', '2026-08-10', Number.NaN)).rejects.toThrow('entre 1 y 31 días');
+    await expect(service.slots('evaluacion', '2026-08-10', Number.NaN)).rejects.toThrow('entre 1 y 60 días');
+  });
+
+  it('limita el rango de slots al horizonte que el formulario permite reservar', async () => {
+    formQuery.getOne.mockResolvedValue({ ...publishedForm(), maximumAdvanceDays: 20 });
+    await expect(service.slots('evaluacion', '2026-08-10', 21)).rejects.toThrow('entre 1 y 20 días');
+  });
+
+  it('no deja que un horizonte muy amplio dispare el tamaño de la respuesta', async () => {
+    formQuery.getOne.mockResolvedValue({ ...publishedForm(), maximumAdvanceDays: 3650 });
+    await expect(service.slots('evaluacion', '2026-08-10', 63)).rejects.toThrow('entre 1 y 62 días');
   });
 
   it('exige también los campos obligatorios en encuestas públicas', async () => {

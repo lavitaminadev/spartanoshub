@@ -95,6 +95,12 @@ const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'mu
 /** Estados que puede tomar una solicitud de contacto post-encuesta. */
 // Solo las reservas que aún tienen un turno futuro consumen capacidad.
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
+/**
+ * Techo del horizonte que la disponibilidad publica puede recorrer de una vez. Acota el
+ * tamano de la respuesta y las filas leidas; el limite real de cada formulario sale de su
+ * `maximumAdvanceDays` cuando este es menor.
+ */
+const MAX_SLOT_RANGE_DAYS = 62;
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   pending: ['confirmed', 'cancelled_client', 'cancelled_business', 'waitlist'],
   confirmed: ['rescheduled', 'cancelled_client', 'cancelled_business', 'attended', 'no_show'],
@@ -381,7 +387,7 @@ export class ReservationsService {
     const { services, resources } = this.configs(form);
     // Desactivar una zona o servicio nunca elimina su configuración ni afecta reservas
     // históricas; simplemente deja de ofrecerlo para nuevas reservas públicas.
-    return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
+    return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, maximumAdvanceDays: form.maximumAdvanceDays, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
   }
 
   async formContext(organizationId: string, clientId: string) {
@@ -630,7 +636,10 @@ export class ReservationsService {
   async slots(slug: string, from: string, days = 14, serviceId?: string, resourceId?: string, partySize = 1) {
     const form = await this.publishedForm(slug);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new BadRequestException('Fecha inválida');
-    if (!Number.isInteger(days) || days < 1 || days > 31) throw new BadRequestException('El rango debe contener entre 1 y 31 días');
+    // El horizonte consultable es el mismo que el formulario permite reservar: pedir mas alla
+    // de `maximumAdvanceDays` no puede devolver horarios, porque `maxStart` los descarta.
+    const maxDays = Math.min(Math.max(form.maximumAdvanceDays, 1), MAX_SLOT_RANGE_DAYS);
+    if (!Number.isInteger(days) || days < 1 || days > maxDays) throw new BadRequestException(`El rango debe contener entre 1 y ${maxDays} días`);
     if (!Number.isInteger(partySize) || partySize < 1 || partySize > 500) throw new BadRequestException('Cantidad de personas inválida');
     const pausedUntil = this.publicPauseUntil(form);
     if (pausedUntil) return { slots: [], fullDays: [], pausedUntil: pausedUntil.toISOString() };
