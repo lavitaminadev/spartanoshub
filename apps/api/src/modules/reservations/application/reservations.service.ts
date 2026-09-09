@@ -1197,6 +1197,9 @@ export class ReservationsService {
       const consent = this.consentTexts(form);
       const existingIdempotent = await manager.getRepository(Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
       if (existingIdempotent) return { booking: existingIdempotent, form, created: false };
+      // Se comprueba despues de la idempotencia: reenviar una reserva ya creada devuelve la
+      // que existe, mientras que una reserva nueva no entra mientras la agenda este pausada.
+      this.assertPublicBookingOpen(form);
 
       const startsAt = new Date(dto.startsAt);
       if (!Number.isNaN(startsAt.getTime())) {
@@ -1282,6 +1285,16 @@ export class ReservationsService {
 
       const managementToken = await this.createManagementToken(booking.id, manager);
       return { booking, form, created: true, managementToken };
+    }).catch(async (error) => {
+      // Dos envios simultaneos con la misma clave pasan juntos la comprobacion previa y el
+      // indice unico rechaza al segundo. La reserva quedo creada, asi que se devuelve esa y no
+      // un error. Se resuelve fuera de la transaccion para que su reversion deshaga tambien el
+      // consumo del cupon.
+      if ((error as { code?: string })?.code !== 'ER_DUP_ENTRY' || !dto.idempotencyKey) throw error;
+      const form = await this.publishedForm(slug);
+      const booking = await this.reservations.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
+      if (!booking) throw error;
+      return { booking, form, created: false, managementToken: undefined };
     });
 
     /*
