@@ -145,8 +145,10 @@ let ReservationsController = class ReservationsController {
     }
     async importReservations(req, dto) {
         const scope = await this.scope(req);
-        if (dto.dryRun)
-            return this.bulkImport.parse(dto.csvContent, dto.formId);
+        if (dto.dryRun) {
+            const form = await this.service.getForm(req.organizationId, dto.formId, scope.clientId, scope.clientIds);
+            return this.bulkImport.parse(dto.csvContent, dto.formId, form.timezone);
+        }
         return this.bulkImport.import(req.organizationId, req.user.id, dto.csvContent, dto.formId, {
             skipAvailability: dto.skipAvailability,
             clientId: scope.clientId,

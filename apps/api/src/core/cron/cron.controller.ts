@@ -16,6 +16,8 @@ import { CollectionEmailsJob } from '../jobs/cron/collection-emails.job';
 import { PurgeExpiredLeadsJob } from '../jobs/cron/purge-expired-leads.job';
 import { RecoverReservationIntegrationsJob } from '../jobs/cron/recover-reservation-integrations.job';
 import { CloseXpPeriodsJob } from '../jobs/cron/close-xp-periods.job';
+import { AutoCloseReservationsJob } from '../jobs/cron/auto-close-reservations.job';
+import { MetaLeadRecoveryJob } from '../jobs/cron/meta-lead-recovery.job';
 
 @Controller('cron')
 @Public()
@@ -37,6 +39,8 @@ export class CronController {
     private readonly purge: PurgeExpiredLeadsJob,
     private readonly reservationIntegrations: RecoverReservationIntegrationsJob,
     private readonly xp: CloseXpPeriodsJob,
+    private readonly autoClose: AutoCloseReservationsJob,
+    private readonly metaRecovery: MetaLeadRecoveryJob,
   ) {}
 
   /**
@@ -336,5 +340,39 @@ export class CronController {
   async processXpPeriods(@Headers('x-cron-secret') secret: string) {
     this.verifySecret(secret);
     return this.runLocked('xp-periods', () => this.xp.handle());
+  }
+
+  /**
+   * Cierre de asistencia y recuperacion de leads de Meta.
+   *
+   * Ambos trabajos estaban registrados en el planificador interno, que en este hosting esta
+   * apagado: sin una puerta HTTP no los ejecutaba nadie. El cron del hosting los llama aqui.
+   */
+  @Post('cierre-asistencia')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async closeAttendancePost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('cierre-asistencia', () => this.autoClose.handle());
+  }
+
+  @Get('cierre-asistencia')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async closeAttendance(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('cierre-asistencia', () => this.autoClose.handle());
+  }
+
+  @Post('meta-lead-recovery')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async metaLeadRecoveryPost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('meta-lead-recovery', () => this.metaRecovery.handle());
+  }
+
+  @Get('meta-lead-recovery')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async metaLeadRecovery(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('meta-lead-recovery', () => this.metaRecovery.handle());
   }
 }

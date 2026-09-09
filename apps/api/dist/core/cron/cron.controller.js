@@ -31,8 +31,10 @@ const collection_emails_job_1 = require("../jobs/cron/collection-emails.job");
 const purge_expired_leads_job_1 = require("../jobs/cron/purge-expired-leads.job");
 const recover_reservation_integrations_job_1 = require("../jobs/cron/recover-reservation-integrations.job");
 const close_xp_periods_job_1 = require("../jobs/cron/close-xp-periods.job");
+const auto_close_reservations_job_1 = require("../jobs/cron/auto-close-reservations.job");
+const meta_lead_recovery_job_1 = require("../jobs/cron/meta-lead-recovery.job");
 let CronController = class CronController {
-    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp) {
+    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery) {
         this.capiOutbox = capiOutbox;
         this.googleOutbox = googleOutbox;
         this.stale = stale;
@@ -47,6 +49,8 @@ let CronController = class CronController {
         this.purge = purge;
         this.reservationIntegrations = reservationIntegrations;
         this.xp = xp;
+        this.autoClose = autoClose;
+        this.metaRecovery = metaRecovery;
         this.running = new Set();
     }
     verifySecret(secret) {
@@ -227,6 +231,22 @@ let CronController = class CronController {
     async processXpPeriods(secret) {
         this.verifySecret(secret);
         return this.runLocked('xp-periods', () => this.xp.handle());
+    }
+    async closeAttendancePost(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('cierre-asistencia', () => this.autoClose.handle());
+    }
+    async closeAttendance(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('cierre-asistencia', () => this.autoClose.handle());
+    }
+    async metaLeadRecoveryPost(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('meta-lead-recovery', () => this.metaRecovery.handle());
+    }
+    async metaLeadRecovery(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('meta-lead-recovery', () => this.metaRecovery.handle());
     }
 };
 exports.CronController = CronController;
@@ -481,6 +501,38 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], CronController.prototype, "processXpPeriods", null);
+__decorate([
+    (0, common_1.Post)('cierre-asistencia'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "closeAttendancePost", null);
+__decorate([
+    (0, common_1.Get)('cierre-asistencia'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "closeAttendance", null);
+__decorate([
+    (0, common_1.Post)('meta-lead-recovery'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "metaLeadRecoveryPost", null);
+__decorate([
+    (0, common_1.Get)('meta-lead-recovery'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "metaLeadRecovery", null);
 exports.CronController = CronController = __decorate([
     (0, common_1.Controller)('cron'),
     (0, public_decorator_1.Public)(),
@@ -497,5 +549,7 @@ exports.CronController = CronController = __decorate([
         collection_emails_job_1.CollectionEmailsJob,
         purge_expired_leads_job_1.PurgeExpiredLeadsJob,
         recover_reservation_integrations_job_1.RecoverReservationIntegrationsJob,
-        close_xp_periods_job_1.CloseXpPeriodsJob])
+        close_xp_periods_job_1.CloseXpPeriodsJob,
+        auto_close_reservations_job_1.AutoCloseReservationsJob,
+        meta_lead_recovery_job_1.MetaLeadRecoveryJob])
 ], CronController);
