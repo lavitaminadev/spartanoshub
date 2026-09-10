@@ -549,6 +549,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       <div className="booking-detail-grid">
         <div><span>Origen (UTM)</span><strong>{selectedBooking.utmSource || 'Sin origen registrado'}</strong></div>
         <div><span>Campaña (UTM)</span><strong>{selectedBooking.utmCampaign || 'Sin campaña registrada'}</strong></div>
+        <div><span>Medio (UTM)</span><strong>{selectedBooking.utmMedium || 'Sin medio registrado'}</strong></div>
+        <div><span>Contenido (UTM)</span><strong>{selectedBooking.utmContent || 'Sin contenido registrado'}</strong></div>
         <div><span>Evento agendamiento</span><strong>{selectedBooking.metaConversion?.schedule ? <StatusBadge status={selectedBooking.metaConversion.schedule} /> : <span style={{ color: 'var(--txt-muted)' }}>No aplica</span>}</strong></div>
         <div><span>Evento asistencia</span><strong>{selectedBooking.metaConversion?.attended ? <StatusBadge status={selectedBooking.metaConversion.attended} /> : <span style={{ color: 'var(--txt-muted)' }}>No aplica</span>}</strong></div>
         <div><span>Identificadores de coincidencia</span><strong>{(selectedBooking.metaConversion?.matchFields ?? 0)} identificadores de coincidencia</strong>{(selectedBooking.metaConversion?.matchFields ?? 0) === 0 && <small className="page-subtitle">Meta no puede atribuir esta reserva a la campaña</small>}</div>

@@ -30,7 +30,10 @@ const AVAILABLE_FIELDS: Array<{ id: string; label: string; internal?: boolean }>
   { id: 'status', label: 'Estado' },
   { id: 'attendance', label: 'Asistencia' },
   { id: 'notes', label: 'Notas internas', internal: true },
-  { id: 'campaign', label: 'Campaña' },
+  { id: 'origin', label: 'Origen (utm_source)' },
+  { id: 'medium', label: 'Medio (utm_medium)' },
+  { id: 'campaign', label: 'Campaña (utm_campaign)' },
+  { id: 'content', label: 'Contenido (utm_content)' },
 ];
 
 export function ExportModal({ open, onClose, formId, clientView = false }: ExportModalProps) {
