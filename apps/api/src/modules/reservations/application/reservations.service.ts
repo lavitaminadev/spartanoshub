@@ -504,7 +504,10 @@ export class ReservationsService {
     if (!guestName) throw new BadRequestException('El nombre es obligatorio');
     const partySize = dto.partySize || 1;
     const result = await this.transaction('crear reserva manual', async (manager) => {
-      await manager.getRepository(ReservationForm).createQueryBuilder('f').setLock('pessimistic_write').where('f.id = :id', { id: form.id }).getOne();
+      // El alta manual compite por el mismo cupo que la publica, asi que toma el mismo turno:
+      // el tope diario del cliente suma todos sus formularios y bloquear solo este dejaba que
+      // dos altas de la misma cuenta contaran cero a la vez.
+      await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
       let endsAt: Date;
       if (dto.skipAvailability) {
         const rules = this.effectiveRules(form, dto.serviceId, dto.resourceId);
@@ -1108,6 +1111,9 @@ export class ReservationsService {
 
   /** Conserva un cupo por diez minutos mientras la persona termina el formulario. */
   async holdPublic(slug: string, dto: PublicReservationHoldDto) {
+    // Retener cupo aparta inventario real, asi que exige las mismas senales que el alta.
+    if (dto.website) throw new BadRequestException('Solicitud inválida');
+    if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
     const startsAt = new Date(dto.startsAt);
     if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
     return this.transaction('retener cupo público', async (manager) => {
@@ -1658,7 +1664,7 @@ export class ReservationsService {
     const saved = await this.transaction('actualizar reserva', async (manager) => { const repo = manager.getRepository(Reservation); const qb = repo.createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id AND r.organization_id = :organizationId', { id, organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); const item = await qb.getOne(); if (!item) throw new NotFoundException('Reserva no encontrada'); const previousStatus = item.status; const previousStart = item.startsAt;
       if (dto.startsAt) {
         if (!['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(item.status)) throw new ConflictException(`No se puede reagendar una reserva en estado ${item.status}`);
-        const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId }); const startsAt = new Date(dto.startsAt); const available = await this.availability(manager, form, startsAt, item.partySize, item.serviceId, item.resourceId, item.id); item.startsAt = startsAt; item.endsAt = available.endsAt; item.status = 'rescheduled';
+        const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId }); const startsAt = new Date(dto.startsAt); await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone)); const available = await this.availability(manager, form, startsAt, item.partySize, item.serviceId, item.resourceId, item.id); item.startsAt = startsAt; item.endsAt = available.endsAt; item.status = 'rescheduled';
       }
       if (dto.status && dto.status !== item.status) {
         if (!STATUS_TRANSITIONS[item.status]?.includes(dto.status)) throw new ConflictException(`No se puede pasar de ${item.status} a ${dto.status}`);

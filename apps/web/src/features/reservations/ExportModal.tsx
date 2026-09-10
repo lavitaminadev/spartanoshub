@@ -34,6 +34,9 @@ const AVAILABLE_FIELDS: Array<{ id: string; label: string; internal?: boolean }>
   { id: 'medium', label: 'Medio (utm_medium)' },
   { id: 'campaign', label: 'Campaña (utm_campaign)' },
   { id: 'content', label: 'Contenido (utm_content)' },
+  { id: 'code', label: 'Código de reserva' },
+  { id: 'coupon', label: 'Cupón' },
+  { id: 'party_size', label: 'Personas' },
 ];
 
 export function ExportModal({ open, onClose, formId, clientView = false }: ExportModalProps) {

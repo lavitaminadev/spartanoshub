@@ -158,6 +158,13 @@ export class PublicReservationHoldDto {
   @IsOptional() @IsString() @MaxLength(80) serviceId?: string;
   @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de retención no es válida' }) holdKey: string;
+  /**
+   * Mismas senales anti-automatizacion que el alta publica. Son opcionales para no romper una
+   * pagina servida desde cache que todavia no las envie, pero cuando llegan se exigen: retener
+   * cupo consume inventario real y era el unico camino publico sin ninguna comprobacion.
+   */
+  @IsOptional() @IsString() @MaxLength(200) website?: string;
+  @IsOptional() @IsDateString() renderedAt?: string;
 }
 export class CloseReservationDayDto {
   @IsUUID() formId: string;
