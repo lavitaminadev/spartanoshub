@@ -149,6 +149,7 @@ export function PublicReservationPage() {
     mutationFn: () => api.post(`/public/reservations/${slug}/hold`, {
       startsAt: selected, partySize: guest.partySize, serviceId: serviceId || undefined,
       resourceId: resourceId || undefined, holdKey: idempotencyKey,
+      website, renderedAt,
     }),
     onSuccess: (data: { expiresAt?: string }) => { setSlotIssue(''); setHoldExpiraEn(data?.expiresAt || ''); },
     onError: (err: Error) => {

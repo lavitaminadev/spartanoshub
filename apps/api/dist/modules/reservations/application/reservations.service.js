@@ -463,7 +463,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('El nombre es obligatorio');
         const partySize = dto.partySize || 1;
         const result = await this.transaction('crear reserva manual', async (manager) => {
-            await manager.getRepository(reservation_form_entity_1.ReservationForm).createQueryBuilder('f').setLock('pessimistic_write').where('f.id = :id', { id: form.id }).getOne();
+            await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
             let endsAt;
             if (dto.skipAvailability) {
                 const rules = this.effectiveRules(form, dto.serviceId, dto.resourceId);
@@ -976,6 +976,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
     }
     async holdPublic(slug, dto) {
+        if (dto.website)
+            throw new common_1.BadRequestException('Solicitud inválida');
+        if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800)
+            throw new common_1.BadRequestException('Completa el formulario antes de enviarlo');
         const startsAt = new Date(dto.startsAt);
         if (Number.isNaN(startsAt.getTime()))
             throw new common_1.BadRequestException('Fecha inválida');
@@ -1431,6 +1435,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     throw new common_1.ConflictException(`No se puede reagendar una reserva en estado ${item.status}`);
                 const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
                 const startsAt = new Date(dto.startsAt);
+                await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
                 const available = await this.availability(manager, form, startsAt, item.partySize, item.serviceId, item.resourceId, item.id);
                 item.startsAt = startsAt;
                 item.endsAt = available.endsAt;

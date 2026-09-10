@@ -600,6 +600,17 @@ __decorate([
     (0, class_validator_1.Matches)(/^[A-Za-z0-9_-]+$/, { message: 'La clave de retención no es válida' }),
     __metadata("design:type", String)
 ], PublicReservationHoldDto.prototype, "holdKey", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], PublicReservationHoldDto.prototype, "website", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], PublicReservationHoldDto.prototype, "renderedAt", void 0);
 class CloseReservationDayDto {
 }
 exports.CloseReservationDayDto = CloseReservationDayDto;
