@@ -53,7 +53,8 @@
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
-    "js-yaml": "5.2.3"
+    "js-yaml": "5.2.3",
+    "multer": "2.3.0"
   },
   "allowScripts": {
     "@scarf/scarf": false,
