@@ -99,7 +99,9 @@ export function PublicReservationPage() {
   const [renderedAt] = useState(() => new Date().toISOString());
 
   const requestedUtmSource = params.get('utm_source') || undefined;
+  const requestedUtmMedium = params.get('utm_medium') || undefined;
   const requestedUtmCampaign = params.get('utm_campaign') || undefined;
+  const requestedUtmContent = params.get('utm_content') || undefined;
 
   const { data: form, isLoading, error } = useQuery<ReservationForm>({ queryKey: ['public-form', slug], queryFn: () => api.get(`/public/reservations/${slug}`), retry: false });
   const groupThreshold = Math.max(2, Math.min(100, Number(form?.designConfig?.groupThreshold) || 8));
@@ -107,7 +109,9 @@ export function PublicReservationPage() {
   // El enlace base es orgánico/directo. Sólo una UTM explícita atribuye una campaña;
   // de otro modo se contaminarían reservas llegadas por QR, WhatsApp o búsqueda.
   const utmSource = requestedUtmSource;
+  const utmMedium = requestedUtmMedium;
   const utmCampaign = requestedUtmCampaign;
+  const utmContent = requestedUtmContent;
 
   useEffect(() => {
     if (isSurvey) setStep(2);
@@ -266,8 +270,8 @@ export function PublicReservationPage() {
         ...baseBody, renderedAt, consentVersion: 'reservation-v1', reservationConsent,
         marketingConsent, marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v1'),
         couponCode: couponCode.trim() || undefined, measurementConsent,
-        utmMedium: params.get('utm_medium') || undefined,
-        utmContent: params.get('utm_content') || undefined,
+        utmMedium,
+        utmContent,
       });
     },
   });

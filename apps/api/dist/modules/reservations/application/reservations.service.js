@@ -1675,6 +1675,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             campaign: (item) => item.utmCampaign || '-',
             code: (item) => item.referenceCode,
             origin: (item) => item.utmSource || 'direct',
+            medium: (item) => item.utmMedium || '-',
+            content: (item) => item.utmContent || '-',
             coupon: (item) => item.couponCode || '-',
             party_size: (item) => item.partySize,
         };
