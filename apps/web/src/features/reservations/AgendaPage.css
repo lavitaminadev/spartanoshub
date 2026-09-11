@@ -159,6 +159,15 @@
 .agenda-card-body strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agenda-card-body span { font-size: 12px; color: var(--txt-secondary); }
 
+/* Avisos de servicio: se leen de un vistazo al sentar la mesa, sin abrir la reserva. */
+.agenda-card-flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.agenda-card-flags em {
+  font-style: normal; font-size: 10px; line-height: 1.4;
+  padding: 1px 6px; border-radius: 999px;
+  background: var(--bg-subtle, #f1f5f9); color: var(--txt-secondary);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 .agenda-card-status { font-size: 13px; color: var(--card-color, var(--cian-dark)); }
 
 .agenda-legend {

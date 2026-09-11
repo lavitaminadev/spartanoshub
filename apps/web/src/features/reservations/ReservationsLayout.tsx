@@ -19,8 +19,14 @@ import '../../shared/section-nav.css';
 
 /** Secciones, en el orden en que se usan durante el día. */
 const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
+  // La operacion del dia va primero: es lo que abre cada jornada quien recibe las reservas,
+  // mientras que configurar un local ocurre una vez. Todas traen su propio selector de local,
+  // asi que no dependen de haber entrado antes por la ficha del local.
+  { to: '/reservations/agenda', label: 'Hoy' },
   // `end` porque su ruta es prefijo de las demás: sin eso quedaría marcada como activa siempre.
   { to: '/reservations', label: 'Locales', end: true },
+  { to: '/reservations/calendar', label: 'Disponibilidad' },
+  { to: '/reservations/waitlist', label: 'Lista de espera' },
   { to: '/reservations/analytics', label: 'Resultados' },
 ];
 
