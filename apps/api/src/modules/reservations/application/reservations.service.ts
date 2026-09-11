@@ -101,6 +101,15 @@ const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
  * `maximumAdvanceDays` cuando este es menor.
  */
 const MAX_SLOT_RANGE_DAYS = 62;
+
+/** Enunciado de las respuestas que el servidor agrega fuera del esquema del formulario. */
+const RESPUESTAS_DEL_SISTEMA: Record<string, string> = {
+  groupEventType: 'Tipo de celebración',
+  groupEventNotes: 'Notas del grupo',
+  childrenCount: 'Niños',
+  accessibilityNeed: 'Accesibilidad',
+  dietaryNotes: 'Restricciones alimentarias',
+};
 /**
  * Dias que el enlace de gestion sigue sirviendo despues de la reserva.
  *
@@ -1886,7 +1895,7 @@ export class ReservationsService {
     const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
     const toLine = (row: unknown[]) => row.map(escape).join(',');
 
-    yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'campana', 'cupon', 'personas', 'notas_internas', ...keys]);
+    yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'campana', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => RESPUESTAS_DEL_SISTEMA[key] || key)]);
 
     for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
       const lines = (items as Reservation[]).map((item) => {
@@ -1929,6 +1938,26 @@ export class ReservationsService {
     if (dateTo) qb.andWhere('r.starts_at <= :dateTo', { dateTo });
     const items = await qb.orderBy('r.starts_at', 'DESC').take(50000).getMany();
 
+    /*
+     * Las respuestas del formulario viajan siempre, ademas de los campos elegidos.
+     *
+     * Son las preguntas que cada local configuro, y exportar sin ellas devolvia una planilla
+     * que no servia para preparar el servicio: quien la abre necesita la alergia y la silla
+     * infantil, no solo el nombre y la hora. La cabecera usa el enunciado publicado, asi que la
+     * columna se entiende sin conocer el identificador interno del campo.
+     */
+    const form = await this.forms.findOne({ where: { id: formId, organizationId } });
+    const esquema = (form?.fieldSchema as FieldConfig[] | undefined) ?? [];
+    const clavesRespuesta = [...new Set(items.flatMap((item) => Object.keys((item.answers || {}) as Record<string, unknown>)))].sort();
+    const etiquetaDe = (clave: string) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
+    const valorDe = (item: Reservation, clave: string) => {
+      const valor = ((item.answers || {}) as Record<string, unknown>)[clave];
+      if (valor === null || valor === undefined || valor === '') return '';
+      if (Array.isArray(valor)) return valor.join(', ');
+      if (typeof valor === 'boolean') return valor ? 'Sí' : 'No';
+      return String(valor);
+    };
+
     const fieldMap: Record<string, (item: Reservation) => string | number | Date | undefined> = {
       name: (item) => item.guestName,
       phone: (item) => item.guestPhone ?? undefined,
@@ -1953,12 +1982,14 @@ export class ReservationsService {
         for (const field of allowedFields) {
           record[field] = fieldMap[field]?.(item) ?? '-';
         }
+        for (const clave of clavesRespuesta) record[etiquetaDe(clave)] = valorDe(item, clave);
         return record;
       });
     } else if (format === 'csv') {
       const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
-      const headers = allowedFields;
-      return [headers, ...items.map((item) => allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'))].map((row) => row.map(escape).join(',')).join('\r\n');
+      const headers = [...allowedFields, ...clavesRespuesta.map(etiquetaDe)];
+      const filas = items.map((item) => [...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'), ...clavesRespuesta.map((clave) => valorDe(item, clave))]);
+      return [headers, ...filas].map((row) => row.map(escape).join(',')).join('\r\n');
     }
 
     // El formato PDF se retiró: devolvía texto separado por tabuladores con cabecera de PDF,

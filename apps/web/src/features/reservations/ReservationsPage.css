@@ -362,3 +362,6 @@
 }
 .reservation-scope-banner { margin: 18px 0; padding: 15px 18px; display: flex; justify-content: space-between; gap: 16px; align-items: center; border: 1px solid #99f6e4; border-radius: 14px; background: #f0fdfa; }.reservation-scope-banner > div { display: grid; gap: 3px; }.reservation-scope-banner span { color: #0f766e; font-size: .72rem; font-weight: 800; letter-spacing: .08em; }.reservation-scope-banner strong { font-size: 1.05rem; }.reservation-scope-banner small { color: #4b5563; }
 @media (max-width: 680px) { .reservation-scope-banner { align-items: stretch; flex-direction: column; }.reservation-scope-banner .btn { width: 100%; } }
+
+/* Respuestas del formulario en la fila de lista de espera. */
+.waitlist-dato { display: block; color: var(--txt-secondary); font-size: 11px; }
