@@ -12,12 +12,13 @@ const cron_controller_1 = require("./cron.controller");
 const meta_module_1 = require("../../modules/integrations/meta/meta.module");
 const google_module_1 = require("../../modules/integrations/google/google.module");
 const jobs_module_1 = require("../jobs/jobs.module");
+const automations_module_1 = require("../../modules/automations/automations.module");
 let CronModule = class CronModule {
 };
 exports.CronModule = CronModule;
 exports.CronModule = CronModule = __decorate([
     (0, common_1.Module)({
-        imports: [meta_module_1.MetaModule, google_module_1.GoogleModule, jobs_module_1.JobsModule],
+        imports: [meta_module_1.MetaModule, google_module_1.GoogleModule, jobs_module_1.JobsModule, automations_module_1.AutomationsModule],
         controllers: [cron_controller_1.CronController],
     })
 ], CronModule);

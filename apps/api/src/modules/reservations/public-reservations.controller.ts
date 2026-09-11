@@ -46,7 +46,7 @@ export class PublicReservationsController {
   @Post('manage/:token/reschedule')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   rescheduleManagement(@Param('token') token: string, @Body() dto: PublicRescheduleReservationDto) {
-    return this.service.reschedulePublicManagement(token, dto.startsAt);
+    return this.service.reschedulePublicManagement(token, dto.startsAt, dto.partySize);
   }
 
   @Post('manage/:token/confirm')

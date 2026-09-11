@@ -18,6 +18,9 @@ import { RecoverReservationIntegrationsJob } from '../jobs/cron/recover-reservat
 import { CloseXpPeriodsJob } from '../jobs/cron/close-xp-periods.job';
 import { AutoCloseReservationsJob } from '../jobs/cron/auto-close-reservations.job';
 import { MetaLeadRecoveryJob } from '../jobs/cron/meta-lead-recovery.job';
+import { AutomationRunnerService } from '../../modules/automations/automation-runner.service';
+import { AutomationScheduleJob } from '../../modules/automations/automation-schedule.job';
+import { WebhookDeliveryService } from '../../modules/automations/webhook-delivery.service';
 
 @Controller('cron')
 @Public()
@@ -41,6 +44,9 @@ export class CronController {
     private readonly xp: CloseXpPeriodsJob,
     private readonly autoClose: AutoCloseReservationsJob,
     private readonly metaRecovery: MetaLeadRecoveryJob,
+    private readonly automations: AutomationRunnerService,
+    private readonly automationScheduleJob: AutomationScheduleJob,
+    private readonly webhooks: WebhookDeliveryService,
   ) {}
 
   /**
@@ -374,5 +380,41 @@ export class CronController {
   async metaLeadRecovery(@Headers('x-cron-secret') secret: string) {
     this.verifySecret(secret);
     return this.runLocked('meta-lead-recovery', () => this.metaRecovery.handle());
+  }
+
+  /*
+   * Automatizaciones y webhooks.
+   *
+   * Solo los ejecutaba el planificador interno, que en este hosting esta apagado, y no tenian
+   * puerta HTTP: una automatizacion con espera no se reanudaba nunca y los webhooks quedaban en
+   * cola sin entregarse. Las dos tareas frecuentes van cada minuto; la limpieza, una vez al dia.
+   */
+  @Post('automation-runs')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async automationRuns(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('automation-runs', () => this.automations.processPending());
+  }
+
+  @Post('automation-schedule')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async automationSchedule(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('automation-schedule', () => this.automationScheduleJob.handle());
+  }
+
+  @Post('automation-webhooks')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async automationWebhooks(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('automation-webhooks', () => this.webhooks.processPending());
+  }
+
+  /** Limpieza diaria de ejecuciones y entregas ya resueltas. */
+  @Post('automation-cleanup')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async automationCleanup(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('automation-cleanup', async () => ({ runs: await this.automations.cleanup(), webhooks: await this.webhooks.cleanup() }));
   }
 }

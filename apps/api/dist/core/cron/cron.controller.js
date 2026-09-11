@@ -33,8 +33,11 @@ const recover_reservation_integrations_job_1 = require("../jobs/cron/recover-res
 const close_xp_periods_job_1 = require("../jobs/cron/close-xp-periods.job");
 const auto_close_reservations_job_1 = require("../jobs/cron/auto-close-reservations.job");
 const meta_lead_recovery_job_1 = require("../jobs/cron/meta-lead-recovery.job");
+const automation_runner_service_1 = require("../../modules/automations/automation-runner.service");
+const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
+const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 let CronController = class CronController {
-    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery) {
+    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks) {
         this.capiOutbox = capiOutbox;
         this.googleOutbox = googleOutbox;
         this.stale = stale;
@@ -51,6 +54,9 @@ let CronController = class CronController {
         this.xp = xp;
         this.autoClose = autoClose;
         this.metaRecovery = metaRecovery;
+        this.automations = automations;
+        this.automationScheduleJob = automationScheduleJob;
+        this.webhooks = webhooks;
         this.running = new Set();
     }
     verifySecret(secret) {
@@ -247,6 +253,22 @@ let CronController = class CronController {
     async metaLeadRecovery(secret) {
         this.verifySecret(secret);
         return this.runLocked('meta-lead-recovery', () => this.metaRecovery.handle());
+    }
+    async automationRuns(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('automation-runs', () => this.automations.processPending());
+    }
+    async automationSchedule(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('automation-schedule', () => this.automationScheduleJob.handle());
+    }
+    async automationWebhooks(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('automation-webhooks', () => this.webhooks.processPending());
+    }
+    async automationCleanup(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('automation-cleanup', async () => ({ runs: await this.automations.cleanup(), webhooks: await this.webhooks.cleanup() }));
     }
 };
 exports.CronController = CronController;
@@ -533,6 +555,38 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], CronController.prototype, "metaLeadRecovery", null);
+__decorate([
+    (0, common_1.Post)('automation-runs'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "automationRuns", null);
+__decorate([
+    (0, common_1.Post)('automation-schedule'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "automationSchedule", null);
+__decorate([
+    (0, common_1.Post)('automation-webhooks'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "automationWebhooks", null);
+__decorate([
+    (0, common_1.Post)('automation-cleanup'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "automationCleanup", null);
 exports.CronController = CronController = __decorate([
     (0, common_1.Controller)('cron'),
     (0, public_decorator_1.Public)(),
@@ -551,5 +605,8 @@ exports.CronController = CronController = __decorate([
         recover_reservation_integrations_job_1.RecoverReservationIntegrationsJob,
         close_xp_periods_job_1.CloseXpPeriodsJob,
         auto_close_reservations_job_1.AutoCloseReservationsJob,
-        meta_lead_recovery_job_1.MetaLeadRecoveryJob])
+        meta_lead_recovery_job_1.MetaLeadRecoveryJob,
+        automation_runner_service_1.AutomationRunnerService,
+        automation_schedule_job_1.AutomationScheduleJob,
+        webhook_delivery_service_1.WebhookDeliveryService])
 ], CronController);

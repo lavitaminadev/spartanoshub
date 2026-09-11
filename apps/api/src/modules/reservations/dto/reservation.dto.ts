@@ -150,6 +150,8 @@ export class PublicGroupRequestDto {
 /** Cambio de horario desde el enlace privado que recibió quien reservó. */
 export class PublicRescheduleReservationDto {
   @IsDateString() startsAt: string;
+  /** Cuantos vienen. Sin enviarlo se mantiene el de la reserva. */
+  @IsOptional() @IsInt() @Min(1) @Max(500) partySize?: number;
 }
 export class PublicReservationHoldDto {
   @IsDateString() startsAt: string;

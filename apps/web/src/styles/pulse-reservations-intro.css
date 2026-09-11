@@ -208,3 +208,12 @@
 .booking-recordatorio small { display:block; margin-top:2px; color:#5d6b63; font-size:13px; }
 .booking-recordatorio-acciones { display:flex; flex-wrap:wrap; gap:8px; }
 @media(max-width:560px){ .booking-recordatorio{ margin-inline:14px; } .booking-recordatorio-acciones .btn{ flex:1 1 140px; } }
+
+/* Horas disponibles al cambiar una reserva desde su enlace de gestion. */
+.reschedule-slots { display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 8px; }
+.reschedule-slots .btn { min-width:72px; min-height:40px; }
+/* El formulario de cambio del invitado apila sus pasos: en fila, el selector de personas
+   quedaba reducido a una columna de pocos pixeles al lado del mensaje. */
+.reschedule-form.reschedule-form-stack { flex-direction:column; align-items:stretch; text-align:left; }
+.reschedule-form.reschedule-form-stack label { display:flex; flex-direction:column; gap:6px; font-size:12px; }
+.reschedule-form.reschedule-form-stack label small { margin-top:0; font-weight:600; }

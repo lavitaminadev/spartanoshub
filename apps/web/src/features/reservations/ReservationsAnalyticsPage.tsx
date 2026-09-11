@@ -37,7 +37,7 @@ interface AnalyticsMetrics {
     cancelled?: number;
   };
   daily: Array<{ day: string; total: number; attended: number; no_show: number }>;
-  sources: Array<{ source: string; campaign: string; total: number; attended: number }>;
+  sources: Array<{ source: string; medium?: string; campaign: string; content?: string; total: number; attended: number }>;
   areas: Array<{ area: string; total: number }>;
   funnel: { views: number; starts: number; completed: number; conversionRate: number | null };
   days: number;
@@ -246,6 +246,27 @@ export function ReservationsAnalyticsPage({ clientId }: { clientId?: string } = 
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
+            )}
+          </div>
+          <div className="dashboard-chart-card viz-full">
+            <h3>Medio, campaña y anuncio</h3>
+            <p className="viz-note">El detalle que la torta junta: dos anuncios de la misma campaña se ven por separado.</p>
+            {(data?.sources ?? []).length === 0 ? (
+              <p className="viz-note">Sin reservas con campaña en este rango.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead><tr><th>Origen</th><th>Medio</th><th>Campaña</th><th>Anuncio</th><th>Reservas</th><th>Asistieron</th></tr></thead>
+                  <tbody>
+                    {(data?.sources ?? []).map((row) => (
+                      <tr key={`${row.source}|${row.medium}|${row.campaign}|${row.content}`}>
+                        <td>{row.source}</td><td>{row.medium || 'Sin medio'}</td><td>{row.campaign}</td><td>{row.content || '—'}</td>
+                        <td>{Number(row.total ?? 0)}</td><td>{Number(row.attended ?? 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </>

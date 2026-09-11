@@ -38,7 +38,7 @@ let PublicReservationsController = class PublicReservationsController {
     management(token) { return this.service.publicManagement(token); }
     cancelManagement(token) { return this.service.cancelPublicManagement(token); }
     rescheduleManagement(token, dto) {
-        return this.service.reschedulePublicManagement(token, dto.startsAt);
+        return this.service.reschedulePublicManagement(token, dto.startsAt, dto.partySize);
     }
     confirmManagement(token) { return this.service.confirmPublicManagement(token); }
     hold(slug, dto) { return this.service.holdPublic(slug, dto); }
