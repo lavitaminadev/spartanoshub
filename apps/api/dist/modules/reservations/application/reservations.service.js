@@ -930,6 +930,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         await this.events.save(this.events.create({ organizationId: reservation.organizationId, clientId: reservation.clientId, reservationId: reservation.id, type: 'guest_confirmed', fromStatus: reservation.status, toStatus: reservation.status, actorType: 'guest', metadata: { via: 'management_link' } }));
         return { confirmed: true, referenceCode: reservation.referenceCode };
     }
+    respuestaAlLocal(form) {
+        const soporte = typeof form.designConfig?.supportEmail === 'string' ? form.designConfig.supportEmail.trim() : '';
+        return soporte.includes('@') ? soporte : undefined;
+    }
     calendarIcs(form, booking, method, cancellationReason) {
         const stamp = (date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
         const escape = (value) => value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
@@ -946,10 +950,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const cancelled = method === 'CANCELLED';
         const reason = cancellationReason?.trim();
         const escapeHtml = (value) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+        const cuando = booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
         const body = cancelled
-            ? `<p>Tu reserva fue cancelada.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
-            : '<p>Tu reserva fue actualizada. Adjuntamos la nueva cita de calendario.</p>';
-        void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
+            ? `<p>Tu reserva en ${escapeHtml(form.name)} fue cancelada.</p><p>Era para el ${escapeHtml(cuando)} · ${booking.partySize} persona${booking.partySize === 1 ? '' : 's'} · código ${escapeHtml(booking.referenceCode)}.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
+            : `<p>Tu reserva en ${escapeHtml(form.name)} quedó para el <strong>${escapeHtml(cuando)}</strong>.</p><p>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p><p>Adjuntamos la cita actualizada para tu calendario.</p>`;
+        void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
             .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
     }
     async reschedulePublicManagement(token, requestedStartsAt) {
@@ -1343,15 +1348,25 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             ]);
             const managementUrl = managementToken && process.env.APP_PUBLIC_URL
                 ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${managementToken}` : undefined;
-            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? 'Tu reserva en {{local}} está confirmada'), String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'), {
+            const pendiente = booking.status === 'pending';
+            const plantilla = pendiente
+                ? {
+                    asunto: 'Recibimos tu solicitud en {{local}}',
+                    cuerpo: 'Hola {{nombre}}:\n\nRecibimos tu solicitud para el {{fecha}} en {{local}}. Todavía no está confirmada: el local la revisará y te avisará por este mismo medio.\n\nPersonas: {{personas}}\nCódigo: {{codigo}}',
+                }
+                : {
+                    asunto: String(asunto ?? 'Tu reserva en {{local}} está confirmada'),
+                    cuerpo: String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
+                };
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, {
                 nombre: booking.guestName,
                 local: form.name,
-                fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
+                fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
                 personas: booking.partySize,
                 codigo: booking.referenceCode,
                 gestion: managementUrl || '',
-            }, managementUrl ? { texto: 'Gestionar mi reserva', url: managementUrl } : undefined);
-            void this.emails.send(booking.guestEmail, subject, html, { attachments: [{ filename: 'reserva.ics', content: this.calendarIcs(form, booking, 'PUBLISH'), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }).catch((err) => this.logger.warn(`Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
+            }, managementUrl ? { texto: pendiente ? 'Ver o cancelar mi solicitud' : 'Gestionar mi reserva', url: managementUrl } : undefined);
+            void this.emails.send(booking.guestEmail, subject, html, pendiente ? { replyTo: this.respuestaAlLocal(form) } : { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: 'reserva.ics', content: this.calendarIcs(form, booking, 'PUBLISH'), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }).catch((err) => this.logger.warn(`Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
         catch (err) {
             this.logger.warn(`No se pudo componer el comprobante de ${booking.id}: ${err instanceof Error ? err.message : err}`);
@@ -1364,11 +1379,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const userIds = rows.map((row) => row.id).filter(Boolean);
             if (userIds.length === 0)
                 return;
-            await this.notifications.notifyMultiple(form.organizationId, userIds, 'reservation_created', 'Nueva reserva recibida', `${booking.guestName} reservó ${form.name} para el ${booking.startsAt.toLocaleString('es-CL')}.`, { reservationId: booking.id, formId: form.id, clientId: form.clientId, referenceCode: booking.referenceCode });
+            await this.notifications.notifyMultiple(form.organizationId, userIds, 'reservation_created', 'Nueva reserva recibida', `${booking.guestName} reservó ${form.name} para el ${booking.startsAt.toLocaleString('es-CL', { timeZone: form.timezone })}.`, { reservationId: booking.id, formId: form.id, clientId: form.clientId, referenceCode: booking.referenceCode });
             const teamEmails = (form.teamNotifications || []).filter((email) => typeof email === 'string' && email.includes('@'));
             if (teamEmails.length > 0) {
                 const escapeHtml = (value) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-                const html = `<h2>Nueva reserva recibida</h2><p><strong>${escapeHtml(booking.guestName)}</strong> reservó <strong>${escapeHtml(form.name)}</strong>.</p><p>Fecha: ${escapeHtml(booking.startsAt.toLocaleString('es-CL'))}<br>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p>`;
+                const html = `<h2>Nueva reserva recibida</h2><p><strong>${escapeHtml(booking.guestName)}</strong> reservó <strong>${escapeHtml(form.name)}</strong>.</p><p>Fecha: ${escapeHtml(booking.startsAt.toLocaleString('es-CL', { timeZone: form.timezone }))}<br>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p>`;
                 void Promise.all(teamEmails.map((email) => this.emails.send(email, `Nueva reserva - ${form.name}`, html)))
                     .catch((err) => this.logger.warn(`Aviso por correo de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
             }
@@ -1434,6 +1449,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         let formForMeta;
         let statusChangedTo;
         let calendarNotification;
+        let confirmoUnaPendiente = false;
         const saved = await this.transaction('actualizar reserva', async (manager) => {
             const repo = manager.getRepository(reservation_entity_1.Reservation);
             const qb = repo.createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id AND r.organization_id = :organizationId', { id, organizationId });
@@ -1466,6 +1482,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
                     await this.availability(manager, form, item.startsAt, item.partySize, item.serviceId, item.resourceId, item.id);
                 }
+                if (item.status === 'pending' && dto.status === 'confirmed')
+                    confirmoUnaPendiente = true;
                 if (dto.status === 'attended') {
                     formForMeta = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
                 }
@@ -1501,6 +1519,16 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             catch (err) {
                 this.logger.warn(`Google Ads attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);
                 await this.recordIntegrationFailure(saved, 'google_ads');
+            }
+        }
+        if (confirmoUnaPendiente) {
+            try {
+                const form = await this.forms.findOne({ where: { id: saved.formId } });
+                if (form)
+                    void this.enviarComprobante(form, saved, await this.createManagementToken(saved.id, saved.endsAt));
+            }
+            catch (err) {
+                this.logger.warn(`Comprobante de confirmacion de ${saved.id} no enviado: ${err instanceof Error ? err.message : err}`);
             }
         }
         if (calendarNotification)

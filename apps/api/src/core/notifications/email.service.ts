@@ -43,7 +43,12 @@ export class EmailService {
     });
   }
 
-  async send(to: string, subject: string, html: string, options?: Pick<SendMailOptions, 'attachments'>): Promise<boolean> {
+  /**
+   * @param options - `replyTo` sustituye el buzon global de respuesta. Lo usa quien sabe a
+   *   quien le toca contestar: la confirmacion de una reserva la responde el local, no la
+   *   agencia que le presta el servidor de correo.
+   */
+  async send(to: string, subject: string, html: string, options?: Pick<SendMailOptions, 'attachments' | 'replyTo'>): Promise<boolean> {
     const recipient = to.trim().toLowerCase();
     if (!validRecipient(recipient)) {
       this.logger.warn('Email skipped because the recipient is invalid');
@@ -58,7 +63,7 @@ export class EmailService {
       const result = await this.transporter.sendMail({
         from: this.from,
         to: recipient,
-        replyTo: this.replyTo,
+        replyTo: options?.replyTo ?? this.replyTo,
         subject: subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255),
         html,
         attachments: options?.attachments,
