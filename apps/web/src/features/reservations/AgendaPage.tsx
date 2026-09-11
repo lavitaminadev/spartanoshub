@@ -8,7 +8,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
@@ -17,6 +17,8 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
+import { respuestasDestacadas } from './answer-labels';
+import { localInputToUtc, utcToLocalInput } from './local-time';
 import { Modal } from '../../shared/Modal';
 import { CYCLE_COLORS, RESERVATION_STATUS_OPTIONS, findStatusOption } from '../../shared/status-palette';
 import type { Reservation, ReservationForm } from './types';
@@ -103,6 +105,7 @@ export function AgendaPage() {
   const { data: groupRequests = [], refetch: refetchGroupRequests } = useQuery<GroupRequest[]>({
     queryKey: ['reservation-group-requests', effectiveFormId], queryFn: () => api.get(`/reservations/forms/${effectiveFormId}/group-requests`), enabled: Boolean(effectiveFormId),
   });
+  const qc = useQueryClient();
   const closeDay = useMutation({
     mutationFn: () => api.post('/reservations/close-day', { formId: effectiveFormId, date: dateFilter, reason: 'Cierre de turno por excepción' }),
     onSuccess: () => void refetchReservations(),
@@ -111,13 +114,36 @@ export function AgendaPage() {
     mutationFn: () => api.post(`/reservations/forms/${effectiveFormId}/blocks`, { startsAt: new Date(blockStart).toISOString(), endsAt: new Date(blockEnd).toISOString(), reason: blockReason.trim() }),
     onSuccess: () => { setBlockOpen(false); void refetchReservations(); },
   });
+  /**
+   * Pausar es una decision del turno —se rompio un equipo, falto personal—, no un ajuste de
+   * configuracion. Vive aqui para no obligar a salir de la operacion del dia a buscarla.
+   */
+  const [pausaOpen, setPausaOpen] = useState(false);
+  const [pausaHasta, setPausaHasta] = useState('');
+  const pausarReservas = useMutation({
+    mutationFn: (hasta: string) => api.patch<ReservationForm>(`/reservations/forms/${effectiveFormId}`, {
+      designConfig: { ...activeForm?.designConfig, bookingPausedUntil: hasta ? localInputToUtc(hasta, activeForm?.timezone || 'America/Santiago') : '' },
+    }),
+    onSuccess: (next) => { setPausaOpen(false); qc.setQueryData(['reservation-form', effectiveFormId], next); void qc.invalidateQueries({ queryKey: ['agenda-forms'] }); },
+  });
   const updateGroupRequest = useMutation({ mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => api.patch(`/reservations/group-requests/${id}`, body), onSuccess: () => { setQuoteRequest(null); void refetchGroupRequests(); } });
 
+  /**
+   * Columnas del tablero: las zonas configuradas mas, si hace falta, una para las reservas que
+   * no tienen ninguna.
+   *
+   * Una reserva sin zona —tomada antes de configurarlas, o sin elegirla— se agrupaba bajo una
+   * clave que el render no recorria, asi que desaparecia del tablero mientras el contador del
+   * dia seguia incluyendola.
+   */
   const zones = useMemo(() => {
     const configured = activeForm?.resourcesConfig ?? [];
     if (configured.length === 0) return [{ id: GENERAL_ZONE_ID, name: 'General' }];
-    return configured.map((zone) => ({ id: zone.id, name: zone.name }));
-  }, [activeForm]);
+    const conocidas = new Set(configured.map((zone) => zone.id));
+    const haySinZona = reservations.some((reservation) => !reservation.resourceId || !conocidas.has(reservation.resourceId));
+    const columnas = configured.map((zone) => ({ id: zone.id, name: zone.name }));
+    return haySinZona ? [...columnas, { id: GENERAL_ZONE_ID, name: 'Sin zona asignada' }] : columnas;
+  }, [activeForm, reservations]);
 
   const reservationsByZone = useMemo(() => {
     const map = new Map<string, Reservation[]>();
@@ -177,6 +203,7 @@ export function AgendaPage() {
       <strong className="agenda-date-label">{formatDateLabel(dateFilter)}</strong>
       <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId} onClick={() => { setBlockStart(`${dateFilter}T13:00`); setBlockEnd(`${dateFilter}T23:00`); setBlockOpen(true); }}>Bloquear por evento</button>
       {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId || closeDay.isPending || new Date(`${dateFilter}T23:59:59`) > new Date()} onClick={() => { if (window.confirm('Se marcarán como asistidas las reservas abiertas de este turno y quedará registrado.')) closeDay.mutate(); }}>{closeDay.isPending ? 'Cerrando...' : 'Cerrar turno'}</button>}
+      {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId} onClick={() => { setPausaHasta(utcToLocalInput(activeForm?.designConfig?.bookingPausedUntil, activeForm?.timezone || 'America/Santiago')); setPausaOpen(true); }}>{activeForm?.designConfig?.bookingPausedUntil ? 'Reservas pausadas' : 'Pausar reservas'}</button>}
     </div>
 
     {!clientId
@@ -230,7 +257,13 @@ export function AgendaPage() {
                               <div className="agenda-card-time">{new Date(reservation.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</div>
                               <div className="agenda-card-body">
                                 <strong>{reservation.guestName}</strong>
-                                <span>{reservation.partySize} persona{reservation.partySize === 1 ? '' : 's'}</span>
+                                <span>{reservation.partySize} persona{reservation.partySize === 1 ? '' : 's'}{reservation.guestPhone ? ` · ${reservation.guestPhone}` : ''}</span>
+                                {(() => {
+                                  // Alergias, niños y accesibilidad se deciden al sentar a la mesa, no al
+                                  // revisar el listado despues del turno.
+                                  const destacadas = respuestasDestacadas(reservation.answers, activeForm?.fieldSchema);
+                                  return destacadas.length > 0 && <span className="agenda-card-flags">{destacadas.map((item) => <em key={item.clave} title={`${item.etiqueta}: ${item.valor}`}>{item.etiqueta}: {item.valor}</em>)}</span>;
+                                })()}
                               </div>
                               <span className="agenda-card-status" title={option?.label ?? reservation.status}>{option?.icon ?? '●'}</span>
                             </button>;
@@ -245,6 +278,18 @@ export function AgendaPage() {
                 </ul>
               </>}
         </>}
+    <Modal open={pausaOpen} onClose={() => setPausaOpen(false)} title="Pausar reservas">
+      <div className="modal-form">
+        <p className="page-subtitle">La página pública deja de ofrecer horarios hasta la fecha indicada. No cancela reservas ya tomadas ni despublica el local.</p>
+        <label>Reanudar automáticamente el<input className="input" type="datetime-local" value={pausaHasta} onChange={(event) => setPausaHasta(event.target.value)} /></label>
+        {pausarReservas.error && <p className="error-text">No se pudo cambiar la pausa. Revisa la fecha e inténtalo otra vez.</p>}
+        <div className="modal-actions">
+          <button type="button" className="btn btn-outline" onClick={() => setPausaOpen(false)}>Cancelar</button>
+          {activeForm?.designConfig?.bookingPausedUntil && <button type="button" className="btn btn-outline" disabled={pausarReservas.isPending} onClick={() => pausarReservas.mutate('')}>Quitar pausa</button>}
+          <button type="button" className="btn btn-primary" disabled={pausarReservas.isPending || !pausaHasta} onClick={() => pausarReservas.mutate(pausaHasta)}>{pausarReservas.isPending ? 'Guardando...' : 'Pausar'}</button>
+        </div>
+      </div>
+    </Modal>
     <Modal open={blockOpen} onClose={() => setBlockOpen(false)} title="Bloquear por evento privado">
       <form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (!blockStart || !blockEnd || new Date(blockEnd) <= new Date(blockStart)) return; createBlock.mutate(); }}>
         <p className="page-subtitle">El tramo dejará de estar disponible para nuevas reservas. Si existen reservas en ese horario, revisa la agenda y contáctalas antes de cerrar el evento.</p>
