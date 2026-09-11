@@ -54,6 +54,13 @@ const DEFAULT_VENUE_TIPS = [
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 const MAX_SLOT_RANGE_DAYS = 62;
+const RESPUESTAS_DEL_SISTEMA = {
+    groupEventType: 'Tipo de celebración',
+    groupEventNotes: 'Notas del grupo',
+    childrenCount: 'Niños',
+    accessibilityNeed: 'Accesibilidad',
+    dietaryNotes: 'Restricciones alimentarias',
+};
 const GESTION_TRAS_LA_VISITA_DIAS = 60;
 const STATUS_TRANSITIONS = {
     pending: ['confirmed', 'cancelled_client', 'cancelled_business', 'waitlist'],
@@ -1634,7 +1641,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const keys = [...answerKeys].sort();
         const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
         const toLine = (row) => row.map(escape).join(',');
-        yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'campana', 'cupon', 'personas', 'notas_internas', ...keys]);
+        yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'campana', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => RESPUESTAS_DEL_SISTEMA[key] || key)]);
         for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
             const lines = items.map((item) => {
                 const answers = (item.answers || {});
@@ -1669,6 +1676,20 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (dateTo)
             qb.andWhere('r.starts_at <= :dateTo', { dateTo });
         const items = await qb.orderBy('r.starts_at', 'DESC').take(50000).getMany();
+        const form = await this.forms.findOne({ where: { id: formId, organizationId } });
+        const esquema = form?.fieldSchema ?? [];
+        const clavesRespuesta = [...new Set(items.flatMap((item) => Object.keys((item.answers || {}))))].sort();
+        const etiquetaDe = (clave) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
+        const valorDe = (item, clave) => {
+            const valor = (item.answers || {})[clave];
+            if (valor === null || valor === undefined || valor === '')
+                return '';
+            if (Array.isArray(valor))
+                return valor.join(', ');
+            if (typeof valor === 'boolean')
+                return valor ? 'Sí' : 'No';
+            return String(valor);
+        };
         const fieldMap = {
             name: (item) => item.guestName,
             phone: (item) => item.guestPhone ?? undefined,
@@ -1692,13 +1713,16 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 for (const field of allowedFields) {
                     record[field] = fieldMap[field]?.(item) ?? '-';
                 }
+                for (const clave of clavesRespuesta)
+                    record[etiquetaDe(clave)] = valorDe(item, clave);
                 return record;
             });
         }
         else if (format === 'csv') {
             const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
-            const headers = allowedFields;
-            return [headers, ...items.map((item) => allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'))].map((row) => row.map(escape).join(',')).join('\r\n');
+            const headers = [...allowedFields, ...clavesRespuesta.map(etiquetaDe)];
+            const filas = items.map((item) => [...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'), ...clavesRespuesta.map((clave) => valorDe(item, clave))]);
+            return [headers, ...filas].map((row) => row.map(escape).join(',')).join('\r\n');
         }
         throw new common_1.BadRequestException('Formato no soportado');
     }

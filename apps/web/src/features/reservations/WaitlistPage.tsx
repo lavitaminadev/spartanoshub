@@ -8,6 +8,7 @@ import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import type { Reservation, ReservationForm } from './types';
+import { respuestasLegibles } from './answer-labels';
 import { browserDateBoundaryUtc } from './local-time';
 import { useUrlFilters } from '../../shared/use-url-filters';
 
@@ -120,7 +121,12 @@ export function WaitlistPage() {
               <td>{item.partySize}</td>
               <td>{new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</td>
               <td>{waitingTimeLabel(item.createdAt)}</td>
-              <td>{item.internalNotes || '—'}</td>
+              {/* Quien devuelve la llamada necesita la alergia y la ocasion, no solo la nota interna. */}
+              <td>{(() => {
+                const respuestas = respuestasLegibles(item.answers, forms.find((form) => form.id === item.formId)?.fieldSchema);
+                if (!item.internalNotes && respuestas.length === 0) return '—';
+                return <>{item.internalNotes && <span>{item.internalNotes}</span>}{respuestas.map((dato) => <small key={dato.clave} className="waitlist-dato">{dato.etiqueta}: {dato.valor}</small>)}</>;
+              })()}</td>
               <td>
                 <div className="actions-cell">
                   {item.guestPhone && <a className="btn btn-outline btn-sm" href={`https://wa.me/${item.guestPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp</a>}
