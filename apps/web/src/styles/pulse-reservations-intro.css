@@ -150,7 +150,9 @@
 .reservation-filters { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:15px; padding:12px; border-radius: var(--radius-md); background:#f1ecef; }
 /* `min-width:0` evita que el input desborde el contenedor cuando la pantalla es
    mÃ¡s angosta que su base flex. */
-.reservation-filters .input:first-child { flex:1 1 320px; min-width:0; }
+/* Hijo directo a proposito: el descendiente alcanzaba tambien al input de fecha anidado en su
+   etiqueta, y como esa etiqueta es una columna flex el 320px pasaba a ser alto. */
+.reservation-filters > .input:first-child { flex:1 1 320px; min-width:0; }
 /* Rango de fechas: la etiqueta va sobre el campo para que Â«DesdeÂ» y Â«HastaÂ» se distingan. */
 .filter-date { display:flex; flex-direction:column; gap:3px; color:var(--text-light); font-size:10px; font-weight:800; text-transform:uppercase; }
 .filter-date .input { min-width:140px; }

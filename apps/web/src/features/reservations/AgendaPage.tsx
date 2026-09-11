@@ -24,6 +24,7 @@ import { CYCLE_COLORS, RESERVATION_STATUS_OPTIONS, findStatusOption } from '../.
 import type { Reservation, ReservationForm } from './types';
 import { localDateBoundsUtc } from './local-time';
 import './AgendaPage.css';
+import { useAutoSeleccionUnica } from './use-auto-seleccion';
 
 interface Client { id: string; name: string }
 /** Página de reservas. `data` es el nombre con que responden todas las listas del sistema. */
@@ -74,6 +75,7 @@ export function AgendaPage() {
     queryFn: () => api.get('/clients'), enabled: !clientMode,
   });
   const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : Array.isArray(clientsResp?.data) ? clientsResp!.data : [];
+  useAutoSeleccionUnica(clients, clientId, setClientId);
 
   const { data: formsArray = [], isLoading: loadingForms } = useQuery<ReservationForm[]>({
     queryKey: ['reservation-forms', clientId],

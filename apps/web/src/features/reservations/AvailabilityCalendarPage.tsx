@@ -10,6 +10,7 @@ import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import type { ReservationForm } from './types';
 import './AvailabilityCalendarPage.css';
+import { useAutoSeleccionUnica } from './use-auto-seleccion';
 
 interface Client { id: string; name: string }
 interface OccupancyDay { date: string; count: number; pct: number | null }
@@ -63,6 +64,7 @@ export function AvailabilityCalendarPage() {
 
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients'), enabled: !clientMode });
   const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
+  useAutoSeleccionUnica(clients, clientId, setClientId);
   const { data: forms = [] } = useQuery<ReservationForm[]>({
     queryKey: ['reservation-forms', clientId], queryFn: () => api.get(`/reservations/forms?clientId=${encodeURIComponent(clientId)}`), enabled: Boolean(clientId),
   });
