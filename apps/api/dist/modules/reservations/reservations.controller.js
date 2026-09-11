@@ -174,6 +174,10 @@ let ReservationsController = class ReservationsController {
         const scope = await this.scope(req);
         return this.service.listGroupRequests(req.organizationId, id, scope.clientId, scope.clientIds);
     }
+    async convertGroupRequest(req, id, dto) {
+        const scope = await this.scope(req);
+        return this.service.convertGroupRequest(req.organizationId, id, dto, req.user.id, scope.clientId, scope.clientIds);
+    }
     async updateGroupRequest(req, id, dto) {
         const scope = await this.scope(req);
         return this.service.updateGroupRequest(req.organizationId, id, dto, req.user.id, scope.clientId, scope.clientIds);
@@ -394,6 +398,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "groupRequests", null);
+__decorate([
+    (0, common_1.Post)('group-requests/:id/convert'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.ConvertGroupRequestDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "convertGroupRequest", null);
 __decorate([
     (0, common_1.Patch)('group-requests/:id'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),

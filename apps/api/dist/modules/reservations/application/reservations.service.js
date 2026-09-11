@@ -897,7 +897,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const form = await this.forms.findOne({ where: { publicSlug: slug } });
         if (!form)
             throw noEncontrada;
-        const booking = await this.reservations.findOne({ where: { formId: form.id, referenceCode: referenceCode.trim().toUpperCase() } });
+        const booking = await this.reservations.findOne({ where: { organizationId: form.organizationId, clientId: form.clientId, referenceCode: referenceCode.trim().toUpperCase() } });
         if (!booking)
             throw noEncontrada;
         const dato = contact.trim();
@@ -918,16 +918,20 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (!plantilla.encendido)
             return respuesta;
         const reservas = await this.reservations.find({
-            where: { formId: form.id, guestEmail: correo, status: (0, typeorm_2.In)(ACTIVE_STATUSES), startsAt: (0, typeorm_2.MoreThan)(new Date()) },
+            where: { organizationId: form.organizationId, clientId: form.clientId, guestEmail: correo, status: (0, typeorm_2.In)(ACTIVE_STATUSES), startsAt: (0, typeorm_2.MoreThan)(new Date()) },
             order: { startsAt: 'ASC' },
             take: 5,
         });
+        if (reservas.length === 0)
+            return respuesta;
+        const locales = new Map(((await this.forms.find({ where: { id: (0, typeorm_2.In)([...new Set(reservas.map((item) => item.formId))]) } })) ?? []).map((local) => [local.id, local]));
         const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '');
         for (const booking of reservas) {
+            const local = locales.get(booking.formId) ?? form;
             const token = await this.createManagementToken(booking.id, booking.endsAt);
             const url = base ? `${base}/book/manage/${token}` : undefined;
-            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: booking.guestName, local: form.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }), personas: booking.partySize, codigo: booking.referenceCode }, url ? { texto: 'Gestionar mi reserva', url } : undefined);
-            void this.emails.send(correo, subject, html, { replyTo: this.respuestaAlLocal(form) })
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: booking.guestName, local: local.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: local.timezone }), personas: booking.partySize, codigo: booking.referenceCode }, url ? { texto: 'Gestionar mi reserva', url } : undefined);
+            void this.emails.send(correo, subject, html, { replyTo: this.respuestaAlLocal(local) })
                 .catch((err) => this.logger.warn(`Enlace de gestión de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
         return respuesta;
@@ -937,7 +941,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const form = await this.forms.findOne({ where: { id: reservation.formId } });
         if (!form)
             throw new common_1.NotFoundException('El formulario ya no existe');
-        return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status), canReschedule: ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone, maxPartySize: this.groupThreshold(form) };
+        return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status), canReschedule: ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone, maxPartySize: this.groupThreshold(form), localName: form.name };
     }
     async cancelPublicManagement(token) {
         const { record, reservation } = await this.managementReservation(token);
@@ -981,16 +985,20 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         };
     }
     async avisarSolicitudSinCupo(form, tipo, datos) {
-        const escapeHtml = (value) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-        const titulo = tipo === 'grupo' ? 'Nueva solicitud de grupo' : 'Nueva persona en lista de espera';
+        const variables = { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize };
         try {
             const equipo = await this.equipoDelLocal(form);
             if (equipo.userIds.length) {
-                await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, tipo === 'grupo' ? 'reservation_group_request' : 'reservation_waitlist', titulo, `${datos.guestName} · ${datos.partySize} personas · ${datos.cuando} · ${form.name}.`, { formId: form.id, clientId: form.clientId, requestId: datos.id });
+                await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, tipo === 'grupo' ? 'reservation_group_request' : 'reservation_waitlist', tipo === 'grupo' ? 'Nueva solicitud de grupo' : 'Nueva persona en lista de espera', `${datos.guestName} · ${datos.partySize} personas · ${datos.cuando} · ${form.name}.`, { formId: form.id, clientId: form.clientId, requestId: datos.id });
             }
-            const html = `<h2>${titulo}</h2><p><strong>${escapeHtml(datos.guestName)}</strong> · ${datos.partySize} personas</p><p>${escapeHtml(datos.cuando)} · ${escapeHtml(form.name)}</p><p>No toma cupo hasta que el equipo lo resuelva desde el panel de reservas.</p>`;
-            void Promise.all(equipo.correos.map((email) => this.emails.send(email, `${titulo} - ${form.name}`, html)))
-                .catch((err) => this.logger.warn(`Aviso al equipo de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
+            if (equipo.correos.length) {
+                const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.team_group_request' : 'email.team_waitlist');
+                if (plantilla.encendido) {
+                    const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, variables);
+                    void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
+                        .catch((err) => this.logger.warn(`Aviso al equipo de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
+                }
+            }
         }
         catch (err) {
             this.logger.warn(`No se pudo avisar al equipo de ${datos.id}: ${err instanceof Error ? err.message : err}`);
@@ -1001,7 +1009,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.group_request_ack' : 'email.waitlist_ack');
             if (!plantilla.encendido)
                 return;
-            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize });
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, variables);
             void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
                 .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
@@ -1224,6 +1232,41 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async listGroupRequests(organizationId, formId, clientId, clientIds) {
         await this.getForm(organizationId, formId, clientId, clientIds);
         return this.groupRequests.find({ where: { organizationId, formId }, order: { createdAt: 'DESC' }, take: 50 });
+    }
+    async convertGroupRequest(organizationId, id, dto, actorId, clientId, clientIds) {
+        const request = await this.groupRequests.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
+        if (!request)
+            throw new common_1.NotFoundException('Solicitud no encontrada');
+        if (request.status === 'converted')
+            throw new common_1.ConflictException('Esta solicitud ya se convirtió en reserva');
+        const details = (request.details || {});
+        const texto = (valor) => (typeof valor === 'string' && valor.trim() ? valor.trim() : undefined);
+        const answers = {
+            ...(details.answers || {}),
+            groupEventType: request.eventType,
+            ...(request.notes ? { groupEventNotes: request.notes } : {}),
+            ...(details.childrenCount ? { childrenCount: details.childrenCount } : {}),
+            ...(texto(details.accessibilityNeed) ? { accessibilityNeed: texto(details.accessibilityNeed) } : {}),
+            ...(texto(details.dietaryNotes) ? { dietaryNotes: texto(details.dietaryNotes) } : {}),
+        };
+        const booking = await this.createManual(organizationId, actorId, {
+            formId: request.formId,
+            startsAt: dto.startsAt,
+            guestName: request.guestName,
+            guestEmail: request.guestEmail || undefined,
+            guestPhone: request.guestPhone || undefined,
+            partySize: request.partySize,
+            resourceId: dto.resourceId || texto(details.resourceId),
+            serviceId: dto.serviceId || texto(details.serviceId),
+            answers,
+            internalNotes: 'Creada desde una solicitud de grupo.',
+        }, clientId, clientIds);
+        const reservationId = booking.id ?? booking.booking?.id;
+        request.status = 'converted';
+        request.details = { ...details, reservationId };
+        await this.groupRequests.save(request);
+        await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'converted', after: { reservationId, startsAt: dto.startsAt } });
+        return booking;
     }
     async updateGroupRequest(organizationId, id, dto, actorId, clientId, clientIds) {
         const item = await this.groupRequests.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
@@ -1513,18 +1556,21 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async notifyNewBooking(form, booking, managementToken) {
         void this.enviarComprobante(form, booking, managementToken);
         try {
-            const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR id = (SELECT community_manager_id FROM clients WHERE id = ? AND organization_id = ?))`, [form.organizationId, form.clientId, form.clientId, form.organizationId]);
-            const userIds = rows.map((row) => row.id).filter(Boolean);
-            if (userIds.length === 0)
-                return;
-            await this.notifications.notifyMultiple(form.organizationId, userIds, 'reservation_created', 'Nueva reserva recibida', `${booking.guestName} reservó ${form.name} para el ${booking.startsAt.toLocaleString('es-CL', { timeZone: form.timezone })}.`, { reservationId: booking.id, formId: form.id, clientId: form.clientId, referenceCode: booking.referenceCode });
-            const teamEmails = (form.teamNotifications || []).filter((email) => typeof email === 'string' && email.includes('@'));
-            if (teamEmails.length > 0) {
-                const escapeHtml = (value) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-                const html = `<h2>Nueva reserva recibida</h2><p><strong>${escapeHtml(booking.guestName)}</strong> reservó <strong>${escapeHtml(form.name)}</strong>.</p><p>Fecha: ${escapeHtml(booking.startsAt.toLocaleString('es-CL', { timeZone: form.timezone }))}<br>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p>`;
-                void Promise.all(teamEmails.map((email) => this.emails.send(email, `Nueva reserva - ${form.name}`, html)))
-                    .catch((err) => this.logger.warn(`Aviso por correo de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
+            const equipo = await this.equipoDelLocal(form);
+            if (equipo.userIds.length) {
+                await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, 'reservation_created', 'Nueva reserva recibida', `${booking.guestName} reservó ${form.name} para el ${booking.startsAt.toLocaleString('es-CL', { timeZone: form.timezone })}.`, { reservationId: booking.id, formId: form.id, clientId: form.clientId, referenceCode: booking.referenceCode });
             }
+            if (equipo.correos.length === 0)
+                return;
+            const plantilla = await this.plantillaDeAviso(form, 'email.team_new_reservation');
+            if (!plantilla.encendido)
+                return;
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, {
+                nombre: booking.guestName, local: form.name, personas: booking.partySize, codigo: booking.referenceCode,
+                fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
+            });
+            void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
+                .catch((err) => this.logger.warn(`Aviso por correo de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
         catch (err) {
             this.logger.warn(`Notification failed for booking ${booking.id}: ${err instanceof Error ? err.message : err}`);

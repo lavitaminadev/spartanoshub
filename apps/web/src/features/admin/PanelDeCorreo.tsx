@@ -109,6 +109,21 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string }> = [
     titulo: 'Aviso de lead nuevo',
     explica: 'Al responsable, indicando de dónde viene.',
   },
+  {
+    prefijo: 'email.team_new_reservation',
+    titulo: 'Aviso al equipo: reserva nueva',
+    explica: 'A los correos del equipo anotados en cada local. Si un local no tiene ninguno, no sale.',
+  },
+  {
+    prefijo: 'email.team_group_request',
+    titulo: 'Aviso al equipo: solicitud de grupo',
+    explica: 'Cuando alguien pide un evento. No toma cupo hasta que el equipo lo resuelva.',
+  },
+  {
+    prefijo: 'email.team_waitlist',
+    titulo: 'Aviso al equipo: lista de espera',
+    explica: 'Cuando alguien se anota en la lista de espera de un horario lleno.',
+  },
 ];
 
 /** Las variables que admite una plantilla, sacadas de su propia descripción. */
