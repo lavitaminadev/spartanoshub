@@ -43,9 +43,17 @@ __decorate([
     __metadata("design:type", String)
 ], ReservationFormEvent.prototype, "utmSource", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }),
+    __metadata("design:type", String)
+], ReservationFormEvent.prototype, "utmMedium", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'utm_campaign', type: 'varchar', length: 180, nullable: true }),
     __metadata("design:type", String)
 ], ReservationFormEvent.prototype, "utmCampaign", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'utm_content', type: 'varchar', length: 180, nullable: true }),
+    __metadata("design:type", String)
+], ReservationFormEvent.prototype, "utmContent", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'json', nullable: true }),
     __metadata("design:type", Object)

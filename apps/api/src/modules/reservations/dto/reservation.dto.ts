@@ -139,7 +139,9 @@ export class PublicGroupRequestDto {
   @IsOptional() @IsBoolean() marketingConsent?: boolean;
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
+  @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
+  @IsOptional() @IsString() @MaxLength(180) utmContent?: string;
   /** Respuestas y preferencias operativas que el equipo debe conservar al cotizar. */
   @IsOptional() @IsObject() details?: Record<string, unknown>;
   @IsOptional() @IsString() @MaxLength(200) website?: string;
@@ -198,7 +200,9 @@ export class PublicFormEventDto {
   @IsOptional() @IsBoolean() measurementConsent?: boolean;
   @IsOptional() @IsString() @MaxLength(80) sessionId?: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
+  @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
+  @IsOptional() @IsString() @MaxLength(180) utmContent?: string;
   @IsOptional() @IsString() @MaxLength(255) fbc?: string;
   @IsOptional() @IsString() @MaxLength(255) fbp?: string;
   @IsOptional() @IsString() @MaxLength(500) eventSourceUrl?: string;

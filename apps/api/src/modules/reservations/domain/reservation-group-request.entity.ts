@@ -28,7 +28,9 @@ export class ReservationGroupRequest {
   @Column({ name: 'marketing_consent_at', type: 'timestamp', nullable: true }) marketingConsentAt?: Date | null;
   @Column({ name: 'marketing_consent_text', type: 'text', nullable: true }) marketingConsentText?: string | null;
   @Column({ name: 'utm_source', type: 'varchar', length: 120, nullable: true }) utmSource?: string | null;
+  @Column({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }) utmMedium?: string | null;
   @Column({ name: 'utm_campaign', type: 'varchar', length: 180, nullable: true }) utmCampaign?: string | null;
+  @Column({ name: 'utm_content', type: 'varchar', length: 180, nullable: true }) utmContent?: string | null;
   @Column({ type: 'varchar', length: 20, default: 'pending' }) status: string;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

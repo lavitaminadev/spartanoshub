@@ -695,7 +695,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             if (existing)
                 return existing;
         }
-        const saved = await this.saveFormEventOnce(this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmCampaign: dto.utmCampaign }));
+        const saved = await this.saveFormEventOnce(this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent }));
         if (dto.type === 'start' && dto.measurementConsent) {
             await this.enqueueMetaInitiateCheckout(saved, form, dto, ipAddress, userAgent);
         }
@@ -767,7 +767,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             type: 'submit',
             sessionId: dto.idempotencyKey,
             utmSource: dto.utmSource,
+            utmMedium: dto.utmMedium,
             utmCampaign: dto.utmCampaign,
+            utmContent: dto.utmContent,
             metadata: {
                 guestName: dto.guestName.trim(),
                 guestEmail: dto.guestEmail?.trim().toLowerCase(),
@@ -1033,7 +1035,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
             notes: dto.notes?.trim() || null, details: dto.details ?? null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
             marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
-            utmSource: dto.utmSource || null, utmCampaign: dto.utmCampaign || null, status: 'pending',
+            utmSource: dto.utmSource || null, utmMedium: dto.utmMedium || null, utmCampaign: dto.utmCampaign || null, utmContent: dto.utmContent || null, status: 'pending',
         }));
         return { id: request.id, status: request.status, kind: 'group_request' };
     }
@@ -1641,11 +1643,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const keys = [...answerKeys].sort();
         const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
         const toLine = (row) => row.map(escape).join(',');
-        yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'campana', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => RESPUESTAS_DEL_SISTEMA[key] || key)]);
+        yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => RESPUESTAS_DEL_SISTEMA[key] || key)]);
         for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
             const lines = items.map((item) => {
                 const answers = (item.answers || {});
-                return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmCampaign, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => answers[key])]);
+                return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => answers[key])]);
             });
             if (lines.length > 0)
                 yield `\r\n${lines.join('\r\n')}`;
