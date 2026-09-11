@@ -377,13 +377,33 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     stats: { pending: 0, retry: 0, processing: 0, failed: 0, expired: 0, processed: 0, total: 0 },
     problems: [],
   })],
-  [/\/reservations\/analytics\/metrics/, () => ({
-    totals: { total: 0, attended: 0, no_show: 0, pending: 0, confirmed: 0, cancelled: 0 },
-    daily: [],
-    sources: [],
-    funnel: { views: 0, starts: 0, completed: 0, conversionRate: null },
-    days: 30,
-  })],
+  /*
+   * Analiticas con volumen real: el vacio generico dejaba la vista en su estado "sin reservas"
+   * y no habia forma de revisar KPIs, evolucion, areas ni fuentes. `areas` es ademas la clave
+   * que solo consume esta pantalla, asi que sin ella el grafico quedaba mudo aun con datos.
+   */
+  [/\/reservations\/analytics\/metrics/, (config) => {
+    const dias = Number((config?.url?.match(/days=(\d+)/) ?? [])[1] || 30);
+    const daily = Array.from({ length: Math.min(dias, 30) }, (_, index) => {
+      const fecha = new Date();
+      fecha.setDate(fecha.getDate() - (Math.min(dias, 30) - 1 - index));
+      const total = 6 + ((index * 7) % 11);
+      const no_show = index % 6 === 0 ? 1 : 0;
+      return { day: fecha.toISOString().slice(0, 10), total, attended: total - no_show - (index % 4 === 0 ? 1 : 0), no_show };
+    });
+    const total = daily.reduce((suma, fila) => suma + fila.total, 0);
+    const attended = daily.reduce((suma, fila) => suma + fila.attended, 0);
+    const no_show = daily.reduce((suma, fila) => suma + fila.no_show, 0);
+    const views = Math.round(total * 6.4);
+    return {
+      totals: { total, attended, no_show, pending: 9, confirmed: total - attended - no_show - 9, waitlist: 4, cancelled: 7 },
+      daily,
+      areas: [{ area: 'Terraza', total: Math.round(total * 0.46) }, { area: 'Salón', total: Math.round(total * 0.39) }, { area: 'Sin área', total: Math.round(total * 0.15) }],
+      sources: [{ source: 'meta', total: Math.round(total * 0.41) }, { source: 'google', total: Math.round(total * 0.24) }, { source: 'instagram', total: Math.round(total * 0.18) }, { source: 'directo', total: Math.round(total * 0.17) }],
+      funnel: { views, starts: Math.round(total * 1.7), completed: total, conversionRate: Math.round(total * 1000 / views) / 10 },
+      days: dias,
+    };
+  }],
   /*
    * El constructor del flujo (`ReservationBuilderPage`) es la otra vista que el vacio generico
    * no sostiene: lee `draft.designConfig.title` y `draft.timezone.split()` sin proteger el
