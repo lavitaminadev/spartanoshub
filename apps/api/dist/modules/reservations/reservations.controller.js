@@ -141,6 +141,8 @@ let ReservationsController = class ReservationsController {
     }
     async createManual(req, dto) {
         const scope = await this.scope(req);
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT)
+            dto.skipAvailability = false;
         return this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds);
     }
     async importReservations(req, dto) {
@@ -344,7 +346,7 @@ __decorate([
 ], ReservationsController.prototype, "deleteBlock", null);
 __decorate([
     (0, common_1.Post)('manual'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
