@@ -1034,7 +1034,7 @@ export class ReservationsService {
     const { reservation } = await this.managementReservation(token);
     const form = await this.forms.findOne({ where: { id: reservation.formId } });
     if (!form) throw new NotFoundException('El formulario ya no existe');
-    return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status), canReschedule: ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone };
+    return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status), canReschedule: ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone, maxPartySize: this.groupThreshold(form) };
   }
 
   async cancelPublicManagement(token: string) {
@@ -1045,12 +1045,14 @@ export class ReservationsService {
       if (!booking || !ACTIVE_STATUSES.includes(booking.status)) throw new ConflictException('Esta reserva ya no se puede cancelar');
       const previous = booking.status; booking.status = 'cancelled_client';
       await manager.save(booking);
+      await this.devolverCupon(manager, booking);
       await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'cancelled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link' } }));
       return booking;
     });
     record.usedAt = new Date();
     await this.managementTokens.save(record);
     void this.sendCalendarUpdate(reservation, 'CANCELLED');
+    void this.avisarCupoLiberado(saved);
     return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
   }
 
@@ -1065,6 +1067,104 @@ export class ReservationsService {
     await this.managementTokens.save(record);
     await this.events.save(this.events.create({ organizationId: reservation.organizationId, clientId: reservation.clientId, reservationId: reservation.id, type: 'guest_confirmed', fromStatus: reservation.status, toStatus: reservation.status, actorType: 'guest', metadata: { via: 'management_link' } }));
     return { confirmed: true, referenceCode: reservation.referenceCode };
+  }
+
+  /**
+   * Usuarios y correos del equipo que atiende un local.
+   *
+   * Es el mismo criterio del aviso de reserva nueva: quien pertenece a la empresa, mas su
+   * responsable de cuenta, y los correos anotados en los ajustes del local.
+   */
+  private async equipoDelLocal(form: ReservationForm): Promise<{ userIds: string[]; correos: string[] }> {
+    const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR id = (SELECT community_manager_id FROM clients WHERE id = ? AND organization_id = ?))`, [form.organizationId, form.clientId, form.clientId, form.organizationId]);
+    return {
+      userIds: (rows as Array<{ id: string }>).map((row) => row.id).filter(Boolean),
+      correos: (form.teamNotifications || []).filter((email) => typeof email === 'string' && email.includes('@')),
+    };
+  }
+
+  /**
+   * Avisa al equipo y responde a quien escribio, sin poder romper lo que ya se guardo.
+   *
+   * Lo usan la solicitud de grupo y la lista de espera: hasta ahora ninguna de las dos avisaba
+   * a nadie. La persona no sabia si su pedido habia llegado y el equipo solo lo veia si abria la
+   * pantalla justa. El acuse respeta el mismo interruptor que el comprobante de reserva.
+   */
+  private async avisarSolicitudSinCupo(form: ReservationForm, tipo: 'grupo' | 'espera', datos: { id: string; guestName: string; guestEmail?: string | null; partySize: number; cuando: string }): Promise<void> {
+    const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+    const titulo = tipo === 'grupo' ? 'Nueva solicitud de grupo' : 'Nueva persona en lista de espera';
+    try {
+      const equipo = await this.equipoDelLocal(form);
+      if (equipo.userIds.length) {
+        await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, tipo === 'grupo' ? 'reservation_group_request' : 'reservation_waitlist', titulo, `${datos.guestName} · ${datos.partySize} personas · ${datos.cuando} · ${form.name}.`, { formId: form.id, clientId: form.clientId, requestId: datos.id });
+      }
+      const html = `<h2>${titulo}</h2><p><strong>${escapeHtml(datos.guestName)}</strong> · ${datos.partySize} personas</p><p>${escapeHtml(datos.cuando)} · ${escapeHtml(form.name)}</p><p>No toma cupo hasta que el equipo lo resuelva desde el panel de reservas.</p>`;
+      void Promise.all(equipo.correos.map((email) => this.emails.send(email, `${titulo} - ${form.name}`, html)))
+        .catch((err) => this.logger.warn(`Aviso al equipo de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
+    } catch (err) {
+      this.logger.warn(`No se pudo avisar al equipo de ${datos.id}: ${err instanceof Error ? err.message : err}`);
+    }
+    try {
+      if (!datos.guestEmail) return;
+      const encendido = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
+      if (!encendido) return;
+      const { subject, html } = componerCorreo(
+        tipo === 'grupo' ? 'Recibimos tu solicitud de evento en {{local}}' : 'Quedaste en lista de espera en {{local}}',
+        tipo === 'grupo'
+          ? 'Hola {{nombre}}:\n\nRecibimos tu solicitud para {{personas}} personas ({{fecha}}). Todavía no hay nada reservado: el local te contactará para acordar fecha y detalles.'
+          : 'Hola {{nombre}}:\n\nTe anotamos en la lista de espera para el {{fecha}}, {{personas}} personas. Esto no es una reserva: si se libera un cupo te avisaremos por este medio.',
+        { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize },
+      );
+      void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
+        .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
+    } catch (err) {
+      this.logger.warn(`No se pudo componer el acuse de ${datos.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /**
+   * Avisa a quienes esperaban ese horario que se libero un cupo.
+   *
+   * No reserva nada por ellos: el cupo lo toma quien reserve primero en la pagina, que es la
+   * unica forma de no prometerle la misma mesa a dos personas. El aviso lleva al local.
+   */
+  private async avisarCupoLiberado(booking: Reservation): Promise<void> {
+    try {
+      const form = await this.forms.findOne({ where: { id: booking.formId } });
+      if (!form || form.status !== 'published' || booking.startsAt <= new Date()) return;
+      const encendido = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
+      if (!encendido) return;
+      const esperando = await this.reservations.find({ where: { formId: form.id, status: 'waitlist', startsAt: booking.startsAt }, take: 20 });
+      const url = process.env.APP_PUBLIC_URL ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${form.publicSlug}` : undefined;
+      const cuando = booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
+      for (const persona of esperando) {
+        if (!persona.guestEmail) continue;
+        const { subject, html } = componerCorreo(
+          'Se liberó un cupo en {{local}}',
+          'Hola {{nombre}}:\n\nSe liberó un cupo para el {{fecha}}, el horario en que te anotaste. No lo reservamos por ti: queda para quien confirme primero.',
+          { nombre: persona.guestName, local: form.name, fecha: cuando },
+          url ? { texto: 'Reservar ahora', url } : undefined,
+        );
+        void this.emails.send(persona.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
+          .catch((err) => this.logger.warn(`Aviso de cupo a ${persona.id} no enviado: ${err instanceof Error ? err.message : err}`));
+      }
+    } catch (err) {
+      this.logger.warn(`No se pudo avisar a la lista de espera de ${booking.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /**
+   * Devuelve el uso del cupón de una reserva que se cancela.
+   *
+   * El uso se descontaba al reservar y nunca volvía: un cupón de diez usos quedaba agotado con
+   * diez reservas aunque nueve se hubieran cancelado.
+   */
+  private async devolverCupon(manager: EntityManager, booking: Reservation): Promise<void> {
+    if (!booking.couponCode) return;
+    await manager.getRepository(ReservationCoupon).createQueryBuilder().update(ReservationCoupon)
+      .set({ usageCount: () => 'GREATEST(usage_count - 1, 0)' })
+      .where('organization_id = :org AND code = :code', { org: booking.organizationId, code: booking.couponCode })
+      .execute();
   }
 
   /**
@@ -1105,7 +1205,7 @@ export class ReservationsService {
       .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
   }
 
-  async reschedulePublicManagement(token: string, requestedStartsAt: string) {
+  async reschedulePublicManagement(token: string, requestedStartsAt: string, requestedPartySize?: number) {
     const { record, reservation } = await this.managementReservation(token);
     if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede reagendar');
     const startsAt = new Date(requestedStartsAt);
@@ -1117,14 +1217,20 @@ export class ReservationsService {
       if (!form || form.status !== 'published') throw new ConflictException('La agenda ya no está disponible');
       this.assertPublicBookingOpen(form);
       await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
-      const availability = await this.availability(manager, form, startsAt, booking.partySize, booking.serviceId, booking.resourceId, booking.id);
+      // Cambiar cuantos vienen se valida igual que la hora: contra el cupo, excluyendo la propia
+      // reserva. Un grupo grande pasa por el equipo, asi que desde el enlace no se puede cruzar.
+      const personas = requestedPartySize ?? booking.partySize;
+      if (personas > this.groupThreshold(form)) throw new BadRequestException(`Para más de ${this.groupThreshold(form)} personas escribe al local: los grupos grandes se coordinan con el equipo`);
+      const availability = await this.availability(manager, form, startsAt, personas, booking.serviceId, booking.resourceId, booking.id);
       const previous = booking.status;
       const previousStartsAt = booking.startsAt;
+      const previousPartySize = booking.partySize;
+      booking.partySize = personas;
       booking.startsAt = startsAt;
       booking.endsAt = availability.endsAt;
       booking.status = 'rescheduled';
       await manager.save(booking);
-      await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'rescheduled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link', previousStartsAt: previousStartsAt.toISOString(), startsAt: startsAt.toISOString() } }));
+      await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'rescheduled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link', previousStartsAt: previousStartsAt.toISOString(), startsAt: startsAt.toISOString(), previousPartySize, partySize: personas } }));
       return booking;
     });
     record.usedAt = new Date();
@@ -1180,6 +1286,7 @@ export class ReservationsService {
       utmSource: dto.utmSource || null, utmMedium: dto.utmMedium || null, utmCampaign: dto.utmCampaign || null, utmContent: dto.utmContent || null, status: 'pending',
     }));
     // Es una solicitud, no una conversión de reserva: no toma cupo ni dispara Schedule.
+    void this.avisarSolicitudSinCupo(form, 'grupo', { id: request.id, guestName: request.guestName, guestEmail: request.guestEmail, partySize: request.partySize, cuando: [request.preferredDate || 'fecha por acordar', request.preferredTime].filter(Boolean).join(' ') });
     return { id: request.id, status: request.status, kind: 'group_request' };
   }
 
@@ -1209,6 +1316,7 @@ export class ReservationsService {
         utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent,
       }));
       await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: form.organizationId, clientId: form.clientId, reservationId: item.id, type: 'waitlist_joined', toStatus: 'waitlist', actorType: 'guest', metadata: { startsAt: startsAt.toISOString() } }));
+      void this.avisarSolicitudSinCupo(form, 'espera', { id: item.id, guestName: item.guestName, guestEmail: item.guestEmail, partySize: item.partySize, cuando: startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }) });
       return item;
     });
   }
@@ -1727,6 +1835,7 @@ export class ReservationsService {
     let calendarNotification: 'CANCELLED' | 'PUBLISH' | undefined;
     // Confirmar a mano era el unico paso del flujo del que nadie se enteraba fuera del panel.
     let confirmoUnaPendiente = false;
+    let liberoCupo = false;
     const saved = await this.transaction('actualizar reserva', async (manager) => { const repo = manager.getRepository(Reservation); const qb = repo.createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id AND r.organization_id = :organizationId', { id, organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); const item = await qb.getOne(); if (!item) throw new NotFoundException('Reserva no encontrada'); const previousStatus = item.status; const previousStart = item.startsAt;
       if (dto.startsAt) {
         if (!['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(item.status)) throw new ConflictException(`No se puede reagendar una reserva en estado ${item.status}`);
@@ -1746,6 +1855,7 @@ export class ReservationsService {
         statusChangedTo = dto.status;
         item.status = dto.status;
         if (dto.status === 'cancelled_business') calendarNotification = 'CANCELLED';
+        if (dto.status.startsWith('cancelled')) { await this.devolverCupon(manager, item); liberoCupo = true; }
       }
       if (dto.internalNotes !== undefined) item.internalNotes = dto.internalNotes; const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) calendarNotification = 'PUBLISH'; if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
     const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
@@ -1772,6 +1882,7 @@ export class ReservationsService {
       }
     }
     if (calendarNotification) void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
+    if (liberoCupo) void this.avisarCupoLiberado(saved);
     return saved;
   }
 
@@ -1873,9 +1984,16 @@ export class ReservationsService {
     const scoped = this.sqlClientScope(clientId, clientIds); const params = [organizationId, ...scoped.params]; const scope = scoped.clause;
     const daysNum = Math.min(Math.max(Number(days) || 30, 1), 365);
     params.push(daysNum as never);
-    const [totals, daily, sources, funnel, areas] = await Promise.all([this.dataSource.query(`SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='attended') attended, SUM(status='no_show') no_show, SUM(status='waitlist') waitlist, SUM(status LIKE 'cancelled%') cancelled FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT DATE(starts_at) day, COUNT(*) total, SUM(status='attended') attended, SUM(status='no_show') no_show FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY day ORDER BY day`, params), this.dataSource.query(`SELECT COALESCE(utm_source,'direct') source, COALESCE(utm_campaign,'Sin campaña') campaign, COUNT(*) total, SUM(status='attended') attended FROM reservations WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source,campaign ORDER BY total DESC LIMIT 20`, params), this.dataSource.query(`SELECT SUM(type='view') views, SUM(type='start') starts FROM reservation_form_events WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT COALESCE(NULLIF(resource_id,''),'Sin área') area, COUNT(*) total FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY area ORDER BY total DESC LIMIT 10`, params)]);
+    const [totals, daily, sources, funnel, areas] = await Promise.all([this.dataSource.query(`SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='attended') attended, SUM(status='no_show') no_show, SUM(status='waitlist') waitlist, SUM(status LIKE 'cancelled%') cancelled FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT DATE(starts_at) day, COUNT(*) total, SUM(status='attended') attended, SUM(status='no_show') no_show FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY day ORDER BY day`, params), this.dataSource.query(`SELECT COALESCE(utm_source,'direct') source, COALESCE(utm_medium,'Sin medio') medium, COALESCE(utm_campaign,'Sin campaña') campaign, COALESCE(utm_content,'') content, COUNT(*) total, SUM(status='attended') attended FROM reservations WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source,medium,campaign,content ORDER BY total DESC LIMIT 20`, params), this.dataSource.query(`SELECT SUM(type='view') views, SUM(type='start') starts FROM reservation_form_events WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT COALESCE(NULLIF(resource_id,''),'Sin área') area, COUNT(*) total FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY area ORDER BY total DESC LIMIT 10`, params)]);
     const total = Number(totals[0]?.total || 0); const views = Number(funnel[0]?.views || 0);
-    return { totals: totals[0] || {}, daily, sources, areas, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum };
+    // El area llega como el id interno de la zona: quien mira el grafico reconoce «Terraza», no
+    // «zona-1712...». Si la zona se borro despues, se conserva el id antes que inventar un nombre.
+    const nombresDeZona = new Map<string, string>();
+    for (const form of (await this.forms.find({ where: this.scope(organizationId, clientId, clientIds), select: ['id', 'resourcesConfig'] })) ?? []) {
+      for (const zona of (form.resourcesConfig || []) as ResourceConfig[]) if (zona.id && zona.name) nombresDeZona.set(zona.id, zona.name);
+    }
+    const areasConNombre = (areas as Array<{ area: string; total: number }>).map((row) => ({ ...row, area: nombresDeZona.get(row.area) || row.area }));
+    return { totals: totals[0] || {}, daily, sources, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum };
   }
 
   /**

@@ -568,6 +568,13 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], PublicRescheduleReservationDto.prototype, "startsAt", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(500),
+    __metadata("design:type", Number)
+], PublicRescheduleReservationDto.prototype, "partySize", void 0);
 class PublicReservationHoldDto {
 }
 exports.PublicReservationHoldDto = PublicReservationHoldDto;

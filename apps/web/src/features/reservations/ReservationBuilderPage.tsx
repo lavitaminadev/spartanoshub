@@ -180,7 +180,10 @@ export function ReservationBuilderPage() {
 
   const { data, isLoading } = useQuery<ReservationForm>({ queryKey: ['reservation-form', id], queryFn: () => api.get(`/reservations/forms/${id}`) });
   const { data: blocks = [] } = useQuery<Array<{ id: string; startsAt: string; endsAt: string; reason?: string }>>({ queryKey: ['reservation-blocks', id], queryFn: () => api.get(`/reservations/forms/${id}/blocks`) });
-  useEffect(() => { if (data) setDraft(data); }, [data]);
+  // El servidor manda solo mientras no haya cambios sin guardar. React Query vuelve a pedir el
+  // formulario al regresar a la pestana, y pisar el borrador ahi borraba lo que la persona
+  // estaba editando sin avisarle.
+  useEffect(() => { if (data && saved) setDraft(data); }, [data, saved]);
   useEffect(() => { if (requestedStep !== undefined) setStep(clientMode && requestedStep === 3 ? 4 : requestedStep); }, [clientMode, requestedStep]);
   useEffect(() => {
     if (saved) return undefined;
