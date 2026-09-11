@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { ReservationsService } from './application/reservations.service';
-import { CouponValidateDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicRescheduleReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
+import { CouponValidateDto, PublicFormEventDto, PublicGroupRequestDto, PublicLookupReservationDto, PublicReservationDto, PublicReservationHoldDto, PublicRescheduleReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
 
 @Public()
 @ApiTags('Reservas publicas')
@@ -52,6 +52,13 @@ export class PublicReservationsController {
   @Post('manage/:token/confirm')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   confirmManagement(@Param('token') token: string) { return this.service.confirmPublicManagement(token); }
+
+  /** Quien reservó recupera su enlace de gestión con el código y su correo o teléfono. */
+  @Post(':slug/lookup')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  lookup(@Param('slug') slug: string, @Body() dto: PublicLookupReservationDto) {
+    return this.service.lookupPublicReservation(slug, dto.referenceCode, dto.contact);
+  }
 
   @Post(':slug/hold')
   @Throttle({ default: { limit: 10, ttl: 60000 } })

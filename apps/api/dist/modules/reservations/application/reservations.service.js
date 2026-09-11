@@ -891,6 +891,22 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.NotFoundException('La reserva no existe');
         return { record, reservation };
     }
+    async lookupPublicReservation(slug, referenceCode, contact) {
+        const noEncontrada = new common_1.NotFoundException('No encontramos una reserva con esos datos. Revisa el código y el correo o teléfono con que reservaste.');
+        const form = await this.forms.findOne({ where: { publicSlug: slug } });
+        if (!form)
+            throw noEncontrada;
+        const booking = await this.reservations.findOne({ where: { formId: form.id, referenceCode: referenceCode.trim().toUpperCase() } });
+        if (!booking)
+            throw noEncontrada;
+        const dato = contact.trim();
+        const coincide = dato.includes('@')
+            ? Boolean(booking.guestEmail) && booking.guestEmail.toLowerCase() === dato.toLowerCase()
+            : Boolean(booking.guestPhone) && (0, phone_1.normalizePhone)(dato) === booking.guestPhone;
+        if (!coincide)
+            throw noEncontrada;
+        return { token: await this.createManagementToken(booking.id, booking.endsAt) };
+    }
     async publicManagement(token) {
         const { reservation } = await this.managementReservation(token);
         const form = await this.forms.findOne({ where: { id: reservation.formId } });

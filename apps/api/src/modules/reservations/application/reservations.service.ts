@@ -1030,6 +1030,28 @@ export class ReservationsService {
     return { record, reservation };
   }
 
+  /**
+   * Entrega un enlace de gestión a quien demuestra que la reserva es suya.
+   *
+   * El enlace solo existía en la pantalla de éxito y en los correos: desde otro dispositivo, o
+   * con los correos apagados, no había forma de cancelar ni de cambiar la hora sin llamar al
+   * local. Pide dos datos que solo tiene quien reservó —el código y el correo o teléfono— y
+   * responde lo mismo si falla cualquiera de los dos, para no confirmar que un código existe.
+   */
+  async lookupPublicReservation(slug: string, referenceCode: string, contact: string) {
+    const noEncontrada = new NotFoundException('No encontramos una reserva con esos datos. Revisa el código y el correo o teléfono con que reservaste.');
+    const form = await this.forms.findOne({ where: { publicSlug: slug } });
+    if (!form) throw noEncontrada;
+    const booking = await this.reservations.findOne({ where: { formId: form.id, referenceCode: referenceCode.trim().toUpperCase() } });
+    if (!booking) throw noEncontrada;
+    const dato = contact.trim();
+    const coincide = dato.includes('@')
+      ? Boolean(booking.guestEmail) && booking.guestEmail!.toLowerCase() === dato.toLowerCase()
+      : Boolean(booking.guestPhone) && normalizePhone(dato) === booking.guestPhone;
+    if (!coincide) throw noEncontrada;
+    return { token: await this.createManagementToken(booking.id, booking.endsAt) };
+  }
+
   async publicManagement(token: string) {
     const { reservation } = await this.managementReservation(token);
     const form = await this.forms.findOne({ where: { id: reservation.formId } });
