@@ -349,3 +349,22 @@
 .publish-meta-state small { color:var(--muted); font-size:11px; line-height:1.45; }
 
 .publish-link .publish-blocker { color:#ffd9d6; font-weight:700; }
+
+/* Agenda y capacidad en pantallas chicas.
+   La rejilla de dos columnas reservaba 300px fijos al calendario de cierres, asi que bajo esa
+   suma el horario semanal se comprimia hasta desbordar la pagina en horizontal. */
+@media(max-width:900px){
+  .schedule-layout{grid-template-columns:1fr}
+  .schedule-card{padding:18px}
+  .schedule-card:nth-child(2){position:static}
+}
+@media(max-width:520px){
+  .schedule-capacity{grid-template-columns:1fr}
+  .block-calendar{padding:10px}
+  .block-calendar-week,.block-calendar-weekdays{gap:3px}
+  .block-calendar-day{min-height:42px;font-size:13px}
+  .block-calendar-hint{flex-wrap:wrap;justify-content:flex-start}
+}
+.block-calendar-day.is-today{border-color:var(--cian-dark);box-shadow:inset 0 0 0 1px var(--cian-dark)}
+.block-calendar-day.is-past{background:transparent;border-style:dashed;color:var(--muted);opacity:.55;cursor:default}
+.block-calendar-day.is-past:hover{border-color:var(--border-light)}
