@@ -39,3 +39,6 @@
    contraste el color solo es imperceptible. */
 .section-nav-link.activo { color: var(--cyan); border-bottom-color: var(--cyan); }
 .section-nav-link:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; border-radius: 2px; }
+
+/* Acción principal de la sección, al extremo de la barra. */
+.section-nav-cta { margin-left:auto; white-space:nowrap; }

@@ -12,7 +12,7 @@
  */
 
 import type { JSX } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { isPathEnabled } from '../../core/navigation.registry';
 import '../../shared/section-nav.css';
@@ -64,6 +64,9 @@ export function ReservationsLayout(): JSX.Element {
             </NavLink>
           ))}
         </div>
+        {/* Lo que más se hace es anotar una reserva, así que va a mano en todas las pantallas.
+            El local se elige dentro del formulario, sin tener que entrar antes a él. */}
+        {visibles.some((seccion) => seccion.to === '/reservations') && <Link className="btn btn-primary btn-sm section-nav-cta" to="/reservations?tab=bookings&nueva=1">+ Nueva reserva</Link>}
       </nav>
       <Outlet />
     </div>

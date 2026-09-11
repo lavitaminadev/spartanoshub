@@ -172,10 +172,19 @@ export class ReservationsController {
     return this.service.removeBlock(req.organizationId, id, scope.clientId, scope.clientIds, req.user.id);
   }
 
+  /**
+   * Reserva anotada por el equipo: una llamada, alguien que pasa por el local.
+   *
+   * La cuenta del propio local también puede hacerlo: es quien contesta el teléfono, y sin esto
+   * no tenía cómo registrar una reserva que no entró por la página. Queda dentro de su empresa
+   * por el alcance de la sesión, y no puede saltarse el control de cupo: sobrevender una mesa es
+   * una decisión que se reserva al equipo de operaciones.
+   */
   @Post('manual')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async createManual(@Req() req: AuthenticatedRequest, @Body() dto: CreateManualReservationDto) {
     const scope = await this.scope(req);
+    if (req.user.role === UserRole.CLIENT) dto.skipAvailability = false;
     return this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds);
   }
 
