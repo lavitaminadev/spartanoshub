@@ -15,14 +15,14 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
 import { triggerToast } from '../../shared/toast-events';
 import { attendanceRateOf } from '../../shared/attendance';
-import type { MetaConversionStatus, Reservation, ReservationForm } from './types';
+import type { GroupRequest, MetaConversionStatus, Reservation, ReservationForm } from './types';
 import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc } from './local-time';
 import { publicReservationUrl } from '../../core/public-url';
+import { origenDeSolicitud, respuestasLegibles } from './answer-labels';
 import { useAuth } from '../../core/auth';
 import { ExportModal } from './ExportModal';
 import { ReservationResults } from '../dashboard/ReservationResults';
 import { safeUrl } from '../../core/safe-url';
-import { respuestasLegibles } from './answer-labels';
 import './ReservationsPage.css';
 
 interface Client { id: string; name: string }
@@ -120,7 +120,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const navigate = useNavigate();
   const qc = useQueryClient();
   const requestedTab = searchParams.get('tab');
-  const [tab, setTab] = useState<'forms' | 'bookings' | 'metrics' | 'coupons'>(requestedTab === 'bookings' || requestedTab === 'metrics' || requestedTab === 'coupons' ? requestedTab : 'forms');
+  const [tab, setTab] = useState<'forms' | 'bookings' | 'groups' | 'metrics' | 'coupons'>(requestedTab === 'bookings' || requestedTab === 'groups' || requestedTab === 'metrics' || requestedTab === 'coupons' ? requestedTab : 'forms');
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [createStep, setCreateStep] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState<Reservation | null>(null);
@@ -318,6 +318,23 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       triggerToast('Reserva manual creada');
     },
   });
+  /**
+   * Solicitudes de grupo de todos los locales del alcance.
+   *
+   * Hasta ahora solo se veian dentro de la agenda de un dia concreto, asi que una solicitud para
+   * dentro de dos meses no aparecia en ninguna parte que alguien mirara a diario.
+   */
+  const { data: gruposData = [], isFetching: cargandoGrupos, error: errorGrupos, refetch: recargarGrupos } = useQuery<GroupRequest[]>({
+    queryKey: ['group-requests', clientFilter, filters.formId],
+    queryFn: () => api.get(`/reservations/group-requests${filters.formId ? `?formId=${encodeURIComponent(filters.formId)}` : ''}`),
+    enabled: tab === 'groups',
+  });
+  const grupos = Array.isArray(gruposData) ? gruposData : [];
+  const gruposPendientes = grupos.filter((item) => item.status === 'pending').length;
+  const marcarGrupo = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => api.patch(`/reservations/group-requests/${id}`, { status }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['group-requests'] }); triggerToast('Solicitud actualizada'); },
+  });
   const { data: couponsData = [] } = useQuery<Array<{ id: string; code: string; discountType: string; value: number; maxUses: number; usageCount: number; validFrom?: string; validUntil?: string; formIds?: string[]; active: boolean; createdAt: string }>>({ queryKey: ['coupons', clientFilter], queryFn: () => api.get(`/reservations/coupons${clientQuery}`), enabled: tab === 'coupons' });
   const coupons = Array.isArray(couponsData) ? couponsData : [];
   const couponCreate = useMutation({
@@ -376,9 +393,9 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     return <div className="page reservation-module">
       <nav className="reservation-tabs" aria-label="Secciones de reservas">
         {(clientView
-          ? ([['forms', 'Mis locales'], ['bookings', 'Lista de reservas'], ['metrics', 'Resultados']] as const)
-          : ([['forms', 'Locales'], ['bookings', 'Lista masiva'], ['metrics', 'Resultados'], ['coupons', 'Cupones']] as const)
-        ).map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{key === 'bookings' && bookingPage?.total ? <span>{bookingPage.total}</span> : null}</button>)}
+          ? ([['forms', 'Mis locales'], ['bookings', 'Lista de reservas'], ['groups', 'Grupos y eventos'], ['metrics', 'Resultados']] as const)
+          : ([['forms', 'Locales'], ['bookings', 'Lista masiva'], ['groups', 'Grupos y eventos'], ['metrics', 'Resultados'], ['coupons', 'Cupones']] as const)
+        ).map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{key === 'bookings' && bookingPage?.total ? <span>{bookingPage.total}</span> : null}{key === 'groups' && gruposPendientes ? <span>{gruposPendientes}</span> : null}</button>)}
       </nav>
       {selectedFilterForm && <div className="reservation-scope-banner"><div><span>GESTIONANDO ESTE LOCAL</span><strong>{selectedFilterForm.name}</strong><small>Los filtros, resultados, exportación y cupones de esta vista se limitan a este local.</small></div><Link className="btn btn-outline btn-sm" to={formPath(selectedFilterForm.id)}>Volver al local</Link></div>}
 
@@ -394,7 +411,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <h2>{form.name}</h2><p>{formPublicUrl(form)}</p>{!clientView && <small className="form-client-name">{clients.find((client) => client.id === form.clientId)?.name || 'Cliente no disponible'}</small>}
           {canReadPixels && (() => { const readiness = metaReadiness(form, pixelByClient.get(form.clientId)); return <span className={`meta-readiness is-${readiness.tone}`} title={readiness.title}>{readiness.label}</span>; })()}
           <div className="form-card-facts"><span>{form.durationMinutes} min</span><span>{form.capacityPerSlot} cupo(s)</span><span>{form.fieldSchema.length} campos</span></div>
-            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}?tab=bookings&clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Reservas</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=esencial`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=disponibilidad`}>Horarios y cupos</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/advanced`}>Ajustes</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}{!clientView && <button className="btn btn-outline btn-sm" disabled={duplicateMutation.isPending} onClick={() => setConfirmFormAction({ id: form.id, action: 'duplicate' })}>{duplicateMutation.isPending ? 'Duplicando...' : 'Duplicar'}</button>}<button className="btn btn-outline btn-sm" onClick={() => backupForm(form)}>Respaldar JSON</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
+            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}?tab=bookings&clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Reservas</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}{!clientView && <button className="btn btn-outline btn-sm" disabled={duplicateMutation.isPending} onClick={() => setConfirmFormAction({ id: form.id, action: 'duplicate' })}>{duplicateMutation.isPending ? 'Duplicando...' : 'Duplicar'}</button>}<button className="btn btn-outline btn-sm" onClick={() => backupForm(form)}>Respaldar JSON</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
           </article>)}
         </div>}
       </section>}
@@ -457,6 +474,43 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       {(bookingPage?.pages || 0) > 1 && <nav className="reservation-pagination" aria-label="Páginas de reservas"><button className="btn btn-outline btn-sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Anterior</button><span>Página {bookingPage?.page} de {bookingPage?.pages} · {bookingPage?.total} reservas</span><button className="btn btn-outline btn-sm" disabled={page >= (bookingPage?.pages || 1)} onClick={() => setPage((value) => value + 1)}>Siguiente</button></nav>}
     </section>}
 
+
+    {tab === 'groups' && <section>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">GRUPOS Y EVENTOS</span><h1>Solicitudes sin cupo</h1><p className="page-subtitle">No ocupan agenda: el equipo acuerda fecha y luego crea la reserva definitiva.</p></div></div>
+      {errorGrupos ? <QueryErrorState message={errorGrupos.message} onRetry={() => { void recargarGrupos(); }} />
+        : cargandoGrupos && grupos.length === 0 ? <LoadingSpinner text="Buscando solicitudes..." />
+        : grupos.length === 0 ? <EmptyState title="Sin solicitudes de grupo" description="Cuando alguien pida un evento desde la página pública, aparecerá acá." />
+        : <div className="reservation-request-list">{grupos.map((request) => {
+          const details = (request.details || {}) as Record<string, unknown>;
+          const local = forms.find((form) => form.id === request.formId);
+          const origen = origenDeSolicitud(request);
+          return <article key={request.id} className="reservation-request-card">
+            <div>
+              <strong>{request.guestName} · {request.partySize} personas</strong>
+              <span>{request.eventType}{request.preferredDate ? ` · ${request.preferredDate}` : ''}{request.preferredTime ? ` · ${request.preferredTime}` : ''}</span>
+              <small>{local?.name || 'Local no disponible'} · {request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>
+              {request.notes && <p className="page-subtitle">{request.notes}</p>}
+              <details><summary>Ver detalles ingresados</summary><dl className="success-summary">
+                <dt>Fecha solicitada</dt><dd>{request.preferredDate || 'Por acordar'} {request.preferredTime || ''}</dd>
+                <dt>Recibida</dt><dd>{new Date(request.createdAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</dd>
+                {Boolean(details.serviceId) && <><dt>Servicio</dt><dd>{(local?.servicesConfig || []).find((sv) => sv.id === details.serviceId)?.name || String(details.serviceId)}</dd></>}
+                {Boolean(details.resourceId) && <><dt>Zona</dt><dd>{(local?.resourcesConfig || []).find((zn) => zn.id === details.resourceId)?.name || String(details.resourceId)}</dd></>}
+                {Boolean(details.childrenCount) && <><dt>Niños</dt><dd>{String(details.childrenCount)}</dd></>}
+                {Boolean(details.accessibilityNeed) && <><dt>Accesibilidad</dt><dd>{String(details.accessibilityNeed)}</dd></>}
+                {Boolean(details.dietaryNotes) && <><dt>Restricciones alimentarias</dt><dd>{String(details.dietaryNotes)}</dd></>}
+                {respuestasLegibles(details.answers as Record<string, unknown> | undefined, local?.fieldSchema).map((item) => <Fragment key={item.clave}><dt>{item.etiqueta}</dt><dd>{item.valor}</dd></Fragment>)}
+                {origen && <><dt>Origen</dt><dd>{origen}</dd></>}
+              </dl></details>
+              {request.quoteAmount && <small>Cotización interna: ${Number(request.quoteAmount).toLocaleString('es-CL')}{request.quoteExpiresAt ? ` · vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}
+            </div>
+            <div>
+              <span className="reservation-channel-status">{request.status}</span>
+              {request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => marcarGrupo.mutate({ id: request.id, status: 'contacted' })}>Marcar contactada</button>}
+              <Link className="btn btn-outline btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(request.clientId)}&formId=${encodeURIComponent(request.formId)}`}>Abrir agenda del local</Link>
+            </div>
+          </article>;
+        })}</div>}
+    </section>}
     {tab === 'metrics' && <ReservationResults clientId={clientFilter || undefined} headingLevel={1} />}
 
     {tab === 'coupons' && <section>

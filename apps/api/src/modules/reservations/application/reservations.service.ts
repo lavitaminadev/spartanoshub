@@ -1197,6 +1197,20 @@ export class ReservationsService {
     });
   }
 
+  /**
+   * Solicitudes de grupo de toda la empresa, sin exigir elegir un local primero.
+   *
+   * La vista por local sigue existiendo para la agenda del dia. Esta es la que responde a
+   * "que solicitudes tengo pendientes" cuando quien mira no sabe todavia de que local vienen.
+   */
+  async listAllGroupRequests(organizationId: string, clientId?: string, clientIds?: string[], formId?: string) {
+    return this.groupRequests.find({
+      where: { ...this.scope(organizationId, clientId, clientIds), ...(formId ? { formId } : {}) },
+      order: { createdAt: 'DESC' },
+      take: 200,
+    });
+  }
+
   async listGroupRequests(organizationId: string, formId: string, clientId?: string, clientIds?: string[]) {
     await this.getForm(organizationId, formId, clientId, clientIds);
     return this.groupRequests.find({ where: { organizationId, formId }, order: { createdAt: 'DESC' }, take: 50 });

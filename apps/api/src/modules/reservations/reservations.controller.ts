@@ -224,6 +224,13 @@ export class ReservationsController {
     );
   }
 
+  @Get('group-requests')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async allGroupRequests(@Req() req: AuthenticatedRequest, @Query('formId') formId?: string) {
+    const scope = await this.scope(req);
+    return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
+  }
+
   @Get('forms/:id/group-requests')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async groupRequests(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

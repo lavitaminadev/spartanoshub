@@ -8,7 +8,7 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { triggerToast } from '../../shared/toast-events';
 import { ImageUpload } from '../../shared/ImageUpload';
 import type { DesignConfig, FormField, ReservationForm } from './types';
-import { localInputToUtc, plainDateInZone } from './local-time';
+import { localDateBoundsUtc, localInputToUtc, plainDateInZone } from './local-time';
 import { contrastText, normalizeHexColor } from '../../shared/color-contrast';
 import { VitaIcons } from '../../shared/Icons';
 import { publicReservationUrl } from '../../core/public-url';
@@ -251,19 +251,30 @@ export function ReservationBuilderPage() {
       const end = new Date(item.endsAt);
       for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
         const key = plainDateInZone(cursor, timezone);
-        const dayStart = new Date(localInputToUtc(`${key}T00:00`, timezone));
-        const dayEnd = new Date(localInputToUtc(`${key}T23:59`, timezone));
-        if (start <= dayStart && end >= dayEnd) closed.set(key, item.id);
+        const inicioDia = new Date(localInputToUtc(`${key}T00:00`, timezone));
+        const ultimoMinuto = new Date(localInputToUtc(`${key}T23:59`, timezone));
+        const finDia = new Date(localDateBoundsUtc(key, timezone).to);
+        // Un bloqueo que termina justo al empezar el día no cierra nada en él. Sin esta salida,
+        // uno escrito con fin exclusivo pintaba el día siguiente como si tuviera horas cerradas.
+        if (end <= inicioDia || start > finDia) continue;
+        if (start <= inicioDia && end >= ultimoMinuto) closed.set(key, item.id);
         else partial.add(key);
       }
     }
     return { closed, partial };
   }, [blocks, timezone]);
 
-  /** Rejilla del mes visible, alineada a semanas que empiezan en lunes. */
+  /**
+   * Rejilla del mes visible, alineada a semanas que empiezan en lunes.
+   *
+   * El mes arranca en el del local, no en el del servidor ni en UTC: de noche en Chile la fecha
+   * UTC ya es la del día siguiente, y con ella el calendario abría en el mes que viene sin dejar
+   * volver al actual.
+   */
   const blockCalendar = useMemo(() => {
-    const base = new Date();
-    const anchor = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + blockMonth, 1));
+    const hoy = plainDateInZone(new Date(), timezone);
+    const [anoActual, mesActual] = hoy.split('-').map(Number);
+    const anchor = new Date(Date.UTC(anoActual, mesActual - 1 + blockMonth, 1));
     const year = anchor.getUTCFullYear();
     const month = anchor.getUTCMonth();
     const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
@@ -275,8 +286,8 @@ export function ReservationBuilderPage() {
     while (cells.length % 7 !== 0) cells.push(null);
     const weeks: typeof cells[] = [];
     for (let index = 0; index < cells.length; index += 7) weeks.push(cells.slice(index, index + 7));
-    return { label: anchor.toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }), weeks };
-  }, [blockMonth]);
+    return { label: anchor.toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }), weeks, hoy };
+  }, [blockMonth, timezone]);
 
   /** Cierra el día si está abierto; si ya estaba cerrado por completo, pide confirmar el retiro. */
   const toggleDayClosed = (dateKey: string) => {
@@ -407,15 +418,16 @@ export function ReservationBuilderPage() {
           <div className="block-calendar-weekdays"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
           {blockCalendar.weeks.map((week, weekIndex) => <div className="block-calendar-week" key={weekIndex}>{week.map((cell, cellIndex) => {
             if (!cell) return <span key={`empty-${cellIndex}`} className="block-calendar-day is-empty" />;
+            const isPast = cell.key < blockCalendar.hoy;
             const isClosed = blocksByDate.closed.has(cell.key);
             const isPartial = !isClosed && blocksByDate.partial.has(cell.key);
             return <button
               type="button"
               key={cell.key}
-              className={`block-calendar-day ${isClosed ? 'is-closed' : ''} ${isPartial ? 'is-partial' : ''}`}
+              className={`block-calendar-day ${isClosed ? 'is-closed' : ''} ${isPartial ? 'is-partial' : ''} ${isPast ? 'is-past' : ''} ${cell.key === blockCalendar.hoy ? 'is-today' : ''}`}
               aria-pressed={isClosed}
-              aria-label={`${cell.day} de ${blockCalendar.label}${isClosed ? ', cerrado' : isPartial ? ', con horas bloqueadas' : ', abierto'}`}
-              disabled={blockMutation.isPending}
+              aria-label={`${cell.day} de ${blockCalendar.label}${isPast ? ', ya pasó' : isClosed ? ', cerrado' : isPartial ? ', con horas bloqueadas' : ', abierto'}`}
+              disabled={blockMutation.isPending || isPast}
               onClick={() => toggleDayClosed(cell.key)}
             >{cell.day}</button>;
           })}</div>)}
@@ -537,7 +549,7 @@ export function ReservationBuilderPage() {
     </div>}
 
     <footer className="builder-footer"><span>Paso {clientMode && step === 4 ? 4 : step + 1} de {clientMode ? 4 : STEPS.length}</span>{step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(clientMode && step === 4 ? 2 : step - 1)}>Anterior</button>}{step < (clientMode ? 4 : STEPS.length - 1) && <button className="btn btn-primary btn-sm" onClick={() => setStep(clientMode && step === 2 ? 4 : step + 1)}>Continuar</button>}<button className="btn btn-outline btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>Guardar</button></footer>
-    <ConfirmDialog open={Boolean(confirmDeleteField)} title="Eliminar campo" description="¿Estás seguro de eliminar este campo? Los datos recopilados previamente no se perderán." confirmLabel="Eliminar" onClose={() => setConfirmDeleteField(null)} onConfirm={() => { if (confirmDeleteField) { change({ fieldSchema: fields.filter((field) => field.id !== confirmDeleteField) }); setSelected(null); } setConfirmDeleteField(null); }} />
+    <ConfirmDialog open={Boolean(confirmDeleteField)} title="Eliminar campo" description="¿Eliminar este campo? Las respuestas ya recibidas siguen guardadas, pero al quedarse sin enunciado pasan a mostrarse con su nombre técnico en el detalle y en la exportación." confirmLabel="Eliminar" onClose={() => setConfirmDeleteField(null)} onConfirm={() => { if (confirmDeleteField) { change({ fieldSchema: fields.filter((field) => field.id !== confirmDeleteField) }); setSelected(null); } setConfirmDeleteField(null); }} />
     <ConfirmDialog open={Boolean(confirmDeleteBlock)} title="Quitar bloqueo" description="¿Eliminar este bloqueo? La agenda volverá a mostrar disponibilidad en ese horario." confirmLabel="Quitar" onClose={() => setConfirmDeleteBlock(null)} onConfirm={() => { if (confirmDeleteBlock) { deleteBlock.mutate(confirmDeleteBlock); } setConfirmDeleteBlock(null); }} />
   </div>;
 }

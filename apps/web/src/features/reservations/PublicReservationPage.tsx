@@ -25,6 +25,43 @@ const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f6f4f5 0%, var(--s
 
 /** Clave de `sessionStorage` donde vive la clave de idempotencia de la reserva en curso. */
 const BOOKING_KEY_STORAGE = 'vh-booking-key';
+
+const RESERVA_RECORDADA = 'vh-reserva-gestion';
+
+/** Lo minimo para volver a una reserva desde el mismo navegador que la creo. */
+interface ReservaRecordada { token: string; referenceCode?: string; startsAt?: string }
+
+/**
+ * Recuerda el enlace de gestion de la ultima reserva hecha en este navegador.
+ *
+ * El enlace es la unica llave para modificar o cancelar y hasta ahora solo se veia en la
+ * pantalla de exito y en el correo: cerrar la pestana dejaba a la persona sin forma de volver
+ * desde la propia pagina. Vive en el dispositivo de quien reservo y se olvida solo cuando la
+ * visita ya paso, o cuando la persona lo pide.
+ */
+function leerReservaRecordada(slug: string): ReservaRecordada | null {
+  try {
+    const crudo = localStorage.getItem(`${RESERVA_RECORDADA}:${slug}`);
+    if (!crudo) return null;
+    const dato = JSON.parse(crudo) as ReservaRecordada;
+    if (!dato?.token) return null;
+    if (dato.startsAt && new Date(dato.startsAt).getTime() < Date.now()) {
+      localStorage.removeItem(`${RESERVA_RECORDADA}:${slug}`);
+      return null;
+    }
+    return dato;
+  } catch {
+    return null;
+  }
+}
+
+function guardarReservaRecordada(slug: string, dato: ReservaRecordada): void {
+  try { localStorage.setItem(`${RESERVA_RECORDADA}:${slug}`, JSON.stringify(dato)); } catch { /* el navegador puede tener el almacenamiento bloqueado */ }
+}
+
+function olvidarReservaRecordada(slug: string): void {
+  try { localStorage.removeItem(`${RESERVA_RECORDADA}:${slug}`); } catch { /* idem */ }
+}
 /** Mantiene la misma regla visible que protege la API pública. */
 export function isValidChileanMobilePhone(value: string): boolean {
   return /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/.test(value.trim());
@@ -96,6 +133,7 @@ export function PublicReservationPage() {
     return key;
   });
   const [sessionId] = useState(() => uuid());
+  const [reservaRecordada, setReservaRecordada] = useState(() => leerReservaRecordada(slug));
   const [renderedAt] = useState(() => new Date().toISOString());
 
   const requestedUtmSource = params.get('utm_source') || undefined;
@@ -294,7 +332,8 @@ export function PublicReservationPage() {
   // reserva en la misma pestaña reutilice la clave y reciba de vuelta la primera.
   useEffect(() => {
     if (submit.data?.id) sessionStorage.removeItem(BOOKING_KEY_STORAGE);
-  }, [submit.data?.id]);
+    if (submit.data?.managementToken) guardarReservaRecordada(slug, { token: submit.data.managementToken, referenceCode: submit.data.referenceCode, startsAt: submit.data.startsAt });
+  }, [slug, submit.data?.id, submit.data?.managementToken, submit.data?.referenceCode, submit.data?.startsAt]);
 
   // El nombre y el id del evento tienen que coincidir con los que emite el servidor por
   // Conversions API, o Meta no puede deduplicar y cuenta la conversión dos veces. Para las
@@ -550,6 +589,16 @@ export function PublicReservationPage() {
     <Ga4Tag measurementId={form.ga4MeasurementId} enabled={measurementConsent} />
     {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" style={{ position: 'fixed', inset: 0, zIndex: 20, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(18,35,31,.55)' }}><section style={{ maxWidth: 430, background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,.28)' }}>{form.designConfig?.logoUrl && <img src={form.designConfig.logoUrl} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>Continuar</button></section></div>}
     {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}
+    {reservaRecordada && !isSurvey && <aside className="booking-recordatorio">
+      <div>
+        <strong>Ya tienes una reserva en este local</strong>
+        <small>{reservaRecordada.referenceCode ? `Código ${reservaRecordada.referenceCode}` : 'Reserva guardada en este dispositivo'}{reservaRecordada.startsAt ? ` · ${new Date(reservaRecordada.startsAt).toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone })}` : ''}</small>
+      </div>
+      <div className="booking-recordatorio-acciones">
+        <Link className="btn btn-primary btn-sm" to={`/book/manage/${reservaRecordada.token}`}>Cambiar hora o cancelar</Link>
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => { olvidarReservaRecordada(slug); setReservaRecordada(null); }}>No es mía</button>
+      </div>
+    </aside>}
     <div className="public-booking-layout">
       <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div><div><strong>{design.timezoneValue || form.timezone.split('/').pop()?.replaceAll('_', ' ')}</strong><span>{timezoneLabel}</span></div></div>}</section>
       <form className={`public-booking-card ${isSurvey ? 'is-survey' : ''}`} onSubmit={(event) => { event.preventDefault(); if (step === 3) { submit.mutate(); } else if (step === 2) { goToConfirm(); } else { goToForm(); } }}>

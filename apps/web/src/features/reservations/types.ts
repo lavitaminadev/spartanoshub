@@ -44,3 +44,15 @@ export type ReservationState = 'draft' | 'sent' | 'confirmed' | 'preparation' | 
  * atribuir la reserva a la campaña: en cero, el evento llega sin coincidencia.
  */
 export interface MetaConversionStatus { schedule: string | null; attended: string | null; matchFields: number }
+
+/** Solicitud de grupo o evento: no toma cupo hasta que el equipo acuerda una fecha. */
+export interface GroupRequest {
+  id: string; clientId: string; formId: string;
+  guestName: string; guestEmail?: string; guestPhone?: string;
+  partySize: number; eventType: string;
+  preferredDate?: string; preferredTime?: string; notes?: string;
+  details?: Record<string, unknown>;
+  utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; utmContent?: string | null;
+  status: string; quoteAmount?: string; quoteMessage?: string; quoteExpiresAt?: string;
+  createdAt: string;
+}

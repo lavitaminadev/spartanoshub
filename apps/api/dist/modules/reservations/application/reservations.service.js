@@ -1071,6 +1071,13 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return item;
         });
     }
+    async listAllGroupRequests(organizationId, clientId, clientIds, formId) {
+        return this.groupRequests.find({
+            where: { ...this.scope(organizationId, clientId, clientIds), ...(formId ? { formId } : {}) },
+            order: { createdAt: 'DESC' },
+            take: 200,
+        });
+    }
     async listGroupRequests(organizationId, formId, clientId, clientIds) {
         await this.getForm(organizationId, formId, clientId, clientIds);
         return this.groupRequests.find({ where: { organizationId, formId }, order: { createdAt: 'DESC' }, take: 50 });

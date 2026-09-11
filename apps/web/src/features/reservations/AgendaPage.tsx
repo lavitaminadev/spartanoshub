@@ -17,11 +17,11 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
-import { respuestasDestacadas, respuestasLegibles } from './answer-labels';
+import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
 import { localInputToUtc, utcToLocalInput } from './local-time';
 import { Modal } from '../../shared/Modal';
 import { CYCLE_COLORS, RESERVATION_STATUS_OPTIONS, findStatusOption } from '../../shared/status-palette';
-import type { Reservation, ReservationForm } from './types';
+import type { Reservation, ReservationForm, GroupRequest } from './types';
 import { localDateBoundsUtc } from './local-time';
 import './AgendaPage.css';
 import { useAutoSeleccionUnica } from './use-auto-seleccion';
@@ -29,20 +29,7 @@ import { useAutoSeleccionUnica } from './use-auto-seleccion';
 interface Client { id: string; name: string }
 /** Página de reservas. `data` es el nombre con que responden todas las listas del sistema. */
 interface ReservationPage { data: Reservation[]; total: number; page: number; pageSize: number; pages: number }
-interface GroupRequest { id: string; guestName: string; guestEmail?: string; guestPhone?: string; partySize: number; eventType: string; preferredDate?: string; preferredTime?: string; notes?: string; details?: Record<string, unknown>; utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; utmContent?: string | null; status: string; quoteAmount?: string; quoteMessage?: string; quoteExpiresAt?: string; createdAt: string }
 
-/**
- * Campana por la que llego una solicitud de grupo, en una linea legible.
- *
- * Devuelve cadena vacia cuando no hubo UTM: la solicitud llego por enlace directo, QR o
- * busqueda, y escribir "directo" ahi la atribuiria a un origen que nadie midio.
- */
-function origenDeSolicitud(request: GroupRequest): string {
-  return [request.utmSource, request.utmMedium, request.utmCampaign, request.utmContent]
-    .map((parte) => parte?.trim())
-    .filter((parte): parte is string => Boolean(parte))
-    .join(" · ");
-}
 
 const GENERAL_ZONE_ID = '__general__';
 const NO_SHOW_STATUSES = new Set(['no_show']);

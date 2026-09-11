@@ -64,3 +64,19 @@ export function respuestasDestacadas(
 ): RespuestaLegible[] {
   return respuestasLegibles(answers, fieldSchema).filter((item) => item.destacada);
 }
+
+/** Cuatro UTM de una solicitud, en una linea. */
+export interface OrigenUtm { utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; utmContent?: string | null }
+
+/**
+ * Campana por la que llego una solicitud, en una linea legible.
+ *
+ * Devuelve cadena vacia cuando no hubo UTM: la solicitud llego por enlace directo, QR o
+ * busqueda, y escribir "directo" ahi la atribuiria a un origen que nadie midio.
+ */
+export function origenDeSolicitud(origen: OrigenUtm): string {
+  return [origen.utmSource, origen.utmMedium, origen.utmCampaign, origen.utmContent]
+    .map((parte) => parte?.trim())
+    .filter((parte): parte is string => Boolean(parte))
+    .join(' · ');
+}
