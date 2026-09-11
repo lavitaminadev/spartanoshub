@@ -41,6 +41,9 @@ let PublicReservationsController = class PublicReservationsController {
         return this.service.reschedulePublicManagement(token, dto.startsAt, dto.partySize);
     }
     confirmManagement(token) { return this.service.confirmPublicManagement(token); }
+    lookup(slug, dto) {
+        return this.service.lookupPublicReservation(slug, dto.referenceCode, dto.contact);
+    }
     hold(slug, dto) { return this.service.holdPublic(slug, dto); }
     form(slug) {
         return this.service.publicForm(slug);
@@ -104,6 +107,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "confirmManagement", null);
+__decorate([
+    (0, common_1.Post)(':slug/lookup'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('slug')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, reservation_dto_1.PublicLookupReservationDto]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "lookup", null);
 __decorate([
     (0, common_1.Post)(':slug/hold'),
     (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60000 } }),
