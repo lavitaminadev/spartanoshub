@@ -43,6 +43,15 @@ export function ReservationLocalHubPage() {
       <Link className="local-hub-card" to={`${base}/forms/${id}/advanced`}><span className="local-hub-icon">4</span><div><strong>Más ajustes</strong><small>Zonas, alergias, niños, consentimientos, correos y WhatsApp.</small></div><b>Ver ajustes</b></Link>
     </div></section>
 
+    <section className="local-hub-section"><div><span className="page-eyebrow">AJUSTES RÁPIDOS</span><h2>Lo que se toca a diario</h2><p>Cada enlace abre directamente el ajuste, sin recorrer el resto de la configuración.</p></div>
+      <div className="portal-item-actions">
+        <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/design?section=disponibilidad`}>Horario, cupos y cierres</Link>
+        <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/advanced#pausa`}>Pausar reservas</Link>
+        <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/advanced#zonas`}>Zonas y preferencias</Link>
+        <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/design?section=publicar`}>Enlace y publicación</Link>
+      </div>
+    </section>
+
     <section className="local-hub-status">
       <div><span className="page-eyebrow">PUBLICACIÓN</span><h2>Identidad y enlace</h2><p className="page-subtitle">La identidad es opcional: se puede publicar con la plantilla y personalizarla después.</p></div>
       <div className="reservation-metric-grid reservation-metric-grid-four"><div><span>Estado</span><strong>{local.status === 'published' ? 'Publicado' : local.status === 'paused' ? 'Pausado' : 'Borrador'}</strong></div><Link to={`${base}/forms/${id}/design?section=diseno`}><span>Logo</span><strong>{hasLogo ? 'Cambiar logo' : 'Agregar logo'}</strong></Link><Link to={`${base}/forms/${id}/design?section=diseno`}><span>Portada</span><strong>{hasBackground ? 'Cambiar portada' : 'Agregar portada'}</strong></Link>{clientMode ? <div><span>Medición</span><strong>{local.metaCapiEnabled || local.ga4MeasurementId ? 'Activa para este local' : 'No configurada'}</strong></div> : <Link to={`${base}/forms/${id}/design?section=medicion`}><span>Medición</span><strong>{local.metaCapiEnabled || local.ga4MeasurementId ? 'Revisar medición' : 'Configurar si la necesitas'}</strong></Link>}</div>
