@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -17,7 +17,7 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
-import { respuestasDestacadas } from './answer-labels';
+import { respuestasDestacadas, respuestasLegibles } from './answer-labels';
 import { localInputToUtc, utcToLocalInput } from './local-time';
 import { Modal } from '../../shared/Modal';
 import { CYCLE_COLORS, RESERVATION_STATUS_OPTIONS, findStatusOption } from '../../shared/status-palette';
@@ -54,7 +54,6 @@ function formatDateLabel(key: string): string {
 }
 
 export function AgendaPage() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const clientMode = user?.role === 'client';
   const [searchParams] = useSearchParams();
@@ -128,6 +127,18 @@ export function AgendaPage() {
     }),
     onSuccess: (next) => { setPausaOpen(false); qc.setQueryData(['reservation-form', effectiveFormId], next); void qc.invalidateQueries({ queryKey: ['agenda-forms'] }); },
   });
+  /**
+   * Detalle del turno, abierto desde la propia tarjeta.
+   *
+   * Antes el clic sacaba de la agenda al listado filtrado por codigo y obligaba a un segundo
+   * clic para ver una alergia o marcar asistencia. Las decisiones del servicio se toman aqui.
+   */
+  const [detalle, setDetalle] = useState<Reservation | null>(null);
+  const [motivoCancelacion, setMotivoCancelacion] = useState('');
+  const actualizarReserva = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { status?: string; cancellationReason?: string } }) => api.patch<Reservation>(`/reservations/${id}`, body),
+    onSuccess: (actualizada) => { setDetalle(null); setMotivoCancelacion(''); void refetchReservations(); qc.setQueryData(['reservation-detail', actualizada.id], actualizada); },
+  });
   const updateGroupRequest = useMutation({ mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => api.patch(`/reservations/group-requests/${id}`, body), onSuccess: () => { setQuoteRequest(null); void refetchGroupRequests(); } });
 
   /**
@@ -173,9 +184,6 @@ export function AgendaPage() {
   if (isLoading) return <LoadingSpinner text="Preparando la agenda del servicio..." />;
   if (!clientMode && clientsError) return isForbiddenError(clientsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir la agenda" message={clientsError.message} onRetry={() => void refetchClients()} />;
 
-  const goToReservation = (reservation: Reservation) => {
-    navigate(`${clientMode ? '/portal/reservations' : '/reservations'}?tab=bookings&search=${encodeURIComponent(reservation.referenceCode)}`);
-  };
 
   return <div className="page agenda-page">
     <div className="agenda-head">
@@ -254,7 +262,7 @@ export function AgendaPage() {
                               type="button"
                               className="agenda-card"
                               style={{ '--card-color': color } as React.CSSProperties}
-                              onClick={() => goToReservation(reservation)}
+                              onClick={() => { setDetalle(reservation); setMotivoCancelacion(''); }}
                             >
                               <div className="agenda-card-time">{new Date(reservation.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</div>
                               <div className="agenda-card-body">
@@ -280,6 +288,27 @@ export function AgendaPage() {
                 </ul>
               </>}
         </>}
+    <Modal open={Boolean(detalle)} onClose={() => { setDetalle(null); setMotivoCancelacion(''); }} title={detalle ? `${detalle.guestName} · ${new Date(detalle.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: activeForm?.timezone })}` : 'Reserva'}>
+      {detalle && <div className="modal-form">
+        <div className="agenda-detalle-cabecera">
+          <div><span>Personas</span><strong>{detalle.partySize}</strong></div>
+          <div><span>Contacto</span><strong>{detalle.guestPhone || detalle.guestEmail || 'Sin contacto'}</strong></div>
+          <div><span>Código</span><strong>#{detalle.referenceCode}</strong></div>
+          {(() => { const zona = (activeForm?.resourcesConfig || []).find((r) => r.id === detalle.resourceId); return zona ? <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ''}</strong></div> : null; })()}
+        </div>
+        {(() => { const datos = respuestasLegibles(detalle.answers, activeForm?.fieldSchema); return datos.length > 0 && <div className="agenda-detalle-datos">{datos.map((item) => <p key={item.clave}><span>{item.etiqueta}</span><strong>{item.valor}</strong></p>)}</div>; })()}
+        {detalle.internalNotes && <p className="page-subtitle">Notas internas: {detalle.internalNotes}</p>}
+        {actualizarReserva.error && <p className="error-text">No se pudo actualizar la reserva. Revisa el estado e inténtalo otra vez.</p>}
+        {['pending', 'confirmed', 'rescheduled'].includes(detalle.status) ? <>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-primary" disabled={actualizarReserva.isPending} onClick={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'attended' } })}>Asistió</button>
+            <button type="button" className="btn btn-outline" disabled={actualizarReserva.isPending} onClick={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'no_show' } })}>No asistió</button>
+          </div>
+          <label>Cancelar desde el local — motivo<input className="input" value={motivoCancelacion} onChange={(event) => setMotivoCancelacion(event.target.value)} placeholder="Ej. el local cerró por corte de agua" /></label>
+          <div className="modal-actions"><button type="button" className="btn btn-outline" disabled={actualizarReserva.isPending || !motivoCancelacion.trim()} onClick={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'cancelled_business', cancellationReason: motivoCancelacion.trim() } })}>Cancelar reserva</button></div>
+        </> : <p className="page-subtitle">Esta reserva ya está cerrada, así que no admite cambios de asistencia.</p>}
+      </div>}
+    </Modal>
     <Modal open={pausaOpen} onClose={() => setPausaOpen(false)} title="Pausar reservas">
       <div className="modal-form">
         <p className="page-subtitle">La página pública deja de ofrecer horarios hasta la fecha indicada. No cancela reservas ya tomadas ni despublica el local.</p>

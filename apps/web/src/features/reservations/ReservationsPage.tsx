@@ -15,8 +15,7 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
 import { triggerToast } from '../../shared/toast-events';
 import { attendanceRateOf } from '../../shared/attendance';
-import type { MetaConversionStatus, Reservation, ReservationForm, ReservationState } from './types';
-import { ReservationWorkflow } from './ReservationWorkflow';
+import type { MetaConversionStatus, Reservation, ReservationForm } from './types';
 import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc } from './local-time';
 import { publicReservationUrl } from '../../core/public-url';
 import { useAuth } from '../../core/auth';
@@ -281,26 +280,16 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     onSuccess: (created) => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); qc.invalidateQueries({ queryKey: ['meta-client-pixels'] }); closeCreateFlow(); triggerToast(`${flowName(created.mode)} creado`); navigate(`/reservations/locals/${created.id}`); },
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { status?: string; startsAt?: string; internalNotes?: string; cancellationReason?: string; workflowState?: ReservationState } }) => api.patch<Reservation>(`/reservations/${id}`, body),
-    onSuccess: (updated, vars) => {
+    mutationFn: ({ id, body }: { id: string; body: { status?: string; startsAt?: string; internalNotes?: string; cancellationReason?: string } }) => api.patch<Reservation>(`/reservations/${id}`, body),
+    onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['reservations'] });
       qc.invalidateQueries({ queryKey: ['reservation-metrics'] });
       qc.invalidateQueries({ queryKey: ['reservation-history', updated.id] });
       setSelectedBooking((current) => current?.id === updated.id ? updated : current);
       setRescheduleAt('');
-      triggerToast(vars.body.workflowState ? 'Estado del flujo actualizado' : 'Reserva actualizada');
+      triggerToast('Reserva actualizada');
     },
   });
-  /**
-   * Avanza el flujo operativo (borrador → entregada) de la reserva en detalle.
-   *
-   * `mutateAsync` rechaza si el PATCH falla, y `ReservationWorkflow` depende de ese rechazo
-   * para dejar el error de guardado visible en su modal de confirmación en vez de cerrarlo.
-   */
-  const handleWorkflowStateChange = (newState: ReservationState) => {
-    if (!selectedBooking) return Promise.reject(new Error('No hay una reserva seleccionada.'));
-    return updateMutation.mutateAsync({ id: selectedBooking.id, body: { workflowState: newState } }).then(() => undefined);
-  };
   const duplicateMutation = useMutation({ mutationFn: (id: string) => api.post(`/reservations/forms/${id}/duplicate`), onSuccess: () => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast('Formulario duplicado'); } });
   const updateFormMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.patch<ReservationForm>(`/reservations/forms/${id}`, { status }),
@@ -359,6 +348,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   if (isLoading) return <LoadingSpinner text="Preparando Reservas..." />;
   if (formsError) return isForbiddenError(formsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir Reservas y formularios" message={formsError.message} onRetry={() => void refetchForms()} retrying={fetchingForms} />;
   const formPath = (id: string) => clientView ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`;
+  /** Raiz del modulo segun quien mira: la agencia por su panel, la empresa por su portal. */
+  const base = clientView ? '/portal/reservations' : '/reservations';
   const formPublicUrl = (form: ReservationForm) => publicReservationUrl(form.publicSlug, form.publicUrl);
   const clientForms = forms.filter((form) => !clientFilter || form.clientId === clientFilter);
   const reservationClientForms = clientForms.filter((form) => !isSurveyMode(form.mode));
@@ -403,7 +394,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <h2>{form.name}</h2><p>{formPublicUrl(form)}</p>{!clientView && <small className="form-client-name">{clients.find((client) => client.id === form.clientId)?.name || 'Cliente no disponible'}</small>}
           {canReadPixels && (() => { const readiness = metaReadiness(form, pixelByClient.get(form.clientId)); return <span className={`meta-readiness is-${readiness.tone}`} title={readiness.title}>{readiness.label}</span>; })()}
           <div className="form-card-facts"><span>{form.durationMinutes} min</span><span>{form.capacityPerSlot} cupo(s)</span><span>{form.fieldSchema.length} campos</span></div>
-            <div className="form-card-actions"><Link className="btn btn-primary btn-sm" to={isSurveyMode(form.mode) ? '/surveys' : formPath(form.id)}>{isSurveyMode(form.mode) ? 'Abrir encuesta' : 'Abrir local'}</Link>{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}{!clientView && <button className="btn btn-outline btn-sm" disabled={duplicateMutation.isPending} onClick={() => setConfirmFormAction({ id: form.id, action: 'duplicate' })}>{duplicateMutation.isPending ? 'Duplicando...' : 'Duplicar'}</button>}<button className="btn btn-outline btn-sm" onClick={() => backupForm(form)}>Respaldar JSON</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
+            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}?tab=bookings&clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Reservas</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=esencial`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/advanced`}>Ajustes</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}{!clientView && <button className="btn btn-outline btn-sm" disabled={duplicateMutation.isPending} onClick={() => setConfirmFormAction({ id: form.id, action: 'duplicate' })}>{duplicateMutation.isPending ? 'Duplicando...' : 'Duplicar'}</button>}<button className="btn btn-outline btn-sm" onClick={() => backupForm(form)}>Respaldar JSON</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
           </article>)}
         </div>}
       </section>}
@@ -539,12 +530,6 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     <Modal open={manualOpen} onClose={() => setManualOpen(false)} title="Agregar reserva manual"><form className="modal-form" onSubmit={(event) => { event.preventDefault(); manualMutation.mutate(); }}><p className="page-subtitle">Registra una reserva manual con control de horario.</p><label>Formulario<select className="input" required value={manualForm.formId} onChange={(event) => setManualForm({ ...manualForm, formId: event.target.value })}><option value="">Selecciona formulario</option>{reservationClientForms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}</select></label><label>Fecha y hora (local del formulario)<input className="input" type="datetime-local" required value={manualForm.startsAt} onChange={(event) => setManualForm({ ...manualForm, startsAt: event.target.value })} /></label><label>Nombre del visitante<input className="input" required value={manualForm.guestName} onChange={(event) => setManualForm({ ...manualForm, guestName: event.target.value })} /></label><div className="form-row"><label>Teléfono<input className="input" value={manualForm.guestPhone} onChange={(event) => setManualForm({ ...manualForm, guestPhone: event.target.value })} /></label><label>Correo<input className="input" type="email" value={manualForm.guestEmail} onChange={(event) => setManualForm({ ...manualForm, guestEmail: event.target.value })} /></label></div><label>Número de personas<input className="input" type="number" min="1" value={manualForm.partySize} onChange={(event) => setManualForm({ ...manualForm, partySize: Number(event.target.value) })} /></label><label>Notas internas<textarea className="input" rows={3} value={manualForm.internalNotes} onChange={(event) => setManualForm({ ...manualForm, internalNotes: event.target.value })} /></label><label className="toggle-row"><input type="checkbox" checked={manualForm.skipAvailability} onChange={(event) => setManualForm({ ...manualForm, skipAvailability: event.target.checked })} /> Permitir superposición manual (ignorar disponibilidad)</label>{manualMutation.error && <div className="alert alert-error">{manualMutation.error.message}</div>}<div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setManualOpen(false)}>Cancelar</button><button className="btn btn-primary" disabled={manualMutation.isPending}>{manualMutation.isPending ? 'Guardando...' : 'Crear reserva'}</button></div></form></Modal>
 
     <Modal open={Boolean(selectedBooking)} onClose={() => { setSelectedBooking(null); setRescheduleAt(''); setCancellationReason(''); }} title={selectedBooking ? `Reserva #${selectedBooking.referenceCode}` : 'Reserva'}>{selectedBooking && <div className="booking-detail"><div className="booking-detail-grid"><div><span>Visitante</span><strong>{selectedBooking.guestName}</strong></div><div><span>Contacto</span><strong>{selectedBooking.guestPhone || selectedBooking.guestEmail || 'Sin contacto'}</strong></div><div><span>Fecha actual</span><strong>{new Date(selectedBooking.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: forms.find((form) => form.id === selectedBooking.formId)?.timezone })}</strong></div><div><span>Estado</span><StatusBadge status={selectedBooking.status} /></div><div><span>Personas</span><strong>{selectedBooking.partySize}</strong></div>{(() => { const form = forms.find((f) => f.id === selectedBooking.formId); const zona = (form?.resourcesConfig || []).find((r) => r.id === selectedBooking.resourceId); const servicio = (form?.servicesConfig || []).find((sv) => sv.id === selectedBooking.serviceId); return <>{zona && <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ''}</strong></div>}{servicio && <div><span>Servicio</span><strong>{servicio.name}</strong></div>}</>; })()}<div><span>Cupón aplicado</span><strong>{selectedBooking.couponCode ? <button type="button" className="link-button" onClick={() => { setTab('coupons'); setViewingCouponCode(selectedBooking.couponCode!); setSelectedBooking(null); }}><VitaIcons.ticket /> {selectedBooking.couponCode}</button> : 'Sin cupón'}</strong></div></div>
-    <ReservationWorkflow
-      reservation={selectedBooking}
-      onStateChange={handleWorkflowStateChange}
-      isLoading={updateMutation.isPending}
-      userRole={user?.role ?? 'client'}
-    />
     <section className="booking-attribution">
       <h4>Atribución y Meta</h4>
       <div className="booking-detail-grid">
