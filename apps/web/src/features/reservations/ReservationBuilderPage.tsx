@@ -138,11 +138,12 @@ function updatePayload(form: Partial<ReservationForm>): Partial<ReservationForm>
     maximumAdvanceDays: form.maximumAdvanceDays, confirmationMode: form.confirmationMode,
     fieldSchema: form.fieldSchema, designConfig: form.designConfig,
     scheduleConfig: form.scheduleConfig, servicesConfig: form.servicesConfig,
-    resourcesConfig: form.resourcesConfig, campaignId: form.campaignId,
-    calendarEnabled: form.calendarEnabled,
+    campaignId: form.campaignId,
+    // `resourcesConfig`, `calendarEnabled` y `teamNotifications` los edita «Ajustes especiales».
+    // Enviarlos desde aqui sin editarlos revertia lo guardado alli cuando ambas pantallas
+    // estaban abiertas: gana la ultima en guardar, y esta mandaba su copia vieja.
     metaCapiEnabled: form.metaCapiEnabled,
     ga4MeasurementId: form.ga4MeasurementId,
-    teamNotifications: form.teamNotifications,
   };
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined && value !== null)) as Partial<ReservationForm>;
 }
@@ -397,7 +398,6 @@ export function ReservationBuilderPage() {
         <details className="schedule-advanced">
           <summary>Ajustes avanzados</summary>
           <div className="schedule-settings schedule-settings-wide"><label>Zona horaria<select className="input" value={draft.timezone} onChange={(event) => change({ timezone: event.target.value })}>{TIMEZONES.map((timezone) => <option key={timezone}>{timezone}</option>)}</select></label><label>Separación (min)<input className="input" type="number" min="0" max="240" value={draft.bufferMinutes} onChange={(event) => change({ bufferMinutes: Number(event.target.value) })} /></label><label>Anticipación mínima (h)<input className="input" type="number" min="0" value={draft.minimumNoticeHours} onChange={(event) => change({ minimumNoticeHours: Number(event.target.value) })} /></label><label>Ventana máxima (días)<input className="input" type="number" min="1" max="365" value={draft.maximumAdvanceDays} onChange={(event) => change({ maximumAdvanceDays: Number(event.target.value) })} /></label><label>Confirmación<select className="input" value={draft.confirmationMode} onChange={(event) => change({ confirmationMode: event.target.value })}><option value="automatic">Automática</option><option value="manual">Revisión manual</option></select></label>
-            <label className="wide">Notificaciones al equipo<small>Correos que recibirán aviso por cada reserva (separados por coma).</small><input className="input" value={(draft.teamNotifications || []).join(', ')} onChange={(event) => change({ teamNotifications: event.target.value.split(/[,;\s]+/).filter(Boolean) })} placeholder="equipo@empresa.cl" /></label>
             <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.couponEnabled !== 'false'} onChange={(event) => change({ designConfig: { ...draft.designConfig, couponEnabled: event.target.checked ? 'true' : 'false' } })} /> Aceptar cupones promocionales en este formulario</label></div>
         </details>
         <h3>Semana habitual</h3><div className="week-editor week-editor-multi">{DAYS.map((label, uiDay) => { const jsDay = UI_TO_JS_DAY[uiDay]; const dayWindows = windows.map((window, index) => ({ window, index })).filter((entry) => entry.window.day === jsDay); return <div key={label} className={dayWindows.length ? 'enabled' : ''}><label className="toggle-row"><input type="checkbox" checked={dayWindows.length > 0} onChange={() => toggleDay(uiDay)} /><strong>{label}</strong></label><div className="day-windows">{dayWindows.map(({ window, index }) => <div key={`${jsDay}-${index}`}><input aria-label={`Inicio ${label}`} type="time" value={window.start} onChange={(event) => updateWindow(index, { start: event.target.value })} /><span>a</span><input aria-label={`Fin ${label}`} type="time" value={window.end} onChange={(event) => updateWindow(index, { end: event.target.value })} /><button type="button" aria-label={`Quitar franja de ${label}`} onClick={() => removeWindow(index)}>×</button></div>)}{dayWindows.length > 0 && dayWindows.length < 4 && <button type="button" className="add-window" onClick={() => addWindow(uiDay)}>+ Agregar franja</button>}{dayWindows.length === 0 && <em>Cerrado</em>}</div></div>; })}</div></div>
