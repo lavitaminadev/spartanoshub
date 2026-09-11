@@ -39,6 +39,7 @@ const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-c
 const notification_service_1 = require("../../../core/notifications/notification.service");
 const email_service_1 = require("../../../core/notifications/email.service");
 const plantilla_de_correo_1 = require("../../../core/notifications/plantilla-de-correo");
+const organization_settings_catalog_1 = require("../../../core/parameters/organization-settings.catalog");
 const parameter_resolver_service_1 = require("../../../core/parameters/parameter-resolver.service");
 const audit_service_1 = require("../../../core/audit/audit.service");
 const meta_client_pixel_service_1 = require("../../integrations/meta/meta-client-pixel.service");
@@ -913,6 +914,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const form = await this.forms.findOne({ where: { publicSlug: slug } });
         if (!form || !correo.includes('@'))
             return respuesta;
+        const plantilla = await this.plantillaDeAviso(form, 'email.reservation_recovery');
+        if (!plantilla.encendido)
+            return respuesta;
         const reservas = await this.reservations.find({
             where: { formId: form.id, guestEmail: correo, status: (0, typeorm_2.In)(ACTIVE_STATUSES), startsAt: (0, typeorm_2.MoreThan)(new Date()) },
             order: { startsAt: 'ASC' },
@@ -922,7 +926,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         for (const booking of reservas) {
             const token = await this.createManagementToken(booking.id, booking.endsAt);
             const url = base ? `${base}/book/manage/${token}` : undefined;
-            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)('Tu reserva en {{local}}', 'Hola {{nombre}}:\n\nPediste el enlace para gestionar tu reserva del {{fecha}} ({{personas}} personas, código {{codigo}}). Desde ahí puedes confirmar, cambiar la hora o cancelar.\n\nSi no fuiste tú, ignora este correo: el enlace solo sirve a quien lo recibe.', { nombre: booking.guestName, local: form.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }), personas: booking.partySize, codigo: booking.referenceCode }, url ? { texto: 'Gestionar mi reserva', url } : undefined);
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: booking.guestName, local: form.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }), personas: booking.partySize, codigo: booking.referenceCode }, url ? { texto: 'Gestionar mi reserva', url } : undefined);
             void this.emails.send(correo, subject, html, { replyTo: this.respuestaAlLocal(form) })
                 .catch((err) => this.logger.warn(`Enlace de gestión de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
@@ -994,12 +998,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         try {
             if (!datos.guestEmail)
                 return;
-            const encendido = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
-            if (!encendido)
+            const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.group_request_ack' : 'email.waitlist_ack');
+            if (!plantilla.encendido)
                 return;
-            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(tipo === 'grupo' ? 'Recibimos tu solicitud de evento en {{local}}' : 'Quedaste en lista de espera en {{local}}', tipo === 'grupo'
-                ? 'Hola {{nombre}}:\n\nRecibimos tu solicitud para {{personas}} personas ({{fecha}}). Todavía no hay nada reservado: el local te contactará para acordar fecha y detalles.'
-                : 'Hola {{nombre}}:\n\nTe anotamos en la lista de espera para el {{fecha}}, {{personas}} personas. Esto no es una reserva: si se libera un cupo te avisaremos por este medio.', { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize });
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize });
             void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
                 .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
@@ -1012,8 +1014,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const form = await this.forms.findOne({ where: { id: booking.formId } });
             if (!form || form.status !== 'published' || booking.startsAt <= new Date())
                 return;
-            const encendido = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
-            if (!encendido)
+            const plantilla = await this.plantillaDeAviso(form, 'email.waitlist_spot');
+            if (!plantilla.encendido)
                 return;
             const esperando = await this.reservations.find({ where: { formId: form.id, status: 'waitlist', startsAt: booking.startsAt }, take: 20 });
             const url = process.env.APP_PUBLIC_URL ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${form.publicSlug}` : undefined;
@@ -1021,7 +1023,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             for (const persona of esperando) {
                 if (!persona.guestEmail)
                     continue;
-                const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)('Se liberó un cupo en {{local}}', 'Hola {{nombre}}:\n\nSe liberó un cupo para el {{fecha}}, el horario en que te anotaste. No lo reservamos por ti: queda para quien confirme primero.', { nombre: persona.guestName, local: form.name, fecha: cuando }, url ? { texto: 'Reservar ahora', url } : undefined);
+                const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: persona.guestName, local: form.name, fecha: cuando }, url ? { texto: 'Reservar ahora', url } : undefined);
                 void this.emails.send(persona.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
                     .catch((err) => this.logger.warn(`Aviso de cupo a ${persona.id} no enviado: ${err instanceof Error ? err.message : err}`));
             }
@@ -1038,6 +1040,16 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             .where('organization_id = :org AND code = :code', { org: booking.organizationId, code: booking.couponCode })
             .execute();
     }
+    async plantillaDeAviso(form, prefijo) {
+        const deFabrica = (parte) => organization_settings_catalog_1.ORGANIZATION_SETTINGS.find((ajuste) => ajuste.key === `${prefijo}_${parte}`)?.defaultValue;
+        const [encendido, asunto, cuerpo] = await Promise.all(['enabled', 'subject', 'body']
+            .map((parte) => this.parametros.get(`${prefijo}_${parte}`, form.clientId, null, form.organizationId)));
+        return {
+            encendido: Boolean(encendido ?? deFabrica('enabled')),
+            asunto: String(asunto ?? deFabrica('subject') ?? ''),
+            cuerpo: String(cuerpo ?? deFabrica('body') ?? ''),
+        };
+    }
     respuestaAlLocal(form) {
         const soporte = typeof form.designConfig?.supportEmail === 'string' ? form.designConfig.supportEmail.trim() : '';
         return soporte.includes('@') ? soporte : undefined;
@@ -1050,20 +1062,31 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         return ['BEGIN:VCALENDAR', 'VERSION:2.0', `METHOD:${method}`, 'PRODID:-//Espartanos//Reservas//ES', 'BEGIN:VEVENT', `UID:reservation-${booking.id}@espartanos`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(booking.startsAt)}`, `DTEND:${stamp(booking.endsAt)}`, `SUMMARY:${escape(`${form.name} · Reserva`)}`, ...(configuredAddress ? [`LOCATION:${escape(configuredAddress)}`] : []), `DESCRIPTION:${escape(description)}`, `STATUS:${method === 'CANCEL' ? 'CANCELLED' : 'CONFIRMED'}`, 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
     }
     async sendCalendarUpdate(booking, method, cancellationReason) {
-        if (!booking.guestEmail)
-            return;
-        const form = await this.forms.findOne({ where: { id: booking.formId } });
-        if (!form)
-            return;
-        const cancelled = method === 'CANCELLED';
-        const reason = cancellationReason?.trim();
-        const escapeHtml = (value) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-        const cuando = booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
-        const body = cancelled
-            ? `<p>Tu reserva en ${escapeHtml(form.name)} fue cancelada.</p><p>Era para el ${escapeHtml(cuando)} · ${booking.partySize} persona${booking.partySize === 1 ? '' : 's'} · código ${escapeHtml(booking.referenceCode)}.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
-            : `<p>Tu reserva en ${escapeHtml(form.name)} quedó para el <strong>${escapeHtml(cuando)}</strong>.</p><p>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p><p>Adjuntamos la cita actualizada para tu calendario.</p>`;
-        void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
-            .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
+        try {
+            if (!booking.guestEmail)
+                return;
+            const form = await this.forms.findOne({ where: { id: booking.formId } });
+            if (!form)
+                return;
+            const cancelled = method === 'CANCELLED';
+            const reason = cancellationReason?.trim();
+            const plantilla = await this.plantillaDeAviso(form, cancelled ? 'email.reservation_cancellation' : 'email.reservation_change');
+            if (!plantilla.encendido)
+                return;
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, {
+                nombre: booking.guestName,
+                local: form.name,
+                fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
+                personas: booking.partySize,
+                codigo: booking.referenceCode,
+                motivo: cancelled && reason ? `Motivo: ${reason}` : '',
+            });
+            void this.emails.send(booking.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
+                .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
+        }
+        catch (err) {
+            this.logger.warn(`No se pudo componer el aviso de cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
+        }
     }
     async reschedulePublicManagement(token, requestedStartsAt, requestedPartySize) {
         const { record, reservation } = await this.managementReservation(token);

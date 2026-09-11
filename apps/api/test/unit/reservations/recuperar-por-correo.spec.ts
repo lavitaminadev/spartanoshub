@@ -12,12 +12,14 @@ const forms = { findOne: vi.fn() };
 const reservations = { find: vi.fn() };
 const emails = { send: vi.fn().mockResolvedValue(true) };
 const tokens = { create: vi.fn((v) => v), save: vi.fn((v) => v) };
+// Sin valor propio en Ajustes: se usa el de fábrica del catálogo, que viene encendido.
+const parametros = { get: vi.fn().mockResolvedValue(null) };
 
 function servicio(): ReservationsService {
   const vacio = {} as never;
   return new ReservationsService(
     forms as never, reservations as never, vacio, vacio, vacio, vacio, vacio, vacio, vacio, vacio,
-    vacio, emails as never, vacio, vacio, vacio, vacio, vacio, tokens as never, vacio,
+    vacio, emails as never, vacio, vacio, vacio, vacio, parametros as never, tokens as never, vacio,
   );
 }
 
@@ -45,6 +47,13 @@ describe('recuperar la reserva por correo', () => {
     const { where } = reservations.find.mock.calls[0][0];
     expect(where.formId).toBe('form-1');
     expect(where.guestEmail).toBe('ana@example.cl');
+  });
+
+  it('no envía nada si la empresa apagó el aviso', async () => {
+    parametros.get.mockImplementation((key: string) => Promise.resolve(key === 'email.reservation_recovery_enabled' ? false : null));
+    await expect(servicio().recoverPublicReservations('casa', 'ana@example.cl')).resolves.toEqual({ sent: true });
+    expect(emails.send).not.toHaveBeenCalled();
+    parametros.get.mockResolvedValue(null);
   });
 
   /** Mismo resultado con o sin reservas: no se revela quién reservó dónde. */

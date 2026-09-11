@@ -24,6 +24,7 @@ import { MetaConversionOutboxService } from '../../integrations/meta/meta-conver
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { EmailService } from '../../../core/notifications/email.service';
 import { componerCorreo } from '../../../core/notifications/plantilla-de-correo';
+import { ORGANIZATION_SETTINGS } from '../../../core/parameters/organization-settings.catalog';
 import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { MetaClientPixelService } from '../../integrations/meta/meta-client-pixel.service';
@@ -1059,14 +1060,16 @@ export class ReservationsService {
    * correo de otra persona y cancelarle la mesa. El enlace llega a esa bandeja y solo lo abre
    * quien tiene acceso a ella. Por lo mismo la respuesta es siempre igual, haya o no reservas.
    *
-   * Solo busca en este local y en reservas que todavía pueden cambiarse. Se envía aunque el
-   * comprobante automático esté apagado: lo pidió la persona, no es un aviso que decida el local.
+   * Solo busca en este local y en reservas que todavía pueden cambiarse. Tiene interruptor propio,
+   * encendido de fábrica: lo pide la persona, no es un aviso que decida el local.
    */
   async recoverPublicReservations(slug: string, email: string) {
     const respuesta = { sent: true };
     const correo = email.trim().toLowerCase();
     const form = await this.forms.findOne({ where: { publicSlug: slug } });
     if (!form || !correo.includes('@')) return respuesta;
+    const plantilla = await this.plantillaDeAviso(form, 'email.reservation_recovery');
+    if (!plantilla.encendido) return respuesta;
     const reservas = await this.reservations.find({
       where: { formId: form.id, guestEmail: correo, status: In(ACTIVE_STATUSES), startsAt: MoreThan(new Date()) },
       order: { startsAt: 'ASC' },
@@ -1076,12 +1079,9 @@ export class ReservationsService {
     for (const booking of reservas) {
       const token = await this.createManagementToken(booking.id, booking.endsAt);
       const url = base ? `${base}/book/manage/${token}` : undefined;
-      const { subject, html } = componerCorreo(
-        'Tu reserva en {{local}}',
-        'Hola {{nombre}}:\n\nPediste el enlace para gestionar tu reserva del {{fecha}} ({{personas}} personas, código {{codigo}}). Desde ahí puedes confirmar, cambiar la hora o cancelar.\n\nSi no fuiste tú, ignora este correo: el enlace solo sirve a quien lo recibe.',
+      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo,
         { nombre: booking.guestName, local: form.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }), personas: booking.partySize, codigo: booking.referenceCode },
-        url ? { texto: 'Gestionar mi reserva', url } : undefined,
-      );
+        url ? { texto: 'Gestionar mi reserva', url } : undefined);
       void this.emails.send(correo, subject, html, { replyTo: this.respuestaAlLocal(form) })
         .catch((err) => this.logger.warn(`Enlace de gestión de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
     }
@@ -1164,15 +1164,10 @@ export class ReservationsService {
     }
     try {
       if (!datos.guestEmail) return;
-      const encendido = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
-      if (!encendido) return;
-      const { subject, html } = componerCorreo(
-        tipo === 'grupo' ? 'Recibimos tu solicitud de evento en {{local}}' : 'Quedaste en lista de espera en {{local}}',
-        tipo === 'grupo'
-          ? 'Hola {{nombre}}:\n\nRecibimos tu solicitud para {{personas}} personas ({{fecha}}). Todavía no hay nada reservado: el local te contactará para acordar fecha y detalles.'
-          : 'Hola {{nombre}}:\n\nTe anotamos en la lista de espera para el {{fecha}}, {{personas}} personas. Esto no es una reserva: si se libera un cupo te avisaremos por este medio.',
-        { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize },
-      );
+      const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.group_request_ack' : 'email.waitlist_ack');
+      if (!plantilla.encendido) return;
+      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo,
+        { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize });
       void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
         .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
     } catch (err) {
@@ -1190,19 +1185,16 @@ export class ReservationsService {
     try {
       const form = await this.forms.findOne({ where: { id: booking.formId } });
       if (!form || form.status !== 'published' || booking.startsAt <= new Date()) return;
-      const encendido = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
-      if (!encendido) return;
+      const plantilla = await this.plantillaDeAviso(form, 'email.waitlist_spot');
+      if (!plantilla.encendido) return;
       const esperando = await this.reservations.find({ where: { formId: form.id, status: 'waitlist', startsAt: booking.startsAt }, take: 20 });
       const url = process.env.APP_PUBLIC_URL ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${form.publicSlug}` : undefined;
       const cuando = booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
       for (const persona of esperando) {
         if (!persona.guestEmail) continue;
-        const { subject, html } = componerCorreo(
-          'Se liberó un cupo en {{local}}',
-          'Hola {{nombre}}:\n\nSe liberó un cupo para el {{fecha}}, el horario en que te anotaste. No lo reservamos por ti: queda para quien confirme primero.',
+        const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo,
           { nombre: persona.guestName, local: form.name, fecha: cuando },
-          url ? { texto: 'Reservar ahora', url } : undefined,
-        );
+          url ? { texto: 'Reservar ahora', url } : undefined);
         void this.emails.send(persona.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
           .catch((err) => this.logger.warn(`Aviso de cupo a ${persona.id} no enviado: ${err instanceof Error ? err.message : err}`));
       }
@@ -1223,6 +1215,24 @@ export class ReservationsService {
       .set({ usageCount: () => 'GREATEST(usage_count - 1, 0)' })
       .where('organization_id = :org AND code = :code', { org: booking.organizationId, code: booking.couponCode })
       .execute();
+  }
+
+  /**
+   * Plantilla de un aviso a quien reserva: si está encendido y con qué texto.
+   *
+   * Sale de Ajustes por empresa, como la confirmación y el recordatorio. Si el ajuste no responde,
+   * se usa el valor de fábrica del mismo catálogo, para que el texto de respaldo viva en un solo
+   * lugar y no se desalinee del que ve quien edita.
+   */
+  private async plantillaDeAviso(form: ReservationForm, prefijo: string): Promise<{ encendido: boolean; asunto: string; cuerpo: string }> {
+    const deFabrica = (parte: string) => ORGANIZATION_SETTINGS.find((ajuste) => ajuste.key === `${prefijo}_${parte}`)?.defaultValue;
+    const [encendido, asunto, cuerpo] = await Promise.all(['enabled', 'subject', 'body']
+      .map((parte) => this.parametros.get(`${prefijo}_${parte}`, form.clientId, null, form.organizationId)));
+    return {
+      encendido: Boolean(encendido ?? deFabrica('enabled')),
+      asunto: String(asunto ?? deFabrica('subject') ?? ''),
+      cuerpo: String(cuerpo ?? deFabrica('body') ?? ''),
+    };
   }
 
   /**
@@ -1247,20 +1257,28 @@ export class ReservationsService {
   }
 
   private async sendCalendarUpdate(booking: Reservation, method: 'CANCELLED' | 'PUBLISH', cancellationReason?: string): Promise<void> {
-    if (!booking.guestEmail) return;
-    const form = await this.forms.findOne({ where: { id: booking.formId } });
-    if (!form) return;
-    const cancelled = method === 'CANCELLED';
-    const reason = cancellationReason?.trim();
-    const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
-    // La fecha en la zona del local. El cuerpo solo decia "tu reserva fue actualizada": para
-    // saber a que hora quedaba habia que abrir el adjunto de calendario.
-    const cuando = booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
-    const body = cancelled
-      ? `<p>Tu reserva en ${escapeHtml(form.name)} fue cancelada.</p><p>Era para el ${escapeHtml(cuando)} · ${booking.partySize} persona${booking.partySize === 1 ? '' : 's'} · código ${escapeHtml(booking.referenceCode)}.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
-      : `<p>Tu reserva en ${escapeHtml(form.name)} quedó para el <strong>${escapeHtml(cuando)}</strong>.</p><p>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p><p>Adjuntamos la cita actualizada para tu calendario.</p>`;
-    void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
-      .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
+    try {
+      if (!booking.guestEmail) return;
+      const form = await this.forms.findOne({ where: { id: booking.formId } });
+      if (!form) return;
+      const cancelled = method === 'CANCELLED';
+      const reason = cancellationReason?.trim();
+      const plantilla = await this.plantillaDeAviso(form, cancelled ? 'email.reservation_cancellation' : 'email.reservation_change');
+      if (!plantilla.encendido) return;
+      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+        nombre: booking.guestName,
+        local: form.name,
+        // La fecha en la zona del local, no la del servidor.
+        fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
+        personas: booking.partySize,
+        codigo: booking.referenceCode,
+        motivo: cancelled && reason ? `Motivo: ${reason}` : '',
+      });
+      void this.emails.send(booking.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
+        .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
+    } catch (err) {
+      this.logger.warn(`No se pudo componer el aviso de cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   async reschedulePublicManagement(token: string, requestedStartsAt: string, requestedPartySize?: number) {

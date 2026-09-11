@@ -19,6 +19,7 @@ export const MUESTRA: Record<string, string | number> = {
   fecha: 'jueves 4 de septiembre de 2026, 20:30',
   personas: 4,
   codigo: 'ABC-1234',
+  motivo: 'Motivo: cierre por evento privado.',
   // CRM.
   origen: 'Meta Lead Ads',
   campana: 'Campaña de ejemplo',
