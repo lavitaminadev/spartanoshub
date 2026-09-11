@@ -206,8 +206,8 @@ export function PublicReservationPage() {
 
   useEffect(() => {
     if (!form || !measurementConsent) return;
-    api.post(`/public/reservations/${slug}/events`, { type: 'view', sessionId, utmSource, utmCampaign }).catch(() => undefined);
-  }, [form, measurementConsent, sessionId, slug, utmCampaign, utmSource]);
+    api.post(`/public/reservations/${slug}/events`, { type: 'view', sessionId, utmSource, utmMedium, utmCampaign, utmContent }).catch(() => undefined);
+  }, [form, measurementConsent, sessionId, slug, utmCampaign, utmContent, utmMedium, utmSource]);
 
   /**
    * Avisa —una sola vez por sesión— de que la persona empezó a llenar el formulario.
@@ -221,7 +221,7 @@ export function PublicReservationPage() {
     started.current = true;
     const meta = readMetaMatchData();
     api.post(`/public/reservations/${slug}/events`, {
-      type: 'start', sessionId, utmSource, utmCampaign, measurementConsent,
+      type: 'start', sessionId, utmSource, utmMedium, utmCampaign, utmContent, measurementConsent,
         fbc: meta.fbc, fbp: meta.fbp, eventSourceUrl: window.location.href,
     }).then((evento: { id?: string }) => {
       if (!evento?.id || !window.fbq || !form?.pixelId) return;
@@ -237,7 +237,7 @@ export function PublicReservationPage() {
       const baseBody = {
         ...guest, answers: reservationAnswers, idempotencyKey, website, measurementConsent,
         eventSourceUrl: window.location.href,
-        utmSource, utmCampaign,
+        utmSource, utmMedium, utmCampaign, utmContent,
         // Cada plataforma recibe su propio identificador. Mandarlos por un campo común hacía
         // que un fbclid terminara subido a Google Ads como gclid, donde Google lo descarta.
         gclid: params.get('gclid') || undefined,
@@ -251,7 +251,7 @@ export function PublicReservationPage() {
         guestName: guest.guestName, guestEmail: guest.guestEmail || undefined, guestPhone: guest.guestPhone || undefined,
         partySize: Math.max(groupThreshold + 1, guest.partySize), eventType: groupEventType, notes: groupEventNotes.trim() || undefined,
         preferredDate: requestPreference.date || undefined, preferredTime: requestPreference.time || undefined,
-        reservationConsent, marketingConsent, idempotencyKey, website, renderedAt, utmSource, utmCampaign,
+        reservationConsent, marketingConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent,
         details: {
           answers: reservationAnswers,
           serviceId: serviceId || undefined,
@@ -271,8 +271,6 @@ export function PublicReservationPage() {
         ...baseBody, renderedAt, consentVersion: 'reservation-v1', reservationConsent,
         marketingConsent, marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v1'),
         couponCode: couponCode.trim() || undefined, measurementConsent,
-        utmMedium,
-        utmContent,
       });
     },
   });

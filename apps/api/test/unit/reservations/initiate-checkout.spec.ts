@@ -140,4 +140,20 @@ describe('inicio del formulario hacia Meta', () => {
     await service.trackPublicEvent('cocina-norte', { type: 'start', sessionId: 's-1' });
     expect(metaOutbox.enqueue).not.toHaveBeenCalled();
   });
+
+  /**
+   * El embudo se mide por campaña. Guardando solo origen y campaña, dos anuncios distintos de la
+   * misma campaña quedaban indistinguibles, y la comparación contra las reservas —que sí traen
+   * medio y contenido— no cuadraba nunca.
+   */
+  it('conserva las cuatro UTM del enlace', async () => {
+    await service.trackPublicEvent('cocina-norte', {
+      type: 'view', sessionId: 's-1',
+      utmSource: 'instagram', utmMedium: 'cpc', utmCampaign: 'verano', utmContent: 'reel-02',
+    });
+
+    expect(formEvents.create).toHaveBeenCalledWith(expect.objectContaining({
+      utmSource: 'instagram', utmMedium: 'cpc', utmCampaign: 'verano', utmContent: 'reel-02',
+    }));
+  });
 });
