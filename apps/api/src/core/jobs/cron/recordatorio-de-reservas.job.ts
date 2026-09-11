@@ -158,7 +158,9 @@ export class RecordatorioDeReservasJob {
         // El nombre del local y no el de la agencia: quien reservó no conoce a Espartanos, y un
         // recordatorio de un desconocido se lee como spam.
         local: form.name,
-        fecha: reserva.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
+        // La hora del local, no la del servidor: el proceso corre en UTC y un recordatorio
+        // para las 21:00 en Santiago se leia como medianoche del dia siguiente.
+        fecha: reserva.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
         personas: reserva.partySize,
         codigo: reserva.referenceCode,
         gestion,

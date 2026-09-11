@@ -1067,6 +1067,19 @@ export class ReservationsService {
     return { confirmed: true, referenceCode: reservation.referenceCode };
   }
 
+  /**
+   * Buzón al que debe llegar la respuesta de quien reserva.
+   *
+   * El remitente es único para todo el sistema —lo fija `SMTP_FROM`—, así que sin esto una
+   * respuesta a «tu reserva está confirmada» aterriza en la agencia, que no sabe nada de esa
+   * mesa. El correo de soporte del local se configura en sus ajustes; si no lo tiene, se
+   * mantiene el buzón global y nada cambia.
+   */
+  private respuestaAlLocal(form: ReservationForm): string | undefined {
+    const soporte = typeof form.designConfig?.supportEmail === 'string' ? form.designConfig.supportEmail.trim() : '';
+    return soporte.includes('@') ? soporte : undefined;
+  }
+
   private calendarIcs(form: ReservationForm, booking: Reservation, method: 'PUBLISH' | 'CANCEL', cancellationReason?: string): string {
     const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
     const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
@@ -1082,10 +1095,13 @@ export class ReservationsService {
     const cancelled = method === 'CANCELLED';
     const reason = cancellationReason?.trim();
     const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+    // La fecha en la zona del local. El cuerpo solo decia "tu reserva fue actualizada": para
+    // saber a que hora quedaba habia que abrir el adjunto de calendario.
+    const cuando = booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
     const body = cancelled
-      ? `<p>Tu reserva fue cancelada.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
-      : '<p>Tu reserva fue actualizada. Adjuntamos la nueva cita de calendario.</p>';
-    void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
+      ? `<p>Tu reserva en ${escapeHtml(form.name)} fue cancelada.</p><p>Era para el ${escapeHtml(cuando)} · ${booking.partySize} persona${booking.partySize === 1 ? '' : 's'} · código ${escapeHtml(booking.referenceCode)}.</p>${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ''}`
+      : `<p>Tu reserva en ${escapeHtml(form.name)} quedó para el <strong>${escapeHtml(cuando)}</strong>.</p><p>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p><p>Adjuntamos la cita actualizada para tu calendario.</p>`;
+    void this.emails.send(booking.guestEmail, `${cancelled ? 'Cancelación' : 'Actualización'} de reserva en ${form.name}`, body, { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: cancelled ? 'reserva-cancelada.ics' : 'reserva-actualizada.ics', content: this.calendarIcs(form, booking, cancelled ? 'CANCEL' : 'PUBLISH', reason), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'PUBLISH'}` }] })
       .catch((err) => this.logger.warn(`No se pudo enviar la actualización de calendario: ${err instanceof Error ? err.message : err}`));
   }
 
@@ -1574,18 +1590,38 @@ export class ReservationsService {
       const managementUrl = managementToken && process.env.APP_PUBLIC_URL
         ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${managementToken}` : undefined;
 
+      /*
+       * Una reserva pendiente no está confirmada, y el comprobante no puede decir que sí.
+       *
+       * En modo de revisión manual —y en cualquier grupo grande— la reserva nace `pending`. La
+       * pantalla pública lo dice bien: «aún no está confirmada». El correo usaba igualmente la
+       * plantilla de confirmación, así que la persona leía que tenía mesa asegurada y el local
+       * se encontraba con alguien que llegaba sin cupo. Este texto no es configurable a
+       * propósito: la plantilla de la empresa afirma una confirmación que todavía no ocurrió.
+       */
+      const pendiente = booking.status === 'pending';
+      const plantilla = pendiente
+        ? {
+          asunto: 'Recibimos tu solicitud en {{local}}',
+          cuerpo: 'Hola {{nombre}}:\n\nRecibimos tu solicitud para el {{fecha}} en {{local}}. Todavía no está confirmada: el local la revisará y te avisará por este mismo medio.\n\nPersonas: {{personas}}\nCódigo: {{codigo}}',
+        }
+        : {
+          asunto: String(asunto ?? 'Tu reserva en {{local}} está confirmada'),
+          cuerpo: String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
+        };
+
       const { subject, html } = componerCorreo(
-        String(asunto ?? 'Tu reserva en {{local}} está confirmada'),
-        String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
+        plantilla.asunto,
+        plantilla.cuerpo,
         {
           nombre: booking.guestName,
           local: form.name,
-          fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
+          fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
           personas: booking.partySize,
           codigo: booking.referenceCode,
           gestion: managementUrl || '',
         },
-        managementUrl ? { texto: 'Gestionar mi reserva', url: managementUrl } : undefined,
+        managementUrl ? { texto: pendiente ? 'Ver o cancelar mi solicitud' : 'Gestionar mi reserva', url: managementUrl } : undefined,
       );
 
       /*
@@ -1593,8 +1629,11 @@ export class ReservationsService {
        *
        * El envío es un saludo TLS más una entrega, y con el servidor de correo lento eso se
        * sumaba entero a lo que espera quien está reservando en la página.
+       *
+       * Una reserva pendiente no lleva `.ics`: guardar en el calendario una cita que el local
+       * todavía puede rechazar deja un recordatorio de algo que nunca existió.
        */
-      void this.emails.send(booking.guestEmail, subject, html, { attachments: [{ filename: 'reserva.ics', content: this.calendarIcs(form, booking, 'PUBLISH'), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }).catch((err) => this.logger.warn(
+      void this.emails.send(booking.guestEmail, subject, html, pendiente ? { replyTo: this.respuestaAlLocal(form) } : { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: 'reserva.ics', content: this.calendarIcs(form, booking, 'PUBLISH'), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }).catch((err) => this.logger.warn(
         `Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`,
       ));
     } catch (err) {
@@ -1612,11 +1651,11 @@ export class ReservationsService {
       const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR id = (SELECT community_manager_id FROM clients WHERE id = ? AND organization_id = ?))`, [form.organizationId, form.clientId, form.clientId, form.organizationId]);
       const userIds = (rows as Array<{ id: string }>).map((row) => row.id).filter(Boolean);
       if (userIds.length === 0) return;
-      await this.notifications.notifyMultiple(form.organizationId, userIds, 'reservation_created', 'Nueva reserva recibida', `${booking.guestName} reservó ${form.name} para el ${booking.startsAt.toLocaleString('es-CL')}.`, { reservationId: booking.id, formId: form.id, clientId: form.clientId, referenceCode: booking.referenceCode });
+      await this.notifications.notifyMultiple(form.organizationId, userIds, 'reservation_created', 'Nueva reserva recibida', `${booking.guestName} reservó ${form.name} para el ${booking.startsAt.toLocaleString('es-CL', { timeZone: form.timezone })}.`, { reservationId: booking.id, formId: form.id, clientId: form.clientId, referenceCode: booking.referenceCode });
       const teamEmails = (form.teamNotifications || []).filter((email) => typeof email === 'string' && email.includes('@'));
       if (teamEmails.length > 0) {
         const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
-        const html = `<h2>Nueva reserva recibida</h2><p><strong>${escapeHtml(booking.guestName)}</strong> reservó <strong>${escapeHtml(form.name)}</strong>.</p><p>Fecha: ${escapeHtml(booking.startsAt.toLocaleString('es-CL'))}<br>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p>`;
+        const html = `<h2>Nueva reserva recibida</h2><p><strong>${escapeHtml(booking.guestName)}</strong> reservó <strong>${escapeHtml(form.name)}</strong>.</p><p>Fecha: ${escapeHtml(booking.startsAt.toLocaleString('es-CL', { timeZone: form.timezone }))}<br>Personas: ${booking.partySize}<br>Código: ${escapeHtml(booking.referenceCode)}</p>`;
         // Sin esperar: el envío es un handshake TLS más una entrega por destinatario, y con
         // el servidor de correo lento o caído eso se sumaba entero a lo que espera quien
         // reserva. Que el correo no salga ya estaba aceptado —lo dice el catch de abajo—, así
@@ -1686,6 +1725,8 @@ export class ReservationsService {
     let formForMeta: ReservationForm | undefined;
     let statusChangedTo: string | undefined;
     let calendarNotification: 'CANCELLED' | 'PUBLISH' | undefined;
+    // Confirmar a mano era el unico paso del flujo del que nadie se enteraba fuera del panel.
+    let confirmoUnaPendiente = false;
     const saved = await this.transaction('actualizar reserva', async (manager) => { const repo = manager.getRepository(Reservation); const qb = repo.createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id AND r.organization_id = :organizationId', { id, organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); const item = await qb.getOne(); if (!item) throw new NotFoundException('Reserva no encontrada'); const previousStatus = item.status; const previousStart = item.startsAt;
       if (dto.startsAt) {
         if (!['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(item.status)) throw new ConflictException(`No se puede reagendar una reserva en estado ${item.status}`);
@@ -1698,6 +1739,7 @@ export class ReservationsService {
           const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
           await this.availability(manager, form, item.startsAt, item.partySize, item.serviceId, item.resourceId, item.id);
         }
+        if (item.status === 'pending' && dto.status === 'confirmed') confirmoUnaPendiente = true;
         if (dto.status === 'attended') {
           formForMeta = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
         }
@@ -1714,6 +1756,21 @@ export class ReservationsService {
     // de conversión real. Los resultados se mantienen exclusivamente en Reservas.
     if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
     if (statusChangedTo === 'attended' && formForMeta) { try { await this.enqueueGoogleConversion(saved, formForMeta, 'attended', saved.startsAt); } catch (err) { this.logger.warn(`Google Ads attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'google_ads'); } }
+    /*
+     * La solicitud pendiente quedo confirmada: hay que decirlo.
+     *
+     * Quien reservo en un local con revision manual recibia "la revisaremos" y despues nada,
+     * ni cuando el local aceptaba. Se enteraba al llegar. Ahora recibe el comprobante real,
+     * con su `.ics` y su enlace de gestion, en el momento en que pasa a estar confirmada.
+     */
+    if (confirmoUnaPendiente) {
+      try {
+        const form = await this.forms.findOne({ where: { id: saved.formId } });
+        if (form) void this.enviarComprobante(form, saved, await this.createManagementToken(saved.id, saved.endsAt));
+      } catch (err) {
+        this.logger.warn(`Comprobante de confirmacion de ${saved.id} no enviado: ${err instanceof Error ? err.message : err}`);
+      }
+    }
     if (calendarNotification) void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
     return saved;
   }

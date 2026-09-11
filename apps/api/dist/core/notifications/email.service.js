@@ -64,7 +64,7 @@ let EmailService = EmailService_1 = class EmailService {
             const result = await this.transporter.sendMail({
                 from: this.from,
                 to: recipient,
-                replyTo: this.replyTo,
+                replyTo: options?.replyTo ?? this.replyTo,
                 subject: subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255),
                 html,
                 attachments: options?.attachments,

@@ -125,7 +125,7 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? 'Mañana te esperamos en {{local}}'), String(cuerpo ?? 'Te recordamos tu reserva en {{local}} el {{fecha}}.'), {
             nombre: reserva.guestName,
             local: form.name,
-            fecha: reserva.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short' }),
+            fecha: reserva.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
             personas: reserva.partySize,
             codigo: reserva.referenceCode,
             gestion,
