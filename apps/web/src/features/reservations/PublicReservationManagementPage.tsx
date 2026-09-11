@@ -8,7 +8,7 @@ import { plainDateInZone } from './local-time';
 type Managed = {
   referenceCode: string; guestName: string; startsAt: string; partySize: number; status: string;
   guestConfirmedAt?: string | null; canCancel: boolean; canReschedule: boolean; timezone: string;
-  publicSlug: string; maxPartySize?: number; serviceId?: string; resourceId?: string;
+  publicSlug: string; maxPartySize?: number; localName?: string; serviceId?: string; resourceId?: string;
 };
 interface Slot { startsAt: string; available: number }
 
@@ -74,6 +74,7 @@ export function PublicReservationManagementPage() {
   const hayCambio = Boolean(hora) || personasElegidas !== item.partySize;
 
   return <main className="public-booking"><section className="booking-success">
+    {item.localName && <span className="page-eyebrow">{item.localName}</span>}
     <h1>Gestiona tu reserva</h1>
     <p><strong>{item.referenceCode}</strong></p>
     <p>{item.guestName} · {item.partySize} persona{item.partySize === 1 ? '' : 's'}</p>

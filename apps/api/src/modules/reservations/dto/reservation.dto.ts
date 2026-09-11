@@ -197,6 +197,12 @@ export class UpdateReservationDto {
    */
   @IsOptional() @IsIn(['draft','sent','confirmed','preparation','execution','delivered']) workflowState?: string;
 }
+/** Fecha y lugar acordados con quien pidió el grupo. El resto sale de la solicitud. */
+export class ConvertGroupRequestDto {
+  @IsDateString() startsAt: string;
+  @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
+  @IsOptional() @IsString() @MaxLength(80) serviceId?: string;
+}
 export class UpdateGroupRequestDto { @IsIn(['pending', 'contacted', 'quoted', 'closed']) status: string; @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(999999999) quoteAmount?: number; @IsOptional() @IsString() @MaxLength(5000) quoteMessage?: string; @IsOptional() @IsDateString() quoteExpiresAt?: string; }
 /**
  * Evento de uso del formulario público.

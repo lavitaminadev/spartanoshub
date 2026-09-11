@@ -331,6 +331,17 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   });
   const grupos = Array.isArray(gruposData) ? gruposData : [];
   const gruposPendientes = grupos.filter((item) => item.status === 'pending').length;
+  /** Solicitud que se está convirtiendo en reserva, con la fecha y zona que se van eligiendo. */
+  const [convirtiendo, setConvirtiendo] = useState<{ id: string; fecha: string; zona: string } | null>(null);
+  const convertirGrupo = useMutation({
+    mutationFn: ({ id, startsAt, resourceId }: { id: string; startsAt: string; resourceId?: string }) => api.post(`/reservations/group-requests/${id}/convert`, { startsAt, resourceId }),
+    onSuccess: () => {
+      setConvirtiendo(null);
+      qc.invalidateQueries({ queryKey: ['group-requests'] });
+      qc.invalidateQueries({ queryKey: ['reservations'] });
+      triggerToast('Reserva creada desde la solicitud');
+    },
+  });
   const marcarGrupo = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.patch(`/reservations/group-requests/${id}`, { status }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['group-requests'] }); triggerToast('Solicitud actualizada'); },
@@ -504,7 +515,15 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
               {request.quoteAmount && <small>Cotización interna: ${Number(request.quoteAmount).toLocaleString('es-CL')}{request.quoteExpiresAt ? ` · vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}
             </div>
             <div>
-              <span className="reservation-channel-status">{request.status}</span>
+              <span className="reservation-channel-status">{({ pending: 'Pendiente', contacted: 'Contactada', quoted: 'Cotizada', closed: 'Cerrada', converted: 'Convertida en reserva' } as Record<string, string>)[request.status] || request.status}</span>
+              {!['converted', 'closed'].includes(request.status) && convirtiendo?.id !== request.id && <button className="btn btn-primary btn-sm" type="button" onClick={() => { convertirGrupo.reset(); setConvirtiendo({ id: request.id, fecha: request.preferredDate ? `${request.preferredDate}T${(request.preferredTime || '20:00').slice(0, 5)}` : '', zona: String(details.resourceId || '') }); }}>Crear reserva</button>}
+              {convirtiendo?.id === request.id && <form className="grupo-a-reserva" onSubmit={(event) => { event.preventDefault(); if (!local) return; convertirGrupo.mutate({ id: request.id, startsAt: localInputToUtc(convirtiendo.fecha, local.timezone), resourceId: convirtiendo.zona || undefined }); }}>
+                <label>Fecha y hora acordadas<input className="input" type="datetime-local" required value={convirtiendo.fecha} onChange={(event) => setConvirtiendo({ ...convirtiendo, fecha: event.target.value })} /></label>
+                {(local?.resourcesConfig || []).length > 0 && <label>Zona<select className="input" value={convirtiendo.zona} onChange={(event) => setConvirtiendo({ ...convirtiendo, zona: event.target.value })}><option value="">Sin zona</option>{(local?.resourcesConfig || []).map((zona) => <option key={zona.id} value={zona.id}>{zona.name}</option>)}</select></label>}
+                <small>Se crea con los datos y respuestas de la solicitud, y pasa por las mismas reglas de cupo que una reserva manual.</small>
+                {convertirGrupo.error && <small className="error-text">{convertirGrupo.error.message}</small>}
+                <div className="portal-item-actions"><button className="btn btn-primary btn-sm" disabled={convertirGrupo.isPending}>{convertirGrupo.isPending ? 'Creando...' : 'Confirmar reserva'}</button><button className="btn btn-outline btn-sm" type="button" onClick={() => setConvirtiendo(null)}>Cancelar</button></div>
+              </form>}
               {request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => marcarGrupo.mutate({ id: request.id, status: 'contacted' })}>Marcar contactada</button>}
               <Link className="btn btn-outline btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(request.clientId)}&formId=${encodeURIComponent(request.formId)}`}>Abrir agenda del local</Link>
             </div>

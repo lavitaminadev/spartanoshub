@@ -26,7 +26,7 @@ const reserva = { id: 'res-1', formId: 'form-1', referenceCode: '3F9A1C2B7D10', 
 describe('buscar mi reserva', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    forms.findOne.mockResolvedValue({ id: 'form-1' });
+    forms.findOne.mockResolvedValue({ id: 'form-1', organizationId: 'org-1', clientId: 'client-1' });
     reservations.findOne.mockResolvedValue(reserva);
   });
 
@@ -34,7 +34,8 @@ describe('buscar mi reserva', () => {
     const { token } = await servicio().lookupPublicReservation('casa', '3f9a1c2b7d10', ' Ana@Example.cl ');
     expect(token).toMatch(/^[A-Za-z0-9_-]{40,}$/);
     expect(tokens.save).toHaveBeenCalledWith(expect.objectContaining({ reservationId: 'res-1' }));
-    expect(reservations.findOne).toHaveBeenCalledWith({ where: { formId: 'form-1', referenceCode: '3F9A1C2B7D10' } });
+    // Busca en todos los locales de la empresa, nunca fuera de ella.
+    expect(reservations.findOne).toHaveBeenCalledWith({ where: { organizationId: 'org-1', clientId: 'client-1', referenceCode: '3F9A1C2B7D10' } });
   });
 
   it('acepta el teléfono escrito de otra forma', async () => {

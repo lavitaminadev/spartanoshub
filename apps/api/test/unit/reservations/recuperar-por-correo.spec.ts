@@ -8,7 +8,7 @@ import { ReservationsService } from '../../../src/modules/reservations/applicati
  * reservas por correo, cualquiera podría escribir el de otra persona y cancelarle la mesa. Y la
  * respuesta es la misma haya o no reservas, para no revelar quién reservó dónde.
  */
-const forms = { findOne: vi.fn() };
+const forms = { findOne: vi.fn(), find: vi.fn() };
 const reservations = { find: vi.fn() };
 const emails = { send: vi.fn().mockResolvedValue(true) };
 const tokens = { create: vi.fn((v) => v), save: vi.fn((v) => v) };
@@ -23,13 +23,14 @@ function servicio(): ReservationsService {
   );
 }
 
-const local = { id: 'form-1', name: 'Casa Costanera', timezone: 'America/Santiago', designConfig: {} };
-const reserva = { id: 'res-1', guestName: 'Ana', partySize: 2, referenceCode: '3F9A1C2B7D10', startsAt: new Date('2026-09-20T00:00:00Z'), endsAt: new Date('2026-09-20T01:30:00Z') };
+const local = { id: 'form-1', organizationId: 'org-1', clientId: 'client-1', name: 'Casa Costanera', timezone: 'America/Santiago', designConfig: {} };
+const reserva = { id: 'res-1', formId: 'form-2', guestName: 'Ana', partySize: 2, referenceCode: '3F9A1C2B7D10', startsAt: new Date('2026-09-20T00:00:00Z'), endsAt: new Date('2026-09-20T01:30:00Z') };
 
 describe('recuperar la reserva por correo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     forms.findOne.mockResolvedValue(local);
+    forms.find.mockResolvedValue([{ ...local, id: 'form-2', name: 'Casa Costanera Las Condes' }]);
     reservations.find.mockResolvedValue([reserva]);
   });
 
@@ -42,10 +43,12 @@ describe('recuperar la reserva por correo', () => {
     expect(tokens.save).toHaveBeenCalledWith(expect.objectContaining({ reservationId: 'res-1' }));
   });
 
-  it('busca solo en este local y en reservas que aún pueden cambiarse', async () => {
+  it('busca en toda la empresa y nombra el local de cada reserva', async () => {
     await servicio().recoverPublicReservations('casa', 'ana@example.cl');
     const { where } = reservations.find.mock.calls[0][0];
-    expect(where.formId).toBe('form-1');
+    expect(where.clientId).toBe('client-1');
+    expect(where.organizationId).toBe('org-1');
+    expect(emails.send.mock.calls[0][1]).toContain('Casa Costanera Las Condes');
     expect(where.guestEmail).toBe('ana@example.cl');
   });
 

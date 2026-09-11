@@ -13,7 +13,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 
 @ApiTags('Reservas')
@@ -236,6 +236,14 @@ export class ReservationsController {
   async groupRequests(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
     return this.service.listGroupRequests(req.organizationId, id, scope.clientId, scope.clientIds);
+  }
+
+  /** Convierte una solicitud de grupo en reserva real, con la fecha que se acordó. */
+  @Post('group-requests/:id/convert')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async convertGroupRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ConvertGroupRequestDto) {
+    const scope = await this.scope(req);
+    return this.service.convertGroupRequest(req.organizationId, id, dto, req.user.id, scope.clientId, scope.clientIds);
   }
 
   @Patch('group-requests/:id')

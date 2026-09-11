@@ -231,3 +231,7 @@
 .booking-buscar-alt p { margin:0; }
 .booking-buscar-alt small { color:#5d6b63; }
 @media(max-width:640px){ .booking-buscar-alt form{ grid-template-columns:1fr; } }
+
+/* Convertir una solicitud de grupo en reserva, dentro de su propia tarjeta. */
+.grupo-a-reserva { display:grid; gap:8px; margin-top:8px; padding:12px; border:1px solid var(--surface-sage); border-radius: var(--radius-md); background:var(--soft); min-width:240px; }
+.grupo-a-reserva label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:700; }
