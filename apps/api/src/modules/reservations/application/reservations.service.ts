@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
 import { promises as dns } from 'dns';
 import { ReservationForm } from '../domain/reservation-form.entity';
@@ -1050,6 +1050,42 @@ export class ReservationsService {
       : Boolean(booking.guestPhone) && normalizePhone(dato) === booking.guestPhone;
     if (!coincide) throw noEncontrada;
     return { token: await this.createManagementToken(booking.id, booking.endsAt) };
+  }
+
+  /**
+   * Reenvía el enlace de gestión al correo con que se reservó, para quien perdió el código.
+   *
+   * No muestra nada en pantalla: si listara reservas por correo, cualquiera podría escribir el
+   * correo de otra persona y cancelarle la mesa. El enlace llega a esa bandeja y solo lo abre
+   * quien tiene acceso a ella. Por lo mismo la respuesta es siempre igual, haya o no reservas.
+   *
+   * Solo busca en este local y en reservas que todavía pueden cambiarse. Se envía aunque el
+   * comprobante automático esté apagado: lo pidió la persona, no es un aviso que decida el local.
+   */
+  async recoverPublicReservations(slug: string, email: string) {
+    const respuesta = { sent: true };
+    const correo = email.trim().toLowerCase();
+    const form = await this.forms.findOne({ where: { publicSlug: slug } });
+    if (!form || !correo.includes('@')) return respuesta;
+    const reservas = await this.reservations.find({
+      where: { formId: form.id, guestEmail: correo, status: In(ACTIVE_STATUSES), startsAt: MoreThan(new Date()) },
+      order: { startsAt: 'ASC' },
+      take: 5,
+    });
+    const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '');
+    for (const booking of reservas) {
+      const token = await this.createManagementToken(booking.id, booking.endsAt);
+      const url = base ? `${base}/book/manage/${token}` : undefined;
+      const { subject, html } = componerCorreo(
+        'Tu reserva en {{local}}',
+        'Hola {{nombre}}:\n\nPediste el enlace para gestionar tu reserva del {{fecha}} ({{personas}} personas, código {{codigo}}). Desde ahí puedes confirmar, cambiar la hora o cancelar.\n\nSi no fuiste tú, ignora este correo: el enlace solo sirve a quien lo recibe.',
+        { nombre: booking.guestName, local: form.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }), personas: booking.partySize, codigo: booking.referenceCode },
+        url ? { texto: 'Gestionar mi reserva', url } : undefined,
+      );
+      void this.emails.send(correo, subject, html, { replyTo: this.respuestaAlLocal(form) })
+        .catch((err) => this.logger.warn(`Enlace de gestión de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
+    }
+    return respuesta;
   }
 
   async publicManagement(token: string) {

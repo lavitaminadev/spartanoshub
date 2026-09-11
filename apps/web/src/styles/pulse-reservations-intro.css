@@ -225,3 +225,9 @@
 .booking-buscar label { display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; }
 .booking-buscar .error-text { grid-column:1/-1; }
 @media(max-width:640px){ .booking-buscar{ margin-inline:14px; } .booking-buscar form{ grid-template-columns:1fr; } }
+/* Alternativa sin codigo: el enlace se manda al correo de la reserva. */
+.booking-buscar-alt { display:grid; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid rgba(0,0,0,.08); font-size:13px; }
+.booking-buscar-alt form { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end; margin-top:0; }
+.booking-buscar-alt p { margin:0; }
+.booking-buscar-alt small { color:#5d6b63; }
+@media(max-width:640px){ .booking-buscar-alt form{ grid-template-columns:1fr; } }

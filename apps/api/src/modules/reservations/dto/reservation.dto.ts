@@ -148,6 +148,10 @@ export class PublicGroupRequestDto {
   @IsOptional() @IsDateString() renderedAt?: string;
 }
 /** Cambio de horario desde el enlace privado que recibió quien reservó. */
+/** Correo al que se reenvía el enlace de gestión cuando no se tiene el código. */
+export class PublicRecoverReservationDto {
+  @IsEmail() @MaxLength(180) contact: string;
+}
 /** Lo que solo tiene quien reservó: el código del comprobante y su correo o teléfono. */
 export class PublicLookupReservationDto {
   @IsString() @Matches(/^[A-Za-z0-9-]{4,20}$/, { message: 'El código no es válido' }) referenceCode: string;
