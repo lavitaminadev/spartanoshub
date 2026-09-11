@@ -55,6 +55,36 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string }> = [
     explica: 'La víspera, o con la anticipación que elijas. Es la medida que más reduce las ausencias.',
   },
   {
+    prefijo: 'email.reservation_change',
+    titulo: 'Cambio de hora',
+    explica: 'Cuando la reserva cambia de horario, desde el local o desde su enlace. Lleva la cita nueva para el calendario.',
+  },
+  {
+    prefijo: 'email.reservation_cancellation',
+    titulo: 'Cancelación',
+    explica: 'Cuando se cancela, desde el local o por la propia persona. Si la canceló el local, {{motivo}} trae la razón.',
+  },
+  {
+    prefijo: 'email.group_request_ack',
+    titulo: 'Acuse de solicitud de grupo',
+    explica: 'Confirma que la solicitud llegó y deja claro que todavía no hay nada reservado.',
+  },
+  {
+    prefijo: 'email.waitlist_ack',
+    titulo: 'Acuse de lista de espera',
+    explica: 'Confirma a quien se anotó y deja claro que no es una reserva.',
+  },
+  {
+    prefijo: 'email.waitlist_spot',
+    titulo: 'Cupo liberado',
+    explica: 'A quienes esperaban ese horario cuando alguien cancela. El cupo queda para quien confirme primero.',
+  },
+  {
+    prefijo: 'email.reservation_recovery',
+    titulo: 'Enlace para recuperar la reserva',
+    explica: 'Cuando alguien sin su código lo pide desde la página del local. Solo llega al correo con que reservó.',
+  },
+  {
     prefijo: 'email.collection_overdue',
     titulo: 'Aviso de pago vencido',
     explica: 'Se envía al contacto principal de la empresa cuando una factura queda vencida.',
