@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { ReservationsService } from './application/reservations.service';
-import { CouponValidateDto, PublicFormEventDto, PublicGroupRequestDto, PublicLookupReservationDto, PublicReservationDto, PublicReservationHoldDto, PublicRescheduleReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
+import { CouponValidateDto, PublicFormEventDto, PublicGroupRequestDto, PublicLookupReservationDto, PublicRecoverReservationDto, PublicReservationDto, PublicReservationHoldDto, PublicRescheduleReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
 
 @Public()
 @ApiTags('Reservas publicas')
@@ -58,6 +58,13 @@ export class PublicReservationsController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   lookup(@Param('slug') slug: string, @Body() dto: PublicLookupReservationDto) {
     return this.service.lookupPublicReservation(slug, dto.referenceCode, dto.contact);
+  }
+
+  /** Reenvía el enlace de gestión al correo de la reserva, para quien perdió el código. */
+  @Post(':slug/recover')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  recover(@Param('slug') slug: string, @Body() dto: PublicRecoverReservationDto) {
+    return this.service.recoverPublicReservations(slug, dto.contact);
   }
 
   @Post(':slug/hold')

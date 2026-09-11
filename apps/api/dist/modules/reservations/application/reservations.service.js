@@ -907,6 +907,27 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw noEncontrada;
         return { token: await this.createManagementToken(booking.id, booking.endsAt) };
     }
+    async recoverPublicReservations(slug, email) {
+        const respuesta = { sent: true };
+        const correo = email.trim().toLowerCase();
+        const form = await this.forms.findOne({ where: { publicSlug: slug } });
+        if (!form || !correo.includes('@'))
+            return respuesta;
+        const reservas = await this.reservations.find({
+            where: { formId: form.id, guestEmail: correo, status: (0, typeorm_2.In)(ACTIVE_STATUSES), startsAt: (0, typeorm_2.MoreThan)(new Date()) },
+            order: { startsAt: 'ASC' },
+            take: 5,
+        });
+        const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '');
+        for (const booking of reservas) {
+            const token = await this.createManagementToken(booking.id, booking.endsAt);
+            const url = base ? `${base}/book/manage/${token}` : undefined;
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)('Tu reserva en {{local}}', 'Hola {{nombre}}:\n\nPediste el enlace para gestionar tu reserva del {{fecha}} ({{personas}} personas, código {{codigo}}). Desde ahí puedes confirmar, cambiar la hora o cancelar.\n\nSi no fuiste tú, ignora este correo: el enlace solo sirve a quien lo recibe.', { nombre: booking.guestName, local: form.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }), personas: booking.partySize, codigo: booking.referenceCode }, url ? { texto: 'Gestionar mi reserva', url } : undefined);
+            void this.emails.send(correo, subject, html, { replyTo: this.respuestaAlLocal(form) })
+                .catch((err) => this.logger.warn(`Enlace de gestión de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
+        }
+        return respuesta;
+    }
     async publicManagement(token) {
         const { reservation } = await this.managementReservation(token);
         const form = await this.forms.findOne({ where: { id: reservation.formId } });

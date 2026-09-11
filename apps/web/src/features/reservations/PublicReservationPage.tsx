@@ -142,6 +142,11 @@ export function PublicReservationPage() {
     mutationFn: () => api.post<{ token: string }>(`/public/reservations/${slug}/lookup`, { referenceCode: codigoBuscado.trim(), contact: contactoBuscado.trim() }),
     onSuccess: (respuesta) => navegar(`/book/manage/${respuesta.token}`),
   });
+  // Sin código: el enlace se manda al correo de la reserva, nunca se muestra en pantalla.
+  const [correoRecuperar, setCorreoRecuperar] = useState('');
+  const recuperar = useMutation({
+    mutationFn: () => api.post(`/public/reservations/${slug}/recover`, { contact: correoRecuperar.trim() }),
+  });
   const [renderedAt] = useState(() => new Date().toISOString());
 
   const requestedUtmSource = params.get('utm_source') || undefined;
@@ -615,6 +620,17 @@ export function PublicReservationPage() {
         <button className="btn btn-primary btn-sm" disabled={buscarReserva.isPending}>{buscarReserva.isPending ? 'Buscando...' : 'Buscar mi reserva'}</button>
         {buscarReserva.error && <small className="error-text">{buscarReserva.error.message}</small>}
       </form>
+      <div className="booking-buscar-alt">
+        <strong>¿No tienes el código?</strong>
+        {recuperar.isSuccess
+          ? <p>Si hay reservas con ese correo en este local, te enviamos un enlace para gestionarlas. Revisa también la carpeta de spam.</p>
+          : <form onSubmit={(event) => { event.preventDefault(); recuperar.mutate(); }}>
+            <label>Te enviamos el enlace al correo con que reservaste<input className="input" type="email" value={correoRecuperar} onChange={(event) => setCorreoRecuperar(event.target.value)} required autoComplete="email" /></label>
+            <button className="btn btn-outline btn-sm" disabled={recuperar.isPending}>{recuperar.isPending ? 'Enviando...' : 'Enviarme el enlace'}</button>
+            {recuperar.error && <small className="error-text">{recuperar.error.message}</small>}
+          </form>}
+        {(design.whatsappBusinessNumber || design.supportEmail) && <small>¿Reservaste solo con teléfono o ya no usas ese correo? {businessWhatsAppUrl(design.whatsappBusinessNumber, 'Hola, necesito cambiar o cancelar mi reserva.') ? <a href={businessWhatsAppUrl(design.whatsappBusinessNumber, 'Hola, necesito cambiar o cancelar mi reserva.')} target="_blank" rel="noreferrer">Escríbele al local por WhatsApp</a> : null}{design.supportEmail ? ` ${design.whatsappBusinessNumber ? 'o' : 'Escribe'} a ${design.supportEmail}` : ''}.</small>}
+      </div>
     </details>}
     <div className="public-booking-layout">
       <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div><div><strong>{design.timezoneValue || form.timezone.split('/').pop()?.replaceAll('_', ' ')}</strong><span>{timezoneLabel}</span></div></div>}</section>
