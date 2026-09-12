@@ -111,6 +111,18 @@ __decorate([
     __metadata("design:type", Object)
 ], Reservation.prototype, "marketingConsentText", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'network_consent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "networkConsentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'network_consent_version', type: 'varchar', length: 30, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "networkConsentVersion", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'network_consent_text', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "networkConsentText", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "guestConfirmedAt", void 0);

@@ -84,6 +84,9 @@ export function PublicReservationPage() {
   const [reservationConsent, setReservationConsent] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [measurementConsent, setMeasurementConsent] = useState(false);
+  const [networkConsent, setNetworkConsent] = useState(false);
+  /** Elegir el día tiene que dejar los horarios a la vista, no debajo del pliegue. */
+  const slotPickerRef = useRef<HTMLDivElement>(null);
   const [groupEventType, setGroupEventType] = useState('');
   const [groupEventNotes, setGroupEventNotes] = useState('');
   const [requestMode, setRequestMode] = useState(false);
@@ -114,6 +117,9 @@ export function PublicReservationPage() {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
   const focusTimerRef = useRef<number>(0);
+  const horarioTimerRef = useRef<number>(0);
+  // Los dos desplazamientos son diferidos: al salir de la página no deben quedar pendientes.
+  useEffect(() => () => { window.clearTimeout(focusTimerRef.current); window.clearTimeout(horarioTimerRef.current); }, []);
   const retryRef = useRef(false);
 
   /**
@@ -318,7 +324,7 @@ export function PublicReservationPage() {
         guestName: guest.guestName, guestEmail: guest.guestEmail || undefined, guestPhone: guest.guestPhone || undefined,
         partySize: Math.max(groupThreshold + 1, guest.partySize), eventType: groupEventType, notes: groupEventNotes.trim() || undefined,
         preferredDate: requestPreference.date || undefined, preferredTime: requestPreference.time || undefined,
-        reservationConsent, marketingConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent,
+        reservationConsent, marketingConsent, networkConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent,
         details: {
           answers: reservationAnswers,
           serviceId: serviceId || undefined,
@@ -335,9 +341,10 @@ export function PublicReservationPage() {
         childrenCount: visitNeeds.childrenCount || undefined,
         accessibilityNeed: visitNeeds.accessibilityNeed.trim() || undefined,
         dietaryNotes: visitNeeds.dietaryNotes.trim() || undefined,
-        ...baseBody, renderedAt, consentVersion: 'reservation-v1', reservationConsent,
-        marketingConsent, marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v1'),
+        ...baseBody, renderedAt, consentVersion: 'reservation-v2', reservationConsent,
+        marketingConsent, marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v2'),
         couponCode: couponCode.trim() || undefined, measurementConsent,
+        networkConsent, networkConsentVersion: String(form?.designConfig?.networkConsentVersion || 'red-v1'),
       });
     },
   });
@@ -346,7 +353,7 @@ export function PublicReservationPage() {
     mutationFn: () => api.post<Created>(`/public/reservations/${slug}/waitlist`, {
       startsAt: selected, serviceId: serviceId || undefined, resourceId: resourceId || undefined,
       ...guest, answers, idempotencyKey, reservationConsent, marketingConsent, measurementConsent,
-      consentVersion: 'reservation-v1', marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v1'),
+      consentVersion: 'reservation-v2', marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v2'),
       utmSource, utmMedium, utmCampaign, utmContent,
     }),
   });
@@ -408,6 +415,18 @@ export function PublicReservationPage() {
     if (isSurvey) { submit.mutate(); return; }
     confirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setStep(3);
+  };
+
+  /*
+   * Del día al horario.
+   *
+   * La grilla de horarios se dibuja bajo el calendario: en un teléfono queda fuera de pantalla y
+   * parecía que elegir el día no hacía nada. Se espera un cuadro para que el elemento exista
+   * antes de buscarlo.
+   */
+  const irAlHorario = () => {
+    window.clearTimeout(horarioTimerRef.current);
+    horarioTimerRef.current = window.setTimeout(() => slotPickerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 60);
   };
 
   const goToForm = () => {
@@ -577,8 +596,15 @@ export function PublicReservationPage() {
   const selectedDaySlots = slotsByDate.get(selectedDate) || [];
   const legalController = String(design.legalCompanyName || form.name);
   const legalContact = design.supportEmail ? ` Puedes ejercer tus derechos escribiendo a ${design.supportEmail}.` : '';
-  const reservationConsentText = String(design.reservationConsentText || `Autorizo a ${legalController}${design.legalCompanyId ? `, ${design.legalCompanyId}` : ''} a tratar mis datos exclusivamente para gestionar, confirmar, modificar o cancelar esta reserva y comunicarse conmigo respecto de ella.${legalContact}`);
-  const marketingConsentText = String(design.marketingConsentText || `Autorizo voluntariamente a ${legalController}${design.legalCompanyId ? `, ${design.legalCompanyId}` : ''} a enviarme novedades y promociones. Esta autorización es opcional, no condiciona mi reserva y puedo solicitar su revocación.${legalContact}`);
+  /*
+   * Los textos se repiten en el servidor, que es el que guarda la evidencia junto a la reserva.
+   * Acá se muestran; allá quedan escritos tal como se mostraron. Si divergen, manda el servidor.
+   */
+  const legalId = design.legalCompanyId ? `, ${design.legalCompanyId}` : '';
+  const networkBrand = String(design.networkBrandName || 'Espartanos');
+  const reservationConsentText = String(design.reservationConsentText || `Autorizo a ${legalController}${legalId} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija.${legalContact}`);
+  const marketingConsentText = String(design.marketingConsentText || `Autorizo voluntariamente a ${legalController}${legalId} a enviarme novedades, promociones y comunicaciones comerciales al correo o teléfono que indiqué. Es opcional, no condiciona mi reserva y puedo revocarla cuando quiera, sin costo, desde el enlace de cada mensaje${design.supportEmail ? ` o escribiendo a ${design.supportEmail}` : ''}.`);
+  const networkConsentText = String(design.networkConsentText || `Autorizo que ${legalController}${legalId} comparta mi nombre, mis datos de contacto y mis preferencias de visita con los demás locales de ${networkBrand}, para no tener que repetirlos al reservar en otro de ellos. Es opcional, no condiciona esta reserva, cada local responde por el uso que haga de esos datos y puedo revocarlo cuando quiera.${legalContact}`);
 
   // Página de éxito
   if (waitlist.data) return <main className="public-booking" style={style}><section className="booking-success"><span className="success-icon">✓</span><span className="success-state is-pending">LISTA DE ESPERA</span><h1>Te avisaremos si se libera un cupo</h1><p>No se confirmó una reserva ni se tomó un cupo. El local revisará tu solicitud en orden de llegada.</p><p className="success-datetime">{selected && new Date(selected).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {waitlist.data.referenceCode}</strong></div><Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link></section></main>;
@@ -711,8 +737,6 @@ export function PublicReservationPage() {
         {step === 1 && <div>
           <div className="booking-step-title"><span>01</span><div><strong>Personas y fecha</strong><small>Primero indica cuántas personas vienen; luego verás sólo horarios que alcancen para el grupo.</small></div></div>
           <div className="public-field public-party-size"><label>¿Para cuántas personas?<select value={guest.partySize} onChange={(event) => { setGuest({ ...guest, partySize: Number(event.target.value) }); setSelected(''); setSelectedDate(''); }}><option value={1}>1 persona</option>{Array.from({ length: 7 }, (_, i) => i + 2).map((size) => <option key={size} value={size}>{size} personas</option>)}<option value={Math.max(9, groupThreshold + 1)}>{groupThreshold + 1} o más personas</option></select></label>{guest.partySize > groupThreshold && <small className="group-flow-hint">Solicitud de grupo: elige fecha y horario. Luego te preguntaremos si es cumpleaños, empresa u otra celebración; el local la confirmará antes de reservar.</small>}</div>
-          {/* El local puede no querer eventos: sin esto, el enlace aparecía siempre. */}
-          {!requestMode && design.groupRequestEnabled !== 'false' && <button type="button" className="btn btn-outline btn-sm" onClick={() => { setRequestMode(true); setGuest({ ...guest, partySize: Math.max(9, guest.partySize) }); setSelected(''); setSelectedDate(''); setStep(2); }}>¿Quieres solicitar un evento o grupo sin tomar horario? →</button>}
           {(services.length > 0 || resources.length > 0) && <div className="public-resource-choice">
             {services.length > 0 && (services.length <= 4 ? <div className="public-resource-tiles"><label>Servicio</label><div className="resource-tile-grid">{services.map((service) => <button type="button" key={service.id} className={`resource-tile ${serviceId === service.id ? 'selected' : ''}`} onClick={() => { setServiceId(serviceId === service.id ? '' : service.id); setSelected(''); }}><strong>{service.name}</strong><small>{service.durationMinutes ? `${service.durationMinutes} min` : ''}</small></button>)}</div></div> : <label>Servicio<select required value={serviceId} onChange={(event) => { setServiceId(event.target.value); setSelected(''); }}><option value="">Selecciona un servicio</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}{service.durationMinutes ? ` · ${service.durationMinutes} min` : ''}</option>)}</select></label>)}
             {resources.length > 0 && <label>Sector preferido <small>(opcional)</small><select value={resourceId} onChange={(event) => { setResourceId(event.target.value); setSelected(''); }}><option value="">Sin preferencia</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}{resource.description ? ` · ${resource.description}` : ''}{resource.smokingAllowed ? ' · fumadores' : ''}</option>)}</select></label>}
@@ -723,7 +747,7 @@ export function PublicReservationPage() {
             <div className="calendar-weekdays"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
             <div className="calendar-grid">{calendarDays.weeks.map((week, weekIndex) => <div key={weekIndex} className="calendar-week">{week.map((day, dayIndex) => day === null
               ? <span key={`empty-${dayIndex}`} className="calendar-day is-empty" aria-hidden="true" />
-              : <button type="button" key={day.date} className={`calendar-day ${day.hasSlots ? 'has-slots' : day.isFull ? 'is-full' : 'no-slots'} ${selectedDate === day.date ? 'selected' : ''}`} disabled={!day.hasSlots} aria-label={`${day.weekday} ${day.day}${day.hasSlots ? '' : day.isFull ? ', completo' : ', cerrado'}`} onClick={() => { if (day.hasSlots) { setSelectedDate(day.date); setSelected(''); } }}><span className="calendar-weekday">{day.weekday}</span><span className="calendar-number">{day.day}</span>{day.isFull && !day.hasSlots && <span className="calendar-day-tag">Completo</span>}</button>)}</div>)}</div>
+              : <button type="button" key={day.date} className={`calendar-day ${day.hasSlots ? 'has-slots' : day.isFull ? 'is-full' : 'no-slots'} ${selectedDate === day.date ? 'selected' : ''}`} disabled={!day.hasSlots} aria-label={`${day.weekday} ${day.day}${day.hasSlots ? '' : day.isFull ? ', completo' : ', cerrado'}`} onClick={() => { if (day.hasSlots) { setSelectedDate(day.date); setSelected(''); irAlHorario(); } }}><span className="calendar-weekday">{day.weekday}</span><span className="calendar-number">{day.day}</span>{day.isFull && !day.hasSlots && <span className="calendar-day-tag">Completo</span>}</button>)}</div>)}</div>
             <div className="calendar-hint"><span className="dot available" /> Disponible <span className="dot full" /> Completo <span className="dot taken" /> Cerrado</div>
             {slotDays < maxSlotDays && <button type="button" className="btn btn-outline btn-sm calendar-load-more" onClick={() => setSlotDays((d) => Math.min(d + 14, maxSlotDays))}>Cargar más fechas</button>}
           </div>}
@@ -736,7 +760,18 @@ export function PublicReservationPage() {
           </div>}
 
           {slotIssue && <div className="alert alert-error" role="alert">{slotIssue}</div>}
-          {selectedDate && <div className="slot-time-picker">
+          {/*
+            * La solicitud de evento es otro flujo: no toma horario y la responde el local. Estaba
+            * en medio de la elección de fecha, así que interrumpía a quien sólo quería reservar.
+            * Va al final, separada, y el local puede no ofrecerla.
+            */}
+          {!requestMode && design.groupRequestEnabled !== 'false' && <div className="public-other-flow">
+            <span>¿Vienen muchos, o es una celebración?</span>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => { setRequestMode(true); setGuest({ ...guest, partySize: Math.max(9, guest.partySize) }); setSelected(''); setSelectedDate(''); setStep(2); }}>Solicitar un evento o grupo sin tomar horario →</button>
+            <small>No ocupa un horario. El local revisa la solicitud y te responde para acordar la fecha.</small>
+          </div>}
+
+          {selectedDate && <div className="slot-time-picker" ref={slotPickerRef}>
             <h3>Horarios de {calendarDays.rawDays.find((d) => d.date === selectedDate)?.weekday} {calendarDays.rawDays.find((d) => d.date === selectedDate)?.day}</h3>
             <div className="slot-time-grid">{selectedDaySlots.map((slot) => <button type="button" className={`slot-time-btn ${selected === slot.startsAt ? 'active' : ''}`} onClick={() => { setSlotIssue(''); setSelected(slot.startsAt); goToForm(); }} key={slot.startsAt}>
               <strong>{new Date(slot.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>
@@ -747,6 +782,18 @@ export function PublicReservationPage() {
 
         {step === 2 && <div ref={formRef}>
           <div className="booking-step-title"><span>{isSurvey ? '01' : '02'}</span><div><strong>{isSurvey ? (design.surveyTitle || 'Cuéntanos cómo fue tu experiencia') : requestMode ? 'Solicita tu evento' : 'Tus datos'}</strong><small>{isSurvey ? (design.surveyHelpText || 'Tus respuestas ayudan al local a mejorar cada visita.') : requestMode ? 'No se reservará un horario hasta que el local confirme contigo.' : 'Se usarán solo para gestionar tu atención.'}</small></div></div>
+          {/*
+            * Recordatorio de lo elegido.
+            *
+            * Al pasar a los datos, el paso anterior se desmonta: personas, servicio y sector
+            * desaparecían y no quedaba forma de revisarlos sin volver atrás y perder el horario.
+            */}
+          <div className="booking-recap">
+            <span><strong>{guest.partySize}</strong> persona{guest.partySize === 1 ? '' : 's'}</span>
+            {selectedService && <span>{selectedService.name}</span>}
+            {resources.find((zona) => zona.id === resourceId) && <span>{resources.find((zona) => zona.id === resourceId)?.name}</span>}
+            {requestMode && <span>Sin horario tomado</span>}
+          </div>
           <div className="booking-selected-slot">{selected && <div className="selected-slot-badge"><span><VitaIcons.calendar /></span><strong>{new Date(selected).toLocaleString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>{hold.isPending && <small aria-live="polite">Guardando tu cupo...</small>}{hold.isSuccess && holdRestante > 0 && <small className="success-text" aria-live="polite">Cupo retenido {Math.floor(holdRestante / 60)}:{String(holdRestante % 60).padStart(2, "0")}</small>}{hold.isSuccess && holdExpiraEn && holdRestante === 0 && <small aria-live="polite">La retención venció. Puedes seguir, pero confirmaremos que el horario siga libre.</small>}<button type="button" className="btn btn-outline btn-xs" onClick={goBackToSlots}>Cambiar</button></div>}</div>
           <div className="public-form-fields">
             {systemFields.name && <div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div>}
@@ -759,7 +806,9 @@ export function PublicReservationPage() {
             {form.designConfig?.couponEnabled && <div className="public-field"><label>Cupón de descuento<div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código opcional" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
             {!isSurvey && <div className={`public-consent ${errors.reservationConsent ? 'has-error' : ''}`}><label><input type="checkbox" required checked={reservationConsent} onChange={(event) => setReservationConsent(event.target.checked)} aria-invalid={Boolean(errors.reservationConsent)} /><span><strong>Gestionar mi reserva <span className="required-star">*</span></strong><small>{reservationConsentText}</small></span></label><small className="consent-legal">{legalController}{design.legalCompanyId ? ` · ${design.legalCompanyId}` : ''} · {design.privacyUrl ? <a href={safeUrl(String(design.privacyUrl))} target="_blank" rel="noreferrer">Ver privacidad</a> : 'Información de privacidad disponible con el local.'}</small>{errors.reservationConsent && <span className="field-error" role="alert">{errors.reservationConsent}</span>}</div>}
             {!isSurvey && <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Recibir novedades <small>(opcional)</small></strong><small>{marketingConsentText}</small></span></label></div>}
-            <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={measurementConsent} onChange={(event) => setMeasurementConsent(event.target.checked)} /><span><strong>{isSurvey ? 'Ayudar a mejorar esta encuesta' : 'Ayudar a mejorar la reserva'} <small>(opcional)</small></strong><small>Permite medir de forma agregada el funcionamiento de este flujo. No afecta tu reserva, respuesta ni te suscribe a mensajes.</small></span></label></div>
+            {/* Compartir con otros locales es una finalidad distinta y por eso pregunta aparte. */}
+            {!isSurvey && design.networkConsentEnabled === 'true' && <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={networkConsent} onChange={(event) => setNetworkConsent(event.target.checked)} /><span><strong>Reconocerme en otros locales de {networkBrand} <small>(opcional)</small></strong><small>{networkConsentText}</small></span></label></div>}
+            <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={measurementConsent} onChange={(event) => setMeasurementConsent(event.target.checked)} /><span><strong>{isSurvey ? 'Ayudar a mejorar esta encuesta' : 'Ayudar a mejorar la reserva'} <small>(opcional)</small></strong><small>Permite medir de forma agregada cómo funciona esta página, con herramientas de Meta y Google que pueden tratar los datos fuera de Chile. No afecta tu reserva ni tu respuesta, no te suscribe a mensajes y puedes dejarlo sin marcar.</small></span></label></div>
           </div>
           <button className="public-submit" type="submit" disabled={submit.isPending}><span>{isSurvey ? (submit.isPending ? 'Enviando...' : 'Enviar') : 'Continuar →'}</span></button>
           {!isSurvey && <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => { if (requestMode) { setRequestMode(false); setStep(1); } else goBackToSlots(); }}>← {requestMode ? 'Volver a reservar' : 'Personas y fecha'}</button>}

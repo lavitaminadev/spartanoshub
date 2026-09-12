@@ -80,6 +80,8 @@ type DesignConfig = {
   fontFamily?: string;
   legalCompanyName?: string; legalCompanyId?: string; supportEmail?: string; privacyUrl?: string; termsUrl?: string;
   cancellationPolicy?: string; reservationConsentText?: string; marketingConsentText?: string; marketingConsentVersion?: string;
+  /** Autorización opcional para reutilizar los datos en los demás locales de la red. */
+  networkConsentText?: string; networkConsentVersion?: string; networkBrandName?: string; networkConsentEnabled?: string;
   campaignAlias?: string; welcomePopupEnabled?: string; welcomePopupTitle?: string; welcomePopupText?: string;
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
@@ -411,7 +413,13 @@ export class ReservationsService {
   async formContext(organizationId: string, clientId: string) {
     const capabilities = await this.clientCapabilities(organizationId, clientId);
     const { pixelId, pixelName, accessToken } = capabilities.metaConversions ? await this.getClientMetaConfig(clientId, organizationId) : { pixelId: '', pixelName: null, accessToken: undefined };
-    return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken) };
+    /*
+     * Si Google no está conectado, el interruptor de calendario no puede hacer nada: activarlo
+     * sólo deja reservas con un evento que nunca se crea. La pantalla necesita saberlo para no
+     * ofrecerlo.
+     */
+    const google = await this.dataSource.query('SELECT 1 FROM integrations WHERE organization_id = ? AND provider = ? LIMIT 1', [organizationId, 'google']);
+    return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0 };
   }
 
   private effectiveRules(form: ReservationForm, serviceId?: string, resourceId?: string) {
@@ -648,9 +656,19 @@ export class ReservationsService {
     const identifier = design.legalCompanyId ? `, ${String(design.legalCompanyId).trim()}` : '';
     const contact = design.supportEmail ? ` Puedes ejercer tus derechos de acceso, rectificación, supresión u oposición escribiendo a ${String(design.supportEmail).trim()}.` : '';
     const privacy = design.privacyUrl ? ` Revisa la política de privacidad en ${String(design.privacyUrl).trim()}.` : '';
+    /*
+     * Cada casilla dice quién trata los datos, para qué, por cuánto tiempo y cómo se revoca, y
+     * ninguna arrastra a la otra: la operativa es lo mínimo para que exista la reserva, y las dos
+     * opcionales quedan sin marcar si la persona no las marca.
+     *
+     * El texto se guarda junto a la reserva tal como se mostró. Editarlo después cambia lo que
+     * leerá quien reserve mañana y no lo que aceptó quien reservó ayer.
+     */
+    const red = String(design.networkBrandName || 'Espartanos').trim();
     return {
-      reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mis datos de contacto y los antecedentes de esta solicitud exclusivamente para gestionar, confirmar, modificar o cancelar mi reserva y comunicarse conmigo respecto de ella.${contact}${privacy}`),
-      marketing: String(design.marketingConsentText || `Autorizo voluntariamente a ${controller}${identifier} a enviarme novedades, promociones y comunicaciones comerciales por los datos de contacto indicados. Esta autorización es opcional, no condiciona mi reserva y puedo solicitar su revocación.${contact}${privacy}`),
+      reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija.${contact}${privacy}`),
+      marketing: String(design.marketingConsentText || `Autorizo voluntariamente a ${controller}${identifier} a enviarme novedades, promociones y comunicaciones comerciales al correo o teléfono que indiqué. Es opcional, no condiciona mi reserva y puedo revocarla cuando quiera, sin costo, desde el enlace de cada mensaje${design.supportEmail ? ` o escribiendo a ${String(design.supportEmail).trim()}` : ''}.`),
+      network: String(design.networkConsentText || `Autorizo que ${controller}${identifier} comparta mi nombre, mis datos de contacto y mis preferencias de visita con los demás locales de ${red}, para no tener que repetirlos al reservar en otro de ellos. Es opcional, no condiciona esta reserva, cada local responde por el uso que haga de esos datos y puedo revocarlo cuando quiera.${contact}`),
     };
   }
 
@@ -1420,6 +1438,7 @@ export class ReservationsService {
       partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
       notes: dto.notes?.trim() || null, details: dto.details ?? null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
       marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
+      networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentText: dto.networkConsent ? consent.network : null,
       utmSource: dto.utmSource || null, utmMedium: dto.utmMedium || null, utmCampaign: dto.utmCampaign || null, utmContent: dto.utmContent || null, status: 'pending',
     }));
     // Es una solicitud, no una conversión de reserva: no toma cupo ni dispara Schedule.
@@ -1450,6 +1469,8 @@ export class ReservationsService {
         consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
         marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
+        networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentVersion: dto.networkConsent ? dto.networkConsentVersion || null : null,
+        networkConsentText: dto.networkConsent ? consent.network : null,
         utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent,
       }));
       await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: form.organizationId, clientId: form.clientId, reservationId: item.id, type: 'waitlist_joined', toStatus: 'waitlist', actorType: 'guest', metadata: { startsAt: startsAt.toISOString() } }));
@@ -1598,6 +1619,9 @@ export class ReservationsService {
         marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null,
         measurementConsentAt: dto.measurementConsent ? new Date() : null,
+        networkConsentAt: dto.networkConsent ? new Date() : null,
+        networkConsentVersion: dto.networkConsent ? dto.networkConsentVersion || null : null,
+        networkConsentText: dto.networkConsent ? consent.network : null,
         // La casilla llega como booleano y se guarda con su instante, que es lo que se puede
         // mostrar. Sin marcar no se inventa una fecha: queda como «no consta», que es la verdad.
         adultDeclaredAt: dto.adultDeclared ? new Date() : null,

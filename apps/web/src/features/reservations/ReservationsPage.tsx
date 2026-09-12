@@ -449,7 +449,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <h2>{form.name}</h2><p>{formPublicUrl(form)}</p>
           {canReadPixels && (() => { const readiness = metaReadiness(form, pixelByClient.get(form.clientId)); return <span className={`meta-readiness is-${readiness.tone}`} title={readiness.title}>{readiness.label}</span>; })()}
           <div className="form-card-facts"><span>{form.durationMinutes} min</span><span>{form.capacityPerSlot} cupo(s)</span><span>{form.fieldSchema.length} campos</span></div>
-            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=disponibilidad`}>Bloquear día</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}<button className="btn btn-outline btn-sm" onClick={() => { void copiarEnlace(form); }}>Copiar enlace</button><button className="btn btn-outline btn-sm" onClick={() => { setExportFormId(form.id); setExportModalOpen(true); }}>Exportar</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
+            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=disponibilidad`}>Bloquear día</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=ajustes#zonas`}>Zonas y sectores</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=diseno`}>Textos y diseño</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}<button className="btn btn-outline btn-sm" onClick={() => { void copiarEnlace(form); }}>Copiar enlace</button><button className="btn btn-outline btn-sm" onClick={() => { setExportFormId(form.id); setExportModalOpen(true); }}>Exportar</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
           </article>)}
         </div>}
       </section>}
@@ -523,6 +523,16 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
 
     {tab === 'groups' && <section>
       <div className="reservation-section-head"><div><span className="page-eyebrow">GRUPOS Y EVENTOS</span><h1>Solicitudes sin cupo{gruposPendientes > 0 ? ` · ${gruposPendientes} pendiente${gruposPendientes === 1 ? '' : 's'}` : ''}</h1><p className="page-subtitle">No ocupan agenda: el equipo acuerda fecha y luego crea la reserva definitiva.</p></div></div>
+      {/*
+        * Las solicitudes de todas las sucursales llegaban a la misma lista sin forma de acotarla,
+        * así que quien atiende un local tenía que reconocer las suyas leyendo una por una.
+        */}
+      <div className="reservation-filters">
+        <select className="input" aria-label="Filtrar solicitudes por sucursal" value={filters.formId} onChange={(event) => resetFilters({ formId: event.target.value })}><option value="">Todas las sucursales</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}</select>
+        {!clientView && <select className="input" aria-label="Filtrar solicitudes por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todas las empresas</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}
+        <button type="button" className="btn btn-outline btn-sm" disabled={!filters.formId && !clientFilter} onClick={() => { resetFilters({ formId: '' }); setClientFilter(''); }}>Limpiar</button>
+        <span className="filter-result-count">{grupos.length} solicitud{grupos.length === 1 ? '' : 'es'}</span>
+      </div>
       {errorGrupos ? <QueryErrorState message={errorGrupos.message} onRetry={() => { void recargarGrupos(); }} />
         : cargandoGrupos && grupos.length === 0 ? <LoadingSpinner text="Buscando solicitudes..." />
         : grupos.length === 0 ? <EmptyState title="Sin solicitudes de grupo" description="Cuando alguien pida un evento desde la página pública, aparecerá acá." />
@@ -658,6 +668,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           {([
             ['Condiciones de la reserva', selectedBooking.reservationConsentAt],
             ['Comunicaciones de marketing', selectedBooking.marketingConsentAt],
+            ['Compartir con otros locales de la red', selectedBooking.networkConsentAt],
             ['Medición y campañas', selectedBooking.measurementConsentAt],
             ['Declaró ser mayor de edad', selectedBooking.adultDeclaredAt],
             ['Confirmó que asistiría', selectedBooking.guestConfirmedAt],

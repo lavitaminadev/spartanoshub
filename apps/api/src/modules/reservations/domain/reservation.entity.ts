@@ -48,6 +48,10 @@ export class Reservation {
   @Column({ name: 'marketing_consent_at', type: 'timestamp', nullable: true }) marketingConsentAt?: Date | null;
   @Column({ name: 'marketing_consent_version', type: 'varchar', length: 30, nullable: true }) marketingConsentVersion?: string | null;
   @Column({ name: 'marketing_consent_text', type: 'text', nullable: true }) marketingConsentText?: string | null;
+  /** Compartir con los demás locales de la red es un propósito distinto: casilla propia, opcional. */
+  @Column({ name: 'network_consent_at', type: 'timestamp', nullable: true }) networkConsentAt?: Date | null;
+  @Column({ name: 'network_consent_version', type: 'varchar', length: 30, nullable: true }) networkConsentVersion?: string | null;
+  @Column({ name: 'network_consent_text', type: 'text', nullable: true }) networkConsentText?: string | null;
   /** Confirmación explícita desde el enlace privado; no altera la asistencia real. */
   @Column({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }) guestConfirmedAt?: Date | null;
   /** Opt-in separado para analítica/conversiones; nunca se deduce del consentimiento operativo. */
