@@ -99,6 +99,14 @@ __decorate([
     __metadata("design:type", Object)
 ], ReservationGroupRequest.prototype, "marketingConsentText", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'network_consent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], ReservationGroupRequest.prototype, "networkConsentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'network_consent_text', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], ReservationGroupRequest.prototype, "networkConsentText", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'utm_source', type: 'varchar', length: 120, nullable: true }),
     __metadata("design:type", Object)
 ], ReservationGroupRequest.prototype, "utmSource", void 0);

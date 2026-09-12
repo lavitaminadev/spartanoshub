@@ -27,6 +27,8 @@ export class ReservationGroupRequest {
   @Column({ name: 'reservation_consent_text', type: 'text', nullable: true }) reservationConsentText?: string | null;
   @Column({ name: 'marketing_consent_at', type: 'timestamp', nullable: true }) marketingConsentAt?: Date | null;
   @Column({ name: 'marketing_consent_text', type: 'text', nullable: true }) marketingConsentText?: string | null;
+  @Column({ name: 'network_consent_at', type: 'timestamp', nullable: true }) networkConsentAt?: Date | null;
+  @Column({ name: 'network_consent_text', type: 'text', nullable: true }) networkConsentText?: string | null;
   @Column({ name: 'utm_source', type: 'varchar', length: 120, nullable: true }) utmSource?: string | null;
   @Column({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }) utmMedium?: string | null;
   @Column({ name: 'utm_campaign', type: 'varchar', length: 180, nullable: true }) utmCampaign?: string | null;

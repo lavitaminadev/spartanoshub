@@ -287,6 +287,17 @@
 .selected-slot-badge { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:var(--booking-field-radius,10px); background:var(--booking-primary,var(--surface-dark)); color:var(--white); font-size:13px; }
 .selected-slot-badge button { margin-left:auto; background:rgba(255,255,255,.2); color:var(--white); border:none; padding:2px 8px; border-radius: var(--radius-sm); font-size:11px; cursor:pointer; }
 
+/* Lo elegido en el paso anterior sigue a la vista mientras se completan los datos. */
+.booking-recap { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.booking-recap span { padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:var(--surface,rgba(0,0,0,.03)); color:var(--booking-card-ink,var(--ink)); font-size:12px; }
+.booking-recap strong { font-weight:700; }
+
+/* La solicitud de evento es otro flujo: se separa para no interrumpir el de reserva. */
+.public-other-flow { display:flex; flex-direction:column; align-items:flex-start; gap:6px; margin:16px 0 4px; padding:12px; border-radius:var(--booking-field-radius,10px); border:1px dashed var(--border); }
+.public-other-flow > span { font-weight:700; font-size:13px; color:var(--booking-card-ink,var(--ink)); }
+.public-other-flow small { color:var(--muted); font-size:11px; }
+.public-other-flow button { width:100%; }
+
 /* Required star */
 .required-star { color:var(--danger,var(--danger)); }
 .field-error { display:block; font-size:11px; color:var(--danger,var(--danger)); margin-top:2px; }

@@ -151,6 +151,7 @@ const VISUAL_RESERVATION_LOCAL = {
     title: 'Reserva tu mesa', welcome: 'Elige personas, fecha y horario.', primaryColor: '#0f766e', accentColor: '#e11d48', backgroundColor: '#f8fafc', fontFamily: 'system-ui',
     legalCompanyName: 'Casa Costanera SpA', legalCompanyId: '76.123.456-7', supportEmail: 'reservas@casacostanera.cl', privacyUrl: 'https://casacostanera.cl/privacidad', termsUrl: 'https://casacostanera.cl/condiciones',
     reservationConsentText: 'Acepto que Casa Costanera use mis datos para coordinar esta reserva, enviarme su confirmación y ayudarme si necesito cambiarla.',
+    networkConsentEnabled: 'true', networkBrandName: 'Espartanos',
     marketingConsentText: 'Quiero recibir novedades, experiencias y beneficios de Casa Costanera.', marketingConsentVersion: 'cc-2026-01',
     welcomePopupTitle: 'Bienvenido a Casa Costanera', welcomePopupText: 'Reserva en pocos pasos. Si organizas una celebración o grupo, también puedes enviar una solicitud sin tomar un horario.',
     askChildren: 'true', askAccessibility: 'true', askAllergies: 'true', whatsappBusinessNumber: '+56 9 1234 5678', whatsappGroupMessage: 'Hola, envié una solicitud de grupo desde Casa Costanera y me gustaría coordinar los detalles.',

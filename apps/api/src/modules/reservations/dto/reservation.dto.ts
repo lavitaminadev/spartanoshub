@@ -100,6 +100,9 @@ export class PublicReservationDto {
   @IsOptional() @IsBoolean() reservationConsent?: boolean;
   @IsOptional() @IsBoolean() marketingConsent?: boolean;
   @IsOptional() @IsBoolean() measurementConsent?: boolean;
+  /** Permiso separado para reutilizar los datos en los demás locales de la red. */
+  @IsOptional() @IsBoolean() networkConsent?: boolean;
+  @IsOptional() @IsString() @MaxLength(30) networkConsentVersion?: string;
   @IsOptional() @IsString() @MaxLength(30) marketingConsentVersion?: string;
   /**
    * Si marcó la casilla de ser mayor de 18 años.
@@ -137,6 +140,7 @@ export class PublicGroupRequestDto {
   @IsOptional() @IsString() @MaxLength(2000) notes?: string;
   @IsBoolean() reservationConsent: boolean;
   @IsOptional() @IsBoolean() marketingConsent?: boolean;
+  @IsOptional() @IsBoolean() networkConsent?: boolean;
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;

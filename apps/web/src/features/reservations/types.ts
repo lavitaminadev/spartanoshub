@@ -13,6 +13,8 @@ export interface DesignConfig {
   legalCompanyName?: string; legalCompanyId?: string; privacyUrl?: string; termsUrl?: string;
   supportEmail?: string; cancellationPolicy?: string; reservationConsentText?: string;
   marketingConsentText?: string; marketingConsentVersion?: string; campaignAlias?: string;
+  /** Autorización opcional para reutilizar los datos en los demás locales de la red. */
+  networkConsentEnabled?: string; networkConsentText?: string; networkConsentVersion?: string; networkBrandName?: string;
   welcomePopupEnabled?: string; welcomePopupTitle?: string; welcomePopupText?: string;
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
@@ -25,11 +27,12 @@ export interface DesignConfig {
   ocasionesEnabled?: string; ocasionesTitulo?: string; ocasionesPopup?: string; ocasiones?: string;
   [key: string]: string | undefined;
 }
-export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number; description?: string; smokingAllowed?: boolean; active?: boolean }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; ga4MeasurementId?: string | null; capabilities?: { reservations: boolean; crm: boolean; metaConversions?: boolean; googleConversions?: boolean }; updatedAt: string }
+export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number; description?: string; smokingAllowed?: boolean; active?: boolean }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; calendarReady?: boolean; ga4MeasurementId?: string | null; capabilities?: { reservations: boolean; crm: boolean; metaConversions?: boolean; googleConversions?: boolean }; updatedAt: string }
 export interface Reservation { id: string; formId: string; referenceCode: string; status: string; startsAt: string; partySize: number; guestName: string; guestEmail?: string; guestPhone?: string; answers?: Record<string, unknown>; serviceId?: string; resourceId?: string; endsAt?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; utmContent?: string; internalNotes?: string; couponCode?: string; createdAt?: string; metaConversion?: MetaConversionStatus; contactId?: string; workflowState?: ReservationState;
   /** Consentimientos, con el instante en que se aceptaron y el texto exacto que se mostró. */
   reservationConsentAt?: string | null; reservationConsentText?: string | null;
   marketingConsentAt?: string | null; marketingConsentText?: string | null; marketingConsentVersion?: string | null;
+  networkConsentAt?: string | null; networkConsentText?: string | null; networkConsentVersion?: string | null;
   measurementConsentAt?: string | null; adultDeclaredAt?: string | null; guestConfirmedAt?: string | null }
 
 /** Veces que quien reserva ya estuvo en la misma empresa. */
