@@ -107,6 +107,7 @@ export function WaitlistPage() {
             <tr>
               <th>#</th>
               <th>Cliente</th>
+              <th>Sucursal</th>
               <th>Personas</th>
               <th>Hora solicitada</th>
               <th>Tiempo de espera</th>
@@ -118,6 +119,7 @@ export function WaitlistPage() {
             {items.map((item, index) => <tr key={item.id}>
               <td>{index + 1}</td>
               <td><strong>{item.guestName}</strong><br /><small>{item.guestPhone || item.guestEmail || 'Sin contacto'}</small></td>
+              <td>{forms.find((form) => form.id === item.formId)?.name || "Sucursal no disponible"}</td>
               <td>{item.partySize}</td>
               <td>{new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</td>
               <td>{waitingTimeLabel(item.createdAt)}</td>

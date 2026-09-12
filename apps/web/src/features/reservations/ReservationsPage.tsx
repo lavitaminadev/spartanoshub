@@ -165,7 +165,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    */
   useEffect(() => {
     const pedida = searchParams.get('tab');
-    if (pedida && ['forms', 'bookings', 'groups', 'metrics', 'coupons'].includes(pedida)) setTab(pedida as typeof tab);
+    const conocidas = ['forms', 'bookings', 'groups', 'metrics', 'coupons'];
+    setTab((pedida && conocidas.includes(pedida) ? pedida : 'forms') as typeof tab);
     if (searchParams.get('nueva') === '1') setManualOpen(true);
     const formIdPedido = searchParams.get('formId');
     if (formIdPedido) setFilters((actuales) => (actuales.formId === formIdPedido ? actuales : { ...actuales, formId: formIdPedido }));
@@ -340,10 +341,13 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const gruposPendientes = grupos.filter((item) => item.status === 'pending').length;
   /** Solicitud que se está convirtiendo en reserva, con la fecha y zona que se van eligiendo. */
   const [convirtiendo, setConvirtiendo] = useState<{ id: string; fecha: string; zona: string } | null>(null);
+  /** Se ofrece recién cuando el horario acordado no cabe en la agenda publicada. */
+  const [forzarHorario, setForzarHorario] = useState(false);
   const convertirGrupo = useMutation({
-    mutationFn: ({ id, startsAt, resourceId }: { id: string; startsAt: string; resourceId?: string }) => api.post(`/reservations/group-requests/${id}/convert`, { startsAt, resourceId }),
+    mutationFn: ({ id, startsAt, resourceId }: { id: string; startsAt: string; resourceId?: string }) => api.post(`/reservations/group-requests/${id}/convert`, { startsAt, resourceId, skipAvailability: forzarHorario }),
     onSuccess: () => {
       setConvirtiendo(null);
+      setForzarHorario(false);
       qc.invalidateQueries({ queryKey: ['group-requests'] });
       qc.invalidateQueries({ queryKey: ['reservations'] });
       triggerToast('Reserva creada desde la solicitud');
@@ -532,7 +536,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
               <span>{request.eventType}{request.preferredDate ? ` · ${request.preferredDate}` : ''}{request.preferredTime ? ` · ${request.preferredTime}` : ''}</span>
               <small>{local?.name || 'Sucursal no disponible'} · {request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>
               {request.notes && <p className="page-subtitle">{request.notes}</p>}
-              <details><summary>Ver detalles ingresados</summary><dl className="success-summary">
+              <details open><summary>Lo que pidió</summary><dl className="success-summary">
                 <dt>Fecha solicitada</dt><dd>{request.preferredDate || 'Por acordar'} {request.preferredTime || ''}</dd>
                 <dt>Recibida</dt><dd>{new Date(request.createdAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</dd>
                 {Boolean(details.serviceId) && <><dt>Servicio</dt><dd>{(local?.servicesConfig || []).find((sv) => sv.id === details.serviceId)?.name || String(details.serviceId)}</dd></>}
@@ -552,7 +556,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
                 <label>Fecha y hora acordadas<input className="input" type="datetime-local" required value={convirtiendo.fecha} onChange={(event) => setConvirtiendo({ ...convirtiendo, fecha: event.target.value })} /></label>
                 {(local?.resourcesConfig || []).length > 0 && <label>Zona<select className="input" value={convirtiendo.zona} onChange={(event) => setConvirtiendo({ ...convirtiendo, zona: event.target.value })}><option value="">Sin zona</option>{(local?.resourcesConfig || []).map((zona) => <option key={zona.id} value={zona.id}>{zona.name}</option>)}</select></label>}
                 <small>Se crea con los datos y respuestas de la solicitud, y pasa por las mismas reglas de cupo que una reserva manual.</small>
-                {convertirGrupo.error && <small className="error-text">{convertirGrupo.error.message}</small>}
+                {convertirGrupo.error && <><small className="error-text">{convertirGrupo.error.message}</small>
+                  <label className="toggle-row"><input type="checkbox" checked={forzarHorario} onChange={(event) => setForzarHorario(event.target.checked)} /> Crear igual en ese horario<small>Para un evento acordado fuera del horario publicado. No revisa cupo ni bloqueos.</small></label></>}
                 <div className="portal-item-actions"><button className="btn btn-primary btn-sm" disabled={convertirGrupo.isPending}>{convertirGrupo.isPending ? 'Creando...' : 'Confirmar reserva'}</button><button className="btn btn-outline btn-sm" type="button" onClick={() => setConvirtiendo(null)}>Cancelar</button></div>
               </form>}
               {request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => marcarGrupo.mutate({ id: request.id, status: 'contacted' })}>Marcar contactada</button>}

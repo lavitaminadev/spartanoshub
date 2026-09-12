@@ -1483,7 +1483,7 @@ export class ReservationsService {
    * persona había contestado. Ahora solo pone fecha y lugar: el resto sale de la solicitud, y la
    * reserva pasa por las mismas reglas que una manual —cupo, bloqueos, comprobante—.
    */
-  async convertGroupRequest(organizationId: string, id: string, dto: { startsAt: string; resourceId?: string; serviceId?: string }, actorId: string, clientId?: string, clientIds?: string[]) {
+  async convertGroupRequest(organizationId: string, id: string, dto: { startsAt: string; resourceId?: string; serviceId?: string; skipAvailability?: boolean }, actorId: string, clientId?: string, clientIds?: string[]) {
     const request = await this.groupRequests.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
     if (!request) throw new NotFoundException('Solicitud no encontrada');
     if (request.status === 'converted') throw new ConflictException('Esta solicitud ya se convirtió en reserva');
@@ -1508,6 +1508,9 @@ export class ReservationsService {
       serviceId: dto.serviceId || texto(details.serviceId),
       answers,
       internalNotes: 'Creada desde una solicitud de grupo.',
+      // Un evento se acuerda por teléfono y puede quedar fuera del horario publicado; el equipo
+      // decide, pero tiene que decirlo explícitamente en vez de que la regla se salte sola.
+      skipAvailability: dto.skipAvailability === true,
     }, clientId, clientIds);
     const reservationId = (booking as { id?: string; booking?: { id?: string } }).id ?? (booking as { booking?: { id?: string } }).booking?.id;
     request.status = 'converted';

@@ -57,7 +57,8 @@ export function AgendaPage() {
   const { user } = useAuth();
   const clientMode = user?.role === 'client';
   const [searchParams] = useSearchParams();
-  const [dateFilter, setDateFilter] = useState(() => dateKey(new Date()));
+  // La fecha puede venir del calendario de disponibilidad; si no, es hoy.
+  const [dateFilter, setDateFilter] = useState(() => searchParams.get('date') || dateKey(new Date()));
   const [clientId, setClientId] = useState(() => clientMode ? user?.clientId || '' : searchParams.get('clientId') ?? '');
   // La entrada desde el centro del local debe abrir ese local, no el primero de otra lista.
   const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
