@@ -21,10 +21,24 @@ export interface DesignConfig {
   bookingPausedUntil?: string; enforceCompanyDailyCap?: string;
   metaMeasurementEnabled?: string; metaMeasurementNote?: string;
   buttonRadius?: string; fieldRadius?: string; fontFamily?: string; couponEnabled?: string;
+  /** Grilla de ocasiones: se guarda como JSON porque son varias y el resto de la config es plana. */
+  ocasionesEnabled?: string; ocasionesTitulo?: string; ocasionesPopup?: string; ocasiones?: string;
   [key: string]: string | undefined;
 }
 export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number; description?: string; smokingAllowed?: boolean; active?: boolean }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; ga4MeasurementId?: string | null; capabilities?: { reservations: boolean; crm: boolean; metaConversions?: boolean; googleConversions?: boolean }; updatedAt: string }
-export interface Reservation { id: string; formId: string; referenceCode: string; status: string; startsAt: string; partySize: number; guestName: string; guestEmail?: string; guestPhone?: string; answers?: Record<string, unknown>; serviceId?: string; resourceId?: string; endsAt?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; utmContent?: string; internalNotes?: string; couponCode?: string; createdAt?: string; metaConversion?: MetaConversionStatus; contactId?: string; workflowState?: ReservationState }
+export interface Reservation { id: string; formId: string; referenceCode: string; status: string; startsAt: string; partySize: number; guestName: string; guestEmail?: string; guestPhone?: string; answers?: Record<string, unknown>; serviceId?: string; resourceId?: string; endsAt?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; utmContent?: string; internalNotes?: string; couponCode?: string; createdAt?: string; metaConversion?: MetaConversionStatus; contactId?: string; workflowState?: ReservationState;
+  /** Consentimientos, con el instante en que se aceptaron y el texto exacto que se mostró. */
+  reservationConsentAt?: string | null; reservationConsentText?: string | null;
+  marketingConsentAt?: string | null; marketingConsentText?: string | null; marketingConsentVersion?: string | null;
+  measurementConsentAt?: string | null; adultDeclaredAt?: string | null; guestConfirmedAt?: string | null }
+
+/** Veces que quien reserva ya estuvo en la misma empresa. */
+export interface GuestHistory {
+  total: number;
+  attended: number;
+  noShow: number;
+  anteriores: Array<{ id: string; referenceCode: string; startsAt: string; status: string; partySize: number }>;
+}
 
 /**
  * Etapa del flujo operativo agencia → cliente de una reserva.

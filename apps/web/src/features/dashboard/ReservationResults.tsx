@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
@@ -21,6 +21,8 @@ import { reservationTotals, useReservationMetrics } from './use-reservation-metr
 const SERIES_RESERVAS = '#2a78d6';
 const SERIES_ASISTENCIAS = '#0e8c82';
 const FUNNEL_RAMP = ['#9fd7d2', '#0e8c82', '#096f6b', '#0b6b60'];
+/** Rampa para la torta de orígenes: son identidades distintas, no magnitudes de un mismo flujo. */
+const SOURCE_RAMP = ['#2a78d6', '#0e8c82', '#9a5a00', '#b5332d', '#5b4bd6', '#0b6b60', '#706a73'];
 const AXIS_INK = '#706a73';
 const GRID_INK = '#e7e1e5';
 
@@ -53,10 +55,12 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
  *
  * @param clientId - Acota las métricas a un cliente. Sin él, el backend responde según el
  *   alcance de cuentas del usuario autenticado.
+ * @param detalle - Agrega ocupación por zona y el desglose de campaña: es lo que se mira en la
+ *   pantalla de Resultados, y sobra en el panel de inicio, donde este panel es una tarjeta más.
  * @param headingLevel - Nivel del encabezado del panel. Es 2 cuando el panel se incrusta bajo
  *   el título de otra vista, y 1 cuando el panel es el contenido principal de la ruta.
  */
-export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: string; headingLevel?: 1 | 2 } = {}) {
+export function ReservationResults({ clientId, headingLevel = 2, detalle = false }: { clientId?: string; headingLevel?: 1 | 2; detalle?: boolean } = {}) {
   const Heading = headingLevel === 1 ? 'h1' : 'h2';
   const [days, setDays] = useState(30);
   const [showTable, setShowTable] = useState(false);
@@ -103,6 +107,35 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
     [data],
   );
 
+  const porHora = useMemo(
+    () => (data?.porHora ?? []).map((fila) => ({
+      hora: `${String(fila.hora).padStart(2, '0')}:00`,
+      Reservas: Number(fila.total ?? 0),
+      Asistencias: Number(fila.attended ?? 0),
+    })),
+    [data],
+  );
+
+  const areas = useMemo(
+    () => [...(data?.areas ?? [])]
+      .map((row) => ({ area: row.area || 'Sin zona', total: Number(row.total ?? 0) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10),
+    [data],
+  );
+
+  /** La torta junta por origen; el detalle campaña por campaña va en la tabla de abajo. */
+  const origenes = useMemo(() => {
+    const porOrigen = new Map<string, number>();
+    for (const row of data?.sources ?? []) {
+      const clave = row.source || 'directo';
+      porOrigen.set(clave, (porOrigen.get(clave) ?? 0) + Number(row.total ?? 0));
+    }
+    return [...porOrigen.entries()]
+      .map(([source, value], index) => ({ source, value, fill: SOURCE_RAMP[index % SOURCE_RAMP.length] }))
+      .sort((a, b) => b.value - a.value);
+  }, [data]);
+
   if (isLoading) return <LoadingSpinner text="Cargando resultados de reservas..." />;
   if (error) return <QueryErrorState title="No pudimos cargar los resultados de reservas" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
 
@@ -113,7 +146,7 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
       <div className="section-title-row">
         <div>
           <Heading>Resultados de reservas</Heading>
-          <p className="page-subtitle">De la visita a la asistencia: lo que se le devuelve a Meta como conversión.</p>
+          <p className="page-subtitle">{detalle ? 'De la visita a la asistencia, con la ocupación por zona y de dónde viene la gente.' : 'De la visita a la asistencia: lo que se le devuelve a Meta como conversión.'}</p>
         </div>
         <div className="viz-controls">
           <div className="viz-range" role="group" aria-label="Rango de tiempo">
@@ -158,6 +191,16 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
               <strong>{attendanceRate === null ? '—' : `${attendanceRate}%`}</strong>
               <small>de las reservas ya resueltas</small>
             </article>
+            {detalle && <article>
+              <span>Se reserva con</span>
+              <strong>{data?.anticipacionHoras == null ? '—' : data.anticipacionHoras >= 48 ? `${Math.round(data.anticipacionHoras / 24)} días` : `${data.anticipacionHoras} h`}</strong>
+              <small>de anticipación, en promedio</small>
+            </article>}
+            {detalle && <article>
+              <span>Vuelven</span>
+              <strong>{data?.recurrencia?.porcentaje == null ? '—' : `${data.recurrencia.porcentaje}%`}</strong>
+              <small>{data?.recurrencia ? `${data.recurrencia.repiten} de ${data.recurrencia.personas} personas` : 'sin datos'}</small>
+            </article>}
             <article>
               <span>Conversión de la página</span>
               <strong>{data?.funnel.conversionRate == null ? '—' : `${data.funnel.conversionRate}%`}</strong>
@@ -250,6 +293,79 @@ export function ReservationResults({ clientId, headingLevel = 2 }: { clientId?: 
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              {detalle && porHora.length > 0 && <div className="dashboard-chart-card viz-full">
+                <h3>A qué hora se reserva</h3>
+                <p className="viz-note">Las horas que concentran la demanda, y cuántas de esas reservas llegaron.</p>
+                <ResponsiveContainer width="100%" height={230}>
+                  <BarChart data={porHora} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
+                    <CartesianGrid vertical={false} stroke={GRID_INK} />
+                    <XAxis dataKey="hora" tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} minTickGap={8} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(23,63,53,.05)' }} />
+                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+                    <Bar dataKey="Reservas" fill={SERIES_RESERVAS} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                    <Bar dataKey="Asistencias" fill={SERIES_ASISTENCIAS} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>}
+
+              {detalle && <div className="dashboard-charts-row">
+                <div className="dashboard-chart-card">
+                  <h3>Reservas por zona</h3>
+                  <p className="viz-note">Qué zonas del local concentran más reservas en el período.</p>
+                  {areas.length === 0 ? <p className="viz-note">Sin datos de zona para este rango.</p> : (
+                    <ResponsiveContainer width="100%" height={Math.max(180, areas.length * 32)}>
+                      <BarChart data={areas} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 4 }}>
+                        <CartesianGrid horizontal={false} stroke={GRID_INK} />
+                        <XAxis type="number" tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
+                        <YAxis dataKey="area" type="category" width={110} tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(23,63,53,.05)' }} />
+                        <Bar dataKey="total" name="Reservas" fill={SERIES_RESERVAS} radius={[0, 4, 4, 0]} barSize={16} isAnimationActive={false} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+
+                <div className="dashboard-chart-card">
+                  <h3>Fuentes de origen</h3>
+                  <p className="viz-note">De dónde viene la gente que reserva, según su origen de campaña.</p>
+                  {origenes.length === 0 ? <p className="viz-note">Sin datos de fuente para este rango.</p> : (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart>
+                        <Tooltip content={<ChartTooltip />} />
+                        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+                        <Pie data={origenes} dataKey="value" nameKey="source" innerRadius={60} outerRadius={90} paddingAngle={2} isAnimationActive={false}>
+                          {origenes.map((entry) => <Cell key={entry.source} fill={entry.fill} />)}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>}
+
+              {detalle && <div className="dashboard-chart-card viz-full">
+                <h3>Medio, campaña y anuncio</h3>
+                <p className="viz-note">El detalle que la torta junta: dos anuncios de la misma campaña se ven por separado.</p>
+                {(data?.sources ?? []).length === 0 ? <p className="viz-note">Sin reservas con campaña en este rango.</p> : (
+                  <div className="table-wrapper">
+                    <table className="data-table">
+                      <thead><tr><th>Origen</th><th>Medio</th><th>Campaña</th><th>Anuncio</th><th>Reservas</th><th>Asistieron</th></tr></thead>
+                      <tbody>
+                        {(data?.sources ?? []).map((row) => (
+                          <tr key={`${row.source}|${row.medium}|${row.campaign}|${row.content}`}>
+                            <td data-label="Origen">{row.source || 'directo'}</td>
+                            <td data-label="Medio">{row.medium || 'Sin medio'}</td>
+                            <td data-label="Campaña">{row.campaign || 'Sin campaña'}</td>
+                            <td data-label="Anuncio">{row.content || '—'}</td>
+                            <td data-label="Reservas">{numberFormat(Number(row.total ?? 0))}</td>
+                            <td data-label="Asistieron">{numberFormat(Number(row.attended ?? 0))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>}
             </>
           )}
         </>

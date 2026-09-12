@@ -269,6 +269,14 @@ export class ReservationsController {
     return this.service.closeDayByException(req.organizationId, dto, req.user.id, scope.clientId, scope.clientIds);
   }
 
+  /** Si esta persona ya reservó antes en la misma empresa. Solo lectura. */
+  @Get(':id/guest-history')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async guestHistory(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const scope = await this.scope(req);
+    return this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+  }
+
   @Get(':id/history')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async history(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

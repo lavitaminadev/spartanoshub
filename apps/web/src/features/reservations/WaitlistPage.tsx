@@ -91,8 +91,8 @@ export function WaitlistPage() {
         <option value="">Todos los clientes</option>
         {clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}
       </select>
-      <select className="input" aria-label="Filtrar por local" value={formFilter} disabled={!clientFilter || forms.length === 0} onChange={(event) => setFormFilter(event.target.value)}>
-        <option value="">Todos los locales de la empresa</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}
+      <select className="input" aria-label="Filtrar por sucursal" value={formFilter} disabled={!clientFilter || forms.length === 0} onChange={(event) => setFormFilter(event.target.value)}>
+        <option value="">Todas las sucursales de la empresa</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}
       </select>
       <label className="filter-date">Fecha<input className="input" type="date" aria-label="Filtrar por fecha" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></label>
       <button type="button" className="btn btn-outline btn-sm" disabled={!filtros.hasAny} onClick={filtros.clear}>Limpiar</button>

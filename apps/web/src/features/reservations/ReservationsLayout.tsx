@@ -12,7 +12,7 @@
  */
 
 import type { JSX } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { isPathEnabled } from '../../core/navigation.registry';
 import '../../shared/section-nav.css';
@@ -24,14 +24,34 @@ const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
   // asi que no dependen de haber entrado antes por la ficha del local.
   { to: '/reservations/agenda', label: 'Hoy' },
   // `end` porque su ruta es prefijo de las demás: sin eso quedaría marcada como activa siempre.
-  { to: '/reservations', label: 'Locales', end: true },
+  // Antes vivían como pestañas dentro de Sucursales: quien buscaba una persona o un cupón no
+  // tenía cómo saber que estaban ahí dentro.
+  { to: '/reservations?tab=bookings', label: 'Reservas' },
+  { to: '/reservations?tab=groups', label: 'Grupos' },
+  { to: '/reservations', label: 'Sucursales', end: true },
   { to: '/reservations/calendar', label: 'Disponibilidad' },
   { to: '/reservations/waitlist', label: 'Lista de espera' },
+  { to: '/reservations?tab=coupons', label: 'Cupones' },
   { to: '/reservations/analytics', label: 'Resultados' },
 ];
 
 export function ReservationsLayout(): JSX.Element {
   const { user } = useAuth();
+  const ubicacion = useLocation();
+
+  /*
+   * Cuál sección está activa.
+   *
+   * Varias comparten el camino de la lista y se distinguen por su pestaña, así que el
+   * emparejado por camino de NavLink marcaría «Reservas» en todas ellas a la vez.
+   */
+  const pestanaActual = new URLSearchParams(ubicacion.search).get('tab') || 'forms';
+  const esActiva = (destino: string) => {
+    const [camino, consulta] = destino.split('?');
+    if (camino !== '/reservations') return ubicacion.pathname === camino || ubicacion.pathname.startsWith(camino + '/');
+    if (ubicacion.pathname !== '/reservations') return false;
+    return (new URLSearchParams(consulta).get('tab') || 'forms') === pestanaActual;
+  };
 
   // La misma función que la lateral general: mismo módulo, mismos permisos, misma respuesta.
   // Enumerar cargos acá obligaría a desplegar para un cambio que la pantalla de permisos ya sabe
@@ -58,15 +78,15 @@ export function ReservationsLayout(): JSX.Element {
               key={seccion.to}
               to={seccion.to}
               end={seccion.end}
-              className={({ isActive }) => (isActive ? 'section-nav-link activo' : 'section-nav-link')}
+              className={esActiva(seccion.to) ? 'section-nav-link activo' : 'section-nav-link'}
             >
               {seccion.label}
             </NavLink>
           ))}
         </div>
-        {/* Lo que más se hace es anotar una reserva, así que va a mano en todas las pantallas.
-            El local se elige dentro del formulario, sin tener que entrar antes a él. */}
-        {visibles.some((seccion) => seccion.to === '/reservations') && <Link className="btn btn-primary btn-sm section-nav-cta" to="/reservations?tab=bookings&nueva=1">+ Nueva reserva</Link>}
+        {/* Anotar la reserva de una persona —una llamada, el mostrador— va a mano en todas las
+            pantallas. La sucursal se elige dentro del formulario, sin tener que entrar antes a ella. */}
+        {visibles.some((seccion) => seccion.to === '/reservations') && <Link className="btn btn-primary btn-sm section-nav-cta" to="/reservations?tab=bookings&nueva=1">Anotar reserva</Link>}
       </nav>
       <Outlet />
     </div>

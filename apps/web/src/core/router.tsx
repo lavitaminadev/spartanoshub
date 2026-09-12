@@ -60,7 +60,6 @@ const KnowledgePage = lazy(() => import('../features/knowledge/KnowledgePage').t
 const ClientDashboard = lazy(() => import('../features/client-portal/ClientDashboard').then(m => ({ default: m.ClientDashboard })));
 const ClientLayout = lazy(() => import('../features/client-portal/ClientLayout').then(m => ({ default: m.ClientLayout })));
 const ReservationsPage = lazy(() => import('../features/reservations/ReservationsPage').then(m => ({ default: m.ReservationsPage })));
-const ReservationLocalConfigPage = lazy(() => import('../features/reservations/ReservationLocalConfigPage').then(m => ({ default: m.ReservationLocalConfigPage })));
 const ReservationLocalHubPage = lazy(() => import('../features/reservations/ReservationLocalHubPage').then(m => ({ default: m.ReservationLocalHubPage })));
 const ReservationBuilderPage = lazy(() => import('../features/reservations/ReservationBuilderPage').then(m => ({ default: m.ReservationBuilderPage })));
 const PublicReservationPage = lazy(() => import('../features/reservations/PublicReservationPage').then(m => ({ default: m.PublicReservationPage })));
@@ -188,7 +187,6 @@ export function AppRouter() {
             <Route path="/reservations/manage" element={<ProtectedRoute path="/reservations"><LegacyReservationsRedirect /></ProtectedRoute>} />
             <Route path="/reservations/forms/:id/design" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/locals/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ProtectedRoute>} />
-            <Route path="/reservations/forms/:id/advanced" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationLocalConfigPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/forms/:id" element={<ProtectedRoute path="/reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/agenda" element={<ProtectedRoute path="/reservations/agenda"><SafeSuspense><AgendaPage /></SafeSuspense></ProtectedRoute>} />
             <Route path="/reservations/calendar" element={<ProtectedRoute path="/reservations/calendar"><SafeSuspense><AvailabilityCalendarPage /></SafeSuspense></ProtectedRoute>} />
@@ -205,7 +203,6 @@ export function AppRouter() {
           <Route path="reservations/manage" element={<ClientRoute capability="reservations"><LegacyReservationsRedirect portal /></ClientRoute>} />
           <Route path="reservations/agenda" element={<ClientRoute capability="reservations"><SafeSuspense><AgendaPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/calendar" element={<ClientRoute capability="reservations"><SafeSuspense><AvailabilityCalendarPage /></SafeSuspense></ClientRoute>} />
-          <Route path="reservations/forms/:id/advanced" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalConfigPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/forms/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/forms/:id/design" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ClientRoute>} />
         </Route>
