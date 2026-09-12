@@ -216,6 +216,20 @@
 .design-preview-column { display:flex; flex-direction:column; gap:10px; }
 .design-preview-column .preview-device-toggle { position:sticky; top:0; z-index:1; }
 
+/*
+ * La vista previa acompaña al control que se está tocando.
+ *
+ * Bajo 950px el estudio pasa a una columna y la previa quedaba después de todos los controles:
+ * se cambiaba un color y había que bajar media página para ver qué pasó. Ahora va primero y se
+ * queda fija arriba mientras se recorre la lista.
+ */
+.design-preview-column { position:sticky; top:12px; align-self:start; }
+
+@media(max-width:950px){
+  .design-preview-column { order:-1; top:0; padding-bottom:10px; background:var(--bg,#f6f4f5); }
+  .design-studio { display:flex; flex-direction:column; }
+}
+
 @media(max-width:900px){
   .design-controls { max-height:none; overflow:visible; }
 }
@@ -297,6 +311,19 @@
 .public-other-flow > span { font-weight:700; font-size:13px; color:var(--booking-card-ink,var(--ink)); }
 .public-other-flow small { color:var(--muted); font-size:11px; }
 .public-other-flow button { width:100%; }
+
+/* La zona horaria se lee de un vistazo y se cambia sólo a propósito. */
+.schedule-timezone { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:8px; margin-top:12px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--soft,rgba(0,0,0,.02)); }
+.schedule-timezone > span { font-size:12px; font-weight:700; color:var(--muted); }
+.schedule-timezone > strong { font-size:14px; }
+.schedule-timezone > select { grid-column:1 / -1; }
+.schedule-timezone > small { grid-column:1 / -1; color:var(--muted); font-size:11px; line-height:1.4; }
+
+/* Preguntas de la visita y cupón, junto a los campos del formulario. */
+.field-extras { display:grid; gap:8px; align-content:start; align-self:start; min-width:0; max-width:100%; box-sizing:border-box; margin-bottom:14px; padding:14px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--white,#fff); }
+.field-extras > * { min-width:0; }
+.field-extras-title { font-size:13px; }
+.field-extras .schedule-nota { color:var(--muted); font-size:11px; line-height:1.4; }
 
 /* Required star */
 .required-star { color:var(--danger,var(--danger)); }
@@ -383,3 +410,30 @@
 /* Nota que explica por qué unas preguntas no se editan. */
 .schedule-nota { display:block; grid-column:1/-1; margin:2px 0 8px; color:var(--muted); font-size:11px; line-height:1.45; }
 .publish-meta-state .btn { margin-top:8px; width:max-content; }
+
+/*
+ * La cabecera del constructor no empuja la página.
+ *
+ * El nombre del local y los tres botones se median por su contenido: bajo unos 950px sumaban
+ * más que la ventana y era la página entera la que se desplazaba de lado, con la barra de
+ * secciones cortada y el botón de guardar fuera de alcance.
+ */
+.builder-top { flex-wrap:wrap; }
+.builder-top > div:first-child { min-width:0; flex:1 1 260px; }
+.builder-top > div:first-child input { min-width:0; }
+.builder-top-actions { flex-wrap:wrap; justify-content:flex-end; min-width:0; }
+
+/*
+ * Una columna que no se niega a encoger.
+ *
+ * En una sola columna la pista se declaraba `1fr`, que es `minmax(auto,1fr)`: la pista crecía
+ * hasta el contenido más ancho —la biblioteca de campos— y arrastraba con ella a todo lo demás,
+ * sacando la página de la pantalla.
+ */
+@media(max-width:950px){
+  .builder-grid { grid-template-columns:minmax(0,1fr); }
+  .builder-grid > * { min-width:0; }
+  /* Lo mismo para las tarjetas de medición y publicación, que también son una pista por fila. */
+  .publish-grid { grid-template-columns:minmax(0,1fr); }
+  .publish-grid > *, .publish-summary { min-width:0; box-sizing:border-box; }
+}

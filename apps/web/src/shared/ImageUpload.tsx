@@ -203,6 +203,7 @@ export function ImageUpload({
           <input
             className="input"
             type="url"
+            aria-label={`URL de ${label.toLowerCase()}`}
             value={value || ''}
             onChange={(event) => { setValidationError(null); onChange(event.target.value.trim()); }}
             placeholder={placeholder}

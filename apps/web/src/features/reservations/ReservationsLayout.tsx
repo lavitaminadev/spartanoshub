@@ -12,23 +12,22 @@
  */
 
 import type { JSX } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { isPathEnabled } from '../../core/navigation.registry';
 import '../../shared/section-nav.css';
 
 /** Secciones, en el orden en que se usan durante el día. */
-const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
+const SECCIONES: Array<{ to: string; label: string }> = [
   // La operacion del dia va primero: es lo que abre cada jornada quien recibe las reservas,
   // mientras que configurar un local ocurre una vez. Todas traen su propio selector de local,
   // asi que no dependen de haber entrado antes por la ficha del local.
   { to: '/reservations/agenda', label: 'Hoy' },
-  // `end` porque su ruta es prefijo de las demás: sin eso quedaría marcada como activa siempre.
   // Antes vivían como pestañas dentro de Sucursales: quien buscaba una persona o un cupón no
   // tenía cómo saber que estaban ahí dentro.
   { to: '/reservations?tab=bookings', label: 'Reservas' },
   { to: '/reservations?tab=groups', label: 'Grupos' },
-  { to: '/reservations', label: 'Sucursales', end: true },
+  { to: '/reservations', label: 'Sucursales' },
   { to: '/reservations/calendar', label: 'Disponibilidad' },
   { to: '/reservations/waitlist', label: 'Lista de espera' },
   { to: '/reservations?tab=coupons', label: 'Cupones' },
@@ -73,16 +72,26 @@ export function ReservationsLayout(): JSX.Element {
     <div className="section-shell">
       <nav className="section-nav" aria-label="Secciones de reservas">
         <div className="section-nav-items">
-          {visibles.map((seccion) => (
-            <NavLink
-              key={seccion.to}
-              to={seccion.to}
-              end={seccion.end}
-              className={esActiva(seccion.to) ? 'section-nav-link activo' : 'section-nav-link'}
-            >
-              {seccion.label}
-            </NavLink>
-          ))}
+          {/*
+            * Enlaces simples, no NavLink.
+            *
+            * Reservas, Grupos y Cupones son la misma ruta con distinta pestaña en la consulta, y
+            * NavLink decide por la ruta: las tres quedaban marcadas como página actual a la vez
+            * —tres veces anunciadas como tal— y ninguna recibía la marca que sí mira la pestaña.
+            */}
+          {visibles.map((seccion) => {
+            const activa = esActiva(seccion.to);
+            return (
+              <Link
+                key={seccion.to}
+                to={seccion.to}
+                aria-current={activa ? 'page' : undefined}
+                className={activa ? 'section-nav-link activo' : 'section-nav-link'}
+              >
+                {seccion.label}
+              </Link>
+            );
+          })}
         </div>
         {/* Anotar la reserva de una persona —una llamada, el mostrador— va a mano en todas las
             pantallas. La sucursal se elige dentro del formulario, sin tener que entrar antes a ella. */}

@@ -118,6 +118,8 @@ export function PublicReservationPage() {
   const confirmRef = useRef<HTMLDivElement>(null);
   const focusTimerRef = useRef<number>(0);
   const horarioTimerRef = useRef<number>(0);
+  /** Cuántas personas había elegido antes de pasarse a la solicitud de evento. */
+  const personasAntesDeSolicitar = useRef(1);
   // Los dos desplazamientos son diferidos: al salir de la página no deben quedar pendientes.
   useEffect(() => () => { window.clearTimeout(focusTimerRef.current); window.clearTimeout(horarioTimerRef.current); }, []);
   const retryRef = useRef(false);
@@ -150,8 +152,17 @@ export function PublicReservationPage() {
   const [vecesMostrado, setVecesMostrado] = useState(() => {
     try { return Number(localStorage.getItem(`vh-ocasiones:${slug}`) || '0') || 0; } catch { return 0; }
   });
-  /** Se cuenta al cerrarlo: si nadie lo cerró, no llegó a cumplir su función. */
+  /*
+   * Cerrar el aviso y contar que se mostró son dos cosas distintas.
+   *
+   * Mostrarlo dependía sólo del contador contra el límite, y con «en cada visita» ese límite es
+   * infinito: el botón guardaba la cuenta y el aviso seguía ahí, sin forma de llegar a la página.
+   * Esta marca dura lo que dura la visita; el contador es el que decide si vuelve a aparecer la
+   * próxima vez.
+   */
+  const [avisoCerrado, setAvisoCerrado] = useState(false);
   const cerrarOcasiones = () => {
+    setAvisoCerrado(true);
     const siguiente = vecesMostrado + 1;
     setVecesMostrado(siguiente);
     try { localStorage.setItem(`vh-ocasiones:${slug}`, String(siguiente)); } catch { /* el navegador puede tenerlo bloqueado */ }
@@ -177,6 +188,8 @@ export function PublicReservationPage() {
   const requestedUtmContent = params.get('utm_content') || undefined;
 
   const { data: form, isLoading, error } = useQuery<ReservationForm>({ queryKey: ['public-form', slug], queryFn: () => api.get(`/public/reservations/${slug}`), retry: false });
+  /** La bienvenida se muestra sola: mientras siga abierta, el aviso de ocasiones espera. */
+  const bienvenidaPendiente = welcomeOpen && form?.designConfig?.welcomePopupEnabled === 'true';
   const groupThreshold = Math.max(2, Math.min(100, Number(form?.designConfig?.groupThreshold) || 8));
   const isSurvey = form ? ['request', 'survey'].includes(form.mode) : false;
   // El enlace base es orgánico/directo. Sólo una UTM explícita atribuye una campaña;
@@ -437,6 +450,21 @@ export function PublicReservationPage() {
     focusTimerRef.current = window.setTimeout(() => nameInputRef.current?.focus(), 300);
   };
 
+  /*
+   * Salir de la solicitud de evento.
+   *
+   * Entrar subía el número de personas al mínimo de grupo y dejaba ocasión, notas y fecha
+   * preferida cargadas. Al volver, esos datos seguían ahí y se enviaban con una reserva normal.
+   */
+  const volverAReservar = () => {
+    setRequestMode(false);
+    setGuest((actual) => ({ ...actual, partySize: personasAntesDeSolicitar.current }));
+    setGroupEventType('');
+    setGroupEventNotes('');
+    setRequestPreference({ date: '', time: '' });
+    setStep(1);
+  };
+
   const goBackToSlots = () => {
     setStep(1);
     setSelectedDate('');
@@ -583,7 +611,12 @@ export function PublicReservationPage() {
 
   // La reserva tiene una aceptación operativa única, versionada fuera del esquema heredado.
   // Las encuestas conservan sus consentimientos propios porque son un propósito distinto.
-  const customFields = (form.fieldSchema || []).filter((field) => !['name', 'email', 'phone'].includes(field.id) && (isSurvey || field.type !== 'consent'));
+  /*
+   * Cuántas personas vienen se elige en el primer paso y se muestra en el resumen. Un formulario
+   * antiguo que además lo traiga como campo lo repetía dos veces en el paso de datos, y ese
+   * segundo control no volvía a comprobar que el horario elegido siguiera alcanzando.
+   */
+  const customFields = (form.fieldSchema || []).filter((field) => !['name', 'email', 'phone', 'partySize'].includes(field.id) && (isSurvey || field.type !== 'consent'));
   const services = form.servicesConfig || [];
   const resources = form.resourcesConfig || [];
   const selectedService = services.find((service) => service.id === serviceId);
@@ -660,9 +693,11 @@ export function PublicReservationPage() {
   return <main className={`public-booking layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style} onFocusCapture={markStarted} onPointerDown={markStarted}>
     <MetaPixel pixelId={form.pixelId} enabled={measurementConsent} />
     <Ga4Tag measurementId={form.ga4MeasurementId} enabled={measurementConsent} />
-    {ocasionesEncendidas && design.ocasionesPopup === 'true' && vecesMostrado < limiteDeAvisos && !isSurvey && <div role="dialog" aria-modal="true" aria-label={design.ocasionesTitulo || 'Ocasiones'} className="booking-ocasiones-aviso" onClick={cerrarOcasiones}>
+    {/* La bienvenida va primero: los dos avisos se abrían a la vez, uno tapando al otro. */}
+    {ocasionesEncendidas && design.ocasionesPopup === 'true' && !avisoCerrado && vecesMostrado < limiteDeAvisos && !isSurvey && !bienvenidaPendiente && <div role="dialog" aria-modal="true" aria-label={design.ocasionesTitulo || 'Ocasiones'} className="booking-ocasiones-aviso" onClick={cerrarOcasiones}>
       <section onClick={(event) => event.stopPropagation()}>
         <h2>{design.ocasionesTitulo || 'Para cada ocasión'}</h2>
+        {design.ocasionesTexto && <p>{design.ocasionesTexto}</p>}
         <div className="booking-ocasiones-grilla">
           {ocasiones.map((ocasion) => <article key={ocasion.titulo}>
             {ocasion.imagen && <img src={ocasion.imagen} alt="" loading="lazy" />}
@@ -670,10 +705,16 @@ export function PublicReservationPage() {
             {ocasion.texto && <small>{ocasion.texto}</small>}
           </article>)}
         </div>
-        <button type="button" className="btn btn-primary" autoFocus onClick={cerrarOcasiones}>Reservar ahora</button>
+        <div className="booking-ocasiones-cierre"><button type="button" className="btn btn-primary" autoFocus onClick={cerrarOcasiones}>{design.ocasionesBoton || 'Reservar ahora'}</button></div>
       </section>
     </div>}
-    {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" style={{ position: 'fixed', inset: 0, zIndex: 20, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(18,35,31,.55)' }}><section style={{ maxWidth: 430, background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,.28)' }}>{form.designConfig?.logoUrl && <img src={form.designConfig.logoUrl} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>Continuar</button></section></div>}
+    {/*
+      * El cuadro se dimensionaba con estilos fijos y sin alto máximo: con un texto largo o una
+      * pantalla baja crecía más que la ventana, se salía por abajo y no se podía desplazar, así
+      * que el botón para cerrarlo quedaba fuera de alcance. Ahora se limita al alto visible y
+      * desplaza su contenido, igual que el aviso de ocasiones.
+      */}
+    {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" className="booking-aviso"><section>{form.designConfig?.logoUrl && <img src={form.designConfig.logoUrl} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>{form.designConfig?.welcomePopupBoton || 'Continuar'}</button></section></div>}
     {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}
     {reservaRecordada && !isSurvey && <aside className="booking-recordatorio">
       <div>
@@ -732,7 +773,15 @@ export function PublicReservationPage() {
           autoComplete="off"
           aria-hidden="true"
         />
-        <div className="booking-steps">{isSurvey ? <><div className="booking-step-dot active"><span>1</span><small>Experiencia</small></div><div className={`booking-step-dot ${submit.isSuccess ? 'active' : ''}`}><span>2</span><small>Gracias</small></div></> : <><div className={`booking-step-dot ${step >= 1 ? 'active' : ''}`}><span>1</span><small>Personas y fecha</small></div><div className={`booking-step-dot ${step >= 2 ? 'active' : ''}`}><span>2</span><small>Datos</small></div><div className={`booking-step-dot ${step >= 3 ? 'active' : ''}`}><span>3</span><small>Confirmar</small></div></>}</div>
+        {/*
+          * Cada flujo muestra sus propios pasos.
+          *
+          * La solicitud de evento entra directamente en el paso 2 y marcaba como cumplido un
+          * «Personas y fecha» por el que nunca pasó, porque justamente no toma horario.
+          */}
+        <div className="booking-steps">{isSurvey ? <><div className="booking-step-dot active"><span>1</span><small>Experiencia</small></div><div className={`booking-step-dot ${submit.isSuccess ? 'active' : ''}`}><span>2</span><small>Gracias</small></div></>
+          : requestMode ? <><div className="booking-step-dot active"><span>1</span><small>Tu solicitud</small></div><div className={`booking-step-dot ${step >= 3 ? 'active' : ''}`}><span>2</span><small>Revisar y enviar</small></div></>
+          : <><div className={`booking-step-dot ${step >= 1 ? 'active' : ''}`}><span>1</span><small>Personas y fecha</small></div><div className={`booking-step-dot ${step >= 2 ? 'active' : ''}`}><span>2</span><small>Datos</small></div><div className={`booking-step-dot ${step >= 3 ? 'active' : ''}`}><span>3</span><small>Confirmar</small></div></>}</div>
 
         {step === 1 && <div>
           <div className="booking-step-title"><span>01</span><div><strong>Personas y fecha</strong><small>Primero indica cuántas personas vienen; luego verás sólo horarios que alcancen para el grupo.</small></div></div>
@@ -767,7 +816,7 @@ export function PublicReservationPage() {
             */}
           {!requestMode && design.groupRequestEnabled !== 'false' && <div className="public-other-flow">
             <span>¿Vienen muchos, o es una celebración?</span>
-            <button type="button" className="btn btn-outline btn-sm" onClick={() => { setRequestMode(true); setGuest({ ...guest, partySize: Math.max(9, guest.partySize) }); setSelected(''); setSelectedDate(''); setStep(2); }}>Solicitar un evento o grupo sin tomar horario →</button>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => { personasAntesDeSolicitar.current = guest.partySize; setRequestMode(true); setGuest({ ...guest, partySize: Math.max(9, guest.partySize) }); setSelected(''); setSelectedDate(''); setStep(2); }}>Solicitar un evento o grupo sin tomar horario →</button>
             <small>No ocupa un horario. El local revisa la solicitud y te responde para acordar la fecha.</small>
           </div>}
 
@@ -799,7 +848,6 @@ export function PublicReservationPage() {
             {systemFields.name && <div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div>}
             {systemFields.phone && <div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div>}
             {systemFields.email && <div className={`public-field ${errors.email ? 'has-error' : ''}`}><label>{systemFields.email.label} {systemFields.email.required ? <span className="required-star">*</span> : null}<input className={errors.email ? 'input-error' : ''} type="email" required={systemFields.email.required} placeholder={systemFields.email.placeholder || 'tu@correo.com'} value={guest.guestEmail} onChange={(event) => setGuest({ ...guest, guestEmail: event.target.value })} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'error-email' : undefined} /></label>{errors.email && <span className="field-error" id="error-email" role="alert">{errors.email}</span>}</div>}
-            {systemFields.partySize && <div className="public-field"><label>{systemFields.partySize.label}<select value={guest.partySize} onChange={(event) => setGuest({ ...guest, partySize: Number(event.target.value) })}>{Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} persona{n !== 1 ? 's' : ''}</option>)}</select></label></div>}
             {customFields.map((field) => <Fragment key={field.id}>{renderField(field, answers[field.id], (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
             {!isSurvey && (guest.partySize > groupThreshold || requestMode) && <div className={`group-event-fields ${errors.groupEvent ? 'has-error' : ''}`}><strong>Sobre tu grupo</strong><p>{requestMode ? 'Esta solicitud no toma cupo. El local confirmará disponibilidad contigo.' : 'Esto ayuda al local a preparar tu solicitud; no es una confirmación automática.'}</p><label>¿Qué ocasión es?<select required value={groupEventType} onChange={(event) => setGroupEventType(event.target.value)}><option value="">Selecciona una opción</option><option value="cumpleanos">Cumpleaños</option><option value="aniversario">Aniversario / celebración</option><option value="empresa">Comida o evento de empresa</option><option value="otro">Otro grupo</option></select></label>{requestMode && <div className="form-row"><label>Fecha preferida <small>(opcional)</small><input type="date" value={requestPreference.date} onChange={(event) => setRequestPreference({ ...requestPreference, date: event.target.value })} /></label><label>Horario preferido <small>(opcional)</small><input value={requestPreference.time} onChange={(event) => setRequestPreference({ ...requestPreference, time: event.target.value })} maxLength={80} placeholder="Ej. viernes desde 20:00" /></label></div>}<label>Cuéntanos lo importante <small>(opcional)</small><textarea value={groupEventNotes} onChange={(event) => setGroupEventNotes(event.target.value)} maxLength={1000} placeholder="Ej. silla de bebé, torta, horario flexible…" /></label>{errors.groupEvent && <span className="field-error" role="alert">{errors.groupEvent}</span>}</div>}
             {!isSurvey && (form.designConfig?.askChildren === 'true' || form.designConfig?.askAccessibility === 'true' || form.designConfig?.askAllergies === 'true') && <div className="group-event-fields"><strong>Necesidades de la visita</strong><p>Opcional. El local hará lo posible por considerarlas, pero no reemplaza una coordinación directa.</p>{form.designConfig?.askChildren === 'true' && <label>¿Cuántos niños vienen?<select value={visitNeeds.childrenCount} onChange={(event) => setVisitNeeds({ ...visitNeeds, childrenCount: Number(event.target.value) })}><option value={0}>No vienen niños / prefiero no indicar</option>{Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} niño{count > 1 ? 's' : ''}</option>)}</select></label>}{form.designConfig?.askAccessibility === 'true' && <label>Accesibilidad o comodidad <small>(opcional)</small><input value={visitNeeds.accessibilityNeed} onChange={(event) => setVisitNeeds({ ...visitNeeds, accessibilityNeed: event.target.value })} maxLength={500} placeholder="Ej. acceso sin escalón, espacio para coche" /></label>}{form.designConfig?.askAllergies === 'true' && <label>Restricciones alimentarias <small>(opcional)</small><textarea value={visitNeeds.dietaryNotes} onChange={(event) => setVisitNeeds({ ...visitNeeds, dietaryNotes: event.target.value })} maxLength={1000} placeholder="Ej. vegetariano, sin gluten. Confirma siempre directamente con el local." /></label>}</div>}
@@ -811,22 +859,27 @@ export function PublicReservationPage() {
             <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={measurementConsent} onChange={(event) => setMeasurementConsent(event.target.checked)} /><span><strong>{isSurvey ? 'Ayudar a mejorar esta encuesta' : 'Ayudar a mejorar la reserva'} <small>(opcional)</small></strong><small>Permite medir de forma agregada cómo funciona esta página, con herramientas de Meta y Google que pueden tratar los datos fuera de Chile. No afecta tu reserva ni tu respuesta, no te suscribe a mensajes y puedes dejarlo sin marcar.</small></span></label></div>
           </div>
           <button className="public-submit" type="submit" disabled={submit.isPending}><span>{isSurvey ? (submit.isPending ? 'Enviando...' : 'Enviar') : 'Continuar →'}</span></button>
-          {!isSurvey && <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => { if (requestMode) { setRequestMode(false); setStep(1); } else goBackToSlots(); }}>← {requestMode ? 'Volver a reservar' : 'Personas y fecha'}</button>}
+          {!isSurvey && <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => { if (requestMode) { volverAReservar(); } else goBackToSlots(); }}>← {requestMode ? 'Volver a reservar' : 'Personas y fecha'}</button>}
           {isSurvey && submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : 'Error al enviar la respuesta'}</p></div>}
         </div>}
 
         {step === 3 && <div ref={confirmRef}>
-          <div className="booking-step-title"><span>03</span><div><strong>Confirma tu reserva</strong><small>Revisa los datos antes de enviar.</small></div></div>
+          <div className="booking-step-title"><span>{requestMode ? '02' : '03'}</span><div><strong>{requestMode ? 'Revisa tu solicitud' : 'Confirma tu reserva'}</strong><small>{requestMode ? 'El local te responderá para acordar la fecha. No se toma un horario.' : 'Revisa los datos antes de enviar.'}</small></div></div>
           <div className="booking-confirm-details">
             <div className="confirm-row"><span>Servicio</span><strong>{selectedService?.name || form.name}</strong></div>
             {selected && <div className="confirm-row"><span>Fecha y hora</span><strong>{new Date(selected).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</strong></div>}
+            {/* Una solicitud no tiene hora tomada: lo que hay que revisar es lo que pidió. */}
+            <div className="confirm-row"><span>Personas</span><strong>{requestMode ? Math.max(groupThreshold + 1, guest.partySize) : guest.partySize}</strong></div>
+            {requestMode && <div className="confirm-row"><span>Ocasión</span><strong>{({ cumpleanos: 'Cumpleaños', aniversario: 'Aniversario o celebración', empresa: 'Comida o evento de empresa', otro: 'Otro grupo' } as Record<string, string>)[groupEventType] || 'Sin indicar'}</strong></div>}
+            {requestMode && (requestPreference.date || requestPreference.time) && <div className="confirm-row"><span>Preferencia</span><strong>{[requestPreference.date, requestPreference.time].filter(Boolean).join(' · ')}</strong></div>}
             <div className="confirm-row"><span>Nombre</span><strong>{guest.guestName}</strong></div>
             {guest.guestPhone && <div className="confirm-row"><span>Teléfono</span><strong>{guest.guestPhone}</strong></div>}
             {guest.guestEmail && <div className="confirm-row"><span>Correo</span><strong>{guest.guestEmail}</strong></div>}
             {customFields.filter((f) => f.type !== 'consent' && answers[f.id]).map((f) => <div className="confirm-row" key={f.id}><span>{f.label}</span><strong>{String(answers[f.id])}</strong></div>)}
           </div>
-          <button className="public-submit" type="submit" disabled={submit.isPending}>{submit.isPending ? 'Enviando...' : 'Confirmar reserva'}</button>
-          {submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : 'Error al crear la reserva'}</p>{/cupo|tope|ocup/i.test(submit.error instanceof Error ? submit.error.message : '') && <button type="button" className="btn btn-primary btn-sm" disabled={waitlist.isPending} onClick={() => waitlist.mutate()}>{waitlist.isPending ? 'Guardando...' : 'Unirme a la lista de espera'}</button>}<button type="button" className="btn btn-outline btn-sm" onClick={retrySubmit}>Intentar de nuevo</button>{waitlist.error && <p>No se pudo registrar la espera. Revisa los datos e inténtalo nuevamente.</p>}</div>}
+          <button className="public-submit" type="submit" disabled={submit.isPending}>{submit.isPending ? 'Enviando...' : requestMode ? 'Enviar solicitud' : 'Confirmar reserva'}</button>
+          {/* La lista de espera guarda un cupo concreto: no tiene sentido para una solicitud sin horario. */}
+          {submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : requestMode ? 'Error al enviar la solicitud' : 'Error al crear la reserva'}</p>{!requestMode && /cupo|tope|ocup/i.test(submit.error instanceof Error ? submit.error.message : '') && <button type="button" className="btn btn-primary btn-sm" disabled={waitlist.isPending} onClick={() => waitlist.mutate()}>{waitlist.isPending ? 'Guardando...' : 'Unirme a la lista de espera'}</button>}<button type="button" className="btn btn-outline btn-sm" onClick={retrySubmit}>Intentar de nuevo</button>{waitlist.error && <p>No se pudo registrar la espera. Revisa los datos e inténtalo nuevamente.</p>}</div>}
           <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => setStep(2)}>← Volver</button>
         </div>}
       </form>
