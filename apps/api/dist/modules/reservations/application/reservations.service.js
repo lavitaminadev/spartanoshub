@@ -1058,6 +1058,47 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             cuerpo: String(cuerpo ?? deFabrica('body') ?? ''),
         };
     }
+    detalleDeLaReserva(form, booking) {
+        const filas = [];
+        const zona = (form.resourcesConfig || []).find((item) => item.id === booking.resourceId);
+        if (zona)
+            filas.push({ etiqueta: 'Zona', valor: `${zona.name}${zona.smokingAllowed ? ' · fumadores' : ' · no fumadores'}` });
+        const servicio = (form.servicesConfig || []).find((item) => item.id === booking.serviceId);
+        if (servicio)
+            filas.push({ etiqueta: 'Servicio', valor: servicio.name });
+        const esquema = form.fieldSchema ?? [];
+        for (const [clave, valor] of Object.entries((booking.answers || {}))) {
+            if (valor === null || valor === undefined || valor === '' || valor === false)
+                continue;
+            const etiqueta = esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
+            const texto = Array.isArray(valor) ? valor.join(', ') : typeof valor === 'boolean' ? 'Sí' : String(valor);
+            if (texto.trim())
+                filas.push({ etiqueta, valor: texto });
+        }
+        return filas.slice(0, 12);
+    }
+    async ocasionesParaCorreo(form) {
+        try {
+            const porLocal = form.designConfig?.ocasionesEnEmail === 'true';
+            const porEmpresa = porLocal ? false : Boolean(await this.parametros.get('email.reservation_confirmation_include_ocasiones', form.clientId, null, form.organizationId));
+            if (!porLocal && !porEmpresa)
+                return undefined;
+            const crudo = form.designConfig?.ocasiones;
+            if (typeof crudo !== 'string' || !crudo.trim())
+                return undefined;
+            const lista = JSON.parse(crudo);
+            if (!Array.isArray(lista))
+                return undefined;
+            const tarjetas = lista
+                .filter((item) => item && typeof item.titulo === 'string' && item.titulo.trim())
+                .slice(0, 4)
+                .map((item) => ({ titulo: String(item.titulo).trim(), texto: item.texto ? String(item.texto).trim() : undefined, imagen: item.imagen ? String(item.imagen).trim() : undefined }));
+            return tarjetas.length ? { titulo: String(form.designConfig?.ocasionesTitulo || 'Para cada ocasión'), tarjetas } : undefined;
+        }
+        catch {
+            return undefined;
+        }
+    }
     respuestaAlLocal(form) {
         const soporte = typeof form.designConfig?.supportEmail === 'string' ? form.designConfig.supportEmail.trim() : '';
         return soporte.includes('@') ? soporte : undefined;
@@ -1539,6 +1580,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     asunto: String(asunto ?? 'Tu reserva en {{local}} está confirmada'),
                     cuerpo: String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
                 };
+            const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);
             const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, {
                 nombre: booking.guestName,
                 local: form.name,
@@ -1546,7 +1588,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 personas: booking.partySize,
                 codigo: booking.referenceCode,
                 gestion: managementUrl || '',
-            }, managementUrl ? { texto: pendiente ? 'Ver o cancelar mi solicitud' : 'Gestionar mi reserva', url: managementUrl } : undefined);
+            }, managementUrl ? { texto: pendiente ? 'Ver o cancelar mi solicitud' : 'Gestionar mi reserva', url: managementUrl } : undefined, ocasiones, this.detalleDeLaReserva(form, booking));
             void this.emails.send(booking.guestEmail, subject, html, pendiente ? { replyTo: this.respuestaAlLocal(form) } : { replyTo: this.respuestaAlLocal(form), attachments: [{ filename: 'reserva.ics', content: this.calendarIcs(form, booking, 'PUBLISH'), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }).catch((err) => this.logger.warn(`Comprobante de la reserva ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
         catch (err) {
@@ -1745,6 +1787,31 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return { closed: bookings.length, date: dto.date, formId: form.id };
         });
     }
+    async guestHistory(organizationId, reservationId, clientId, clientIds) {
+        const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+        if (!actual)
+            throw new common_1.NotFoundException('Reserva no encontrada');
+        const correo = actual.guestEmail?.trim().toLowerCase();
+        const telefono = actual.guestPhone?.trim();
+        const vacio = { total: 0, attended: 0, noShow: 0, anteriores: [] };
+        if (!correo && !telefono)
+            return vacio;
+        const qb = this.reservations.createQueryBuilder('r')
+            .where('r.organization_id = :organizationId AND r.client_id = :clientIdActual AND r.id != :id', { organizationId, clientIdActual: actual.clientId, id: actual.id });
+        if (correo && telefono)
+            qb.andWhere('(LOWER(r.guest_email) = :correo OR r.guest_phone = :telefono)', { correo, telefono });
+        else if (correo)
+            qb.andWhere('LOWER(r.guest_email) = :correo', { correo });
+        else
+            qb.andWhere('r.guest_phone = :telefono', { telefono });
+        const previas = await qb.orderBy('r.starts_at', 'DESC').take(100).getMany();
+        return {
+            total: previas.length,
+            attended: previas.filter((item) => item.status === 'attended').length,
+            noShow: previas.filter((item) => item.status === 'no_show').length,
+            anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize })),
+        };
+    }
     async history(organizationId, reservationId, clientId, clientIds) { const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } }); if (!reservation)
         throw new common_1.NotFoundException('Reserva no encontrada'); return this.events.find({ where: { reservationId, organizationId }, order: { createdAt: 'DESC' } }); }
     async operationalHome(organizationId, clientId, clientIds) {
@@ -1803,6 +1870,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const daysNum = Math.min(Math.max(Number(days) || 30, 1), 365);
         params.push(daysNum);
         const [totals, daily, sources, funnel, areas] = await Promise.all([this.dataSource.query(`SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='attended') attended, SUM(status='no_show') no_show, SUM(status='waitlist') waitlist, SUM(status LIKE 'cancelled%') cancelled FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT DATE(starts_at) day, COUNT(*) total, SUM(status='attended') attended, SUM(status='no_show') no_show FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY day ORDER BY day`, params), this.dataSource.query(`SELECT COALESCE(utm_source,'direct') source, COALESCE(utm_medium,'Sin medio') medium, COALESCE(utm_campaign,'Sin campaña') campaign, COALESCE(utm_content,'') content, COUNT(*) total, SUM(status='attended') attended FROM reservations WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source,medium,campaign,content ORDER BY total DESC LIMIT 20`, params), this.dataSource.query(`SELECT SUM(type='view') views, SUM(type='start') starts FROM reservation_form_events WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT COALESCE(NULLIF(resource_id,''),'Sin área') area, COUNT(*) total FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY area ORDER BY total DESC LIMIT 10`, params)]);
+        const [porHora, anticipacion, recurrentes] = await Promise.all([
+            this.dataSource.query(`SELECT HOUR(starts_at) hora, COUNT(*) total, SUM(status='attended') attended FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY hora ORDER BY hora`, params),
+            this.dataSource.query(`SELECT AVG(TIMESTAMPDIFF(HOUR, created_at, starts_at)) horas FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) AND created_at <= starts_at`, params),
+            this.dataSource.query(`SELECT COUNT(*) personas, SUM(veces > 1) repiten, SUM(CASE WHEN veces > 1 THEN veces ELSE 0 END) reservas_de_quienes_repiten FROM (SELECT COALESCE(NULLIF(LOWER(guest_email),''), guest_phone) contacto, COUNT(*) veces FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) AND COALESCE(NULLIF(LOWER(guest_email),''), guest_phone) IS NOT NULL GROUP BY contacto) resumen`, params),
+        ]);
         const total = Number(totals[0]?.total || 0);
         const views = Number(funnel[0]?.views || 0);
         const nombresDeZona = new Map();
@@ -1812,7 +1884,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     nombresDeZona.set(zona.id, zona.name);
         }
         const areasConNombre = areas.map((row) => ({ ...row, area: nombresDeZona.get(row.area) || row.area }));
-        return { totals: totals[0] || {}, daily, sources, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum };
+        const personasUnicas = Number(recurrentes[0]?.personas || 0);
+        const horasDeAnticipacion = anticipacion[0]?.horas === null || anticipacion[0]?.horas === undefined ? null : Math.round(Number(anticipacion[0].horas));
+        return {
+            porHora: porHora.map((fila) => ({ hora: Number(fila.hora), total: Number(fila.total), attended: Number(fila.attended) })),
+            anticipacionHoras: horasDeAnticipacion,
+            recurrencia: {
+                personas: personasUnicas,
+                repiten: Number(recurrentes[0]?.repiten || 0),
+                porcentaje: personasUnicas > 0 ? Math.round((Number(recurrentes[0]?.repiten || 0) / personasUnicas) * 100) : null,
+            },
+            totals: totals[0] || {}, daily, sources, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum
+        };
     }
     async occupancyCalendar(organizationId, month, clientId, clientIds, formId) {
         if (!clientId)

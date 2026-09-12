@@ -199,9 +199,9 @@ export function AgendaPage() {
         <option value="">Selecciona un cliente</option>
         {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
       </select>}
-      <select className="input" aria-label="Local" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
+      <select className="input" aria-label="Sucursal" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
         {forms.length === 0
-          ? <option value="">Sin locales configurados</option>
+          ? <option value="">Sin sucursales configuradas</option>
           : forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}
       </select>
       <div className="agenda-date-nav">
@@ -217,9 +217,9 @@ export function AgendaPage() {
     </div>
 
     {!clientId
-      ? <EmptyState icon="calendar" title="Elige una cuenta" description="Selecciona una cuenta y su local para ver la agenda del día." />
+      ? <EmptyState icon="calendar" title="Elige una cuenta" description="Selecciona una empresa y su sucursal para ver la agenda del día." />
       : forms.length === 0 && !loadingForms
-        ? <EmptyState icon="calendar" title="Sin locales configurados" description="Configura el primer local antes de abrir la agenda." />
+        ? <EmptyState icon="calendar" title="Sin sucursales configuradas" description="Activa Reservas para una empresa antes de abrir la agenda." />
         : <>
           <div className="agenda-summary" aria-label="Resumen del día">
             <div className="agenda-summary-badge"><strong>{fetchingReservations ? '—' : summary.total}</strong><span>Reservas hoy</span></div>
@@ -294,7 +294,7 @@ export function AgendaPage() {
           <div><span>Personas</span><strong>{detalle.partySize}</strong></div>
           <div><span>Contacto</span><strong>{detalle.guestPhone || detalle.guestEmail || 'Sin contacto'}</strong></div>
           <div><span>Código</span><strong>#{detalle.referenceCode}</strong></div>
-          {(() => { const zona = (activeForm?.resourcesConfig || []).find((r) => r.id === detalle.resourceId); return zona ? <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ''}</strong></div> : null; })()}
+          {(() => { const zona = (activeForm?.resourcesConfig || []).find((r) => r.id === detalle.resourceId); return zona ? <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ' · no fumadores'}</strong></div> : null; })()}
         </div>
         {(() => { const datos = respuestasLegibles(detalle.answers, activeForm?.fieldSchema); return datos.length > 0 && <div className="agenda-detalle-datos">{datos.map((item) => <p key={item.clave}><span>{item.etiqueta}</span><strong>{item.valor}</strong></p>)}</div>; })()}
         {detalle.internalNotes && <p className="page-subtitle">Notas internas: {detalle.internalNotes}</p>}

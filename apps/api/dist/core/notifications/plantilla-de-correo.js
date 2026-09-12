@@ -33,7 +33,34 @@ function urlDelLogo() {
     const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '') ?? '';
     return `${base}/brand/espartanos-helmet.png`;
 }
-function armazonDeCorreo(titulo, cuerpo, accion) {
+function tarjetasDeCorreo(titulo, tarjetas) {
+    if (tarjetas.length === 0)
+        return '';
+    const celdas = tarjetas.map((tarjeta) => `
+    <td width="50%" valign="top" style="padding:6px;">
+      ${tarjeta.imagen ? `<img src="${escaparHtml(tarjeta.imagen)}" alt="" width="240" style="display:block;width:100%;max-width:240px;height:auto;border:0;border-radius:8px;">` : ''}
+      <div style="margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#22242a;">${escaparHtml(tarjeta.titulo)}</div>
+      ${tarjeta.texto ? `<div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.4;color:#7a7d87;">${escaparHtml(tarjeta.texto)}</div>` : ''}
+    </td>`);
+    const filas = [];
+    for (let indice = 0; indice < celdas.length; indice += 2) {
+        filas.push(`<tr>${celdas.slice(indice, indice + 2).join('')}${celdas.length % 2 === 1 && indice + 2 > celdas.length - 1 ? '<td width="50%"></td>' : ''}</tr>`);
+    }
+    return `<div style="margin-top:22px;padding-top:16px;border-top:1px solid #ececf0;">
+      <div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#101114;">${escaparHtml(titulo)}</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">${filas.join('')}</table>
+    </div>`;
+}
+function detalleDeCorreo(filas) {
+    if (filas.length === 0)
+        return '';
+    const celdas = filas.map((fila) => `<tr>
+      <td style="padding:4px 10px 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a7d87;white-space:nowrap;">${escaparHtml(fila.etiqueta)}</td>
+      <td style="padding:4px 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#22242a;">${escaparHtml(fila.valor)}</td>
+    </tr>`).join('');
+    return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 2px;border-top:1px solid #ececf0;padding-top:10px;">${celdas}</table>`;
+}
+function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle) {
     const boton = accion
         ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px;">
          <tr><td style="border-radius:8px;background:#ea0f63;">
@@ -72,7 +99,9 @@ function armazonDeCorreo(titulo, cuerpo, accion) {
                 ${escaparHtml(titulo)}
               </h1>
               ${comoParrafos(cuerpo)}
+              ${detalle ? detalleDeCorreo(detalle) : ''}
               ${boton}
+              ${extra ? tarjetasDeCorreo(extra.titulo, extra.tarjetas) : ''}
             </td>
           </tr>
           <tr>
@@ -88,10 +117,10 @@ function armazonDeCorreo(titulo, cuerpo, accion) {
 </body>
 </html>`;
 }
-function componerCorreo(asunto, cuerpo, variables, accion) {
+function componerCorreo(asunto, cuerpo, variables, accion, extra, detalle) {
     const subject = asunto.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (_todo, nombre) => {
         const valor = variables[nombre];
         return valor === null || valor === undefined ? '' : String(valor);
     }).replace(/\s+/g, ' ').trim();
-    return { subject, html: armazonDeCorreo(subject, rellenar(cuerpo, variables), accion) };
+    return { subject, html: armazonDeCorreo(subject, rellenar(cuerpo, variables), accion, extra, detalle) };
 }

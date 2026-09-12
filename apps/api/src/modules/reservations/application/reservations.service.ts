@@ -23,7 +23,7 @@ import { GoogleCalendarService } from '../../integrations/google/google-calendar
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { EmailService } from '../../../core/notifications/email.service';
-import { componerCorreo } from '../../../core/notifications/plantilla-de-correo';
+import { componerCorreo, type DetalleDeCorreo, type TarjetaDeCorreo } from '../../../core/notifications/plantilla-de-correo';
 import { ORGANIZATION_SETTINGS } from '../../../core/parameters/organization-settings.catalog';
 import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 import { AuditService } from '../../../core/audit/audit.service';
@@ -1246,6 +1246,57 @@ export class ReservationsService {
   }
 
   /**
+   * Zona, servicio y respuestas que acompañan al comprobante.
+   *
+   * El correo confirmaba fecha, personas y código, pero no lo que la persona eligió y contestó:
+   * la terraza que pidió, el servicio, la alergia que anotó. Al llegar no tenía cómo comprobar
+   * que su pedido quedó registrado, y el local recibía la misma pregunta por teléfono.
+   */
+  private detalleDeLaReserva(form: ReservationForm, booking: Reservation): DetalleDeCorreo[] {
+    const filas: DetalleDeCorreo[] = [];
+    const zona = ((form.resourcesConfig || []) as ResourceConfig[]).find((item) => item.id === booking.resourceId);
+    // El tipo compartido no declara la preferencia de fumadores; se lee sin forzarlo.
+    if (zona) filas.push({ etiqueta: 'Zona', valor: `${zona.name}${(zona as { smokingAllowed?: boolean }).smokingAllowed ? ' · fumadores' : ' · no fumadores'}` });
+    const servicio = ((form.servicesConfig || []) as ServiceConfig[]).find((item) => item.id === booking.serviceId);
+    if (servicio) filas.push({ etiqueta: 'Servicio', valor: servicio.name });
+    const esquema = (form.fieldSchema as FieldConfig[] | undefined) ?? [];
+    for (const [clave, valor] of Object.entries((booking.answers || {}) as Record<string, unknown>)) {
+      if (valor === null || valor === undefined || valor === '' || valor === false) continue;
+      const etiqueta = esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
+      const texto = Array.isArray(valor) ? valor.join(', ') : typeof valor === 'boolean' ? 'Sí' : String(valor);
+      if (texto.trim()) filas.push({ etiqueta, valor: texto });
+    }
+    return filas.slice(0, 12);
+  }
+
+  /**
+   * Ocasiones del local para agregar al comprobante, si alguien lo pidió.
+   *
+   * Se enciende en el diseño de la sucursal o en el panel de correos de la empresa: cualquiera de
+   * los dos basta, porque son dos personas distintas las que suelen decidirlo. Si no hay ocasiones
+   * cargadas, o el JSON quedó mal, devuelve vacío y el correo sale como siempre: un adorno nunca
+   * puede impedir que llegue el comprobante.
+   */
+  private async ocasionesParaCorreo(form: ReservationForm): Promise<{ titulo: string; tarjetas: TarjetaDeCorreo[] } | undefined> {
+    try {
+      const porLocal = form.designConfig?.ocasionesEnEmail === 'true';
+      const porEmpresa = porLocal ? false : Boolean(await this.parametros.get('email.reservation_confirmation_include_ocasiones', form.clientId, null, form.organizationId));
+      if (!porLocal && !porEmpresa) return undefined;
+      const crudo = form.designConfig?.ocasiones;
+      if (typeof crudo !== 'string' || !crudo.trim()) return undefined;
+      const lista = JSON.parse(crudo);
+      if (!Array.isArray(lista)) return undefined;
+      const tarjetas = lista
+        .filter((item) => item && typeof item.titulo === 'string' && item.titulo.trim())
+        .slice(0, 4)
+        .map((item) => ({ titulo: String(item.titulo).trim(), texto: item.texto ? String(item.texto).trim() : undefined, imagen: item.imagen ? String(item.imagen).trim() : undefined }));
+      return tarjetas.length ? { titulo: String(form.designConfig?.ocasionesTitulo || 'Para cada ocasión'), tarjetas } : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
    * Buzón al que debe llegar la respuesta de quien reserva.
    *
    * El remitente es único para todo el sistema —lo fija `SMTP_FROM`—, así que sin esto una
@@ -1845,6 +1896,7 @@ export class ReservationsService {
           cuerpo: String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
         };
 
+      const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);
       const { subject, html } = componerCorreo(
         plantilla.asunto,
         plantilla.cuerpo,
@@ -1857,6 +1909,8 @@ export class ReservationsService {
           gestion: managementUrl || '',
         },
         managementUrl ? { texto: pendiente ? 'Ver o cancelar mi solicitud' : 'Gestionar mi reserva', url: managementUrl } : undefined,
+        ocasiones,
+        this.detalleDeLaReserva(form, booking),
       );
 
       /*
@@ -2033,6 +2087,35 @@ export class ReservationsService {
       return { closed: bookings.length, date: dto.date, formId: form.id };
     });
   }
+  /**
+   * Veces que esta persona ya reservó en la misma empresa.
+   *
+   * Se busca por correo o teléfono porque son los dos datos con que vuelve: quien reserva no
+   * tiene cuenta. Es solo lectura y nunca cruza a otra empresa, así que consultar el historial
+   * no puede sobrescribir lo que la persona escribió esta vez.
+   */
+  async guestHistory(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) {
+    const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+    if (!actual) throw new NotFoundException('Reserva no encontrada');
+    const correo = actual.guestEmail?.trim().toLowerCase();
+    const telefono = actual.guestPhone?.trim();
+    const vacio = { total: 0, attended: 0, noShow: 0, anteriores: [] as Array<Record<string, unknown>> };
+    if (!correo && !telefono) return vacio;
+    const qb = this.reservations.createQueryBuilder('r')
+      .where('r.organization_id = :organizationId AND r.client_id = :clientIdActual AND r.id != :id', { organizationId, clientIdActual: actual.clientId, id: actual.id });
+    if (correo && telefono) qb.andWhere('(LOWER(r.guest_email) = :correo OR r.guest_phone = :telefono)', { correo, telefono });
+    else if (correo) qb.andWhere('LOWER(r.guest_email) = :correo', { correo });
+    else qb.andWhere('r.guest_phone = :telefono', { telefono });
+    // Un tope alto para contar bien sin traer el historial completo de un cliente frecuente.
+    const previas = await qb.orderBy('r.starts_at', 'DESC').take(100).getMany();
+    return {
+      total: previas.length,
+      attended: previas.filter((item) => item.status === 'attended').length,
+      noShow: previas.filter((item) => item.status === 'no_show').length,
+      anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize })),
+    };
+  }
+
   async history(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) { const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } }); if (!reservation) throw new NotFoundException('Reserva no encontrada'); return this.events.find({ where: { reservationId, organizationId }, order: { createdAt: 'DESC' } }); }
   /**
    * Resumen del día para la portada operativa: cómo viene la jornada y si la señal a Meta
@@ -2113,6 +2196,19 @@ export class ReservationsService {
     const daysNum = Math.min(Math.max(Number(days) || 30, 1), 365);
     params.push(daysNum as never);
     const [totals, daily, sources, funnel, areas] = await Promise.all([this.dataSource.query(`SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='attended') attended, SUM(status='no_show') no_show, SUM(status='waitlist') waitlist, SUM(status LIKE 'cancelled%') cancelled FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT DATE(starts_at) day, COUNT(*) total, SUM(status='attended') attended, SUM(status='no_show') no_show FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY day ORDER BY day`, params), this.dataSource.query(`SELECT COALESCE(utm_source,'direct') source, COALESCE(utm_medium,'Sin medio') medium, COALESCE(utm_campaign,'Sin campaña') campaign, COALESCE(utm_content,'') content, COUNT(*) total, SUM(status='attended') attended FROM reservations WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source,medium,campaign,content ORDER BY total DESC LIMIT 20`, params), this.dataSource.query(`SELECT SUM(type='view') views, SUM(type='start') starts FROM reservation_form_events WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT COALESCE(NULLIF(resource_id,''),'Sin área') area, COUNT(*) total FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY area ORDER BY total DESC LIMIT 10`, params)]);
+    /*
+    * Tres preguntas que el panel no sabía responder y que cambian decisiones operativas:
+    * a qué hora se llena, con cuánta anticipación reserva la gente, y cuánta vuelve.
+    *
+    * Van en consultas aparte y no dentro del resumen porque agrupan distinto. Las tres leen la
+    * misma ventana de días, así que se comparan entre sí sin trampa.
+    */
+    const [porHora, anticipacion, recurrentes] = await Promise.all([
+      this.dataSource.query(`SELECT HOUR(starts_at) hora, COUNT(*) total, SUM(status='attended') attended FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY hora ORDER BY hora`, params),
+      this.dataSource.query(`SELECT AVG(TIMESTAMPDIFF(HOUR, created_at, starts_at)) horas FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) AND created_at <= starts_at`, params),
+      // Una persona vuelve si el mismo contacto aparece en más de una reserva del período.
+      this.dataSource.query(`SELECT COUNT(*) personas, SUM(veces > 1) repiten, SUM(CASE WHEN veces > 1 THEN veces ELSE 0 END) reservas_de_quienes_repiten FROM (SELECT COALESCE(NULLIF(LOWER(guest_email),''), guest_phone) contacto, COUNT(*) veces FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) AND COALESCE(NULLIF(LOWER(guest_email),''), guest_phone) IS NOT NULL GROUP BY contacto) resumen`, params),
+    ]);
     const total = Number(totals[0]?.total || 0); const views = Number(funnel[0]?.views || 0);
     // El area llega como el id interno de la zona: quien mira el grafico reconoce «Terraza», no
     // «zona-1712...». Si la zona se borro despues, se conserva el id antes que inventar un nombre.
@@ -2121,7 +2217,17 @@ export class ReservationsService {
       for (const zona of (form.resourcesConfig || []) as ResourceConfig[]) if (zona.id && zona.name) nombresDeZona.set(zona.id, zona.name);
     }
     const areasConNombre = (areas as Array<{ area: string; total: number }>).map((row) => ({ ...row, area: nombresDeZona.get(row.area) || row.area }));
-    return { totals: totals[0] || {}, daily, sources, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum };
+    const personasUnicas = Number(recurrentes[0]?.personas || 0);
+    const horasDeAnticipacion = anticipacion[0]?.horas === null || anticipacion[0]?.horas === undefined ? null : Math.round(Number(anticipacion[0].horas));
+    return {
+      porHora: (porHora as Array<{ hora: number; total: number; attended: number }>).map((fila) => ({ hora: Number(fila.hora), total: Number(fila.total), attended: Number(fila.attended) })),
+      anticipacionHoras: horasDeAnticipacion,
+      recurrencia: {
+        personas: personasUnicas,
+        repiten: Number(recurrentes[0]?.repiten || 0),
+        porcentaje: personasUnicas > 0 ? Math.round((Number(recurrentes[0]?.repiten || 0) / personasUnicas) * 100) : null,
+      },
+      totals: totals[0] || {}, daily, sources, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum };
   }
 
   /**

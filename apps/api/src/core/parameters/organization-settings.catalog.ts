@@ -562,6 +562,15 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     masterStatus: 'master_defined',
   },
   {
+    key: 'email.reservation_confirmation_include_ocasiones',
+    category: 'email',
+    label: 'Confirmación de reserva · incluir ocasiones',
+    description: 'Agrega al comprobante la grilla de ocasiones que tenga cargada cada sucursal en su diseño. Sin ocasiones cargadas, el correo sale igual que siempre.',
+    valueType: 'boolean',
+    defaultValue: false,
+    masterStatus: 'master_defined',
+  },
+  {
     key: 'email.reservation_reminder_enabled',
     category: 'email',
     label: 'Recordatorio de reserva',

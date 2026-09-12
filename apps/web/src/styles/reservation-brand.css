@@ -195,3 +195,8 @@
 .design-quick-help { display:grid; gap:3px; margin-bottom:14px; padding:11px 12px; border:1px solid var(--border); border-left:3px solid var(--primary); border-radius:var(--radius-md); background:var(--soft); }
 .design-quick-help strong { color:var(--text-dark); font-size:12px; }
 .design-quick-help small { color:var(--muted); font-size:11px; line-height:1.4; }
+
+/* La tarjeta del formulario es casi blanca en todas las plantillas: su texto no puede heredar
+   el color pensado para el fondo de la página, o una plantilla oscura lo deja ilegible. */
+.preview-public-card, .public-booking-card { color: var(--booking-card-ink, #1c1a1d); }
+.preview-public-card .booking-step-title strong, .public-booking-card .booking-step-title strong { color: inherit; }

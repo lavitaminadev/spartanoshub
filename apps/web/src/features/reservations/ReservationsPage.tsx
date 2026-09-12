@@ -1,4 +1,4 @@
-import { Fragment, useDeferredValue, useState } from 'react';
+import { Fragment, useDeferredValue, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -15,10 +15,10 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
 import { triggerToast } from '../../shared/toast-events';
 import { attendanceRateOf } from '../../shared/attendance';
-import type { GroupRequest, MetaConversionStatus, Reservation, ReservationForm } from './types';
+import type { GroupRequest, GuestHistory, MetaConversionStatus, Reservation, ReservationForm } from './types';
 import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc } from './local-time';
 import { publicReservationUrl } from '../../core/public-url';
-import { origenDeSolicitud, respuestasLegibles } from './answer-labels';
+import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
 import { useAuth } from '../../core/auth';
 import { ExportModal } from './ExportModal';
 import { ReservationResults } from '../dashboard/ReservationResults';
@@ -72,13 +72,6 @@ const STATUS_LABELS: Record<string, string> = {
   rescheduled: 'Reagendada', cancelled_client: 'Cancelada por cliente',
   cancelled_business: 'Cancelada por empresa', waitlist: 'Lista de espera',
 };
-const MODE_LABELS: Record<string, string> = {
-  appointment: 'Reservas',
-  group: 'Reservas',
-  request: 'Encuesta post-visita',
-  survey: 'Encuesta post-visita',
-};
-
 /** Estados que resumen el dia operativo: lo pendiente, lo confirmado y como cerro el ciclo. */
 const BOOKING_TILE_STATUSES = ['pending', 'confirmed', 'attended', 'no_show'];
 
@@ -135,8 +128,10 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const [couponSearch, setCouponSearch] = useState('');
   const [viewingCouponCode, setViewingCouponCode] = useState('');
   const [confirmCoupon, setConfirmCoupon] = useState<{ id: string; active: boolean } | null>(null);
-  const [confirmFormAction, setConfirmFormAction] = useState<{ id: string; action: 'duplicate' | 'pause' | 'resume' } | null>(null);
+  const [confirmFormAction, setConfirmFormAction] = useState<{ id: string; action: 'pause' | 'resume' } | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  /** Sucursal cuya exportación se abrió desde su tarjeta, sin pasar por el filtro de la lista. */
+  const [exportFormId, setExportFormId] = useState('');
   const [page, setPage] = useState(1);
   const [clientFilter, setClientFilter] = useState(initialClientId);
   const [formData, setFormData] = useState({
@@ -161,6 +156,21 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const search = useDeferredValue(filters.search.trim());
 
   const clientQuery = clientFilter ? `?clientId=${encodeURIComponent(clientFilter)}` : '';
+  /*
+   * La dirección manda sobre la pantalla, aunque no se vuelva a montar.
+   *
+   * Un enlace a esta misma ruta —el botón de la barra, el buscador de comandos, un favorito—
+   * cambiaba la URL sin que la vista se enterara, porque la pestaña y los filtros se leían una
+   * sola vez al montar. El botón quedaba muerto y desde la pantalla no había forma de notarlo.
+   */
+  useEffect(() => {
+    const pedida = searchParams.get('tab');
+    if (pedida && ['forms', 'bookings', 'groups', 'metrics', 'coupons'].includes(pedida)) setTab(pedida as typeof tab);
+    if (searchParams.get('nueva') === '1') setManualOpen(true);
+    const formIdPedido = searchParams.get('formId');
+    if (formIdPedido) setFilters((actuales) => (actuales.formId === formIdPedido ? actuales : { ...actuales, formId: formIdPedido }));
+  }, [searchParams]);
+
   const { data: formsArray = [], isLoading, error: formsError, refetch: refetchForms, isFetching: fetchingForms } = useQuery<ReservationForm[]>({ queryKey: ['reservation-forms', clientFilter], queryFn: () => api.get(`/reservations/forms${clientQuery}`) });
   const forms = Array.isArray(formsArray) ? formsArray : [];
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients'), enabled: !clientView });
@@ -187,6 +197,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     setFormData((current) => ({
       ...current,
       clientId,
+      name: current.name.trim() ? current.name : (clients.find((client) => client.id === clientId)?.name ?? ''),
       metaCapiEnabled: hasReadyPixel(binding),
       pixelMode: binding?.pixelId ? 'existing' : 'manual',
       existingPixelId: binding?.pixelId || '',
@@ -284,7 +295,6 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       triggerToast('Reserva actualizada');
     },
   });
-  const duplicateMutation = useMutation({ mutationFn: (id: string) => api.post(`/reservations/forms/${id}/duplicate`), onSuccess: () => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast('Formulario duplicado'); } });
   const updateFormMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.patch<ReservationForm>(`/reservations/forms/${id}`, { status }),
     onSuccess: (_data, vars) => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast(vars.status === 'paused' ? 'Formulario pausado' : 'Formulario reanudado'); },
@@ -343,6 +353,17 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     mutationFn: ({ id, status }: { id: string; status: string }) => api.patch(`/reservations/group-requests/${id}`, { status }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['group-requests'] }); triggerToast('Solicitud actualizada'); },
   });
+  /*
+   * Si quien reserva ya estuvo antes. Se pide solo con la ficha abierta: es una consulta por
+   * reserva y no tiene sentido pagarla por cada fila de la lista.
+   */
+  const { data: historialPersona } = useQuery<GuestHistory>({
+    queryKey: ['guest-history', selectedBooking?.id],
+    queryFn: () => api.get(`/reservations/${selectedBooking!.id}/guest-history`),
+    enabled: Boolean(selectedBooking?.id),
+    staleTime: 60_000,
+  });
+
   const { data: couponsData = [] } = useQuery<Array<{ id: string; code: string; discountType: string; value: number; maxUses: number; usageCount: number; validFrom?: string; validUntil?: string; formIds?: string[]; active: boolean; createdAt: string }>>({ queryKey: ['coupons', clientFilter], queryFn: () => api.get(`/reservations/coupons${clientQuery}`), enabled: tab === 'coupons' });
   const coupons = Array.isArray(couponsData) ? couponsData : [];
   const couponCreate = useMutation({
@@ -385,44 +406,52 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     return matchesStatus && matchesFlow && (!needle || form.name.toLocaleLowerCase('es').includes(needle) || form.publicSlug.toLocaleLowerCase('es').includes(needle));
   });
   const formCounts = reservationClientForms.reduce<Record<string, number>>((counts, form) => ({ ...counts, [form.status]: (counts[form.status] || 0) + 1 }), {});
-  const backupForm = (form: ReservationForm) => {
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), form }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `formulario-${form.publicSlug}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  /**
+   * Copia el enlace público al portapapeles.
+   *
+   * La tarjeta ya mostraba la dirección, pero como texto: había que seleccionarla a mano o entrar
+   * a la configuración. El navegador puede negar el portapapeles —sin permiso, o fuera de HTTPS—,
+   * así que el fallo se avisa en vez de quedar en silencio.
+   */
+  const copiarEnlace = async (form: ReservationForm) => {
+    const enlace = formPublicUrl(form);
+    try {
+      await navigator.clipboard.writeText(enlace);
+      triggerToast('Enlace copiado');
+    } catch {
+      triggerToast('No se pudo copiar. El enlace es: ' + enlace);
+    }
   };
+
   const resetFilters = (patch: Partial<typeof filters>) => { setFilters((current) => ({ ...current, ...patch })); setPage(1); };
 
     return <div className="page reservation-module">
-      <nav className="reservation-tabs" aria-label="Secciones de reservas">
+      {clientView && <nav className="reservation-tabs" aria-label="Secciones de reservas">
         {(clientView
-          ? ([['forms', 'Mis locales'], ['bookings', 'Todas las reservas'], ['groups', 'Grupos y eventos'], ['metrics', 'Resultados']] as const)
-          : ([['forms', 'Locales'], ['bookings', 'Todas las reservas'], ['groups', 'Grupos y eventos'], ['metrics', 'Resultados'], ['coupons', 'Cupones']] as const)
+          ? ([['forms', 'Mis sucursales'], ['bookings', 'Todas las reservas'], ['groups', 'Grupos y eventos'], ['metrics', 'Resultados']] as const)
+          : ([['forms', 'Sucursales'], ['bookings', 'Todas las reservas'], ['groups', 'Grupos y eventos'], ['coupons', 'Cupones']] as const)
         ).map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{key === 'bookings' && bookingPage?.total ? <span>{bookingPage.total}</span> : null}{key === 'groups' && gruposPendientes ? <span>{gruposPendientes}</span> : null}</button>)}
-      </nav>
-      {selectedFilterForm && <div className="reservation-scope-banner"><div><span>GESTIONANDO ESTE LOCAL</span><strong>{selectedFilterForm.name}</strong><small>Los filtros, resultados, exportación y cupones de esta vista se limitan a este local.</small></div><Link className="btn btn-outline btn-sm" to={formPath(selectedFilterForm.id)}>Volver al local</Link></div>}
+      </nav>}
+      {selectedFilterForm && <div className="reservation-scope-banner"><div><span>GESTIONANDO ESTA SUCURSAL</span><strong>{selectedFilterForm.name}</strong><small>Los filtros, resultados, exportación y cupones de esta vista se limitan a este local.</small></div><Link className="btn btn-outline btn-sm" to={formPath(selectedFilterForm.id)}>Volver a la sucursal</Link></div>}
 
       {tab === 'forms' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">ADMINISTRACIÓN</span><h1>Locales de reservas</h1></div><div className="reservation-actions"><p>{visibleForms.length} de {reservationClientForms.length} locales visibles</p><div className="reservation-flow-actions"><button className="btn btn-primary btn-sm" onClick={() => setManualOpen(true)}>+ Nueva reserva</button>{!clientView && <button className="btn btn-outline btn-sm" onClick={() => openCreateFlow('appointment')}>Agregar local</button>}{!clientView && <Link className="btn btn-outline btn-sm" to="/surveys">Ir a Encuestas</Link>}</div></div></div>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">ADMINISTRACIÓN</span><h1>Reservas por empresa</h1></div><div className="reservation-actions"><p>{visibleForms.length} de {reservationClientForms.length} sucursales visibles</p><div className="reservation-flow-actions">{!clientView && <button className="btn btn-primary btn-sm" onClick={() => openCreateFlow('appointment')}>Activar Reservas para una empresa</button>}<button className={`btn btn-sm ${clientView ? 'btn-primary' : 'btn-outline'}`} onClick={() => setManualOpen(true)}>Anotar reserva</button>{!clientView && <Link className="btn btn-outline btn-sm" to="/surveys">Ir a Encuestas</Link>}</div></div></div>
       <div className="reservation-status-summary" aria-label="Resumen de formularios"><button className={!formFilters.status ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: '' }))}><strong>{reservationClientForms.length}</strong><span>Todos</span></button><button className={formFilters.status === 'published' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'published' }))}><strong>{formCounts.published || 0}</strong><span>Publicados</span></button><button className={formFilters.status === 'paused' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'paused' }))}><strong>{formCounts.paused || 0}</strong><span>Pausados</span></button><button className={formFilters.status === 'draft' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'draft' }))}><strong>{formCounts.draft || 0}</strong><span>Borradores</span></button></div>
       <div className="reservation-form-filters"><input className="input" type="search" aria-label="Buscar flujo" placeholder="Buscar por nombre o enlace" value={formFilters.search} onChange={(event) => setFormFilters((current) => ({ ...current, search: event.target.value }))} />{!clientView && <select className="input" aria-label="Filtrar formularios por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todos los clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar formularios por estado" value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Todos los estados</option><option value="published">Publicados</option><option value="paused">Pausados</option><option value="draft">Borradores</option></select><button type="button" className="btn btn-outline btn-sm" disabled={!formFilters.search && !formFilters.status && !clientFilter && formFilters.flow === 'all'} onClick={() => { setFormFilters({ search: '', status: '', flow: 'all' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{visibleForms.length} flujo{visibleForms.length === 1 ? '' : 's'}</span></div>
-      {visibleForms.length === 0 ? <div className="reservation-empty"><strong>Crea tu primer local de reservas</strong><p>Las encuestas se crean y publican desde su propio módulo.</p>{!clientView && <div className="reservation-flow-actions"><button className="btn btn-primary" onClick={() => openCreateFlow('appointment')}>Agregar local</button><Link className="btn btn-outline" to="/surveys">Ir a Encuestas</Link></div>}</div> : <div className="reservation-form-grid">
+      {visibleForms.length === 0 ? <div className="reservation-empty"><strong>Activa Reservas para tu primera empresa</strong><p>Las encuestas se crean y publican desde su propio módulo.</p>{!clientView && <div className="reservation-flow-actions"><button className="btn btn-primary" onClick={() => openCreateFlow('appointment')}>Activar Reservas para una empresa</button><Link className="btn btn-outline" to="/surveys">Ir a Encuestas</Link></div>}</div> : <div className="reservation-form-grid">
         {visibleForms.map((form) => <article className="reservation-form-card" key={form.id}>
           <div className="form-card-accent" style={{ background: form.designConfig.primaryColor || '#0ec6b8' }} />
-          <div className="form-card-head"><span className="form-mode">{MODE_LABELS[form.mode] ?? flowName(form.mode)}</span><span className={`form-status-pill ${form.status === 'published' ? 'is-live' : form.status === 'paused' ? 'is-paused' : 'is-draft'}`}>{form.status === 'published' ? 'Publicado' : form.status === 'paused' ? 'Pausado' : 'Borrador'}</span></div>
-          <h2>{form.name}</h2><p>{formPublicUrl(form)}</p>{!clientView && <small className="form-client-name">{clients.find((client) => client.id === form.clientId)?.name || 'Cliente no disponible'}</small>}
+          <div className="form-card-head"><span className="form-mode">{clientView ? 'Sucursal' : (clients.find((client) => client.id === form.clientId)?.name || 'Empresa no disponible')}</span><span className={`form-status-pill ${form.status === 'published' ? 'is-live' : form.status === 'paused' ? 'is-paused' : 'is-draft'}`}>{form.status === 'published' ? 'Publicado' : form.status === 'paused' ? 'Pausado' : 'Borrador'}</span></div>
+          <h2>{form.name}</h2><p>{formPublicUrl(form)}</p>
           {canReadPixels && (() => { const readiness = metaReadiness(form, pixelByClient.get(form.clientId)); return <span className={`meta-readiness is-${readiness.tone}`} title={readiness.title}>{readiness.label}</span>; })()}
           <div className="form-card-facts"><span>{form.durationMinutes} min</span><span>{form.capacityPerSlot} cupo(s)</span><span>{form.fieldSchema.length} campos</span></div>
-            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}?tab=bookings&clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Reservas</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}{!clientView && <button className="btn btn-outline btn-sm" disabled={duplicateMutation.isPending} onClick={() => setConfirmFormAction({ id: form.id, action: 'duplicate' })}>{duplicateMutation.isPending ? 'Duplicando...' : 'Duplicar'}</button>}<button className="btn btn-outline btn-sm" onClick={() => backupForm(form)}>Respaldar JSON</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
+            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=disponibilidad`}>Bloquear día</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}<button className="btn btn-outline btn-sm" onClick={() => { void copiarEnlace(form); }}>Copiar enlace</button><button className="btn btn-outline btn-sm" onClick={() => { setExportFormId(form.id); setExportModalOpen(true); }}>Exportar</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
           </article>)}
         </div>}
       </section>}
 
       {tab === 'bookings' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">OPERACIÓN DEL LOCAL</span><h1>Todas las reservas</h1></div><div className="reservation-actions"><button className="btn btn-primary btn-sm" onClick={() => setManualOpen(true)}>+ Nueva reserva</button><button className="btn btn-outline btn-sm" onClick={() => setExportModalOpen(true)}>Exportar datos</button></div></div>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">OPERACIÓN DE LA SUCURSAL</span><h1>Todas las reservas</h1></div><div className="reservation-actions"><button className="btn btn-primary btn-sm" onClick={() => setManualOpen(true)}>Anotar reserva</button><button className="btn btn-outline btn-sm" onClick={() => setExportModalOpen(true)}>Exportar datos</button></div></div>
       <div className="status-tiles" role="group" aria-label="Filtrar por estado del ciclo de reserva">
         {BOOKING_TILE_STATUSES.map((status) => { const option = findStatusOption(RESERVATION_STATUS_OPTIONS, status); return <button
           key={status}
@@ -444,9 +473,17 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         : loadingBookings && !bookingPage ? <LoadingSpinner text="Buscando reservas..." />
         : bookings.length === 0 ? <EmptyState icon="calendar" title="Sin reservas para estos filtros" description="Las nuevas solicitudes aparecerán aquí en tiempo real." /> : <div className="booking-list" aria-busy={loadingBookings}>
         {bookings.map((item) => {
+          /*
+           * Lo que hay que preparar, a la vista en la fila.
+           *
+           * La alergia, la silla infantil o una nota del equipo estaban solo dentro de la ficha:
+           * quien recorre la lista para armar el servicio no tenía cómo saber qué reserva necesita
+           * algo sin abrirlas una por una.
+           */
+          const preparar = respuestasDestacadas(item.answers, forms.find((form) => form.id === item.formId)?.fieldSchema);
           return <article className="booking-row" key={item.id}>
           <div className="booking-date"><strong>{new Date(item.startsAt).getDate()}</strong><span>{new Date(item.startsAt).toLocaleDateString('es-CL', { month: 'short' })}</span><small>{new Date(item.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</small></div>
-          <button className="booking-guest booking-guest-button" onClick={() => { setSelectedBooking(item); setBookingNotes(item.internalNotes || ''); }} aria-label={`Ver detalle de la reserva de ${item.guestName}`}><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || 'Sin contacto'}</span><small>#{item.referenceCode} · {item.utmCampaign || item.utmSource || 'Origen directo'}{item.couponCode ? <em className="booking-coupon"><VitaIcons.ticket /> {item.couponCode}</em> : null}</small></button>
+          <button className="booking-guest booking-guest-button" onClick={() => { setSelectedBooking(item); setBookingNotes(item.internalNotes || ''); }} aria-label={`Ver detalle de la reserva de ${item.guestName}`}><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || 'Sin contacto'}</span><small>#{item.referenceCode} · {item.utmCampaign || item.utmSource || 'Origen directo'}{item.couponCode ? <em className="booking-coupon"><VitaIcons.ticket /> {item.couponCode}</em> : null}</small>{(preparar.length > 0 || item.internalNotes) && <span className="booking-flags">{preparar.map((dato) => <em key={dato.clave} title={`${dato.etiqueta}: ${dato.valor}`}>{dato.etiqueta}</em>)}{item.internalNotes ? <em className="es-nota" title={item.internalNotes}>Nota del equipo</em> : null}</span>}</button>
           <div className="booking-status-cell">
             {/* El gesto del dia es marcar asistencia: dos botones directos, sin desplegable.
                 El resto del ciclo queda en el semaforo, que se usa mucho menos. */}
@@ -481,7 +518,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
 
 
     {tab === 'groups' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">GRUPOS Y EVENTOS</span><h1>Solicitudes sin cupo</h1><p className="page-subtitle">No ocupan agenda: el equipo acuerda fecha y luego crea la reserva definitiva.</p></div></div>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">GRUPOS Y EVENTOS</span><h1>Solicitudes sin cupo{gruposPendientes > 0 ? ` · ${gruposPendientes} pendiente${gruposPendientes === 1 ? '' : 's'}` : ''}</h1><p className="page-subtitle">No ocupan agenda: el equipo acuerda fecha y luego crea la reserva definitiva.</p></div></div>
       {errorGrupos ? <QueryErrorState message={errorGrupos.message} onRetry={() => { void recargarGrupos(); }} />
         : cargandoGrupos && grupos.length === 0 ? <LoadingSpinner text="Buscando solicitudes..." />
         : grupos.length === 0 ? <EmptyState title="Sin solicitudes de grupo" description="Cuando alguien pida un evento desde la página pública, aparecerá acá." />
@@ -493,7 +530,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
             <div>
               <strong>{request.guestName} · {request.partySize} personas</strong>
               <span>{request.eventType}{request.preferredDate ? ` · ${request.preferredDate}` : ''}{request.preferredTime ? ` · ${request.preferredTime}` : ''}</span>
-              <small>{local?.name || 'Local no disponible'} · {request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>
+              <small>{local?.name || 'Sucursal no disponible'} · {request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>
               {request.notes && <p className="page-subtitle">{request.notes}</p>}
               <details><summary>Ver detalles ingresados</summary><dl className="success-summary">
                 <dt>Fecha solicitada</dt><dd>{request.preferredDate || 'Por acordar'} {request.preferredTime || ''}</dd>
@@ -519,7 +556,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
                 <div className="portal-item-actions"><button className="btn btn-primary btn-sm" disabled={convertirGrupo.isPending}>{convertirGrupo.isPending ? 'Creando...' : 'Confirmar reserva'}</button><button className="btn btn-outline btn-sm" type="button" onClick={() => setConvirtiendo(null)}>Cancelar</button></div>
               </form>}
               {request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => marcarGrupo.mutate({ id: request.id, status: 'contacted' })}>Marcar contactada</button>}
-              <Link className="btn btn-outline btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(request.clientId)}&formId=${encodeURIComponent(request.formId)}`}>Abrir agenda del local</Link>
+              <Link className="btn btn-outline btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(request.clientId)}&formId=${encodeURIComponent(request.formId)}`}>Abrir agenda de la sucursal</Link>
             </div>
           </article>;
         })}</div>}
@@ -533,15 +570,15 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       {viewingCouponCode && <div className="coupon-usages"><div className="reservation-section-head"><div><span className="page-eyebrow">USOS DE {viewingCouponCode}</span><h2>Reservas que usaron este cupón</h2></div><button className="btn btn-outline btn-sm" onClick={() => setViewingCouponCode('')}>Cerrar</button></div>{couponUsages.length === 0 ? <EmptyState icon="ticket" title="Sin usos" description="Este cupón aún no ha sido utilizado en ninguna reserva." /> : <div className="booking-list">{couponUsages.map((item) => <article className="booking-row" key={item.id}><div className="booking-date"><strong>{new Date(item.startsAt).getDate()}</strong><span>{new Date(item.startsAt).toLocaleDateString('es-CL', { month: 'short' })}</span></div><div className="booking-guest"><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || '-'}</span><small>#{item.referenceCode}</small></div><StatusBadge status={item.status} /></article>)}</div>}</div>}
     </section>}
 
-    <Modal open={createOpen} onClose={closeCreateFlow} title="Agregar local de reservas">
+    <Modal open={createOpen} onClose={closeCreateFlow} title="Activar Reservas para una empresa">
       <form className="modal-form reservation-create-wizard" onSubmit={(event) => { event.preventDefault(); if (createStep < 2) { if (createStepReady[createStep]) setCreateStep((current) => Math.min(2, current + 1)); return; } createMutation.mutate(); }}>
         <div className="reservation-create-steps" role="list" aria-label="Pasos de creación">
           {['Datos', 'Medición (opcional)', 'Revisar'].map((label, index) => <button key={label} type="button" className={index === createStep ? 'active' : index < createStep ? 'done' : ''} onClick={() => { if (index <= createStep || createStepReady[createStep]) setCreateStep(index); }}><strong>{String(index + 1).padStart(2, '0')}</strong><span>{label}</span></button>)}
         </div>
         {createStep === 0 && <>
-          <p className="page-subtitle">Elige la empresa y ponle nombre al local. Su página permite reservar con hora y también pedir eventos o grupos.</p>
+          <p className="page-subtitle">Elige la empresa: la primera sucursal toma su nombre y puedes cambiarlo. Su página permite reservar con hora y también pedir eventos o grupos.</p>
           <label>Empresa o cliente<select className="input" required value={formData.clientId} onChange={(event) => updateCreateClient(event.target.value)}><option value="">Selecciona un cliente</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
-          <label>Nombre del local<input className="input" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Ej. Casa Costanera - Providencia" /></label>
+          <label>Nombre de la sucursal<input className="input" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Ej. Casa Costanera - Providencia" /></label>
         </>}
         {createStep === 1 && <>
           <p className="page-subtitle">Define medición, Analytics y si ofrecerás guardado en calendario.</p>
@@ -593,9 +630,41 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
 
     <Modal open={couponCreateOpen} onClose={() => setCouponCreateOpen(false)} title="Nuevo cupón"><form className="modal-form" onSubmit={(event) => { event.preventDefault(); couponCreate.mutate(); }}><label>Código<input className="input" required value={couponForm.code} onChange={(event) => setCouponForm({ ...couponForm, code: event.target.value })} placeholder="Ej. BIENVENIDA20" /></label><div className="form-row"><label>Tipo<select className="input" value={couponForm.discountType} onChange={(event) => setCouponForm({ ...couponForm, discountType: event.target.value })}><option value="percentage">Porcentaje</option><option value="fixed">Fijo</option></select></label><label>Valor<input className="input" type="number" min="0" value={couponForm.value} onChange={(event) => setCouponForm({ ...couponForm, value: Number(event.target.value) })} /></label></div><label>Usos máximos (0 = ilimitado)<input className="input" type="number" min="0" value={couponForm.maxUses} onChange={(event) => setCouponForm({ ...couponForm, maxUses: Number(event.target.value) })} /></label><div className="form-row"><label>Válido desde<input className="input" type="date" value={couponForm.validFrom} onChange={(event) => setCouponForm({ ...couponForm, validFrom: event.target.value })} /></label><label>Válido hasta<input className="input" type="date" value={couponForm.validUntil} onChange={(event) => setCouponForm({ ...couponForm, validUntil: event.target.value })} /></label></div><label>Formularios donde aplica<small>Sin marcar ninguno, el cupón vale para todos.</small><div className="coupon-form-picker">{reservationClientForms.length === 0 ? <em>Aún no hay formularios de reserva.</em> : reservationClientForms.map((form) => { const selected = couponForm.formIds.split(',').map((id) => id.trim()).filter(Boolean); const checked = selected.includes(form.id); return <label key={form.id} className="coupon-form-option"><input type="checkbox" checked={checked} onChange={(event) => { const next = event.target.checked ? [...selected, form.id] : selected.filter((id) => id !== form.id); setCouponForm({ ...couponForm, formIds: next.join(',') }); }} /><span>{form.name}</span></label>; })}</div></label><div className="form-row"><label>Válido desde la hora<small>De la reserva, no de cuándo se pide. Vacío = cualquier hora.</small><input className="input" type="time" value={couponForm.validFromTime} onChange={(event) => setCouponForm({ ...couponForm, validFromTime: event.target.value })} /></label><label>Válido hasta la hora<input className="input" type="time" value={couponForm.validUntilTime} onChange={(event) => setCouponForm({ ...couponForm, validUntilTime: event.target.value })} /></label></div><label>Días de la semana válidos (opcional, ninguno = todos)<div className="day-checkboxes">{['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((label, index) => { const jsDay = [1,2,3,4,5,6,0][index]; return <label key={index} className="day-checkbox"><input type="checkbox" checked={couponForm.validDaysOfWeek.includes(jsDay)} onChange={(event) => setCouponForm({ ...couponForm, validDaysOfWeek: event.target.checked ? [...couponForm.validDaysOfWeek, jsDay] : couponForm.validDaysOfWeek.filter((d) => d !== jsDay) })} />{label}</label>; })}</div></label>{couponCreate.error && <div className="alert alert-error">{couponCreate.error.message}</div>}<div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setCouponCreateOpen(false)}>Cancelar</button><button className="btn btn-primary" disabled={couponCreate.isPending}>{couponCreate.isPending ? 'Guardando...' : 'Crear cupón'}</button></div></form></Modal>
 
-    <Modal open={manualOpen} onClose={() => setManualOpen(false)} title="Nueva reserva"><form className="modal-form" onSubmit={(event) => { event.preventDefault(); manualMutation.mutate(reservationClientForms.length === 1 ? reservationClientForms[0].id : undefined); }}><p className="page-subtitle">Para una llamada o alguien que pasa por el local. Se valida contra el cupo igual que una reserva web.</p>{reservationClientForms.length === 1 ? <p className="page-subtitle"><strong>Local:</strong> {reservationClientForms[0].name}</p> : <label>Local<select className="input" required value={manualForm.formId} onChange={(event) => setManualForm({ ...manualForm, formId: event.target.value })}><option value="">Elige el local</option>{reservationClientForms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}</select></label>}<label>Fecha y hora<input className="input" type="datetime-local" required value={manualForm.startsAt} onChange={(event) => setManualForm({ ...manualForm, startsAt: event.target.value })} /></label><label>Nombre del visitante<input className="input" required value={manualForm.guestName} onChange={(event) => setManualForm({ ...manualForm, guestName: event.target.value })} /></label><div className="form-row"><label>Teléfono<input className="input" value={manualForm.guestPhone} onChange={(event) => setManualForm({ ...manualForm, guestPhone: event.target.value })} /></label><label>Correo<input className="input" type="email" value={manualForm.guestEmail} onChange={(event) => setManualForm({ ...manualForm, guestEmail: event.target.value })} /></label></div><label>Número de personas<input className="input" type="number" min="1" value={manualForm.partySize} onChange={(event) => setManualForm({ ...manualForm, partySize: Number(event.target.value) })} /></label><label>Notas internas<textarea className="input" rows={3} value={manualForm.internalNotes} onChange={(event) => setManualForm({ ...manualForm, internalNotes: event.target.value })} /></label>{!clientView && <label className="toggle-row"><input type="checkbox" checked={manualForm.skipAvailability} onChange={(event) => setManualForm({ ...manualForm, skipAvailability: event.target.checked })} /> Aceptarla aunque el horario esté lleno</label>}{manualMutation.error && <div className="alert alert-error">{manualMutation.error.message}</div>}<div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setManualOpen(false)}>Cancelar</button><button className="btn btn-primary" disabled={manualMutation.isPending}>{manualMutation.isPending ? 'Guardando...' : 'Crear reserva'}</button></div></form></Modal>
+    <Modal open={manualOpen} onClose={() => setManualOpen(false)} title="Anotar reserva"><form className="modal-form" onSubmit={(event) => { event.preventDefault(); manualMutation.mutate(reservationClientForms.length === 1 ? reservationClientForms[0].id : undefined); }}><p className="page-subtitle">Para una llamada o alguien que pasa por el local. Se valida contra el cupo igual que una reserva web.</p>{reservationClientForms.length === 1 ? <p className="page-subtitle"><strong>Sucursal:</strong> {reservationClientForms[0].name}</p> : <label>Sucursal<select className="input" required value={manualForm.formId} onChange={(event) => setManualForm({ ...manualForm, formId: event.target.value })}><option value="">Elige la sucursal</option>{reservationClientForms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}</select></label>}<label>Fecha y hora<input className="input" type="datetime-local" required value={manualForm.startsAt} onChange={(event) => setManualForm({ ...manualForm, startsAt: event.target.value })} /></label><label>Nombre del visitante<input className="input" required value={manualForm.guestName} onChange={(event) => setManualForm({ ...manualForm, guestName: event.target.value })} /></label><div className="form-row"><label>Teléfono<input className="input" value={manualForm.guestPhone} onChange={(event) => setManualForm({ ...manualForm, guestPhone: event.target.value })} /></label><label>Correo<input className="input" type="email" value={manualForm.guestEmail} onChange={(event) => setManualForm({ ...manualForm, guestEmail: event.target.value })} /></label></div><label>Número de personas<input className="input" type="number" min="1" value={manualForm.partySize} onChange={(event) => setManualForm({ ...manualForm, partySize: Number(event.target.value) })} /></label><label>Notas internas<textarea className="input" rows={3} value={manualForm.internalNotes} onChange={(event) => setManualForm({ ...manualForm, internalNotes: event.target.value })} /></label>{!clientView && <label className="toggle-row"><input type="checkbox" checked={manualForm.skipAvailability} onChange={(event) => setManualForm({ ...manualForm, skipAvailability: event.target.checked })} /> Aceptarla aunque el horario esté lleno</label>}{manualMutation.error && <div className="alert alert-error">{manualMutation.error.message}</div>}<div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setManualOpen(false)}>Cancelar</button><button className="btn btn-primary" disabled={manualMutation.isPending}>{manualMutation.isPending ? 'Guardando...' : 'Crear reserva'}</button></div></form></Modal>
 
-    <Modal open={Boolean(selectedBooking)} onClose={() => { setSelectedBooking(null); setRescheduleAt(''); setCancellationReason(''); }} title={selectedBooking ? `Reserva #${selectedBooking.referenceCode}` : 'Reserva'}>{selectedBooking && <div className="booking-detail"><div className="booking-detail-grid"><div><span>Visitante</span><strong>{selectedBooking.guestName}</strong></div><div><span>Contacto</span><strong>{selectedBooking.guestPhone || selectedBooking.guestEmail || 'Sin contacto'}</strong></div><div><span>Fecha actual</span><strong>{new Date(selectedBooking.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: forms.find((form) => form.id === selectedBooking.formId)?.timezone })}</strong></div><div><span>Estado</span><StatusBadge status={selectedBooking.status} /></div><div><span>Personas</span><strong>{selectedBooking.partySize}</strong></div>{(() => { const form = forms.find((f) => f.id === selectedBooking.formId); const zona = (form?.resourcesConfig || []).find((r) => r.id === selectedBooking.resourceId); const servicio = (form?.servicesConfig || []).find((sv) => sv.id === selectedBooking.serviceId); return <>{zona && <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ''}</strong></div>}{servicio && <div><span>Servicio</span><strong>{servicio.name}</strong></div>}</>; })()}<div><span>Cupón aplicado</span><strong>{selectedBooking.couponCode ? <button type="button" className="link-button" onClick={() => { setTab('coupons'); setViewingCouponCode(selectedBooking.couponCode!); setSelectedBooking(null); }}><VitaIcons.ticket /> {selectedBooking.couponCode}</button> : 'Sin cupón'}</strong></div></div>
+    <Modal open={Boolean(selectedBooking)} onClose={() => { setSelectedBooking(null); setRescheduleAt(''); setCancellationReason(''); }} title={selectedBooking ? `Reserva #${selectedBooking.referenceCode}` : 'Reserva'}>{selectedBooking && <div className="booking-detail"><div className="booking-detail-grid"><div><span>Visitante</span><strong>{selectedBooking.guestName}</strong></div><div><span>Contacto</span><strong>{selectedBooking.guestPhone || selectedBooking.guestEmail || 'Sin contacto'}</strong></div><div><span>Fecha actual</span><strong>{new Date(selectedBooking.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: forms.find((form) => form.id === selectedBooking.formId)?.timezone })}</strong></div><div><span>Estado</span><StatusBadge status={selectedBooking.status} /></div><div><span>Personas</span><strong>{selectedBooking.partySize}</strong></div>{(() => { const form = forms.find((f) => f.id === selectedBooking.formId); const zona = (form?.resourcesConfig || []).find((r) => r.id === selectedBooking.resourceId); const servicio = (form?.servicesConfig || []).find((sv) => sv.id === selectedBooking.serviceId); return <>{zona && <div><span>Zona</span><strong>{zona.name} · {zona.smokingAllowed ? 'fumadores' : 'no fumadores'}</strong></div>}{servicio && <div><span>Servicio</span><strong>{servicio.name}</strong></div>}</>; })()}<div><span>Cupón aplicado</span><strong>{selectedBooking.couponCode ? <button type="button" className="link-button" onClick={() => { setTab('coupons'); setViewingCouponCode(selectedBooking.couponCode!); setSelectedBooking(null); }}><VitaIcons.ticket /> {selectedBooking.couponCode}</button> : 'Sin cupón'}</strong></div></div>
+      {/* Quién reserva: si ya vino antes, para reconocerla al atender. */}
+      <div className="booking-detail-extra">
+        <span className="page-eyebrow">QUIÉN RESERVA</span>
+        {!historialPersona ? <p className="page-subtitle">Revisando si ya reservó antes...</p>
+          : historialPersona.total === 0 ? <p className="page-subtitle">Primera vez que reserva en esta empresa.</p>
+          : <>
+            <p className="page-subtitle">Ya reservó {historialPersona.total} {historialPersona.total === 1 ? 'vez' : 'veces'} antes · {historialPersona.attended} asistió{historialPersona.noShow > 0 ? ` · ${historialPersona.noShow} no llegó` : ''}</p>
+            <ul className="booking-historial">
+              {historialPersona.anteriores.map((previa) => <li key={previa.id}>{new Date(previa.startsAt).toLocaleDateString('es-CL', { dateStyle: 'medium' })} · {previa.partySize} persona{previa.partySize === 1 ? '' : 's'} <StatusBadge status={previa.status} /></li>)}
+            </ul>
+          </>}
+      </div>
+
+      {/* Lo que aceptó, con la fecha exacta: es lo que respalda tratar sus datos. */}
+      <div className="booking-detail-extra">
+        <span className="page-eyebrow">LO QUE ACEPTÓ</span>
+        <ul className="booking-consentimientos">
+          {([
+            ['Condiciones de la reserva', selectedBooking.reservationConsentAt],
+            ['Comunicaciones de marketing', selectedBooking.marketingConsentAt],
+            ['Medición y campañas', selectedBooking.measurementConsentAt],
+            ['Declaró ser mayor de edad', selectedBooking.adultDeclaredAt],
+            ['Confirmó que asistiría', selectedBooking.guestConfirmedAt],
+          ] as Array<[string, string | null | undefined]>).map(([etiqueta, cuando]) => (
+            <li key={etiqueta} className={cuando ? 'es-si' : 'es-no'}>
+              <strong>{cuando ? 'Sí' : 'No'}</strong> {etiqueta}
+              {cuando ? <small>{new Date(cuando).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</small> : null}
+            </li>
+          ))}
+        </ul>
+        {selectedBooking.reservationConsentText && <details><summary>Ver el texto que se le mostró</summary><p className="page-subtitle">{selectedBooking.reservationConsentText}</p></details>}
+      </div>
     <section className="booking-attribution">
       <h4>Atribución y Meta</h4>
       <div className="booking-detail-grid">
@@ -610,8 +679,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     </section>
     {(() => { const legibles = respuestasLegibles(selectedBooking.answers, forms.find((form) => form.id === selectedBooking.formId)?.fieldSchema); return legibles.length > 0 && <section className="booking-answers"><h4>Datos recopilados</h4><div>{legibles.map((item) => <article key={item.clave}><span>{item.etiqueta}</span><strong>{item.valor}</strong></article>)}</div></section>; })()}{!clientView && ['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(selectedBooking.status) && <div className="booking-quick-actions"><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { startsAt: localInputToUtc(rescheduleAt, forms.find((form) => form.id === selectedBooking.formId)?.timezone || 'America/Santiago') } }); }}><label>Reagendar a una nueva fecha y hora<input className="input" type="datetime-local" required value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} /></label><button className="btn btn-outline btn-sm" disabled={updateMutation.isPending}>Validar y reagendar</button></form><div className="attendance-actions"><strong>Marcar asistencia</strong><button type="button" className="btn btn-primary btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'attended' } })}>Asistió</button><button type="button" className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'no_show' } })}>No asistió</button></div><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { status: 'cancelled_business', cancellationReason: cancellationReason.trim() } }); }}><label>Motivo de cancelación del local<input className="input" required maxLength={500} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} placeholder="Ej.: cierre excepcional del local" /></label><button className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending || !cancellationReason.trim()}>Cancelar y avisar al cliente</button></form></div>}<h4>Historial trazable</h4>{historyLoading ? <p className="page-subtitle">Cargando historial...</p> : <div className="reservation-history">{history.map((event) => <div key={event.id}><span>{event.type === 'created' ? 'Reserva creada' : event.type === 'rescheduled' ? 'Reserva reagendada' : event.type === 'integration_failed' ? 'Integración pendiente' : 'Estado actualizado'}</span><small>{new Date(event.createdAt).toLocaleString('es-CL')} · {event.actorType}</small>{event.fromStatus || event.toStatus ? <em>{event.fromStatus ? STATUS_LABELS[event.fromStatus] || event.fromStatus : 'Inicio'} → {event.toStatus ? STATUS_LABELS[event.toStatus] || event.toStatus : ''}</em> : null}</div>)}</div>}{!clientView && <><h4>Notas internas</h4><div className="booking-notes"><textarea className="input" rows={3} value={bookingNotes} onChange={(event) => setBookingNotes(event.target.value)} placeholder="Comentarios solo para el equipo..." /><button type="button" className="btn btn-outline btn-sm" disabled={bookingNotes === (selectedBooking.internalNotes || '') || updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { internalNotes: bookingNotes.trim() } })}>{updateMutation.isPending ? 'Guardando...' : 'Guardar notas'}</button></div></>}{updateMutation.error && <div className="alert alert-error">{updateMutation.error.message}</div>}</div>}</Modal>
     <ConfirmDialog open={Boolean(confirmCoupon)} title="Desactivar cupón" description="¿Desactivar este cupón? Las reservas existentes no se verán afectadas." confirmLabel="Desactivar" pending={couponToggle.isPending} onClose={() => setConfirmCoupon(null)} onConfirm={() => { if (confirmCoupon) couponToggle.mutate(confirmCoupon); setConfirmCoupon(null); }} />
-    <ConfirmDialog open={Boolean(confirmFormAction)} title={confirmFormAction?.action === 'pause' ? 'Pausar formulario' : 'Duplicar formulario'} description={confirmFormAction?.action === 'pause' ? 'Al pausar el formulario, los visitantes verán un mensaje de mantenimiento. Las reservas existentes no se verán afectadas.' : 'Se creará una copia exacta de este formulario. ¿Quieres continuar?'} confirmLabel={confirmFormAction?.action === 'pause' ? 'Pausar' : 'Duplicar'} pending={confirmFormAction?.action === 'pause' ? updateFormMutation.isPending : duplicateMutation.isPending} onClose={() => setConfirmFormAction(null)} onConfirm={() => { if (!confirmFormAction) return; if (confirmFormAction.action === 'pause') updateFormMutation.mutate({ id: confirmFormAction.id, status: 'paused' }); else duplicateMutation.mutate(confirmFormAction.id); setConfirmFormAction(null); }} />
+    <ConfirmDialog open={Boolean(confirmFormAction)} title="Pausar sucursal" description="Mientras esté pausada, quien abra su página verá un aviso y no podrá reservar. Las reservas ya hechas no se tocan." confirmLabel="Pausar" pending={updateFormMutation.isPending} onClose={() => setConfirmFormAction(null)} onConfirm={() => { if (!confirmFormAction) return; updateFormMutation.mutate({ id: confirmFormAction.id, status: 'paused' }); setConfirmFormAction(null); }} />
 
-    <ExportModal open={exportModalOpen} onClose={() => setExportModalOpen(false)} formId={filters.formId || undefined} clientView={clientView} />
+    <ExportModal open={exportModalOpen} onClose={() => { setExportModalOpen(false); setExportFormId(''); }} formId={exportFormId || filters.formId || undefined} clientView={clientView} />
   </div>;
 }

@@ -98,7 +98,51 @@ function urlDelLogo(): string {
  * @param cuerpo - Texto ya rellenado, con sus saltos de línea.
  * @param accion - Botón opcional.
  */
-export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionDeCorreo): string {
+/**
+ * Bloque de tarjetas que el sistema arma —no la plantilla— y que se agrega bajo el cuerpo.
+ *
+ * Lo escribe el código y no quien edita el correo: el HTML de correo es frágil y una tabla mal
+ * cerrada rompe el mensaje entero en Outlook. Las plantillas siguen siendo texto con variables.
+ */
+export interface TarjetaDeCorreo { titulo: string; texto?: string; imagen?: string }
+
+function tarjetasDeCorreo(titulo: string, tarjetas: TarjetaDeCorreo[]): string {
+  if (tarjetas.length === 0) return '';
+  const celdas = tarjetas.map((tarjeta) => `
+    <td width="50%" valign="top" style="padding:6px;">
+      ${tarjeta.imagen ? `<img src="${escaparHtml(tarjeta.imagen)}" alt="" width="240" style="display:block;width:100%;max-width:240px;height:auto;border:0;border-radius:8px;">` : ''}
+      <div style="margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#22242a;">${escaparHtml(tarjeta.titulo)}</div>
+      ${tarjeta.texto ? `<div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.4;color:#7a7d87;">${escaparHtml(tarjeta.texto)}</div>` : ''}
+    </td>`);
+  // De a dos por fila: más columnas se rompen en el ancho de un teléfono.
+  const filas: string[] = [];
+  for (let indice = 0; indice < celdas.length; indice += 2) {
+    filas.push(`<tr>${celdas.slice(indice, indice + 2).join('')}${celdas.length % 2 === 1 && indice + 2 > celdas.length - 1 ? '<td width="50%"></td>' : ''}</tr>`);
+  }
+  return `<div style="margin-top:22px;padding-top:16px;border-top:1px solid #ececf0;">
+      <div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#101114;">${escaparHtml(titulo)}</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">${filas.join('')}</table>
+    </div>`;
+}
+
+/**
+ * Filas de «dato: valor» que acompañan al cuerpo, armadas por el sistema.
+ *
+ * La plantilla es texto con variables y no puede listar lo que cada local pregunta: son campos
+ * distintos en cada sucursal. Esto las pinta sin que quien edita tenga que saber HTML.
+ */
+export interface DetalleDeCorreo { etiqueta: string; valor: string }
+
+function detalleDeCorreo(filas: DetalleDeCorreo[]): string {
+  if (filas.length === 0) return '';
+  const celdas = filas.map((fila) => `<tr>
+      <td style="padding:4px 10px 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a7d87;white-space:nowrap;">${escaparHtml(fila.etiqueta)}</td>
+      <td style="padding:4px 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#22242a;">${escaparHtml(fila.valor)}</td>
+    </tr>`).join('');
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 2px;border-top:1px solid #ececf0;padding-top:10px;">${celdas}</table>`;
+}
+
+export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionDeCorreo, extra?: { titulo: string; tarjetas: TarjetaDeCorreo[] }, detalle?: DetalleDeCorreo[]): string {
   const boton = accion
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px;">
          <tr><td style="border-radius:8px;background:#ea0f63;">
@@ -138,7 +182,9 @@ export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionD
                 ${escaparHtml(titulo)}
               </h1>
               ${comoParrafos(cuerpo)}
+              ${detalle ? detalleDeCorreo(detalle) : ''}
               ${boton}
+              ${extra ? tarjetasDeCorreo(extra.titulo, extra.tarjetas) : ''}
             </td>
           </tr>
           <tr>
@@ -171,6 +217,8 @@ export function componerCorreo(
   cuerpo: string,
   variables: VariablesDePlantilla,
   accion?: AccionDeCorreo,
+  extra?: { titulo: string; tarjetas: TarjetaDeCorreo[] },
+  detalle?: DetalleDeCorreo[],
 ): { subject: string; html: string } {
   // El asunto se rellena sin escapar y luego se limpia: no es HTML, y un `&amp;` en la bandeja
   // de entrada se lee como el error que es.
@@ -179,5 +227,5 @@ export function componerCorreo(
     return valor === null || valor === undefined ? '' : String(valor);
   }).replace(/\s+/g, ' ').trim();
 
-  return { subject, html: armazonDeCorreo(subject, rellenar(cuerpo, variables), accion) };
+  return { subject, html: armazonDeCorreo(subject, rellenar(cuerpo, variables), accion, extra, detalle) };
 }

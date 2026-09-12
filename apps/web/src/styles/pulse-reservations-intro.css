@@ -235,3 +235,40 @@
 /* Convertir una solicitud de grupo en reserva, dentro de su propia tarjeta. */
 .grupo-a-reserva { display:grid; gap:8px; margin-top:8px; padding:12px; border:1px solid var(--surface-sage); border-radius: var(--radius-md); background:var(--soft); min-width:240px; }
 .grupo-a-reserva label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:700; }
+
+/* Ficha de una reserva: quién es la persona y qué aceptó. */
+.booking-detail-extra { margin-top:16px; padding-top:14px; border-top:1px solid var(--border-light); }
+.booking-detail-extra .page-subtitle { margin:6px 0 0; }
+.booking-historial { display:grid; gap:6px; margin:10px 0 0; padding:0; list-style:none; }
+.booking-historial li { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius: var(--radius-md); background:var(--soft); font-size:12px; }
+.booking-consentimientos { display:grid; gap:6px; margin:10px 0 0; padding:0; list-style:none; }
+.booking-consentimientos li { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:12px; }
+.booking-consentimientos li strong { min-width:26px; padding:2px 6px; border-radius:999px; font-size:10px; text-align:center; }
+.booking-consentimientos li.es-si strong { background:var(--success-bg); color:#087e79; }
+.booking-consentimientos li.es-no strong { background:var(--soft); color:var(--muted); }
+.booking-consentimientos li small { color:var(--muted); }
+
+/* Salida por WhatsApp cuando la agenda no tiene nada que ofrecer. */
+.sin-cupo-whatsapp { display:grid; gap:8px; justify-items:center; margin-top:14px; border-style:solid; border-color:var(--surface-sage); }
+.sin-cupo-whatsapp p { margin:0; color:var(--muted); font-size:13px; }
+.sin-cupo-whatsapp .btn { width:max-content; }
+
+/* Grilla de ocasiones: en la página y en el aviso de la primera visita. */
+.booking-ocasiones { margin-top:32px; }
+.booking-ocasiones h2 { margin:0 0 12px; font-size:18px; }
+.booking-ocasiones-grilla { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+.booking-ocasiones-grilla article { display:grid; gap:4px; padding:10px; border:1px solid rgba(255,255,255,.5); border-radius:14px; background:rgba(255,255,255,.85); }
+.booking-ocasiones-grilla img { width:100%; height:96px; object-fit:cover; border-radius:10px; }
+.booking-ocasiones-grilla strong { font-size:14px; }
+.booking-ocasiones-grilla small { color:#5d6b63; font-size:12px; line-height:1.35; }
+.booking-ocasiones-aviso { position:fixed; inset:0; z-index:21; display:grid; place-items:center; padding:20px; background:rgba(18,35,31,.55); }
+.booking-ocasiones-aviso > section { display:grid; gap:14px; width:min(560px,100%); max-height:86vh; overflow:auto; padding:24px; border-radius:18px; background:#fff; box-shadow:0 20px 60px rgba(0,0,0,.28); }
+.booking-ocasiones-aviso h2 { margin:0; font-size:20px; }
+.booking-ocasiones-aviso .btn { justify-self:center; }
+.ocasion-fila { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; padding:10px; border:1px solid var(--surface-sage); border-radius: var(--radius-md); }
+@media(max-width:640px){ .ocasion-fila{ grid-template-columns:1fr; } .booking-ocasiones-grilla{ grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); } }
+
+/* Avisos de preparación en la fila de una reserva. */
+.booking-flags { display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
+.booking-flags em { padding:2px 7px; border-radius:999px; background:var(--soft); color:var(--muted); font-size:10px; font-style:normal; font-weight:800; }
+.booking-flags em.es-nota { background:#fff4e5; color:#9a5a00; }

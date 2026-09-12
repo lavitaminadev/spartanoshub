@@ -188,6 +188,10 @@ let ReservationsController = class ReservationsController {
         const scope = await this.scope(req);
         return this.service.closeDayByException(req.organizationId, dto, req.user.id, scope.clientId, scope.clientIds);
     }
+    async guestHistory(req, id) {
+        const scope = await this.scope(req);
+        return this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+    }
     async history(req, id) {
         const scope = await this.scope(req);
         return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
@@ -429,6 +433,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, reservation_dto_1.CloseReservationDayDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "closeDay", null);
+__decorate([
+    (0, common_1.Get)(':id/guest-history'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "guestHistory", null);
 __decorate([
     (0, common_1.Get)(':id/history'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),

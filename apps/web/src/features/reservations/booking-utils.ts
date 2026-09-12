@@ -23,6 +23,30 @@ export function safeNumber(value: string | undefined, fallback: number, min: num
   return Math.max(min, Math.min(max, number));
 }
 
+/** Una ocasión de la grilla: imagen, título y una línea de texto. */
+export interface Ocasion { titulo: string; texto?: string; imagen?: string }
+
+/**
+ * Lee la grilla de ocasiones guardada en el diseño.
+ *
+ * Viaja como JSON dentro de `designConfig`, que por lo demás es plano. Si el texto quedó mal
+ * formado —una edición a mano, una copia incompleta— se devuelve vacío en vez de tumbar la página
+ * pública: sin ocasiones se ve como antes, con una excepción no se ve nada.
+ */
+export function leerOcasiones(crudo: string | undefined): Ocasion[] {
+  if (!crudo) return [];
+  try {
+    const lista = JSON.parse(crudo);
+    if (!Array.isArray(lista)) return [];
+    return lista
+      .filter((item) => item && typeof item === 'object' && typeof item.titulo === 'string' && item.titulo.trim())
+      .slice(0, 6)
+      .map((item) => ({ titulo: String(item.titulo).trim(), texto: item.texto ? String(item.texto).trim() : undefined, imagen: item.imagen ? String(item.imagen).trim() : undefined }));
+  } catch {
+    return [];
+  }
+}
+
 export function visible(value: string | undefined, fallback = true): boolean {
   if (value === 'false') return false;
   if (value === 'true') return true;

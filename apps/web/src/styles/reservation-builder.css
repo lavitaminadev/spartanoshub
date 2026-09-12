@@ -368,3 +368,7 @@
 .block-calendar-day.is-today{border-color:var(--cian-dark);box-shadow:inset 0 0 0 1px var(--cian-dark)}
 .block-calendar-day.is-past{background:transparent;border-style:dashed;color:var(--muted);opacity:.55;cursor:default}
 .block-calendar-day.is-past:hover{border-color:var(--border-light)}
+
+/* Nota que explica por qué unas preguntas no se editan. */
+.schedule-nota { display:block; grid-column:1/-1; margin:2px 0 8px; color:var(--muted); font-size:11px; line-height:1.45; }
+.publish-meta-state .btn { margin-top:8px; width:max-content; }

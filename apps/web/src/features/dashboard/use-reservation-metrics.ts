@@ -7,7 +7,15 @@ import { api } from '../../core/api';
 export interface ReservationMetrics {
   totals: { total?: number; attended?: number; no_show?: number; pending?: number; confirmed?: number; cancelled?: number };
   daily: Array<{ day: string; total: number; attended: number; no_show: number }>;
-  sources: Array<{ source: string; campaign: string; total: number; attended: number }>;
+  sources: Array<{ source: string; medium?: string; campaign: string; content?: string; total: number; attended: number }>;
+  /** Zonas del local —terraza, salón— con el nombre ya resuelto por el servidor. */
+  areas: Array<{ area: string; total: number }>;
+  /** A qué hora se llena el local. */
+  porHora?: Array<{ hora: number; total: number; attended: number }>;
+  /** Horas promedio entre que se reserva y la visita. `null` si no hay con qué calcularlo. */
+  anticipacionHoras?: number | null;
+  /** Cuánta gente vuelve dentro del período. */
+  recurrencia?: { personas: number; repiten: number; porcentaje: number | null };
   funnel: { views: number; starts: number; completed: number; conversionRate: number | null };
   days: number;
 }

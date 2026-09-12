@@ -103,8 +103,8 @@ export function AvailabilityCalendarPage() {
         <option value="">Selecciona un cliente</option>
         {clients.map((client: Client) => <option key={client.id} value={client.id}>{client.name}</option>)}
       </select>}
-      <select className="input" aria-label="Selecciona un local" value={formId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
-        <option value="">Todos los locales de la empresa</option>
+      <select className="input" aria-label="Selecciona una sucursal" value={formId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
+        <option value="">Todas las sucursales de la empresa</option>
         {forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}
       </select>
       <div className="availability-month-nav">
@@ -116,7 +116,7 @@ export function AvailabilityCalendarPage() {
     </div>
 
     {!clientId ? (
-      <EmptyState icon="calendar" title="Elige una empresa" description="Después puedes elegir un local para evitar mezclar su ocupación con otros locales." />
+      <EmptyState icon="calendar" title="Elige una empresa" description="Después puedes elegir un local para evitar mezclar su ocupación con otras sucursales." />
     ) : isLoading ? (
       <LoadingSpinner text="Calculando ocupación..." />
     ) : error ? (

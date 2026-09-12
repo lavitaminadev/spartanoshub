@@ -15,7 +15,7 @@ import { Ga4Tag } from '../../shared/Ga4Tag';
 import { trackGa4Event } from '../../shared/ga4-events';
 import { readMetaMatchData } from '../../shared/meta-match';
 import { META_DEDUPLICATED_EVENTS, metaEventId } from '@espartanos/shared';
-import { imageOverlayAlpha, safeDesignChoice, safeNumber, uuid, visible, slotDateKey } from './booking-utils';
+import { imageOverlayAlpha, leerOcasiones, safeDesignChoice, safeNumber, uuid, visible, slotDateKey } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
 import { VitaIcons } from '../../shared/Icons';
 
@@ -134,6 +134,22 @@ export function PublicReservationPage() {
   });
   const [sessionId] = useState(() => uuid());
   const [reservaRecordada, setReservaRecordada] = useState(() => leerReservaRecordada(slug));
+  /*
+   * El aviso de ocasiones se muestra una vez por navegador.
+   *
+   * Repetirlo en cada visita molesta a quien ya lo vio y viene a reservar, así que se recuerda
+   * que ya se mostró. Si el navegador tiene el almacenamiento bloqueado, se comporta como si
+   * fuera la primera vez: enseñarlo de más es mejor que romper la página por un aviso.
+   */
+  const [vecesMostrado, setVecesMostrado] = useState(() => {
+    try { return Number(localStorage.getItem(`vh-ocasiones:${slug}`) || '0') || 0; } catch { return 0; }
+  });
+  /** Se cuenta al cerrarlo: si nadie lo cerró, no llegó a cumplir su función. */
+  const cerrarOcasiones = () => {
+    const siguiente = vecesMostrado + 1;
+    setVecesMostrado(siguiente);
+    try { localStorage.setItem(`vh-ocasiones:${slug}`, String(siguiente)); } catch { /* el navegador puede tenerlo bloqueado */ }
+  };
   // Volver a una reserva desde cualquier dispositivo, sin depender del correo ni del navegador.
   const navegar = useNavigate();
   const [codigoBuscado, setCodigoBuscado] = useState('');
@@ -489,11 +505,29 @@ export function PublicReservationPage() {
     return { rawDays, weeks };
   }, [fromDate, slotsByDate, form, fullDays]);
 
+  /*
+   * Salida cuando la agenda no tiene nada que ofrecer.
+   *
+   * Un día lleno o un grupo que no cabe dejaban el camino cerrado con un aviso: quien reserva se
+   * iba sin saber que el local igual podía acomodarlo moviendo mesas o abriendo otra hora. El
+   * WhatsApp ya estaba configurado y solo se usaba para grupos. Aparece únicamente si el local
+   * puso su número, y el mensaje va escrito con la fecha y la cantidad para no tener que repetirlas.
+   */
+  const diasSinNada = calendarDays.rawDays.length === 0 || calendarDays.rawDays.every((day) => !day.hasSlots);
+  const hayDiasLlenos = calendarDays.rawDays.some((day) => day.isFull);
+  const whatsappSinCupo = businessWhatsAppUrl(
+    form?.designConfig?.whatsappBusinessNumber,
+    `Hola, quiero reservar en ${form?.name ?? 'el local'}${selectedDate ? ` el ${selectedDate}` : ''} para ${guest.partySize} persona${guest.partySize === 1 ? '' : 's'} y no veo horarios disponibles. ¿Tienen alguna posibilidad?`,
+  );
+
   // ── Caminos de render ──
   if (isLoading) return <LoadingSpinner text="Cargando disponibilidad..." />;
   if (error || !form) return <div className="public-booking-error"><BrandMark /><h1>Este formulario no está disponible</h1><p>Puede estar pausado o el enlace ya no es válido.</p></div>;
 
   const design = form.designConfig || {};
+  const ocasiones = leerOcasiones(design.ocasiones);
+  const ocasionesEncendidas = design.ocasionesEnabled === 'true' && ocasiones.length > 0;
+  const limiteDeAvisos = design.ocasionesVeces === 'siempre' ? Number.POSITIVE_INFINITY : Math.max(1, Number(design.ocasionesVeces || '1') || 1);
   const primary = normalizeHexColor(design.primaryColor, '#0ec6b8');
   const accent = normalizeHexColor(design.accentColor, '#ea0f63');
   const background = normalizeHexColor(design.backgroundColor, '#f6f4f5');
@@ -515,6 +549,7 @@ export function PublicReservationPage() {
     '--booking-accent': accent, '--booking-accent-contrast': contrastText(accent),
     '--booking-accent-text': accessibleForeground(accent, background, '#9f3e26'),
     '--booking-bg': background, '--booking-text': textColor, '--booking-font': fontFamily,
+    '--booking-card-ink': accessibleForeground(textColor, '#ffffff', '#1c1a1d'),
     '--booking-button-radius': `${design.buttonRadius || '12'}px`,
     '--booking-field-radius': `${design.fieldRadius || '10'}px`,
     '--booking-logo-align': safeDesignChoice(design.logoPosition, ['left', 'center', 'right'], 'left'),
@@ -539,7 +574,6 @@ export function PublicReservationPage() {
   const eyebrowText = design.eyebrowText || 'AGENDA EN LÍNEA';
   const durationLabel = design.durationLabel || 'minutos';
   const confirmationLabel = design.confirmationLabel || 'confirmación';
-  const timezoneLabel = design.timezoneLabel || 'zona horaria';
   const selectedDaySlots = slotsByDate.get(selectedDate) || [];
   const legalController = String(design.legalCompanyName || form.name);
   const legalContact = design.supportEmail ? ` Puedes ejercer tus derechos escribiendo a ${design.supportEmail}.` : '';
@@ -600,6 +634,19 @@ export function PublicReservationPage() {
   return <main className={`public-booking layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style} onFocusCapture={markStarted} onPointerDown={markStarted}>
     <MetaPixel pixelId={form.pixelId} enabled={measurementConsent} />
     <Ga4Tag measurementId={form.ga4MeasurementId} enabled={measurementConsent} />
+    {ocasionesEncendidas && design.ocasionesPopup === 'true' && vecesMostrado < limiteDeAvisos && !isSurvey && <div role="dialog" aria-modal="true" aria-label={design.ocasionesTitulo || 'Ocasiones'} className="booking-ocasiones-aviso" onClick={cerrarOcasiones}>
+      <section onClick={(event) => event.stopPropagation()}>
+        <h2>{design.ocasionesTitulo || 'Para cada ocasión'}</h2>
+        <div className="booking-ocasiones-grilla">
+          {ocasiones.map((ocasion) => <article key={ocasion.titulo}>
+            {ocasion.imagen && <img src={ocasion.imagen} alt="" loading="lazy" />}
+            <strong>{ocasion.titulo}</strong>
+            {ocasion.texto && <small>{ocasion.texto}</small>}
+          </article>)}
+        </div>
+        <button type="button" className="btn btn-primary" autoFocus onClick={cerrarOcasiones}>Reservar ahora</button>
+      </section>
+    </div>}
     {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" style={{ position: 'fixed', inset: 0, zIndex: 20, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(18,35,31,.55)' }}><section style={{ maxWidth: 430, background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,.28)' }}>{form.designConfig?.logoUrl && <img src={form.designConfig.logoUrl} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>Continuar</button></section></div>}
     {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}
     {reservaRecordada && !isSurvey && <aside className="booking-recordatorio">
@@ -633,7 +680,18 @@ export function PublicReservationPage() {
       </div>
     </details>}
     <div className="public-booking-layout">
-      <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div><div><strong>{design.timezoneValue || form.timezone.split('/').pop()?.replaceAll('_', ' ')}</strong><span>{timezoneLabel}</span></div></div>}</section>
+      <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div></div>}
+        {ocasionesEncendidas && <div className="booking-ocasiones">
+          {design.ocasionesTitulo && <h2>{design.ocasionesTitulo}</h2>}
+          <div className="booking-ocasiones-grilla">
+            {ocasiones.map((ocasion) => <article key={ocasion.titulo}>
+              {ocasion.imagen && <img src={ocasion.imagen} alt="" loading="lazy" />}
+              <strong>{ocasion.titulo}</strong>
+              {ocasion.texto && <small>{ocasion.texto}</small>}
+            </article>)}
+          </div>
+        </div>}
+      </section>
       <form className={`public-booking-card ${isSurvey ? 'is-survey' : ''}`} onSubmit={(event) => { event.preventDefault(); if (step === 3) { submit.mutate(); } else if (step === 2) { goToConfirm(); } else { goToForm(); } }}>
         {/* Se oculta desplazándolo fuera de pantalla y no con `display:none`, que los bots
             reconocen como campo técnico y omiten. `aria-hidden` y `tabIndex={-1}` lo dejan
@@ -653,7 +711,8 @@ export function PublicReservationPage() {
         {step === 1 && <div>
           <div className="booking-step-title"><span>01</span><div><strong>Personas y fecha</strong><small>Primero indica cuántas personas vienen; luego verás sólo horarios que alcancen para el grupo.</small></div></div>
           <div className="public-field public-party-size"><label>¿Para cuántas personas?<select value={guest.partySize} onChange={(event) => { setGuest({ ...guest, partySize: Number(event.target.value) }); setSelected(''); setSelectedDate(''); }}><option value={1}>1 persona</option>{Array.from({ length: 7 }, (_, i) => i + 2).map((size) => <option key={size} value={size}>{size} personas</option>)}<option value={Math.max(9, groupThreshold + 1)}>{groupThreshold + 1} o más personas</option></select></label>{guest.partySize > groupThreshold && <small className="group-flow-hint">Solicitud de grupo: elige fecha y horario. Luego te preguntaremos si es cumpleaños, empresa u otra celebración; el local la confirmará antes de reservar.</small>}</div>
-          {!requestMode && <button type="button" className="btn btn-outline btn-sm" onClick={() => { setRequestMode(true); setGuest({ ...guest, partySize: Math.max(9, guest.partySize) }); setSelected(''); setSelectedDate(''); setStep(2); }}>¿Quieres solicitar un evento o grupo sin tomar horario? →</button>}
+          {/* El local puede no querer eventos: sin esto, el enlace aparecía siempre. */}
+          {!requestMode && design.groupRequestEnabled !== 'false' && <button type="button" className="btn btn-outline btn-sm" onClick={() => { setRequestMode(true); setGuest({ ...guest, partySize: Math.max(9, guest.partySize) }); setSelected(''); setSelectedDate(''); setStep(2); }}>¿Quieres solicitar un evento o grupo sin tomar horario? →</button>}
           {(services.length > 0 || resources.length > 0) && <div className="public-resource-choice">
             {services.length > 0 && (services.length <= 4 ? <div className="public-resource-tiles"><label>Servicio</label><div className="resource-tile-grid">{services.map((service) => <button type="button" key={service.id} className={`resource-tile ${serviceId === service.id ? 'selected' : ''}`} onClick={() => { setServiceId(serviceId === service.id ? '' : service.id); setSelected(''); }}><strong>{service.name}</strong><small>{service.durationMinutes ? `${service.durationMinutes} min` : ''}</small></button>)}</div></div> : <label>Servicio<select required value={serviceId} onChange={(event) => { setServiceId(event.target.value); setSelected(''); }}><option value="">Selecciona un servicio</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}{service.durationMinutes ? ` · ${service.durationMinutes} min` : ''}</option>)}</select></label>)}
             {resources.length > 0 && <label>Sector preferido <small>(opcional)</small><select value={resourceId} onChange={(event) => { setResourceId(event.target.value); setSelected(''); }}><option value="">Sin preferencia</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}{resource.description ? ` · ${resource.description}` : ''}{resource.smokingAllowed ? ' · fumadores' : ''}</option>)}</select></label>}
@@ -670,6 +729,11 @@ export function PublicReservationPage() {
           </div>}
           {!loadingSlots && availability?.pausedUntil && <div className="no-slots"><strong>Las reservas están pausadas temporalmente</strong><p>Volverán a estar disponibles el {new Date(availability.pausedUntil).toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone })}.</p></div>}
           {!loadingSlots && !availability?.pausedUntil && calendarDays.rawDays.length === 0 && <div className="no-slots"><strong>Sin horarios disponibles</strong><p>Prueba otro servicio o contacta al local.</p></div>}
+          {!loadingSlots && !availability?.pausedUntil && whatsappSinCupo && (diasSinNada || hayDiasLlenos) && <div className="no-slots sin-cupo-whatsapp">
+            <strong>{diasSinNada ? 'No quedan horarios para este grupo' : '¿No ves una hora que te sirva?'}</strong>
+            <p>Escríbenos y vemos si podemos acomodarte. No queda nada reservado hasta que el local confirme.</p>
+            <a className="btn btn-primary" href={whatsappSinCupo} target="_blank" rel="noreferrer">Escribir por WhatsApp</a>
+          </div>}
 
           {slotIssue && <div className="alert alert-error" role="alert">{slotIssue}</div>}
           {selectedDate && <div className="slot-time-picker">
@@ -689,7 +753,7 @@ export function PublicReservationPage() {
             {systemFields.phone && <div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div>}
             {systemFields.email && <div className={`public-field ${errors.email ? 'has-error' : ''}`}><label>{systemFields.email.label} {systemFields.email.required ? <span className="required-star">*</span> : null}<input className={errors.email ? 'input-error' : ''} type="email" required={systemFields.email.required} placeholder={systemFields.email.placeholder || 'tu@correo.com'} value={guest.guestEmail} onChange={(event) => setGuest({ ...guest, guestEmail: event.target.value })} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'error-email' : undefined} /></label>{errors.email && <span className="field-error" id="error-email" role="alert">{errors.email}</span>}</div>}
             {systemFields.partySize && <div className="public-field"><label>{systemFields.partySize.label}<select value={guest.partySize} onChange={(event) => setGuest({ ...guest, partySize: Number(event.target.value) })}>{Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} persona{n !== 1 ? 's' : ''}</option>)}</select></label></div>}
-            {customFields.map((field) => <Fragment key={field.id}>{renderField(field, answers[field.id] as string | undefined, (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
+            {customFields.map((field) => <Fragment key={field.id}>{renderField(field, answers[field.id], (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
             {!isSurvey && (guest.partySize > groupThreshold || requestMode) && <div className={`group-event-fields ${errors.groupEvent ? 'has-error' : ''}`}><strong>Sobre tu grupo</strong><p>{requestMode ? 'Esta solicitud no toma cupo. El local confirmará disponibilidad contigo.' : 'Esto ayuda al local a preparar tu solicitud; no es una confirmación automática.'}</p><label>¿Qué ocasión es?<select required value={groupEventType} onChange={(event) => setGroupEventType(event.target.value)}><option value="">Selecciona una opción</option><option value="cumpleanos">Cumpleaños</option><option value="aniversario">Aniversario / celebración</option><option value="empresa">Comida o evento de empresa</option><option value="otro">Otro grupo</option></select></label>{requestMode && <div className="form-row"><label>Fecha preferida <small>(opcional)</small><input type="date" value={requestPreference.date} onChange={(event) => setRequestPreference({ ...requestPreference, date: event.target.value })} /></label><label>Horario preferido <small>(opcional)</small><input value={requestPreference.time} onChange={(event) => setRequestPreference({ ...requestPreference, time: event.target.value })} maxLength={80} placeholder="Ej. viernes desde 20:00" /></label></div>}<label>Cuéntanos lo importante <small>(opcional)</small><textarea value={groupEventNotes} onChange={(event) => setGroupEventNotes(event.target.value)} maxLength={1000} placeholder="Ej. silla de bebé, torta, horario flexible…" /></label>{errors.groupEvent && <span className="field-error" role="alert">{errors.groupEvent}</span>}</div>}
             {!isSurvey && (form.designConfig?.askChildren === 'true' || form.designConfig?.askAccessibility === 'true' || form.designConfig?.askAllergies === 'true') && <div className="group-event-fields"><strong>Necesidades de la visita</strong><p>Opcional. El local hará lo posible por considerarlas, pero no reemplaza una coordinación directa.</p>{form.designConfig?.askChildren === 'true' && <label>¿Cuántos niños vienen?<select value={visitNeeds.childrenCount} onChange={(event) => setVisitNeeds({ ...visitNeeds, childrenCount: Number(event.target.value) })}><option value={0}>No vienen niños / prefiero no indicar</option>{Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} niño{count > 1 ? 's' : ''}</option>)}</select></label>}{form.designConfig?.askAccessibility === 'true' && <label>Accesibilidad o comodidad <small>(opcional)</small><input value={visitNeeds.accessibilityNeed} onChange={(event) => setVisitNeeds({ ...visitNeeds, accessibilityNeed: event.target.value })} maxLength={500} placeholder="Ej. acceso sin escalón, espacio para coche" /></label>}{form.designConfig?.askAllergies === 'true' && <label>Restricciones alimentarias <small>(opcional)</small><textarea value={visitNeeds.dietaryNotes} onChange={(event) => setVisitNeeds({ ...visitNeeds, dietaryNotes: event.target.value })} maxLength={1000} placeholder="Ej. vegetariano, sin gluten. Confirma siempre directamente con el local." /></label>}</div>}
             {form.designConfig?.couponEnabled && <div className="public-field"><label>Cupón de descuento<div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código opcional" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
@@ -721,9 +785,31 @@ export function PublicReservationPage() {
   </main>;
 }
 
-function renderField(field: FormField, value: string | undefined, onChange: (v: string | boolean) => void, error?: string) {
+function renderField(field: FormField, value: unknown, onChange: (v: string | boolean | string[]) => void, error?: string) {
   if (field.type === 'coupon') return null;
   const errorId = `error-${field.id}`;
+  /*
+   * Selección múltiple: el constructor la ofrecía y la página no la pintaba.
+   *
+   * Caía en el campo de texto del final, así que se enviaba una cadena donde el servidor espera
+   * una lista de opciones válidas y rechazaba la reserva entera con «Respuesta inválida». Es
+   * decir: agregar este campo rompía el formulario en vez de agregar una pregunta.
+   */
+  if (field.type === 'multi_select') {
+    const elegidas = Array.isArray(value) ? (value as string[]) : [];
+    return <fieldset className={`public-multi ${error ? 'has-error' : ''}`} aria-describedby={error ? errorId : undefined}>
+      <legend>{field.label}{field.required && <span className="required-star"> *</span>}</legend>
+      {(field.options || []).map((opcion) => <label key={opcion}>
+        <input
+          type="checkbox"
+          checked={elegidas.includes(opcion)}
+          onChange={(evento) => onChange(evento.target.checked ? [...elegidas, opcion] : elegidas.filter((actual) => actual !== opcion))}
+        />
+        {opcion}
+      </label>)}
+      {error && <small className="field-error" id={errorId}>{error}</small>}
+    </fieldset>;
+  }
   if (field.type === 'consent') return <div className={`public-consent ${error ? 'has-error' : ''}`}><label><input type="checkbox" required={field.required} checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /><span>{field.label} <span className="required-star">*</span></span></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
   if (field.type === 'rating') return <fieldset className={`public-radio-group public-rating ${error ? 'has-error' : ''}`}><legend>{field.label}{field.required && <span className="required-star"> *</span>}</legend>{[1, 2, 3, 4, 5].map((rating) => <label key={rating}><input type="radio" name={field.id} required={field.required} checked={String(value || '') === String(rating)} onChange={() => onChange(String(rating))} /> <span>{rating}</span></label>)}{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</fieldset>;
   if (field.type === 'select' && (field.display === 'radio' || (field.options?.length || 0) <= 5)) return <fieldset className={`public-radio-group ${error ? 'has-error' : ''}`}><legend>{field.label}{field.required && <span className="required-star"> *</span>}</legend>{field.options?.map((option) => <label key={option}><input type="radio" name={field.id} required={field.required} checked={String(value || '') === option} onChange={() => onChange(option)} /> <span>{option}</span></label>)}{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</fieldset>;
