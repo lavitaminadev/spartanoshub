@@ -31,7 +31,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
  * pero no se bloquea: hay clientes con una necesidad puntual que lo justifica.
  */
 const RECOMMENDED_FIELD_COUNT = 5;
-const STEPS = ['Lo esencial', 'Disponibilidad', 'Diseño público', 'Medición opcional', 'Ajustes del local', 'Publicar'];
+const STEPS = ['Lo esencial', 'Disponibilidad', 'Diseño público', 'Medición opcional', 'Datos y textos legales', 'Publicar'];
 const STEP_BY_SECTION: Record<string, number> = { esencial: 0, disponibilidad: 1, diseno: 2, medicion: 3, ajustes: 4, publicar: 5 };
 /** Pasos que ve cada quien: la medición la lleva la agencia, no la empresa dueña del local. */
 const PASOS_VISIBLES: { equipo: number[]; cliente: number[] } = { equipo: [0, 1, 2, 3, 4, 5], cliente: [0, 1, 2, 4, 5] };
@@ -177,6 +177,8 @@ export function ReservationBuilderPage() {
   const [block, setBlock] = useState({ startsAt: '', endsAt: '', reason: '' });
   const [blockRepeat, setBlockRepeat] = useState(1);
   const [blockMonth, setBlockMonth] = useState(0);
+  /** Cambiar la zona horaria mueve lo ya publicado: se pide a propósito, no de pasada. */
+  const [cambiandoZona, setCambiandoZona] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('desktop');
   const [canvasDragOver, setCanvasDragOver] = useState(false);
   const [confirmDeleteField, setConfirmDeleteField] = useState<string | null>(null);
@@ -325,6 +327,8 @@ export function ReservationBuilderPage() {
   const updateZone = (index: number, patch: Partial<NonNullable<ReservationForm['resourcesConfig']>[number]>) => setZones(zones.map((zone, current) => (current === index ? { ...zone, ...patch } : zone)));
   const addZone = () => setZones([...zones, { id: `zona-${Date.now()}`, name: '', capacity: draft?.capacityPerSlot ?? 1, description: '', smokingAllowed: false }]);
   const teamEmails = (draft?.teamNotifications || []).join(', ');
+  /** No hay hora posible cuando lo más temprano reservable cae después de lo más lejano. */
+  const ventanaImposible = Boolean(draft) && draft.minimumNoticeHours > draft.maximumAdvanceDays * 24;
   /** La pausa se escribe en la zona del local: una hora que no existe allí se rechaza al guardar. */
   const setBookingPause = (valor: string) => {
     try { cambiarAjuste('bookingPausedUntil', valor ? localInputToUtc(valor, draft?.timezone || 'America/Santiago') : ''); }
@@ -399,6 +403,14 @@ export function ReservationBuilderPage() {
 
     {step === 0 && <Fragment>
       <div className="builder-grid">
+        <div className="field-extras">
+          <strong className="field-extras-title">Preguntas de la visita</strong>
+          <small className="schedule-nota">Estas tres son fijas a propósito: sus respuestas alimentan los avisos de la lista, el correo y la exportación, así que renombrarlas haría que el sistema mostrara una etiqueta y guardara otra cosa. Para cualquier otra pregunta, agrega un campo propio al formulario de aquí al lado.</small>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askChildren === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askChildren: String(event.target.checked) } })} /> Preguntar por niños o silla infantil</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAccessibility === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAccessibility: String(event.target.checked) } })} /> Preguntar por accesibilidad</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAllergies === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAllergies: String(event.target.checked) } })} /> Preguntar por restricciones alimentarias</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.couponEnabled !== 'false'} onChange={(event) => change({ designConfig: { ...draft.designConfig, couponEnabled: event.target.checked ? 'true' : 'false' } })} /> Aceptar cupones promocionales</label>
+        </div>
         <aside className="field-library"><span className="page-eyebrow">BIBLIOTECA DE CAMPOS</span><h3>Agrega campos</h3><p>Arrastra al formulario o usa los botones.</p>
           <div className="field-library-help field-library-meta"><strong>Campos que mejoran CAPI</strong><small>Nombre, teléfono, correo y consentimiento aumentan la calidad de coincidencia en Meta (EMQ). Cada campo que agregues sin estos reduce la tasa de match.</small></div>{fieldLibrary.map(([type, label]) => <button draggable onDragStart={(event) => beginNewFieldDrag(event, type)} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span>{label.slice(0, 2).toUpperCase()}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Recomendado para reservas' : 'Campo opcional'}</small></div><em>Agregar</em></button>)}</aside>
         <main className={`builder-canvas ${canvasDragOver ? 'drag-over' : ''}`} onDragEnter={() => setCanvasDragOver(true)} onDragLeave={(event) => { if (event.currentTarget === event.target) setCanvasDragOver(false); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setCanvasDragOver(true); }} onDrop={(event) => { event.preventDefault(); setCanvasDragOver(false); const { newField, fieldId } = builderDragPayload(event); if (newField) { addField(newField); return; } if (fieldId && fields.length > 1) { const current = fields.find((field) => field.id === fieldId); if (current && fields[fields.length - 1]?.id !== fieldId) change({ fieldSchema: [...fields.filter((field) => field.id !== fieldId), current] }); } }}>
@@ -439,15 +451,28 @@ export function ReservationBuilderPage() {
         <h3>Cuánto puedes recibir</h3>
         <div className="schedule-capacity">
           <label className="capacity-primary">Tope diario de reservas<small>0 = sin límite. Al alcanzarlo, el día se muestra completo en la página pública.</small><input className="input" type="number" min="0" max="5000" value={draft.dailyCapacity ?? 0} onChange={(event) => change({ dailyCapacity: Number(event.target.value) })} /></label>
+          <label className="toggle-row"><input type="checkbox" checked={draft.designConfig?.enforceCompanyDailyCap !== 'false'} onChange={(event) => cambiarAjuste('enforceCompanyDailyCap', String(event.target.checked))} /> Aplicar además el tope diario global de la empresa</label>
           <label>Cupos por bloque<input className="input" type="number" min="1" max="500" value={draft.capacityPerSlot} onChange={(event) => change({ capacityPerSlot: Number(event.target.value) })} /></label>
           <label>Duración<select className="input" value={draft.durationMinutes} onChange={(event) => change({ durationMinutes: Number(event.target.value) })}>{[15, 30, 45, 60, 90, 120].map((value) => <option key={value} value={value}>{value} minutos</option>)}</select></label>
         </div>
-        <details className="schedule-advanced">
+        <div className="schedule-timezone">
+          <span>Zona horaria</span>
+          <strong>{draft.timezone}</strong>
+          {cambiandoZona
+            ? <select className="input" aria-label="Zona horaria" value={draft.timezone} onChange={(event) => { change({ timezone: event.target.value }); setCambiandoZona(false); }}>{TIMEZONES.map((timezone) => <option key={timezone}>{timezone}</option>)}</select>
+            : <button type="button" className="btn btn-outline btn-xs" onClick={() => setCambiandoZona(true)}>Cambiar</button>}
+          <small>Con esta hora se calculan los horarios, los bloqueos y los recordatorios. Cambiarla mueve también lo que ya está publicado y reservado.</small>
+        </div>
+
+        {/* Fuera del desplegable: avisaba de una agenda que no ofrece nada, escondido tras un
+            resumen cerrado que justamente no se abre cuando todo parece estar bien. */}
+        {ventanaImposible && <div className="alert alert-error">La anticipación mínima ({draft.minimumNoticeHours} h) cae fuera de la ventana máxima ({draft.maximumAdvanceDays} día{draft.maximumAdvanceDays === 1 ? '' : 's'}): con estos valores la página no ofrece ningún horario. Está en «Ajustes avanzados».</div>}
+        <details className="schedule-advanced" open={ventanaImposible}>
           <summary>Ajustes avanzados</summary>
-          <div className="schedule-settings schedule-settings-wide"><label>Zona horaria<select className="input" value={draft.timezone} onChange={(event) => change({ timezone: event.target.value })}>{TIMEZONES.map((timezone) => <option key={timezone}>{timezone}</option>)}</select></label><label>Separación (min)<input className="input" type="number" min="0" max="240" value={draft.bufferMinutes} onChange={(event) => change({ bufferMinutes: Number(event.target.value) })} /></label><label>Anticipación mínima (h)<input className="input" type="number" min="0" value={draft.minimumNoticeHours} onChange={(event) => change({ minimumNoticeHours: Number(event.target.value) })} /></label><label>Ventana máxima (días)<input className="input" type="number" min="1" max="365" value={draft.maximumAdvanceDays} onChange={(event) => change({ maximumAdvanceDays: Number(event.target.value) })} /></label><label>Confirmación<select className="input" value={draft.confirmationMode} onChange={(event) => change({ confirmationMode: event.target.value })}><option value="automatic">Automática</option><option value="manual">Revisión manual</option></select></label>
-            <label>Tolerancia antes de no-show (min)<input className="input" type="number" min="0" value={String(draft.designConfig?.toleranceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, toleranceMinutes: event.target.value } })} /></label><label>Ritmo de llegadas (min)<input className="input" type="number" min="5" max="240" value={String(draft.designConfig?.slotCadenceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, slotCadenceMinutes: event.target.value } })} /></label><label>Retener cupo (min)<input className="input" type="number" min="1" max="30" value={String(draft.designConfig?.holdMinutes || '5')} onChange={(event) => change({ designConfig: { ...draft.designConfig, holdMinutes: event.target.value } })} /></label><label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.couponEnabled !== 'false'} onChange={(event) => change({ designConfig: { ...draft.designConfig, couponEnabled: event.target.checked ? 'true' : 'false' } })} /> Aceptar cupones promocionales en este formulario</label></div>
+          <div className="schedule-settings schedule-settings-wide"><label>Separación (min)<input className="input" type="number" min="0" max="240" value={draft.bufferMinutes} onChange={(event) => change({ bufferMinutes: Number(event.target.value) })} /></label><label>Anticipación mínima (h)<input className="input" type="number" min="0" value={draft.minimumNoticeHours} onChange={(event) => change({ minimumNoticeHours: Number(event.target.value) })} /></label><label>Ventana máxima (días)<input className="input" type="number" min="1" max="365" value={draft.maximumAdvanceDays} onChange={(event) => change({ maximumAdvanceDays: Number(event.target.value) })} aria-invalid={ventanaImposible} /></label><label>Confirmación<select className="input" value={draft.confirmationMode} onChange={(event) => change({ confirmationMode: event.target.value })}><option value="automatic">Automática</option><option value="manual">Revisión manual</option></select></label>
+            <label>Ritmo de llegadas (min)<input className="input" type="number" min="5" max="240" value={String(draft.designConfig?.slotCadenceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, slotCadenceMinutes: event.target.value } })} /></label><label>Retener cupo (min)<input className="input" type="number" min="1" max="30" value={String(draft.designConfig?.holdMinutes || '5')} onChange={(event) => change({ designConfig: { ...draft.designConfig, holdMinutes: event.target.value } })} /></label></div>
         </details>
-        <h3>Grupos y preguntas de la visita</h3>
+        <h3>Grupos grandes y eventos</h3>
         <div className="schedule-capacity">
           <label className="capacity-primary">Solicitudes de evento o grupo<small>Quien no encuentre hora puede pedir un evento sin tomar cupo. El equipo lo resuelve desde Reservas.</small>
             <select className="input" value={draft.designConfig?.groupRequestEnabled === 'false' ? 'no' : 'si'} onChange={(event) => change({ designConfig: { ...draft.designConfig, groupRequestEnabled: event.target.value === 'si' ? 'true' : 'false' } })}>
@@ -457,14 +482,16 @@ export function ReservationBuilderPage() {
           </label>
           <label>Grupo grande desde<small>Sobre esta cantidad la reserva pasa por el equipo.</small><input className="input" type="number" min="2" max="100" value={String(draft.designConfig?.groupThreshold || '8')} onChange={(event) => change({ designConfig: { ...draft.designConfig, groupThreshold: event.target.value } })} /></label>
         </div>
-        <div className="schedule-settings schedule-settings-wide">
-          <small className="schedule-nota">Estas tres son fijas a propósito: sus respuestas alimentan los avisos de la lista, el correo y la exportación, así que renombrarlas haría que el sistema mostrara una etiqueta y guardara otra cosa. Para lo demás, crea tus propias preguntas en «Lo esencial».</small>
-          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askChildren === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askChildren: String(event.target.checked) } })} /> Preguntar por niños o silla infantil</label>
-          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAccessibility === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAccessibility: String(event.target.checked) } })} /> Preguntar por accesibilidad</label>
-          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAllergies === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAllergies: String(event.target.checked) } })} /> Preguntar por restricciones alimentarias</label>
+
+        <h3>Cuándo se cierra el turno</h3>
+        <div className="schedule-settings">
+          <label>Tolerancia antes de no-show (min)<input className="input" type="number" min="0" value={String(draft.designConfig?.toleranceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, toleranceMinutes: event.target.value } })} /></label>
+          <label className="toggle-row"><input type="checkbox" checked={draft.designConfig?.autoCloseAttendance !== 'false'} onChange={(event) => change({ designConfig: { ...draft.designConfig, autoCloseAttendance: String(event.target.checked) } })} /> Cerrar la asistencia sola</label>
+          <label>Margen posterior (min)<input className="input" type="number" min="15" max="1440" disabled={draft.designConfig?.autoCloseAttendance === 'false'} value={String(draft.designConfig?.autoCloseAfterMinutes || '60')} onChange={(event) => change({ designConfig: { ...draft.designConfig, autoCloseAfterMinutes: event.target.value } })} /></label>
         </div>
 
         <h3>Semana habitual</h3><div className="week-editor week-editor-multi">{DAYS.map((label, uiDay) => { const jsDay = UI_TO_JS_DAY[uiDay]; const dayWindows = windows.map((window, index) => ({ window, index })).filter((entry) => entry.window.day === jsDay); return <div key={label} className={dayWindows.length ? 'enabled' : ''}><label className="toggle-row"><input type="checkbox" checked={dayWindows.length > 0} onChange={() => toggleDay(uiDay)} /><strong>{label}</strong></label><div className="day-windows">{dayWindows.map(({ window, index }) => <div key={`${jsDay}-${index}`}><input aria-label={`Inicio ${label}`} type="time" value={window.start} onChange={(event) => updateWindow(index, { start: event.target.value })} /><span>a</span><input aria-label={`Fin ${label}`} type="time" value={window.end} onChange={(event) => updateWindow(index, { end: event.target.value })} /><button type="button" aria-label={`Quitar franja de ${label}`} onClick={() => removeWindow(index)}>×</button></div>)}{dayWindows.length > 0 && dayWindows.length < 4 && <button type="button" className="add-window" onClick={() => addWindow(uiDay)}>+ Agregar franja</button>}{dayWindows.length === 0 && <em>Cerrado</em>}</div></div>; })}</div></div>
+      <section className="schedule-card" id="pausa"><div><h3>Detener todo por un tiempo</h3><p className="page-subtitle">La página pública no ofrecerá horarios hasta la fecha indicada. No elimina reservas ni despublica el local.</p></div><div className="schedule-settings"><label>Reanudar automáticamente el<input className="input" type="datetime-local" value={utcToLocalInput(draft.designConfig?.bookingPausedUntil, draft.timezone)} onChange={(event) => setBookingPause(event.target.value)} /></label></div><button type="button" className="btn btn-outline btn-sm" disabled={!draft.designConfig?.bookingPausedUntil} onClick={() => cambiarAjuste('bookingPausedUntil', '')}>Quitar pausa programada</button></section>
       <aside className="schedule-card"><h3>Cierres y bloqueos</h3><p className="page-subtitle">Toca un día para cerrarlo. Vuelve a tocarlo para reabrirlo.</p>
         <div className="block-calendar">
           <div className="block-calendar-nav"><button type="button" className="btn btn-outline btn-xs" disabled={blockMonth <= 0} onClick={() => setBlockMonth((value) => Math.max(0, value - 1))}>←</button><span>{blockCalendar.label}</span><button type="button" className="btn btn-outline btn-xs" onClick={() => setBlockMonth((value) => value + 1)}>→</button></div>
@@ -607,7 +634,7 @@ export function ReservationBuilderPage() {
     </div>}
 
     {step === 4 && <div className="builder-stage builder-stage-ajustes">
-      <div className="stage-heading"><span className="page-eyebrow">AJUSTES DE LA SUCURSAL</span><h2>Zonas, avisos y textos legales</h2><p>Lo que no cambia el horario ni el diseño, pero sí lo que ve y acepta quien reserva.</p></div>
+      <div className="stage-heading"><span className="page-eyebrow">DATOS DEL LOCAL</span><h2>Quién responde, a quién se avisa y qué se acepta</h2><p>Los horarios se configuran en Disponibilidad y la apariencia en Diseño público.</p></div>
       <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2></div><div className="form-row"><label>Razón social o responsable<input className="input" value={String(draft.designConfig?.legalCompanyName || '')} onChange={(e) => cambiarAjuste('legalCompanyName', e.target.value)} /></label><label>RUT / identificador<input className="input" value={String(draft.designConfig?.legalCompanyId || '')} onChange={(e) => cambiarAjuste('legalCompanyId', e.target.value)} /></label><label>Correo de soporte<input className="input" type="email" value={String(draft.designConfig?.supportEmail || '')} onChange={(e) => cambiarAjuste('supportEmail', e.target.value)} /></label></div><div className="form-row"><label>WhatsApp del local<input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label><label>Mensaje para grupos<textarea className="input" value={String(draft.designConfig?.whatsappGroupMessage || '')} onChange={(e) => cambiarAjuste('whatsappGroupMessage', e.target.value)} /></label></div><div className="form-row"><label>URL de privacidad<input className="input" type="url" value={String(draft.designConfig?.privacyUrl || '')} onChange={(e) => cambiarAjuste('privacyUrl', e.target.value)} placeholder="https://..." /></label><label>URL de condiciones<input className="input" type="url" value={String(draft.designConfig?.termsUrl || '')} onChange={(e) => cambiarAjuste('termsUrl', e.target.value)} placeholder="https://..." /></label></div><label>Política de cancelación visible<textarea className="input" value={String(draft.designConfig?.cancellationPolicy || '')} onChange={(e) => cambiarAjuste('cancellationPolicy', e.target.value)} /></label></section>
       {/*
         * Los correos salen siempre desde el servidor de Espartanos. Esta casilla no cambia el
@@ -634,8 +661,6 @@ export function ReservationBuilderPage() {
         {draft.designConfig?.networkConsentEnabled === 'true' && !draft.designConfig?.privacyUrl && <small className="error-text">Falta la URL de privacidad: sin ella, quien reserva no tiene dónde leer el detalle de ese tratamiento.</small>}
       </section>
       <section className="reservation-readiness" id="zonas"><div><span className="page-eyebrow">ZONAS Y PREFERENCIAS</span><h2>Terraza, salón y condiciones de visita</h2><p className="page-subtitle">Desactivar conserva la zona y su historial, pero deja de mostrarla para nuevas reservas.</p></div>{zones.map((zone, index) => <div className="reservation-zone-row" key={zone.id}><label>Nombre<input className="input" value={zone.name} onChange={(e) => updateZone(index, { name: e.target.value })} placeholder="Ej. Terraza" /></label><label>Cupo<input className="input" type="number" min="1" max="500" value={zone.capacity || draft.capacityPerSlot} onChange={(e) => updateZone(index, { capacity: Number(e.target.value) })} /></label><label>Descripción<input className="input" value={zone.description || ''} onChange={(e) => updateZone(index, { description: e.target.value })} /></label><label className="toggle-row"><input type="checkbox" checked={Boolean(zone.smokingAllowed)} onChange={(e) => updateZone(index, { smokingAllowed: e.target.checked })} /> Fumadores</label><label className="toggle-row"><input type="checkbox" checked={zone.active !== false} onChange={(e) => updateZone(index, { active: e.target.checked })} /> Disponible para reservar</label><button type="button" className="btn btn-outline btn-sm" onClick={() => updateZone(index, { active: zone.active === false })}>{zone.active === false ? 'Activar' : 'Desactivar'}</button></div>)}<button type="button" className="btn btn-outline btn-sm" onClick={addZone}>Agregar zona</button></section>
-      <section className="reservation-readiness"><div><span className="page-eyebrow">CIERRE DEL TURNO</span><h2>Asistencia automática</h2></div><div className="form-row"><label className="toggle-row"><input type="checkbox" checked={draft.designConfig?.autoCloseAttendance !== 'false'} onChange={(e) => cambiarAjuste('autoCloseAttendance', String(e.target.checked))} /> Cerrar asistencia automáticamente</label><label>Margen posterior (min)<input className="input" type="number" min="15" max="1440" disabled={draft.designConfig?.autoCloseAttendance === 'false'} value={String(draft.designConfig?.autoCloseAfterMinutes || '60')} onChange={(e) => cambiarAjuste('autoCloseAfterMinutes', e.target.value)} /></label></div></section>
-      <section className="reservation-readiness" id="pausa"><div><span className="page-eyebrow">PAUSA TEMPORAL</span><h2>Detener nuevas reservas</h2><p className="page-subtitle">La página pública no ofrecerá horarios hasta la fecha indicada. No elimina reservas ni despublica el local.</p></div><div className="form-row"><label>Reanudar automáticamente el<input className="input" type="datetime-local" value={utcToLocalInput(draft.designConfig?.bookingPausedUntil, draft.timezone)} onChange={(event) => setBookingPause(event.target.value)} /></label><label className="toggle-row"><input type="checkbox" checked={draft.designConfig?.enforceCompanyDailyCap !== 'false'} onChange={(event) => cambiarAjuste('enforceCompanyDailyCap', String(event.target.checked))} /> Aplicar además el tope diario global de la empresa</label></div><button type="button" className="btn btn-outline btn-sm" disabled={!draft.designConfig?.bookingPausedUntil} onClick={() => cambiarAjuste('bookingPausedUntil', '')}>Quitar pausa programada</button></section>
     </div>}
 
     <footer className="builder-footer"><span>Paso {(clientMode ? PASOS_VISIBLES.cliente : PASOS_VISIBLES.equipo).indexOf(step) + 1} de {clientMode ? PASOS_VISIBLES.cliente.length : PASOS_VISIBLES.equipo.length}</span>{step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(clientMode && step === 4 ? 2 : step - 1)}>Anterior</button>}{step < STEPS.length - 1 && <button className="btn btn-primary btn-sm" onClick={() => setStep(clientMode && step === 2 ? 4 : step + 1)}>Continuar</button>}{step < STEPS.length - 1 && <button className="btn btn-outline btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>Guardar</button>}</footer>
@@ -677,17 +702,26 @@ function DesignStudioControls({
       <section className="design-starter">
         <span className="design-starter-eyebrow">EMPIEZA POR AQUÍ</span>
         <strong>Plantillas visuales</strong>
-        <small>Aplica una combinación completa de colores, tipografía y formas. Después ajusta lo que quieras.</small>
+        <small>Una combinación completa de colores, letra y formas. Con elegir una alcanza para publicar.</small>
         <div className="design-templates">{DESIGN_TEMPLATES.map((template) => <button type="button" key={template.name} onClick={() => onChange({ ...design, ...template.config })}>{template.name}</button>)}</div>
       </section>
 
+      <section className="design-essentials">
+        <div className="design-quick-help"><strong>Lo esencial</strong><small>Título, logo, colores y fondo. Lo demás son ajustes finos que ya vienen resueltos por la plantilla.</small></div>
+        <label>Título público<input className="input" value={design.title || ''} onChange={(event) => update({ title: event.target.value })} /></label>
+        <label>Frase bajo el título<textarea className="input" rows={3} value={design.welcome || ''} onChange={(event) => update({ welcome: event.target.value })} /></label>
+        <ImageUpload label="Logo de la empresa" value={design.logoUrl} onChange={(url) => onAsset('logoUrl', url)} placeholder="https://empresa.cl/logo.png" maxSizeMB={3} />
+        <div className="color-controls"><label>Principal<input type="color" value={design.primaryColor || '#0ec6b8'} onChange={(event) => update({ primaryColor: event.target.value })} /></label><label>Acento<input type="color" value={design.accentColor || '#ea0f63'} onChange={(event) => update({ accentColor: event.target.value })} /></label><label>Fondo<input type="color" value={design.backgroundColor || '#f6f4f5'} onChange={(event) => update({ backgroundColor: event.target.value })} /></label><label>Letras<input type="color" value={design.textColor || '#3f4e49'} onChange={(event) => update({ textColor: event.target.value })} /></label></div>
+        <label>Tipo de fondo<select className="input" value={backgroundMode} onChange={(event) => update({ backgroundMode: event.target.value, ...(event.target.value === 'gradient' && !design.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) })}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
+        {backgroundMode === 'gradient' && <label>Degradado<input className="input" value={design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT} onChange={(event) => update({ backgroundGradient: event.target.value })} /></label>}
+        {backgroundMode === 'image' && <ImageUpload label="Imagen de fondo" value={design.backgroundImage} onChange={(url) => onAsset('backgroundImage', url)} placeholder="https://..." maxSizeMB={5} />}
+      </section>
+
       {!surveyMode && <details className="design-section">
-        <summary>Ocasiones (opcional)</summary>
+        <summary>Grilla de ocasiones (opcional)</summary>
         <div className="design-section-body">
           <small>Una grilla con las ocasiones que atiende el local —cumpleaños, aniversario, after office—. Es solo visual: ayuda a que quien entra se imagine su visita.</small>
           <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnabled === 'true'} onChange={(event) => update({ ocasionesEnabled: event.target.checked ? 'true' : 'false' })} /> Mostrar la grilla en la página</label>
-          <label className="toggle-row"><input type="checkbox" checked={design.ocasionesPopup === 'true'} onChange={(event) => update({ ocasionesPopup: event.target.checked ? 'true' : 'false' })} /> Mostrarla también como aviso al entrar</label>
-          {design.ocasionesPopup === 'true' && <label>Veces que se muestra el aviso<select className="input" value={design.ocasionesVeces || '1'} onChange={(event) => update({ ocasionesVeces: event.target.value })}><option value="1">Una vez</option><option value="2">Dos veces</option><option value="3">Tres veces</option><option value="siempre">En cada visita</option></select><small>Se cuenta por navegador. Repetirlo siempre molesta a quien ya lo vio y viene a reservar.</small></label>}
           <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnEmail === 'true'} onChange={(event) => update({ ocasionesEnEmail: event.target.checked ? 'true' : 'false' })} /> Incluirla en el correo de confirmación</label>
           <label>Título de la grilla<input className="input" value={design.ocasionesTitulo || ''} placeholder="Ej. Para cada ocasión" onChange={(event) => update({ ocasionesTitulo: event.target.value })} /></label>
           {leerOcasiones(design.ocasiones).map((ocasion, indice) => (
@@ -702,21 +736,29 @@ function DesignStudioControls({
         </div>
       </details>}
 
-      <section className="design-essentials">
-        <div className="design-quick-help"><strong>Personaliza lo esencial</strong><small>El logo y el fondo se cambian aquí. Si no quieres personalizar, la plantilla Espartano ya viene lista para publicar.</small></div>
-        <label>Título público<input className="input" value={design.title || ''} onChange={(event) => update({ title: event.target.value })} /></label>
-        <label>Mensaje de bienvenida<textarea className="input" rows={3} value={design.welcome || ''} onChange={(event) => update({ welcome: event.target.value })} /></label>
-        <label className="toggle-row"><input type="checkbox" checked={design.welcomePopupEnabled === 'true'} onChange={(event) => update({ welcomePopupEnabled: event.target.checked ? 'true' : 'false' })} /> Mostrar una bienvenida antes de iniciar</label>
+      <details className="design-section">
+        <summary>Aviso al entrar (opcional)</summary>
+        <div className="design-section-body">
+          <small>Un cuadro antes de empezar a reservar. Se elige uno solo: había dos interruptores distintos y, encendidos a la vez, se abrían uno encima del otro.</small>
+          <label>Qué se muestra al entrar<select className="input" value={design.ocasionesPopup === 'true' ? 'ocasiones' : design.welcomePopupEnabled === 'true' ? 'bienvenida' : 'nada'} onChange={(event) => update({
+            welcomePopupEnabled: event.target.value === 'bienvenida' ? 'true' : 'false',
+            ocasionesPopup: event.target.value === 'ocasiones' ? 'true' : 'false',
+          })}>
+            <option value="nada">Nada, entra directo a reservar</option>
+            <option value="bienvenida">Un mensaje de bienvenida</option>
+            <option value="ocasiones">La grilla de ocasiones</option>
+          </select></label>
+          {design.ocasionesPopup === 'true' && design.ocasionesEnabled !== 'true' && <small className="error-text">La grilla no tiene ocasiones activas: enciéndela en «Grilla de ocasiones» o no se mostrará nada.</small>}
         {design.welcomePopupEnabled === 'true' && <div className="form-row"><label>Título del popup<input className="input" value={design.welcomePopupTitle || ''} onChange={(event) => update({ welcomePopupTitle: event.target.value })} /></label><label>Texto del popup<textarea className="input" rows={2} value={design.welcomePopupText || ''} onChange={(event) => update({ welcomePopupText: event.target.value })} /></label></div>}
-        <ImageUpload label="Logo de la empresa" value={design.logoUrl} onChange={(url) => onAsset('logoUrl', url)} placeholder="https://empresa.cl/logo.png" maxSizeMB={3} />
-        <div className="color-controls"><label>Principal<input type="color" value={design.primaryColor || '#0ec6b8'} onChange={(event) => update({ primaryColor: event.target.value })} /></label><label>Acento<input type="color" value={design.accentColor || '#ea0f63'} onChange={(event) => update({ accentColor: event.target.value })} /></label><label>Fondo<input type="color" value={design.backgroundColor || '#f6f4f5'} onChange={(event) => update({ backgroundColor: event.target.value })} /></label><label>Letras<input type="color" value={design.textColor || '#3f4e49'} onChange={(event) => update({ textColor: event.target.value })} /></label></div>
-        <label>Tipo de fondo<select className="input" value={backgroundMode} onChange={(event) => update({ backgroundMode: event.target.value, ...(event.target.value === 'gradient' && !design.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) })}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
-        {backgroundMode === 'gradient' && <label>Degradado<input className="input" value={design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT} onChange={(event) => update({ backgroundGradient: event.target.value })} /></label>}
-        {backgroundMode === 'image' && <ImageUpload label="Imagen de fondo" value={design.backgroundImage} onChange={(url) => onAsset('backgroundImage', url)} placeholder="https://..." maxSizeMB={5} />}
-      </section>
+          {design.welcomePopupEnabled === 'true' && <label>Texto del botón<input className="input" value={design.welcomePopupBoton || ''} placeholder="Continuar" onChange={(event) => update({ welcomePopupBoton: event.target.value })} /></label>}
+          {design.ocasionesPopup === 'true' && <label>Frase bajo el título <small>(opcional)</small><textarea className="input" rows={2} value={design.ocasionesTexto || ''} placeholder="Ej. Cuéntanos qué celebras y lo preparamos." onChange={(event) => update({ ocasionesTexto: event.target.value })} /></label>}
+          {design.ocasionesPopup === 'true' && <label>Texto del botón<input className="input" value={design.ocasionesBoton || ''} placeholder="Reservar ahora" onChange={(event) => update({ ocasionesBoton: event.target.value })} /></label>}
+          {design.ocasionesPopup === 'true' && <label>Veces que se muestra<select className="input" value={design.ocasionesVeces || '1'} onChange={(event) => update({ ocasionesVeces: event.target.value })}><option value="1">Una vez</option><option value="2">Dos veces</option><option value="3">Tres veces</option><option value="siempre">En cada visita</option></select><small>Se cuenta por navegador. Repetirlo siempre molesta a quien ya lo vio y viene a reservar.</small></label>}
+        </div>
+      </details>
 
       <details className="design-section">
-        <summary>Tipografía y formas</summary>
+        <summary>Letra y bordes</summary>
         <div className="design-section-body">
           <label>Tipo de letra<select className="input" value={design.fontFamily || 'system-ui'} onChange={(event) => update({ fontFamily: event.target.value })}><option value="system-ui">Sistema</option><option value="Inter, sans-serif">Inter</option><option value="Georgia, serif">Georgia</option><option value="'Courier New', monospace">Monospace</option></select></label>
           <div className="design-mini-grid"><label>Forma de botones<select className="input" value={design.buttonRadius || '12'} onChange={(event) => update({ buttonRadius: event.target.value })}><option value="4">Rectos</option><option value="12">Suaves</option><option value="999">Píldora</option></select></label><label>Forma de campos<select className="input" value={design.fieldRadius || '10'} onChange={(event) => update({ fieldRadius: event.target.value })}><option value="2">Rectos</option><option value="10">Suaves</option><option value="18">Redondeados</option></select></label></div>
@@ -724,7 +766,7 @@ function DesignStudioControls({
       </details>
 
       {backgroundMode !== 'color' && <details className="design-section">
-        <summary>Ajuste del fondo</summary>
+        <summary>Cómo se recorta el fondo</summary>
         <div className="design-section-body">
           {backgroundMode === 'image' && <label>Visibilidad del fondo ({design.backgroundOpacity || '88'}%)<small>Cuánto se aclara la imagen para que el texto siga legible.</small><input type="range" min="0" max="100" value={design.backgroundOpacity || '88'} onChange={(event) => update({ backgroundOpacity: event.target.value })} /></label>}
           <div className="design-control-group">
@@ -741,7 +783,7 @@ function DesignStudioControls({
       </details>}
 
       <details className="design-section">
-        <summary>Encabezado y marca</summary>
+        <summary>Qué se muestra arriba: logo, título y sellos</summary>
         <div className="design-section-body">
           <label className="toggle-row"><input type="checkbox" checked={visible(design.showLogo)} onChange={(event) => update({ showLogo: String(event.target.checked) })} /> Mostrar logo</label>
           <label>Tamaño del logo ({design.logoSize || '64'}px)<input type="range" min="32" max="180" value={design.logoSize || '64'} onChange={(event) => update({ logoSize: event.target.value })} /></label>
@@ -750,36 +792,37 @@ function DesignStudioControls({
             <div>{LOGO_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLogo === value ? 'active' : ''} onClick={() => update({ logoPosition: value })}>{label}</button>)}</div>
           </div>
           <label className="toggle-row"><input type="checkbox" checked={visible(design.showEyebrow)} onChange={(event) => update({ showEyebrow: String(event.target.checked) })} /> Mostrar etiqueta superior</label>
-          <input className="input" value={design.eyebrowText || 'AGENDA EN LÍNEA'} onChange={(event) => update({ eyebrowText: event.target.value })} />
+          <label>Texto de la etiqueta<input className="input" value={design.eyebrowText || 'AGENDA EN LÍNEA'} onChange={(event) => update({ eyebrowText: event.target.value })} /></label>
           <label>Tamaño del título ({design.titleSize || '72'}px)<input type="range" min="32" max="96" value={design.titleSize || '72'} onChange={(event) => update({ titleSize: event.target.value })} /></label>
-          <label className="toggle-row"><input type="checkbox" checked={visible(design.showWelcome)} onChange={(event) => update({ showWelcome: String(event.target.checked) })} /> Mostrar mensaje de bienvenida</label>
+          <label className="toggle-row"><input type="checkbox" checked={visible(design.showWelcome)} onChange={(event) => update({ showWelcome: String(event.target.checked) })} /> Mostrar la frase bajo el título</label>
           <label>Tamaño del mensaje ({design.welcomeSize || '16'}px)<input type="range" min="12" max="24" value={design.welcomeSize || '16'} onChange={(event) => update({ welcomeSize: event.target.value })} /></label>
           <div className="segmented-control">
             <span>Ubicación del formulario</span>
             <div>{LAYOUT_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLayout === value ? 'active' : ''} onClick={() => update({ layoutPosition: value })}>{label}</button>)}</div>
           </div>
           <label className="toggle-row"><input type="checkbox" checked={visible(design.showPoweredBy)} onChange={(event) => update({ showPoweredBy: String(event.target.checked) })} /> Mostrar “Gestionado con”</label>
-          <textarea className="input" rows={2} value={design.poweredByText || 'Gestionado con\nEspartanos Reservas'} onChange={(event) => update({ poweredByText: event.target.value })} />
+          <label>Texto del pie<textarea className="input" rows={2} value={design.poweredByText || 'Gestionado con\nEspartanos Reservas'} onChange={(event) => update({ poweredByText: event.target.value })} /></label>
           <label className="toggle-row"><input type="checkbox" checked={visible(design.showSecureBadge)} onChange={(event) => update({ showSecureBadge: String(event.target.checked) })} /> Mostrar sello “Reserva segura”</label>
-          <input className="input" value={design.secureBadgeText || 'Reserva segura'} onChange={(event) => update({ secureBadgeText: event.target.value })} />
+          <label>Texto del sello<input className="input" value={design.secureBadgeText || 'Reserva segura'} onChange={(event) => update({ secureBadgeText: event.target.value })} /></label>
         </div>
       </details>
 
       <details className="design-section">
-        <summary>Datos rápidos bajo el título</summary>
+        <summary>Etiquetas de duración y confirmación</summary>
         <div className="design-section-body">
-          <label className="toggle-row"><input type="checkbox" checked={visible(design.showFacts)} onChange={(event) => update({ showFacts: String(event.target.checked) })} /> Mostrar minutos, confirmación y zona horaria</label>
-          <div className="design-mini-grid"><input className="input" value={design.durationLabel || 'minutos'} onChange={(event) => update({ durationLabel: event.target.value })} /><input className="input" value={design.confirmationLabel || 'confirmación'} onChange={(event) => update({ confirmationLabel: event.target.value })} /><input className="input" value={design.timezoneLabel || 'zona horaria'} onChange={(event) => update({ timezoneLabel: event.target.value })} /></div>
-          <div className="design-mini-grid"><input className="input" value={design.automaticLabel || 'Directa'} onChange={(event) => update({ automaticLabel: event.target.value })} /><input className="input" value={design.manualLabel || 'Manual'} onChange={(event) => update({ manualLabel: event.target.value })} /><input className="input" value={design.timezoneValue || ''} placeholder="Ej.: Santiago" onChange={(event) => update({ timezoneValue: event.target.value })} /></div>
+          <small>Los dos datos que aparecen bajo el título: cuánto dura la visita y si la reserva queda confirmada al momento.</small>
+          <label className="toggle-row"><input type="checkbox" checked={visible(design.showFacts)} onChange={(event) => update({ showFacts: String(event.target.checked) })} /> Mostrarlos en la página</label>
+          {visible(design.showFacts) && <div className="design-mini-grid"><label>Palabra para la duración<input className="input" value={design.durationLabel || 'minutos'} onChange={(event) => update({ durationLabel: event.target.value })} /></label><label>Palabra para la confirmación<input className="input" value={design.confirmationLabel || 'confirmación'} onChange={(event) => update({ confirmationLabel: event.target.value })} /></label></div>}
+          {visible(design.showFacts) && <div className="design-mini-grid"><label>Si confirma sola<input className="input" value={design.automaticLabel || 'Directa'} onChange={(event) => update({ automaticLabel: event.target.value })} /></label><label>Si la revisa el local<input className="input" value={design.manualLabel || 'Manual'} onChange={(event) => update({ manualLabel: event.target.value })} /></label></div>}
         </div>
       </details>
 
       <details className="design-section">
-        <summary>Después de reservar</summary>
+        <summary>Pantalla de confirmación</summary>
         <div className="design-section-body">
           <label>Mensaje de confirmación<textarea className="input" rows={3} value={design.confirmationMessage || ''} onChange={(event) => update({ confirmationMessage: event.target.value })} placeholder="Tu reserva quedó registrada. Te esperamos." /></label>
           <label className="toggle-row"><input type="checkbox" checked={design.calendarSaveEnabled !== 'false'} onChange={(event) => update({ calendarSaveEnabled: String(event.target.checked) })} /> Ofrecer guardar la reserva en calendario</label>
-          <textarea className="input" rows={2} value={design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'} onChange={(event) => update({ calendarSaveText: event.target.value })} />
+          <label>Texto de esa opción<textarea className="input" rows={2} value={design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'} onChange={(event) => update({ calendarSaveText: event.target.value })} /></label>
         </div>
       </details>
 
@@ -793,7 +836,7 @@ function DesignStudioControls({
         </div>
       </details>}
 
-      <button type="button" className="btn btn-outline btn-sm design-reset" onClick={() => update({ showPoweredBy: 'true', poweredByText: 'Gestionado con\nEspartanos Reservas', showSecureBadge: 'true', secureBadgeText: 'Reserva segura', showLogo: 'true', showEyebrow: 'true', eyebrowText: 'AGENDA EN LÍNEA', showWelcome: 'true', showFacts: 'true', logoSize: '64', titleSize: '72', welcomeSize: '16', durationLabel: 'minutos', confirmationLabel: 'confirmación', timezoneLabel: 'zona horaria', automaticLabel: 'Directa', manualLabel: 'Manual', timezoneValue: '', backgroundOpacity: '88', backgroundAnchor: 'center center', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'right', logoPosition: 'left' })}>Restablecer diseño público</button>
+      <button type="button" className="btn btn-outline btn-sm design-reset" onClick={() => update({ showPoweredBy: 'true', poweredByText: 'Gestionado con\nEspartanos Reservas', showSecureBadge: 'true', secureBadgeText: 'Reserva segura', showLogo: 'true', showEyebrow: 'true', eyebrowText: 'AGENDA EN LÍNEA', showWelcome: 'true', showFacts: 'true', logoSize: '64', titleSize: '72', welcomeSize: '16', durationLabel: 'minutos', confirmationLabel: 'confirmación', automaticLabel: 'Directa', manualLabel: 'Manual', backgroundOpacity: '88', backgroundAnchor: 'center center', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'right', logoPosition: 'left' })}>Restablecer diseño público</button>
     </div>
   );
 }

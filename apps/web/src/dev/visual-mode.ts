@@ -154,6 +154,8 @@ const VISUAL_RESERVATION_LOCAL = {
     networkConsentEnabled: 'true', networkBrandName: 'Espartanos',
     marketingConsentText: 'Quiero recibir novedades, experiencias y beneficios de Casa Costanera.', marketingConsentVersion: 'cc-2026-01',
     welcomePopupTitle: 'Bienvenido a Casa Costanera', welcomePopupText: 'Reserva en pocos pasos. Si organizas una celebración o grupo, también puedes enviar una solicitud sin tomar un horario.',
+    ocasionesEnabled: 'true', ocasionesPopup: 'true', ocasionesVeces: 'siempre', ocasionesTitulo: 'Para cada ocasión', ocasionesTexto: 'Cuéntanos qué celebras y lo preparamos contigo.', ocasionesBoton: 'Ver horarios',
+    ocasiones: JSON.stringify([{ titulo: 'Cumpleaños', texto: 'Torta, decoración y un rincón para la foto.' }, { titulo: 'Aniversario', texto: 'Mesa tranquila, luz baja y brindis de cortesía.' }, { titulo: 'Empresa', texto: 'Salón privado, menú acordado y boleta a nombre de la empresa.' }, { titulo: 'Con niños', texto: 'Sillas altas, menú infantil y espacio para el coche.' }]),
     askChildren: 'true', askAccessibility: 'true', askAllergies: 'true', whatsappBusinessNumber: '+56 9 1234 5678', whatsappGroupMessage: 'Hola, envié una solicitud de grupo desde Casa Costanera y me gustaría coordinar los detalles.',
   },
   scheduleConfig: { windows: [{ day: 1, start: '13:00', end: '23:00' }, { day: 2, start: '13:00', end: '23:00' }, { day: 3, start: '13:00', end: '23:00' }, { day: 4, start: '13:00', end: '23:00' }, { day: 5, start: '13:00', end: '23:30' }, { day: 6, start: '13:00', end: '23:30' }] },

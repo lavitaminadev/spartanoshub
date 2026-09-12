@@ -8,7 +8,7 @@ export interface DesignConfig {
   showPoweredBy?: string; poweredByText?: string; showSecureBadge?: string; secureBadgeText?: string;
   showEyebrow?: string; eyebrowText?: string; showWelcome?: string; showFacts?: string;
   titleSize?: string; welcomeSize?: string; durationLabel?: string; confirmationLabel?: string;
-  timezoneLabel?: string; automaticLabel?: string; manualLabel?: string; timezoneValue?: string;
+  automaticLabel?: string; manualLabel?: string;
   calendarSaveEnabled?: string; calendarSaveText?: string;
   legalCompanyName?: string; legalCompanyId?: string; privacyUrl?: string; termsUrl?: string;
   supportEmail?: string; cancellationPolicy?: string; reservationConsentText?: string;
@@ -25,6 +25,8 @@ export interface DesignConfig {
   buttonRadius?: string; fieldRadius?: string; fontFamily?: string; couponEnabled?: string;
   /** Grilla de ocasiones: se guarda como JSON porque son varias y el resto de la config es plana. */
   ocasionesEnabled?: string; ocasionesTitulo?: string; ocasionesPopup?: string; ocasiones?: string;
+  /** Cada texto del aviso es editable: el código no fija ninguno. */
+  ocasionesTexto?: string; ocasionesBoton?: string; welcomePopupBoton?: string;
   [key: string]: string | undefined;
 }
 export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number; description?: string; smokingAllowed?: boolean; active?: boolean }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; calendarReady?: boolean; ga4MeasurementId?: string | null; capabilities?: { reservations: boolean; crm: boolean; metaConversions?: boolean; googleConversions?: boolean }; updatedAt: string }
