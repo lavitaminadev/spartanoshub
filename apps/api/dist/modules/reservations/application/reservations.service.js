@@ -1301,6 +1301,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             serviceId: dto.serviceId || texto(details.serviceId),
             answers,
             internalNotes: 'Creada desde una solicitud de grupo.',
+            skipAvailability: dto.skipAvailability === true,
         }, clientId, clientIds);
         const reservationId = booking.id ?? booking.booking?.id;
         request.status = 'converted';

@@ -200,6 +200,8 @@ export class UpdateReservationDto {
 /** Fecha y lugar acordados con quien pidió el grupo. El resto sale de la solicitud. */
 export class ConvertGroupRequestDto {
   @IsDateString() startsAt: string;
+  /** Un evento se acuerda por fuera: puede caer en un horario que la agenda no publica. */
+  @IsOptional() @IsBoolean() skipAvailability?: boolean;
   @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
   @IsOptional() @IsString() @MaxLength(80) serviceId?: string;
 }

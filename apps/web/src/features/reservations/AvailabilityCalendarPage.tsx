@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -58,6 +59,7 @@ export function AvailabilityCalendarPage() {
   const { user } = useAuth();
   const clientMode = user?.role === 'client';
   const [searchParams] = useSearchParams();
+  const navegar = useNavigate();
   const [cursor, setCursor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [clientId, setClientId] = useState(() => clientMode ? user?.clientId || '' : searchParams.get('clientId') ?? '');
   const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
@@ -132,7 +134,20 @@ export function AvailabilityCalendarPage() {
             const info = dayByDate.get(dateKeyFor(day));
             const pct = info?.pct ?? null;
             const isToday = todayKey === day;
-            return <div className={`availability-cell ${isToday ? 'is-today' : ''}`} role="cell" key={dayIndex}>
+            /*
+             * Cada día abre su agenda.
+             *
+             * El calendario mostraba la ocupación y ahí terminaba: ver que un jueves está al 90%
+             * sin poder abrirlo obligaba a ir a la agenda y buscar la fecha a mano.
+             */
+            const fecha = dateKeyFor(day);
+            return <button
+              type="button"
+              className={`availability-cell ${isToday ? 'is-today' : ''}`}
+              key={dayIndex}
+              aria-label={`Ver la agenda del ${fecha}`}
+              onClick={() => navegar(`${clientMode ? '/portal' : ''}/reservations/agenda?${new URLSearchParams({ date: fecha, ...(clientId ? { clientId } : {}), ...(formId ? { formId } : {}) })}`)}
+            >
               <span className="availability-day-number">{day}</span>
               {info ? (
                 hasCapacity && pct !== null ? (
@@ -141,7 +156,7 @@ export function AvailabilityCalendarPage() {
                   <span className="availability-badge tone-neutral" title={`${info.count} reserva(s), sin tope diario configurado`}>{info.count}</span>
                 )
               ) : null}
-            </div>;
+            </button>;
           })}
         </div>)}
       </div>
