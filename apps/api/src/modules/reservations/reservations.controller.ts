@@ -13,7 +13,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 
 @ApiTags('Reservas')
@@ -88,6 +88,14 @@ export class ReservationsController {
   async form(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
     const form = await this.service.getForm(req.organizationId, id, scope.clientId, scope.clientIds);
+    return this.decorateForm(req.organizationId, form.clientId, form);
+  }
+
+  @Patch('forms/:id/pause')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async pause(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PauseReservationFormDto) {
+    const scope = await this.scope(req);
+    const form = await this.service.pauseForm(req.organizationId, id, dto.until ?? '', scope.clientId, scope.clientIds);
     return this.decorateForm(req.organizationId, form.clientId, form);
   }
 

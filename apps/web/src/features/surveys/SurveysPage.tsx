@@ -7,6 +7,9 @@
  */
 
 import { useState, type JSX } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { api } from '../../core/api';
+import { CodigoQrDeEncuesta } from './CodigoQrDeEncuesta';
 import { Link } from 'react-router-dom';
 import { DataTable, type Column } from '../../shared/DataTable';
 import { StatusBadge } from '../../shared/StatusBadge';
@@ -46,15 +49,21 @@ function nextSurveyStatus(status: Survey['status']): { status: Survey['status'];
   return { status: 'active', label: 'Reabrir', toast: 'Encuesta reabierta' };
 }
 
-function qrUrl(url: string): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
-}
 
 export function SurveysPage(): JSX.Element {
   const { data: surveys = [], isLoading, error, refetch, isFetching } = useSurveys();
   const deleteMutation = useDeleteSurvey();
   const statusMutation = useUpdateSurvey();
   const [confirmDelete, setConfirmDelete] = useState<Survey | null>(null);
+  const [qrDe, setQrDe] = useState<Survey | null>(null);
+  const [correoDe, setCorreoDe] = useState<Survey | null>(null);
+  const enviarCorreo = useMutation({
+    mutationFn: (survey: Survey) => api.post<{ enviados: number; fallidos: number; invalidos: number }>(`/surveys/${encodeURIComponent(survey.id)}/send-email`, {}),
+    onSuccess: (resultado) => {
+      setCorreoDe(null);
+      triggerToast(`Enviada a ${resultado.enviados} persona${resultado.enviados === 1 ? '' : 's'}${resultado.fallidos ? ` · ${resultado.fallidos} ${resultado.fallidos === 1 ? 'no salió' : 'no salieron'}` : ''}${resultado.invalidos ? ` · ${resultado.invalidos} ${resultado.invalidos === 1 ? 'correo inválido omitido' : 'correos inválidos omitidos'}` : ''}`);
+    },
+  });
   // Los filtros viven en la dirección: volver desde una encuesta conserva lo filtrado, recargar
   // no borra el trabajo y la vista se puede mandar por mensaje.
   const filtros = useUrlFilters(FILTER_KEYS);
@@ -120,8 +129,8 @@ export function SurveysPage(): JSX.Element {
             <Link className="btn btn-outline btn-sm" to={`/surveys/create?id=${survey.id}`}>Editar</Link>
             <Link className="btn btn-outline btn-sm" to={`/surveys/${survey.id}/results`}>Ver resultados</Link>
             {survey.status === 'active' && survey.distribution?.includes('link') && <button type="button" className="btn btn-outline btn-sm" onClick={() => copyPublicSurveyLink(survey)}>Copiar link</button>}
-            {survey.status === 'active' && survey.distribution?.includes('email') && <a className="btn btn-outline btn-sm" href={`mailto:?subject=${encodeURIComponent(survey.title)}&body=${encodeURIComponent(channelUrl(survey, 'email'))}`}>Email</a>}
-            {survey.status === 'active' && survey.distribution?.includes('qr') && <a className="btn btn-outline btn-sm" href={qrUrl(channelUrl(survey, 'qr'))} target="_blank" rel="noreferrer">QR</a>}
+            {survey.status === 'active' && survey.distribution?.includes('email') && <button type="button" className="btn btn-outline btn-sm" disabled={!survey.recipients?.length} title={survey.recipients?.length ? undefined : 'Agrega destinatarios en la encuesta'} onClick={() => { enviarCorreo.reset(); setCorreoDe(survey); }}>Enviar por correo</button>}
+            {survey.status === 'active' && survey.distribution?.includes('qr') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setQrDe(survey)}>QR</button>}
             <button
               type="button"
               className={survey.status === 'active' ? 'btn btn-outline btn-sm' : 'btn btn-primary btn-sm'}
@@ -228,6 +237,20 @@ export function SurveysPage(): JSX.Element {
           });
         }}
       />
+
+      {/* Se confirma antes de enviar: sale un correo por persona y no se puede deshacer. */}
+      <ConfirmDialog
+        open={Boolean(correoDe)}
+        title="Enviar la encuesta por correo"
+        description={`Se enviará «${correoDe?.title ?? ''}» a ${correoDe?.recipients?.length ?? 0} destinatario${correoDe?.recipients?.length === 1 ? '' : 's'}, un correo a cada uno. Envíala solo a personas que aceptaron recibir comunicaciones de la empresa.`}
+        confirmLabel="Enviar"
+        pending={enviarCorreo.isPending}
+        error={enviarCorreo.error?.message}
+        onClose={() => setCorreoDe(null)}
+        onConfirm={() => { if (correoDe) enviarCorreo.mutate(correoDe); }}
+      />
+
+      <CodigoQrDeEncuesta abierto={Boolean(qrDe)} titulo={qrDe?.title ?? ''} url={qrDe ? channelUrl(qrDe, 'qr') : ''} onCerrar={() => setQrDe(null)} />
     </div>
   );
 }

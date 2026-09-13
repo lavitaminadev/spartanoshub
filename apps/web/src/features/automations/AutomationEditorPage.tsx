@@ -96,7 +96,7 @@ export function AutomationEditorPage() {
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => (
-      isNew ? api.post('/automations', body) : api.put(`/automations/${id}`, body)
+      isNew ? api.post<Automation>('/automations', body) : api.put<Automation>(`/automations/${id}`, body)
     ),
     onSuccess: (result: Automation) => {
       void queryClient.invalidateQueries({ queryKey: ['automations'] });

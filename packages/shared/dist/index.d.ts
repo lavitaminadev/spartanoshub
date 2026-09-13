@@ -23,4 +23,6 @@ export * from './types/survey';
 export * from './survey-metrics';
 export * from './enums';
 export * from './constants';
+export * from './reglas-de-campo';
+export * from './campos-personalizados';
 //# sourceMappingURL=index.d.ts.map

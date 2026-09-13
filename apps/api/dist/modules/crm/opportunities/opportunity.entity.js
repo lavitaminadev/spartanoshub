@@ -77,6 +77,10 @@ __decorate([
     __metadata("design:type", String)
 ], Opportunity.prototype, "assignedTo", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'custom_fields', type: 'json', nullable: true }),
+    __metadata("design:type", Object)
+], Opportunity.prototype, "customFields", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Opportunity.prototype, "createdAt", void 0);

@@ -16,6 +16,13 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /*
+     * Estricto. Sin comprobación de nulos, una aserción como `submit.data.startsAt!` compilaba y
+     * fallaba recién en pantalla —justo después de reservar—, y `{cantidad && …}` dibujaba un «0»
+     * suelto. Encenderlo destapó 57 casos en todo el frontend, varios de ellos errores reales.
+     */
+    "strict": true,
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,

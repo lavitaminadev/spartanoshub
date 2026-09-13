@@ -54,10 +54,13 @@ import { LeadCierreService } from './leads/lead-cierre.service';
 import { LeadCreatedEmailListener } from './leads/lead-created-email.listener';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { NotificationsModule } from '../../core/notifications/notifications.module';
+import { CrmFieldDefinition } from './fields/crm-field-definition.entity';
+import { CrmFieldsService } from './fields/crm-fields.service';
+import { CrmFieldsController } from './fields/crm-fields.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule],
-  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController],
+  imports: [TypeOrmModule.forFeature([CrmFieldDefinition, Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule],
+  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController, CrmFieldsController],
   providers: [
     LeadTaskSummaryService, ResponsablesDelCrmService, StageLabelsService, LeadCierreService, LeadCreatedEmailListener,
     CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, LeadIngestService, CrmHomeService, CrmDashboardService, CrmLeadAutomationService,
@@ -65,6 +68,7 @@ import { NotificationsModule } from '../../core/notifications/notifications.modu
     OpportunityReferenceValidator, OpportunityStageHistoryService, CreateOpportunityUseCase, ListOpportunitiesUseCase, GetOpportunityUseCase, UpdateOpportunityUseCase, RemoveOpportunityUseCase,
     InteractionsService,
     CampaignsService,
+    CrmFieldsService,
   ],
   exports: [LeadIntakeService, CrmLeadAutomationService, CrmHomeService],
 })

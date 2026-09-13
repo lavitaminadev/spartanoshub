@@ -57,10 +57,10 @@ export function WaitlistPage() {
   const search = useDeferredValue(searchInput.trim());
 
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
-  const clients = Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
+  const clients = (Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [];
   const { data: forms = [] } = useQuery<ReservationForm[]>({ queryKey: ['reservation-forms', clientFilter], queryFn: () => api.get(`/reservations/forms?clientId=${encodeURIComponent(clientFilter)}`), enabled: Boolean(clientFilter) });
 
-  const dateRange = dateFilter ? { from: browserDateBoundaryUtc(dateFilter), to: browserDateBoundaryUtc(dateFilter, true) } : {};
+  const dateRange: Record<string, string> = dateFilter ? { from: browserDateBoundaryUtc(dateFilter), to: browserDateBoundaryUtc(dateFilter, true) } : {};
   const query = new URLSearchParams({
     status: 'waitlist',
     page: '1',

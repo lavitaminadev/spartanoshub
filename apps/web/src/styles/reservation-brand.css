@@ -18,6 +18,8 @@
 .preview-slot-group > div { display: flex; gap: 6px; flex-wrap: wrap; }
 .preview-slot-group button { min-width: 78px; padding: 8px; border: 1px solid var(--surface-sage); border-radius: var(--booking-button-radius); background: var(--white); color: var(--booking-primary); font-weight: 800; }
 .preview-slot-group button small { display: block; color: var(--muted); font-size: 10px; font-weight: 400; }
+/* Sobre el color del local el gris desaparece: hereda el contraste calculado del botón. */
+.preview-slot-group button.active small { color: inherit; opacity: .85; }
 .preview-slot-group button.active { border-color: var(--booking-primary); background: var(--booking-primary); color: var(--booking-primary-contrast); }
 .preview-public-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .preview-public-fields label { display: flex; flex-direction: column; gap: 5px; color: var(--booking-primary); font-size: 10px; font-weight: 800; }
@@ -43,7 +45,7 @@
 .public-submit,
 .slot-groups button,
 .slot-alternatives button { border-radius: var(--booking-button-radius); }
-.slot-alternatives .btn-retry { margin-left:auto; background:var(--booking-primary);border-color:var(--booking-primary);color:var(--white);font-weight:800;padding:6px 12px; }
+.slot-alternatives .btn-retry { margin-left:auto; background:var(--booking-primary);border-color:var(--booking-primary);color:var(--booking-primary-contrast, var(--white));font-weight:800;padding:6px 12px; }
 .design-templates,.preview-device-toggle { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:14px; }
 .design-templates button,.preview-device-toggle button { padding:7px 10px; border:1px solid var(--surface-sage); border-radius: var(--radius-sm); background:var(--white); color:#4a4247; font-size:9px; font-weight:800; cursor:pointer; }
 .preview-device-toggle button.active { background:var(--surface-dark); color:var(--white); }

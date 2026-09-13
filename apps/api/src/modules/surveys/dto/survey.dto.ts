@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsObject, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength, ValidateNested,
+  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import type { QuestionType, SurveyDistributionChannel, SurveyStatus, SurveyType } from '@espartanos/shared';
 
@@ -94,6 +94,37 @@ export class UpdateSurveyDto {
 
   @IsOptional() @IsObject()
   googleReview?: Record<string, unknown>;
+}
+
+/** Primer paso: sólo la nota. La invitación es opcional; sin ella la respuesta queda anónima. */
+export class StartSurveyResponseDto {
+  @IsInt() @Min(1) @Max(5)
+  rating: number;
+
+  @IsOptional() @IsString() @MaxLength(600)
+  invitacion?: string;
+
+  @IsOptional() @IsString() @MaxLength(40)
+  origen?: string;
+}
+
+/** Pasos siguientes: preguntas, mensaje al equipo, o cerrar. */
+export class CompleteSurveyResponseDto {
+  @IsString() @MinLength(10) @MaxLength(80)
+  token: string;
+
+  @IsOptional() @IsObject()
+  answers?: Record<string, string | number>;
+
+  @IsOptional() @IsString() @MaxLength(2000)
+  teamMessage?: string;
+
+  /** Si eligió contestar la encuesta: sólo entonces se exigen las obligatorias. */
+  @IsOptional() @IsBoolean()
+  responder?: boolean;
+
+  @IsOptional() @IsBoolean()
+  terminar?: boolean;
 }
 
 export class SubmitSurveyResponseDto {

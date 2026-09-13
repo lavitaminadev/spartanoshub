@@ -77,6 +77,13 @@ export class Lead {
   @Column({ name: 'excluded_from_meta', type: 'boolean', default: false }) excludedFromMeta: boolean;
   @Column({ name: 'retention_review_at', type: 'timestamp', nullable: true }) retentionReviewAt?: Date;
   @Column({ type: 'json', nullable: true }) metadata?: Record<string, any>;
+  /**
+   * Campos propios definidos desde la pantalla, por clave estable.
+   *
+   * Aparte de `metadata` a propósito: esa columna se fusiona sola con lo que reenvía Meta, y un
+   * campo con el mismo nombre que una pregunta del formulario se habría sobrescrito en silencio.
+   */
+  @Column({ name: 'custom_fields', type: 'json', nullable: true }) customFields?: Record<string, string | number | boolean | string[]> | null;
   @Column({ name: 'converted_at', type: 'timestamp', nullable: true }) convertedAt?: Date;
   @Column({ name: 'converted_to_client_id', type: 'uuid', nullable: true }) convertedToClientId?: string;
   /**

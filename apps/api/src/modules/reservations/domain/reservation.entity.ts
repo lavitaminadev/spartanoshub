@@ -52,6 +52,8 @@ export class Reservation {
   @Column({ name: 'network_consent_at', type: 'timestamp', nullable: true }) networkConsentAt?: Date | null;
   @Column({ name: 'network_consent_version', type: 'varchar', length: 30, nullable: true }) networkConsentVersion?: string | null;
   @Column({ name: 'network_consent_text', type: 'text', nullable: true }) networkConsentText?: string | null;
+  /** Cuándo se envió la encuesta posterior a la visita. Cada visita se encuesta una sola vez. */
+  @Column({ name: 'post_visit_survey_sent_at', type: 'timestamp', nullable: true }) postVisitSurveySentAt?: Date | null;
   /** Confirmación explícita desde el enlace privado; no altera la asistencia real. */
   @Column({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }) guestConfirmedAt?: Date | null;
   /** Opt-in separado para analítica/conversiones; nunca se deduce del consentimiento operativo. */

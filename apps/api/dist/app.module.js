@@ -57,6 +57,7 @@ const audiovisual_module_1 = require("./modules/audiovisual/audiovisual.module")
 const data_protection_module_1 = require("./core/data-protection/data-protection.module");
 const account_cycles_module_1 = require("./modules/account-cycles/account-cycles.module");
 const objectives_module_1 = require("./modules/objectives/objectives.module");
+const saved_views_module_1 = require("./modules/saved-views/saved-views.module");
 const portal_module_1 = require("./modules/client-portal/portal.module");
 const reservations_module_1 = require("./modules/reservations/reservations.module");
 const surveys_module_1 = require("./modules/surveys/surveys.module");
@@ -139,6 +140,7 @@ exports.AppModule = AppModule = __decorate([
             meta_module_1.MetaModule,
             google_module_1.GoogleModule,
             knowledge_module_1.KnowledgeModule,
+            saved_views_module_1.SavedViewsModule,
             uploads_module_1.UploadsModule,
             operations_module_1.OperationsModule,
             audiovisual_module_1.AudiovisualModule,

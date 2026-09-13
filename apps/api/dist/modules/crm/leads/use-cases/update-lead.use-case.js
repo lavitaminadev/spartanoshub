@@ -24,6 +24,7 @@ const process_stage_change_entity_1 = require("../../../../core/process-history/
 const lead_cierre_service_1 = require("../lead-cierre.service");
 const responsables_del_crm_service_1 = require("../responsables-del-crm.service");
 const event_emitter_1 = require("@nestjs/event-emitter");
+const crm_fields_service_1 = require("../../fields/crm-fields.service");
 const DOMAIN_LABELS = {
     commercial: 'el embudo comercial',
     audience: 'la audiencia de un local',
@@ -33,12 +34,13 @@ const DESENLACES = {
     [lead_status_enum_1.LeadStatus.LOST]: lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
 };
 let UpdateLeadUseCase = class UpdateLeadUseCase {
-    constructor(repo, history, cierre, eventEmitter, responsables) {
+    constructor(repo, history, cierre, eventEmitter, responsables, campos) {
         this.repo = repo;
         this.history = history;
         this.cierre = cierre;
         this.eventEmitter = eventEmitter;
         this.responsables = responsables;
+        this.campos = campos;
     }
     async execute(id, data, organizationId, actorId, actorClientId) {
         const lead = await this.repo.findOne({ where: { id, organizationId } });
@@ -87,6 +89,9 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             lead.source = data.source;
         if (data.clientId !== undefined)
             lead.clientId = data.clientId;
+        if (data.customFields !== undefined) {
+            lead.customFields = await this.campos.validarPara(organizationId, 'lead', lead.customFields, data.customFields, true);
+        }
         if (data.fitStatus === undefined && lead.domain === 'commercial' && etapaPrevia !== lead.status) {
             const automatica = DESENLACES[lead.status];
             if (automatica)
@@ -141,5 +146,6 @@ exports.UpdateLeadUseCase = UpdateLeadUseCase = __decorate([
         process_history_service_1.ProcessHistoryService,
         lead_cierre_service_1.LeadCierreService,
         event_emitter_1.EventEmitter2,
-        responsables_del_crm_service_1.ResponsablesDelCrmService])
+        responsables_del_crm_service_1.ResponsablesDelCrmService,
+        crm_fields_service_1.CrmFieldsService])
 ], UpdateLeadUseCase);

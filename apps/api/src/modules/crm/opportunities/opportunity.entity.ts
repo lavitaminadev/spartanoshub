@@ -20,6 +20,13 @@ export class Opportunity {
   @Column({ name: 'loss_reason', type: 'varchar', length: 60, nullable: true }) lossReason?: string;
   @Column({ name: 'loss_note', type: 'text', nullable: true }) lossNote?: string;
   @Column({ name: 'assigned_to', type: 'uuid', nullable: true }) assignedTo?: string;
+  /**
+   * Campos propios definidos desde la pantalla, por clave estable.
+   *
+   * Aparte de `metadata` a propósito: esa columna se fusiona sola con lo que reenvía Meta, y un
+   * campo con el mismo nombre que una pregunta del formulario se habría sobrescrito en silencio.
+   */
+  @Column({ name: 'custom_fields', type: 'json', nullable: true }) customFields?: Record<string, string | number | boolean | string[]> | null;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;
 }

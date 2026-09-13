@@ -129,7 +129,7 @@
 .run-row-head:hover { background: var(--soft); }
 
 .run-status { padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
-.run-status.is-completed { background: color-mix(in srgb, var(--cyan) 16%, transparent); color: var(--cyan); }
+.run-status.is-completed { background: color-mix(in srgb, var(--cyan) 16%, transparent); color: var(--cyan-text); }
 .run-status.is-failed { background: color-mix(in srgb, var(--terracotta) 14%, transparent); color: var(--terracotta); }
 .run-status.is-waiting,
 .run-status.is-pending { background: var(--surface-sage); color: var(--muted); }

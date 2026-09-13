@@ -14,7 +14,7 @@
   background: var(--white); border: 1px solid var(--surface-sage);
   border-top: 3px solid var(--cyan); border-radius: var(--radius-md);
 }
-.crm-dash-kpis strong { font-size: 32px; line-height: 1.1; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.crm-dash-kpis strong { font-size: clamp(18px, 14cqi, 32px); white-space: nowrap; line-height: 1.1; color: var(--text-dark); font-variant-numeric: tabular-nums; }
 .crm-dash-kpis span { margin-top: 6px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 /* El subtítulo es lo que vuelve legible la cifra: sin él, «9» no se sabe si está bien o mal. */
 .crm-dash-kpis small { font-size: 12px; color: var(--muted); }
@@ -36,13 +36,13 @@
  * valor por defecto de `min-width` es `auto`, y un monto como «$96.500.000» a 32px empuja la
  * tarjeta más allá de la columna. Sin esto la fila desborda en pantallas angostas.
  */
-.crm-dash-kpis article { min-width: 0; }
-.crm-dash-kpis strong { overflow-wrap: anywhere; }
+.crm-dash-kpis article { min-width: 0; container-type: inline-size; }
+.crm-dash-kpis strong { overflow: hidden; text-overflow: ellipsis; }
 
 @media (max-width: 520px) {
   /* Dos por fila en vez de una: ocho tarjetas apiladas obligan a desplazar toda la pantalla
      para leer la última, y estas cifras se comparan entre sí. */
   .crm-dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .crm-dash-kpis strong { font-size: 22px; }
+  .crm-dash-kpis strong { font-size: clamp(16px, 13cqi, 22px); }
   .crm-dash-kpis article { padding: 14px; }
 }

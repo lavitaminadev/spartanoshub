@@ -20,6 +20,7 @@ const recordatorio_de_tareas_job_1 = require("./cron/recordatorio-de-tareas.job"
 const resumen_diario_job_1 = require("./cron/resumen-diario.job");
 const saludo_de_cumpleanos_job_1 = require("./cron/saludo-de-cumpleanos.job");
 const recordatorio_de_reservas_job_1 = require("./cron/recordatorio-de-reservas.job");
+const encuesta_post_visita_job_1 = require("./cron/encuesta-post-visita.job");
 const collection_emails_job_1 = require("./cron/collection-emails.job");
 const purge_expired_leads_job_1 = require("./cron/purge-expired-leads.job");
 const meta_lead_recovery_job_1 = require("./cron/meta-lead-recovery.job");
@@ -31,7 +32,7 @@ const automation_schedule_job_1 = require("../../modules/automations/automation-
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 const auto_close_reservations_job_1 = require("./cron/auto-close-reservations.job");
 let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
-    constructor(xp, cycles, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, autoCloseReservations, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks) {
+    constructor(xp, cycles, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, autoCloseReservations, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks) {
         this.xp = xp;
         this.cycles = cycles;
         this.stale = stale;
@@ -40,6 +41,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.resumen = resumen;
         this.cumpleanos = cumpleanos;
         this.recordatorioReservas = recordatorioReservas;
+        this.encuestaPostVisita = encuestaPostVisita;
         this.autoCloseReservations = autoCloseReservations;
         this.collections = collections;
         this.purge = purge;
@@ -73,6 +75,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.schedule('resumen-diario', 24 * 60 * 60_000, () => this.resumen.handle());
         this.schedule('cumpleanos', 24 * 60 * 60_000, () => this.cumpleanos.handle());
         this.schedule('recordatorio-reservas', 30 * 60_000, () => this.recordatorioReservas.handle());
+        this.schedule('encuesta-post-visita', 30 * 60_000, () => this.encuestaPostVisita.handle());
         this.schedule('auto-close-reservations', 15 * 60_000, () => this.autoCloseReservations.handle());
         this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
         this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
@@ -115,6 +118,7 @@ exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __de
         resumen_diario_job_1.ResumenDiarioJob,
         saludo_de_cumpleanos_job_1.SaludoDeCumpleanosJob,
         recordatorio_de_reservas_job_1.RecordatorioDeReservasJob,
+        encuesta_post_visita_job_1.EncuestaPostVisitaJob,
         auto_close_reservations_job_1.AutoCloseReservationsJob,
         collection_emails_job_1.CollectionEmailsJob,
         purge_expired_leads_job_1.PurgeExpiredLeadsJob,

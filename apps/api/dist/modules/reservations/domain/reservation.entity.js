@@ -123,6 +123,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Reservation.prototype, "networkConsentText", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'post_visit_survey_sent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "postVisitSurveySentAt", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "guestConfirmedAt", void 0);

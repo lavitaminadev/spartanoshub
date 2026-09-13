@@ -11,6 +11,7 @@
  */
 
 import { useState, type JSX } from 'react';
+import { CamposPropiosDelCrm } from './CamposPropiosDelCrm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { API_BASE, api } from '../../core/api';
@@ -158,7 +159,7 @@ export function CrmAdminPage(): JSX.Element {
   const refrescarCampanias = () => queryClient.invalidateQueries({ queryKey: ['crm-campaigns'] });
 
   const crearCampania = useMutation({
-    mutationFn: () => api.post('/crm/campaigns', {
+    mutationFn: () => api.post<{ integracion?: { header?: string; token?: string } }>('/crm/campaigns', {
       name: formCampania.name.trim(),
       source: formCampania.source.trim() || undefined,
       investment: Number(formCampania.investment) || 0,
@@ -266,7 +267,7 @@ export function CrmAdminPage(): JSX.Element {
   });
 
   const rotar = useMutation({
-    mutationFn: (id: string) => api.post(`/crm/ingest-sources/${id}/rotate`, {}),
+    mutationFn: (id: string) => api.post<{ token?: string }>(`/crm/ingest-sources/${id}/rotate`, {}),
     onSuccess: (respuesta: { token?: string }) => {
       // Se muestra una sola vez: no se guarda en claro, así que no hay dónde volver a buscarla.
       setLlaveNueva(respuesta?.token ?? null);
@@ -351,6 +352,9 @@ export function CrmAdminPage(): JSX.Element {
         Va en Administración y no en el tablero porque cambia lo que ve todo el equipo a la vez.
       */}
       <NombresDeEtapa />
+
+      {/* Datos que el CRM no trae, definidos sin migraciones. */}
+      <CamposPropiosDelCrm />
 
       {MOSTRAR_NOMBRES_POR_EMPRESA ? <NombresDeLasCosas /> : null}
 

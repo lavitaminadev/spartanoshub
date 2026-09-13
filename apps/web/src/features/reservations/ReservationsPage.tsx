@@ -2,6 +2,7 @@ import { Fragment, useDeferredValue, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
+import { VistasGuardadas } from '../../shared/VistasGuardadas';
 import { Modal } from '../../shared/Modal';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { StatusTrafficLight } from '../../shared/StatusTrafficLight';
@@ -152,6 +153,15 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     status: '',
     flow: 'all',
   });
+  /*
+   * En teléfono los filtros se abren a pedido.
+   *
+   * Eran cinco controles apilados a lo ancho, y la primera reserva aparecía recién a 1.079 px de
+   * altura en una pantalla de 812: quien abría la lista para ver quién venía tenía que desplazarse
+   * antes de ver a nadie. En escritorio siguen siempre visibles; la clase sólo actúa en pantallas
+   * angostas.
+   */
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [filters, setFilters] = useState({ search: searchParams.get('search') ?? '', status: '', formId: searchParams.get('formId') ?? '', from: '', to: '' });
   const search = useDeferredValue(filters.search.trim());
 
@@ -175,7 +185,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const { data: formsArray = [], isLoading, error: formsError, refetch: refetchForms, isFetching: fetchingForms } = useQuery<ReservationForm[]>({ queryKey: ['reservation-forms', clientFilter], queryFn: () => api.get(`/reservations/forms${clientQuery}`) });
   const forms = Array.isArray(formsArray) ? formsArray : [];
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients'), enabled: !clientView });
-  const clients = Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
+  const clients = (Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [];
   // El catálogo de Pixels está restringido a administración, operaciones y dirección
   // comercial; el resto de los roles no ve la etiqueta de estado.
   const canReadPixels = !clientView && ['admin', 'operations_director', 'commercial_director', 'dev'].includes(user?.role ?? '');
@@ -439,7 +449,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       {selectedFilterForm && <div className="reservation-scope-banner"><div><span>GESTIONANDO ESTA SUCURSAL</span><strong>{selectedFilterForm.name}</strong><small>Los filtros, resultados, exportación y cupones de esta vista se limitan a este local.</small></div><Link className="btn btn-outline btn-sm" to={formPath(selectedFilterForm.id)}>Volver a la sucursal</Link></div>}
 
       {tab === 'forms' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">ADMINISTRACIÓN</span><h1>Reservas por empresa</h1></div><div className="reservation-actions"><p>{visibleForms.length} de {reservationClientForms.length} sucursales visibles</p><div className="reservation-flow-actions">{!clientView && <button className="btn btn-primary btn-sm" onClick={() => openCreateFlow('appointment')}>Activar Reservas para una empresa</button>}<button className={`btn btn-sm ${clientView ? 'btn-primary' : 'btn-outline'}`} onClick={() => setManualOpen(true)}>Anotar reserva</button>{!clientView && <Link className="btn btn-outline btn-sm" to="/surveys">Ir a Encuestas</Link>}</div></div></div>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">ADMINISTRACIÓN</span><h1>Reservas por empresa</h1></div><div className="reservation-actions"><p>{visibleForms.length} de {reservationClientForms.length} sucursales visibles</p><div className="reservation-flow-actions">{!clientView && <button className="btn btn-primary btn-sm" onClick={() => openCreateFlow('appointment')}>Activar Reservas para una empresa</button>}<button className={`btn btn-sm ${clientView ? 'btn-primary' : 'btn-outline duplica-menu'}`} onClick={() => setManualOpen(true)}>Anotar reserva</button>{!clientView && <Link className="btn btn-outline btn-sm" to="/surveys">Ir a Encuestas</Link>}</div></div></div>
       <div className="reservation-status-summary" aria-label="Resumen de formularios"><button className={!formFilters.status ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: '' }))}><strong>{reservationClientForms.length}</strong><span>Todos</span></button><button className={formFilters.status === 'published' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'published' }))}><strong>{formCounts.published || 0}</strong><span>Publicados</span></button><button className={formFilters.status === 'paused' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'paused' }))}><strong>{formCounts.paused || 0}</strong><span>Pausados</span></button><button className={formFilters.status === 'draft' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'draft' }))}><strong>{formCounts.draft || 0}</strong><span>Borradores</span></button></div>
       <div className="reservation-form-filters"><input className="input" type="search" aria-label="Buscar flujo" placeholder="Buscar por nombre o enlace" value={formFilters.search} onChange={(event) => setFormFilters((current) => ({ ...current, search: event.target.value }))} />{!clientView && <select className="input" aria-label="Filtrar formularios por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todos los clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar formularios por estado" value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Todos los estados</option><option value="published">Publicados</option><option value="paused">Pausados</option><option value="draft">Borradores</option></select><button type="button" className="btn btn-outline btn-sm" disabled={!formFilters.search && !formFilters.status && !clientFilter && formFilters.flow === 'all'} onClick={() => { setFormFilters({ search: '', status: '', flow: 'all' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{visibleForms.length} flujo{visibleForms.length === 1 ? '' : 's'}</span></div>
       {visibleForms.length === 0 ? <div className="reservation-empty"><strong>Activa Reservas para tu primera empresa</strong><p>Las encuestas se crean y publican desde su propio módulo.</p>{!clientView && <div className="reservation-flow-actions"><button className="btn btn-primary" onClick={() => openCreateFlow('appointment')}>Activar Reservas para una empresa</button><Link className="btn btn-outline" to="/surveys">Ir a Encuestas</Link></div>}</div> : <div className="reservation-form-grid">
@@ -455,7 +465,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       </section>}
 
       {tab === 'bookings' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">OPERACIÓN DE LA SUCURSAL</span><h1>Todas las reservas</h1></div><div className="reservation-actions"><button className="btn btn-primary btn-sm" onClick={() => setManualOpen(true)}>Anotar reserva</button><button className="btn btn-outline btn-sm" onClick={() => setExportModalOpen(true)}>Exportar datos</button></div></div>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">OPERACIÓN DE LA SUCURSAL</span><h1>Todas las reservas</h1></div><div className="reservation-actions"><button className={`btn btn-primary btn-sm ${clientView ? '' : 'duplica-menu'}`} onClick={() => setManualOpen(true)}>Anotar reserva</button><button className="btn btn-outline btn-sm" onClick={() => setExportModalOpen(true)}>Exportar datos</button></div></div>
       <div className="status-tiles" role="group" aria-label="Filtrar por estado del ciclo de reserva">
         {BOOKING_TILE_STATUSES.map((status) => { const option = findStatusOption(RESERVATION_STATUS_OPTIONS, status); return <button
           key={status}
@@ -472,7 +482,22 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
             : <small>{filters.status === status ? 'Filtro activo' : 'Ver solo estos'}</small>}
         </button>; })}
       </div>
-      <div className="reservation-filters"><input className="input" aria-label="Buscar reservas" placeholder="Buscar nombre, teléfono, correo o código" value={filters.search} onChange={(event) => resetFilters({ search: event.target.value })} /><select className="input" aria-label="Filtrar por formulario" value={filters.formId} onChange={(event) => resetFilters({ formId: event.target.value })}><option value="">Todos los formularios</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}</select><select className="input" aria-label="Filtrar por estado" value={filters.status} onChange={(event) => resetFilters({ status: event.target.value })}><option value="">Todos los estados</option>{Object.entries(STATUS_LABELS).map(([status, label]) => <option value={status} key={status}>{label}</option>)}</select>{!clientView && <select className="input" aria-label="Filtrar reservas por cliente" value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); setPage(1); }}><option value="">Todos los clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={!filters.search && !filters.formId && !filters.status && !filters.from && !filters.to && !clientFilter} onClick={() => { resetFilters({ search: '', formId: '', status: '', from: '', to: '' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
+      {/*
+        * Los recortes que se repiten se guardan con nombre.
+        *
+        * Los filtros vivian en el estado de la pantalla: al recargar, o al volver desde una ficha,
+        * habia que rearmar a mano el mismo recorte de siempre.
+        */}
+      <VistasGuardadas
+        ambito="reservas.lista"
+        filtrosActuales={filters}
+        hayFiltros={Boolean(filters.search || filters.status || filters.formId || filters.from || filters.to)}
+        onAplicar={(guardados) => { setFilters(guardados); setPage(1); }}
+      />
+      <button type="button" className="btn btn-outline btn-sm filtros-movil" aria-expanded={filtrosAbiertos} onClick={() => setFiltrosAbiertos((abiertos) => !abiertos)}>
+        {filtrosAbiertos ? 'Ocultar filtros' : `Filtros${[filters.search, filters.status, filters.formId, filters.from, filters.to, clientFilter].filter(Boolean).length ? ` (${[filters.search, filters.status, filters.formId, filters.from, filters.to, clientFilter].filter(Boolean).length})` : ''}`}
+      </button>
+      <div className={`reservation-filters ${filtrosAbiertos ? 'is-open' : ''}`}><input className="input" aria-label="Buscar reservas" placeholder="Buscar nombre, teléfono, correo o código" value={filters.search} onChange={(event) => resetFilters({ search: event.target.value })} /><select className="input" aria-label="Filtrar por formulario" value={filters.formId} onChange={(event) => resetFilters({ formId: event.target.value })}><option value="">Todos los formularios</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}</select><select className="input" aria-label="Filtrar por estado" value={filters.status} onChange={(event) => resetFilters({ status: event.target.value })}><option value="">Todos los estados</option>{Object.entries(STATUS_LABELS).map(([status, label]) => <option value={status} key={status}>{label}</option>)}</select>{!clientView && <select className="input" aria-label="Filtrar reservas por cliente" value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); setPage(1); }}><option value="">Todos los clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={!filters.search && !filters.formId && !filters.status && !filters.from && !filters.to && !clientFilter} onClick={() => { resetFilters({ search: '', formId: '', status: '', from: '', to: '' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
       {bookingsError ? (isForbiddenError(bookingsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas" message={bookingsError.message} onRetry={() => void refetchBookings()} retrying={loadingBookings} />)
         : loadingBookings && !bookingPage ? <LoadingSpinner text="Buscando reservas..." />
         : bookings.length === 0 ? <EmptyState icon="calendar" title="Sin reservas para estos filtros" description="Las nuevas solicitudes aparecerán aquí en tiempo real." /> : <div className="booking-list" aria-busy={loadingBookings}>
@@ -655,6 +680,22 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           : historialPersona.total === 0 ? <p className="page-subtitle">Primera vez que reserva en esta empresa.</p>
           : <>
             <p className="page-subtitle">Ya reservó {historialPersona.total} {historialPersona.total === 1 ? 'vez' : 'veces'} antes · {historialPersona.attended} asistió{historialPersona.noShow > 0 ? ` · ${historialPersona.noShow} no llegó` : ''}</p>
+            {/*
+              * Lo que hay que saber antes de que llegue.
+              *
+              * Contar visitas dice que vuelve; no dice qué hacer al recibirla. Esto sale de lo
+              * que ella misma completó en reservas anteriores, así que puede estar desactualizado:
+              * ayuda a quien recibe, no reemplaza preguntar.
+              */}
+            {historialPersona.preferencias && <ul className="booking-preferencias">
+              {historialPersona.preferencias.diasDesdeLaUltima !== undefined && <li><span>Última visita</span><strong>{historialPersona.preferencias.diasDesdeLaUltima === 0 ? 'Hoy' : `Hace ${historialPersona.preferencias.diasDesdeLaUltima} día${historialPersona.preferencias.diasDesdeLaUltima === 1 ? '' : 's'}`}</strong></li>}
+              {historialPersona.preferencias.zonaHabitual && <li><span>Suele sentarse en</span><strong>{(forms.find((form) => form.id === selectedBooking.formId)?.resourcesConfig || []).find((zona) => zona.id === historialPersona.preferencias?.zonaHabitual)?.name || historialPersona.preferencias.zonaHabitual}</strong></li>}
+              {historialPersona.preferencias.personasHabitual !== undefined && <li><span>Suele venir</span><strong>{historialPersona.preferencias.personasHabitual} persona{historialPersona.preferencias.personasHabitual === 1 ? '' : 's'}</strong></li>}
+              {historialPersona.preferencias.alergias.map((texto) => <li key={texto} className="es-aviso"><span>Declaró antes</span><strong>{texto}</strong></li>)}
+              {historialPersona.preferencias.accesibilidad.map((texto) => <li key={texto} className="es-aviso"><span>Accesibilidad</span><strong>{texto}</strong></li>)}
+              {historialPersona.preferencias.vinoConNinos && <li><span>Otras veces</span><strong>vino con niños</strong></li>}
+              {historialPersona.preferencias.usoCupon && <li><span>Otras veces</span><strong>usó cupón</strong></li>}
+            </ul>}
             <ul className="booking-historial">
               {historialPersona.anteriores.map((previa) => <li key={previa.id}>{new Date(previa.startsAt).toLocaleDateString('es-CL', { dateStyle: 'medium' })} · {previa.partySize} persona{previa.partySize === 1 ? '' : 's'} <StatusBadge status={previa.status} /></li>)}
             </ul>

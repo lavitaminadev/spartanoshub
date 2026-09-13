@@ -352,6 +352,29 @@ describe('ReservationsService', () => {
       .rejects.toThrow('No puedes publicar sin disponibilidad');
   });
 
+  it('guardar el diseño no borra una pausa puesta desde otra pantalla', async () => {
+    dataSource.query.mockResolvedValue([{ capabilities: { reservations: true, crm: true, metaConversions: false } }]);
+    const pausa = new Date(Date.now() + 86_400_000).toISOString();
+    forms.findOne.mockResolvedValue({ ...publishedForm(), designConfig: { title: 'Antes', bookingPausedUntil: pausa } });
+    const guardado = await service.updateForm('org-1', 'form-1', { designConfig: { title: 'Después', bookingPausedUntil: '' } } as never);
+    expect(guardado.designConfig).toEqual({ title: 'Después', bookingPausedUntil: pausa });
+  });
+
+  it('guardar el diseño tampoco inventa una pausa con una copia vieja', async () => {
+    dataSource.query.mockResolvedValue([{ capabilities: { reservations: true, crm: true, metaConversions: false } }]);
+    forms.findOne.mockResolvedValue({ ...publishedForm(), designConfig: { title: 'Antes' } });
+    const guardado = await service.updateForm('org-1', 'form-1', { designConfig: { title: 'Antes', bookingPausedUntil: new Date(Date.now() + 86_400_000).toISOString() } } as never);
+    expect(guardado.designConfig).toEqual({ title: 'Antes' });
+  });
+
+  it('pauseForm pone y quita la pausa sin tocar el resto del diseño', async () => {
+    const pausa = new Date(Date.now() + 86_400_000).toISOString();
+    forms.findOne.mockResolvedValue({ ...publishedForm(), designConfig: { title: 'Local' } });
+    expect((await service.pauseForm('org-1', 'form-1', pausa)).designConfig).toEqual({ title: 'Local', bookingPausedUntil: pausa });
+    forms.findOne.mockResolvedValue({ ...publishedForm(), designConfig: { title: 'Local', bookingPausedUntil: pausa } });
+    expect((await service.pauseForm('org-1', 'form-1', '')).designConfig).toEqual({ title: 'Local' });
+  });
+
   it('hides a published form with invalid stored configuration instead of leaking the validation error', async () => {
     formQuery.getOne.mockResolvedValue({ ...publishedForm(), designConfig: { primaryColor: 'rojo' } });
     await expect(service.publicForm('evaluacion')).rejects.toThrow('Este formulario no está disponible');

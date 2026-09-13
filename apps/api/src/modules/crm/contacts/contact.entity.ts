@@ -57,6 +57,13 @@ export class Contact {
   /** Papel de la persona dentro de la cuenta. Esto sí es propio del vínculo. */
   @Column({ type: 'varchar', length: 255, nullable: true }) position?: string;
   @Column({ type: 'text', nullable: true }) notes?: string;
+  /**
+   * Campos propios definidos desde la pantalla, por clave estable.
+   *
+   * Aparte de `metadata` a propósito: esa columna se fusiona sola con lo que reenvía Meta, y un
+   * campo con el mismo nombre que una pregunta del formulario se habría sobrescrito en silencio.
+   */
+  @Column({ name: 'custom_fields', type: 'json', nullable: true }) customFields?: Record<string, string | number | boolean | string[]> | null;
 
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

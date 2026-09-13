@@ -1,4 +1,10 @@
-export interface FormField { id: string; type: string; label: string; required: boolean; placeholder?: string; options?: string[]; system?: boolean; display?: string }
+import type { ReglaDeCampo } from '@espartanos/shared';
+export interface FormField {
+  id: string; type: string; label: string; required: boolean;
+  placeholder?: string; options?: string[]; system?: boolean; display?: string;
+  /** Condición para mostrarlo. Sin ella se muestra siempre. */
+  mostrarSi?: ReglaDeCampo;
+}
 export interface DesignConfig {
   primaryColor?: string; accentColor?: string; backgroundColor?: string; textColor?: string;
   title?: string; welcome?: string; confirmationMessage?: string;
@@ -26,10 +32,12 @@ export interface DesignConfig {
   /** Grilla de ocasiones: se guarda como JSON porque son varias y el resto de la config es plana. */
   ocasionesEnabled?: string; ocasionesTitulo?: string; ocasionesPopup?: string; ocasiones?: string;
   /** Cada texto del aviso es editable: el código no fija ninguno. */
-  ocasionesTexto?: string; ocasionesBoton?: string; welcomePopupBoton?: string;
+  ocasionesTexto?: string; ocasionesPreguntaId?: string; ocasionesBoton?: string; welcomePopupBoton?: string;
+  /** Consumo esperado por persona: sin él, Meta trata igual una mesa de dos y un grupo de doce. */
+  valorPorPersona?: string; moneda?: string;
   [key: string]: string | undefined;
 }
-export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number; description?: string; smokingAllowed?: boolean; active?: boolean }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; calendarReady?: boolean; ga4MeasurementId?: string | null; capabilities?: { reservations: boolean; crm: boolean; metaConversions?: boolean; googleConversions?: boolean }; updatedAt: string }
+export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number; description?: string; smokingAllowed?: boolean; active?: boolean }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; calendarReady?: boolean; companyDailyCap?: number; ga4MeasurementId?: string | null; capabilities?: { reservations: boolean; crm: boolean; metaConversions?: boolean; googleConversions?: boolean }; updatedAt: string }
 export interface Reservation { id: string; formId: string; referenceCode: string; status: string; startsAt: string; partySize: number; guestName: string; guestEmail?: string; guestPhone?: string; answers?: Record<string, unknown>; serviceId?: string; resourceId?: string; endsAt?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; utmContent?: string; internalNotes?: string; couponCode?: string; createdAt?: string; metaConversion?: MetaConversionStatus; contactId?: string; workflowState?: ReservationState;
   /** Consentimientos, con el instante en que se aceptaron y el texto exacto que se mostró. */
   reservationConsentAt?: string | null; reservationConsentText?: string | null;
@@ -43,6 +51,17 @@ export interface GuestHistory {
   attended: number;
   noShow: number;
   anteriores: Array<{ id: string; referenceCode: string; startsAt: string; status: string; partySize: number }>;
+  /** Lo que se deduce de sus reservas anteriores. Ausente en la primera visita. */
+  preferencias?: {
+    zonaHabitual?: string;
+    personasHabitual?: number;
+    alergias: string[];
+    accesibilidad: string[];
+    ultimaVisita?: string;
+    diasDesdeLaUltima?: number;
+    vinoConNinos: boolean;
+    usoCupon: boolean;
+  };
 }
 
 /**

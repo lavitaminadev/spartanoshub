@@ -6,6 +6,7 @@ import { safeUrl } from '../../core/safe-url';
 import { Ga4Tag } from '../../shared/Ga4Tag';
 import { trackGa4Event } from '../../shared/ga4-events';
 import type { Survey, SurveyQuestion, SurveyResponse } from '@espartanos/shared';
+import { FlujoSimpleDeEncuesta } from './FlujoSimpleDeEncuesta';
 import './surveys.css';
 
 type Answers = Record<string, string | number>;
@@ -147,11 +148,40 @@ export function PublicSurveyPage(): JSX.Element {
   if (isLoading) return <main className="public-survey-page"><section className="public-survey-card"><p>Cargando encuesta...</p></section></main>;
   if (error || !survey) return <main className="public-survey-page"><section className="public-survey-card"><h1>Encuesta no disponible</h1><p>El enlace puede estar cerrado o mal escrito.</p></section></main>;
 
+  /*
+   * Con una pregunta de estrellas, la encuesta se responde por pasos: la nota primero y el resto
+   * según cómo le fue. Sin ella no hay con qué decidir el camino y se responde completa, como antes.
+   */
+  const preguntaNota = survey.questions.find((question) => question.type === 'rating');
+  if (preguntaNota) {
+    return (
+      <main className="public-survey-page" style={style}>
+        <Ga4Tag measurementId={survey.ga4MeasurementId} />
+        <section className="public-survey-card">
+          {design.logoUrl ? <img className="public-survey-logo" src={design.logoUrl} alt="" /> : null}
+          <span className="public-survey-eyebrow">Tu opinión</span>
+          <h1>{survey.title}</h1>
+          {design.welcome ? <p>{design.welcome}</p> : null}
+          <FlujoSimpleDeEncuesta
+            survey={survey}
+            preguntaNota={preguntaNota}
+            invitacion={searchParams.get('i')}
+            origen={source}
+            renderPregunta={(question, value, onChange) => <SurveyQuestionField question={question} value={value} onChange={onChange} />}
+          />
+        </section>
+      </main>
+    );
+  }
+
   const missingRequired = survey.questions.some((question) => question.required && answerIsEmpty(answers[question.id]));
   const rating = numericAnswer(answers, survey.questions);
   const reviewMinRating = Number(survey.googleReview?.minRating ?? 4);
   const reviewUrl = safeUrl(survey.googleReview?.url || '');
-  const canShowReview = submitted && reviewUrl && rating !== null && rating >= reviewMinRating;
+  // La reseña se ofrece a todos: pedirla sólo a quien puso nota alta va contra la política de
+  // Google Maps. A la nota baja se le muestra, pero después del mensaje y sin destacarla.
+  const canShowReview = submitted && Boolean(reviewUrl);
+  const notaAlta = rating === null || rating >= reviewMinRating;
   const successMessage = rating !== null && rating < reviewMinRating && survey.googleReview?.lowRatingMessage
     ? survey.googleReview.lowRatingMessage
     : 'Tu respuesta fue registrada correctamente.';
@@ -164,7 +194,7 @@ export function PublicSurveyPage(): JSX.Element {
           <span>✓</span>
           <h1>Gracias por responder</h1>
           <p>{successMessage}</p>
-          {canShowReview ? <a className="btn btn-primary" href={reviewUrl} target="_blank" rel="noopener noreferrer">Dejar reseña en Google</a> : null}
+          {canShowReview ? <a className={notaAlta ? 'btn btn-primary' : 'flujo-encuesta-resena-discreta'} href={reviewUrl} target="_blank" rel="noopener noreferrer">{notaAlta ? 'Dejar reseña en Google' : 'Si igual quieres, también puedes opinar en Google'}</a> : null}
           <Link className="btn btn-outline" to={`/survey/${id}?src=${encodeURIComponent(source)}`}>Enviar otra respuesta</Link>
         </section>
       </main>

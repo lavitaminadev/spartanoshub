@@ -35,6 +35,34 @@ __decorate([
     __metadata("design:type", Object)
 ], SurveyResponse.prototype, "answers", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'reservation_id', type: 'varchar', length: 36, nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "reservationId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'respondent_name', type: 'varchar', length: 180, nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "respondentName", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'respondent_email', type: 'varchar', length: 190, nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "respondentEmail", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'rating', type: 'tinyint', nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "rating", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'team_message', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "teamMessage", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'completed_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "completedAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'edit_token_hash', type: 'char', length: 64, nullable: true, select: false }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "editTokenHash", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'submitted_at' }),
     __metadata("design:type", Date)
 ], SurveyResponse.prototype, "submittedAt", void 0);

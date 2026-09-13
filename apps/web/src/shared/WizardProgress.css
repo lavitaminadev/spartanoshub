@@ -42,7 +42,7 @@
 .wizard-progress-step.is-done .wizard-progress-marker {
   border-color: var(--cyan);
   background: var(--cyan-soft);
-  color: var(--cyan);
+  color: var(--cyan-text);
 }
 
 .wizard-progress-marker:not(:disabled) {

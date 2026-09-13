@@ -65,7 +65,7 @@ export function AvailabilityCalendarPage() {
   const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
 
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients'), enabled: !clientMode });
-  const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
+  const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : (Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [];
   useAutoSeleccionUnica(clients, clientId, setClientId);
   const { data: forms = [] } = useQuery<ReservationForm[]>({
     queryKey: ['reservation-forms', clientId], queryFn: () => api.get(`/reservations/forms?clientId=${encodeURIComponent(clientId)}`), enabled: Boolean(clientId),

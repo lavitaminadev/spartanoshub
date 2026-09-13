@@ -14,6 +14,14 @@ import { SurveyResponse } from './survey-response.entity';
 import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto } from './dto/survey.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
+import { EmailService } from '../../core/notifications/email.service';
+import { armazonDeCorreo } from '../../core/notifications/plantilla-de-correo';
+
+/** Correo plausible. La validación real la hace el servidor de correo; esto evita basura obvia. */
+const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Cuántos se envían por pedido. Más que esto no es distribuir una encuesta, es una campaña. */
+export const MAXIMO_ENVIO_POR_PEDIDO = 500;
 
 function publicSurveyUrl(id: string): string | undefined {
   const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
@@ -37,6 +45,7 @@ export class SurveysController {
     @InjectRepository(SurveyResponse) private readonly responses: Repository<SurveyResponse>,
     private readonly dataSource: DataSource,
     private readonly accountAccess: AccountAccessService,
+    private readonly correo: EmailService,
   ) {}
 
   /** Traduce la fila a la forma que el frontend ya consume, con el conteo desnormalizado. */
@@ -170,9 +179,28 @@ export class SurveysController {
       answers: row.answers ?? {},
       submittedAt: row.submittedAt.toISOString(),
     }));
+    /*
+     * Cada respuesta con quién la dejó.
+     *
+     * El agregado dice cuánto; lo que se lee para actuar es qué contestó cada uno, y sobre todo
+     * los mensajes privados al equipo, que no aparecen en ningún promedio. Nombre y correo sólo
+     * existen cuando la respuesta llegó por la invitación de una reserva: las de enlace o QR
+     * siguen anónimas. Los ve sólo quien ya puede ver los resultados.
+     */
+    const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
+      id: row.id,
+      submittedAt: row.submittedAt.toISOString(),
+      rating: row.rating ?? null,
+      respondentName: row.respondentName ?? null,
+      respondentEmail: row.respondentEmail ?? null,
+      reservationId: row.reservationId ?? null,
+      teamMessage: row.teamMessage ?? null,
+      completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+      answers: row.answers ?? {},
+    }));
     // La misma función que usa el frontend para su respaldo local: un solo cálculo evita que
     // el panel muestre un NPS y la copia sin red muestre otro.
-    return computeSurveyResults(this.toContract(survey), responses);
+    return { ...computeSurveyResults(this.toContract(survey), responses), respuestas: detalle };
   }
 
   @Post(':id/responses')
@@ -213,6 +241,56 @@ export class SurveysController {
       answers: saved.answers,
       submittedAt: saved.submittedAt.toISOString(),
     };
+  }
+
+  /**
+   * Envía la encuesta por correo a sus destinatarios.
+   *
+   * El canal «correo» existía como una casilla y un botón que abría el programa de correo propio
+   * con el destinatario vacío: los destinatarios escritos en el asistente no se usaban en ninguna
+   * parte y nada salía desde el sistema. Ahora sale desde el servidor, uno por persona, con el
+   * enlace marcado como `src=email` para distinguirlo en los resultados.
+   *
+   * Cada correo va sólo a su destinatario —nunca con copia a los demás—: mandar una lista entera
+   * en un solo envío expone los correos de todos a todos.
+   *
+   * Quien lo usa responde por tener permiso para escribirles. La pantalla lo pide confirmar antes.
+   */
+  @Post(':id/send-email')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  @ApiOperation({ summary: 'Enviar la encuesta por correo a sus destinatarios' })
+  async sendEmail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const survey = await this.findOwned(id, req.organizationId);
+    await this.accountAccess.assertClient(req.organizationId, req.user, survey.clientId ?? undefined);
+    if (survey.status !== 'active') throw new BadRequestException('Activa la encuesta antes de enviarla');
+    if (!(survey.distribution ?? []).includes('email')) throw new BadRequestException('Esta encuesta no tiene el correo habilitado como canal');
+
+    const base = publicSurveyUrl(survey.id);
+    if (!base) throw new BadRequestException('Falta configurar la dirección pública de la aplicación');
+
+    const unicos = [...new Set((survey.recipients ?? []).map((correo) => correo.trim().toLowerCase()))];
+    const validos = unicos.filter((correo) => CORREO.test(correo));
+    const invalidos = unicos.length - validos.length;
+    if (validos.length === 0) throw new BadRequestException('La encuesta no tiene destinatarios con un correo válido');
+    if (validos.length > MAXIMO_ENVIO_POR_PEDIDO) {
+      throw new BadRequestException(`Son ${validos.length} destinatarios; el máximo por envío es ${MAXIMO_ENVIO_POR_PEDIDO}.`);
+    }
+
+    const enlace = `${base}?src=email`;
+    const html = armazonDeCorreo(
+      survey.title,
+      survey.designConfig?.welcome || 'Nos gustaría saber tu opinión. Es un minuto.',
+      { texto: 'Responder la encuesta', url: enlace },
+    );
+
+    let enviados = 0;
+    let fallidos = 0;
+    for (const destino of validos) {
+      // Uno por uno: si un destino falla, los demás siguen saliendo.
+      const ok = await this.correo.send(destino, survey.title, html).catch(() => false);
+      if (ok) enviados += 1; else fallidos += 1;
+    }
+    return { enviados, fallidos, invalidos };
   }
 
   /** Las respuestas se guardan contra el id de la pregunta; repetirlo las volvería ambiguas. */

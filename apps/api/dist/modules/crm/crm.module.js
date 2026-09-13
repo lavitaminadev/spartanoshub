@@ -63,13 +63,16 @@ const lead_cierre_service_1 = require("./leads/lead-cierre.service");
 const lead_created_email_listener_1 = require("./leads/lead-created-email.listener");
 const parameters_module_1 = require("../../core/parameters/parameters.module");
 const notifications_module_1 = require("../../core/notifications/notifications.module");
+const crm_field_definition_entity_1 = require("./fields/crm-field-definition.entity");
+const crm_fields_service_1 = require("./fields/crm-fields.service");
+const crm_fields_controller_1 = require("./fields/crm-fields.controller");
 let CrmModule = class CrmModule {
 };
 exports.CrmModule = CrmModule;
 exports.CrmModule = CrmModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([lead_entity_1.Lead, contact_entity_1.Contact, opportunity_entity_1.Opportunity, opportunity_stage_change_entity_1.OpportunityStageChange, interaction_entity_1.Interaction, user_entity_1.User, client_entity_1.Client, reservation_entity_1.Reservation, ingest_source_entity_1.LeadIngestSource, campaign_entity_1.Campaign, approval_request_entity_1.ApprovalRequest, parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), account_access_module_1.AccountAccessModule, audit_module_1.AuditModule, process_templates_module_1.ProcessTemplatesModule, notifications_module_1.NotificationsModule, parameters_module_1.ParametersModule],
-        controllers: [lead_controller_1.LeadController, contacts_controller_1.ContactsController, opportunities_controller_1.OpportunitiesController, interactions_controller_1.InteractionsController, public_agency_leads_controller_1.PublicAgencyLeadsController, lead_ingest_controller_1.LeadIngestController, crm_home_controller_1.CrmHomeController, ingest_sources_controller_1.IngestSourcesController, campaigns_controller_1.CampaignsController, stage_labels_controller_1.StageLabelsController],
+        imports: [typeorm_1.TypeOrmModule.forFeature([crm_field_definition_entity_1.CrmFieldDefinition, lead_entity_1.Lead, contact_entity_1.Contact, opportunity_entity_1.Opportunity, opportunity_stage_change_entity_1.OpportunityStageChange, interaction_entity_1.Interaction, user_entity_1.User, client_entity_1.Client, reservation_entity_1.Reservation, ingest_source_entity_1.LeadIngestSource, campaign_entity_1.Campaign, approval_request_entity_1.ApprovalRequest, parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), account_access_module_1.AccountAccessModule, audit_module_1.AuditModule, process_templates_module_1.ProcessTemplatesModule, notifications_module_1.NotificationsModule, parameters_module_1.ParametersModule],
+        controllers: [lead_controller_1.LeadController, contacts_controller_1.ContactsController, opportunities_controller_1.OpportunitiesController, interactions_controller_1.InteractionsController, public_agency_leads_controller_1.PublicAgencyLeadsController, lead_ingest_controller_1.LeadIngestController, crm_home_controller_1.CrmHomeController, ingest_sources_controller_1.IngestSourcesController, campaigns_controller_1.CampaignsController, stage_labels_controller_1.StageLabelsController, crm_fields_controller_1.CrmFieldsController],
         providers: [
             lead_task_summary_service_1.LeadTaskSummaryService, responsables_del_crm_service_1.ResponsablesDelCrmService, stage_labels_service_1.StageLabelsService, lead_cierre_service_1.LeadCierreService, lead_created_email_listener_1.LeadCreatedEmailListener,
             create_lead_use_case_1.CreateLeadUseCase, list_leads_use_case_1.ListLeadsUseCase, get_lead_use_case_1.GetLeadUseCase, convert_lead_use_case_1.ConvertLeadUseCase, update_lead_use_case_1.UpdateLeadUseCase, import_leads_use_case_1.ImportLeadsUseCase, lead_intake_service_1.LeadIntakeService, lead_ingest_service_1.LeadIngestService, crm_home_service_1.CrmHomeService, crm_dashboard_service_1.CrmDashboardService, crm_lead_automation_service_1.CrmLeadAutomationService,
@@ -77,6 +80,7 @@ exports.CrmModule = CrmModule = __decorate([
             opportunity_reference_validator_service_1.OpportunityReferenceValidator, opportunity_stage_history_service_1.OpportunityStageHistoryService, create_opportunity_use_case_1.CreateOpportunityUseCase, list_opportunities_use_case_1.ListOpportunitiesUseCase, get_opportunity_use_case_1.GetOpportunityUseCase, update_opportunity_use_case_1.UpdateOpportunityUseCase, remove_opportunity_use_case_1.RemoveOpportunityUseCase,
             interactions_service_1.InteractionsService,
             campaigns_service_1.CampaignsService,
+            crm_fields_service_1.CrmFieldsService,
         ],
         exports: [lead_intake_service_1.LeadIntakeService, crm_lead_automation_service_1.CrmLeadAutomationService, crm_home_service_1.CrmHomeService],
     })

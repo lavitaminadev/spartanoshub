@@ -112,7 +112,7 @@ function Barras({ datos, etiqueta, color = ACENTO }: { datos: Conteo[]; etiqueta
         />
         <Tooltip
           cursor={{ fill: 'rgba(23,199,138,.08)' }}
-          formatter={(valor: number) => [valor, 'Leads']}
+          formatter={(valor) => [Number(valor), 'Leads']}
           contentStyle={{ fontSize: 12, borderRadius: 8 }}
         />
         <Bar dataKey="total" fill={color} radius={[0, 4, 4, 0]} maxBarSize={22} />
@@ -342,7 +342,7 @@ export function CrmDashboardPage(): JSX.Element {
                 <YAxis width={32} allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--muted)' }} />
                 <Tooltip
                   cursor={{ fill: 'rgba(23,199,138,.08)' }}
-                  formatter={(valor: number) => [valor, 'Leads']}
+                  formatter={(valor) => [Number(valor), 'Leads']}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />
                 <Bar dataKey="total" radius={[3, 3, 0, 0]} maxBarSize={26}>

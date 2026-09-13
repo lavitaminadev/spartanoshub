@@ -79,3 +79,22 @@ CSS2
 /* Una etapa que no se usa sigue visible acá para poder volver a encenderla, pero apagada. */
 .crm-admin-etapas label.esta-oculta > span { color: var(--muted); }
 .crm-admin-etapas label.esta-oculta .input { opacity: .55; }
+
+/* Campos propios: una fila por campo, las acciones a la derecha. */
+.campos-propios-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.campos-propios-entidades { display: flex; gap: 6px; }
+.campos-propios-entidades button { min-height: 36px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; }
+.campos-propios-entidades button.active { border-color: var(--primary); background: var(--primary); color: var(--white); }
+.campos-propios-lista { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; }
+.campos-propios-lista > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); }
+.campos-propios-lista > li.es-archivado { background: var(--soft); opacity: .85; }
+.campos-propios-dato { display: grid; gap: 2px; min-width: 0; }
+.campos-propios-dato small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.campos-propios-acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.campos-propios-form { display: grid; gap: 10px; width: 100%; }
+.campos-propios-form label { display: grid; gap: 4px; font-size: 13px; }
+.campos-propios-nuevo { margin-top: 8px; padding: 14px; border: 1px dashed var(--line); border-radius: var(--radius-md); }
+@media (pointer: coarse), (max-width: 640px) {
+  .campos-propios-acciones .btn-xs { min-height: 40px; min-width: 40px; }
+}
+

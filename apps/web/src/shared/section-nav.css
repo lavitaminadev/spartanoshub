@@ -37,8 +37,16 @@
 
 /* La sección activa se marca con línea y color, no solo con color: en pantallas con poco
    contraste el color solo es imperceptible. */
-.section-nav-link.activo { color: var(--cyan); border-bottom-color: var(--cyan); }
+.section-nav-link.activo { color: var(--cyan-text); border-bottom-color: var(--cyan); }
 .section-nav-link:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; border-radius: 2px; }
 
 /* Acción principal de la sección, al extremo de la barra. */
 .section-nav-cta { margin-left:auto; white-space:nowrap; }
+
+/* Mismo criterio que la barra del CRM: el botón baja de fila y las pestañas avisan que siguen. */
+@media (max-width: 1280px) {
+  .section-nav { flex-wrap: wrap; row-gap: 4px; }
+  .section-nav-items { flex: 1 1 100%; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); padding-right: 24px; }
+  .section-nav-cta { margin: 0 0 8px auto; }
+  .section-nav-link { padding-inline: 12px; }
+}

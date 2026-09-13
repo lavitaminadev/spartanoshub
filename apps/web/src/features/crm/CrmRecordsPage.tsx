@@ -183,7 +183,7 @@ export function ContactsPage() {
     },
   });
   const statusCounts = useMemo(
-    () => ({ new: 0, reserved: 0, attended: 0, no_show: 0, ...(countsQuery.data ?? {}) }),
+    (): Record<string, number> & { attended: number; no_show: number } => ({ new: 0, reserved: 0, attended: 0, no_show: 0, ...(countsQuery.data ?? {}) }),
     [countsQuery.data],
   );
   const attendanceRate = attendanceRateOf(statusCounts.attended, statusCounts.no_show);
@@ -301,8 +301,8 @@ export function OpportunitiesPage() {
   const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities'], queryFn: () => api.get('/crm/opportunities?limit=100') });
   const leadsQuery = useQuery<{ data: LeadOption[] }>({ queryKey: ['leads'], queryFn: () => api.get('/crm/leads') });
   const clientsQuery = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
-  const oppLeads = (leadsQuery.data as any)?.data ?? [];
-  const oppClients = (clientsQuery.data as any)?.data ?? [];
+  const oppLeads: Array<{ id: string; name: string }> = (leadsQuery.data as { data?: Array<{ id: string; name: string }> } | undefined)?.data ?? [];
+  const oppClients: Array<{ id: string; name: string }> = (clientsQuery.data as { data?: Array<{ id: string; name: string }> } | undefined)?.data ?? [];
   const save = useMutation({ mutationFn: () => { const body = { name: form.name.trim(), amount: form.amount ? Number(form.amount) : undefined, stage: form.stage, probability: Number(form.probability), expectedCloseDate: form.expectedCloseDate || (editing ? null : undefined), nextAction: form.nextAction.trim() || (editing ? null : undefined), nextActionAt: form.nextActionAt ? new Date(form.nextActionAt).toISOString() : (editing ? null : undefined), leadId: form.leadId || (editing ? null : undefined), clientId: form.clientId || (editing ? null : undefined) }; return editing ? api.put(`/crm/opportunities/${editing.id}`, body) : api.post('/crm/opportunities', body); }, onSuccess: async () => { setOpen(false); setEditing(null); setForm(EMPTY_OPPORTUNITY); setFeedback('Oportunidad y próxima acción guardadas.'); await queryClient.invalidateQueries({ queryKey: ['crm-opportunities'] }); } });
   const remove = useMutation({ mutationFn: (id: string) => api.delete(`/crm/opportunities/${id}`), onSuccess: async () => { setDeleteTarget(null); setFeedback('Oportunidad eliminada.'); await queryClient.invalidateQueries({ queryKey: ['crm-opportunities'] }); } });
   const moveStage = useMutation({ mutationFn: ({ id, stage, lossReason }: { id: string; stage: string; lossReason?: string }) => api.put(`/crm/opportunities/${id}`, { stage, ...(lossReason ? { lossReason } : {}) }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['crm-opportunities'] }) });

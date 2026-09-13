@@ -8,7 +8,8 @@ import type { Survey as SurveyContract, SurveyResponse as SurveyResponseContract
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
-import { SubmitSurveyResponseDto } from './dto/survey.dto';
+import { CompleteSurveyResponseDto, StartSurveyResponseDto, SubmitSurveyResponseDto } from './dto/survey.dto';
+import { PublicSurveyFlowService } from './public-survey-flow.service';
 
 function publicSurveyUrl(id: string): string | undefined {
   const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
@@ -22,7 +23,22 @@ export class PublicSurveysController {
   constructor(
     @InjectRepository(Survey) private readonly surveys: Repository<Survey>,
     @InjectRepository(SurveyResponse) private readonly responses: Repository<SurveyResponse>,
+    private readonly flujo: PublicSurveyFlowService,
   ) {}
+
+  /** Guarda la nota y responde qué ofrecer después. */
+  @Post(':id/start')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async start(@Param('id') id: string, @Body() dto: StartSurveyResponseDto) {
+    return this.flujo.iniciar(id, dto.rating, dto.invitacion, dto.origen);
+  }
+
+  /** Completa la respuesta iniciada con su token: preguntas, mensaje al equipo o cierre. */
+  @Post(':id/responses/:responseId/complete')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  async complete(@Param('id') id: string, @Param('responseId') responseId: string, @Body() dto: CompleteSurveyResponseDto) {
+    return this.flujo.completar(id, responseId, dto.token, dto);
+  }
 
   /**
    * Lo que ve quien va a responder, que es menos de lo que ve el equipo.

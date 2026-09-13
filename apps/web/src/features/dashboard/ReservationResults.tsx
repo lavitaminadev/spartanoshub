@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type JSX } from 'react';
 import {
   Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart,
   Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -48,6 +48,16 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
       ))}
     </div>
   );
+}
+
+/**
+ * Texto de la leyenda en tinta, no en el color de su serie.
+ *
+ * La marca junto al nombre ya dice qué color es cada serie; escribir además el nombre en ese
+ * color dejaba «Asistencias» y «Reservas» por debajo de 4,5:1 sobre blanco.
+ */
+function leyendaLegible(valor: string): JSX.Element {
+  return <span style={{ color: 'var(--ink)' }}>{valor}</span>;
 }
 
 /**
@@ -246,7 +256,7 @@ export function ReservationResults({ clientId, headingLevel = 2, detalle = false
                         <LabelList
                           dataKey="value"
                           position="right"
-                          formatter={(value: number) => numberFormat(value)}
+                          formatter={(value) => numberFormat(Number(value))}
                           style={{ fill: '#0ec6b8', fontSize: 11, fontWeight: 700 }}
                         />
                       </Bar>
@@ -263,7 +273,7 @@ export function ReservationResults({ clientId, headingLevel = 2, detalle = false
                       <XAxis dataKey="day" tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} minTickGap={18} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
                       <Tooltip content={<ChartTooltip />} />
-                      <Legend iconType="plainline" wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+                      <Legend iconType="plainline" wrapperStyle={{ fontSize: 11, paddingTop: 6 }} formatter={leyendaLegible} />
                       <Line type="monotone" dataKey="Reservas" stroke={SERIES_RESERVAS} strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
                       <Line type="monotone" dataKey="Asistencias" stroke={SERIES_ASISTENCIAS} strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
                     </LineChart>
@@ -280,13 +290,13 @@ export function ReservationResults({ clientId, headingLevel = 2, detalle = false
                     <XAxis type="number" tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
                     <YAxis dataKey="campaign" type="category" width={168} tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
                     <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(23,63,53,.05)' }} />
-                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} formatter={leyendaLegible} />
                     <Bar dataKey="total" name="Reservas" fill={SERIES_RESERVAS} radius={[0, 4, 4, 0]} barSize={11} isAnimationActive={false} />
                     <Bar dataKey="attended" name="Asistencias" fill={SERIES_ASISTENCIAS} radius={[0, 4, 4, 0]} barSize={11} isAnimationActive={false}>
                       <LabelList
                         dataKey="rate"
                         position="right"
-                        formatter={(value: number) => `${value}% asistió`}
+                        formatter={(value) => `${value}% asistió`}
                         style={{ fill: '#706a73', fontSize: 10, fontWeight: 700 }}
                       />
                     </Bar>
@@ -302,7 +312,7 @@ export function ReservationResults({ clientId, headingLevel = 2, detalle = false
                     <XAxis dataKey="hora" tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} minTickGap={8} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: AXIS_INK }} axisLine={false} tickLine={false} />
                     <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(23,63,53,.05)' }} />
-                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} formatter={leyendaLegible} />
                     <Bar dataKey="Reservas" fill={SERIES_RESERVAS} radius={[4, 4, 0, 0]} isAnimationActive={false} />
                     <Bar dataKey="Asistencias" fill={SERIES_ASISTENCIAS} radius={[4, 4, 0, 0]} isAnimationActive={false} />
                   </BarChart>
@@ -333,7 +343,7 @@ export function ReservationResults({ clientId, headingLevel = 2, detalle = false
                     <ResponsiveContainer width="100%" height={260}>
                       <PieChart>
                         <Tooltip content={<ChartTooltip />} />
-                        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+                        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} formatter={leyendaLegible} />
                         <Pie data={origenes} dataKey="value" nameKey="source" innerRadius={60} outerRadius={90} paddingAngle={2} isAnimationActive={false}>
                           {origenes.map((entry) => <Cell key={entry.source} fill={entry.fill} />)}
                         </Pie>

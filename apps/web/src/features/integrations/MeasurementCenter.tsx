@@ -33,7 +33,7 @@ export function MeasurementCenter() {
     queryFn: () => api.get('/clients'),
     enabled: alcanza('clients'),
   });
-  const clients = Array.isArray((clientsResp as any)?.data) ? (clientsResp as any).data : [];
+  const clients = (Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [];
   const clientName = (id: string) => clients.find((client) => client.id === id)?.name || 'Empresa no disponible';
 
   const { data: forms = [] } = useQuery<ReservationForm[]>({

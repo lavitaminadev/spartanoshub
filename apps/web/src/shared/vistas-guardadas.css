@@ -1,0 +1,20 @@
+/* Filtros con nombre: se leen de un vistazo y se aplican con un clic. */
+.vistas-guardadas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+
+.vista-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; background: var(--white, #fff); }
+.vista-chip > button { padding: 4px 4px 4px 12px; border: none; background: none; color: var(--text-dark, inherit); font-size: 12px; font-weight: 600; cursor: pointer; }
+.vista-chip > button:hover { color: var(--cyan-text); }
+
+/* La × no se pinta como peligro: borrar una vista no borra ningún dato. */
+.vista-chip-quitar { padding: 4px 10px 4px 6px !important; color: var(--muted) !important; font-weight: 400 !important; line-height: 1; }
+.vista-chip-quitar:hover { color: var(--danger) !important; }
+
+.vista-nombrar { display: flex; align-items: center; gap: 6px; }
+.vista-nombrar .input { width: 190px; padding: 4px 10px; font-size: 12px; }
+
+/* Compartidas: un punto las distingue sin robar lugar al nombre. */
+.vista-chip.es-compartida { border-color: var(--cyan-deep, #07706b); }
+.vista-chip-equipo { margin-right: 5px; color: var(--cyan-deep, #07706b); font-size: 9px; vertical-align: middle; }
+.vista-chip-accion { padding: 4px 6px !important; color: var(--muted) !important; font-weight: 400 !important; }
+.vista-chip-accion:hover { color: var(--cyan-deep, #07706b) !important; }
+.vista-compartir { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; white-space: nowrap; }

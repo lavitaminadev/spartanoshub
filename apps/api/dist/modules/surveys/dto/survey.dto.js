@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubmitSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = void 0;
+exports.SubmitSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const QUESTION_TYPES = ['nps', 'rating', 'text', 'multiple-choice'];
@@ -159,6 +159,57 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], UpdateSurveyDto.prototype, "googleReview", void 0);
+class StartSurveyResponseDto {
+}
+exports.StartSurveyResponseDto = StartSurveyResponseDto;
+__decorate([
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(5),
+    __metadata("design:type", Number)
+], StartSurveyResponseDto.prototype, "rating", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(600),
+    __metadata("design:type", String)
+], StartSurveyResponseDto.prototype, "invitacion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], StartSurveyResponseDto.prototype, "origen", void 0);
+class CompleteSurveyResponseDto {
+}
+exports.CompleteSurveyResponseDto = CompleteSurveyResponseDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(10),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], CompleteSurveyResponseDto.prototype, "token", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], CompleteSurveyResponseDto.prototype, "answers", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2000),
+    __metadata("design:type", String)
+], CompleteSurveyResponseDto.prototype, "teamMessage", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CompleteSurveyResponseDto.prototype, "responder", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CompleteSurveyResponseDto.prototype, "terminar", void 0);
 class SubmitSurveyResponseDto {
 }
 exports.SubmitSurveyResponseDto = SubmitSurveyResponseDto;
