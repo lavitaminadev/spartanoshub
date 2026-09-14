@@ -8,6 +8,8 @@ export interface ReservationMetrics {
   totals: { total?: number; attended?: number; no_show?: number; pending?: number; confirmed?: number; cancelled?: number };
   daily: Array<{ day: string; total: number; attended: number; no_show: number }>;
   sources: Array<{ source: string; medium?: string; campaign: string; content?: string; total: number; attended: number }>;
+  /** Visitas y reservas por canal, con conversión. Ausente en servidores anteriores. */
+  canales?: Array<{ source: string; visitas: number; reservas: number; asistieron: number; conversion: number | null; detectado: boolean }>;
   /** Zonas del local —terraza, salón— con el nombre ya resuelto por el servidor. */
   areas: Array<{ area: string; total: number }>;
   /** A qué hora se llena el local. */

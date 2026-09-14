@@ -13,7 +13,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, CompanyLegalDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
@@ -65,6 +65,30 @@ export class ReservationsController {
     if (!requestedClientId) return scope;
     await this.accountAccess.assertClient(req.organizationId, req.user, requestedClientId);
     return { clientId: requestedClientId, clientIds: undefined };
+  }
+
+  /**
+   * Datos legales de la empresa para reservas y encuestas.
+   *
+   * La empresa es responsable de los datos de sus clientes, así que los maneja ella desde su
+   * portal. El equipo que lleva la cuenta puede verlos y ayudar a completarlos indicando la empresa.
+   */
+  @Get('company-legal')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async companyLegal(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
+    const scope = await this.requestedScope(req, req.user.role === UserRole.CLIENT ? undefined : query.clientId);
+    const clientId = scope.clientId;
+    if (!clientId) throw new BadRequestException('Indica la empresa');
+    return this.service.datosLegalesDeEmpresa(req.organizationId, clientId);
+  }
+
+  @Put('company-legal')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto, @Body() dto: CompanyLegalDto) {
+    const scope = await this.requestedScope(req, req.user.role === UserRole.CLIENT ? undefined : query.clientId);
+    const clientId = scope.clientId;
+    if (!clientId) throw new BadRequestException('Indica la empresa');
+    return this.service.guardarDatosLegalesDeEmpresa(req.organizationId, clientId, dto, req.user.id);
   }
 
   @Get('forms')

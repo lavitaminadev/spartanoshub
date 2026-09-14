@@ -38,7 +38,8 @@ function aggregateChoice(values) {
  * encuesta completa.
  */
 function computeSurveyResults(survey, responses) {
-    const questions = survey.questions.map((question) => {
+    // Los datos de contacto identifican a una persona: se leen en cada respuesta, no se agregan.
+    const questions = survey.questions.filter((question) => !question.dato).map((question) => {
         const raw = responses
             .map((response) => response.answers[question.id])
             .filter((value) => value !== undefined && value !== '');

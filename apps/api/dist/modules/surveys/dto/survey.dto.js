@@ -9,13 +9,28 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubmitSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = void 0;
+exports.SubmitSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = exports.SurveyShowRuleDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const QUESTION_TYPES = ['nps', 'rating', 'text', 'multiple-choice'];
 const SURVEY_TYPES = ['internal', 'customer'];
 const SURVEY_STATUSES = ['draft', 'active', 'closed'];
 const CHANNELS = ['email', 'qr', 'link'];
+const DATOS = ['nombre', 'rut', 'correo', 'telefono'];
+class SurveyShowRuleDto {
+}
+exports.SurveyShowRuleDto = SurveyShowRuleDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    __metadata("design:type", String)
+], SurveyShowRuleDto.prototype, "preguntaId", void 0);
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    (0, class_validator_1.ArrayMaxSize)(30),
+    __metadata("design:type", Array)
+], SurveyShowRuleDto.prototype, "valores", void 0);
 class SurveyQuestionDto {
 }
 exports.SurveyQuestionDto = SurveyQuestionDto;
@@ -45,6 +60,17 @@ __decorate([
     (0, class_validator_1.ArrayMaxSize)(30),
     __metadata("design:type", Array)
 ], SurveyQuestionDto.prototype, "options", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(DATOS),
+    __metadata("design:type", String)
+], SurveyQuestionDto.prototype, "dato", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateNested)(),
+    (0, class_transformer_1.Type)(() => SurveyShowRuleDto),
+    __metadata("design:type", SurveyShowRuleDto)
+], SurveyQuestionDto.prototype, "mostrarSi", void 0);
 class CreateSurveyDto {
 }
 exports.CreateSurveyDto = CreateSurveyDto;
@@ -210,6 +236,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CompleteSurveyResponseDto.prototype, "terminar", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CompleteSurveyResponseDto.prototype, "aceptaPrivacidad", void 0);
 class SubmitSurveyResponseDto {
 }
 exports.SubmitSurveyResponseDto = SubmitSurveyResponseDto;
@@ -223,3 +254,8 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], SubmitSurveyResponseDto.prototype, "answers", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], SubmitSurveyResponseDto.prototype, "aceptaPrivacidad", void 0);

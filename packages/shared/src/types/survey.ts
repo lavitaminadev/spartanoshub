@@ -27,6 +27,16 @@ export type SurveyStatus = 'draft' | 'active' | 'closed';
 /** Canal por el que se distribuye una encuesta activa. */
 export type SurveyDistributionChannel = 'email' | 'qr' | 'link';
 
+/** Dato de contacto predefinido: se muestra con su campo propio y se valida su formato. */
+export type SurveyContactField = 'nombre' | 'rut' | 'correo' | 'telefono';
+
+/** Regla para mostrar una pregunta sólo según lo contestado en otra. */
+export interface SurveyShowRule {
+  preguntaId: string;
+  /** Valores de la otra pregunta que la muestran (notas como texto: `'1'`, `'2'`…). */
+  valores: string[];
+}
+
 /** Pregunta individual dentro de una encuesta. */
 export interface SurveyQuestion {
   /** Identificador estable dentro de la encuesta; las respuestas se guardan contra este id. */
@@ -37,6 +47,20 @@ export interface SurveyQuestion {
   required: boolean;
   /** Solo aplica a `multiple-choice`. */
   options?: string[];
+  /** Si es un dato de contacto (siempre de tipo `text`). Los datos no se promedian en resultados. */
+  dato?: SurveyContactField;
+  /** Mostrarla sólo si otra pregunta tiene ciertos valores. */
+  mostrarSi?: SurveyShowRule;
+}
+
+/** Aceptación que se pide cuando la encuesta solicita datos personales. */
+export interface SurveyConsent {
+  /** Texto exacto que se muestra y que se guarda con la respuesta. */
+  texto: string;
+  version: string;
+  responsable: string;
+  privacyUrl?: string | null;
+  privacyText?: string | null;
 }
 
 /** Encuesta completa: definición, distribución y estado agregado. */
@@ -60,6 +84,8 @@ export interface Survey {
   distribution?: SurveyDistributionChannel[];
   publicUrl?: string;
   ga4MeasurementId?: string | null;
+  /** Sólo en la página pública, cuando la encuesta pide datos personales. */
+  consentimiento?: SurveyConsent | null;
   /** Conteo de respuestas recibidas. Se mantiene desnormalizado para listar sin agregar. */
   responses: number;
   /** Configuración visual de la página pública de la encuesta (colores, logo, fuente). */
@@ -70,6 +96,11 @@ export interface Survey {
     backgroundImage?: string;
     backgroundMode?: string;
     backgroundGradient?: string;
+    gradientFrom?: string;
+    gradientTo?: string;
+    gradientAngle?: string;
+    /** Plantilla con que se creó, sólo informativa. */
+    plantilla?: string;
     backgroundOpacity?: string;
     backgroundSize?: string;
     backgroundPosition?: string;
@@ -169,5 +200,9 @@ export interface SurveyIndividualResponse {
   teamMessage: string | null;
   /** Nulo si dejó la nota y no siguió. */
   completedAt: string | null;
+  /** Canal por el que llegó: `qr`, `whatsapp`, `reserva`… `null` si no se sabe. */
+  origen?: string | null;
+  /** Cuándo aceptó el uso de sus datos, si la encuesta los pidió. */
+  privacyConsentAt?: string | null;
   answers: Record<string, string | number>;
 }

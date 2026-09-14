@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsUUID, IsNumber, IsInt, MaxLength, MinLength, Min, Max, Matches, IsBoolean, ValidateNested, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsUUID, IsNumber, IsInt, MaxLength, MinLength, Min, Max, Matches, IsBoolean, ValidateNested, IsIn, IsEmail, IsUrl } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CLIENT_INDUSTRY_VALUES } from '@espartanos/shared';
 
@@ -23,6 +23,13 @@ export class ClientCapabilitiesDto {
 export class CreateClientDto {
   @IsString() @MinLength(2) @MaxLength(255) name: string;
   @IsOptional() @IsString() @MaxLength(255) legalName?: string;
+  @IsOptional() @IsString() @MaxLength(30) taxId?: string;
+  @IsOptional() @IsEmail() @MaxLength(190) privacyEmail?: string;
+  @IsOptional() @IsUrl({ protocols: ['https'], require_protocol: true }) @MaxLength(500) privacyUrl?: string;
+  @IsOptional() @IsUrl({ protocols: ['https'], require_protocol: true }) @MaxLength(500) termsUrl?: string;
+  @IsOptional() @IsIn(['enlace', 'texto']) legalMode?: string;
+  @IsOptional() @IsString() @MaxLength(30000) privacyText?: string;
+  @IsOptional() @IsString() @MaxLength(30000) termsText?: string;
   /**
    * Rubro del cliente, de la lista cerrada.
    *

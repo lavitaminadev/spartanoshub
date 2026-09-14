@@ -19,6 +19,7 @@ interface ClientRecord {
   id: string;
   name: string;
   legalName?: string;
+
   industry?: string;
   status: string;
   retainerAmount?: number;
@@ -58,6 +59,7 @@ interface UserOption {
 interface ClientFormState {
   name: string;
   legalName: string;
+
   industry: string;
   communityManagerId: string;
   retainerAmount: string;
@@ -82,6 +84,7 @@ interface ClientFormState {
 const EMPTY_FORM: ClientFormState = {
   name: '',
   legalName: '',
+
   industry: '',
   communityManagerId: '',
   retainerAmount: '',
@@ -293,6 +296,7 @@ export function ClientsPage() {
     setForm({
       name: client.name,
       legalName: client.legalName || '',
+
       industry: client.industry || '',
       communityManagerId: client.communityManagerId || '',
       retainerAmount: client.retainerAmount == null ? '' : String(client.retainerAmount),

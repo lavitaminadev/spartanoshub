@@ -1,9 +1,9 @@
 /**
- * @fileoverview Asistente de 5 pasos para crear o editar una encuesta.
+ * @fileoverview Asistente de 5 pasos para crear, editar o duplicar una encuesta.
  *
- * Reutiliza la misma pantalla para crear y editar: con `?id=<surveyId>` en la URL, precarga
- * la encuesta existente y guarda con `PUT` en vez de `POST`. Esto evita una quinta ruta que el
- * manifiesto de la feature no declara (`/surveys/create` es la única ruta de edición).
+ * Con `?id=<surveyId>` edita y guarda con `PUT`; con `?duplicar=<surveyId>` copia una existente
+ * como encuesta nueva. Los pasos de inicio, preguntas y diseño muestran al lado cómo se verá la
+ * página pública, en escritorio o celular.
  */
 
 import { useEffect, useState, type JSX } from 'react';
@@ -16,11 +16,15 @@ import { ImageUpload } from '../../shared/ImageUpload';
 import { triggerToast } from '../../shared/toast-events';
 import { useCreateSurvey, useSurvey, useUpdateSurvey } from './useSurveys';
 import { api } from '../../core/api';
-import type { QuestionType, Survey, SurveyDistributionChannel, SurveyQuestion, SurveyType } from '@espartanos/shared';
+import type { QuestionType, Survey, SurveyContactField, SurveyDistributionChannel, SurveyQuestion, SurveyType } from '@espartanos/shared';
+import { DATOS_DE_CONTACTO, preguntasVisibles } from '@espartanos/shared';
+import { CampoDeEncuesta } from './CampoDeEncuesta';
+import { estiloDeEncuesta } from './estilo-de-encuesta';
+import { PLANTILLAS, preguntaDeDato, preguntasDePlantilla } from './plantillas-de-encuesta';
 import './surveys.css';
 
 const STEPS: WizardStepDescriptor[] = [
-  { id: 'type', label: 'Tipo' },
+  { id: 'start', label: 'Inicio' },
   { id: 'questions', label: 'Preguntas' },
   { id: 'design', label: 'Diseño' },
   { id: 'distribution', label: 'Distribución' },
@@ -28,8 +32,8 @@ const STEPS: WizardStepDescriptor[] = [
 ];
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
-  nps: 'NPS (0-10)',
-  rating: 'Calificación (1-5)',
+  nps: 'Recomendación (0-10)',
+  rating: 'Estrellas (1-5)',
   text: 'Texto libre',
   'multiple-choice': 'Opción múltiple',
 };
@@ -40,11 +44,23 @@ const DISTRIBUTION_LABELS: Record<SurveyDistributionChannel, { label: string; de
   link: { label: 'Enlace directo', description: 'Comparte una URL abierta por cualquier canal propio.' },
 };
 
+const DATOS: SurveyContactField[] = ['nombre', 'rut', 'correo', 'telefono'];
+
 function blankQuestion(): SurveyQuestion {
   return { id: crypto.randomUUID(), type: 'rating', question: '', required: true };
 }
 
+/** Forma comparable de las preguntas: ignora campos vacíos que el servidor puede devolver como null. */
+function firmaDePreguntas(questions: SurveyQuestion[]): string {
+  return JSON.stringify(questions.map((q) => ({
+    id: q.id, type: q.type, question: q.question.trim(), required: Boolean(q.required), dato: q.dato ?? null,
+    options: q.type === 'multiple-choice' ? (q.options ?? []).map((o) => o.trim()).filter(Boolean) : [],
+    mostrarSi: q.mostrarSi?.preguntaId ? { p: q.mostrarSi.preguntaId, v: [...q.mostrarSi.valores].sort() } : null,
+  })));
+}
+
 interface WizardState {
+  plantilla: string;
   title: string;
   type: SurveyType;
   clientId: string;
@@ -55,7 +71,9 @@ interface WizardState {
   accentColor: string;
   backgroundColor: string;
   backgroundMode: string;
-  backgroundGradient: string;
+  gradientFrom: string;
+  gradientTo: string;
+  gradientAngle: string;
   backgroundImage: string;
   backgroundOpacity: string;
   textColor: string;
@@ -70,6 +88,7 @@ interface WizardState {
 
 function blankState(): WizardState {
   return {
+    plantilla: '',
     title: '',
     type: 'customer',
     clientId: '',
@@ -80,7 +99,9 @@ function blankState(): WizardState {
     accentColor: '#ec0b61',
     backgroundColor: '#f6f4f5',
     backgroundMode: 'color',
-    backgroundGradient: 'linear-gradient(135deg, #f6f4f5 0%, #e7f8f6 100%)',
+    gradientFrom: '#f6f4f5',
+    gradientTo: '#e7f8f6',
+    gradientAngle: '135',
     backgroundImage: '',
     backgroundOpacity: '88',
     textColor: '#151317',
@@ -95,24 +116,30 @@ function blankState(): WizardState {
 }
 
 function stateFromSurvey(survey: Survey): WizardState {
+  const design = survey.designConfig ?? {};
+  const base = blankState();
   return {
+    ...base,
+    plantilla: design.plantilla ?? '',
     title: survey.title,
     type: survey.type,
     clientId: survey.clientId ?? '',
     questions: survey.questions.length ? survey.questions : [blankQuestion()],
     distribution: survey.distribution ?? [],
     recipients: (survey.recipients ?? []).join(', '),
-    primaryColor: survey.designConfig?.primaryColor ?? '#0fb9b1',
-    accentColor: survey.designConfig?.accentColor ?? '#ec0b61',
-    backgroundColor: survey.designConfig?.backgroundColor ?? '#f6f4f5',
-    backgroundMode: survey.designConfig?.backgroundMode ?? (survey.designConfig?.backgroundImage ? 'image' : 'color'),
-    backgroundGradient: survey.designConfig?.backgroundGradient ?? 'linear-gradient(135deg, #f6f4f5 0%, #e7f8f6 100%)',
-    backgroundImage: survey.designConfig?.backgroundImage ?? '',
-    backgroundOpacity: survey.designConfig?.backgroundOpacity ?? '88',
-    textColor: survey.designConfig?.textColor ?? '#151317',
-    fontFamily: survey.designConfig?.fontFamily ?? 'system-ui',
-    logoUrl: survey.designConfig?.logoUrl ?? '',
-    welcome: survey.designConfig?.welcome ?? '',
+    primaryColor: design.primaryColor ?? base.primaryColor,
+    accentColor: design.accentColor ?? base.accentColor,
+    backgroundColor: design.backgroundColor ?? base.backgroundColor,
+    backgroundMode: design.backgroundMode ?? (design.backgroundImage ? 'image' : 'color'),
+    gradientFrom: design.gradientFrom ?? base.gradientFrom,
+    gradientTo: design.gradientTo ?? base.gradientTo,
+    gradientAngle: design.gradientAngle ?? base.gradientAngle,
+    backgroundImage: design.backgroundImage ?? '',
+    backgroundOpacity: design.backgroundOpacity ?? base.backgroundOpacity,
+    textColor: design.textColor ?? base.textColor,
+    fontFamily: design.fontFamily ?? base.fontFamily,
+    logoUrl: design.logoUrl ?? '',
+    welcome: design.welcome ?? '',
     ga4MeasurementId: survey.ga4MeasurementId ?? '',
     googleReviewUrl: survey.googleReview?.url ?? '',
     googleReviewMinRating: survey.googleReview?.minRating ?? 4,
@@ -120,132 +147,332 @@ function stateFromSurvey(survey: Survey): WizardState {
   };
 }
 
-/** Paso 1: a quién se dirige la encuesta. */
-function SurveyTypesSelector({ value, clientId, clients, onChange, onClientChange }: {
-  value: SurveyType; clientId: string; clients: Array<{ id: string; name: string }>;
-  onChange: (type: SurveyType) => void; onClientChange: (clientId: string) => void;
+function designFromState(state: WizardState): NonNullable<Survey['designConfig']> {
+  return {
+    primaryColor: state.primaryColor,
+    accentColor: state.accentColor,
+    backgroundColor: state.backgroundColor,
+    backgroundMode: state.backgroundMode,
+    ...(state.backgroundMode === 'gradient' ? { gradientFrom: state.gradientFrom, gradientTo: state.gradientTo, gradientAngle: state.gradientAngle } : {}),
+    backgroundImage: state.backgroundMode === 'image' ? state.backgroundImage || undefined : undefined,
+    backgroundOpacity: state.backgroundOpacity,
+    textColor: state.textColor,
+    fontFamily: state.fontFamily,
+    logoUrl: state.logoUrl || undefined,
+    welcome: state.welcome.trim() || undefined,
+    plantilla: state.plantilla || undefined,
+  };
+}
+
+/** Valores que puede tomar una pregunta para usarla en una regla. */
+function valoresPosibles(pregunta: SurveyQuestion): Array<{ valor: string; etiqueta: string }> {
+  if (pregunta.dato) return [];
+  if (pregunta.type === 'rating') return ['1', '2', '3', '4', '5'].map((valor) => ({ valor, etiqueta: `${valor}★` }));
+  if (pregunta.type === 'nps') return Array.from({ length: 11 }, (_, i) => ({ valor: String(i), etiqueta: String(i) }));
+  if (pregunta.type === 'multiple-choice') return (pregunta.options ?? []).filter((o) => o.trim()).map((valor) => ({ valor, etiqueta: valor }));
+  return [];
+}
+
+/** Atajos para elegir valores de una regla sin marcar uno por uno. */
+function atajosDeValores(pregunta: SurveyQuestion): Array<{ etiqueta: string; valores: string[] }> {
+  if (pregunta.type === 'rating') return [{ etiqueta: 'Nota baja (1-3)', valores: ['1', '2', '3'] }, { etiqueta: 'Nota alta (4-5)', valores: ['4', '5'] }];
+  if (pregunta.type === 'nps') return [{ etiqueta: 'Detractores (0-6)', valores: ['0', '1', '2', '3', '4', '5', '6'] }, { etiqueta: 'Pasivos (7-8)', valores: ['7', '8'] }, { etiqueta: 'Promotores (9-10)', valores: ['9', '10'] }];
+  return [];
+}
+
+/** Vista previa de la página pública, interactiva: se pueden probar las reglas. */
+function VistaPrevia({ state }: { state: WizardState }) {
+  const [modo, setModo] = useState<'escritorio' | 'celular'>('celular');
+  const [respuestas, setRespuestas] = useState<Record<string, string | number>>({});
+  const visibles = preguntasVisibles(state.questions.filter((q) => q.question.trim()), respuestas);
+  const pideDatos = state.questions.some((q) => q.dato);
+  return (
+    <aside className="survey-preview" aria-label="Vista previa">
+      <div className="survey-preview-bar">
+        <strong>Vista previa</strong>
+        <div role="group" aria-label="Tamaño de la vista previa">
+          {(['celular', 'escritorio'] as const).map((valor) => (
+            <button key={valor} type="button" aria-pressed={modo === valor} className={modo === valor ? 'active' : ''} onClick={() => setModo(valor)}>{valor === 'celular' ? 'Celular' : 'Escritorio'}</button>
+          ))}
+        </div>
+      </div>
+      <div className={`survey-preview-frame ${modo}`}>
+        <div className="public-survey-page survey-preview-page" style={estiloDeEncuesta(designFromState(state))}>
+          <div className="public-survey-card">
+            {state.logoUrl ? <img className="public-survey-logo" src={state.logoUrl} alt="" /> : null}
+            <span className="public-survey-eyebrow">Tu opinión</span>
+            <h1>{state.title || 'Nombre de la encuesta'}</h1>
+            <p>{state.welcome || 'Tu opinión ayuda a mejorar el servicio.'}</p>
+            <div className="public-survey-questions">
+              {visibles.map((question) => (
+                <CampoDeEncuesta key={question.id} question={question} value={respuestas[question.id]} onChange={(value) => setRespuestas((r) => ({ ...r, [question.id]: value }))} />
+              ))}
+            </div>
+            {pideDatos ? <div className="public-survey-aceptacion"><label><input type="checkbox" disabled /><span>Acepto que la empresa use los datos que dejo en esta encuesta… (el texto se completa con sus datos legales)</span></label></div> : null}
+            <button type="button" className="btn btn-primary btn-block public-survey-submit">Enviar respuesta</button>
+          </div>
+        </div>
+      </div>
+      <small>Toca las respuestas para probar qué preguntas aparecen.</small>
+    </aside>
+  );
+}
+
+type SetState = (updater: (current: WizardState) => WizardState) => void;
+
+/** Paso 1: público, empresa, plantilla, nombre y bienvenida. */
+function PasoInicio({ state, setState, clients, bloqueadas, isEdit }: {
+  state: WizardState; setState: SetState; clients: Array<{ id: string; name: string }>; bloqueadas: boolean; isEdit: boolean;
 }) {
+  const plantillas = PLANTILLAS.filter((plantilla) => plantilla.publico === state.type);
+  const aplicar = (id: string) => {
+    const plantilla = PLANTILLAS.find((item) => item.id === id);
+    setState((current) => plantilla
+      ? { ...current, plantilla: id, questions: preguntasDePlantilla(plantilla), title: current.title || plantilla.titulo, welcome: current.welcome || plantilla.bienvenida }
+      : { ...current, plantilla: '', questions: [blankQuestion()] });
+  };
   return (
     <div className="wizard-step-body">
-      <p className="page-subtitle">Elige el público: cambia el copy que verá quien responde y quién puede recibirla.</p>
-      <div className="survey-type-options" role="radiogroup" aria-label="Tipo de encuesta">
-        <button type="button" role="radio" aria-checked={value === 'internal'} className={value === 'internal' ? 'active' : ''} onClick={() => onChange('internal')}>
-          <strong>Equipo</strong>
-          <span>Encuesta interna, para las personas de Espartanos.</span>
+      <div className="survey-type-options" role="radiogroup" aria-label="Público">
+        <button type="button" role="radio" aria-checked={state.type === 'customer'} className={state.type === 'customer' ? 'active' : ''} onClick={() => setState((c) => ({ ...c, type: 'customer' }))}>
+          <strong>Clientes</strong><span>Encuesta pública para clientes o asistentes.</span>
         </button>
-        <button type="button" role="radio" aria-checked={value === 'customer'} className={value === 'customer' ? 'active' : ''} onClick={() => onChange('customer')}>
-          <strong>Clientes</strong>
-          <span>Encuesta pública para clientes o asistentes, independiente de las reservas.</span>
+        <button type="button" role="radio" aria-checked={state.type === 'internal'} className={state.type === 'internal' ? 'active' : ''} onClick={() => setState((c) => ({ ...c, type: 'internal', clientId: '' }))}>
+          <strong>Equipo</strong><span>Encuesta interna, para las personas de Espartanos.</span>
         </button>
       </div>
-      {value === 'customer' && <label>Empresa dueña de la encuesta
-        <select className="input" value={clientId} onChange={(event) => onClientChange(event.target.value)} required>
+      {state.type === 'customer' && <label>Empresa dueña de la encuesta
+        <select className="input" value={state.clientId} onChange={(event) => setState((c) => ({ ...c, clientId: event.target.value }))} required>
           <option value="">Selecciona una empresa</option>
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
         </select>
-        <small>La encuesta y sus resultados quedarán aislados para esta empresa.</small>
+        <small>La encuesta y sus resultados quedan aislados para esta empresa. Sus datos legales se usan en la aceptación.</small>
       </label>}
+
+      {!bloqueadas && (
+        <fieldset className="survey-plantillas">
+          <legend>¿Por dónde empiezas?{isEdit ? ' (reemplaza las preguntas actuales)' : ''}</legend>
+          <div>
+            {plantillas.map((plantilla) => (
+              <button key={plantilla.id} type="button" aria-pressed={state.plantilla === plantilla.id} className={state.plantilla === plantilla.id ? 'active' : ''} onClick={() => aplicar(plantilla.id)}>
+                <strong>{plantilla.nombre}</strong><span>{plantilla.descripcion}</span>
+              </button>
+            ))}
+            <button type="button" aria-pressed={state.plantilla === ''} className={state.plantilla === '' ? 'active' : ''} onClick={() => aplicar('')}>
+              <strong>Desde cero</strong><span>Una pregunta en blanco para armarla a tu manera.</span>
+            </button>
+          </div>
+        </fieldset>
+      )}
+
+      <label>Nombre de la encuesta
+        <input className="input" required value={state.title} onChange={(event) => setState((c) => ({ ...c, title: event.target.value }))} placeholder="Ej. Satisfacción clientes agosto" />
+      </label>
+      <label>Mensaje de bienvenida
+        <textarea className="input" rows={3} maxLength={400} value={state.welcome} onChange={(event) => setState((c) => ({ ...c, welcome: event.target.value }))} placeholder="Ej. Gracias por visitarnos. ¿Nos cuentas cómo te fue? Toma menos de un minuto." />
+        <small>Aparece bajo el título. Corto y cercano: di cuánto demora.</small>
+      </label>
     </div>
   );
 }
 
-/** Paso 2: preguntas de la encuesta, con soporte para los 4 tipos declarados en `QuestionType`. */
-function QuestionsEditor({ questions, onChange }: { questions: SurveyQuestion[]; onChange: (next: SurveyQuestion[]) => void }) {
-  const update = (id: string, patch: Partial<SurveyQuestion>) =>
-    onChange(questions.map((question) => (question.id === id ? { ...question, ...patch } : question)));
-  const remove = (id: string) => onChange(questions.filter((question) => question.id !== id));
+/** Paso 2: datos de quien responde y preguntas con reglas. */
+function PasoPreguntas({ questions, onChange, bloqueadas }: { questions: SurveyQuestion[]; onChange: (next: SurveyQuestion[]) => void; bloqueadas: boolean }) {
+  const preguntas = questions.filter((q) => !q.dato);
+  const datos = questions.filter((q) => q.dato);
+  const conDatos = (lista: SurveyQuestion[]) => [...lista, ...datos];
+  const update = (id: string, patch: Partial<SurveyQuestion>) => onChange(questions.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+  // Quitar una pregunta también quita las reglas que dependían de ella.
+  const remove = (id: string) => onChange(questions.filter((q) => q.id !== id).map((q) => (q.mostrarSi?.preguntaId === id ? { ...q, mostrarSi: undefined } : q)));
+  const mover = (indice: number, delta: number) => {
+    const lista = [...preguntas];
+    const destino = indice + delta;
+    if (destino < 0 || destino >= lista.length) return;
+    [lista[indice], lista[destino]] = [lista[destino], lista[indice]];
+    // Una regla sólo puede depender de una pregunta anterior.
+    const posicion = new Map(lista.map((q, i) => [q.id, i]));
+    onChange(conDatos(lista.map((q, i) => (q.mostrarSi && (posicion.get(q.mostrarSi.preguntaId) ?? i) >= i ? { ...q, mostrarSi: undefined } : q))));
+  };
+  const alternarDato = (dato: SurveyContactField) => {
+    const existente = datos.find((q) => q.dato === dato);
+    if (existente) onChange(questions.filter((q) => q.id !== existente.id));
+    else onChange([...preguntas, ...[...datos, preguntaDeDato(dato, false)].sort((a, b) => DATOS.indexOf(a.dato!) - DATOS.indexOf(b.dato!))]);
+  };
 
   return (
     <div className="wizard-step-body">
-      <p className="page-subtitle">Agrega al menos una pregunta. El tipo NPS y Calificación se agregan solos al panel de resultados.</p>
-      <div className="questions-editor">
-        {questions.map((question, index) => (
-          <article className="question-card" key={question.id}>
-            <header>
-              <span className="question-index">Pregunta {index + 1}</span>
-              <button type="button" className="btn btn-outline btn-sm" disabled={questions.length <= 1} onClick={() => remove(question.id)}>Quitar</button>
-            </header>
-            <label>Enunciado
-              <input
-                className="input"
-                required
-                value={question.question}
-                onChange={(event) => update(question.id, { question: event.target.value })}
-                placeholder="Ej. ¿Qué tan probable es que nos recomiendes?"
-              />
-            </label>
-            <div className="form-row">
-              <label>Tipo de pregunta
-                <select
-                  className="input"
-                  value={question.type}
-                  onChange={(event) => {
-                    const type = event.target.value as QuestionType;
-                    update(question.id, { type, options: type === 'multiple-choice' ? question.options ?? ['', ''] : undefined });
-                  }}
-                >
-                  {(Object.entries(QUESTION_TYPE_LABELS) as Array<[QuestionType, string]>).map(([type, label]) => (
-                    <option key={type} value={type}>{label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="toggle-row">
-                <input type="checkbox" checked={question.required} onChange={(event) => update(question.id, { required: event.target.checked })} />
-                Obligatoria
-              </label>
-            </div>
-            {question.type === 'multiple-choice' && (
-              <div className="choice-options-editor">
-                <span>Opciones</span>
-                {(question.options ?? []).map((option, optionIndex) => (
-                  <div className="choice-option-row" key={optionIndex}>
-                    <input
-                      className="input"
-                      required
-                      value={option}
-                      onChange={(event) => {
-                        const options = [...(question.options ?? [])];
-                        options[optionIndex] = event.target.value;
-                        update(question.id, { options });
-                      }}
-                      placeholder={`Opción ${optionIndex + 1}`}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-sm"
-                      disabled={(question.options?.length ?? 0) <= 2}
-                      onClick={() => update(question.id, { options: (question.options ?? []).filter((_, i) => i !== optionIndex) })}
-                    >
-                      Quitar
-                    </button>
+      {bloqueadas && <div className="alert alert-info">Esta encuesta ya tiene respuestas, así que sus preguntas no se pueden cambiar: los resultados dejarían de corresponder. Puedes editar inicio, diseño y distribución, o duplicarla desde el listado para cambiar preguntas.</div>}
+      <fieldset className="questions-editor-fieldset" disabled={bloqueadas}>
+        <section className="survey-datos">
+          <header>
+            <strong>Datos de quien responde</strong>
+            <small>Opcional. Si pides alguno, se agrega sola la aceptación de uso de datos con los datos legales de la empresa.</small>
+          </header>
+          <div className="survey-datos-lista">
+            {DATOS.map((dato) => {
+              const pregunta = datos.find((q) => q.dato === dato);
+              return (
+                <div key={dato} className={`survey-dato ${pregunta ? 'active' : ''}`}>
+                  <label className="survey-dato-principal"><input type="checkbox" checked={Boolean(pregunta)} onChange={() => alternarDato(dato)} /> {DATOS_DE_CONTACTO[dato].etiqueta}</label>
+                  {pregunta && <label className="survey-dato-obligatorio"><input type="checkbox" checked={pregunta.required} onChange={(e) => update(pregunta.id, { required: e.target.checked })} /> Obligatorio</label>}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className="questions-editor">
+          {preguntas.map((question, index) => {
+            const anteriores = preguntas.slice(0, index).filter((q) => valoresPosibles(q).length > 0);
+            const origen = anteriores.find((q) => q.id === question.mostrarSi?.preguntaId);
+            const valores = question.mostrarSi?.valores ?? [];
+            return (
+              <article className="question-card" key={question.id}>
+                <header>
+                  <span className="question-index">Pregunta {index + 1}{question.mostrarSi ? ' · condicional' : ''}</span>
+                  <div className="question-card-acciones">
+                    <button type="button" className="btn btn-outline btn-sm" aria-label="Subir pregunta" disabled={index === 0} onClick={() => mover(index, -1)}>↑</button>
+                    <button type="button" className="btn btn-outline btn-sm" aria-label="Bajar pregunta" disabled={index === preguntas.length - 1} onClick={() => mover(index, 1)}>↓</button>
+                    <button type="button" className="btn btn-outline btn-sm" disabled={preguntas.length <= 1} onClick={() => remove(question.id)}>Quitar</button>
                   </div>
-                ))}
-                <button type="button" className="btn btn-outline btn-sm" onClick={() => update(question.id, { options: [...(question.options ?? []), ''] })}>
-                  + Agregar opción
-                </button>
-              </div>
-            )}
-          </article>
-        ))}
+                </header>
+                <label>Enunciado
+                  <input className="input" required value={question.question} onChange={(event) => update(question.id, { question: event.target.value })} placeholder="Ej. ¿Cómo fue tu visita?" />
+                </label>
+                <div className="form-row">
+                  <label>Tipo de pregunta
+                    <select className="input" value={question.type} onChange={(event) => {
+                      const type = event.target.value as QuestionType;
+                      // Cambiar el tipo invalida las reglas que dependían de sus valores.
+                      onChange(questions.map((q) => q.id === question.id
+                        ? { ...q, type, options: type === 'multiple-choice' ? q.options ?? ['', ''] : undefined }
+                        : q.mostrarSi?.preguntaId === question.id ? { ...q, mostrarSi: undefined } : q));
+                    }}>
+                      {(Object.entries(QUESTION_TYPE_LABELS) as Array<[QuestionType, string]>).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+                    </select>
+                  </label>
+                  <label className="toggle-row">
+                    <input type="checkbox" checked={question.required} onChange={(event) => update(question.id, { required: event.target.checked })} />
+                    Obligatoria
+                  </label>
+                </div>
+                {question.type === 'multiple-choice' && (
+                  <div className="choice-options-editor">
+                    <span>Opciones</span>
+                    {(question.options ?? []).map((option, optionIndex) => (
+                      <div className="choice-option-row" key={optionIndex}>
+                        <input className="input" required value={option} placeholder={`Opción ${optionIndex + 1}`} onChange={(event) => {
+                          const options = [...(question.options ?? [])];
+                          options[optionIndex] = event.target.value;
+                          update(question.id, { options });
+                        }} />
+                        <button type="button" className="btn btn-outline btn-sm" disabled={(question.options?.length ?? 0) <= 2} onClick={() => update(question.id, { options: (question.options ?? []).filter((_, i) => i !== optionIndex) })}>Quitar</button>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => update(question.id, { options: [...(question.options ?? []), ''] })}>+ Agregar opción</button>
+                  </div>
+                )}
+                {anteriores.length > 0 && (
+                  <div className="question-regla">
+                    <label>Cuándo mostrarla
+                      <select className="input" value={question.mostrarSi?.preguntaId ?? ''} onChange={(event) => update(question.id, { mostrarSi: event.target.value ? { preguntaId: event.target.value, valores: [] } : undefined })}>
+                        <option value="">Siempre</option>
+                        {anteriores.map((q) => <option key={q.id} value={q.id}>Según «{q.question || 'pregunta sin enunciado'}»</option>)}
+                      </select>
+                    </label>
+                    {origen && (
+                      <div className="question-regla-valores">
+                        <span>Mostrar si respondió:</span>
+                        {atajosDeValores(origen).length > 0 && <div>
+                          {atajosDeValores(origen).map((atajo) => {
+                            const activo = atajo.valores.length === valores.length && atajo.valores.every((v) => valores.includes(v));
+                            return <button key={atajo.etiqueta} type="button" aria-pressed={activo} className={`survey-chip ${activo ? 'active' : ''}`} onClick={() => update(question.id, { mostrarSi: { preguntaId: origen.id, valores: atajo.valores } })}>{atajo.etiqueta}</button>;
+                          })}
+                        </div>}
+                        <div>
+                          {valoresPosibles(origen).map(({ valor, etiqueta }) => {
+                            const activo = valores.includes(valor);
+                            return <button key={valor} type="button" aria-pressed={activo} className={`survey-chip ${activo ? 'active' : ''}`} onClick={() => update(question.id, { mostrarSi: { preguntaId: origen.id, valores: activo ? valores.filter((v) => v !== valor) : [...valores, valor] } })}>{etiqueta}</button>;
+                          })}
+                        </div>
+                        {valores.length === 0 && <small className="text-danger">Elige al menos una respuesta, o vuelve a «Siempre».</small>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+        <button type="button" className="btn btn-outline" onClick={() => onChange(conDatos([...preguntas, blankQuestion()]))}>+ Agregar pregunta</button>
+      </fieldset>
+    </div>
+  );
+}
+
+/** Paso 3: diseño de la página pública. */
+function PasoDiseno({ state, setState }: { state: WizardState; setState: SetState }) {
+  const set = (patch: Partial<WizardState>) => setState((c) => ({ ...c, ...patch }));
+  return (
+    <div className="wizard-step-body">
+      <div className="survey-design-grid">
+        <label>Color principal<input type="color" value={state.primaryColor} onChange={(e) => set({ primaryColor: e.target.value })} /></label>
+        <label>Acento<input type="color" value={state.accentColor} onChange={(e) => set({ accentColor: e.target.value })} /></label>
+        <label>Texto<input type="color" value={state.textColor} onChange={(e) => set({ textColor: e.target.value })} /></label>
       </div>
-      <button type="button" className="btn btn-outline" onClick={() => onChange([...questions, blankQuestion()])}>+ Agregar pregunta</button>
+      <label>Tipo de letra<select className="input" value={state.fontFamily} onChange={(e) => set({ fontFamily: e.target.value })}><option value="system-ui">Sistema</option><option value="Inter, sans-serif">Inter</option><option value="Georgia, serif">Georgia</option></select></label>
+
+      <fieldset className="survey-fondo">
+        <legend>Fondo</legend>
+        <div className="survey-fondo-modos" role="radiogroup" aria-label="Tipo de fondo">
+          {([['color', 'Color'], ['gradient', 'Degradado'], ['image', 'Imagen']] as const).map(([valor, etiqueta]) => (
+            <button key={valor} type="button" role="radio" aria-checked={state.backgroundMode === valor} className={state.backgroundMode === valor ? 'active' : ''} onClick={() => set({ backgroundMode: valor })}>{etiqueta}</button>
+          ))}
+        </div>
+        {state.backgroundMode === 'color' && <label className="survey-fondo-color">Color de fondo<input type="color" value={state.backgroundColor} onChange={(e) => set({ backgroundColor: e.target.value })} /></label>}
+        {state.backgroundMode === 'gradient' && <>
+          <div className="survey-design-grid">
+            <label>Desde<input type="color" value={state.gradientFrom} onChange={(e) => set({ gradientFrom: e.target.value })} /></label>
+            <label>Hasta<input type="color" value={state.gradientTo} onChange={(e) => set({ gradientTo: e.target.value })} /></label>
+          </div>
+          <label>Dirección
+            <select className="input" value={state.gradientAngle} onChange={(e) => set({ gradientAngle: e.target.value })}>
+              <option value="180">De arriba hacia abajo</option>
+              <option value="90">De izquierda a derecha</option>
+              <option value="135">Diagonal</option>
+              <option value="45">Diagonal inversa</option>
+            </select>
+          </label>
+          <div className="survey-fondo-muestras" aria-label="Combinaciones sugeridas">
+            {[['#f6f4f5', '#e7f8f6'], ['#fff4ea', '#ffe1ec'], ['#eef2ff', '#e0f7fa'], ['#1f1b24', '#3b2340']].map(([desde, hasta]) => (
+              <button key={desde + hasta} type="button" aria-label={`Degradado de ${desde} a ${hasta}`} style={{ background: `linear-gradient(135deg, ${desde}, ${hasta})` }} onClick={() => set({ gradientFrom: desde, gradientTo: hasta })} />
+            ))}
+          </div>
+        </>}
+        {state.backgroundMode === 'image' && <>
+          <ImageUpload label="Imagen de fondo" value={state.backgroundImage} onChange={(url) => set({ backgroundImage: url })} placeholder="https://..." maxSizeMB={5} maxWidth={1920} clientId={state.clientId || undefined} />
+          <label>Claridad sobre la imagen ({state.backgroundOpacity}%)<input type="range" min="0" max="100" value={state.backgroundOpacity} onChange={(e) => set({ backgroundOpacity: e.target.value })} /><small>Más claridad hace que las preguntas se lean mejor sobre la foto.</small></label>
+        </>}
+      </fieldset>
+
+      <ImageUpload label="Logo de la encuesta" value={state.logoUrl} onChange={(url) => set({ logoUrl: url })} placeholder="https://..." maxSizeMB={3} maxWidth={480} clientId={state.clientId || undefined} />
+      <details className="survey-optional-box">
+        <summary>Reseñas en Google</summary>
+        <label>URL de Google Reviews<input className="input" value={state.googleReviewUrl} onChange={(e) => set({ googleReviewUrl: e.target.value })} placeholder="https://g.page/r/..." /></label>
+        <div className="form-row"><label>Nota desde la que se considera buena<input className="input" type="number" min={1} max={5} value={state.googleReviewMinRating} onChange={(e) => set({ googleReviewMinRating: Number(e.target.value) })} /></label></div>
+        <label>Mensaje si la calificación es baja<textarea className="input" rows={2} value={state.googleReviewLowMsg} onChange={(e) => set({ googleReviewLowMsg: e.target.value })} placeholder="Gracias por avisarnos. Revisaremos tu caso." /></label>
+      </details>
     </div>
   );
 }
 
 /** Paso 4: canal de distribución y, si aplica, destinatarios explícitos. */
-function DistributionSelector({
-  selected,
-  recipients,
-  onToggleChannel,
-  onRecipientsChange,
-}: {
-  selected: SurveyDistributionChannel[];
-  recipients: string;
-  onToggleChannel: (channel: SurveyDistributionChannel) => void;
-  onRecipientsChange: (value: string) => void;
+function DistributionSelector({ selected, recipients, onToggleChannel, onRecipientsChange, ga4, onGa4Change }: {
+  selected: SurveyDistributionChannel[]; recipients: string;
+  onToggleChannel: (channel: SurveyDistributionChannel) => void; onRecipientsChange: (value: string) => void;
+  ga4: string; onGa4Change: (value: string) => void;
 }) {
-  const needsRecipients = selected.includes('email');
+  const ga4Valido = !ga4 || /^G-[A-Z0-9]{4,20}$/i.test(ga4);
   return (
     <div className="wizard-step-body">
       <p className="page-subtitle">Define cómo se compartirá. Correo registra destinatarios; enlace y QR quedan como canales de publicación.</p>
@@ -253,50 +480,54 @@ function DistributionSelector({
         {(Object.entries(DISTRIBUTION_LABELS) as Array<[SurveyDistributionChannel, { label: string; description: string }]>).map(([channel, meta]) => (
           <label key={channel} className={`distribution-option ${selected.includes(channel) ? 'active' : ''}`}>
             <input type="checkbox" checked={selected.includes(channel)} onChange={() => onToggleChannel(channel)} />
-            <div>
-              <strong>{meta.label}</strong>
-              <span>{meta.description}</span>
-            </div>
+            <div><strong>{meta.label}</strong><span>{meta.description}</span></div>
           </label>
         ))}
       </div>
-      {needsRecipients && (
+      {selected.includes('email') && (
         <label>Destinatarios (correos separados por coma)
-          <textarea
-            className="input"
-            rows={3}
-            value={recipients}
-            onChange={(event) => onRecipientsChange(event.target.value)}
-            placeholder="ana@cliente.cl, juan@cliente.cl"
-          />
+          <textarea className="input" rows={3} value={recipients} onChange={(event) => onRecipientsChange(event.target.value)} placeholder="ana@cliente.cl, juan@cliente.cl" />
         </label>
       )}
+      <section className="survey-medicion">
+        <header><strong>Medición</strong><small>Cada canal comparte su propio enlace con origen (WhatsApp, Instagram, QR…). Los resultados cuentan de dónde llegó cada respuesta, con o sin Google Analytics.</small></header>
+        <label>ID de medición de Google Analytics 4 (opcional)
+          <input className="input" value={ga4} aria-invalid={!ga4Valido} onChange={(e) => onGa4Change(e.target.value.trim().toUpperCase())} placeholder="G-XXXXXXXXXX" />
+          <small className={ga4Valido ? '' : 'text-danger'}>{ga4Valido ? 'Envía a GA4 las visitas y respuestas con su canal. Lo encuentras en Analytics → Administrar → Flujos de datos.' : 'Debe tener el formato G-XXXXXXXXXX'}</small>
+        </label>
+      </section>
     </div>
   );
 }
 
-/** Paso 5: resumen antes de guardar como borrador. */
+/** Paso 5: resumen antes de guardar. */
 function ReviewAndSubmit({ state, isEdit }: { state: WizardState; isEdit: boolean }) {
   const recipientCount = state.recipients.split(',').map((value) => value.trim()).filter(Boolean).length;
+  const preguntas = state.questions.filter((q) => !q.dato);
+  const datos = state.questions.filter((q) => q.dato);
+  const porId = new Map(state.questions.map((q) => [q.id, q]));
+  const condicionales = preguntas.filter((q) => q.mostrarSi).length;
   return (
     <div className="wizard-step-body">
       <p className="page-subtitle">{isEdit ? 'Revisa los cambios antes de guardar.' : 'Revisa la encuesta antes de crearla como borrador.'}</p>
       <div className="review-summary">
         <div><span>Nombre</span><strong>{state.title || 'Sin nombre aún'}</strong></div>
         <div><span>Público</span><strong>{state.type === 'internal' ? 'Equipo' : 'Clientes'}</strong></div>
-        <div><span>Preguntas</span><strong>{state.questions.length}</strong></div>
+        <div><span>Preguntas</span><strong>{preguntas.length}{condicionales ? ` (${condicionales} condicionales)` : ''}</strong></div>
+        <div><span>Datos pedidos</span><strong>{datos.length ? datos.map((q) => DATOS_DE_CONTACTO[q.dato!].etiqueta + (q.required ? '*' : '')).join(', ') : 'Anónima'}</strong></div>
         <div><span>Medición</span><strong>{state.ga4MeasurementId ? 'GA4 configurado' : 'Sin GA4'}</strong></div>
-        <div>
-          <span>Distribución</span>
-          <strong>{state.distribution.length ? state.distribution.map((channel) => DISTRIBUTION_LABELS[channel].label).join(', ') : 'Sin definir todavía'}</strong>
-        </div>
+        <div><span>Distribución</span><strong>{state.distribution.length ? state.distribution.map((channel) => DISTRIBUTION_LABELS[channel].label).join(', ') : 'Sin definir todavía'}</strong></div>
         {state.distribution.includes('email') && <div><span>Destinatarios</span><strong>{recipientCount}</strong></div>}
       </div>
+      {!state.welcome.trim() && <div className="alert alert-info">No hay mensaje de bienvenida: se mostrará uno genérico.</div>}
       <ul className="review-checklist">
-        {state.questions.map((question, index) => (
+        {preguntas.map((question, index) => (
           <li key={question.id}>
             <strong>{index + 1}. {question.question || 'Pregunta sin enunciado'}</strong>
-            <span>{QUESTION_TYPE_LABELS[question.type]}{question.required ? ' · Obligatoria' : ''}</span>
+            <span>
+              {QUESTION_TYPE_LABELS[question.type]}{question.required ? ' · Obligatoria' : ''}
+              {question.mostrarSi ? ` · Sólo si «${porId.get(question.mostrarSi.preguntaId)?.question ?? '?'}» es ${question.mostrarSi.valores.join(', ')}` : ''}
+            </span>
           </li>
         ))}
       </ul>
@@ -309,7 +540,8 @@ export function CreateSurveyWizard(): JSX.Element {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('id') ?? undefined;
-  const { data: existingSurvey, isLoading } = useSurvey(editId);
+  const duplicarId = editId ? undefined : searchParams.get('duplicar') ?? undefined;
+  const { data: existingSurvey, isLoading } = useSurvey(editId ?? duplicarId);
   const createMutation = useCreateSurvey();
   const updateMutation = useUpdateSurvey();
   const { data: clientsResponse } = useQuery<{ data?: Array<{ id: string; name: string; capabilities?: { surveys?: boolean } }> }>({
@@ -324,18 +556,24 @@ export function CreateSurveyWizard(): JSX.Element {
 
   useEffect(() => {
     if (existingSurvey && !hydrated) {
-      setState(stateFromSurvey(existingSurvey));
+      const base = stateFromSurvey(existingSurvey);
+      // Al duplicar, las preguntas conservan sus ids: son de otra encuesta y no chocan.
+      setState(duplicarId ? { ...base, title: `${base.title} (copia)` } : base);
       setHydrated(true);
     }
-  }, [existingSurvey, hydrated]);
+  }, [existingSurvey, hydrated, duplicarId]);
 
-  if (editId && isLoading) return <LoadingSpinner text="Cargando encuesta..." />;
+  if ((editId || duplicarId) && isLoading) return <LoadingSpinner text="Cargando encuesta..." />;
 
+  const bloqueadas = Boolean(editId && (existingSurvey?.responses ?? 0) > 0);
+  const reglasIncompletas = state.questions.some((q) => q.mostrarSi && q.mostrarSi.valores.length === 0);
   const stepReady: boolean[] = [
     Boolean(state.title.trim()) && (state.type !== 'customer' || Boolean(state.clientId)),
-    state.questions.every((question) => question.question.trim() && (question.type !== 'multiple-choice' || (question.options ?? []).filter((option) => option.trim()).length >= 2)),
+    state.questions.some((q) => !q.dato)
+      && state.questions.every((question) => question.question.trim() && (question.type !== 'multiple-choice' || (question.options ?? []).filter((option) => option.trim()).length >= 2))
+      && !reglasIncompletas,
     true,
-    true,
+    !state.ga4MeasurementId || /^G-[A-Z0-9]{4,20}$/i.test(state.ga4MeasurementId),
     true,
   ];
 
@@ -344,130 +582,88 @@ export function CreateSurveyWizard(): JSX.Element {
     const questions = state.questions.map((question) => ({
       ...question,
       options: question.type === 'multiple-choice' ? (question.options ?? []).map((option) => option.trim()).filter(Boolean) : undefined,
+      mostrarSi: question.mostrarSi?.valores.length ? question.mostrarSi : undefined,
     }));
     const recipients = state.recipients.split(',').map((value) => value.trim()).filter(Boolean);
-    const distribution = state.distribution;
-    const designConfig = {
-      primaryColor: state.primaryColor,
-      accentColor: state.accentColor,
-      backgroundColor: state.backgroundColor,
-      backgroundMode: state.backgroundMode,
-      backgroundGradient: state.backgroundMode === 'gradient' ? state.backgroundGradient : undefined,
-      backgroundImage: state.backgroundMode === 'image' ? state.backgroundImage || undefined : undefined,
-      backgroundOpacity: state.backgroundOpacity,
-      textColor: state.textColor,
-      fontFamily: state.fontFamily,
-      logoUrl: state.logoUrl || undefined,
-      welcome: state.welcome || undefined,
-    };
     const googleReview = state.googleReviewUrl ? { url: state.googleReviewUrl, minRating: state.googleReviewMinRating, lowRatingMessage: state.googleReviewLowMsg || undefined } : undefined;
+    const comun = {
+      title: state.title.trim(), type: state.type, clientId: state.type === 'customer' ? state.clientId : undefined,
+      distribution: state.distribution, recipients: recipients.length ? recipients : undefined,
+      ga4MeasurementId: state.ga4MeasurementId.trim() || null, designConfig: designFromState(state), googleReview,
+    };
 
     if (editId) {
+      // Las preguntas viajan sólo si cambiaron: con respuestas el servidor no admite tocarlas, y
+      // reenviarlas iguales hacía fallar el guardado de la bienvenida o el fondo.
+      const preguntasCambiaron = !existingSurvey || firmaDePreguntas(questions) !== firmaDePreguntas(existingSurvey.questions ?? []);
       updateMutation.mutate(
-        { id: editId, patch: { title: state.title.trim(), type: state.type, clientId: state.type === 'customer' ? state.clientId : undefined, questions, distribution, recipients: recipients.length ? recipients : undefined, ga4MeasurementId: state.ga4MeasurementId.trim() || null, designConfig, googleReview } },
+        { id: editId, patch: { ...comun, ...(preguntasCambiaron ? { questions } : {}) } },
         { onSuccess: () => { triggerToast('Encuesta actualizada'); navigate('/surveys'); } },
       );
       return;
     }
-    createMutation.mutate(
-      {
-        title: state.title.trim(),
-        type: state.type,
-        clientId: state.type === 'customer' ? state.clientId : undefined,
-        questions,
-        distribution,
-        recipients: recipients.length ? recipients : undefined,
-        ga4MeasurementId: state.ga4MeasurementId.trim() || null,
-        designConfig,
-        googleReview,
-      },
-      { onSuccess: () => { triggerToast('Encuesta creada'); navigate('/surveys'); } },
-    );
+    createMutation.mutate({ ...comun, questions }, { onSuccess: () => { triggerToast(duplicarId ? 'Copia creada como borrador' : 'Encuesta creada'); navigate('/surveys'); } });
   };
+
+  const conVista = step <= 2;
 
   return (
     <div className="page survey-module">
       <PageHero
         eyebrow="MEDICIÓN"
-        title={editId ? 'Editar encuesta' : 'Nueva encuesta'}
-        subtitle="Define público, preguntas, diseño, distribución y revisión."
+        title={editId ? 'Editar encuesta' : duplicarId ? 'Duplicar encuesta' : 'Nueva encuesta'}
+        subtitle="Inicio, preguntas, diseño, distribución y revisión."
       />
-      <form
-        className="wizard-shell"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (step < STEPS.length - 1) {
-            if (stepReady[step]) setStep((current) => Math.min(STEPS.length - 1, current + 1));
-            return;
-          }
-          submit();
-        }}
-      >
-        <WizardProgress
-          steps={STEPS}
-          currentIndex={step}
-          onStepSelect={setStep}
-          isStepDisabled={(index) => index > step && !stepReady.slice(0, index).every(Boolean)}
-        />
-
-        {step === 0 && <SurveyTypesSelector value={state.type} clientId={state.clientId} clients={clients} onChange={(type) => setState((current) => ({ ...current, type, clientId: type === 'internal' ? '' : current.clientId }))} onClientChange={(clientId) => setState((current) => ({ ...current, clientId }))} />}
-        {step === 0 && (
-          <label>Nombre de la encuesta
-            <input className="input" required value={state.title} onChange={(event) => setState((current) => ({ ...current, title: event.target.value }))} placeholder="Ej. Satisfacción clientes agosto" />
-          </label>
-        )}
-        {step === 1 && <QuestionsEditor questions={state.questions} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
-        {step === 2 && <div className="wizard-step-body">
-          <p className="page-subtitle">Ajusta la página pública de respuesta sin mezclarla con Reservas.</p>
-          <div className="survey-design-grid">
-            <label>Color principal<input type="color" value={state.primaryColor} onChange={e => setState(c => ({...c, primaryColor: e.target.value}))} /></label>
-            <label>Acento<input type="color" value={state.accentColor} onChange={e => setState(c => ({...c, accentColor: e.target.value}))} /></label>
-            <label>Fondo<input type="color" value={state.backgroundColor} onChange={e => setState(c => ({...c, backgroundColor: e.target.value}))} /></label>
-            <label>Texto<input type="color" value={state.textColor} onChange={e => setState(c => ({...c, textColor: e.target.value}))} /></label>
-          </div>
-          <div className="form-row">
-            <label>Tipo de letra<select className="input" value={state.fontFamily} onChange={e => setState(c => ({...c, fontFamily: e.target.value}))}><option value="system-ui">Sistema</option><option value="Inter, sans-serif">Inter</option><option value="Georgia, serif">Georgia</option></select></label>
-            <label>Tipo de fondo<select className="input" value={state.backgroundMode} onChange={e => setState(c => ({...c, backgroundMode: e.target.value}))}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
-          </div>
-          {state.backgroundMode === 'gradient' && <label>Degradado<input className="input" value={state.backgroundGradient} onChange={e => setState(c => ({...c, backgroundGradient: e.target.value}))} placeholder="linear-gradient(...)" /></label>}
-          {state.backgroundMode === 'image' && <>
-            <ImageUpload label="Imagen de fondo" value={state.backgroundImage} onChange={(url) => setState(c => ({...c, backgroundImage: url}))} placeholder="https://..." maxSizeMB={5} />
-            <label>Claridad del fondo ({state.backgroundOpacity}%)<input type="range" min="0" max="100" value={state.backgroundOpacity} onChange={e => setState(c => ({...c, backgroundOpacity: e.target.value}))} /></label>
-          </>}
-          <ImageUpload label="Logo de la encuesta" value={state.logoUrl} onChange={(url) => setState(c => ({...c, logoUrl: url}))} placeholder="https://..." maxSizeMB={3} />
-          <label>Mensaje de bienvenida<textarea className="input" rows={3} value={state.welcome} onChange={e => setState(c => ({...c, welcome: e.target.value}))} placeholder="Queremos saber tu opinión." /></label>
-          <label>ID de medición Google Analytics 4<input className="input" value={state.ga4MeasurementId} onChange={e => setState(c => ({...c, ga4MeasurementId: e.target.value.trim()}))} placeholder="G-XXXXXXXXXX" /><small>Encuestas usa GA4 para medir respuestas; no activa Meta CAPI.</small></label>
-          <details className="survey-optional-box">
-            <summary>Google Reviews</summary>
-            <label>URL de Google Reviews<input className="input" value={state.googleReviewUrl} onChange={e => setState(c => ({...c, googleReviewUrl: e.target.value}))} placeholder="https://g.page/r/..." /></label>
-            <div className="form-row"><label>Estrellas mínimas para redirigir directo<input className="input" type="number" min={1} max={5} value={state.googleReviewMinRating} onChange={e => setState(c => ({...c, googleReviewMinRating: Number(e.target.value)}))} /></label></div>
-            <label>Mensaje si la calificación es baja<textarea className="input" rows={2} value={state.googleReviewLowMsg} onChange={e => setState(c => ({...c, googleReviewLowMsg: e.target.value}))} placeholder="Gracias por avisarnos. Revisaremos tu caso." /></label>
-          </details>
-        </div>}
-        {step === 3 && (
-          <DistributionSelector
-            selected={state.distribution}
-            recipients={state.recipients}
-            onToggleChannel={(channel) => setState((current) => ({
-              ...current,
-              distribution: current.distribution.includes(channel) ? current.distribution.filter((value) => value !== channel) : [...current.distribution, channel],
-            }))}
-            onRecipientsChange={(recipients) => setState((current) => ({ ...current, recipients }))}
+      <div className={`survey-editor ${conVista ? 'con-vista' : ''}`}>
+        <form
+          className="wizard-shell"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (step < STEPS.length - 1) {
+              if (stepReady[step]) setStep((current) => Math.min(STEPS.length - 1, current + 1));
+              return;
+            }
+            submit();
+          }}
+        >
+          <WizardProgress
+            steps={STEPS}
+            currentIndex={step}
+            onStepSelect={setStep}
+            isStepDisabled={(index) => index > step && !stepReady.slice(0, index).every(Boolean)}
           />
-        )}
-        {step === 4 && <ReviewAndSubmit state={state} isEdit={Boolean(editId)} />}
 
-        {mutation.error && <div className="alert alert-error">{mutation.error.message}</div>}
+          {step === 0 && <PasoInicio state={state} setState={setState} clients={clients} bloqueadas={bloqueadas} isEdit={Boolean(editId)} />}
+          {step === 1 && <PasoPreguntas questions={state.questions} bloqueadas={bloqueadas} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
+          {step === 2 && <PasoDiseno state={state} setState={setState} />}
+          {step === 3 && (
+            <DistributionSelector
+              selected={state.distribution}
+              recipients={state.recipients}
+              onToggleChannel={(channel) => setState((current) => ({
+                ...current,
+                distribution: current.distribution.includes(channel) ? current.distribution.filter((value) => value !== channel) : [...current.distribution, channel],
+              }))}
+              onRecipientsChange={(recipients) => setState((current) => ({ ...current, recipients }))}
+              ga4={state.ga4MeasurementId}
+              onGa4Change={(ga4MeasurementId) => setState((current) => ({ ...current, ga4MeasurementId }))}
+            />
+          )}
+          {step === 4 && <ReviewAndSubmit state={state} isEdit={Boolean(editId)} />}
 
-        <div className="modal-actions">
-          <button type="button" className="btn btn-outline" onClick={() => (step === 0 ? navigate('/surveys') : setStep((current) => current - 1))}>
-            {step === 0 ? 'Cancelar' : 'Volver'}
-          </button>
-          <button className="btn btn-primary" disabled={mutation.isPending || !stepReady[step]}>
-            {mutation.isPending ? 'Guardando...' : step < STEPS.length - 1 ? 'Continuar' : editId ? 'Guardar cambios' : 'Crear encuesta'}
-          </button>
-        </div>
-      </form>
+          {mutation.error && <div className="alert alert-error">{mutation.error.message}</div>}
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-outline" onClick={() => (step === 0 ? navigate('/surveys') : setStep((current) => current - 1))}>
+              {step === 0 ? 'Cancelar' : 'Volver'}
+            </button>
+            <button className="btn btn-primary" disabled={mutation.isPending || !stepReady[step]}>
+              {mutation.isPending ? 'Guardando...' : step < STEPS.length - 1 ? 'Continuar' : editId ? 'Guardar cambios' : 'Crear encuesta'}
+            </button>
+          </div>
+        </form>
+        {conVista && <VistaPrevia state={state} />}
+      </div>
     </div>
   );
 }

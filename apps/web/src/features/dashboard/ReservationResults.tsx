@@ -1,4 +1,5 @@
 import { useMemo, useState, type JSX } from 'react';
+import { CanalesQueReservan } from './CanalesQueReservan';
 import {
   Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart,
   Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -352,6 +353,8 @@ export function ReservationResults({ clientId, headingLevel = 2, detalle = false
                   )}
                 </div>
               </div>}
+
+              {detalle && data?.canales && <CanalesQueReservan canales={data.canales} />}
 
               {detalle && <div className="dashboard-chart-card viz-full">
                 <h3>Medio, campaña y anuncio</h3>

@@ -11,6 +11,8 @@ import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
 import { CompleteSurveyResponseDto, StartSurveyResponseDto, SubmitSurveyResponseDto } from './dto/survey.dto';
 import { PublicSurveyFlowService } from './public-survey-flow.service';
+import { problemasDeRespuesta } from '@espartanos/shared';
+import { aceptacionAGuardar, consentimientoDeEncuesta, contactoEscrito } from './consentimiento-de-encuesta';
 
 function publicSurveyUrl(id: string): string | undefined {
   const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
@@ -52,7 +54,7 @@ export class PublicSurveysController {
    * Se arma explícitamente en vez de quitar campos del objeto completo: así, un campo nuevo en la
    * encuesta no se publica solo por haberse añadido.
    */
-  private toContract(survey: Survey): SurveyContract {
+  private async toContract(survey: Survey): Promise<SurveyContract> {
     return {
       id: survey.id,
       title: survey.title,
@@ -64,6 +66,8 @@ export class PublicSurveysController {
       ga4MeasurementId: survey.ga4MeasurementId ?? null,
       designConfig: survey.designConfig ?? undefined,
       googleReview: survey.googleReview ?? undefined,
+      // Sólo si pide datos personales: el texto exacto que se acepta.
+      consentimiento: await consentimientoDeEncuesta(this.surveys.manager, survey),
     } as SurveyContract;
   }
 
@@ -87,13 +91,16 @@ export class PublicSurveysController {
     const unknown = Object.keys(dto.answers ?? {}).filter((key) => !known.has(key));
     if (unknown.length > 0) throw new BadRequestException(`La encuesta no tiene las preguntas: ${unknown.join(', ')}`);
 
-    const missing = (survey.questions ?? [])
-      .filter((question) => question.required)
-      .filter((question) => {
-        const value = dto.answers?.[question.id];
-        return value === undefined || value === null || value === '';
-      });
-    if (missing.length > 0) throw new BadRequestException('Faltan respuestas obligatorias');
+    // Obligatorias según lo que la persona vio, y datos de contacto con formato válido.
+    const problemas = problemasDeRespuesta(survey.questions ?? [], dto.answers ?? {});
+    if (problemas.length > 0) throw new BadRequestException(problemas.join(' · '));
+    let aceptacion: { privacyConsentAt?: Date; privacyConsentText?: string };
+    try {
+      aceptacion = await aceptacionAGuardar(this.surveys.manager, survey, dto.answers ?? {}, dto.aceptaPrivacidad);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Falta aceptar el uso de tus datos');
+    }
+    const escrito = contactoEscrito(survey.questions ?? [], dto.answers ?? {});
 
     const saved = await this.responses.manager.transaction(async (manager) => {
       const response = await manager.save(manager.create(SurveyResponse, {
@@ -101,6 +108,9 @@ export class PublicSurveysController {
         surveyId: survey.id,
         respondentId: `public:${(dto.respondentId?.trim() || 'link').slice(0, 40)}:${randomUUID()}`.slice(0, 100),
         answers: dto.answers ?? {},
+        respondentName: escrito.nombre ?? null,
+        respondentEmail: escrito.correo ?? null,
+        ...aceptacion,
       }));
       await manager.increment(Survey, { id: survey.id }, 'responseCount', 1);
       return response;

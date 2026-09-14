@@ -587,7 +587,7 @@ export function ReservationBuilderPage() {
     {step === 2 && <div className="builder-stage">
       <div className="stage-heading"><span className="page-eyebrow">ENTORNO VISUAL</span><h2>Haz que {surveyMode ? 'la encuesta' : 'la reserva'} se sienta propia.</h2><p>Elige una plantilla y ajusta solo lo que quieras cambiar. Cada bloque cerrado ya trae un valor que funciona.</p></div>
       <div className="design-studio">
-        <DesignStudioControls design={design} fields={fields} surveyMode={surveyMode} onChange={(designConfig) => change({ designConfig, fieldSchema: sincronizarPreguntaDeOcasiones(designConfig, fields) })} onAsset={saveDesignAsset} />
+        <DesignStudioControls design={design} fields={fields} surveyMode={surveyMode} onChange={(designConfig) => change({ designConfig, fieldSchema: sincronizarPreguntaDeOcasiones(designConfig, fields) })} onAsset={saveDesignAsset} clientId={draft.clientId} />
         <div className="design-preview-column">
           <div className="preview-device-toggle"><button type="button" className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>Vista móvil</button><button type="button" className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>Vista escritorio</button></div>
           <ReservationLivePreview draft={draft} fields={fields} previewDevice={previewDevice} style={designPreviewStyle} />
@@ -706,7 +706,7 @@ export function ReservationBuilderPage() {
 
     {step === 4 && <div className="builder-stage builder-stage-ajustes">
       <div className="stage-heading"><span className="page-eyebrow">DATOS DEL LOCAL</span><h2>Quién responde, a quién se avisa y qué se acepta</h2><p>Contacto, correos, consentimientos y zonas de esta sucursal.</p></div>
-      <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2></div><div className="form-row"><label>Razón social o responsable<input className="input" value={String(draft.designConfig?.legalCompanyName || '')} onChange={(e) => cambiarAjuste('legalCompanyName', e.target.value)} /></label><label>RUT / identificador<input className="input" value={String(draft.designConfig?.legalCompanyId || '')} onChange={(e) => cambiarAjuste('legalCompanyId', e.target.value)} /></label><label>WhatsApp del local<input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label></div><div className="form-row"><label>URL de privacidad<input className="input" type="url" value={String(draft.designConfig?.privacyUrl || '')} onChange={(e) => cambiarAjuste('privacyUrl', e.target.value)} placeholder="https://..." /></label><label>URL de condiciones<input className="input" type="url" value={String(draft.designConfig?.termsUrl || '')} onChange={(e) => cambiarAjuste('termsUrl', e.target.value)} placeholder="https://..." /></label></div></section>
+      <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2><p className="page-subtitle">Se toman de la ficha de la empresa. Escribe aquí sólo si esta sucursal usa otros.</p></div><div className="form-row"><label>Razón social o responsable<input className="input" placeholder={draft.datosLegalesEmpresa?.legalName || 'Completa la ficha de la empresa'} value={String(draft.designConfig?.legalCompanyName || '')} onChange={(e) => cambiarAjuste('legalCompanyName', e.target.value)} /></label><label>RUT / identificador<input className="input" placeholder={draft.datosLegalesEmpresa?.taxId || 'Completa la ficha de la empresa'} value={String(draft.designConfig?.legalCompanyId || '')} onChange={(e) => cambiarAjuste('legalCompanyId', e.target.value)} /></label><label>WhatsApp del local<input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label></div><div className="form-row"><label>URL de privacidad<input className="input" type="url" value={String(draft.designConfig?.privacyUrl || '')} onChange={(e) => cambiarAjuste('privacyUrl', e.target.value)} placeholder={draft.datosLegalesEmpresa?.privacyUrl || 'https://...'} /></label><label>URL de condiciones<input className="input" type="url" value={String(draft.designConfig?.termsUrl || '')} onChange={(e) => cambiarAjuste('termsUrl', e.target.value)} placeholder={draft.datosLegalesEmpresa?.termsUrl || 'https://...'} /></label></div></section>
       {/*
         * Los correos salen siempre desde el servidor de Espartanos. Esta casilla no cambia el
         * remitente: dice a qué bandejas del local llega el aviso de cada reserva nueva. Sin
@@ -717,7 +717,7 @@ export function ReservationBuilderPage() {
         */}
       <section className="reservation-readiness correos-del-local"><div><span className="page-eyebrow">CORREOS</span><h2>Quién envía, quién responde y a quién se avisa</h2><p className="page-subtitle">Tres casillas con tres funciones distintas.</p></div>
         <div className="correo-rol"><strong>1. Quién envía</strong><small>Los correos a quien reserva salen desde la casilla general del sistema. No se cambia aquí.</small></div>
-        <label className="correo-rol"><strong>2. A dónde llegan las respuestas del cliente</strong><small>Si quien reserva contesta un correo, le llega a esta casilla. También se muestra en la página para cambios y cancelaciones.</small><input className="input" type="email" value={String(draft.designConfig?.supportEmail || '')} onChange={(e) => cambiarAjuste('supportEmail', e.target.value)} placeholder="contacto@local.cl" /></label>
+        <label className="correo-rol"><strong>2. A dónde llegan las respuestas del cliente</strong><small>Si quien reserva contesta un correo, le llega a esta casilla. También se muestra en la página para cambios y cancelaciones.</small><input className="input" type="email" value={String(draft.designConfig?.supportEmail || '')} onChange={(e) => cambiarAjuste('supportEmail', e.target.value)} placeholder={draft.datosLegalesEmpresa?.privacyEmail || 'contacto@local.cl'} /></label>
         <label className="correo-rol"><strong>3. A quién se avisa de cada reserva nueva</strong><small>Casillas del equipo, separadas por coma. También reciben los comentarios de encuestas con nota baja. No las ve quien reserva.</small><input className="input" value={teamEmails} onChange={(e) => change({ teamNotifications: e.target.value.split(/[,;\s]+/).map((email) => email.trim()).filter(Boolean) })} placeholder="reservas@local.cl, gerente@local.cl" /></label>{draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}</section>
       {/*
         * Tres finalidades distintas, tres casillas separadas.
@@ -763,7 +763,7 @@ export function ReservationBuilderPage() {
 export function sincronizarPreguntaDeOcasiones(design: DesignConfig, fields: FormField[]): FormField[] {
   const idConectado = design.ocasionesPreguntaId;
   if (!idConectado) return fields;
-  const titulos = leerOcasiones(design.ocasiones).map((ocasion) => ocasion.titulo.trim()).filter(Boolean);
+  const titulos = leerOcasiones(design.ocasiones).map((ocasion) => ocasion.titulo.trim()).filter((titulo) => titulo && titulo.toLowerCase() !== 'nueva ocasión');
   if (titulos.length === 0) return fields;
   const opciones = ['No', ...new Set(titulos.filter((titulo) => titulo.toLowerCase() !== 'no'))];
   return fields.map((field) => (field.id === idConectado && field.type === 'select' ? { ...field, options: opciones } : field));
@@ -791,12 +791,14 @@ function DesignStudioControls({
   surveyMode,
   onChange,
   onAsset,
+  clientId,
 }: {
   design: DesignConfig;
   fields: FormField[];
   surveyMode: boolean;
   onChange: (design: DesignConfig) => void;
   onAsset: (key: 'logoUrl' | 'backgroundImage', url: string) => void;
+  clientId?: string;
 }) {
   const update = (patch: Partial<DesignConfig>) => onChange({ ...design, ...patch });
   const backgroundMode = design.backgroundMode || (design.backgroundImage ? 'image' : 'color');
@@ -817,11 +819,11 @@ function DesignStudioControls({
         <div className="design-quick-help"><strong>Lo esencial</strong><small>Título, logo, colores y fondo. Lo demás son ajustes finos que ya vienen resueltos por la plantilla.</small></div>
         <label>Título público<input className="input" value={design.title || ''} onChange={(event) => update({ title: event.target.value })} /></label>
         <label>Frase bajo el título<textarea className="input" rows={3} value={design.welcome || ''} onChange={(event) => update({ welcome: event.target.value })} /></label>
-        <ImageUpload label="Logo de la empresa" value={design.logoUrl} onChange={(url) => onAsset('logoUrl', url)} placeholder="https://empresa.cl/logo.png" maxSizeMB={3} />
+        <ImageUpload label="Logo de la empresa" value={design.logoUrl} onChange={(url) => onAsset('logoUrl', url)} placeholder="https://empresa.cl/logo.png" maxSizeMB={3} maxWidth={480} clientId={clientId} />
         <div className="color-controls"><label>Principal<input type="color" value={design.primaryColor || '#0ec6b8'} onChange={(event) => update({ primaryColor: event.target.value })} /></label><label>Acento<input type="color" value={design.accentColor || '#ea0f63'} onChange={(event) => update({ accentColor: event.target.value })} /></label><label>Fondo<input type="color" value={design.backgroundColor || '#f6f4f5'} onChange={(event) => update({ backgroundColor: event.target.value })} /></label><label>Letras<input type="color" value={design.textColor || '#3f4e49'} onChange={(event) => update({ textColor: event.target.value })} /></label></div>
         <label>Tipo de fondo<select className="input" value={backgroundMode} onChange={(event) => update({ backgroundMode: event.target.value, ...(event.target.value === 'gradient' && !design.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) })}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
         {backgroundMode === 'gradient' && <label>Degradado<input className="input" value={design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT} onChange={(event) => update({ backgroundGradient: event.target.value })} /></label>}
-        {backgroundMode === 'image' && <ImageUpload label="Imagen de fondo" value={design.backgroundImage} onChange={(url) => onAsset('backgroundImage', url)} placeholder="https://..." maxSizeMB={5} />}
+        {backgroundMode === 'image' && <ImageUpload label="Imagen de fondo" value={design.backgroundImage} onChange={(url) => onAsset('backgroundImage', url)} placeholder="https://..." maxSizeMB={5} maxWidth={1920} clientId={clientId} />}
       </section>
 
       {!surveyMode && <details className="design-section">
@@ -841,7 +843,7 @@ function DesignStudioControls({
             <div className="ocasion-fila" key={indice}>
               <label>Título<input className="input" value={ocasion.titulo} onChange={(event) => { const lista = leerOcasiones(design.ocasiones); lista[indice] = { ...lista[indice], titulo: event.target.value }; update({ ocasiones: JSON.stringify(lista) }); }} /></label>
               <label>Texto corto<input className="input" value={ocasion.texto || ''} onChange={(event) => { const lista = leerOcasiones(design.ocasiones); lista[indice] = { ...lista[indice], texto: event.target.value }; update({ ocasiones: JSON.stringify(lista) }); }} /></label>
-              <ImageUpload label="Imagen" value={ocasion.imagen} maxSizeMB={3} placeholder="https://..." onChange={(url) => { const lista = leerOcasiones(design.ocasiones); lista[indice] = { ...lista[indice], imagen: url }; update({ ocasiones: JSON.stringify(lista) }); }} />
+              <ImageUpload label="Imagen" value={ocasion.imagen} maxSizeMB={3} maxWidth={800} clientId={clientId} placeholder="https://..." onChange={(url) => { const lista = leerOcasiones(design.ocasiones); lista[indice] = { ...lista[indice], imagen: url }; update({ ocasiones: JSON.stringify(lista) }); }} />
               <button type="button" className="btn btn-outline btn-xs" onClick={() => { const lista = leerOcasiones(design.ocasiones).filter((_, i) => i !== indice); update({ ocasiones: JSON.stringify(lista) }); }}>Quitar</button>
             </div>
           ))}

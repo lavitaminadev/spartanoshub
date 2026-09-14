@@ -407,6 +407,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = await this.clientCapabilities(form.organizationId, form.clientId, manager?.query.bind(manager));
         if (!capabilities.reservations)
             throw new common_1.NotFoundException('Este formulario no está disponible');
+        await this.completarDatosLegales(form, manager?.query.bind(manager));
         try {
             this.validateConfiguration(form);
         }
@@ -429,8 +430,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = await this.clientCapabilities(organizationId, clientId);
         const { pixelId, pixelName, accessToken } = capabilities.metaConversions ? await this.getClientMetaConfig(clientId, organizationId) : { pixelId: '', pixelName: null, accessToken: undefined };
         const google = await this.dataSource.query('SELECT 1 FROM integrations WHERE organization_id = ? AND provider = ? LIMIT 1', [organizationId, 'google']);
+        const legales = await this.dataSource.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode FROM clients WHERE id = ? LIMIT 1', [clientId]).catch(() => []);
+        const datosLegalesEmpresa = legales?.[0] ? { legalName: legales[0].legal_name, taxId: legales[0].tax_id, privacyEmail: legales[0].privacy_email, privacyUrl: legales[0].privacy_url, termsUrl: legales[0].terms_url, legalMode: legales[0].legal_mode } : null;
         const companyDailyCap = await this.clientDailyCap(this.dataSource, clientId);
-        return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap };
+        return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap, datosLegalesEmpresa };
     }
     effectiveRules(form, serviceId, resourceId) {
         const { services, resources } = this.configs(form);
@@ -613,15 +616,45 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.ConflictException('Ese horario acaba de ocuparse. Selecciona una alternativa.');
         return { ...rules, endsAt, available: rules.capacity - used };
     }
+    async completarDatosLegales(form, queryFn) {
+        try {
+            const q = queryFn || this.dataSource.query.bind(this.dataSource);
+            const filas = await q('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text FROM clients WHERE id = ? LIMIT 1', [form.clientId]);
+            const empresa = filas?.[0];
+            if (!empresa)
+                return;
+            const design = { ...form.designConfig };
+            design.legalCompanyName ||= empresa.legal_name || undefined;
+            design.legalCompanyId ||= empresa.tax_id || undefined;
+            design.supportEmail ||= empresa.privacy_email || undefined;
+            const sucursalEnlaza = Boolean(design.privacyUrl || design.termsUrl);
+            if (!sucursalEnlaza && empresa.legal_mode === 'texto') {
+                design.legalMode = 'texto';
+                design.privacyText = empresa.privacy_text || undefined;
+                design.termsText = empresa.terms_text || undefined;
+            }
+            else {
+                design.legalMode = 'enlace';
+                design.privacyUrl ||= empresa.privacy_url || undefined;
+                design.termsUrl ||= empresa.terms_url || undefined;
+            }
+            form.designConfig = design;
+        }
+        catch (err) {
+            this.logger.warn(`Datos legales de la empresa no disponibles para ${form.id}: ${err instanceof Error ? err.message : err}`);
+        }
+    }
     consentTexts(form) {
         const design = form.designConfig;
         const controller = String(design.legalCompanyName || form.name).trim();
         const identifier = design.legalCompanyId ? `, ${String(design.legalCompanyId).trim()}` : '';
         const contact = design.supportEmail ? ` Puedes ejercer tus derechos de acceso, rectificación, supresión u oposición escribiendo a ${String(design.supportEmail).trim()}.` : '';
-        const privacy = design.privacyUrl ? ` Revisa la política de privacidad en ${String(design.privacyUrl).trim()}.` : '';
+        const privacy = design.legalMode === 'texto' && design.privacyText
+            ? ' La política de privacidad está disponible en esta misma página.'
+            : design.privacyUrl ? ` Revisa la política de privacidad en ${String(design.privacyUrl).trim()}.` : '';
         const red = String(design.networkBrandName || 'Espartanos').trim();
         return {
-            reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija.${contact}${privacy}`),
+            reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija. La plataforma Espartanos los trata por encargo de ${controller}.${contact}${privacy}`),
             marketing: String(design.marketingConsentText || `Autorizo voluntariamente a ${controller}${identifier} a enviarme novedades, promociones y comunicaciones comerciales al correo o teléfono que indiqué. Es opcional, no condiciona mi reserva y puedo revocarla cuando quiera, sin costo, desde el enlace de cada mensaje${design.supportEmail ? ` o escribiendo a ${String(design.supportEmail).trim()}` : ''}.`),
             network: String(design.networkConsentText || `Autorizo que ${controller}${identifier} comparta mi nombre, mis datos de contacto y mis preferencias de visita con los demás locales de ${red}, para no tener que repetirlos al reservar en otro de ellos. Es opcional, no condiciona esta reserva, cada local responde por el uso que haga de esos datos y puedo revocarlo cuando quiera.${contact}`),
         };
@@ -1266,6 +1299,20 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         catch (err) {
             this.logger.warn(`No se pudo avisar el cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
         }
+    }
+    async datosLegalesDeEmpresa(organizationId, clientId) {
+        const filas = await this.dataSource.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
+        const fila = filas?.[0];
+        if (!fila)
+            throw new common_1.NotFoundException('Empresa no encontrada');
+        return { legalName: fila.legal_name, taxId: fila.tax_id, privacyEmail: fila.privacy_email, privacyUrl: fila.privacy_url, termsUrl: fila.terms_url, legalMode: fila.legal_mode === 'texto' ? 'texto' : 'enlace', privacyText: fila.privacy_text, termsText: fila.terms_text };
+    }
+    async guardarDatosLegalesDeEmpresa(organizationId, clientId, dto, actorId) {
+        const antes = await this.datosLegalesDeEmpresa(organizationId, clientId);
+        const limpio = (valor) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null);
+        await this.dataSource.query('UPDATE clients SET legal_name = ?, tax_id = ?, privacy_email = ?, privacy_url = ?, terms_url = ?, legal_mode = ?, privacy_text = ?, terms_text = ? WHERE id = ? AND organization_id = ?', [limpio(dto.legalName), limpio(dto.taxId), limpio(dto.privacyEmail), limpio(dto.privacyUrl), limpio(dto.termsUrl), dto.legalMode === 'texto' ? 'texto' : 'enlace', limpio(dto.privacyText), limpio(dto.termsText), clientId, organizationId]);
+        await this.audit.log({ organizationId, actorId, entityType: 'ClientLegalData', entityId: clientId, action: 'updated', before: antes, after: dto });
+        return this.datosLegalesDeEmpresa(organizationId, clientId);
     }
     async holdPublic(slug, dto) {
         if (dto.website)
@@ -2133,6 +2180,26 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     nombresDeZona.set(zona.id, zona.name);
         }
         const areasConNombre = areas.map((row) => ({ ...row, area: nombresDeZona.get(row.area) || row.area }));
+        const visitasPorCanal = await this.dataSource.query(`SELECT COALESCE(NULLIF(utm_source,''),'directo') source, MAX(utm_content='deteccion-automatica') detectado, COUNT(DISTINCT COALESCE(session_id, id)) visitas FROM reservation_form_events WHERE organization_id = ?${scope} AND type='view' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source`, params).catch(() => []);
+        const reservasPorCanal = new Map();
+        for (const fila of sources) {
+            const clave = fila.source || 'directo';
+            const actual = reservasPorCanal.get(clave) ?? { reservas: 0, asistieron: 0, detectado: false };
+            actual.reservas += Number(fila.total || 0);
+            actual.asistieron += Number(fila.attended || 0);
+            actual.detectado ||= fila.content === 'deteccion-automatica';
+            reservasPorCanal.set(clave, actual);
+        }
+        const nombresDeCanal = new Set([...reservasPorCanal.keys(), ...visitasPorCanal.map((fila) => fila.source)]);
+        const canales = [...nombresDeCanal].map((source) => {
+            const visitas = Number(visitasPorCanal.find((fila) => fila.source === source)?.visitas || 0);
+            const datos = reservasPorCanal.get(source) ?? { reservas: 0, asistieron: 0, detectado: false };
+            return {
+                source, visitas, reservas: datos.reservas, asistieron: datos.asistieron,
+                detectado: datos.detectado || Boolean(Number(visitasPorCanal.find((fila) => fila.source === source)?.detectado || 0)),
+                conversion: visitas > 0 ? Math.round((datos.reservas / visitas) * 1000) / 10 : null,
+            };
+        }).sort((a, b) => b.reservas - a.reservas || b.visitas - a.visitas).slice(0, 15);
         const personasUnicas = Number(recurrentes[0]?.personas || 0);
         const horasDeAnticipacion = anticipacion[0]?.horas === null || anticipacion[0]?.horas === undefined ? null : Math.round(Number(anticipacion[0].horas));
         return {
@@ -2143,7 +2210,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 repiten: Number(recurrentes[0]?.repiten || 0),
                 porcentaje: personasUnicas > 0 ? Math.round((Number(recurrentes[0]?.repiten || 0) / personasUnicas) * 100) : null,
             },
-            totals: totals[0] || {}, daily, sources, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum
+            totals: totals[0] || {}, daily, sources, canales, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum
         };
     }
     async occupancyCalendar(organizationId, month, clientId, clientIds, formId) {

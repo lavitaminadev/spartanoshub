@@ -30,3 +30,15 @@
   .viz-stat-row { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .viz-controls { flex-wrap: wrap; }
 }
+
+/* Canales que más reservan */
+.canales-reservan-hallazgos { display: grid; gap: 6px; margin: 4px 0 12px; padding: 0; list-style: none; }
+.canales-reservan-hallazgos li { padding: 9px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45; }
+.canales-reservan-hallazgos .is-bien { background: #e8f6f1; color: #0b5a45; }
+.canales-reservan-hallazgos .is-alerta { background: #fff4e5; color: #6b4200; }
+.canales-reservan-hallazgos .is-info { background: #f1f0f7; color: #3d3a52; }
+.canales-reservan-nombre { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.canales-reservan-detectado { padding: 1px 6px; border-radius: 999px; background: #eef2ff; color: #3b4a8a; font-size: 10px; font-weight: 700; }
+.canales-reservan-poco { color: var(--muted, #7a7278); font-size: 11px; }
+.canales-reservan-barra { display: block; height: 4px; margin-top: 5px; border-radius: 4px; background: #efeaee; overflow: hidden; max-width: 180px; }
+.canales-reservan-barra span { display: block; height: 100%; background: var(--cyan, #0fb9b1); border-radius: 4px; }

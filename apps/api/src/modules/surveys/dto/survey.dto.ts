@@ -9,6 +9,16 @@ const SURVEY_TYPES: SurveyType[] = ['internal', 'customer'];
 const SURVEY_STATUSES: SurveyStatus[] = ['draft', 'active', 'closed'];
 const CHANNELS: SurveyDistributionChannel[] = ['email', 'qr', 'link'];
 
+const DATOS = ['nombre', 'rut', 'correo', 'telefono'];
+
+export class SurveyShowRuleDto {
+  @IsString() @MaxLength(64)
+  preguntaId: string;
+
+  @IsArray() @IsString({ each: true }) @ArrayMaxSize(30)
+  valores: string[];
+}
+
 export class SurveyQuestionDto {
   /** Identificador estable dentro de la encuesta: las respuestas se guardan contra él. */
   @IsString() @MaxLength(64)
@@ -25,6 +35,12 @@ export class SurveyQuestionDto {
 
   @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(30)
   options?: string[];
+
+  @IsOptional() @IsIn(DATOS)
+  dato?: 'nombre' | 'rut' | 'correo' | 'telefono';
+
+  @IsOptional() @ValidateNested() @Type(() => SurveyShowRuleDto)
+  mostrarSi?: SurveyShowRuleDto;
 }
 
 export class CreateSurveyDto {
@@ -125,6 +141,10 @@ export class CompleteSurveyResponseDto {
 
   @IsOptional() @IsBoolean()
   terminar?: boolean;
+
+  /** Aceptación del uso de datos; obligatoria si lo enviado trae nombre, RUT, correo o teléfono. */
+  @IsOptional() @IsBoolean()
+  aceptaPrivacidad?: boolean;
 }
 
 export class SubmitSurveyResponseDto {
@@ -134,4 +154,7 @@ export class SubmitSurveyResponseDto {
   /** Respuesta por id de pregunta. Se valida contra las preguntas reales en el controlador. */
   @IsObject()
   answers: Record<string, string | number>;
+
+  @IsOptional() @IsBoolean()
+  aceptaPrivacidad?: boolean;
 }

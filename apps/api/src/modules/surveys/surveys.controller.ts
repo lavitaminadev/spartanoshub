@@ -9,6 +9,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { UserRole } from '../organizations/user-role.enum';
+import { problemasDeRespuesta } from '@espartanos/shared';
 import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
 import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto } from './dto/survey.dto';
@@ -230,6 +231,9 @@ export class SurveysController {
       reservationId: row.reservationId ?? null,
       teamMessage: row.teamMessage ?? null,
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+      privacyConsentAt: row.privacyConsentAt ? row.privacyConsentAt.toISOString() : null,
+      // El canal viaja en el id de quien responde: `public:<origen>:<uuid>` o `reserva:<id>`.
+      origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
       answers: row.answers ?? {},
     }));
     // La misma función que usa el frontend para su respaldo local: un solo cálculo evita que
@@ -248,13 +252,8 @@ export class SurveysController {
     const unknown = Object.keys(dto.answers ?? {}).filter((key) => !known.has(key));
     if (unknown.length > 0) throw new BadRequestException(`La encuesta no tiene las preguntas: ${unknown.join(', ')}`);
 
-    const missing = (survey.questions ?? [])
-      .filter((question) => question.required)
-      .filter((question) => {
-        const value = dto.answers?.[question.id];
-        return value === undefined || value === null || value === '';
-      });
-    if (missing.length > 0) throw new BadRequestException('Faltan respuestas obligatorias');
+    const problemas = problemasDeRespuesta(survey.questions ?? [], dto.answers ?? {});
+    if (problemas.length > 0) throw new BadRequestException(problemas.join(' · '));
 
     const saved = await this.dataSource.transaction(async (manager) => {
       const response = await manager.save(manager.create(SurveyResponse, {
@@ -329,10 +328,16 @@ export class SurveysController {
   }
 
   /** Las respuestas se guardan contra el id de la pregunta; repetirlo las volvería ambiguas. */
-  private assertUniqueQuestionIds(questions: Array<{ id: string }>): void {
+  private assertUniqueQuestionIds(questions: Array<{ id: string; question: string; type: string; dato?: string; mostrarSi?: { preguntaId: string } }>): void {
     const ids = questions.map((question) => question.id);
     if (new Set(ids).size !== ids.length) {
       throw new BadRequestException('Cada pregunta debe tener un identificador distinto');
+    }
+    for (const pregunta of questions) {
+      if (pregunta.mostrarSi && !questions.some((otra) => otra.id === pregunta.mostrarSi?.preguntaId && otra.id !== pregunta.id)) {
+        throw new BadRequestException(`La regla de «${pregunta.question}» apunta a una pregunta que no existe`);
+      }
+      if (pregunta.dato && pregunta.type !== 'text') throw new BadRequestException('Los datos de contacto deben ser de tipo texto');
     }
   }
 }

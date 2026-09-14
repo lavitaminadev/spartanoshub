@@ -243,6 +243,8 @@ describe('ReservationsService', () => {
       dataSource.query
         .mockResolvedValueOnce([{ status: 'active' }])
         .mockResolvedValueOnce([{ capabilities: { reservations: true, crm: true, metaConversions: false } }])
+        // Datos legales de la empresa, que completan los de la sucursal.
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ daily_reservation_cap: 2 }]);
 
       const result = await service.slots('evaluacion', day, 1);

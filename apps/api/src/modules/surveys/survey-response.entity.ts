@@ -38,5 +38,9 @@ export class SurveyResponse {
   /** Hash del token con que quien la creó puede completarla. El valor nunca se guarda. */
   @Column({ name: 'edit_token_hash', type: 'char', length: 64, nullable: true, select: false }) editTokenHash?: string | null;
 
+  /** Cuándo aceptó el uso de sus datos y el texto exacto, si la encuesta los pidió. */
+  @Column({ name: 'privacy_consent_at', type: 'timestamp', nullable: true }) privacyConsentAt?: Date | null;
+  @Column({ name: 'privacy_consent_text', type: 'text', nullable: true, select: false }) privacyConsentText?: string | null;
+
   @CreateDateColumn({ name: 'submitted_at' }) submittedAt: Date;
 }

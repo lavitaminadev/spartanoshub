@@ -19,7 +19,7 @@ import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLo
 import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
-import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
+import { CloseReservationDayDto, CompanyLegalDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
@@ -93,6 +93,8 @@ type DesignConfig = {
   fieldRadius?: string;
   fontFamily?: string;
   legalCompanyName?: string; legalCompanyId?: string; supportEmail?: string; privacyUrl?: string; termsUrl?: string;
+  /** Sólo en memoria, desde la ficha de la empresa: cómo mostrar privacidad y condiciones. */
+  legalMode?: string; privacyText?: string; termsText?: string;
   cancellationPolicy?: string; reservationConsentText?: string; marketingConsentText?: string; marketingConsentVersion?: string;
   /** Consumo esperado por persona, para que Meta pueda pujar por la reserva que deja más. */
   valorPorPersona?: string; moneda?: string;
@@ -450,6 +452,7 @@ export class ReservationsService {
     if (!capabilities.reservations) throw new NotFoundException('Este formulario no está disponible');
     // Un formulario publicado con configuracion invalida no debe mostrarle un error de validacion
     // al visitante: se registra para poder corregirlo y la pagina responde como no disponible.
+    await this.completarDatosLegales(form, manager?.query.bind(manager));
     try { this.validateConfiguration(form); } catch (err) {
       this.logger.error(`Formulario publicado ${form.id} (${slug}) tiene configuración inválida: ${err instanceof Error ? err.message : err}`);
       throw new NotFoundException('Este formulario no está disponible');
@@ -477,9 +480,11 @@ export class ReservationsService {
      * ofrecerlo.
      */
     const google = await this.dataSource.query('SELECT 1 FROM integrations WHERE organization_id = ? AND provider = ? LIMIT 1', [organizationId, 'google']);
+    const legales = await this.dataSource.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode FROM clients WHERE id = ? LIMIT 1', [clientId]).catch(() => []) as Array<Record<string, string | null>>;
+    const datosLegalesEmpresa = legales?.[0] ? { legalName: legales[0].legal_name, taxId: legales[0].tax_id, privacyEmail: legales[0].privacy_email, privacyUrl: legales[0].privacy_url, termsUrl: legales[0].terms_url, legalMode: legales[0].legal_mode } : null;
     // El tope diario de la empresa (en personas) se muestra junto al del local: manda el más estricto.
     const companyDailyCap = await this.clientDailyCap(this.dataSource, clientId);
-    return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap };
+    return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap, datosLegalesEmpresa };
   }
 
   private effectiveRules(form: ReservationForm, serviceId?: string, resourceId?: string) {
@@ -729,12 +734,48 @@ export class ReservationsService {
   }
 
   /** Texto generado por el servidor: el navegador no puede falsificar lo que se aceptó. */
+  /**
+   * Completa, sólo en memoria, los datos legales que la sucursal no tiene con los de su empresa.
+   *
+   * Se cargan una vez por empresa y sirven a todas sus sucursales; lo que una sucursal tenga
+   * escrito manda. El formulario no se guarda con esto: sólo se usa para mostrar y para el texto
+   * de las aceptaciones.
+   */
+  private async completarDatosLegales(form: ReservationForm, queryFn?: (sql: string, params?: unknown[]) => Promise<unknown>): Promise<void> {
+    try {
+      const q = queryFn || this.dataSource.query.bind(this.dataSource);
+      const filas = await q('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text FROM clients WHERE id = ? LIMIT 1', [form.clientId]) as Array<Record<string, string | null>>;
+      const empresa = filas?.[0];
+      if (!empresa) return;
+      const design = { ...(form.designConfig as DesignConfig) };
+      design.legalCompanyName ||= empresa.legal_name || undefined;
+      design.legalCompanyId ||= empresa.tax_id || undefined;
+      design.supportEmail ||= empresa.privacy_email || undefined;
+      // Un enlace propio de la sucursal manda; si no tiene, se usa lo de la empresa, en su modo.
+      const sucursalEnlaza = Boolean(design.privacyUrl || design.termsUrl);
+      if (!sucursalEnlaza && empresa.legal_mode === 'texto') {
+        design.legalMode = 'texto';
+        design.privacyText = empresa.privacy_text || undefined;
+        design.termsText = empresa.terms_text || undefined;
+      } else {
+        design.legalMode = 'enlace';
+        design.privacyUrl ||= empresa.privacy_url || undefined;
+        design.termsUrl ||= empresa.terms_url || undefined;
+      }
+      form.designConfig = design as ReservationForm['designConfig'];
+    } catch (err) {
+      this.logger.warn(`Datos legales de la empresa no disponibles para ${form.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   private consentTexts(form: ReservationForm) {
     const design = form.designConfig as DesignConfig;
     const controller = String(design.legalCompanyName || form.name).trim();
     const identifier = design.legalCompanyId ? `, ${String(design.legalCompanyId).trim()}` : '';
     const contact = design.supportEmail ? ` Puedes ejercer tus derechos de acceso, rectificación, supresión u oposición escribiendo a ${String(design.supportEmail).trim()}.` : '';
-    const privacy = design.privacyUrl ? ` Revisa la política de privacidad en ${String(design.privacyUrl).trim()}.` : '';
+    const privacy = design.legalMode === 'texto' && design.privacyText
+      ? ' La política de privacidad está disponible en esta misma página.'
+      : design.privacyUrl ? ` Revisa la política de privacidad en ${String(design.privacyUrl).trim()}.` : '';
     /*
      * Cada casilla dice quién trata los datos, para qué, por cuánto tiempo y cómo se revoca, y
      * ninguna arrastra a la otra: la operativa es lo mínimo para que exista la reserva, y las dos
@@ -745,7 +786,7 @@ export class ReservationsService {
      */
     const red = String(design.networkBrandName || 'Espartanos').trim();
     return {
-      reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija.${contact}${privacy}`),
+      reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija. La plataforma Espartanos los trata por encargo de ${controller}.${contact}${privacy}`),
       marketing: String(design.marketingConsentText || `Autorizo voluntariamente a ${controller}${identifier} a enviarme novedades, promociones y comunicaciones comerciales al correo o teléfono que indiqué. Es opcional, no condiciona mi reserva y puedo revocarla cuando quiera, sin costo, desde el enlace de cada mensaje${design.supportEmail ? ` o escribiendo a ${String(design.supportEmail).trim()}` : ''}.`),
       network: String(design.networkConsentText || `Autorizo que ${controller}${identifier} comparta mi nombre, mis datos de contacto y mis preferencias de visita con los demás locales de ${red}, para no tener que repetirlos al reservar en otro de ellos. Es opcional, no condiciona esta reserva, cada local responde por el uso que haga de esos datos y puedo revocarlo cuando quiera.${contact}`),
     };
@@ -1522,6 +1563,26 @@ export class ReservationsService {
     } catch (err) {
       this.logger.warn(`No se pudo avisar el cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
     }
+  }
+
+  /** Datos legales de una empresa, tal como los maneja ella en su portal. */
+  async datosLegalesDeEmpresa(organizationId: string, clientId: string) {
+    const filas = await this.dataSource.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]) as Array<Record<string, string | null>>;
+    const fila = filas?.[0];
+    if (!fila) throw new NotFoundException('Empresa no encontrada');
+    return { legalName: fila.legal_name, taxId: fila.tax_id, privacyEmail: fila.privacy_email, privacyUrl: fila.privacy_url, termsUrl: fila.terms_url, legalMode: fila.legal_mode === 'texto' ? 'texto' : 'enlace', privacyText: fila.privacy_text, termsText: fila.terms_text };
+  }
+
+  async guardarDatosLegalesDeEmpresa(organizationId: string, clientId: string, dto: CompanyLegalDto, actorId: string) {
+    const antes = await this.datosLegalesDeEmpresa(organizationId, clientId);
+    const limpio = (valor: string | null | undefined) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null);
+    await this.dataSource.query(
+      'UPDATE clients SET legal_name = ?, tax_id = ?, privacy_email = ?, privacy_url = ?, terms_url = ?, legal_mode = ?, privacy_text = ?, terms_text = ? WHERE id = ? AND organization_id = ?',
+      [limpio(dto.legalName), limpio(dto.taxId), limpio(dto.privacyEmail), limpio(dto.privacyUrl), limpio(dto.termsUrl), dto.legalMode === 'texto' ? 'texto' : 'enlace', limpio(dto.privacyText), limpio(dto.termsText), clientId, organizationId],
+    );
+    // Queda constancia: cambia lo que acepta quien reserve desde ahora.
+    await this.audit.log({ organizationId, actorId, entityType: 'ClientLegalData', entityId: clientId, action: 'updated', before: antes as never, after: dto as never });
+    return this.datosLegalesDeEmpresa(organizationId, clientId);
   }
 
   /** Conserva un cupo por diez minutos mientras la persona termina el formulario. */
@@ -2553,6 +2614,31 @@ export class ReservationsService {
       for (const zona of (form.resourcesConfig || []) as ResourceConfig[]) if (zona.id && zona.name) nombresDeZona.set(zona.id, zona.name);
     }
     const areasConNombre = (areas as Array<{ area: string; total: number }>).map((row) => ({ ...row, area: nombresDeZona.get(row.area) || row.area }));
+    // Canales: visitas y reservas de cada fuente, para ver cuál convierte. Lo detectado se separa
+    // de lo marcado con enlace para no presentar una suposición como dato.
+    const visitasPorCanal = await this.dataSource.query(
+      `SELECT COALESCE(NULLIF(utm_source,''),'directo') source, MAX(utm_content='deteccion-automatica') detectado, COUNT(DISTINCT COALESCE(session_id, id)) visitas FROM reservation_form_events WHERE organization_id = ?${scope} AND type='view' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source`,
+      params,
+    ).catch(() => []) as Array<{ source: string; detectado: number; visitas: number }>;
+    const reservasPorCanal = new Map<string, { reservas: number; asistieron: number; detectado: boolean }>();
+    for (const fila of sources as Array<{ source: string; content?: string; total: number; attended: number }>) {
+      const clave = fila.source || 'directo';
+      const actual = reservasPorCanal.get(clave) ?? { reservas: 0, asistieron: 0, detectado: false };
+      actual.reservas += Number(fila.total || 0);
+      actual.asistieron += Number(fila.attended || 0);
+      actual.detectado ||= fila.content === 'deteccion-automatica';
+      reservasPorCanal.set(clave, actual);
+    }
+    const nombresDeCanal = new Set([...reservasPorCanal.keys(), ...visitasPorCanal.map((fila) => fila.source)]);
+    const canales = [...nombresDeCanal].map((source) => {
+      const visitas = Number(visitasPorCanal.find((fila) => fila.source === source)?.visitas || 0);
+      const datos = reservasPorCanal.get(source) ?? { reservas: 0, asistieron: 0, detectado: false };
+      return {
+        source, visitas, reservas: datos.reservas, asistieron: datos.asistieron,
+        detectado: datos.detectado || Boolean(Number(visitasPorCanal.find((fila) => fila.source === source)?.detectado || 0)),
+        conversion: visitas > 0 ? Math.round((datos.reservas / visitas) * 1000) / 10 : null,
+      };
+    }).sort((a, b) => b.reservas - a.reservas || b.visitas - a.visitas).slice(0, 15);
     const personasUnicas = Number(recurrentes[0]?.personas || 0);
     const horasDeAnticipacion = anticipacion[0]?.horas === null || anticipacion[0]?.horas === undefined ? null : Math.round(Number(anticipacion[0].horas));
     return {
@@ -2563,7 +2649,7 @@ export class ReservationsService {
         repiten: Number(recurrentes[0]?.repiten || 0),
         porcentaje: personasUnicas > 0 ? Math.round((Number(recurrentes[0]?.repiten || 0) / personasUnicas) * 100) : null,
       },
-      totals: totals[0] || {}, daily, sources, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum };
+      totals: totals[0] || {}, daily, sources, canales, areas: areasConNombre, funnel: { views, starts: Number(funnel[0]?.starts || 0), completed: total, conversionRate: views ? Math.round(total * 1000 / views) / 10 : null }, days: daysNum };
   }
 
   /**

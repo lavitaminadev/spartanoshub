@@ -22,6 +22,7 @@ const passport_1 = require("@nestjs/passport");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
+const shared_2 = require("@espartanos/shared");
 const survey_entity_1 = require("./survey.entity");
 const survey_response_entity_1 = require("./survey-response.entity");
 const survey_dto_1 = require("./dto/survey.dto");
@@ -189,6 +190,8 @@ let SurveysController = class SurveysController {
             reservationId: row.reservationId ?? null,
             teamMessage: row.teamMessage ?? null,
             completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+            privacyConsentAt: row.privacyConsentAt ? row.privacyConsentAt.toISOString() : null,
+            origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
             answers: row.answers ?? {},
         }));
         return { ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses), respuestas: detalle };
@@ -201,14 +204,9 @@ let SurveysController = class SurveysController {
         const unknown = Object.keys(dto.answers ?? {}).filter((key) => !known.has(key));
         if (unknown.length > 0)
             throw new common_1.BadRequestException(`La encuesta no tiene las preguntas: ${unknown.join(', ')}`);
-        const missing = (survey.questions ?? [])
-            .filter((question) => question.required)
-            .filter((question) => {
-            const value = dto.answers?.[question.id];
-            return value === undefined || value === null || value === '';
-        });
-        if (missing.length > 0)
-            throw new common_1.BadRequestException('Faltan respuestas obligatorias');
+        const problemas = (0, shared_2.problemasDeRespuesta)(survey.questions ?? [], dto.answers ?? {});
+        if (problemas.length > 0)
+            throw new common_1.BadRequestException(problemas.join(' · '));
         const saved = await this.dataSource.transaction(async (manager) => {
             const response = await manager.save(manager.create(survey_response_entity_1.SurveyResponse, {
                 organizationId: req.organizationId,
@@ -261,6 +259,13 @@ let SurveysController = class SurveysController {
         const ids = questions.map((question) => question.id);
         if (new Set(ids).size !== ids.length) {
             throw new common_1.BadRequestException('Cada pregunta debe tener un identificador distinto');
+        }
+        for (const pregunta of questions) {
+            if (pregunta.mostrarSi && !questions.some((otra) => otra.id === pregunta.mostrarSi?.preguntaId && otra.id !== pregunta.id)) {
+                throw new common_1.BadRequestException(`La regla de «${pregunta.question}» apunta a una pregunta que no existe`);
+            }
+            if (pregunta.dato && pregunta.type !== 'text')
+                throw new common_1.BadRequestException('Los datos de contacto deben ser de tipo texto');
         }
     }
 };

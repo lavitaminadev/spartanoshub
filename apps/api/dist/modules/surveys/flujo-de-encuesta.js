@@ -6,6 +6,7 @@ exports.notaValida = notaValida;
 exports.siguientePaso = siguientePaso;
 exports.unirRespuestas = unirRespuestas;
 exports.obligatoriasPendientes = obligatoriasPendientes;
+const shared_1 = require("@espartanos/shared");
 exports.UMBRAL_POR_DEFECTO = 4;
 function preguntaDeNota(preguntas) {
     return preguntas.find((pregunta) => pregunta.type === 'rating');
@@ -29,7 +30,7 @@ function unirRespuestas(preguntas, guardadas, nuevas) {
 function obligatoriasPendientes(preguntas, respuestas) {
     const nota = preguntaDeNota(preguntas);
     return preguntas
-        .filter((pregunta) => pregunta.required && pregunta.id !== nota?.id)
+        .filter((pregunta) => pregunta.required && pregunta.id !== nota?.id && (0, shared_1.preguntaVisible)(pregunta, preguntas, respuestas))
         .filter((pregunta) => {
         const valor = respuestas[pregunta.id];
         return valor === undefined || valor === null || (typeof valor === 'string' && valor.trim() === '');

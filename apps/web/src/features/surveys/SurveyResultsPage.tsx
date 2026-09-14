@@ -3,16 +3,20 @@
  * elegida según su `QuestionType`, más la exportación a CSV del resumen agregado.
  */
 
-import { type JSX } from 'react';
+import { useMemo, useState, type JSX } from 'react';
 import { useParams } from 'react-router-dom';
 import { RespuestasPorPersona } from './RespuestasPorPersona';
+import { nombreDeOrigen } from './CompartirEncuesta';
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from 'recharts';
 import { PageHero } from '../../shared/PageHero';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
 import { useSurvey, useSurveyResults } from './useSurveys';
+import { computeSurveyResults, DATOS_DE_CONTACTO } from '@espartanos/shared';
 import type {
+  Survey,
+  SurveyIndividualResponse,
   ChoiceQuestionResult,
   NpsQuestionResult,
   RatingQuestionResult,
@@ -48,6 +52,97 @@ function exportResultsCsv(surveyTitle: string, summary: SurveyResultsSummary): v
   anchor.download = `${surveyTitle || 'encuesta'}-resultados-${new Date().toISOString().slice(0, 10)}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+/** Respuestas por persona a CSV: una fila por respuesta y una columna por pregunta. */
+function exportarRespuestasCsv(survey: Survey, respuestas: SurveyIndividualResponse[]): void {
+  const preguntas = survey.questions;
+  const header = ['Fecha', 'Nota', 'Nombre', 'Correo', 'Mensaje al equipo', 'Completó', 'Aceptó uso de datos', ...preguntas.map((q) => (q.dato ? DATOS_DE_CONTACTO[q.dato].etiqueta : q.question))];
+  const filas = respuestas.map((r) => [
+    new Date(r.submittedAt).toLocaleString('es-CL'), r.rating ?? '', r.respondentName ?? '', r.respondentEmail ?? '', r.teamMessage ?? '',
+    r.completedAt ? 'Sí' : 'No', r.privacyConsentAt ? new Date(r.privacyConsentAt).toLocaleString('es-CL') : '',
+    ...preguntas.map((q) => r.answers[q.id] ?? ''),
+  ]);
+  const csv = [header, ...filas].map((row) => row.map(csvValue).join(',')).join('\n');
+  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${survey.title || 'encuesta'}-respuestas-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+type Periodo = '7' | '30' | '90' | 'todo';
+const PERIODOS: Array<[Periodo, string]> = [['7', '7 días'], ['30', '30 días'], ['90', '90 días'], ['todo', 'Todo']];
+
+/** Lunes de la semana de una fecha, para agrupar la tendencia. */
+function inicioDeSemana(fecha: Date): Date {
+  const dia = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+  dia.setDate(dia.getDate() - ((dia.getDay() + 6) % 7));
+  return dia;
+}
+
+/** Respuestas y nota promedio de las últimas 8 semanas. */
+function TendenciaSemanal({ respuestas }: { respuestas: SurveyIndividualResponse[] }) {
+  const semanas = Array.from({ length: 8 }, (_, i) => {
+    const inicio = inicioDeSemana(new Date());
+    inicio.setDate(inicio.getDate() - (7 - i) * 7);
+    return inicio;
+  });
+  const datos = semanas.map((inicio) => {
+    const fin = new Date(inicio); fin.setDate(fin.getDate() + 7);
+    const deLaSemana = respuestas.filter((r) => { const f = new Date(r.submittedAt); return f >= inicio && f < fin; });
+    const notas = deLaSemana.map((r) => r.rating).filter((n): n is number => typeof n === 'number');
+    return { inicio, total: deLaSemana.length, promedio: notas.length ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10 : null };
+  });
+  const maximo = Math.max(1, ...datos.map((d) => d.total));
+  return (
+    <section className="results-tendencia" aria-label="Respuestas por semana">
+      <header><h3>Últimas 8 semanas</h3><small>Barra: respuestas · arriba: nota promedio</small></header>
+      <div className="results-tendencia-barras">
+        {datos.map((d) => (
+          <div key={d.inicio.toISOString()} className="results-tendencia-semana" title={`${d.total} respuestas${d.promedio !== null ? ` · promedio ${d.promedio}` : ''}`}>
+            <span className="results-tendencia-promedio">{d.promedio ?? '—'}</span>
+            <div className="results-tendencia-pista"><div style={{ height: `${(d.total / maximo) * 100}%` }} /></div>
+            <span className="results-tendencia-total">{d.total}</span>
+            <small>{d.inicio.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** De dónde llegaron las respuestas y cómo calificó cada canal. */
+function PorOrigen({ respuestas }: { respuestas: SurveyIndividualResponse[] }) {
+  const grupos = new Map<string, { total: number; notas: number[] }>();
+  for (const r of respuestas) {
+    const clave = r.origen || '';
+    const grupo = grupos.get(clave) ?? { total: 0, notas: [] };
+    grupo.total += 1;
+    if (typeof r.rating === 'number') grupo.notas.push(r.rating);
+    grupos.set(clave, grupo);
+  }
+  const filas = [...grupos.entries()].sort((a, b) => b[1].total - a[1].total);
+  const maximo = Math.max(1, ...filas.map(([, g]) => g.total));
+  return (
+    <section className="results-origen" aria-label="Respuestas por canal">
+      <header><h3>De dónde llegaron</h3><small>Según el enlace o QR usado</small></header>
+      {filas.length === 0 ? <p className="page-subtitle">Sin respuestas en este período.</p> : (
+        <ul>
+          {filas.map(([origen, g]) => (
+            <li key={origen}>
+              <span>{nombreDeOrigen(origen)}</span>
+              <div className="bar-track"><div className="bar-fill" style={{ width: `${(g.total / maximo) * 100}%`, background: 'var(--cyan, #0fb9b1)' }} /></div>
+              <b>{g.total}</b>
+              <small>{g.notas.length ? `${(g.notas.reduce((a, b) => a + b, 0) / g.notas.length).toFixed(1)}★` : '—'}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 /** Medidor semicircular del puntaje NPS, con el desglose de promotores/pasivos/detractores. */
@@ -186,6 +281,19 @@ export function SurveyResultsPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const { data: survey, isLoading: loadingSurvey, error: surveyError } = useSurvey(id);
   const { data: summary, isLoading: loadingResults, error: resultsError, refetch, isFetching } = useSurveyResults(survey);
+  const [periodo, setPeriodo] = useState<Periodo>('todo');
+
+  // Con el detalle por persona, todo se recalcula para el período con la misma función que usa el servidor.
+  const filtradas = useMemo(() => {
+    const todas = summary?.respuestas ?? [];
+    if (periodo === 'todo') return todas;
+    const desde = Date.now() - Number(periodo) * 86400000;
+    return todas.filter((r) => new Date(r.submittedAt).getTime() >= desde);
+  }, [summary?.respuestas, periodo]);
+  const resumen = useMemo(() => {
+    if (!survey || !summary?.respuestas) return summary;
+    return { ...summary, ...computeSurveyResults(survey, filtradas.map((r) => ({ surveyId: survey.id, respondentId: r.id, answers: r.answers, submittedAt: r.submittedAt }))), completionRate: summary.completionRate, respuestas: filtradas };
+  }, [survey, summary, filtradas]);
 
   if (loadingSurvey || (survey && loadingResults)) return <LoadingSpinner text="Cargando resultados..." />;
   if (surveyError) return <QueryErrorState title="No pudimos cargar la encuesta" message={surveyError.message} />;
@@ -193,7 +301,14 @@ export function SurveyResultsPage(): JSX.Element {
   if (resultsError) {
     return <QueryErrorState title="No pudimos cargar los resultados" message={resultsError.message} onRetry={() => void refetch()} retrying={isFetching} />;
   }
-  if (!summary) return <EmptyState icon="chart" title="Sin resultados todavía" description="Los resultados aparecerán en cuanto lleguen respuestas." />;
+  if (!summary || !resumen) return <EmptyState icon="chart" title="Sin resultados todavía" description="Los resultados aparecerán en cuanto lleguen respuestas." />;
+
+  const notas = filtradas.map((r) => r.rating).filter((n): n is number => typeof n === 'number');
+  const promedio = notas.length ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10 : null;
+  const nps = resumen.questions.find((q) => q.type === 'nps');
+  const conMensaje = filtradas.filter((r) => r.teamMessage).length;
+  const completaron = filtradas.length ? Math.round((filtradas.filter((r) => r.completedAt).length / filtradas.length) * 100) : null;
+  const hayDetalle = Boolean(summary.respuestas);
 
   return (
     <div className="page survey-module">
@@ -201,26 +316,45 @@ export function SurveyResultsPage(): JSX.Element {
         eyebrow="RESULTADOS"
         title={survey.title}
         subtitle={`${summary.totalResponses} respuesta${summary.totalResponses === 1 ? '' : 's'}${summary.completionRate !== null ? ` · ${summary.completionRate}% de finalización` : ''}`}
-        actions={<button type="button" className="btn btn-outline" onClick={() => exportResultsCsv(survey.title, summary)}>Exportar CSV</button>}
+        actions={<div className="results-acciones">
+          {hayDetalle && <button type="button" className="btn btn-primary" disabled={!filtradas.length} onClick={() => exportarRespuestasCsv(survey, filtradas)}>Exportar respuestas</button>}
+          <button type="button" className="btn btn-outline" onClick={() => exportResultsCsv(survey.title, resumen)}>Exportar resumen</button>
+        </div>}
       />
-      {summary.totalResponses > 0 && <div className="intake-summary" style={{marginBottom:20}}>
-        <div><span>Total respuestas</span><b>{summary.totalResponses}</b></div>
-        <div><span>Finalización</span><b>{summary.completionRate ?? '—'}%</b></div>
-        <div><span>Preguntas</span><b>{summary.questions.length}</b></div>
-        <div><span>NPS promedio</span><b>{(() => { const nps = summary.questions.find(q => q.type === 'nps'); return nps?.type === 'nps' ? nps.score ?? '—' : '—'; })()}</b></div>
+
+      {summary.totalResponses > 0 && hayDetalle && (
+        <div className="results-periodo" role="group" aria-label="Período">
+          {PERIODOS.map(([valor, etiqueta]) => (
+            <button key={valor} type="button" aria-pressed={periodo === valor} className={periodo === valor ? 'active' : ''} onClick={() => setPeriodo(valor)}>{etiqueta}</button>
+          ))}
+        </div>
+      )}
+
+      {summary.totalResponses > 0 && <div className="results-kpis">
+        <div><span>Respuestas</span><b>{resumen.totalResponses}</b></div>
+        {promedio !== null && <div className={promedio < 3.5 ? 'alerta' : ''}><span>Nota promedio</span><b>{promedio}<small>/5</small></b></div>}
+        {nps?.type === 'nps' && <div><span>NPS</span><b>{nps.score ?? '—'}</b></div>}
+        {hayDetalle && <div className={conMensaje ? 'alerta' : ''}><span>Mensajes al equipo</span><b>{conMensaje}</b></div>}
+        {completaron !== null && <div><span>Completaron todo</span><b>{completaron}%</b></div>}
+        {summary.completionRate !== null && <div><span>Tasa de respuesta</span><b>{summary.completionRate}%</b></div>}
       </div>}
 
-      {summary.totalResponses === 0 ? (
-        <EmptyState icon="chart" title="Todavía no hay respuestas" description="Cuando alguien responda, los resultados de cada pregunta aparecerán aquí." />
+      {summary.totalResponses > 0 && hayDetalle && <div className="results-medicion">
+        <TendenciaSemanal respuestas={summary.respuestas ?? []} />
+        <PorOrigen respuestas={filtradas} />
+      </div>}
+
+      {resumen.totalResponses === 0 ? (
+        <EmptyState icon="chart" title={summary.totalResponses === 0 ? 'Todavía no hay respuestas' : 'Sin respuestas en este período'} description={summary.totalResponses === 0 ? 'Cuando alguien responda, los resultados de cada pregunta aparecerán aquí.' : 'Elige un período más largo.'} />
       ) : (
         <div className="results-grid">
-          {summary.questions.map((result) => <QuestionResultCard key={result.questionId} result={result} />)}
+          {resumen.questions.map((result) => <QuestionResultCard key={result.questionId} result={result} />)}
         </div>
       )}
 
       {/* Presente cuando el servidor lo entrega; la copia local sin red no tiene quién respondió. */}
-      {summary.totalResponses > 0 && summary.respuestas && (
-        <RespuestasPorPersona respuestas={summary.respuestas} preguntas={survey.questions} />
+      {filtradas.length > 0 && (
+        <RespuestasPorPersona respuestas={filtradas} preguntas={survey.questions} />
       )}
     </div>
   );

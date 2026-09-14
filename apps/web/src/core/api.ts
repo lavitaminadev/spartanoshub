@@ -426,9 +426,10 @@ export const api = {
   },
 
   /** Sube un archivo usando el endpoint multipart seguro. */
-  upload<T = unknown>(path: string, file: File): Promise<T> {
+  upload<T = unknown>(path: string, file: File, fields?: Record<string, string>): Promise<T> {
     const body = new FormData();
     body.append('file', file);
+    Object.entries(fields ?? {}).forEach(([key, value]) => { if (value) body.append(key, value); });
     // La instancia global usa JSON por defecto. En algunos navegadores ese
     // header impedía que Multer recibiera el boundary multipart y el backend
     // respondía "Debes seleccionar una imagen" aunque el archivo sí estuviera

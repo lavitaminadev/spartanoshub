@@ -1,4 +1,5 @@
 import { Fragment, useDeferredValue, useEffect, useState } from 'react';
+import { PanelCompartir } from '../../shared/PanelCompartir';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -122,6 +123,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const navigate = useNavigate();
   const qc = useQueryClient();
   const requestedTab = searchParams.get('tab');
+  const [compartirForm, setCompartirForm] = useState<ReservationForm | null>(null);
   const [tab, setTab] = useState<'forms' | 'bookings' | 'groups' | 'metrics' | 'coupons'>(requestedTab === 'bookings' || requestedTab === 'groups' || requestedTab === 'metrics' || requestedTab === 'coupons' ? requestedTab : 'forms');
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [createStep, setCreateStep] = useState(0);
@@ -440,15 +442,6 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * a la configuración. El navegador puede negar el portapapeles —sin permiso, o fuera de HTTPS—,
    * así que el fallo se avisa en vez de quedar en silencio.
    */
-  const copiarEnlace = async (form: ReservationForm) => {
-    const enlace = formPublicUrl(form);
-    try {
-      await navigator.clipboard.writeText(enlace);
-      triggerToast('Enlace copiado');
-    } catch {
-      triggerToast('No se pudo copiar. El enlace es: ' + enlace);
-    }
-  };
 
   const resetFilters = (patch: Partial<typeof filters>) => { setFilters((current) => ({ ...current, ...patch })); setPage(1); };
 
@@ -472,7 +465,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <h2>{form.name}</h2><p>{formPublicUrl(form)}</p>
           {canReadPixels && (() => { const readiness = metaReadiness(form, pixelByClient.get(form.clientId)); return <span className={`meta-readiness is-${readiness.tone}`} title={readiness.title}>{readiness.label}</span>; })()}
           <div className="form-card-facts"><span>{form.durationMinutes} min</span><span>{form.capacityPerSlot} cupo(s)</span><span>{form.fieldSchema.length} campos</span></div>
-            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=disponibilidad`}>Bloquear día</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=ajustes#zonas`}>Zonas y sectores</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=diseno`}>Textos y diseño</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}<button className="btn btn-outline btn-sm" onClick={() => { void copiarEnlace(form); }}>Copiar enlace</button>{puedeAccion(useAuth.getState().user, 'reservations.exportar') && <button className="btn btn-outline btn-sm" onClick={() => { setExportFormId(form.id); setExportModalOpen(true); }}>Exportar</button>}{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
+            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=disponibilidad`}>Bloquear día</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=ajustes#zonas`}>Zonas y sectores</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=diseno`}>Textos y diseño</Link></>}{safeUrl(formPublicUrl(form)) ? <button type="button" className="btn btn-outline btn-sm" onClick={() => setCompartirForm(form)}>Compartir</button> : null}{puedeAccion(useAuth.getState().user, 'reservations.exportar') && <button className="btn btn-outline btn-sm" onClick={() => { setExportFormId(form.id); setExportModalOpen(true); }}>Exportar</button>}{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
           </article>)}
         </div>}
       </section>}
@@ -753,6 +746,17 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     <ConfirmDialog open={Boolean(confirmCoupon)} title="Desactivar cupón" description="¿Desactivar este cupón? Las reservas existentes no se verán afectadas." confirmLabel="Desactivar" pending={couponToggle.isPending} onClose={() => setConfirmCoupon(null)} onConfirm={() => { if (confirmCoupon) couponToggle.mutate(confirmCoupon); setConfirmCoupon(null); }} />
     <ConfirmDialog open={Boolean(confirmFormAction)} title="Pausar sucursal" description="Mientras esté pausada, quien abra su página verá un aviso y no podrá reservar. Las reservas ya hechas no se tocan." confirmLabel="Pausar" pending={updateFormMutation.isPending} onClose={() => setConfirmFormAction(null)} onConfirm={() => { if (!confirmFormAction) return; updateFormMutation.mutate({ id: confirmFormAction.id, status: 'paused' }); setConfirmFormAction(null); }} />
 
+    <PanelCompartir
+      abierto={Boolean(compartirForm)}
+      titulo="Compartir reservas"
+      nombre={compartirForm?.name ?? ''}
+      urlBase={compartirForm ? formPublicUrl(compartirForm) : ''}
+      textoAbrir="Abrir página de reservas ↗"
+      onCerrar={() => setCompartirForm(null)}
+      pie={compartirForm?.ga4MeasurementId || compartirForm?.metaCapiEnabled
+        ? 'La medición de esta sucursal recibe cada reserva con su canal y campaña.'
+        : 'El canal y la campaña quedan en cada reserva y en Resultados, aunque no uses Google Analytics ni Meta.'}
+    />
     <ExportModal open={exportModalOpen} onClose={() => { setExportModalOpen(false); setExportFormId(''); }} formId={exportFormId || filters.formId || undefined} clientView={clientView} />
   </div>;
 }

@@ -63,6 +63,14 @@ __decorate([
     __metadata("design:type", Object)
 ], SurveyResponse.prototype, "editTokenHash", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'privacy_consent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "privacyConsentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'privacy_consent_text', type: 'text', nullable: true, select: false }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "privacyConsentText", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'submitted_at' }),
     __metadata("design:type", Date)
 ], SurveyResponse.prototype, "submittedAt", void 0);

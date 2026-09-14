@@ -37,6 +37,7 @@ __exportStar(require("./types/approval"), exports);
 __exportStar(require("./types/integration"), exports);
 __exportStar(require("./types/survey"), exports);
 __exportStar(require("./survey-metrics"), exports);
+__exportStar(require("./survey-rules"), exports);
 __exportStar(require("./enums"), exports);
 __exportStar(require("./constants"), exports);
 __exportStar(require("./reglas-de-campo"), exports);
