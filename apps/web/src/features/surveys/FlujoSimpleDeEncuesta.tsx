@@ -19,7 +19,7 @@
 import { useState, type JSX } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import type { Survey, SurveyQuestion } from '@espartanos/shared';
-import { preguntasVisibles, problemasDeRespuesta, traeDatosPersonales } from '@espartanos/shared';
+import { ordenarParaMostrar, preguntasVisibles, problemasDeRespuesta, traeDatosPersonales } from '@espartanos/shared';
 import { AceptacionDeDatos } from './CampoDeEncuesta';
 import { api } from '../../core/api';
 import { safeUrl } from '../../core/safe-url';
@@ -61,7 +61,8 @@ export function FlujoSimpleDeEncuesta({
 
   // Las reglas pueden depender de la nota: se evalúan con ella incluida.
   const conNota = { ...respuestas, ...(notaElegida !== null ? { [preguntaNota.id]: notaElegida } : {}) };
-  const restantes = preguntasVisibles(survey.questions, conNota).filter((pregunta) => pregunta.id !== preguntaNota.id);
+  // La nota va sola primero para no perder esa respuesta; en el paso siguiente, los datos encabezan.
+  const restantes = ordenarParaMostrar(preguntasVisibles(survey.questions, conNota).filter((pregunta) => pregunta.id !== preguntaNota.id));
   const problemas = problemasDeRespuesta(survey.questions, conNota, [preguntaNota.id]);
   const faltaAceptar = Boolean(survey.consentimiento) && traeDatosPersonales(survey.questions, respuestas) && !aceptada;
   const soloVisibles = () => Object.fromEntries(Object.entries(respuestas).filter(([clave]) => restantes.some((pregunta) => pregunta.id === clave)));

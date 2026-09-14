@@ -113,17 +113,3 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .status-dropdown {
-    background: var(--dark-card, #1a1a1d);
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .status-option:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  .status-option.active {
-    background: rgba(14, 198, 184, 0.2);
-  }
-}

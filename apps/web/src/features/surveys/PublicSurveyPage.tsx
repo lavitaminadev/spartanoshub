@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type JSX } from 'react';
+import { Fragment, useEffect, useMemo, useState, type FormEvent, type JSX } from 'react';
 import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -7,7 +7,7 @@ import { safeUrl } from '../../core/safe-url';
 import { Ga4Tag } from '../../shared/Ga4Tag';
 import { trackGa4Event } from '../../shared/ga4-events';
 import type { Survey, SurveyQuestion, SurveyResponse } from '@espartanos/shared';
-import { preguntasVisibles, problemasDeRespuesta, traeDatosPersonales } from '@espartanos/shared';
+import { ordenarParaMostrar, preguntasVisibles, problemasDeRespuesta, traeDatosPersonales } from '@espartanos/shared';
 import { AceptacionDeDatos, CampoDeEncuesta } from './CampoDeEncuesta';
 import { estiloDeEncuesta } from './estilo-de-encuesta';
 import { FlujoSimpleDeEncuesta } from './FlujoSimpleDeEncuesta';
@@ -114,7 +114,7 @@ export function PublicSurveyPage(): JSX.Element {
     );
   }
 
-  const visibles = preguntasVisibles(survey.questions, answers);
+  const visibles = ordenarParaMostrar(preguntasVisibles(survey.questions, answers));
   const problemas = problemasDeRespuesta(survey.questions, answers);
   const faltaAceptar = Boolean(survey.consentimiento) && traeDatosPersonales(survey.questions, answers) && !aceptada;
   const rating = numericAnswer(answers, survey.questions);
@@ -153,7 +153,10 @@ export function PublicSurveyPage(): JSX.Element {
         <p>{design.welcome || 'Tu opinión ayuda a mejorar el servicio.'}</p>
 
         <div className="public-survey-questions">
-          {visibles.map((question) => (
+          {visibles.some((question) => question.dato) ? <h2 className="public-survey-grupo">Tus datos</h2> : null}
+          {visibles.map((question, indice) => (
+            <Fragment key={question.id}>
+            {question.dato ? null : !visibles[indice - 1] || visibles[indice - 1].dato ? (visibles.some((q) => q.dato) ? <h2 className="public-survey-grupo">Tu opinión</h2> : null) : null}
             <CampoDeEncuesta
               key={question.id}
               question={question}
@@ -161,6 +164,7 @@ export function PublicSurveyPage(): JSX.Element {
               mostrarError={intentoEnviar}
               onChange={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
             />
+            </Fragment>
           ))}
         </div>
 

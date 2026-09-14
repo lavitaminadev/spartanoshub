@@ -60,6 +60,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
   const statusMutation = useUpdateSurvey();
   const [confirmDelete, setConfirmDelete] = useState<Survey | null>(null);
   const [compartir, setCompartir] = useState<Survey | null>(null);
+  const [confirmarCierre, setConfirmarCierre] = useState<Survey | null>(null);
   const [correoDe, setCorreoDe] = useState<Survey | null>(null);
   const enviarCorreo = useMutation({
     mutationFn: (survey: Survey) => api.post<{ enviados: number; fallidos: number; invalidos: number }>(`/surveys/${encodeURIComponent(survey.id)}/send-email`, {}),
@@ -103,21 +104,22 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
     return !buscado || survey.title.toLowerCase().includes(buscado);
   });
 
-  /*
-   * El menú se abre fuera del contenedor con desplazamiento de la tabla: con posición fija queda
-   * visible entero en vez de cortarse en la última fila o columna.
-   */
-  const ubicarMenu = (detalles: HTMLDetailsElement) => {
-    const menu = detalles.querySelector<HTMLElement>("[role=menu]");
-    if (!detalles.open || !menu) return;
-    const caja = detalles.getBoundingClientRect();
-    const alto = menu.offsetHeight || 90;
-    menu.style.top = `${caja.bottom + alto + 8 > window.innerHeight ? Math.max(8, caja.top - alto - 4) : caja.bottom + 4}px`;
-    menu.style.left = `${Math.min(window.innerWidth - 168, Math.max(8, caja.right - 160))}px`;
+  const cambiarEstado = (survey: Survey) => {
+    const next = nextSurveyStatus(survey.status);
+    statusMutation.mutate(
+      { id: survey.id, patch: { status: next.status } },
+      { onSuccess: () => { triggerToast(next.toast); setConfirmarCierre(null); }, onError: (error) => triggerToast(`No se pudo cambiar estado: ${error.message}`, 'error') },
+    );
   };
 
   const columns: Column<Survey>[] = [
-    { key: 'title', label: 'Nombre', sortable: true },
+    {
+      key: 'title',
+      label: 'Nombre',
+      sortable: true,
+      render: (survey) => <span className="survey-nombre"><strong>{survey.title}</strong><small>{TYPE_LABELS[survey.type]}{survey.createdAt ? ` · ${new Date(survey.createdAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</small></span>,
+      exportValue: (survey) => `${survey.title} (${TYPE_LABELS[survey.type]}${survey.createdAt ? `, ${new Date(survey.createdAt).toLocaleDateString('es-CL')}` : ''})`,
+    },
     {
       key: 'clientId',
       label: 'Empresa',
@@ -131,12 +133,6 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
       exportValue: (survey) => (survey.clientId ? empresaPorId.get(survey.clientId)?.name ?? '' : 'Equipo interno'),
     },
     {
-      key: 'type',
-      label: 'Tipo',
-      render: (survey) => TYPE_LABELS[survey.type],
-      exportValue: (survey) => TYPE_LABELS[survey.type],
-    },
-    {
       key: 'status',
       label: 'Estado',
       render: (survey) => <StatusBadge status={survey.status} />,
@@ -144,46 +140,30 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
     },
     { key: 'responses', label: 'Respuestas', sortable: true },
     {
-      key: 'createdAt',
-      label: 'Fecha',
-      sortable: true,
-      sortValue: (survey) => survey.createdAt,
-      render: (survey) => survey.createdAt ? new Date(survey.createdAt).toLocaleDateString('es-CL') : 'Sin fecha',
-      exportValue: (survey) => survey.createdAt ? new Date(survey.createdAt).toLocaleDateString('es-CL') : '',
-    },
-    {
       key: 'actions',
       label: 'Acciones',
       exportable: false,
       render: (survey) => {
         const next = nextSurveyStatus(survey.status);
         return (
-          <div className="actions-cell survey-acciones">
-            <Link className="btn btn-outline btn-sm" to={soloLectura ? `/portal/surveys/${survey.id}/results` : `/surveys/${survey.id}/results`}>Resultados</Link>
-            {/* Publicada se puede abrir y compartir; en borrador el enlace todavía no responde. */}
-            {survey.status === 'active' && <button type="button" className="btn btn-primary btn-sm" onClick={() => setCompartir(survey)}>Compartir</button>}
-            {soloLectura && survey.status === 'active' && <a className="btn btn-outline btn-sm" href={survey.publicUrl || `/survey/${survey.id}`} target="_blank" rel="noopener noreferrer">Abrir ↗</a>}
-            {soloLectura ? null : <>
-            <Link className="btn btn-outline btn-sm" to={`/surveys/create?id=${survey.id}`}>Editar</Link>
-            <button
-              type="button"
-              className={survey.status === 'active' ? 'btn btn-outline btn-sm' : 'btn btn-primary btn-sm'}
-              disabled={statusMutation.isPending}
-              onClick={() => statusMutation.mutate(
-                { id: survey.id, patch: { status: next.status } },
-                { onSuccess: () => triggerToast(next.toast), onError: (error) => triggerToast(`No se pudo cambiar estado: ${error.message}`, 'error') },
+          <div className="survey-acciones">
+            <div className="survey-acciones-principales">
+              {/* Publicada se puede compartir; en borrador el enlace todavía no responde, y se ofrece publicar. */}
+              {survey.status === 'active' && <button type="button" className="btn btn-primary btn-sm" onClick={() => setCompartir(survey)}>Compartir</button>}
+              {!soloLectura && survey.status !== 'active' && (
+                <button type="button" className="btn btn-primary btn-sm" disabled={statusMutation.isPending} onClick={() => cambiarEstado(survey)}>{next.label}</button>
               )}
-            >
-              {next.label}
-            </button>
-            <details className="survey-mas" onToggle={(e) => ubicarMenu(e.currentTarget)}>
-              <summary className="btn btn-outline btn-sm" aria-label="Más acciones">⋯</summary>
-              <div role="menu" onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")}>
-                <Link role="menuitem" to={`/surveys/create?duplicar=${survey.id}`}>Duplicar</Link>
-                {canDeleteSurvey && <button role="menuitem" type="button" className="peligro" onClick={() => setConfirmDelete(survey)}>Eliminar</button>}
+              <Link className="btn btn-outline btn-sm" to={soloLectura ? `/portal/surveys/${survey.id}/results` : `/surveys/${survey.id}/results`}>Resultados</Link>
+              {soloLectura && survey.status === 'active' && <a className="btn btn-outline btn-sm" href={survey.publicUrl || `/survey/${survey.id}`} target="_blank" rel="noopener noreferrer">Abrir ↗</a>}
+            </div>
+            {!soloLectura && (
+              <div className="survey-acciones-secundarias">
+                <Link to={`/surveys/create?id=${survey.id}`}>Editar</Link>
+                <Link to={`/surveys/create?duplicar=${survey.id}`} title="Crear una copia como borrador">Duplicar</Link>
+                {survey.status === 'active' && <button type="button" disabled={statusMutation.isPending} onClick={() => setConfirmarCierre(survey)}>Cerrar</button>}
+                {canDeleteSurvey && <button type="button" className="peligro" onClick={() => setConfirmDelete(survey)}>Eliminar</button>}
               </div>
-            </details>
-            </>}
+            )}
           </div>
         );
       },
@@ -284,6 +264,17 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
         error={enviarCorreo.error?.message}
         onClose={() => setCorreoDe(null)}
         onConfirm={() => { if (correoDe) enviarCorreo.mutate(correoDe); }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(confirmarCierre)}
+        title="Cerrar encuesta"
+        description={`«${confirmarCierre?.title ?? ''}» dejará de recibir respuestas. Los enlaces y QR ya compartidos mostrarán que no está disponible. Puedes reabrirla cuando quieras.`}
+        confirmLabel="Cerrar encuesta"
+        pending={statusMutation.isPending}
+        error={statusMutation.error?.message}
+        onClose={() => setConfirmarCierre(null)}
+        onConfirm={() => { if (confirmarCierre) cambiarEstado(confirmarCierre); }}
       />
 
       <CompartirEncuesta survey={compartir} onCerrar={() => setCompartir(null)} puedeEnviarCorreo={puedeEnviar} onEnviarCorreo={(survey) => { setCompartir(null); enviarCorreo.reset(); setCorreoDe(survey); }} />

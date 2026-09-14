@@ -39,6 +39,7 @@ export function RespuestasPorPersona({ respuestas, preguntas }: { respuestas: Re
       correo: respuesta.respondentEmail || leer('correo'),
       telefono: leer('telefono'),
       rut: leer('rut'),
+      nacimiento: leer('nacimiento'),
     };
   };
 
@@ -103,6 +104,7 @@ export function RespuestasPorPersona({ respuestas, preguntas }: { respuestas: Re
                   {c.correo && <><dt>{DATOS_DE_CONTACTO.correo.etiqueta}</dt><dd><a href={`mailto:${c.correo}`}>{c.correo}</a></dd></>}
                   {c.telefono && <><dt>{DATOS_DE_CONTACTO.telefono.etiqueta}</dt><dd>{c.telefono}</dd></>}
                   {c.rut && <><dt>{DATOS_DE_CONTACTO.rut.etiqueta}</dt><dd>{c.rut}</dd></>}
+                  {c.nacimiento && <><dt>{DATOS_DE_CONTACTO.nacimiento.etiqueta}</dt><dd>{new Date(`${c.nacimiento}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</dd></>}
                   {respuesta.privacyConsentAt && <><dt>Aceptó uso de datos</dt><dd>{new Date(respuesta.privacyConsentAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</dd></>}
                   {detalle.length === 0 ? <><dt>Respuestas</dt><dd>No contestó más preguntas.</dd></> : detalle.map((item) => <Fragment key={item.pregunta}><dt>{item.pregunta}</dt><dd>{String(item.valor)}</dd></Fragment>)}
                 </dl>}

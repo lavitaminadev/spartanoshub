@@ -294,24 +294,6 @@
   .public-privacy-note { right: 8px; left: 8px; bottom: 8px; max-width: none; }
 }
 
-/* ─── DARK MODE SUPPORT ─── */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface-light: #0f172a;
-    --surface-lighter: #1e293b;
-    --text-primary: var(--soft);
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --border-color: #334155;
-  }
-
-  .public-field input,
-  .public-field select,
-  .public-field textarea {
-    background: #0f172a;
-    color: var(--text-primary);
-  }
-}
 
 /*
  * Recomendaciones del local en la confirmación.

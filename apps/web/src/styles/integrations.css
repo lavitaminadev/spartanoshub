@@ -286,8 +286,3 @@
 .portal-pendiente.es-alto { background: #fdf3e2; color: #8a5a12; }
 .portal-pendiente.es-ok { background: #e8f6ef; color: #0f6b4a; }
 
-@media (prefers-color-scheme: dark) {
-  .portal-pendiente.es-critico { background: #35201b; color: #e08c74; }
-  .portal-pendiente.es-alto { background: #322818; color: #e0b45e; }
-  .portal-pendiente.es-ok { background: #16302a; color: #5fc79b; }
-}

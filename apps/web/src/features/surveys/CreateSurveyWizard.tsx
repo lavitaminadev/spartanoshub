@@ -17,7 +17,7 @@ import { triggerToast } from '../../shared/toast-events';
 import { useCreateSurvey, useSurvey, useUpdateSurvey } from './useSurveys';
 import { api } from '../../core/api';
 import type { QuestionType, Survey, SurveyContactField, SurveyDistributionChannel, SurveyQuestion, SurveyType } from '@espartanos/shared';
-import { DATOS_DE_CONTACTO, preguntasVisibles } from '@espartanos/shared';
+import { DATOS_DE_CONTACTO, ORDEN_DE_DATOS, ordenarParaMostrar, preguntasVisibles } from '@espartanos/shared';
 import { CampoDeEncuesta } from './CampoDeEncuesta';
 import { estiloDeEncuesta } from './estilo-de-encuesta';
 import { PLANTILLAS, preguntaDeDato, preguntasDePlantilla } from './plantillas-de-encuesta';
@@ -44,7 +44,7 @@ const DISTRIBUTION_LABELS: Record<SurveyDistributionChannel, { label: string; de
   link: { label: 'Enlace directo', description: 'Comparte una URL abierta por cualquier canal propio.' },
 };
 
-const DATOS: SurveyContactField[] = ['nombre', 'rut', 'correo', 'telefono'];
+const DATOS: SurveyContactField[] = ORDEN_DE_DATOS;
 
 function blankQuestion(): SurveyQuestion {
   return { id: crypto.randomUUID(), type: 'rating', question: '', required: true };
@@ -184,7 +184,7 @@ function atajosDeValores(pregunta: SurveyQuestion): Array<{ etiqueta: string; va
 function VistaPrevia({ state }: { state: WizardState }) {
   const [modo, setModo] = useState<'escritorio' | 'celular'>('celular');
   const [respuestas, setRespuestas] = useState<Record<string, string | number>>({});
-  const visibles = preguntasVisibles(state.questions.filter((q) => q.question.trim()), respuestas);
+  const visibles = ordenarParaMostrar(preguntasVisibles(state.questions.filter((q) => q.question.trim()), respuestas));
   const pideDatos = state.questions.some((q) => q.dato);
   return (
     <aside className="survey-preview" aria-label="Vista previa">
@@ -579,7 +579,7 @@ export function CreateSurveyWizard(): JSX.Element {
 
   const mutation = editId ? updateMutation : createMutation;
   const submit = () => {
-    const questions = state.questions.map((question) => ({
+    const questions = ordenarParaMostrar(state.questions).map((question) => ({
       ...question,
       options: question.type === 'multiple-choice' ? (question.options ?? []).map((option) => option.trim()).filter(Boolean) : undefined,
       mostrarSi: question.mostrarSi?.valores.length ? question.mostrarSi : undefined,

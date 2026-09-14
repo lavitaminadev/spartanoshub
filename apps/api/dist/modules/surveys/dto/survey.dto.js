@@ -16,7 +16,7 @@ const QUESTION_TYPES = ['nps', 'rating', 'text', 'multiple-choice'];
 const SURVEY_TYPES = ['internal', 'customer'];
 const SURVEY_STATUSES = ['draft', 'active', 'closed'];
 const CHANNELS = ['email', 'qr', 'link'];
-const DATOS = ['nombre', 'rut', 'correo', 'telefono'];
+const DATOS = ['nombre', 'rut', 'correo', 'telefono', 'nacimiento'];
 class SurveyShowRuleDto {
 }
 exports.SurveyShowRuleDto = SurveyShowRuleDto;
