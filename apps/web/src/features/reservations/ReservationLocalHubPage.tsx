@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { PanelCompartir } from '../../shared/PanelCompartir';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
@@ -22,6 +23,7 @@ export function ReservationLocalHubPage() {
   const navegar = useNavigate();
   const qc = useQueryClient();
   const [confirmarDuplicado, setConfirmarDuplicado] = useState(false);
+  const [compartir, setCompartir] = useState(false);
   /**
    * Crea otra sucursal a partir de esta.
    *
@@ -80,7 +82,9 @@ export function ReservationLocalHubPage() {
     <section className="local-hub-status">
       <div><span className="page-eyebrow">PUBLICACIÓN</span><h2>Identidad y enlace</h2><p className="page-subtitle">La identidad es opcional: se puede publicar con la plantilla y personalizarla después.</p></div>
       <div className="reservation-metric-grid reservation-metric-grid-four"><div><span>Estado</span><strong>{local.status === 'published' ? 'Publicado' : local.status === 'paused' ? 'Pausado' : 'Borrador'}</strong></div><Link to={`${base}/forms/${id}/design?section=diseno`}><span>Logo</span><strong>{hasLogo ? 'Cambiar logo' : 'Agregar logo'}</strong></Link><Link to={`${base}/forms/${id}/design?section=diseno`}><span>Portada</span><strong>{hasBackground ? 'Cambiar portada' : 'Agregar portada'}</strong></Link>{clientMode ? <div><span>Medición</span><strong>{local.metaCapiEnabled || local.ga4MeasurementId ? 'Activa para esta sucursal' : 'No configurada'}</strong></div> : <Link to={`${base}/forms/${id}/design?section=medicion`}><span>Medición</span><strong>{local.metaCapiEnabled || local.ga4MeasurementId ? 'Revisar medición' : 'Configurar si la necesitas'}</strong></Link>}</div>
-      <p className="page-subtitle">Enlace público: <code>{publicUrl}</code></p>
+      <p className="page-subtitle local-hub-enlace">Enlace público: <code>{publicUrl}</code> <button type="button" className="btn btn-primary btn-sm" onClick={() => setCompartir(true)}>Compartir</button></p>
+      <PanelCompartir abierto={compartir} titulo="Compartir reservas" nombre={local.name} urlBase={publicUrl} textoAbrir="Abrir página de reservas ↗" onCerrar={() => setCompartir(false)}
+        pie={local.ga4MeasurementId || local.metaCapiEnabled ? 'La medición de esta sucursal recibe cada reserva con su canal y campaña.' : 'El canal y la campaña quedan en cada reserva y en Resultados, aunque no uses Google Analytics ni Meta.'} />
     </section>
 
     <ConfirmDialog

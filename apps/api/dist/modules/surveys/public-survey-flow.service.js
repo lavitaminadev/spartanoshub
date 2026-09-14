@@ -24,6 +24,8 @@ const survey_response_entity_1 = require("./survey-response.entity");
 const invitacion_a_encuesta_1 = require("./invitacion-a-encuesta");
 const flujo_de_encuesta_1 = require("./flujo-de-encuesta");
 const email_service_1 = require("../../core/notifications/email.service");
+const shared_1 = require("@espartanos/shared");
+const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
 function hashDelToken(token) {
     return (0, node_crypto_1.createHash)('sha256').update(token).digest('hex');
@@ -140,10 +142,27 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
             if (faltan.length > 0)
                 throw new common_1.BadRequestException(`Faltan respuestas: ${faltan.join(', ')}`);
         }
+        const nota = (0, flujo_de_encuesta_1.preguntaDeNota)(survey.questions ?? []);
+        const malFormados = (0, shared_1.problemasDeRespuesta)((survey.questions ?? []).map((pregunta) => ({ ...pregunta, required: false })), respuestas, nota ? [nota.id] : []);
+        if (malFormados.length > 0)
+            throw new common_1.BadRequestException(malFormados.join(' · '));
+        let aceptacion = {};
+        try {
+            aceptacion = await (0, consentimiento_de_encuesta_1.aceptacionAGuardar)(this.dataSource, survey, respuestas, datos.aceptaPrivacidad || Boolean(respuesta.privacyConsentAt));
+        }
+        catch (error) {
+            throw new common_1.BadRequestException(error instanceof Error ? error.message : 'Falta aceptar el uso de tus datos');
+        }
+        const escrito = (0, consentimiento_de_encuesta_1.contactoEscrito)(survey.questions ?? [], respuestas);
+        if (respuesta.privacyConsentAt)
+            aceptacion = {};
         const mensaje = typeof datos.teamMessage === 'string' ? datos.teamMessage.trim().slice(0, flujo_de_encuesta_1.LARGO_MAXIMO_MENSAJE) : undefined;
         const mensajeNuevo = Boolean(mensaje) && mensaje !== (respuesta.teamMessage ?? '').trim();
         await this.responses.update({ id: respuesta.id }, {
             answers: respuestas,
+            ...aceptacion,
+            ...(!respuesta.respondentName && escrito.nombre ? { respondentName: escrito.nombre } : {}),
+            ...(!respuesta.respondentEmail && escrito.correo ? { respondentEmail: escrito.correo } : {}),
             ...(mensaje !== undefined ? { teamMessage: mensaje || null } : {}),
             ...(datos.terminar ? { completedAt: new Date() } : {}),
         });

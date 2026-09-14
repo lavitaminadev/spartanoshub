@@ -10,6 +10,8 @@ import {
   LARGO_MAXIMO_MENSAJE, notaValida, obligatoriasPendientes, preguntaDeNota, siguientePaso, unirRespuestas, type SiguientePaso,
 } from './flujo-de-encuesta';
 import { EmailService } from '../../core/notifications/email.service';
+import { problemasDeRespuesta } from '@espartanos/shared';
+import { aceptacionAGuardar, contactoEscrito } from './consentimiento-de-encuesta';
 import { armazonDeCorreo } from '../../core/notifications/plantilla-de-correo';
 
 /** Lo que recibe la página después de dejar la nota. */
@@ -159,7 +161,7 @@ export class PublicSurveyFlowService {
     surveyId: string,
     responseId: string,
     token: string,
-    datos: { answers?: Record<string, string | number>; teamMessage?: string; responder?: boolean; terminar?: boolean },
+    datos: { answers?: Record<string, string | number>; teamMessage?: string; responder?: boolean; terminar?: boolean; aceptaPrivacidad?: boolean },
   ): Promise<{ completed: boolean }> {
     const survey = await this.activa(surveyId);
     const respuesta = await this.responses
@@ -188,12 +190,29 @@ export class PublicSurveyFlowService {
       const faltan = obligatoriasPendientes(survey.questions ?? [], respuestas);
       if (faltan.length > 0) throw new BadRequestException(`Faltan respuestas: ${faltan.join(', ')}`);
     }
+    // El formato de un dato escrito se revisa siempre, contestara todo o no.
+    const nota = preguntaDeNota(survey.questions ?? []);
+    const malFormados = problemasDeRespuesta((survey.questions ?? []).map((pregunta) => ({ ...pregunta, required: false })), respuestas, nota ? [nota.id] : []);
+    if (malFormados.length > 0) throw new BadRequestException(malFormados.join(' · '));
+    let aceptacion: { privacyConsentAt?: Date; privacyConsentText?: string } = {};
+    try {
+      aceptacion = await aceptacionAGuardar(this.dataSource, survey, respuestas, datos.aceptaPrivacidad || Boolean(respuesta.privacyConsentAt));
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Falta aceptar el uso de tus datos');
+    }
+    // Si la persona dejó su nombre o correo, la respuesta deja de ser anónima en los resultados.
+    const escrito = contactoEscrito(survey.questions ?? [], respuestas);
+    // Una aceptación ya guardada no se reescribe: vale la primera.
+    if (respuesta.privacyConsentAt) aceptacion = {};
 
     const mensaje = typeof datos.teamMessage === 'string' ? datos.teamMessage.trim().slice(0, LARGO_MAXIMO_MENSAJE) : undefined;
     const mensajeNuevo = Boolean(mensaje) && mensaje !== (respuesta.teamMessage ?? '').trim();
 
     await this.responses.update({ id: respuesta.id }, {
       answers: respuestas,
+      ...aceptacion,
+      ...(!respuesta.respondentName && escrito.nombre ? { respondentName: escrito.nombre } : {}),
+      ...(!respuesta.respondentEmail && escrito.correo ? { respondentEmail: escrito.correo } : {}),
       ...(mensaje !== undefined ? { teamMessage: mensaje || null } : {}),
       ...(datos.terminar ? { completedAt: new Date() } : {}),
     });

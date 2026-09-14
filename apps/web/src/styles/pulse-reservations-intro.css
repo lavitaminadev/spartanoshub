@@ -382,3 +382,126 @@
 .public-booking .public-booking-card .calendar-day { min-height: 52px; justify-content: center; }
 .public-booking .public-booking-card .calendar-day .calendar-number { font-size: 17px; }
 .public-booking .public-booking-card .calendar-day { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+/* ============================================================================================
+ * Paso de datos: bloques separados (datos, evento, preferencias, aceptaciones) y botones parejos.
+ * ========================================================================================== */
+.public-booking-card .booking-bloque { display: grid; gap: 12px; margin: 18px 0 0; padding: 16px; border: 1px solid #e3e8e6; border-radius: 14px; background: #fff; }
+.public-booking-card .booking-bloque > h3 { margin: 0; font-size: 16px; font-weight: 800; color: var(--booking-card-ink, #3f4e49); }
+.public-booking-card .booking-bloque-ayuda { margin: -6px 0 0; color: #6b7672; font-size: 13px; line-height: 1.4; }
+.public-booking-card .booking-bloque label { display: grid; gap: 6px; font-size: 14px; font-weight: 700; }
+.public-booking-card .booking-bloque label small { color: #6b7672; font-weight: 500; }
+.public-booking-card .booking-bloque .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.public-booking-card .booking-bloque input:not([type="checkbox"]):not([type="radio"]), .public-booking-card .booking-bloque select, .public-booking-card .booking-bloque textarea { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #d9dfdc; border-radius: var(--booking-field-radius, 10px); background: #fff; font: inherit; font-size: 16px; font-weight: 500; }
+.public-booking-card .booking-bloque textarea { min-height: 88px; resize: vertical; }
+.public-booking-card .booking-bloque-plegable { padding: 0; }
+.public-booking-card .booking-bloque-plegable > summary { display: grid; gap: 2px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.public-booking-card .booking-bloque-plegable > summary::-webkit-details-marker { display: none; }
+.public-booking-card .booking-bloque-plegable > summary span { font-size: 15px; font-weight: 800; }
+.public-booking-card .booking-bloque-plegable > summary span::after { content: '+'; float: right; color: var(--booking-primary-text, var(--booking-primary)); }
+.public-booking-card .booking-bloque-plegable[open] > summary span::after { content: '−'; }
+.public-booking-card .booking-bloque-plegable > summary > small { color: #6b7672; font-size: 12px; }
+.public-booking-card .booking-bloque-plegable[open] { padding-bottom: 16px; }
+.public-booking-card .booking-bloque-plegable > :not(summary) { margin-inline: 16px; }
+
+/* Aceptaciones: título corto y detalle a un toque. */
+.public-booking-card .booking-aceptaciones { gap: 10px; }
+.public-booking-card .booking-aceptaciones .public-consent { display: grid; gap: 4px; margin: 0; padding: 10px 0 0; border-top: 1px solid #eef1f0; }
+.public-booking-card .booking-aceptaciones .public-consent:first-of-type { border-top: 0; padding-top: 0; }
+.public-booking-card .booking-aceptaciones .public-consent > label { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 10px; font-weight: 600; }
+.public-booking-card .booking-aceptaciones .public-consent > label input { width: 20px; height: 20px; margin: 2px 0 0; }
+.public-booking-card .booking-aceptaciones .public-consent strong { font-size: 14px; line-height: 1.35; }
+.public-booking-card .consent-detalle { margin-left: 32px; font-size: 12px; color: #6b7672; }
+.public-booking-card .consent-detalle > summary { width: fit-content; color: var(--booking-primary-text, var(--booking-primary)); font-weight: 700; cursor: pointer; }
+.public-booking-card .consent-detalle p { margin: 6px 0 0; line-height: 1.45; }
+.public-booking-card .consent-medicion-resumen { margin: 4px 0 0; padding-top: 10px; border-top: 1px solid #eef1f0; color: #6b7672; font-size: 13px; }
+.public-booking-card .enlace { padding: 0; border: 0; background: none; color: var(--booking-primary-text, var(--booking-primary)); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+/* Botones del paso: mismo alto, ancho parejo y alineados; «Volver» a la izquierda, «Continuar» a la derecha. */
+.public-booking-card .public-submit { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; margin-top: 20px; }
+.public-booking-card .public-submit + .btn-back { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 46px; margin-top: 10px; border-radius: var(--booking-button-radius, 12px); font-size: 14px; }
+.public-booking-card .public-coupon-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.public-booking-card .public-coupon-row .btn { min-height: 46px; padding-inline: 18px; }
+/* Etiquetas de los bloques: «(opcional)» junto al texto y el control debajo; las opciones (radio y
+   casillas) no heredan este formato para que el círculo quede al lado de su texto. */
+.public-booking-card .booking-bloque label { display: block; }
+.public-booking-card .booking-bloque > label > input, .public-booking-card .booking-bloque > label > select, .public-booking-card .booking-bloque > label > textarea,
+.public-booking-card .booking-bloque .form-row > label > input { display: block; margin-top: 6px; }
+.public-booking-card .booking-bloque fieldset label { display: flex; align-items: center; gap: 10px; min-height: 40px; font-weight: 600; }
+.public-booking-card .booking-bloque fieldset label input { width: 20px; height: 20px; min-height: 0; margin: 0; }
+.public-booking-card .booking-bloque fieldset { display: grid; gap: 2px; margin: 0; padding: 0; border: 0; }
+.public-booking-card .booking-bloque fieldset legend { margin-bottom: 4px; font-size: 14px; font-weight: 700; }
+
+/* ============================================================================================
+ * Un solo estilo para todos los campos de la tarjeta, con los colores y bordes del local.
+ *
+ * Los campos de datos usaban una variable de borde que la página pública no define y quedaban
+ * sin borde, mientras los de los bloques tenían colores fijos. Ahora todo sale del diseño.
+ * ========================================================================================== */
+.public-booking .public-booking-card {
+  --campo-borde: color-mix(in srgb, var(--booking-card-ink, #3f4e49) 20%, transparent);
+  --bloque-borde: color-mix(in srgb, var(--booking-card-ink, #3f4e49) 12%, transparent);
+  --texto-suave: color-mix(in srgb, var(--booking-card-ink, #3f4e49) 70%, transparent);
+}
+.public-booking .public-booking-card input:not([type="checkbox"]):not([type="radio"]):not(.booking-honeypot),
+.public-booking .public-booking-card select,
+.public-booking .public-booking-card textarea {
+  width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--campo-borde); border-radius: var(--booking-field-radius, 10px);
+  background: #fff; color: var(--booking-card-ink, #3f4e49); font: inherit; font-size: 16px; font-weight: 500; box-shadow: none;
+}
+.public-booking .public-booking-card input:not([type="checkbox"]):not([type="radio"]):focus,
+.public-booking .public-booking-card select:focus,
+.public-booking .public-booking-card textarea:focus {
+  outline: none; border-color: var(--booking-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--booking-primary) 18%, transparent);
+}
+.public-booking .public-booking-card .has-error input, .public-booking .public-booking-card .input-error { border-color: #b5332d; }
+.public-booking .public-booking-card .public-field label { display: block; font-size: 14px; font-weight: 700; color: var(--booking-card-ink, #3f4e49); }
+.public-booking .public-booking-card .public-field label > input, .public-booking .public-booking-card .public-field label > select, .public-booking .public-booking-card .public-field label > textarea { margin-top: 6px; }
+.public-booking .public-booking-card .public-form-fields { display: grid; gap: 14px; }
+.public-booking .public-booking-card .booking-bloque { margin: 4px 0 0; border-color: var(--bloque-borde); border-radius: calc(var(--booking-field-radius, 10px) + 4px); }
+.public-booking .public-booking-card .booking-bloque-ayuda,
+.public-booking .public-booking-card .booking-bloque label small,
+.public-booking .public-booking-card .booking-bloque-plegable > summary > small,
+.public-booking .public-booking-card .consent-detalle,
+.public-booking .public-booking-card .consent-medicion-resumen { color: var(--texto-suave); }
+.public-booking .public-booking-card .booking-aceptaciones .public-consent,
+.public-booking .public-booking-card .consent-medicion-resumen { border-color: var(--bloque-borde); }
+.public-booking .public-booking-card input[type="checkbox"], .public-booking .public-booking-card input[type="radio"] { accent-color: var(--booking-primary); }
+/* Las preguntas de opciones fuera de un bloque se ven igual que dentro. */
+.public-booking .public-booking-card .public-form-fields > fieldset { display: grid; gap: 2px; margin: 0; padding: 0; border: 0; }
+.public-booking .public-booking-card .public-form-fields > fieldset > legend { margin-bottom: 4px; font-size: 14px; font-weight: 700; color: var(--booking-card-ink, #3f4e49); }
+.public-booking .public-booking-card .public-form-fields > fieldset > label { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 15px; font-weight: 600; }
+.public-booking .public-booking-card .public-form-fields > fieldset > label input { width: 20px; height: 20px; margin: 0; }
+
+/* Privacidad y condiciones escritas por la empresa, en una ventana dentro de la página. */
+.public-booking .consent-enlaces { margin: 6px 0 0; font-size: 12px; }
+.documento-legal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(18, 35, 31, .55); }
+.documento-legal > section { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; width: min(680px, 100%); max-height: 88vh; padding: 20px; border-radius: 16px; background: #fff; color: #27332f; box-shadow: 0 20px 60px rgba(0, 0, 0, .28); }
+.documento-legal header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.documento-legal h2 { margin: 0; font-size: 18px; }
+.documento-legal-texto { overflow: auto; white-space: pre-wrap; font-size: 14px; line-height: 1.55; }
+.documento-legal small { color: #6b7672; }
+
+/* Cómo muestra la empresa su privacidad y condiciones. */
+.datos-legales-empresa .datos-legales-modo { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 8px 0; }
+.datos-legales-empresa textarea { width: 100%; resize: vertical; }
+
+/* Portal: datos legales de la empresa */
+.datos-legales-portal .datos-legales-form { display: grid; gap: 18px; width: 100%; max-width: 820px; padding: 28px; box-sizing: border-box; overflow: visible; }
+.datos-legales-portal .datos-legales-form label { display: grid; gap: 8px; min-width: 0; font-size: 13px; font-weight: 600; color: var(--text-primary, #22161d); }
+.datos-legales-portal .datos-legales-form .input { width: 100%; min-height: 46px; box-sizing: border-box; padding: 10px 14px; border: 1px solid var(--border-color-strong, #e3dade); border-radius: 12px; background: var(--bg-white, #fff); font-size: 15px; font-weight: 400; color: var(--text-primary, #22161d); }
+.datos-legales-portal .datos-legales-form .input:focus { outline: none; border-color: var(--accent, #ec0b61); box-shadow: 0 0 0 3px rgba(236, 11, 97, 0.12); }
+.datos-legales-portal .datos-legales-form textarea.input { min-height: 160px; resize: vertical; line-height: 1.5; }
+.datos-legales-portal .datos-legales-fila { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.datos-legales-portal .datos-legales-modo { display: grid; gap: 10px; width: 100%; box-sizing: border-box; margin: 0; padding: 14px 16px; border: 1px solid var(--border-color-strong, #e3dade); border-radius: 12px; }
+.datos-legales-portal .datos-legales-modo legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.datos-legales-portal .datos-legales-modo label { display: flex; align-items: center; gap: 10px; font-weight: 400; font-size: 14px; }
+.datos-legales-portal .datos-legales-modo input[type="radio"] { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--accent, #ec0b61); }
+.datos-legales-portal .datos-legales-acciones { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .datos-legales-portal .datos-legales-form { padding: 18px; gap: 16px; }
+  .datos-legales-portal .datos-legales-fila { grid-template-columns: 1fr; gap: 16px; }
+  .datos-legales-portal .datos-legales-acciones { flex-direction: column-reverse; align-items: stretch; text-align: center; }
+  .datos-legales-portal .datos-legales-acciones .btn { width: 100%; min-height: 46px; }
+}
+.datos-legales-portal .datos-legales-form .input::placeholder { color: var(--text-muted, #a79fa4); opacity: 1; }

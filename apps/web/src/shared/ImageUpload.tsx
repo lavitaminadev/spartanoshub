@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../core/api';
 import { MediaLibraryModal } from './MediaLibraryModal';
 import { VitaIcons } from './Icons';
@@ -12,6 +12,10 @@ interface ImageUploadProps {
   maxSizeMB?: number;
   helperText?: string;
   placeholder?: string;
+  /** Ancho máximo con que se entrega la imagen; el original queda intacto en Cloudinary. */
+  maxWidth?: number;
+  /** Empresa dueña: la imagen queda en su carpeta. */
+  clientId?: string;
 }
 
 interface UploadResponse {
@@ -23,13 +27,16 @@ interface UploadResponse {
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
 
+/** Segmento de transformaciones de Cloudinary, como `f_auto,q_auto,c_limit,w_1600`. */
+const TRANSFORMACION = /^[a-z]{1,3}_[^/]*$/;
+
 function extractPublicId(url?: string): string | undefined {
   if (!url) return undefined;
   try {
     const parsed = new URL(url);
     const path = parsed.pathname;
-    // URLs de Cloudinary: /image/upload/v1234567890/folder/public_id.ext
-    const match = path.match(/\/image\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/);
+    // URLs de Cloudinary: /image/upload/[transformaciones/]v1234567890/folder/public_id.ext
+    const match = path.match(/\/image\/upload\/(?:[a-z]{1,3}_[^/]*\/)*(?:v\d+\/)?(.+)\.[^.]+$/);
     if (!match) return undefined;
     return match[1];
   } catch {
@@ -37,14 +44,20 @@ function extractPublicId(url?: string): string | undefined {
   }
 }
 
-function optimizedUrl(url?: string): string | undefined {
+/**
+ * Versión liviana de una imagen de Cloudinary: formato y calidad automáticos y sin pasar del ancho
+ * pedido. Una foto de celular de 5 MB se entrega así en unos cientos de KB. Las URL externas o que
+ * ya traen transformaciones se devuelven tal cual.
+ */
+export function optimizedUrl(url?: string, maxWidth?: number): string | undefined {
   if (!url) return undefined;
   try {
     const parsed = new URL(url);
+    if (!parsed.hostname.endsWith('cloudinary.com')) return url;
     const pathParts = parsed.pathname.split('/');
     const uploadIndex = pathParts.indexOf('upload');
-    if (uploadIndex === -1) return url;
-    pathParts.splice(uploadIndex + 1, 0, 'f_auto,q_auto');
+    if (uploadIndex === -1 || TRANSFORMACION.test(pathParts[uploadIndex + 1] || '')) return url;
+    pathParts.splice(uploadIndex + 1, 0, maxWidth ? `f_auto,q_auto,c_limit,w_${maxWidth}` : 'f_auto,q_auto');
     parsed.pathname = pathParts.join('/');
     return parsed.toString();
   } catch {
@@ -60,7 +73,12 @@ export function ImageUpload({
   maxSizeMB = 5,
   helperText = `JPG, PNG, GIF, WebP o AVIF. Máximo ${maxSizeMB} MB.`,
   placeholder = 'https://...',
+  maxWidth = 1600,
+  clientId,
 }: ImageUploadProps) {
+  // Se consulta una vez por sesión: sin Cloudinary se avisa y queda la opción de pegar una URL.
+  const estado = useQuery({ queryKey: ['uploads', 'images', 'status'], queryFn: () => api.get<{ configured: boolean }>('/uploads/images/status'), staleTime: 5 * 60_000, retry: false });
+  const sinAlmacenamiento = estado.data?.configured === false;
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -68,11 +86,12 @@ export function ImageUpload({
   const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
 
   const upload = useMutation({
-    mutationFn: (file: File) => api.upload<UploadResponse>('/uploads/images', file),
+    mutationFn: (file: File) => api.upload<UploadResponse>('/uploads/images', file, clientId ? { clientId } : undefined),
     onSuccess: (data) => {
       setValidationError(null);
       setLastPublicId(data.publicId);
-      onChange(data.url);
+      // Se guarda ya optimizada: todas las páginas que la muestran reciben la versión liviana.
+      onChange(optimizedUrl(data.url, maxWidth) || data.url);
     },
     onError: (error: Error) => setValidationError(error.message),
   });
@@ -105,6 +124,10 @@ export function ImageUpload({
 
   const handleFile = (file: File | null | undefined) => {
     if (!file) return;
+    if (sinAlmacenamiento) {
+      setValidationError('Las imágenes no se pueden subir todavía: falta conectar Cloudinary en Integraciones. Mientras tanto puedes pegar la URL de una imagen.');
+      return;
+    }
     const error = validate(file);
     if (error) {
       setValidationError(error);
@@ -191,8 +214,8 @@ export function ImageUpload({
         ) : (
           <div className="image-upload-placeholder">
             <span><VitaIcons.image /></span>
-            <strong>{upload.isPending ? 'Subiendo imagen...' : 'Arrastra una imagen o haz clic'}</strong>
-            <small>{helperText}</small>
+            <strong>{upload.isPending ? 'Subiendo imagen...' : sinAlmacenamiento ? 'Subida de imágenes no disponible' : 'Arrastra una imagen o haz clic'}</strong>
+            <small>{sinAlmacenamiento ? 'Falta conectar Cloudinary en Integraciones. Puedes pegar una URL abajo.' : helperText}</small>
           </div>
         )}
       </div>

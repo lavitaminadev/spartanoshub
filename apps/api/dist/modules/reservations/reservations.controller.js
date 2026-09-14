@@ -69,6 +69,20 @@ let ReservationsController = class ReservationsController {
         await this.accountAccess.assertClient(req.organizationId, req.user, requestedClientId);
         return { clientId: requestedClientId, clientIds: undefined };
     }
+    async companyLegal(req, query) {
+        const scope = await this.requestedScope(req, req.user.role === user_role_enum_1.UserRole.CLIENT ? undefined : query.clientId);
+        const clientId = scope.clientId;
+        if (!clientId)
+            throw new common_1.BadRequestException('Indica la empresa');
+        return this.service.datosLegalesDeEmpresa(req.organizationId, clientId);
+    }
+    async saveCompanyLegal(req, query, dto) {
+        const scope = await this.requestedScope(req, req.user.role === user_role_enum_1.UserRole.CLIENT ? undefined : query.clientId);
+        const clientId = scope.clientId;
+        if (!clientId)
+            throw new common_1.BadRequestException('Indica la empresa');
+        return this.service.guardarDatosLegalesDeEmpresa(req.organizationId, clientId, dto, req.user.id);
+    }
     async forms(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
         const forms = await this.service.listForms(req.organizationId, scope.clientId, scope.clientIds);
@@ -269,6 +283,25 @@ let ReservationsController = class ReservationsController {
     }
 };
 exports.ReservationsController = ReservationsController;
+__decorate([
+    (0, common_1.Get)('company-legal'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "companyLegal", null);
+__decorate([
+    (0, common_1.Put)('company-legal'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto, reservation_dto_1.CompanyLegalDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "saveCompanyLegal", null);
 __decorate([
     (0, common_1.Get)('forms'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),

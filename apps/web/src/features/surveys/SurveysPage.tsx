@@ -9,7 +9,7 @@
 import { useState, type JSX } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
-import { CodigoQrDeEncuesta } from './CodigoQrDeEncuesta';
+import { CompartirEncuesta } from './CompartirEncuesta';
 import { Link } from 'react-router-dom';
 import { DataTable, type Column } from '../../shared/DataTable';
 import { StatusBadge } from '../../shared/StatusBadge';
@@ -20,7 +20,6 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { PageHero } from '../../shared/PageHero';
 import { triggerToast } from '../../shared/toast-events';
 import { useDeleteSurvey, useSurveys, useUpdateSurvey } from './useSurveys';
-import { publicSurveyUrl } from '../../core/public-url';
 import { FilterBar } from '../../shared/FilterBar';
 import { useUrlFilters } from '../../shared/use-url-filters';
 import { useAuth } from '../../core/auth';
@@ -60,7 +59,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
   const deleteMutation = useDeleteSurvey();
   const statusMutation = useUpdateSurvey();
   const [confirmDelete, setConfirmDelete] = useState<Survey | null>(null);
-  const [qrDe, setQrDe] = useState<Survey | null>(null);
+  const [compartir, setCompartir] = useState<Survey | null>(null);
   const [correoDe, setCorreoDe] = useState<Survey | null>(null);
   const enviarCorreo = useMutation({
     mutationFn: (survey: Survey) => api.post<{ enviados: number; fallidos: number; invalidos: number }>(`/surveys/${encodeURIComponent(survey.id)}/send-email`, {}),
@@ -103,10 +102,18 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
     const buscado = filtros.search.trim().toLowerCase();
     return !buscado || survey.title.toLowerCase().includes(buscado);
   });
-  const channelUrl = (survey: Survey, source: string) => publicSurveyUrl(survey.id, survey.publicUrl, source);
-  const copyPublicSurveyLink = async (survey: Survey, source = 'link') => {
-    await navigator.clipboard.writeText(channelUrl(survey, source));
-    triggerToast('Enlace de encuesta copiado');
+
+  /*
+   * El menú se abre fuera del contenedor con desplazamiento de la tabla: con posición fija queda
+   * visible entero en vez de cortarse en la última fila o columna.
+   */
+  const ubicarMenu = (detalles: HTMLDetailsElement) => {
+    const menu = detalles.querySelector<HTMLElement>("[role=menu]");
+    if (!detalles.open || !menu) return;
+    const caja = detalles.getBoundingClientRect();
+    const alto = menu.offsetHeight || 90;
+    menu.style.top = `${caja.bottom + alto + 8 > window.innerHeight ? Math.max(8, caja.top - alto - 4) : caja.bottom + 4}px`;
+    menu.style.left = `${Math.min(window.innerWidth - 168, Math.max(8, caja.right - 160))}px`;
   };
 
   const columns: Column<Survey>[] = [
@@ -151,13 +158,13 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
       render: (survey) => {
         const next = nextSurveyStatus(survey.status);
         return (
-          <div className="actions-cell">
-            {!soloLectura && <Link className="btn btn-outline btn-sm" to={`/surveys/create?id=${survey.id}`}>Editar</Link>}
-            <Link className="btn btn-outline btn-sm" to={soloLectura ? `/portal/surveys/${survey.id}/results` : `/surveys/${survey.id}/results`}>Ver resultados</Link>
+          <div className="actions-cell survey-acciones">
+            <Link className="btn btn-outline btn-sm" to={soloLectura ? `/portal/surveys/${survey.id}/results` : `/surveys/${survey.id}/results`}>Resultados</Link>
+            {/* Publicada se puede abrir y compartir; en borrador el enlace todavía no responde. */}
+            {survey.status === 'active' && <button type="button" className="btn btn-primary btn-sm" onClick={() => setCompartir(survey)}>Compartir</button>}
+            {soloLectura && survey.status === 'active' && <a className="btn btn-outline btn-sm" href={survey.publicUrl || `/survey/${survey.id}`} target="_blank" rel="noopener noreferrer">Abrir ↗</a>}
             {soloLectura ? null : <>
-            {survey.status === 'active' && survey.distribution?.includes('link') && <button type="button" className="btn btn-outline btn-sm" onClick={() => copyPublicSurveyLink(survey)}>Copiar link</button>}
-            {puedeEnviar && survey.status === 'active' && survey.distribution?.includes('email') && <button type="button" className="btn btn-outline btn-sm" disabled={!survey.recipients?.length} title={survey.recipients?.length ? undefined : 'Agrega destinatarios en la encuesta'} onClick={() => { enviarCorreo.reset(); setCorreoDe(survey); }}>Enviar por correo</button>}
-            {survey.status === 'active' && survey.distribution?.includes('qr') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setQrDe(survey)}>QR</button>}
+            <Link className="btn btn-outline btn-sm" to={`/surveys/create?id=${survey.id}`}>Editar</Link>
             <button
               type="button"
               className={survey.status === 'active' ? 'btn btn-outline btn-sm' : 'btn btn-primary btn-sm'}
@@ -169,15 +176,13 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
             >
               {next.label}
             </button>
-            {canDeleteSurvey && (
-              <button
-                type="button"
-                className="btn btn-outline btn-danger btn-sm"
-                onClick={() => setConfirmDelete(survey)}
-              >
-                Eliminar
-              </button>
-            )}
+            <details className="survey-mas" onToggle={(e) => ubicarMenu(e.currentTarget)}>
+              <summary className="btn btn-outline btn-sm" aria-label="Más acciones">⋯</summary>
+              <div role="menu" onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")}>
+                <Link role="menuitem" to={`/surveys/create?duplicar=${survey.id}`}>Duplicar</Link>
+                {canDeleteSurvey && <button role="menuitem" type="button" className="peligro" onClick={() => setConfirmDelete(survey)}>Eliminar</button>}
+              </div>
+            </details>
             </>}
           </div>
         );
@@ -281,7 +286,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
         onConfirm={() => { if (correoDe) enviarCorreo.mutate(correoDe); }}
       />
 
-      <CodigoQrDeEncuesta abierto={Boolean(qrDe)} titulo={qrDe?.title ?? ''} url={qrDe ? channelUrl(qrDe, 'qr') : ''} onCerrar={() => setQrDe(null)} />
+      <CompartirEncuesta survey={compartir} onCerrar={() => setCompartir(null)} puedeEnviarCorreo={puedeEnviar} onEnviarCorreo={(survey) => { setCompartir(null); enviarCorreo.reset(); setCorreoDe(survey); }} />
     </div>
   );
 }

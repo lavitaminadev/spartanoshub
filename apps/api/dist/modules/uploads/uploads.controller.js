@@ -46,6 +46,10 @@ let UploadsController = class UploadsController {
     async upload(file, req) {
         return toUploadResponse(await this.service.upload(file, req.organizationId, req.user.id));
     }
+    async imageStatus(req) {
+        const credentials = await this.cloudinary.getCredentials(req.organizationId).catch(() => undefined);
+        return { configured: Boolean(credentials?.cloudName && credentials?.apiKey && credentials?.apiSecret) };
+    }
     async uploadImage(file, req, clientId) {
         if (!file?.buffer?.length)
             throw new common_1.BadRequestException('Debes seleccionar una imagen');
@@ -54,6 +58,8 @@ let UploadsController = class UploadsController {
         const maxBytes = Math.min(Number(process.env.CLOUDINARY_MAX_IMAGE_BYTES || 5 * 1024 * 1024), 10 * 1024 * 1024);
         if (file.buffer.length > maxBytes)
             throw new common_1.BadRequestException(`La imagen no puede superar los ${Math.round(maxBytes / 1024 / 1024)} MB`);
+        if (clientId !== undefined && !/^[0-9a-f-]{36}$/i.test(clientId))
+            clientId = undefined;
         const folder = cloudinary_service_1.CloudinaryService.folderFor(req.organizationId, clientId);
         const result = await this.cloudinary.uploadImage(file.buffer, req.organizationId, {
             folder,
@@ -91,6 +97,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], UploadsController.prototype, "upload", null);
+__decorate([
+    (0, common_1.Get)('images/status'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UploadsController.prototype, "imageStatus", null);
 __decorate([
     (0, common_1.Post)('images'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL),

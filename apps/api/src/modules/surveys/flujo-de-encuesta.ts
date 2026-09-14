@@ -1,4 +1,5 @@
 import type { SurveyQuestion } from '@espartanos/shared';
+import { preguntaVisible } from '@espartanos/shared';
 
 /**
  * El flujo simple de una encuesta de satisfacción: primero la nota, después lo demás.
@@ -79,7 +80,8 @@ export function unirRespuestas(
 export function obligatoriasPendientes(preguntas: SurveyQuestion[], respuestas: Record<string, string | number>): string[] {
   const nota = preguntaDeNota(preguntas);
   return preguntas
-    .filter((pregunta) => pregunta.required && pregunta.id !== nota?.id)
+    // Una pregunta que las reglas ocultan no se puede exigir: la persona nunca la vio.
+    .filter((pregunta) => pregunta.required && pregunta.id !== nota?.id && preguntaVisible(pregunta, preguntas, respuestas))
     .filter((pregunta) => {
       const valor = respuestas[pregunta.id];
       return valor === undefined || valor === null || (typeof valor === 'string' && valor.trim() === '');

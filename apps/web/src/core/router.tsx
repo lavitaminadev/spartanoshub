@@ -1,4 +1,5 @@
 import { Suspense, lazy } from 'react';
+import { RedireccionDeCanal } from '../shared/EnlaceDeCanal';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -8,6 +9,7 @@ import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { useAuth } from './auth';
 import { ErrorBoundary } from './ErrorBoundary';
 
+const ClientLegalData = lazy(() => import('../features/client-portal/ClientLegalData').then(m => ({ default: m.ClientLegalData })));
 const LoginPage = lazy(() => import('../features/auth/LoginPage').then(m => ({ default: m.LoginPage })));
 const ForgotPasswordPage = lazy(() => import('../features/auth/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import('../features/auth/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
@@ -113,7 +115,10 @@ export function AppRouter() {
         <Route path="/change-password" element={<ProtectedRoute path="/change-password"><SafeSuspense><ChangePasswordPage /></SafeSuspense></ProtectedRoute>} />
         <Route path="/book/manage/:token" element={<SafeSuspense><PublicReservationManagementPage /></SafeSuspense>} />
         <Route path="/book/:slug" element={<SafeSuspense><PublicReservationPage /></SafeSuspense>} />
+        {/* Enlaces cortos por canal: se convierten en UTM y abren la misma página. */}
+        <Route path="/book/:slug/:canal/:campana?" element={<RedireccionDeCanal base="book" />} />
         <Route path="/survey/:id" element={<SafeSuspense><PublicSurveyPage /></SafeSuspense>} />
+        <Route path="/survey/:slug/:canal/:campana?" element={<RedireccionDeCanal base="survey" />} />
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<ProtectedRoute path="/dashboard"><SafeSuspense><DashboardPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/clients" element={<ProtectedRoute path="/clients"><SafeSuspense><ClientsPage /></SafeSuspense></ProtectedRoute>} />
@@ -197,6 +202,7 @@ export function AppRouter() {
         <Route path="/portal" element={<ClientRoute><SafeSuspense><ClientLayout /></SafeSuspense></ClientRoute>}>
           <Route index element={<SafeSuspense><ClientDashboard /></SafeSuspense>} />
           <Route path="reservations" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationsPage clientView /></SafeSuspense></ClientRoute>} />
+          <Route path="legal" element={<ClientRoute capability="reservations"><SafeSuspense><ClientLegalData /></SafeSuspense></ClientRoute>} />
           {/* La empresa configura su propio local primero; el editor visual queda como una
               segunda pantalla, no como la única forma de operar reservas. */}
           <Route path="reservations/locals/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ClientRoute>} />

@@ -44,6 +44,14 @@ export class UploadsController {
     return toUploadResponse(await this.service.upload(file, req.organizationId, req.user.id));
   }
 
+  /** Si se pueden subir imágenes: la pantalla avisa antes de que alguien intente y falle. */
+  @Get('images/status')
+  @Roles(UserRole.ADMIN, UserRole.DEV, UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DESIGNER, UserRole.AUDIOVISUAL)
+  async imageStatus(@Req() req: AuthenticatedRequest) {
+    const credentials = await this.cloudinary.getCredentials(req.organizationId).catch(() => undefined);
+    return { configured: Boolean(credentials?.cloudName && credentials?.apiKey && credentials?.apiSecret) };
+  }
+
   @Post('images')
   @Roles(UserRole.ADMIN, UserRole.DEV, UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DESIGNER, UserRole.AUDIOVISUAL)
   @UseInterceptors(FileInterceptor('file'))
@@ -55,6 +63,8 @@ export class UploadsController {
     const maxBytes = Math.min(Number(process.env.CLOUDINARY_MAX_IMAGE_BYTES || 5 * 1024 * 1024), 10 * 1024 * 1024);
     if (file.buffer.length > maxBytes) throw new BadRequestException(`La imagen no puede superar los ${Math.round(maxBytes / 1024 / 1024)} MB`);
 
+    // La empresa sólo ordena la carpeta; un valor que no sea un id se ignora en vez de crear carpetas arbitrarias.
+    if (clientId !== undefined && !/^[0-9a-f-]{36}$/i.test(clientId)) clientId = undefined;
     const folder = CloudinaryService.folderFor(req.organizationId, clientId);
     const result = await this.cloudinary.uploadImage(file.buffer, req.organizationId, {
       folder,

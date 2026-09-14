@@ -14,6 +14,7 @@ export const CLIENT_NAV: ClientPortalEntry[] = [
   { label: 'CRM', path: '/crm', icon: 'CR', module: 'crm', capability: 'crm' },
   { label: 'Reservas', path: '/portal/reservations', icon: 'RS', module: 'reservations', capability: 'reservations' },
   { label: 'Encuestas', path: '/portal/surveys', icon: 'EN', module: 'surveys', capability: 'surveys' },
+  { label: 'Datos legales', path: '/portal/legal', icon: 'DL', module: 'reservations', capability: 'reservations' },
 ];
 
 export const PORTAL_CARDS = [

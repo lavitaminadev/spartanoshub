@@ -25,6 +25,8 @@ const survey_entity_1 = require("./survey.entity");
 const survey_response_entity_1 = require("./survey-response.entity");
 const survey_dto_1 = require("./dto/survey.dto");
 const public_survey_flow_service_1 = require("./public-survey-flow.service");
+const shared_1 = require("@espartanos/shared");
+const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
 function publicSurveyUrl(id) {
     const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
@@ -41,7 +43,7 @@ let PublicSurveysController = class PublicSurveysController {
     async complete(id, responseId, dto) {
         return this.flujo.completar(id, responseId, dto.token, dto);
     }
-    toContract(survey) {
+    async toContract(survey) {
         return {
             id: survey.id,
             title: survey.title,
@@ -52,6 +54,7 @@ let PublicSurveysController = class PublicSurveysController {
             ga4MeasurementId: survey.ga4MeasurementId ?? null,
             designConfig: survey.designConfig ?? undefined,
             googleReview: survey.googleReview ?? undefined,
+            consentimiento: await (0, consentimiento_de_encuesta_1.consentimientoDeEncuesta)(this.surveys.manager, survey),
         };
     }
     async detail(id) {
@@ -70,20 +73,26 @@ let PublicSurveysController = class PublicSurveysController {
         const unknown = Object.keys(dto.answers ?? {}).filter((key) => !known.has(key));
         if (unknown.length > 0)
             throw new common_1.BadRequestException(`La encuesta no tiene las preguntas: ${unknown.join(', ')}`);
-        const missing = (survey.questions ?? [])
-            .filter((question) => question.required)
-            .filter((question) => {
-            const value = dto.answers?.[question.id];
-            return value === undefined || value === null || value === '';
-        });
-        if (missing.length > 0)
-            throw new common_1.BadRequestException('Faltan respuestas obligatorias');
+        const problemas = (0, shared_1.problemasDeRespuesta)(survey.questions ?? [], dto.answers ?? {});
+        if (problemas.length > 0)
+            throw new common_1.BadRequestException(problemas.join(' · '));
+        let aceptacion;
+        try {
+            aceptacion = await (0, consentimiento_de_encuesta_1.aceptacionAGuardar)(this.surveys.manager, survey, dto.answers ?? {}, dto.aceptaPrivacidad);
+        }
+        catch (error) {
+            throw new common_1.BadRequestException(error instanceof Error ? error.message : 'Falta aceptar el uso de tus datos');
+        }
+        const escrito = (0, consentimiento_de_encuesta_1.contactoEscrito)(survey.questions ?? [], dto.answers ?? {});
         const saved = await this.responses.manager.transaction(async (manager) => {
             const response = await manager.save(manager.create(survey_response_entity_1.SurveyResponse, {
                 organizationId: survey.organizationId,
                 surveyId: survey.id,
                 respondentId: `public:${(dto.respondentId?.trim() || 'link').slice(0, 40)}:${(0, node_crypto_1.randomUUID)()}`.slice(0, 100),
                 answers: dto.answers ?? {},
+                respondentName: escrito.nombre ?? null,
+                respondentEmail: escrito.correo ?? null,
+                ...aceptacion,
             }));
             await manager.increment(survey_entity_1.Survey, { id: survey.id }, 'responseCount', 1);
             return response;

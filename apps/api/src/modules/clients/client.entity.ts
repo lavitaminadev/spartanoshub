@@ -15,6 +15,15 @@ export class Client {
   @Column({ name: 'pod_id', type: 'uuid', nullable: true }) podId?: string;
   @Column({ type: 'varchar', length: 255 }) name: string;
   @Column({ name: 'legal_name', type: 'varchar', length: 255, nullable: true }) legalName?: string;
+  /** Datos legales de la empresa, usados por todas sus sucursales en textos y política de privacidad. */
+  @Column({ name: 'tax_id', type: 'varchar', length: 30, nullable: true }) taxId?: string | null;
+  @Column({ name: 'privacy_email', type: 'varchar', length: 190, nullable: true }) privacyEmail?: string | null;
+  @Column({ name: 'privacy_url', type: 'varchar', length: 500, nullable: true }) privacyUrl?: string | null;
+  @Column({ name: 'terms_url', type: 'varchar', length: 500, nullable: true }) termsUrl?: string | null;
+  /** `enlace`: lleva a la web de la empresa. `texto`: muestra lo escrito aquí dentro de la página. */
+  @Column({ name: 'legal_mode', type: 'varchar', length: 10, nullable: true }) legalMode?: string | null;
+  @Column({ name: 'privacy_text', type: 'text', nullable: true }) privacyText?: string | null;
+  @Column({ name: 'terms_text', type: 'text', nullable: true }) termsText?: string | null;
   @Column({ type: 'varchar', length: 255, nullable: true }) industry?: string;
   @Column({ type: 'varchar', length: 50, default: ClientStatus.ONBOARDING }) status: ClientStatus;
   @Column({ name: 'retainer_amount', type: 'decimal', precision: 18, scale: 2, nullable: true }) retainerAmount?: number;

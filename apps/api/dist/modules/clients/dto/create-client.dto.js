@@ -63,6 +63,47 @@ __decorate([
 ], CreateClientDto.prototype, "legalName", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(30),
+    __metadata("design:type", String)
+], CreateClientDto.prototype, "taxId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEmail)(),
+    (0, class_validator_1.MaxLength)(190),
+    __metadata("design:type", String)
+], CreateClientDto.prototype, "privacyEmail", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUrl)({ protocols: ['https'], require_protocol: true }),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], CreateClientDto.prototype, "privacyUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUrl)({ protocols: ['https'], require_protocol: true }),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], CreateClientDto.prototype, "termsUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['enlace', 'texto']),
+    __metadata("design:type", String)
+], CreateClientDto.prototype, "legalMode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(30000),
+    __metadata("design:type", String)
+], CreateClientDto.prototype, "privacyText", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(30000),
+    __metadata("design:type", String)
+], CreateClientDto.prototype, "termsText", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(shared_1.CLIENT_INDUSTRY_VALUES),
     __metadata("design:type", String)
 ], CreateClientDto.prototype, "industry", void 0);

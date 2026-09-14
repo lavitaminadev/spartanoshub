@@ -46,7 +46,8 @@ function aggregateChoice(values: string[]): Record<string, number> {
  * encuesta completa.
  */
 export function computeSurveyResults(survey: Survey, responses: SurveyResponse[]): SurveyResultsSummary {
-  const questions: SurveyQuestionResult[] = survey.questions.map((question) => {
+  // Los datos de contacto identifican a una persona: se leen en cada respuesta, no se agregan.
+  const questions: SurveyQuestionResult[] = survey.questions.filter((question) => !question.dato).map((question) => {
     const raw = responses
       .map((response) => response.answers[question.id])
       .filter((value): value is string | number => value !== undefined && value !== '');

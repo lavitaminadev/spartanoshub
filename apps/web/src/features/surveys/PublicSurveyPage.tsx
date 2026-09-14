@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type JSX } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type JSX } from 'react';
+import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -6,14 +7,13 @@ import { safeUrl } from '../../core/safe-url';
 import { Ga4Tag } from '../../shared/Ga4Tag';
 import { trackGa4Event } from '../../shared/ga4-events';
 import type { Survey, SurveyQuestion, SurveyResponse } from '@espartanos/shared';
+import { preguntasVisibles, problemasDeRespuesta, traeDatosPersonales } from '@espartanos/shared';
+import { AceptacionDeDatos, CampoDeEncuesta } from './CampoDeEncuesta';
+import { estiloDeEncuesta } from './estilo-de-encuesta';
 import { FlujoSimpleDeEncuesta } from './FlujoSimpleDeEncuesta';
 import './surveys.css';
 
 type Answers = Record<string, string | number>;
-
-function answerIsEmpty(value: string | number | undefined): boolean {
-  return value === undefined || value === '';
-}
 
 function numericAnswer(answers: Answers, questions: SurveyQuestion[]): number | null {
   const ratingQuestion = questions.find((question) => question.type === 'rating' || question.type === 'nps');
@@ -22,60 +22,7 @@ function numericAnswer(answers: Answers, questions: SurveyQuestion[]): number | 
 }
 
 function sourceFromParams(searchParams: URLSearchParams): string {
-  return searchParams.get('src') || searchParams.get('utm_source') || searchParams.get('source') || searchParams.get('via') || 'link';
-}
-
-function SurveyQuestionField({
-  question,
-  value,
-  onChange,
-}: {
-  question: SurveyQuestion;
-  value: string | number | undefined;
-  onChange: (value: string | number) => void;
-}) {
-  if (question.type === 'text') {
-    return (
-      <label className="public-survey-field">
-        <span>{question.question}{question.required ? ' *' : ''}</span>
-        <textarea rows={4} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />
-      </label>
-    );
-  }
-
-  if (question.type === 'multiple-choice') {
-    return (
-      <fieldset className="public-survey-field public-survey-options">
-        <legend>{question.question}{question.required ? ' *' : ''}</legend>
-        {(question.options ?? []).map((option) => (
-          <label key={option}>
-            <input type="radio" name={question.id} checked={value === option} onChange={() => onChange(option)} />
-            <span>{option}</span>
-          </label>
-        ))}
-      </fieldset>
-    );
-  }
-
-  const max = question.type === 'nps' ? 10 : 5;
-  const min = question.type === 'nps' ? 0 : 1;
-  return (
-    <fieldset className="public-survey-field public-survey-scale">
-      <legend>{question.question}{question.required ? ' *' : ''}</legend>
-      <div>
-        {Array.from({ length: max - min + 1 }, (_, index) => min + index).map((score) => (
-          <button
-            key={score}
-            type="button"
-            className={Number(value) === score ? 'active' : ''}
-            onClick={() => onChange(score)}
-          >
-            {score}
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  );
+  return searchParams.get('src') || searchParams.get('utm_source') || searchParams.get('source') || searchParams.get('via') || origenDeEstaVisita()?.source || 'link';
 }
 
 export function PublicSurveyPage(): JSX.Element {
@@ -83,6 +30,8 @@ export function PublicSurveyPage(): JSX.Element {
   const [searchParams] = useSearchParams();
   const [answers, setAnswers] = useState<Answers>({});
   const [submitted, setSubmitted] = useState(false);
+  const [aceptada, setAceptada] = useState(false);
+  const [intentoEnviar, setIntentoEnviar] = useState(false);
   const source = useMemo(() => sourceFromParams(searchParams), [searchParams]);
 
   const { data: survey, isLoading, error } = useQuery<Survey>({
@@ -102,8 +51,10 @@ export function PublicSurveyPage(): JSX.Element {
      */
     mutationFn: () => api.post<SurveyResponse, Partial<SurveyResponse>>(`/public/surveys/${encodeURIComponent(id)}/responses`, {
       respondentId: source,
-      answers,
-    }),
+      // Sólo lo que la persona vio: una respuesta de una pregunta que después quedó oculta no se envía.
+      answers: Object.fromEntries(Object.entries(answers).filter(([clave]) => preguntasVisibles(survey?.questions ?? [], answers).some((pregunta) => pregunta.id === clave))),
+      ...(aceptada ? { aceptaPrivacidad: true } : {}),
+    } as Partial<SurveyResponse>),
     onSuccess: () => {
       setSubmitted(true);
       trackGa4Event(survey?.ga4MeasurementId, 'survey_submitted', {
@@ -124,24 +75,13 @@ export function PublicSurveyPage(): JSX.Element {
   }, [source, survey?.ga4MeasurementId, survey?.id, survey?.title]);
 
   const design = survey?.designConfig ?? {};
-  const background = design.backgroundMode === 'gradient'
-    ? design.backgroundGradient
-    : design.backgroundMode === 'image' && design.backgroundImage
-      ? `linear-gradient(rgba(255,255,255,${Number(design.backgroundOpacity ?? 88) / 100}), rgba(255,255,255,${Number(design.backgroundOpacity ?? 88) / 100})), url("${design.backgroundImage}") center/cover`
-      : design.backgroundColor;
-  const style = {
-    '--survey-primary': design.primaryColor || '#0fb9b1',
-    '--survey-accent': design.accentColor || '#ec0b61',
-    '--survey-text': design.textColor || '#151317',
-    '--survey-field-radius': `${Number(design.fieldRadius ?? 12)}px`,
-    background: background || '#f6f4f5',
-    color: design.textColor || '#151317',
-    fontFamily: design.fontFamily || 'system-ui',
-  } as CSSProperties;
+  const style = estiloDeEncuesta(design);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!survey) return;
+    setIntentoEnviar(true);
+    if (problemas.length > 0 || faltaAceptar) return;
     submitMutation.mutate();
   };
 
@@ -167,14 +107,16 @@ export function PublicSurveyPage(): JSX.Element {
             preguntaNota={preguntaNota}
             invitacion={searchParams.get('i')}
             origen={source}
-            renderPregunta={(question, value, onChange) => <SurveyQuestionField question={question} value={value} onChange={onChange} />}
+            renderPregunta={(question, value, onChange, mostrarError) => <CampoDeEncuesta question={question} value={value} onChange={onChange} mostrarError={mostrarError} />}
           />
         </section>
       </main>
     );
   }
 
-  const missingRequired = survey.questions.some((question) => question.required && answerIsEmpty(answers[question.id]));
+  const visibles = preguntasVisibles(survey.questions, answers);
+  const problemas = problemasDeRespuesta(survey.questions, answers);
+  const faltaAceptar = Boolean(survey.consentimiento) && traeDatosPersonales(survey.questions, answers) && !aceptada;
   const rating = numericAnswer(answers, survey.questions);
   const reviewMinRating = Number(survey.googleReview?.minRating ?? 4);
   const reviewUrl = safeUrl(survey.googleReview?.url || '');
@@ -211,18 +153,21 @@ export function PublicSurveyPage(): JSX.Element {
         <p>{design.welcome || 'Tu opinión ayuda a mejorar el servicio.'}</p>
 
         <div className="public-survey-questions">
-          {survey.questions.map((question) => (
-            <SurveyQuestionField
+          {visibles.map((question) => (
+            <CampoDeEncuesta
               key={question.id}
               question={question}
               value={answers[question.id]}
+              mostrarError={intentoEnviar}
               onChange={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
             />
           ))}
         </div>
 
+        {survey.consentimiento && traeDatosPersonales(survey.questions, answers) ? <AceptacionDeDatos consentimiento={survey.consentimiento} aceptada={aceptada} onChange={setAceptada} /> : null}
+        {intentoEnviar && (problemas.length > 0 || faltaAceptar) ? <div className="alert alert-error" role="alert">{[...problemas, ...(faltaAceptar ? ['Acepta el uso de tus datos para enviar'] : [])].join(' · ')}</div> : null}
         {submitMutation.error ? <div className="alert alert-error">{submitMutation.error.message}</div> : null}
-        <button className="btn btn-primary btn-block public-survey-submit" disabled={submitMutation.isPending || missingRequired}>
+        <button className="btn btn-primary btn-block public-survey-submit" disabled={submitMutation.isPending}>
           {submitMutation.isPending ? 'Enviando...' : 'Enviar respuesta'}
         </button>
       </form>

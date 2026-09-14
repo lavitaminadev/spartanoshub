@@ -353,6 +353,18 @@ export class ExportFormReservationsDto {
   @IsArray() @IsString({ each: true }) @MaxLength(120, { each: true }) fields: string[];
 }
 
+/** Datos legales que la empresa usa en reservas y encuestas; los maneja la propia empresa. */
+export class CompanyLegalDto {
+  @IsOptional() @IsString() @MaxLength(255) legalName?: string | null;
+  @IsOptional() @IsString() @MaxLength(30) taxId?: string | null;
+  @IsOptional() @IsEmail() @MaxLength(190) privacyEmail?: string | null;
+  @IsOptional() @IsUrl({ protocols: ['https'], require_protocol: true }) @MaxLength(500) privacyUrl?: string | null;
+  @IsOptional() @IsUrl({ protocols: ['https'], require_protocol: true }) @MaxLength(500) termsUrl?: string | null;
+  @IsOptional() @IsIn(['enlace', 'texto']) legalMode?: string;
+  @IsOptional() @IsString() @MaxLength(30000) privacyText?: string | null;
+  @IsOptional() @IsString() @MaxLength(30000) termsText?: string | null;
+}
+
 export class ReservationScopeDto {
   @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsDateString() from?: string;

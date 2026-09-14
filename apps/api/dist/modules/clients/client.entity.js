@@ -64,6 +64,34 @@ __decorate([
     __metadata("design:type", String)
 ], Client.prototype, "legalName", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'tax_id', type: 'varchar', length: 30, nullable: true }),
+    __metadata("design:type", Object)
+], Client.prototype, "taxId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'privacy_email', type: 'varchar', length: 190, nullable: true }),
+    __metadata("design:type", Object)
+], Client.prototype, "privacyEmail", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'privacy_url', type: 'varchar', length: 500, nullable: true }),
+    __metadata("design:type", Object)
+], Client.prototype, "privacyUrl", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'terms_url', type: 'varchar', length: 500, nullable: true }),
+    __metadata("design:type", Object)
+], Client.prototype, "termsUrl", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'legal_mode', type: 'varchar', length: 10, nullable: true }),
+    __metadata("design:type", Object)
+], Client.prototype, "legalMode", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'privacy_text', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], Client.prototype, "privacyText", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'terms_text', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], Client.prototype, "termsText", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255, nullable: true }),
     __metadata("design:type", String)
 ], Client.prototype, "industry", void 0);

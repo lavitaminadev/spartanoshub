@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -108,6 +109,8 @@ export function PublicReservationPage() {
   const [groupEventNotes, setGroupEventNotes] = useState('');
   const [requestMode, setRequestMode] = useState(false);
   const [requestPreference, setRequestPreference] = useState({ date: '', time: '' });
+  /** Privacidad o condiciones escritas por la empresa, mostradas dentro de la página. */
+  const [documentoLegal, setDocumentoLegal] = useState<{ titulo: string; texto: string } | null>(null);
   const [visitNeeds, setVisitNeeds] = useState({ childrenCount: 0, accessibilityNeed: '', dietaryNotes: '', smokingPreference: '', seatingPreference: '', firstVisit: '', howFound: '' });
   // Campo trampa: invisible para la persona, presente en el HTML para los bots, que
   // rellenan todo lo que encuentran. El servidor descarta cualquier envío que lo traiga.
@@ -211,10 +214,13 @@ export function PublicReservationPage() {
   const isSurvey = form ? ['request', 'survey'].includes(form.mode) : false;
   // El enlace base es orgánico/directo. Sólo una UTM explícita atribuye una campaña;
   // de otro modo se contaminarían reservas llegadas por QR, WhatsApp o búsqueda.
-  const utmSource = requestedUtmSource;
-  const utmMedium = requestedUtmMedium;
+  // Sin UTM se usa lo detectado (anuncio, app o sitio de origen), fijado al entrar: el referrer
+  // no cambia mientras la persona completa el formulario.
+  const [detectado] = useState(() => (requestedUtmSource ? null : origenDeEstaVisita()));
+  const utmSource = requestedUtmSource ?? detectado?.source;
+  const utmMedium = requestedUtmSource ? requestedUtmMedium : detectado?.medium;
   const utmCampaign = requestedUtmCampaign;
-  const utmContent = requestedUtmContent;
+  const utmContent = requestedUtmSource ? requestedUtmContent : detectado?.content;
 
   useEffect(() => {
     if (isSurvey) setStep(2);
@@ -412,7 +418,7 @@ export function PublicReservationPage() {
         seatingPreference: visitNeeds.seatingPreference || undefined,
         firstVisit: visitNeeds.firstVisit || undefined,
         howFound: visitNeeds.howFound || undefined,
-        ...baseBody, renderedAt, consentVersion: 'reservation-v2', reservationConsent,
+        ...baseBody, renderedAt, consentVersion: 'reservation-v3', reservationConsent,
         marketingConsent, marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v2'),
         couponCode: couponCode.trim() || undefined, measurementConsent,
         networkConsent, networkConsentVersion: String(form?.designConfig?.networkConsentVersion || 'red-v1'),
@@ -425,7 +431,7 @@ export function PublicReservationPage() {
       startsAt: selected, serviceId: serviceId || undefined, resourceId: resourceId || undefined,
       ...guest, answers: respuestasParaEnviar(), idempotencyKey, reservationConsent, marketingConsent, measurementConsent, networkConsent,
       ...(measurementConsent ? (() => { const meta = readMetaMatchData(); return { fbc: meta.fbc, fbp: meta.fbp, fbclid: meta.fbclid, gclid: params.get('gclid') || undefined, gbraid: params.get('gbraid') || undefined, wbraid: params.get('wbraid') || undefined }; })() : {}),
-      consentVersion: 'reservation-v2', marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v2'),
+      consentVersion: 'reservation-v3', marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v2'),
       utmSource, utmMedium, utmCampaign, utmContent,
     }),
   });
@@ -666,7 +672,13 @@ export function PublicReservationPage() {
    * Si la grilla está conectada a una pregunta del formulario, tocar una tarjeta la responde.
    * Sólo cuando la ocasión es una opción válida de esa pregunta: el servidor rechaza cualquier otra.
    */
-  const preguntaDeOcasiones = design.ocasionesPreguntaId ? (form?.fieldSchema || []).find((field) => field.id === design.ocasionesPreguntaId && field.type === 'select') : undefined;
+  /*
+   * La pregunta conectada sólo existe si la grilla tiene ocasiones reales: con «No» como única
+   * opción (la grilla vacía o sólo con el texto de relleno) no hay nada que elegir y se oculta.
+   */
+  const preguntaConectada = design.ocasionesPreguntaId ? (form?.fieldSchema || []).find((field) => field.id === design.ocasionesPreguntaId && field.type === 'select') : undefined;
+  const opcionesReales = (preguntaConectada?.options ?? []).filter((opcion) => opcion.trim().toLowerCase() !== 'nueva ocasión');
+  const preguntaDeOcasiones = preguntaConectada && opcionesReales.length > 1 ? { ...preguntaConectada, options: opcionesReales } : undefined;
   /*
    * Con la grilla conectada no se pregunta dos veces qué se celebra: el tipo de evento sale de
    * la respuesta a esa pregunta. Sin respuesta o con «No», el grupo cuenta como «otro».
@@ -738,7 +750,7 @@ export function PublicReservationPage() {
    * cupones». Cualquier otro campo agregado —selector, fecha, aceptación propia— aparece aquí.
    */
   const camposEnOrden = camposVisibles(
-    (form.fieldSchema || []).filter((field) => field.id !== 'partySize' && field.type !== 'coupon' && (isSurvey || field.id !== 'consent')),
+    (form.fieldSchema || []).map((field) => field.options ? { ...field, options: field.options.filter((opcion) => opcion.trim().toLowerCase() !== 'nueva ocasión') } : field).filter((field) => !(preguntaConectada && !preguntaDeOcasiones && (field.id === preguntaConectada.id || field.mostrarSi?.campo === preguntaConectada.id))).filter((field) => field.id !== 'partySize' && field.type !== 'coupon' && (isSurvey || field.id !== 'consent')),
     { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone, partySize: guest.partySize },
   );
   /** Hoy en la zona del local: el mínimo de las fechas que puede elegir quien reserva. */
@@ -762,7 +774,7 @@ export function PublicReservationPage() {
    */
   const legalId = design.legalCompanyId ? `, ${design.legalCompanyId}` : '';
   const networkBrand = String(design.networkBrandName || 'Espartanos');
-  const reservationConsentText = String(design.reservationConsentText || `Autorizo a ${legalController}${legalId} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija.${legalContact}`);
+  const reservationConsentText = String(design.reservationConsentText || `Autorizo a ${legalController}${legalId} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija. La plataforma Espartanos los trata por encargo de ${legalController}.${legalContact}`);
   const marketingConsentText = String(design.marketingConsentText || `Autorizo voluntariamente a ${legalController}${legalId} a enviarme novedades, promociones y comunicaciones comerciales al correo o teléfono que indiqué. Es opcional, no condiciona mi reserva y puedo revocarla cuando quiera, sin costo, desde el enlace de cada mensaje${design.supportEmail ? ` o escribiendo a ${design.supportEmail}` : ''}.`);
   const networkConsentText = String(design.networkConsentText || `Autorizo que ${legalController}${legalId} comparta mi nombre, mis datos de contacto y mis preferencias de visita con los demás locales de ${networkBrand}, para no tener que repetirlos al reservar en otro de ellos. Es opcional, no condiciona esta reserva, cada local responde por el uso que haga de esos datos y puedo revocarlo cuando quiera.${legalContact}`);
 
@@ -963,7 +975,7 @@ export function PublicReservationPage() {
         </div>}
 
         {step === 2 && <div ref={formRef}>
-          <div className="booking-step-title"><span>{isSurvey ? '01' : '02'}</span><div><strong>{isSurvey ? (design.surveyTitle || 'Cuéntanos cómo fue tu experiencia') : requestMode ? 'Solicita tu evento' : 'Tus datos'}</strong><small>{isSurvey ? (design.surveyHelpText || 'Tus respuestas ayudan al local a mejorar cada visita.') : requestMode ? 'No se reservará un horario hasta que el local confirme contigo.' : 'Se usarán solo para gestionar tu atención.'}</small></div></div>
+          <div className="booking-step-title"><span>{isSurvey || requestMode ? '01' : '02'}</span><div><strong>{isSurvey ? (design.surveyTitle || 'Cuéntanos cómo fue tu experiencia') : requestMode ? 'Solicita tu evento' : 'Tus datos'}</strong><small>{isSurvey ? (design.surveyHelpText || 'Tus respuestas ayudan al local a mejorar cada visita.') : requestMode ? 'No se reservará un horario hasta que el local confirme contigo.' : 'Se usarán solo para gestionar tu atención.'}</small></div></div>
           {/*
             * Recordatorio de lo elegido.
             *
@@ -979,23 +991,72 @@ export function PublicReservationPage() {
           <div className="booking-selected-slot">{selected && <div className="selected-slot-badge"><span><VitaIcons.calendar /></span><strong>{new Date(selected).toLocaleString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>{hold.isPending && <small aria-live="polite">Guardando tu cupo...</small>}{hold.isSuccess && holdRestante > 0 && <small className="success-text" aria-live="polite">Cupo retenido {Math.floor(holdRestante / 60)}:{String(holdRestante % 60).padStart(2, "0")}</small>}{hold.isSuccess && holdExpiraEn && holdRestante === 0 && <small aria-live="polite">La retención venció. Puedes seguir, pero confirmaremos que el horario siga libre.</small>}<button type="button" className="btn btn-outline btn-xs" onClick={goBackToSlots}>Cambiar</button></div>}</div>
           <div className="public-form-fields">
             {/* El orden es el del editor: los campos fijos van donde se los puso, no siempre arriba. */}
-            {camposEnOrden.map((field) => field.id === 'name' ? <Fragment key="name"><div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div></Fragment>
+            {camposEnOrden.filter((field) => !(preguntaDeOcasiones && field.id === preguntaDeOcasiones.id && (requestMode || guest.partySize > groupThreshold))).map((field) => field.id === 'name' ? <Fragment key="name"><div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div></Fragment>
               : field.id === 'phone' ? <Fragment key="phone"><div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div></Fragment>
               : field.id === 'email' ? <Fragment key="email"><div className={`public-field ${errors.email ? 'has-error' : ''}`}><label>{systemFields.email.label} {systemFields.email.required ? <span className="required-star">*</span> : null}<input className={errors.email ? 'input-error' : ''} type="email" required={systemFields.email.required} placeholder={systemFields.email.placeholder || 'tu@correo.com'} value={guest.guestEmail} onChange={(event) => setGuest({ ...guest, guestEmail: event.target.value })} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'error-email' : undefined} /></label>{errors.email && <span className="field-error" id="error-email" role="alert">{errors.email}</span>}</div></Fragment>
               : <Fragment key={field.id}>{renderField(field, answers[field.id], (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
-            {!isSurvey && (guest.partySize > groupThreshold || requestMode) && <div className={`group-event-fields ${errors.groupEvent ? 'has-error' : ''}`}><strong>Sobre tu grupo</strong><p>{requestMode ? 'Esta solicitud no toma cupo. El local confirmará disponibilidad contigo.' : 'Esto ayuda al local a preparar tu solicitud; no es una confirmación automática.'}</p>{!preguntaDeOcasiones && <label>¿Qué ocasión es?<select required value={groupEventType} onChange={(event) => setGroupEventType(event.target.value)}><option value="">Selecciona una opción</option><option value="cumpleanos">Cumpleaños</option><option value="aniversario">Aniversario / celebración</option><option value="empresa">Comida o evento de empresa</option><option value="otro">Otro grupo</option></select></label>}{requestMode && <div className="form-row"><label>Fecha preferida <small>(opcional)</small><input type="date" min={hoyEnElLocal} value={requestPreference.date} onChange={(event) => setRequestPreference({ ...requestPreference, date: event.target.value })} /></label><label>Horario preferido <small>(opcional)</small><input value={requestPreference.time} onChange={(event) => setRequestPreference({ ...requestPreference, time: event.target.value })} maxLength={80} placeholder="Ej. viernes desde 20:00" /></label></div>}<label>Cuéntanos lo importante <small>(opcional)</small><textarea value={groupEventNotes} onChange={(event) => setGroupEventNotes(event.target.value)} maxLength={1000} placeholder="Ej. silla de bebé, torta, horario flexible…" /></label>{errors.groupEvent && <span className="field-error" role="alert">{errors.groupEvent}</span>}</div>}
-            {!isSurvey && ['askChildren', 'askAccessibility', 'askAllergies', 'askSmoking', 'askSeating', 'askFirstVisit', 'askHowFound'].some((clave) => (form.designConfig as Record<string, unknown> | undefined)?.[clave] === 'true') && <div className="group-event-fields"><strong>Tu visita</strong><p>Opcional. El local hará lo posible por considerarlas, pero no reemplaza una coordinación directa.</p>{form.designConfig?.askChildren === 'true' && <label>¿Cuántos niños vienen?<select value={visitNeeds.childrenCount} onChange={(event) => setVisitNeeds({ ...visitNeeds, childrenCount: Number(event.target.value) })}><option value={0}>No vienen niños / prefiero no indicar</option>{Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} niño{count > 1 ? 's' : ''}</option>)}</select></label>}{form.designConfig?.askAccessibility === 'true' && <label>Accesibilidad o comodidad <small>(opcional)</small><input value={visitNeeds.accessibilityNeed} onChange={(event) => setVisitNeeds({ ...visitNeeds, accessibilityNeed: event.target.value })} maxLength={500} placeholder="Ej. acceso sin escalón, espacio para coche" /></label>}{form.designConfig?.askAllergies === 'true' && <label>Restricciones alimentarias <small>(opcional)</small><textarea value={visitNeeds.dietaryNotes} onChange={(event) => setVisitNeeds({ ...visitNeeds, dietaryNotes: event.target.value })} maxLength={1000} placeholder="Ej. vegetariano, sin gluten. Confirma siempre directamente con el local." /></label>}
-              {form.designConfig?.askSmoking === 'true' && <label>¿Zona de fumadores? <small>(opcional)</small><select value={visitNeeds.smokingPreference} onChange={(event) => setVisitNeeds({ ...visitNeeds, smokingPreference: event.target.value })}><option value="">Prefiero no indicar</option><option value="Zona de fumadores">Zona de fumadores</option><option value="Zona de no fumadores">Zona de no fumadores</option><option value="Me da lo mismo">Me da lo mismo</option></select>{visitNeeds.smokingPreference === 'Zona de no fumadores' && resources.find((zona) => zona.id === resourceId)?.smokingAllowed && <small className="error-text">El sector que elegiste permite fumar.</small>}{visitNeeds.smokingPreference === 'Zona de fumadores' && resources.length > 0 && !resources.some((zona) => zona.smokingAllowed) && <small>Este local no tiene sectores para fumadores.</small>}</label>}
-              {form.designConfig?.askSeating === 'true' && <label>¿Qué mesa prefieres? <small>(opcional)</small><select value={visitNeeds.seatingPreference} onChange={(event) => setVisitNeeds({ ...visitNeeds, seatingPreference: event.target.value })}><option value="">Sin indicar</option><option value="Mesa tranquila">Mesa tranquila</option><option value="Cerca de una ventana">Cerca de una ventana</option><option value="Cerca de la barra">Cerca de la barra</option><option value="Sin preferencia">Sin preferencia</option></select></label>}
-              {form.designConfig?.askFirstVisit === 'true' && <label>¿Es tu primera visita? <small>(opcional)</small><select value={visitNeeds.firstVisit} onChange={(event) => setVisitNeeds({ ...visitNeeds, firstVisit: event.target.value })}><option value="">Prefiero no indicar</option><option value="Sí, es mi primera vez">Sí, es mi primera vez</option><option value="No, ya he venido">No, ya he venido</option></select></label>}
-              {form.designConfig?.askHowFound === 'true' && <label>¿Cómo nos conociste? <small>(opcional)</small><select value={visitNeeds.howFound} onChange={(event) => setVisitNeeds({ ...visitNeeds, howFound: event.target.value })}><option value="">Prefiero no indicar</option><option value="Redes sociales">Redes sociales</option><option value="Recomendación">Recomendación</option><option value="Google o mapas">Google o mapas</option><option value="Pasé por fuera">Pasé por fuera</option><option value="Otro">Otro</option></select></label>}</div>}
-            {/* Encendido salvo que el local lo apague: así lo muestra el editor. Antes "false" (texto) contaba como sí. */}
-            {form.designConfig?.couponEnabled !== 'false' && <div className="public-field"><label>Cupón de descuento<div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código opcional" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
-            {!isSurvey && <div className={`public-consent ${errors.reservationConsent ? 'has-error' : ''}`}><label><input type="checkbox" required checked={reservationConsent} onChange={(event) => setReservationConsent(event.target.checked)} aria-invalid={Boolean(errors.reservationConsent)} /><span><strong>Gestionar mi reserva <span className="required-star">*</span></strong><small>{reservationConsentText}</small></span></label><small className="consent-legal">{legalController}{design.legalCompanyId ? ` · ${design.legalCompanyId}` : ''} · {design.privacyUrl ? <a href={safeUrl(String(design.privacyUrl))} target="_blank" rel="noreferrer">Ver privacidad</a> : 'Información de privacidad disponible con el local.'}</small>{errors.reservationConsent && <span className="field-error" role="alert">{errors.reservationConsent}</span>}</div>}
-            {!isSurvey && <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Recibir novedades <small>(opcional)</small></strong><small>{marketingConsentText}</small></span></label></div>}
-            {/* Compartir con otros locales es una finalidad distinta y por eso pregunta aparte. */}
-            {!isSurvey && design.networkConsentEnabled === 'true' && <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={networkConsent} onChange={(event) => setNetworkConsent(event.target.checked)} /><span><strong>Reconocerme en otros locales de {networkBrand} <small>(opcional)</small></strong><small>{networkConsentText}</small></span></label></div>}
-            <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={measurementConsent} onChange={(event) => setMeasurementConsent(event.target.checked)} /><span><strong>{isSurvey ? 'Ayudar a mejorar esta encuesta' : 'Ayudar a mejorar la reserva'} <small>(opcional)</small></strong><small>Permite medir de forma agregada cómo funciona esta página, con herramientas de Meta y Google que pueden tratar los datos fuera de Chile. No afecta tu reserva ni tu respuesta, no te suscribe a mensajes y puedes dejarlo sin marcar.</small></span></label></div>
+            {/* ---- Evento o grupo: todo lo del evento junto, separado de las preferencias de una visita normal. */}
+            {!isSurvey && (guest.partySize > groupThreshold || requestMode) && <section className={`booking-bloque ${errors.groupEvent ? 'has-error' : ''}`} aria-labelledby="bloque-evento">
+              <h3 id="bloque-evento">{requestMode ? 'Sobre tu evento' : 'Sobre tu grupo'}</h3>
+              <p className="booking-bloque-ayuda">{requestMode ? 'No toma un horario: el local te contactará para acordar fecha y detalles.' : 'Los grupos grandes los confirma el local antes de dejar la reserva lista.'}</p>
+              {preguntaDeOcasiones
+                ? <Fragment>{renderField({ ...preguntaDeOcasiones, options: (preguntaDeOcasiones.options ?? []).filter((opcion) => opcion.trim().toLowerCase() !== 'nueva ocasión') }, answers[preguntaDeOcasiones.id], (value) => setAnswers({ ...answers, [preguntaDeOcasiones.id]: value }), errors[preguntaDeOcasiones.id])}</Fragment>
+                : <label>¿Qué ocasión es?<select required value={groupEventType} onChange={(event) => setGroupEventType(event.target.value)}><option value="">Selecciona una opción</option><option value="cumpleanos">Cumpleaños</option><option value="aniversario">Aniversario / celebración</option><option value="empresa">Comida o evento de empresa</option><option value="otro">Otro grupo</option></select></label>}
+              {requestMode && <div className="form-row"><label>Fecha preferida <small>(opcional)</small><input type="date" min={hoyEnElLocal} value={requestPreference.date} onChange={(event) => setRequestPreference({ ...requestPreference, date: event.target.value })} /></label><label>Horario preferido <small>(opcional)</small><input value={requestPreference.time} onChange={(event) => setRequestPreference({ ...requestPreference, time: event.target.value })} maxLength={80} placeholder="Ej. viernes desde 20:00" /></label></div>}
+              <label>Cuéntanos lo importante <small>(opcional)</small><textarea value={groupEventNotes} onChange={(event) => setGroupEventNotes(event.target.value)} maxLength={1000} placeholder="Ej. torta, decoración, menú, horario flexible…" /></label>
+              {errors.groupEvent && <span className="field-error" role="alert">{errors.groupEvent}</span>}
+            </section>}
+
+            {/* ---- Preferencias de la visita: plegadas, porque son opcionales y no deben alargar el paso. */}
+            {!isSurvey && ['askChildren', 'askAccessibility', 'askAllergies', 'askSmoking', 'askSeating', 'askFirstVisit', 'askHowFound'].some((clave) => (form.designConfig as Record<string, unknown> | undefined)?.[clave] === 'true') && <details className="booking-bloque booking-bloque-plegable">
+              <summary><span>Preferencias de la visita <small>(opcional)</small></span><small>Niños, accesibilidad, alimentación y mesa</small></summary>
+              <p className="booking-bloque-ayuda">El local hará lo posible por considerarlas; no reemplazan una coordinación directa.</p>
+              {form.designConfig?.askChildren === 'true' && <label>¿Cuántos niños vienen?<select value={visitNeeds.childrenCount} onChange={(event) => setVisitNeeds({ ...visitNeeds, childrenCount: Number(event.target.value) })}><option value={0}>No vienen niños / prefiero no indicar</option>{Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} niño{count > 1 ? 's' : ''}</option>)}</select></label>}
+              {form.designConfig?.askAccessibility === 'true' && <label>Accesibilidad o comodidad<input value={visitNeeds.accessibilityNeed} onChange={(event) => setVisitNeeds({ ...visitNeeds, accessibilityNeed: event.target.value })} maxLength={500} placeholder="Ej. acceso sin escalón, espacio para coche" /></label>}
+              {form.designConfig?.askAllergies === 'true' && <label>Restricciones alimentarias<textarea value={visitNeeds.dietaryNotes} onChange={(event) => setVisitNeeds({ ...visitNeeds, dietaryNotes: event.target.value })} maxLength={1000} placeholder="Ej. vegetariano, sin gluten. Confirma siempre directamente con el local." /></label>}
+              {form.designConfig?.askSmoking === 'true' && <label>¿Zona de fumadores?<select value={visitNeeds.smokingPreference} onChange={(event) => setVisitNeeds({ ...visitNeeds, smokingPreference: event.target.value })}><option value="">Prefiero no indicar</option><option value="Zona de fumadores">Zona de fumadores</option><option value="Zona de no fumadores">Zona de no fumadores</option><option value="Me da lo mismo">Me da lo mismo</option></select>{visitNeeds.smokingPreference === 'Zona de no fumadores' && resources.find((zona) => zona.id === resourceId)?.smokingAllowed && <small className="error-text">El sector que elegiste permite fumar.</small>}{visitNeeds.smokingPreference === 'Zona de fumadores' && resources.length > 0 && !resources.some((zona) => zona.smokingAllowed) && <small>Este local no tiene sectores para fumadores.</small>}</label>}
+              {form.designConfig?.askSeating === 'true' && <label>¿Qué mesa prefieres?<select value={visitNeeds.seatingPreference} onChange={(event) => setVisitNeeds({ ...visitNeeds, seatingPreference: event.target.value })}><option value="">Sin indicar</option><option value="Mesa tranquila">Mesa tranquila</option><option value="Cerca de una ventana">Cerca de una ventana</option><option value="Cerca de la barra">Cerca de la barra</option><option value="Sin preferencia">Sin preferencia</option></select></label>}
+              {form.designConfig?.askFirstVisit === 'true' && <label>¿Es tu primera visita?<select value={visitNeeds.firstVisit} onChange={(event) => setVisitNeeds({ ...visitNeeds, firstVisit: event.target.value })}><option value="">Prefiero no indicar</option><option value="Sí, es mi primera vez">Sí, es mi primera vez</option><option value="No, ya he venido">No, ya he venido</option></select></label>}
+              {form.designConfig?.askHowFound === 'true' && <label>¿Cómo nos conociste?<select value={visitNeeds.howFound} onChange={(event) => setVisitNeeds({ ...visitNeeds, howFound: event.target.value })}><option value="">Prefiero no indicar</option><option value="Redes sociales">Redes sociales</option><option value="Recomendación">Recomendación</option><option value="Google o mapas">Google o mapas</option><option value="Pasé por fuera">Pasé por fuera</option><option value="Otro">Otro</option></select></label>}
+            </details>}
+
+            {/* ---- Cupón: sólo para una reserva con horario; una solicitud no tiene precio todavía. */}
+            {!requestMode && form.designConfig?.couponEnabled !== 'false' && <div className="public-field"><label>Cupón de descuento <small>(opcional)</small><div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
+
+            {/*
+              * Aceptaciones: una casilla por finalidad, ninguna marcada de antemano, texto corto y el
+              * detalle completo a un toque. El servidor guarda el texto completo tal como se mostró.
+              */}
+            <section className="booking-bloque booking-aceptaciones" aria-labelledby="bloque-aceptaciones">
+              <h3 id="bloque-aceptaciones">{isSurvey ? 'Antes de enviar' : 'Aceptaciones'}</h3>
+              {!isSurvey && <div className={`public-consent ${errors.reservationConsent ? 'has-error' : ''}`}>
+                <label><input type="checkbox" required checked={reservationConsent} onChange={(event) => setReservationConsent(event.target.checked)} aria-invalid={Boolean(errors.reservationConsent)} /><span><strong>Acepto que {legalController} use mis datos para gestionar esta {requestMode ? 'solicitud' : 'reserva'} <span className="required-star">*</span></strong></span></label>
+                <details className="consent-detalle"><summary>Ver detalle</summary><p>{reservationConsentText}</p><p className="consent-legal">Responsable: {legalController}{design.legalCompanyId ? ` · RUT ${design.legalCompanyId}` : ''}. Plataforma: Espartanos, por encargo del local.</p><EnlacesLegales design={design as Record<string, unknown>} onAbrir={setDocumentoLegal} /></details>
+                {errors.reservationConsent && <span className="field-error" role="alert">{errors.reservationConsent}</span>}
+              </div>}
+              {!isSurvey && <div className="public-consent public-marketing-consent">
+                <label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Quiero recibir novedades de {legalController} <small>(opcional)</small></strong></span></label>
+                <details className="consent-detalle"><summary>Ver detalle</summary><p>{marketingConsentText}</p></details>
+              </div>}
+              {!isSurvey && design.networkConsentEnabled === 'true' && <div className="public-consent public-marketing-consent">
+                <label><input type="checkbox" checked={networkConsent} onChange={(event) => setNetworkConsent(event.target.checked)} /><span><strong>Recordar mis datos en los locales de {networkBrand} <small>(opcional)</small></strong></span></label>
+                <details className="consent-detalle"><summary>Ver qué se comparte</summary><p>{networkConsentText}</p></details>
+              </div>}
+              {/* La medición ya respondida al entrar no se vuelve a preguntar: se muestra y se puede cambiar. */}
+              {(form.pixelId || form.ga4MeasurementId || isSurvey) && (eleccionMedicion !== '' && !isSurvey
+                ? <p className="consent-medicion-resumen">Medición publicitaria (Meta y Google): <strong>{measurementConsent ? 'aceptada' : 'no aceptada'}</strong> · <button type="button" className="enlace" onClick={() => setMeasurementConsent(!measurementConsent)}>{measurementConsent ? 'Retirar' : 'Aceptar'}</button></p>
+                : <div className="public-consent public-marketing-consent">
+                  <label><input type="checkbox" checked={measurementConsent} onChange={(event) => setMeasurementConsent(event.target.checked)} /><span><strong>{isSurvey ? 'Ayudar a medir esta encuesta' : 'Medición publicitaria (Meta y Google)'} <small>(opcional)</small></strong></span></label>
+                  <details className="consent-detalle"><summary>Ver detalle</summary><p>Permite saber de forma agregada qué anuncios traen {isSurvey ? 'respuestas' : 'reservas'}, con herramientas de Meta y Google que pueden tratar los datos fuera de Chile. No afecta tu {isSurvey ? 'respuesta' : 'reserva'}, no te suscribe a mensajes y puedes retirarlo cuando quieras.</p><EnlacesLegales design={design as Record<string, unknown>} onAbrir={setDocumentoLegal} soloPrivacidad /></details>
+                </div>)}
+            </section>
+            {documentoLegal && <div className="documento-legal" role="dialog" aria-modal="true" aria-label={documentoLegal.titulo} onClick={() => setDocumentoLegal(null)}>
+              <section onClick={(evento) => evento.stopPropagation()}>
+                <header><h2>{documentoLegal.titulo}</h2><button type="button" className="btn btn-outline btn-sm" onClick={() => setDocumentoLegal(null)} autoFocus>Cerrar</button></header>
+                <div className="documento-legal-texto">{documentoLegal.texto}</div>
+                <small>{legalController}{design.legalCompanyId ? ` · RUT ${design.legalCompanyId}` : ''}</small>
+              </section>
+            </div>}
           </div>
           <button className="public-submit" type="submit" disabled={submit.isPending}><span>{isSurvey ? (submit.isPending ? 'Enviando...' : 'Enviar') : 'Continuar →'}</span></button>
           {!isSurvey && <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => { if (requestMode) { volverAReservar(); } else goBackToSlots(); }}>← {requestMode ? 'Volver a reservar' : 'Personas y fecha'}</button>}
@@ -1024,6 +1085,22 @@ export function PublicReservationPage() {
       </form>
     </div>
   </main>;
+}
+
+/**
+ * Enlaces de privacidad y condiciones según lo que eligió la empresa: su web, o el texto que
+ * escribió, abierto en una ventana dentro de la página para no sacar a nadie de la reserva.
+ */
+function EnlacesLegales({ design, onAbrir, soloPrivacidad = false }: { design: Record<string, unknown>; onAbrir: (documento: { titulo: string; texto: string }) => void; soloPrivacidad?: boolean }) {
+  const enTexto = design.legalMode === 'texto';
+  const documentos = [
+    { titulo: 'Política de privacidad', url: design.privacyUrl, texto: design.privacyText },
+    ...(soloPrivacidad ? [] : [{ titulo: 'Condiciones', url: design.termsUrl, texto: design.termsText }]),
+  ].filter((doc) => (enTexto ? typeof doc.texto === 'string' && doc.texto.trim() : typeof doc.url === 'string' && doc.url));
+  if (documentos.length === 0) return null;
+  return <p className="consent-enlaces">{documentos.map((doc, indice) => <Fragment key={doc.titulo}>{indice > 0 ? ' · ' : ''}{enTexto
+    ? <button type="button" className="enlace" onClick={() => onAbrir({ titulo: doc.titulo, texto: String(doc.texto) })}>{doc.titulo}</button>
+    : <a href={safeUrl(String(doc.url))} target="_blank" rel="noreferrer">{doc.titulo}</a>}</Fragment>)}</p>;
 }
 
 /** Cómo se lee una respuesta en la confirmación: listas separadas por coma y fechas en palabras. */

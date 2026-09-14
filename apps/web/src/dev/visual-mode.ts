@@ -77,6 +77,9 @@ const VISUAL_USER = {
   features: forEveryModule(true),
   moduleLifecycle: forEveryModule('active'),
   permissions: forEveryModule('manage'),
+  // Con `?rol=client` el portal muestra los servicios de una empresa con todo contratado.
+  clientId: 'visual-client',
+  capabilities: { reservations: true, crm: true, surveys: true },
 };
 
 /**
@@ -236,9 +239,14 @@ const VISUAL_SURVEY = {
   questions: [
     { id: 'nota', type: 'rating', question: '¿Cómo fue tu visita?', required: true },
     { id: 'volveria', type: 'multiple-choice', question: '¿Volverías?', required: true, options: ['Sí', 'Tal vez', 'No'] },
+    { id: 'fallo', type: 'multiple-choice', question: '¿Qué falló?', required: true, options: ['La atención', 'El tiempo de espera', 'La comida'], mostrarSi: { preguntaId: 'nota', valores: ['1', '2', '3'] } },
     { id: 'mejorar', type: 'text', question: '¿Qué podríamos hacer mejor?', required: false },
+    { id: 'dato-nombre', type: 'text', question: 'Tu nombre', required: false, dato: 'nombre' },
+    { id: 'dato-correo', type: 'text', question: 'Tu correo', required: false, dato: 'correo' },
+    { id: 'dato-telefono', type: 'text', question: 'Tu teléfono', required: false, dato: 'telefono' },
   ],
-  designConfig: { welcome: 'Nos ayuda mucho saber cómo te fue.', primaryColor: '#07706b' },
+  consentimiento: { version: 'survey-v1', responsable: 'Casa Costanera SpA', texto: 'Acepto que Casa Costanera SpA use los datos que dejo en esta encuesta para conocer mi opinión y, si corresponde, contactarme sobre ella. Se conservan mientras sirvan a ese fin. Puedo pedir acceso, corrección o eliminación escribiendo a privacidad@casacostanera.cl. La plataforma Espartanos los trata por encargo de Casa Costanera SpA.', privacyUrl: 'https://casacostanera.cl/privacidad', privacyText: null },
+  designConfig: { welcome: 'Nos ayuda mucho saber cómo te fue.', primaryColor: '#07706b', backgroundMode: 'gradient', gradientFrom: '#fff4ea', gradientTo: '#e7f8f6', gradientAngle: '135' },
   googleReview: { url: 'https://g.page/r/ejemplo/review', minRating: 4 },
 };
 
@@ -380,16 +388,19 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/public\/surveys\/visual-survey$/, () => VISUAL_SURVEY],
   [/\/surveys\/visual-survey\/send-email$/, () => ({ enviados: 2, fallidos: 0, invalidos: 1 })],
   [/\/surveys\/visual-survey\/results$/, () => ({
-    surveyId: 'visual-survey', totalResponses: 3, completionRate: null, generatedAt: new Date().toISOString(),
+    surveyId: 'visual-survey', totalResponses: 6, completionRate: null, generatedAt: new Date().toISOString(),
     questions: [
       { questionId: 'nota', question: '¿Cómo fue tu visita?', required: true, totalAnswers: 3, type: 'rating', average: 3.7, distribution: { '2': 1, '4': 1, '5': 1 } },
       { questionId: 'volveria', question: '¿Volverías?', required: true, totalAnswers: 1, type: 'multiple-choice', counts: { 'Sí': 1 } },
       { questionId: 'mejorar', question: '¿Qué podríamos hacer mejor?', required: false, totalAnswers: 1, type: 'text', answers: ['Más opciones sin gluten'] },
     ],
     respuestas: [
-      { id: 'r1', submittedAt: new Date(Date.now() - 2 * 3600000).toISOString(), rating: 2, respondentName: 'Sebastián Vera', respondentEmail: 'sebastian@example.test', reservationId: 'visual-booking-2', teamMessage: 'La comida llegó fría y tuvimos que pedir la cuenta tres veces.', completedAt: new Date(Date.now() - 2 * 3600000).toISOString(), answers: { nota: 2 } },
-      { id: 'r2', submittedAt: new Date(Date.now() - 26 * 3600000).toISOString(), rating: 5, respondentName: 'Camila Rojas', respondentEmail: 'camila@example.test', reservationId: 'visual-booking-1', teamMessage: null, completedAt: new Date(Date.now() - 26 * 3600000).toISOString(), answers: { nota: 5, volveria: 'Sí', mejorar: 'Más opciones sin gluten' } },
-      { id: 'r3', submittedAt: new Date(Date.now() - 50 * 3600000).toISOString(), rating: 4, respondentName: null, respondentEmail: null, reservationId: null, teamMessage: null, completedAt: null, answers: { nota: 4 } },
+      { id: 'r1', submittedAt: new Date(Date.now() - 2 * 3600000).toISOString(), rating: 2, respondentName: 'Sebastián Vera', respondentEmail: 'sebastian@example.test', origen: 'reserva', reservationId: 'visual-booking-2', teamMessage: 'La comida llegó fría y tuvimos que pedir la cuenta tres veces.', completedAt: new Date(Date.now() - 2 * 3600000).toISOString(), answers: { nota: 2 } },
+      { id: 'r2', submittedAt: new Date(Date.now() - 26 * 3600000).toISOString(), rating: 5, respondentName: 'Camila Rojas', respondentEmail: 'camila@example.test', origen: 'reserva', reservationId: 'visual-booking-1', teamMessage: null, completedAt: new Date(Date.now() - 26 * 3600000).toISOString(), answers: { nota: 5, volveria: 'Sí', mejorar: 'Más opciones sin gluten' } },
+      { id: 'r3', origen: 'qr', submittedAt: new Date(Date.now() - 50 * 3600000).toISOString(), rating: 4, respondentName: null, respondentEmail: null, reservationId: null, teamMessage: null, completedAt: null, answers: { nota: 4 } },
+      { id: 'r4', origen: 'whatsapp', submittedAt: new Date(Date.now() - 9 * 86400000).toISOString(), rating: 3, respondentName: 'Ignacia Muñoz', respondentEmail: 'ignacia@example.test', reservationId: null, teamMessage: null, completedAt: new Date(Date.now() - 9 * 86400000).toISOString(), privacyConsentAt: new Date(Date.now() - 9 * 86400000).toISOString(), answers: { nota: 3, volveria: 'Tal vez', fallo: 'El tiempo de espera', 'dato-nombre': 'Ignacia Muñoz', 'dato-correo': 'ignacia@example.test', 'dato-telefono': '+56 9 8765 4321' } },
+      { id: 'r5', origen: 'qr', submittedAt: new Date(Date.now() - 20 * 86400000).toISOString(), rating: 5, respondentName: null, respondentEmail: null, reservationId: null, teamMessage: null, completedAt: new Date(Date.now() - 20 * 86400000).toISOString(), answers: { nota: 5, volveria: 'Sí' } },
+      { id: 'r6', origen: 'instagram', submittedAt: new Date(Date.now() - 33 * 86400000).toISOString(), rating: 4, respondentName: null, respondentEmail: null, reservationId: null, teamMessage: null, completedAt: new Date(Date.now() - 33 * 86400000).toISOString(), answers: { nota: 4, volveria: 'Sí', mejorar: 'Música un poco más baja' } },
     ],
   })],
   [/\/surveys\/visual-survey$/, () => VISUAL_SURVEY],
@@ -484,6 +495,31 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * derecho. Un `today` ausente la tumba, y uno vacio le hace imprimir «undefined» en pantalla.
    * Se responde con la forma declarada en `OperationalHomeData`, en cero.
    */
+  // Resultados con canales: uno que convierte bien, uno flojo, uno detectado y mucho directo.
+  [/\/reservations\/analytics\/metrics/, () => ({
+    days: 30,
+    totals: { total: 96, attended: 61, no_show: 7, pending: 9, confirmed: 19, cancelled: 4 },
+    daily: Array.from({ length: 14 }, (_, i) => ({ day: new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10), total: 4 + (i % 5), attended: 3 + (i % 3), no_show: i % 4 === 0 ? 1 : 0 })),
+    sources: [
+      { source: 'instagram', medium: 'social', campaign: '', content: '', total: 31, attended: 22 },
+      { source: 'qr-mesa', medium: 'qr', campaign: '', content: '', total: 18, attended: 14 },
+      { source: 'google', medium: 'maps', campaign: '', content: 'deteccion-automatica', total: 22, attended: 15 },
+      { source: 'whatsapp', medium: 'social', campaign: 'dia-de-la-madre', content: '', total: 6, attended: 3 },
+      { source: 'directo', medium: 'Sin medio', campaign: 'Sin campaña', content: '', total: 19, attended: 7 },
+    ],
+    canales: [
+      { source: 'instagram', visitas: 240, reservas: 31, asistieron: 22, conversion: 12.9, detectado: false },
+      { source: 'google', visitas: 110, reservas: 22, asistieron: 15, conversion: 20, detectado: true },
+      { source: 'directo', visitas: 380, reservas: 19, asistieron: 7, conversion: 5, detectado: false },
+      { source: 'qr-mesa', visitas: 64, reservas: 18, asistieron: 14, conversion: 28.1, detectado: false },
+      { source: 'whatsapp', visitas: 150, reservas: 6, asistieron: 3, conversion: 4, detectado: false },
+      { source: 'facebook', visitas: 9, reservas: 0, asistieron: 0, conversion: 0, detectado: true },
+    ],
+    areas: [{ area: 'Terraza', total: 52 }, { area: 'Salón', total: 44 }],
+    porHora: [{ hora: 13, total: 30, attended: 22 }, { hora: 20, total: 41, attended: 27 }, { hora: 21, total: 25, attended: 12 }],
+    anticipacionHoras: 30, recurrencia: { personas: 80, repiten: 14, porcentaje: 18 },
+    funnel: { views: 953, starts: 240, completed: 96, conversionRate: 10.1 },
+  })],
   [/\/reservations\/analytics\/operational-home/, () => ({
     date: new Date().toISOString().slice(0, 10),
     timezone: 'America/Santiago',
@@ -505,6 +541,17 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return url ? { url, publicId: `visual/${Date.now()}` } : { url: '', publicId: '' };
   }],
   [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
+  [/\/uploads\/images\/status/, () => ({ configured: true })],
+  [/\/reservations\/company-legal/, (config) => {
+    const clave = 'vh.visual.companyLegal';
+    let actual: Record<string, unknown> = { legalName: 'Casa Costanera SpA', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace', privacyText: '', termsText: '' };
+    try { actual = { ...actual, ...JSON.parse(localStorage.getItem(clave) || '{}') }; } catch { /* sin almacenamiento */ }
+    if (config?.method?.toLowerCase() === 'put') {
+      actual = { ...actual, ...visualRequestBody(config) };
+      try { localStorage.setItem(clave, JSON.stringify(actual)); } catch { /* sin almacenamiento */ }
+    }
+    return actual;
+  }],
   [/\/reservations\/forms(?:\?|$)/, (config) => {
     const method = config?.method?.toLowerCase();
     if (method === 'post') {
