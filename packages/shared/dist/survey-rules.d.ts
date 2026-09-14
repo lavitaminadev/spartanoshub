@@ -13,8 +13,16 @@ export declare const DATOS_DE_CONTACTO: Record<SurveyContactField, {
     pregunta: string;
     placeholder: string;
     autocompletar: string;
-    tipo: 'text' | 'email' | 'tel';
+    tipo: 'text' | 'email' | 'tel' | 'date';
 }>;
+/** Orden en que se piden los datos: el mismo en el editor, la página y los resultados. */
+export declare const ORDEN_DE_DATOS: SurveyContactField[];
+/**
+ * Preguntas en el orden en que se muestran: primero los datos de quien responde, en su orden fijo,
+ * y después las preguntas en el orden que les dio el equipo. Así los datos no quedan perdidos al
+ * final de una encuesta larga.
+ */
+export declare function ordenarParaMostrar<T extends SurveyQuestion>(preguntas: T[]): T[];
 /**
  * Si una pregunta se muestra con las respuestas actuales.
  *

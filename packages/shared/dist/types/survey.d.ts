@@ -23,7 +23,7 @@ export type SurveyStatus = 'draft' | 'active' | 'closed';
 /** Canal por el que se distribuye una encuesta activa. */
 export type SurveyDistributionChannel = 'email' | 'qr' | 'link';
 /** Dato de contacto predefinido: se muestra con su campo propio y se valida su formato. */
-export type SurveyContactField = 'nombre' | 'rut' | 'correo' | 'telefono';
+export type SurveyContactField = 'nombre' | 'rut' | 'correo' | 'telefono' | 'nacimiento';
 /** Regla para mostrar una pregunta sólo según lo contestado en otra. */
 export interface SurveyShowRule {
     preguntaId: string;

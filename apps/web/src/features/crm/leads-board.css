@@ -45,12 +45,6 @@
 .leads-board-card.esta-warning { border-left: 2px solid var(--amber); padding-left: 8px; margin-left: -10px; }
 .leads-board-card.esta-critical { border-left: 2px solid var(--pink-dark); padding-left: 8px; margin-left: -10px; }
 
-@media (prefers-color-scheme: dark) {
-  .leads-board-inactivo.es-notice { background: #24262b; color: #9aa0a8; }
-  .leads-board-inactivo.es-warning { background: #362a13; color: #e3b25f; }
-  .leads-board-inactivo.es-critical { background: #3a2220; color: #f0857c; }
-  .leads-board-sin-duenio { background: #3a2220; color: #f0857c; }
-}
 
 
 /*

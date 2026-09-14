@@ -42,15 +42,6 @@
 }
 
 /* Dark mode */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --txt: #ffffff;
-    --txt-secondary: #a89fa8;
-    --txt-muted: #8b8490;
-    --gray: #1a1819;
-    --line: #2a2829;
-  }
-}
 
 /* Alias para compatibilidad con código existente */
 :root {
@@ -84,3 +75,9 @@
   outline-offset: 2px;
   border-radius: var(--card-radius-sm);
 }
+
+/* Siempre claro: evita que el sistema oscurezca campos, casillas y listas nativas. */
+:root { color-scheme: light only; }
+html, body { background-color: #f6f4f5; }
+input, select, textarea, button { color-scheme: light; }
+select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea { background-color: #fff; color: #151317; }

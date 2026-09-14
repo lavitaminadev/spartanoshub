@@ -35,7 +35,9 @@ export function CampoDeEncuesta({
           type={meta.tipo}
           inputMode={question.dato === 'rut' ? 'text' : undefined}
           autoComplete={meta.autocompletar}
-          placeholder={meta.placeholder}
+          placeholder={meta.tipo === 'date' ? undefined : meta.placeholder}
+          max={meta.tipo === 'date' ? new Date().toISOString().slice(0, 10) : undefined}
+          min={meta.tipo === 'date' ? '1900-01-01' : undefined}
           value={String(value ?? '')}
           aria-invalid={Boolean(error)}
           onBlur={() => setTocado(true)}

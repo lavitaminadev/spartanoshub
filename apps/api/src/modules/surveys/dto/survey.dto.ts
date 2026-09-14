@@ -9,7 +9,7 @@ const SURVEY_TYPES: SurveyType[] = ['internal', 'customer'];
 const SURVEY_STATUSES: SurveyStatus[] = ['draft', 'active', 'closed'];
 const CHANNELS: SurveyDistributionChannel[] = ['email', 'qr', 'link'];
 
-const DATOS = ['nombre', 'rut', 'correo', 'telefono'];
+const DATOS = ['nombre', 'rut', 'correo', 'telefono', 'nacimiento'];
 
 export class SurveyShowRuleDto {
   @IsString() @MaxLength(64)
@@ -37,7 +37,7 @@ export class SurveyQuestionDto {
   options?: string[];
 
   @IsOptional() @IsIn(DATOS)
-  dato?: 'nombre' | 'rut' | 'correo' | 'telefono';
+  dato?: 'nombre' | 'rut' | 'correo' | 'telefono' | 'nacimiento';
 
   @IsOptional() @ValidateNested() @Type(() => SurveyShowRuleDto)
   mostrarSi?: SurveyShowRuleDto;

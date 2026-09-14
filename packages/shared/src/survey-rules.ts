@@ -11,12 +11,34 @@ import type { SurveyContactField, SurveyQuestion } from './types/survey';
 type Respuestas = Record<string, string | number | undefined | null>;
 
 /** Nombre visible y tipo de campo de cada dato de contacto. */
-export const DATOS_DE_CONTACTO: Record<SurveyContactField, { etiqueta: string; pregunta: string; placeholder: string; autocompletar: string; tipo: 'text' | 'email' | 'tel' }> = {
+export const DATOS_DE_CONTACTO: Record<SurveyContactField, { etiqueta: string; pregunta: string; placeholder: string; autocompletar: string; tipo: 'text' | 'email' | 'tel' | 'date' }> = {
   nombre: { etiqueta: 'Nombre', pregunta: 'Tu nombre', placeholder: 'Nombre y apellido', autocompletar: 'name', tipo: 'text' },
   rut: { etiqueta: 'RUT', pregunta: 'Tu RUT', placeholder: '12.345.678-9', autocompletar: 'off', tipo: 'text' },
   correo: { etiqueta: 'Correo', pregunta: 'Tu correo', placeholder: 'nombre@correo.cl', autocompletar: 'email', tipo: 'email' },
   telefono: { etiqueta: 'Teléfono', pregunta: 'Tu teléfono', placeholder: '+56 9 1234 5678', autocompletar: 'tel', tipo: 'tel' },
+  nacimiento: { etiqueta: 'Fecha de nacimiento', pregunta: 'Tu fecha de nacimiento', placeholder: 'dd-mm-aaaa', autocompletar: 'bday', tipo: 'date' },
 };
+
+/** Orden en que se piden los datos: el mismo en el editor, la página y los resultados. */
+export const ORDEN_DE_DATOS: SurveyContactField[] = ['nombre', 'rut', 'nacimiento', 'correo', 'telefono'];
+
+/**
+ * Preguntas en el orden en que se muestran: primero los datos de quien responde, en su orden fijo,
+ * y después las preguntas en el orden que les dio el equipo. Así los datos no quedan perdidos al
+ * final de una encuesta larga.
+ */
+export function ordenarParaMostrar<T extends SurveyQuestion>(preguntas: T[]): T[] {
+  const datos = preguntas.filter((pregunta) => pregunta.dato).sort((a, b) => ORDEN_DE_DATOS.indexOf(a.dato!) - ORDEN_DE_DATOS.indexOf(b.dato!));
+  return [...datos, ...preguntas.filter((pregunta) => !pregunta.dato)];
+}
+
+/** Fecha de nacimiento válida: formato AAAA-MM-DD, no futura y desde 1900. */
+function nacimientoValido(texto: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return false;
+  const fecha = new Date(`${texto}T12:00:00`);
+  if (Number.isNaN(fecha.getTime()) || fecha.toISOString().slice(0, 10) !== texto) return false;
+  return fecha.getFullYear() >= 1900 && fecha.getTime() <= Date.now();
+}
 
 function vacia(valor: unknown): boolean {
   return valor === undefined || valor === null || (typeof valor === 'string' && valor.trim() === '');
@@ -77,6 +99,7 @@ export function errorDeDato(dato: SurveyContactField | undefined, valor: unknown
   if (dato === 'correo' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(texto)) return 'El correo no es válido';
   if (dato === 'telefono' && texto.replace(/\D/g, '').length < 8) return 'El teléfono no es válido';
   if (dato === 'nombre' && texto.length < 2) return 'Escribe tu nombre';
+  if (dato === 'nacimiento' && !nacimientoValido(texto)) return 'La fecha de nacimiento no es válida';
   return null;
 }
 

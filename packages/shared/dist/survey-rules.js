@@ -7,7 +7,8 @@
  * servidor no pide, ni el servidor rechace algo que la página dejó enviar.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DATOS_DE_CONTACTO = void 0;
+exports.ORDEN_DE_DATOS = exports.DATOS_DE_CONTACTO = void 0;
+exports.ordenarParaMostrar = ordenarParaMostrar;
 exports.preguntaVisible = preguntaVisible;
 exports.preguntasVisibles = preguntasVisibles;
 exports.rutValido = rutValido;
@@ -22,7 +23,28 @@ exports.DATOS_DE_CONTACTO = {
     rut: { etiqueta: 'RUT', pregunta: 'Tu RUT', placeholder: '12.345.678-9', autocompletar: 'off', tipo: 'text' },
     correo: { etiqueta: 'Correo', pregunta: 'Tu correo', placeholder: 'nombre@correo.cl', autocompletar: 'email', tipo: 'email' },
     telefono: { etiqueta: 'Teléfono', pregunta: 'Tu teléfono', placeholder: '+56 9 1234 5678', autocompletar: 'tel', tipo: 'tel' },
+    nacimiento: { etiqueta: 'Fecha de nacimiento', pregunta: 'Tu fecha de nacimiento', placeholder: 'dd-mm-aaaa', autocompletar: 'bday', tipo: 'date' },
 };
+/** Orden en que se piden los datos: el mismo en el editor, la página y los resultados. */
+exports.ORDEN_DE_DATOS = ['nombre', 'rut', 'nacimiento', 'correo', 'telefono'];
+/**
+ * Preguntas en el orden en que se muestran: primero los datos de quien responde, en su orden fijo,
+ * y después las preguntas en el orden que les dio el equipo. Así los datos no quedan perdidos al
+ * final de una encuesta larga.
+ */
+function ordenarParaMostrar(preguntas) {
+    const datos = preguntas.filter((pregunta) => pregunta.dato).sort((a, b) => exports.ORDEN_DE_DATOS.indexOf(a.dato) - exports.ORDEN_DE_DATOS.indexOf(b.dato));
+    return [...datos, ...preguntas.filter((pregunta) => !pregunta.dato)];
+}
+/** Fecha de nacimiento válida: formato AAAA-MM-DD, no futura y desde 1900. */
+function nacimientoValido(texto) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(texto))
+        return false;
+    const fecha = new Date(`${texto}T12:00:00`);
+    if (Number.isNaN(fecha.getTime()) || fecha.toISOString().slice(0, 10) !== texto)
+        return false;
+    return fecha.getFullYear() >= 1900 && fecha.getTime() <= Date.now();
+}
 function vacia(valor) {
     return valor === undefined || valor === null || (typeof valor === 'string' && valor.trim() === '');
 }
@@ -87,6 +109,8 @@ function errorDeDato(dato, valor) {
         return 'El teléfono no es válido';
     if (dato === 'nombre' && texto.length < 2)
         return 'Escribe tu nombre';
+    if (dato === 'nacimiento' && !nacimientoValido(texto))
+        return 'La fecha de nacimiento no es válida';
     return null;
 }
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SurveyQuestion } from '@espartanos/shared';
-import { errorDeDato, formatearRut, pideDatosPersonales, preguntasVisibles, problemasDeRespuesta, rutValido, traeDatosPersonales } from '@espartanos/shared';
+import { errorDeDato, formatearRut, ordenarParaMostrar, pideDatosPersonales, preguntasVisibles, problemasDeRespuesta, rutValido, traeDatosPersonales } from '@espartanos/shared';
 import { aceptacionAGuardar, consentimientoDeEncuesta, contactoEscrito } from '../../../src/modules/surveys/consentimiento-de-encuesta';
 import { obligatoriasPendientes } from '../../../src/modules/surveys/flujo-de-encuesta';
 
@@ -43,6 +43,26 @@ describe('reglas de encuesta', () => {
     expect(pideDatosPersonales(PREGUNTAS)).toBe(true);
     expect(traeDatosPersonales(PREGUNTAS, { nota: 5 })).toBe(false);
     expect(traeDatosPersonales(PREGUNTAS, { nota: 5, 'dato-correo': 'a@b.cl' })).toBe(true);
+  });
+});
+
+describe('datos de quien responde', () => {
+  it('valida la fecha de nacimiento', () => {
+    expect(errorDeDato('nacimiento', '1990-05-20')).toBeNull();
+    expect(errorDeDato('nacimiento', '1990-02-30')).toBe('La fecha de nacimiento no es válida');
+    expect(errorDeDato('nacimiento', '1850-01-01')).toBe('La fecha de nacimiento no es válida');
+    expect(errorDeDato('nacimiento', '3000-01-01')).toBe('La fecha de nacimiento no es válida');
+  });
+
+  it('muestra los datos primero y en orden fijo, sin cambiar el orden de las preguntas', () => {
+    const lista: SurveyQuestion[] = [
+      { id: 'a', type: 'rating', question: 'A', required: true },
+      { id: 't', type: 'text', question: 'Tel', required: false, dato: 'telefono' },
+      { id: 'b', type: 'text', question: 'B', required: false },
+      { id: 'n', type: 'text', question: 'Nombre', required: false, dato: 'nombre' },
+      { id: 'f', type: 'text', question: 'Nac', required: false, dato: 'nacimiento' },
+    ];
+    expect(ordenarParaMostrar(lista).map((p) => p.id)).toEqual(['n', 'f', 't', 'a', 'b']);
   });
 });
 
