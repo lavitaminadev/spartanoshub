@@ -375,6 +375,25 @@ describe('ReservationsService', () => {
     expect((await service.pauseForm('org-1', 'form-1', '')).designConfig).toEqual({ title: 'Local' });
   });
 
+  it('pauseForm rechaza una pausa que ya terminó', async () => {
+    forms.findOne.mockResolvedValue({ ...publishedForm(), designConfig: {} });
+    await expect(service.pauseForm('org-1', 'form-1', new Date(Date.now() - 60_000).toISOString())).rejects.toThrow('fecha futura');
+  });
+
+  it('addBlock rechaza un bloqueo que ya terminó', async () => {
+    forms.findOne.mockResolvedValue({ ...publishedForm(), designConfig: {} });
+    const ayer = Date.now() - 86_400_000;
+    await expect(service.addBlock('org-1', 'form-1', 'user-1', { startsAt: new Date(ayer).toISOString(), endsAt: new Date(ayer + 3_600_000).toISOString() }))
+      .rejects.toThrow('ya terminó');
+  });
+
+  it('«Número de personas» obligatoria se da por respondida con las personas elegidas en el paso 1', () => {
+    const form = { ...publishedForm(), fieldSchema: [{ id: 'name', type: 'text', label: 'Nombre', required: true }, { id: 'partySize', type: 'number', label: 'Número de personas', required: true }] };
+    const validar = (service as unknown as { validateSubmission: (f: unknown, a: unknown, g: unknown) => void }).validateSubmission.bind(service);
+    expect(() => validar(form, {}, { guestName: 'Ana', partySize: 4 })).not.toThrow();
+    expect(() => validar(form, {}, { guestName: 'Ana' })).toThrow('Número de personas');
+  });
+
   it('hides a published form with invalid stored configuration instead of leaking the validation error', async () => {
     formQuery.getOne.mockResolvedValue({ ...publishedForm(), designConfig: { primaryColor: 'rojo' } });
     await expect(service.publicForm('evaluacion')).rejects.toThrow('Este formulario no está disponible');

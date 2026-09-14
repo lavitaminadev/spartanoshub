@@ -332,7 +332,7 @@ export function PublicReservationPage() {
       { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone, partySize: guest.partySize },
     ).map((field) => field.id));
     const respuestasVisibles = Object.fromEntries(Object.entries(answers).filter(([clave]) => visiblesAlEnviar.has(clave) || !(form?.fieldSchema || []).some((field) => field.id === clave)));
-    const reservationAnswers = isSurvey ? respuestasVisibles : { ...respuestasVisibles, ...Object.fromEntries((form?.fieldSchema || []).filter((field) => field.type === 'consent').map((field) => [field.id, reservationConsent])) };
+    const reservationAnswers = isSurvey ? respuestasVisibles : { ...respuestasVisibles, ...Object.fromEntries((form?.fieldSchema || []).filter((field) => field.type === 'consent' && field.id === 'consent').map((field) => [field.id, reservationConsent])) };
       const baseBody = {
         ...guest, answers: reservationAnswers, idempotencyKey, website, measurementConsent,
         eventSourceUrl: window.location.href,
@@ -348,7 +348,7 @@ export function PublicReservationPage() {
       if (isSurvey) return api.post<Created>(`/public/reservations/${slug}/survey`, baseBody);
       if (requestMode) return api.post<Created>(`/public/reservations/${slug}/group-request`, {
         guestName: guest.guestName, guestEmail: guest.guestEmail || undefined, guestPhone: guest.guestPhone || undefined,
-        partySize: Math.max(groupThreshold + 1, guest.partySize), eventType: groupEventType, notes: groupEventNotes.trim() || undefined,
+        partySize: Math.max(groupThreshold + 1, guest.partySize), eventType: tipoDeEvento, notes: groupEventNotes.trim() || undefined,
         preferredDate: requestPreference.date || undefined, preferredTime: requestPreference.time || undefined,
         reservationConsent, marketingConsent, networkConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent,
         details: {
@@ -362,7 +362,7 @@ export function PublicReservationPage() {
       });
       return api.post<Created>(`/public/reservations/${slug}`, {
         startsAt: selected, serviceId: serviceId || undefined, resourceId: resourceId || undefined,
-        groupEventType: guest.partySize > groupThreshold ? groupEventType || undefined : undefined,
+        groupEventType: guest.partySize > groupThreshold ? tipoDeEvento || undefined : undefined,
         groupEventNotes: guest.partySize > groupThreshold ? groupEventNotes.trim() || undefined : undefined,
         childrenCount: visitNeeds.childrenCount || undefined,
         accessibilityNeed: visitNeeds.accessibilityNeed.trim() || undefined,
@@ -433,14 +433,19 @@ export function PublicReservationPage() {
     const errs: Record<string, string> = {};
     if (!guest.guestName.trim()) errs.name = 'El nombre es obligatorio';
     if (!isSurvey && !reservationConsent) errs.reservationConsent = requestMode ? 'Debes aceptar las condiciones para enviar la solicitud' : 'Debes aceptar las condiciones para gestionar la reserva';
-    if (!isSurvey && (guest.partySize > groupThreshold || requestMode) && !groupEventType) errs.groupEvent = 'Cuéntanos qué tipo de grupo o celebración es';
+    if (!isSurvey && (guest.partySize > groupThreshold || requestMode) && !tipoDeEvento) errs.groupEvent = 'Cuéntanos qué tipo de grupo o celebración es';
+    if (requestMode && requestPreference.date && requestPreference.date < hoyEnElLocal) errs.groupEvent = 'La fecha preferida ya pasó: elige hoy o una fecha futura';
     if (systemFields.phone?.required && !guest.guestPhone.trim()) errs.phone = 'El teléfono es obligatorio';
     else if (guest.guestPhone.trim() && !isValidChileanMobilePhone(guest.guestPhone)) errs.phone = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
     if (systemFields.email?.required && !guest.guestEmail.trim()) errs.email = 'El correo es obligatorio';
     else if (guest.guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guest.guestEmail)) errs.email = 'Correo inválido';
     for (const field of customFields) {
       if (field.required && field.type === 'consent' && !answers[field.id]) errs[field.id] = 'Debes aceptar';
-      if (field.required && ['text', 'textarea', 'phone', 'email', 'select', 'date', 'rating'].includes(field.type) && !answers[field.id]) errs[field.id] = 'Campo obligatorio';
+      const valor = answers[field.id];
+      const vacio = valor === undefined || valor === null || (typeof valor === 'string' && !valor.trim()) || (Array.isArray(valor) && valor.length === 0);
+      if (field.required && field.type !== 'consent' && vacio) errs[field.id] = 'Campo obligatorio';
+      else if (!vacio && field.type === 'number' && !Number.isFinite(Number(valor))) errs[field.id] = 'Ingresa un número';
+      else if (!vacio && field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(valor))) errs[field.id] = 'Correo inválido';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -611,6 +616,11 @@ export function PublicReservationPage() {
    * Sólo cuando la ocasión es una opción válida de esa pregunta: el servidor rechaza cualquier otra.
    */
   const preguntaDeOcasiones = design.ocasionesPreguntaId ? (form?.fieldSchema || []).find((field) => field.id === design.ocasionesPreguntaId && field.type === 'select') : undefined;
+  /*
+   * Con la grilla conectada no se pregunta dos veces qué se celebra: el tipo de evento sale de
+   * la respuesta a esa pregunta. Sin respuesta o con «No», el grupo cuenta como «otro».
+   */
+  const tipoDeEvento = preguntaDeOcasiones ? tipoDeEventoDesde(answers[preguntaDeOcasiones.id]) : groupEventType;
   const elegirOcasion = (titulo: string) => {
     if (!preguntaDeOcasiones?.options?.includes(titulo)) return;
     setAnswers((actuales) => ({ ...actuales, [preguntaDeOcasiones.id]: titulo }));
@@ -669,10 +679,20 @@ export function PublicReservationPage() {
    * antiguo que además lo traiga como campo lo repetía dos veces en el paso de datos, y ese
    * segundo control no volvía a comprobar que el horario elegido siguiera alcanzando.
    */
-  const customFields = camposVisibles(
-    (form.fieldSchema || []).filter((field) => !['name', 'email', 'phone', 'partySize'].includes(field.id) && (isSurvey || field.type !== 'consent')),
+  /*
+   * Todas las preguntas visibles, en el orden del editor.
+   *
+   * Quedan fuera sólo las que se contestan en otro lugar: el número de personas (paso 1), la
+   * aceptación base `consent` (bloque de aceptaciones) y el cupón, que depende de «Aceptar
+   * cupones». Cualquier otro campo agregado —selector, fecha, aceptación propia— aparece aquí.
+   */
+  const camposEnOrden = camposVisibles(
+    (form.fieldSchema || []).filter((field) => field.id !== 'partySize' && field.type !== 'coupon' && (isSurvey || field.id !== 'consent')),
     { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone, partySize: guest.partySize },
   );
+  /** Hoy en la zona del local: el mínimo de las fechas que puede elegir quien reserva. */
+  const hoyEnElLocal = slotDateKey(new Date().toISOString(), form.timezone);
+  const customFields = camposEnOrden.filter((field) => !['name', 'email', 'phone'].includes(field.id));
   const services = form.servicesConfig || [];
   const resources = form.resourcesConfig || [];
   const selectedService = services.find((service) => service.id === serviceId);
@@ -902,11 +922,12 @@ export function PublicReservationPage() {
           </div>
           <div className="booking-selected-slot">{selected && <div className="selected-slot-badge"><span><VitaIcons.calendar /></span><strong>{new Date(selected).toLocaleString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>{hold.isPending && <small aria-live="polite">Guardando tu cupo...</small>}{hold.isSuccess && holdRestante > 0 && <small className="success-text" aria-live="polite">Cupo retenido {Math.floor(holdRestante / 60)}:{String(holdRestante % 60).padStart(2, "0")}</small>}{hold.isSuccess && holdExpiraEn && holdRestante === 0 && <small aria-live="polite">La retención venció. Puedes seguir, pero confirmaremos que el horario siga libre.</small>}<button type="button" className="btn btn-outline btn-xs" onClick={goBackToSlots}>Cambiar</button></div>}</div>
           <div className="public-form-fields">
-            {systemFields.name && <div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div>}
-            {systemFields.phone && <div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div>}
-            {systemFields.email && <div className={`public-field ${errors.email ? 'has-error' : ''}`}><label>{systemFields.email.label} {systemFields.email.required ? <span className="required-star">*</span> : null}<input className={errors.email ? 'input-error' : ''} type="email" required={systemFields.email.required} placeholder={systemFields.email.placeholder || 'tu@correo.com'} value={guest.guestEmail} onChange={(event) => setGuest({ ...guest, guestEmail: event.target.value })} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'error-email' : undefined} /></label>{errors.email && <span className="field-error" id="error-email" role="alert">{errors.email}</span>}</div>}
-            {customFields.map((field) => <Fragment key={field.id}>{renderField(field, answers[field.id], (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
-            {!isSurvey && (guest.partySize > groupThreshold || requestMode) && <div className={`group-event-fields ${errors.groupEvent ? 'has-error' : ''}`}><strong>Sobre tu grupo</strong><p>{requestMode ? 'Esta solicitud no toma cupo. El local confirmará disponibilidad contigo.' : 'Esto ayuda al local a preparar tu solicitud; no es una confirmación automática.'}</p><label>¿Qué ocasión es?<select required value={groupEventType} onChange={(event) => setGroupEventType(event.target.value)}><option value="">Selecciona una opción</option><option value="cumpleanos">Cumpleaños</option><option value="aniversario">Aniversario / celebración</option><option value="empresa">Comida o evento de empresa</option><option value="otro">Otro grupo</option></select></label>{requestMode && <div className="form-row"><label>Fecha preferida <small>(opcional)</small><input type="date" value={requestPreference.date} onChange={(event) => setRequestPreference({ ...requestPreference, date: event.target.value })} /></label><label>Horario preferido <small>(opcional)</small><input value={requestPreference.time} onChange={(event) => setRequestPreference({ ...requestPreference, time: event.target.value })} maxLength={80} placeholder="Ej. viernes desde 20:00" /></label></div>}<label>Cuéntanos lo importante <small>(opcional)</small><textarea value={groupEventNotes} onChange={(event) => setGroupEventNotes(event.target.value)} maxLength={1000} placeholder="Ej. silla de bebé, torta, horario flexible…" /></label>{errors.groupEvent && <span className="field-error" role="alert">{errors.groupEvent}</span>}</div>}
+            {/* El orden es el del editor: los campos fijos van donde se los puso, no siempre arriba. */}
+            {camposEnOrden.map((field) => field.id === 'name' ? <Fragment key="name"><div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div></Fragment>
+              : field.id === 'phone' ? <Fragment key="phone"><div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div></Fragment>
+              : field.id === 'email' ? <Fragment key="email"><div className={`public-field ${errors.email ? 'has-error' : ''}`}><label>{systemFields.email.label} {systemFields.email.required ? <span className="required-star">*</span> : null}<input className={errors.email ? 'input-error' : ''} type="email" required={systemFields.email.required} placeholder={systemFields.email.placeholder || 'tu@correo.com'} value={guest.guestEmail} onChange={(event) => setGuest({ ...guest, guestEmail: event.target.value })} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'error-email' : undefined} /></label>{errors.email && <span className="field-error" id="error-email" role="alert">{errors.email}</span>}</div></Fragment>
+              : <Fragment key={field.id}>{renderField(field, answers[field.id], (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
+            {!isSurvey && (guest.partySize > groupThreshold || requestMode) && <div className={`group-event-fields ${errors.groupEvent ? 'has-error' : ''}`}><strong>Sobre tu grupo</strong><p>{requestMode ? 'Esta solicitud no toma cupo. El local confirmará disponibilidad contigo.' : 'Esto ayuda al local a preparar tu solicitud; no es una confirmación automática.'}</p>{!preguntaDeOcasiones && <label>¿Qué ocasión es?<select required value={groupEventType} onChange={(event) => setGroupEventType(event.target.value)}><option value="">Selecciona una opción</option><option value="cumpleanos">Cumpleaños</option><option value="aniversario">Aniversario / celebración</option><option value="empresa">Comida o evento de empresa</option><option value="otro">Otro grupo</option></select></label>}{requestMode && <div className="form-row"><label>Fecha preferida <small>(opcional)</small><input type="date" min={hoyEnElLocal} value={requestPreference.date} onChange={(event) => setRequestPreference({ ...requestPreference, date: event.target.value })} /></label><label>Horario preferido <small>(opcional)</small><input value={requestPreference.time} onChange={(event) => setRequestPreference({ ...requestPreference, time: event.target.value })} maxLength={80} placeholder="Ej. viernes desde 20:00" /></label></div>}<label>Cuéntanos lo importante <small>(opcional)</small><textarea value={groupEventNotes} onChange={(event) => setGroupEventNotes(event.target.value)} maxLength={1000} placeholder="Ej. silla de bebé, torta, horario flexible…" /></label>{errors.groupEvent && <span className="field-error" role="alert">{errors.groupEvent}</span>}</div>}
             {!isSurvey && (form.designConfig?.askChildren === 'true' || form.designConfig?.askAccessibility === 'true' || form.designConfig?.askAllergies === 'true') && <div className="group-event-fields"><strong>Necesidades de la visita</strong><p>Opcional. El local hará lo posible por considerarlas, pero no reemplaza una coordinación directa.</p>{form.designConfig?.askChildren === 'true' && <label>¿Cuántos niños vienen?<select value={visitNeeds.childrenCount} onChange={(event) => setVisitNeeds({ ...visitNeeds, childrenCount: Number(event.target.value) })}><option value={0}>No vienen niños / prefiero no indicar</option>{Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} niño{count > 1 ? 's' : ''}</option>)}</select></label>}{form.designConfig?.askAccessibility === 'true' && <label>Accesibilidad o comodidad <small>(opcional)</small><input value={visitNeeds.accessibilityNeed} onChange={(event) => setVisitNeeds({ ...visitNeeds, accessibilityNeed: event.target.value })} maxLength={500} placeholder="Ej. acceso sin escalón, espacio para coche" /></label>}{form.designConfig?.askAllergies === 'true' && <label>Restricciones alimentarias <small>(opcional)</small><textarea value={visitNeeds.dietaryNotes} onChange={(event) => setVisitNeeds({ ...visitNeeds, dietaryNotes: event.target.value })} maxLength={1000} placeholder="Ej. vegetariano, sin gluten. Confirma siempre directamente con el local." /></label>}</div>}
             {form.designConfig?.couponEnabled && <div className="public-field"><label>Cupón de descuento<div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código opcional" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
             {!isSurvey && <div className={`public-consent ${errors.reservationConsent ? 'has-error' : ''}`}><label><input type="checkbox" required checked={reservationConsent} onChange={(event) => setReservationConsent(event.target.checked)} aria-invalid={Boolean(errors.reservationConsent)} /><span><strong>Gestionar mi reserva <span className="required-star">*</span></strong><small>{reservationConsentText}</small></span></label><small className="consent-legal">{legalController}{design.legalCompanyId ? ` · ${design.legalCompanyId}` : ''} · {design.privacyUrl ? <a href={safeUrl(String(design.privacyUrl))} target="_blank" rel="noreferrer">Ver privacidad</a> : 'Información de privacidad disponible con el local.'}</small>{errors.reservationConsent && <span className="field-error" role="alert">{errors.reservationConsent}</span>}</div>}
@@ -927,12 +948,12 @@ export function PublicReservationPage() {
             {selected && <div className="confirm-row"><span>Fecha y hora</span><strong>{new Date(selected).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</strong></div>}
             {/* Una solicitud no tiene hora tomada: lo que hay que revisar es lo que pidió. */}
             <div className="confirm-row"><span>Personas</span><strong>{requestMode ? Math.max(groupThreshold + 1, guest.partySize) : guest.partySize}</strong></div>
-            {requestMode && <div className="confirm-row"><span>Ocasión</span><strong>{({ cumpleanos: 'Cumpleaños', aniversario: 'Aniversario o celebración', empresa: 'Comida o evento de empresa', otro: 'Otro grupo' } as Record<string, string>)[groupEventType] || 'Sin indicar'}</strong></div>}
+            {requestMode && <div className="confirm-row"><span>Ocasión</span><strong>{({ cumpleanos: 'Cumpleaños', aniversario: 'Aniversario o celebración', empresa: 'Comida o evento de empresa', otro: 'Otro grupo' } as Record<string, string>)[tipoDeEvento] || 'Sin indicar'}</strong></div>}
             {requestMode && (requestPreference.date || requestPreference.time) && <div className="confirm-row"><span>Preferencia</span><strong>{[requestPreference.date, requestPreference.time].filter(Boolean).join(' · ')}</strong></div>}
             <div className="confirm-row"><span>Nombre</span><strong>{guest.guestName}</strong></div>
             {guest.guestPhone && <div className="confirm-row"><span>Teléfono</span><strong>{guest.guestPhone}</strong></div>}
             {guest.guestEmail && <div className="confirm-row"><span>Correo</span><strong>{guest.guestEmail}</strong></div>}
-            {customFields.filter((f) => f.type !== 'consent' && answers[f.id]).map((f) => <div className="confirm-row" key={f.id}><span>{f.label}</span><strong>{String(answers[f.id])}</strong></div>)}
+            {customFields.filter((f) => f.type !== 'consent' && textoDeRespuesta(f, answers[f.id]) !== '').map((f) => <div className="confirm-row" key={f.id}><span>{f.label}</span><strong>{textoDeRespuesta(f, answers[f.id])}</strong></div>)}
           </div>
           <button className="public-submit" type="submit" disabled={submit.isPending}>{submit.isPending ? 'Enviando...' : requestMode ? 'Enviar solicitud' : 'Confirmar reserva'}</button>
           {/* La lista de espera guarda un cupo concreto: no tiene sentido para una solicitud sin horario. */}
@@ -942,6 +963,24 @@ export function PublicReservationPage() {
       </form>
     </div>
   </main>;
+}
+
+/** Cómo se lee una respuesta en la confirmación: listas separadas por coma y fechas en palabras. */
+function textoDeRespuesta(field: FormField, valor: unknown): string {
+  if (valor === undefined || valor === null || valor === '') return '';
+  if (Array.isArray(valor)) return valor.join(', ');
+  if (typeof valor === 'boolean') return valor ? 'Sí' : 'No';
+  if (field.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(String(valor))) return new Date(`${valor}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+  return String(valor);
+}
+
+/** Tipo de evento que espera el servidor, a partir de la ocasión elegida en la pregunta conectada. */
+function tipoDeEventoDesde(valor: unknown): string {
+  const texto = String(valor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (texto.includes('cumple')) return 'cumpleanos';
+  if (texto.includes('aniversario') || texto.includes('matrimonio') || texto.includes('boda')) return 'aniversario';
+  if (texto.includes('empresa') || texto.includes('corporativ') || texto.includes('after')) return 'empresa';
+  return 'otro';
 }
 
 function renderField(field: FormField, value: unknown, onChange: (v: string | boolean | string[]) => void, error?: string) {
@@ -969,7 +1008,7 @@ function renderField(field: FormField, value: unknown, onChange: (v: string | bo
       {error && <small className="field-error" id={errorId}>{error}</small>}
     </fieldset>;
   }
-  if (field.type === 'consent') return <div className={`public-consent ${error ? 'has-error' : ''}`}><label><input type="checkbox" required={field.required} checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /><span>{field.label} <span className="required-star">*</span></span></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
+  if (field.type === 'consent') return <div className={`public-consent ${error ? 'has-error' : ''}`}><label><input type="checkbox" required={field.required} checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /><span>{field.label}{field.required && <span className="required-star"> *</span>}</span></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
   if (field.type === 'rating') return <fieldset className={`public-radio-group public-rating ${error ? 'has-error' : ''}`}><legend>{field.label}{field.required && <span className="required-star"> *</span>}</legend>{[1, 2, 3, 4, 5].map((rating) => <label key={rating}><input type="radio" name={field.id} required={field.required} checked={String(value || '') === String(rating)} onChange={() => onChange(String(rating))} /> <span>{rating}</span></label>)}{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</fieldset>;
   if (field.type === 'select' && (field.display === 'radio' || (field.options?.length || 0) <= 5)) return <fieldset className={`public-radio-group ${error ? 'has-error' : ''}`}><legend>{field.label}{field.required && <span className="required-star"> *</span>}</legend>{field.options?.map((option) => <label key={option}><input type="radio" name={field.id} required={field.required} checked={String(value || '') === option} onChange={() => onChange(option)} /> <span>{option}</span></label>)}{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</fieldset>;
   if (field.type === 'select') return <label>{field.label}{field.required && <span className="required-star"> *</span>}<select className={error ? 'input-error' : ''} required={field.required} value={String(value || '')} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined}><option value="">Selecciona</option>{field.options?.map((option) => <option key={option}>{option}</option>)}</select>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</label>;

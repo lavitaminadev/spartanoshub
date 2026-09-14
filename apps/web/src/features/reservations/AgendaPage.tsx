@@ -19,6 +19,12 @@ import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
 import { localInputToUtc, utcToLocalInput } from './local-time';
+
+/** Ahora, en el formato de un campo `datetime-local` con la hora de este navegador. */
+function ahoraEnInputLocal(): string {
+  const ahora = new Date();
+  return new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
 import { Modal } from '../../shared/Modal';
 import { CYCLE_COLORS, RESERVATION_STATUS_OPTIONS, findStatusOption } from '../../shared/status-palette';
 import type { Reservation, ReservationForm, GroupRequest } from './types';
@@ -313,8 +319,8 @@ export function AgendaPage() {
     <Modal open={pausaOpen} onClose={() => setPausaOpen(false)} title="Pausar reservas">
       <div className="modal-form">
         <p className="page-subtitle">La página pública deja de ofrecer horarios hasta la fecha indicada. No cancela reservas ya tomadas ni despublica el local.</p>
-        <label>Reanudar automáticamente el<input className="input" type="datetime-local" value={pausaHasta} onChange={(event) => setPausaHasta(event.target.value)} /></label>
-        {pausarReservas.error && <p className="error-text">No se pudo cambiar la pausa. Revisa la fecha e inténtalo otra vez.</p>}
+        <label>Reanudar automáticamente el<input className="input" type="datetime-local" min={utcToLocalInput(new Date().toISOString(), activeForm?.timezone || 'America/Santiago')} value={pausaHasta} onChange={(event) => setPausaHasta(event.target.value)} /></label>
+        {pausarReservas.error && <p className="error-text">{pausarReservas.error instanceof Error && pausarReservas.error.message ? pausarReservas.error.message : 'No se pudo cambiar la pausa. Revisa la fecha e inténtalo otra vez.'}</p>}
         <div className="modal-actions">
           <button type="button" className="btn btn-outline" onClick={() => setPausaOpen(false)}>Cancelar</button>
           {activeForm?.designConfig?.bookingPausedUntil && <button type="button" className="btn btn-outline" disabled={pausarReservas.isPending} onClick={() => pausarReservas.mutate('')}>Quitar pausa</button>}
@@ -326,7 +332,7 @@ export function AgendaPage() {
       <form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (!blockStart || !blockEnd || new Date(blockEnd) <= new Date(blockStart)) return; createBlock.mutate(); }}>
         <p className="page-subtitle">El tramo dejará de estar disponible para nuevas reservas. Si existen reservas en ese horario, revisa la agenda y contáctalas antes de cerrar el evento.</p>
         <label>Motivo interno<input className="input" value={blockReason} onChange={(event) => setBlockReason(event.target.value)} required maxLength={180} /></label>
-        <div className="form-row"><label>Desde<input className="input" type="datetime-local" value={blockStart} onChange={(event) => setBlockStart(event.target.value)} required /></label><label>Hasta<input className="input" type="datetime-local" value={blockEnd} onChange={(event) => setBlockEnd(event.target.value)} required /></label></div>
+        <div className="form-row"><label>Desde<input className="input" type="datetime-local" min={ahoraEnInputLocal()} value={blockStart} onChange={(event) => setBlockStart(event.target.value)} required /></label><label>Hasta<input className="input" type="datetime-local" min={blockStart || ahoraEnInputLocal()} value={blockEnd} onChange={(event) => setBlockEnd(event.target.value)} required /></label></div>
         {createBlock.error && <p className="error-text">{createBlock.error instanceof Error ? createBlock.error.message : 'No se pudo crear el bloqueo. Verifica las fechas e inténtalo otra vez.'}</p>}
         <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setBlockOpen(false)}>Cancelar</button><button className="btn btn-primary" disabled={createBlock.isPending}>{createBlock.isPending ? 'Bloqueando...' : 'Confirmar bloqueo'}</button></div>
       </form>
