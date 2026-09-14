@@ -124,8 +124,8 @@ export class PublicReservationsController {
 
   @Post(':slug/group-request')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  groupRequest(@Param('slug') slug: string, @Body() dto: PublicGroupRequestDto) {
-    return this.service.createPublicGroupRequest(slug, dto);
+  groupRequest(@Param('slug') slug: string, @Body() dto: PublicGroupRequestDto, @Ip() ipAddress: string, @Headers('user-agent') userAgent: string | undefined) {
+    return this.service.createPublicGroupRequest(slug, dto, ipAddress, userAgent);
   }
 
   @Post(':slug/waitlist')

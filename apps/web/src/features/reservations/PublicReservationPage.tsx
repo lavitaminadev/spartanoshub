@@ -84,7 +84,23 @@ export function PublicReservationPage() {
   const [guest, setGuest] = useState({ guestName: '', guestEmail: '', guestPhone: '', partySize: 1 });
   const [reservationConsent, setReservationConsent] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
-  const [measurementConsent, setMeasurementConsent] = useState(false);
+  /*
+   * La medición se puede aceptar al entrar, no sólo al final.
+   *
+   * Sólo existía la casilla del paso de datos: el Pixel cargaba recién ahí, así que el inicio del
+   * formulario casi nunca llegaba a Meta y las campañas no veían el paso intermedio. La elección
+   * se recuerda por local en este navegador; la casilla del final sigue cambiándola.
+   */
+  const claveMedicion = `vh-medicion:${slug}`;
+  const [eleccionMedicion, setEleccionMedicion] = useState<'si' | 'no' | ''>(() => {
+    try { const valor = localStorage.getItem(claveMedicion); return valor === 'si' || valor === 'no' ? valor : ''; } catch { return ''; }
+  });
+  const [measurementConsent, setMeasurementConsentState] = useState(eleccionMedicion === 'si');
+  const setMeasurementConsent = (valor: boolean) => {
+    setMeasurementConsentState(valor);
+    setEleccionMedicion(valor ? 'si' : 'no');
+    try { localStorage.setItem(claveMedicion, valor ? 'si' : 'no'); } catch { /* sin almacenamiento */ }
+  };
   const [networkConsent, setNetworkConsent] = useState(false);
   /** Elegir el día tiene que dejar los horarios a la vista, no debajo del pliegue. */
   const slotPickerRef = useRef<HTMLDivElement>(null);
@@ -292,9 +308,11 @@ export function PublicReservationPage() {
   }, [pageTitle, pageDescription]);
 
   useEffect(() => {
-    if (!form || !measurementConsent) return;
+    // El conteo de visitas del local no lleva datos personales ni va a Meta: se registra siempre,
+    // o «Resultados» sólo contaba a quienes aceptaban la medición publicitaria.
+    if (!form) return;
     api.post<{ id?: string }>(`/public/reservations/${slug}/events`, { type: 'view', sessionId, utmSource, utmMedium, utmCampaign, utmContent }).catch(() => undefined);
-  }, [form, measurementConsent, sessionId, slug, utmCampaign, utmContent, utmMedium, utmSource]);
+  }, [form, sessionId, slug, utmCampaign, utmContent, utmMedium, utmSource]);
 
   /**
    * Avisa —una sola vez por sesión— de que la persona empezó a llenar el formulario.
@@ -304,14 +322,18 @@ export function PublicReservationPage() {
    * con él se dispara el Pixel, para que Meta no cuente el inicio dos veces.
    */
   const markStarted = () => {
-    if (started.current || !measurementConsent) return;
+    if (started.current) return;
     started.current = true;
-    const meta = readMetaMatchData();
+    enviarInicio();
+  };
+  /** El inicio va siempre al embudo; a Meta sólo con la medición aceptada (lo decide el servidor). */
+  const enviarInicio = () => {
+    const meta = measurementConsent ? readMetaMatchData() : { fbc: undefined, fbp: undefined };
     api.post<{ id?: string }>(`/public/reservations/${slug}/events`, {
       type: 'start', sessionId, utmSource, utmMedium, utmCampaign, utmContent, measurementConsent,
         fbc: meta.fbc, fbp: meta.fbp, eventSourceUrl: window.location.href,
     }).then((evento: { id?: string }) => {
-      if (!evento?.id || !window.fbq || !form?.pixelId) return;
+      if (!measurementConsent || !evento?.id || !window.fbq || !form?.pixelId) return;
       const evt = META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT;
       window.fbq('trackSingle', form.pixelId, evt, {}, { eventID: metaEventId(evt, evento.id) });
     }).catch(() => undefined);
@@ -337,6 +359,12 @@ export function PublicReservationPage() {
     const respuestasVisibles = Object.fromEntries(Object.entries(answers).filter(([clave]) => visiblesAlEnviar.has(clave) || !(form?.fieldSchema || []).some((field) => field.id === clave)));
     return isSurvey ? respuestasVisibles : { ...respuestasVisibles, ...Object.fromEntries((form?.fieldSchema || []).filter((field) => field.type === 'consent' && field.id === 'consent').map((field) => [field.id, reservationConsent])) };
   };
+  // Si acepta la medición después de haber empezado, el inicio se informa en ese momento.
+  useEffect(() => {
+    if (measurementConsent && started.current) enviarInicio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measurementConsent]);
+
   const submit = useMutation({
     mutationFn: () => {
       const meta = readMetaMatchData();
@@ -359,6 +387,7 @@ export function PublicReservationPage() {
         partySize: Math.max(groupThreshold + 1, guest.partySize), eventType: tipoDeEvento, notes: groupEventNotes.trim() || undefined,
         preferredDate: requestPreference.date || undefined, preferredTime: requestPreference.time || undefined,
         reservationConsent, marketingConsent, networkConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent,
+        measurementConsent, ...(measurementConsent ? { fbc: meta.fbc, fbp: meta.fbp, fbclid: meta.fbclid, eventSourceUrl: window.location.href } : {}),
         details: {
           answers: reservationAnswers,
           serviceId: serviceId || undefined,
@@ -412,7 +441,10 @@ export function PublicReservationPage() {
   useEffect(() => {
     if (!measurementConsent || !submit.data?.id || !window.fbq) return;
     if (!form?.pixelId) return;
-    const eventName = isSurvey ? META_DEDUPLICATED_EVENTS.LEAD : META_DEDUPLICATED_EVENTS.SCHEDULE;
+    // Una solicitud de grupo no reservó nada: es un Lead, igual que lo informa el servidor.
+    const esSolicitud = submit.data.kind === 'group_request';
+    const eventName = isSurvey || esSolicitud ? META_DEDUPLICATED_EVENTS.LEAD : META_DEDUPLICATED_EVENTS.SCHEDULE;
+    const personasDelEvento = esSolicitud ? Math.max(groupThreshold + 1, guest.partySize) : guest.partySize;
     /*
      * El valor viaja por los dos canales.
      *
@@ -422,10 +454,10 @@ export function PublicReservationPage() {
      */
     const porPersona = Number(form?.designConfig?.valorPorPersona || '0');
     const valor = !isSurvey && porPersona > 0
-      ? { value: Math.round(porPersona * (guest.partySize || 1)), currency: String(form?.designConfig?.moneda || 'CLP').toUpperCase() }
+      ? { value: Math.round(porPersona * (personasDelEvento || 1)), currency: String(form?.designConfig?.moneda || 'CLP').toUpperCase() }
       : {};
     window.fbq('trackSingle', form.pixelId, eventName, valor, { eventID: metaEventId(eventName, submit.data.id) });
-  }, [form?.pixelId, form?.designConfig?.valorPorPersona, form?.designConfig?.moneda, guest.partySize, isSurvey, measurementConsent, submit.data?.id]);
+  }, [form?.pixelId, form?.designConfig?.valorPorPersona, form?.designConfig?.moneda, guest.partySize, groupThreshold, isSurvey, measurementConsent, submit.data?.id, submit.data?.kind]);
 
   useEffect(() => {
     if (!measurementConsent || !submit.data?.id || !form?.ga4MeasurementId) return;
@@ -789,6 +821,10 @@ export function PublicReservationPage() {
 
   return <main className={`public-booking layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style} onFocusCapture={markStarted} onPointerDown={markStarted}>
     <MetaPixel pixelId={form.pixelId} enabled={measurementConsent} />
+    {(form.pixelId || form.ga4MeasurementId) && eleccionMedicion === '' && <div className="booking-medicion-aviso" role="region" aria-label="Medición">
+      <p><strong>¿Nos ayudas a medir esta página?</strong> Permite saber de forma agregada qué anuncios traen reservas, con herramientas de Meta y Google que pueden tratar datos fuera de Chile. No afecta tu reserva.</p>
+      <div><button type="button" className="btn btn-outline btn-sm" onClick={() => setMeasurementConsent(false)}>Ahora no</button><button type="button" className="btn btn-primary btn-sm" onClick={() => setMeasurementConsent(true)}>Aceptar</button></div>
+    </div>}
     <Ga4Tag measurementId={form.ga4MeasurementId} enabled={measurementConsent} />
     {/* La bienvenida va primero: los dos avisos se abrían a la vez, uno tapando al otro. */}
     {ocasionesComoAviso && !avisoCerrado && vecesMostrado < limiteDeAvisos && !isSurvey && !bienvenidaPendiente && <div role="dialog" aria-modal="true" aria-label={design.ocasionesTitulo || 'Ocasiones'} className="booking-ocasiones-aviso" onClick={cerrarOcasiones}>

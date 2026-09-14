@@ -150,6 +150,12 @@ export class PublicGroupRequestDto {
   @IsOptional() @IsObject() details?: Record<string, unknown>;
   @IsOptional() @IsString() @MaxLength(200) website?: string;
   @IsOptional() @IsDateString() renderedAt?: string;
+  /** Medición: sólo con la casilla marcada se avisa a Meta y se guardan las señales del navegador. */
+  @IsOptional() @IsBoolean() measurementConsent?: boolean;
+  @IsOptional() @IsString() @MaxLength(255) fbc?: string;
+  @IsOptional() @IsString() @MaxLength(255) fbp?: string;
+  @IsOptional() @IsString() @MaxLength(500) fbclid?: string;
+  @IsOptional() @IsString() @MaxLength(2000) eventSourceUrl?: string;
 }
 /** Cambio de horario desde el enlace privado que recibió quien reservó. */
 /** Correo al que se reenvía el enlace de gestión cuando no se tiene el código. */

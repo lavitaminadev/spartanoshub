@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, IsNull, Not, Repository } from 'typeorm';
+import { Between, IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { Reservation } from '../../../modules/reservations/domain/reservation.entity';
 import { ReservationForm } from '../../../modules/reservations/domain/reservation-form.entity';
 import { Survey } from '../../../modules/surveys/survey.entity';
@@ -10,6 +10,8 @@ import { componerCorreo } from '../../notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
 
 const UNA_HORA = 3_600_000;
+/** Días mínimos entre dos encuestas a la misma persona en el mismo local. */
+const DIAS_ENTRE_ENCUESTAS = 7;
 
 /** Horas después de la visita, de fábrica: con la experiencia fresca y ya en casa. */
 export const HORAS_POST_VISITA_POR_DEFECTO = 3;
@@ -95,6 +97,11 @@ export class EncuestaPostVisitaJob {
           encuestasPorId.set(ajustes.surveyId, encuesta);
         }
         if (!encuesta || !encuestaUtil(encuesta, form)) continue;
+
+        // Quien viene seguido no recibe una encuesta por visita: con una por semana por local basta.
+        // La visita se marca igual para no volver a revisarla en cada pasada.
+        const encuestadaHacePoco = await this.reservas.count({ where: { formId: reserva.formId, guestEmail: reserva.guestEmail as string, postVisitSurveySentAt: MoreThan(new Date(ahora - DIAS_ENTRE_ENCUESTAS * 24 * UNA_HORA)) } });
+        if (encuestadaHacePoco > 0) { await this.reservas.update(reserva.id, { postVisitSurveySentAt: new Date() }); continue; }
 
         const enlace = `${origen}/survey/${encodeURIComponent(encuesta.id)}?src=email&i=${encodeURIComponent(crearInvitacion(encuesta.id, reserva.id, secreto))}`;
         const { subject, html } = componerCorreo(
