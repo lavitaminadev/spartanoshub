@@ -117,7 +117,7 @@ export function PublicReservationPage() {
   const [couponMsg, setCouponMsg] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [monthOffset, setMonthOffset] = useState(0);
-  const [slotDays, setSlotDays] = useState(14);
+  const [slotDays, setSlotDays] = useState(28);
   const [welcomeOpen, setWelcomeOpen] = useState(true);
   const [slotIssue, setSlotIssue] = useState('');
   /**
@@ -580,7 +580,9 @@ export function PublicReservationPage() {
     const [y, m, d] = fromDate.split('-').map(Number);
     const start = new Date(Date.UTC(y, m - 1, d));
     const rawDays: Array<{ date: string; day: number; weekday: string; slots: Slot[]; hasSlots: boolean; isFull: boolean }> = [];
-    for (let i = 0; i < 28; i++) {
+    // Sólo los días que se consultaron. Antes la rejilla pintaba 28 con 14 cargados y la segunda
+    // mitad aparecía como «cerrada» aunque el local abriera.
+    for (let i = 0; i < Math.min(rangoDias, 62); i++) {
       const date = new Date(start);
       date.setUTCDate(date.getUTCDate() + i);
       const year = date.getUTCFullYear();
@@ -619,7 +621,7 @@ export function PublicReservationPage() {
       weeks.push(currentWeek);
     }
     return { rawDays, weeks };
-  }, [fromDate, slotsByDate, form, fullDays]);
+  }, [fromDate, slotsByDate, form, fullDays, rangoDias]);
 
   /*
    * Salida cuando la agenda no tiene nada que ofrecer.
@@ -703,7 +705,7 @@ export function PublicReservationPage() {
     '--booking-button-radius': `${design.buttonRadius || '12'}px`,
     '--booking-field-radius': `${design.fieldRadius || '10'}px`,
     '--booking-logo-align': safeDesignChoice(design.logoPosition, ['left', 'center', 'right'], 'left'),
-    '--booking-logo-size': `${safeNumber(design.logoSize, 64, 32, 180)}px`,
+    '--booking-logo-size': `${safeNumber(design.logoSize, 96, 32, 240)}px`,
     '--booking-title-size': `${safeNumber(design.titleSize, 72, 32, 96)}px`,
     '--booking-welcome-size': `${safeNumber(design.welcomeSize, 16, 12, 24)}px`,
     color: textColor, fontFamily, backgroundColor: background, backgroundImage,
@@ -877,7 +879,8 @@ export function PublicReservationPage() {
     </details>}
     <div className="public-booking-layout">
       <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div></div>}
-        {ocasionesEncendidas && <div className="booking-ocasiones">
+        {/* Sólo mientras se elige: en datos y confirmación empujaba el formulario hacia abajo. */}
+        {ocasionesEncendidas && step === 1 && <div className="booking-ocasiones">
           {design.ocasionesTitulo && <h2>{design.ocasionesTitulo}</h2>}
           <div className={`booking-ocasiones-grilla foto-${safeDesignChoice(design.ocasionesFoto, ['completa', 'horizontal', 'cuadrada', 'vertical'], 'completa')}`}>
             {ocasiones.map((ocasion) => tarjetaDeOcasion(ocasion))}
@@ -916,7 +919,7 @@ export function PublicReservationPage() {
           </div>}
           {loadingSlots && <div className="no-slots"><LoadingSpinner text="Buscando disponibilidad..." /></div>}
           {!loadingSlots && calendarDays.rawDays.length > 0 && <div>
-            <div className="calendar-month-nav"><button type="button" className="btn btn-outline btn-xs" disabled={monthOffset <= 0} onClick={() => { setMonthOffset((m) => Math.max(0, m - 1)); setSelected(''); setSelectedDate(''); }}>← Mes anterior</button><span>{new Date(fromDate + 'T00:00:00').toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: form.timezone })}</span><button type="button" className="btn btn-outline btn-xs" onClick={() => { setMonthOffset((m) => m + 1); setSelected(''); setSelectedDate(''); }}>Mes siguiente →</button></div>
+            <div className="calendar-month-nav"><button type="button" className="calendar-month-btn" aria-label="Mes anterior" disabled={monthOffset <= 0} onClick={() => { setMonthOffset((m) => Math.max(0, m - 1)); setSelected(''); setSelectedDate(''); }}>‹</button><span>{(() => { const texto = new Date(fromDate + 'T12:00:00Z').toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }); return texto.charAt(0).toUpperCase() + texto.slice(1); })()}</span><button type="button" className="calendar-month-btn" aria-label="Mes siguiente" onClick={() => { setMonthOffset((m) => m + 1); setSelected(''); setSelectedDate(''); }}>›</button></div>
             <div className="calendar-weekdays"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
             <div className="calendar-grid">{calendarDays.weeks.map((week, weekIndex) => <div key={weekIndex} className="calendar-week">{week.map((day, dayIndex) => day === null
               ? <span key={`empty-${dayIndex}`} className="calendar-day is-empty" aria-hidden="true" />

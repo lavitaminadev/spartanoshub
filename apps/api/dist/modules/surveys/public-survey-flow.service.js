@@ -15,6 +15,7 @@ var PublicSurveyFlowService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PublicSurveyFlowService = void 0;
 const common_1 = require("@nestjs/common");
+const encuestas_de_la_empresa_1 = require("./encuestas-de-la-empresa");
 const typeorm_1 = require("@nestjs/typeorm");
 const node_crypto_1 = require("node:crypto");
 const typeorm_2 = require("typeorm");
@@ -51,6 +52,7 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
         const survey = await this.surveys.findOne({ where: { id: surveyId } });
         if (!survey || survey.status !== 'active')
             throw new common_1.NotFoundException('La encuesta no está disponible');
+        await (0, encuestas_de_la_empresa_1.encuestaPublicaDisponible)(this.surveys, survey.clientId);
         return survey;
     }
     async quienResponde(survey, invitacion) {

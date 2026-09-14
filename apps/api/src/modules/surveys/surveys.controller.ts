@@ -16,6 +16,8 @@ import type { AuthenticatedRequest } from '../../shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { EmailService } from '../../core/notifications/email.service';
 import { armazonDeCorreo } from '../../core/notifications/plantilla-de-correo';
+import { exigirEncuestasHabilitadas } from './encuestas-de-la-empresa';
+import { In, IsNull } from 'typeorm';
 
 /** Correo plausible. La validación real la hace el servidor de correo; esto evita basura obvia. */
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -69,9 +71,20 @@ export class SurveysController {
     } as SurveyContract;
   }
 
-  private async findOwned(id: string, organizationId: string): Promise<Survey> {
-    const survey = await this.surveys.findOne({ where: { id, organizationId } });
+  /**
+   * La encuesta, sólo si quien pregunta alcanza su empresa.
+   *
+   * Antes bastaba con ser de la organización: alguien asignado a una empresa leía, editaba y
+   * veía las respuestas —con nombre y correo— de las encuestas de cualquier otra. Responde 404
+   * igual que una que no existe, para no revelar la cartera.
+   */
+  private async findOwned(id: string, req: AuthenticatedRequest): Promise<Survey> {
+    const survey = await this.surveys.findOne({ where: { id, organizationId: req.organizationId } });
     if (!survey) throw new NotFoundException('La encuesta no existe');
+    if (survey.clientId) {
+      const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+      if (permitidas !== undefined && !permitidas.includes(survey.clientId)) throw new NotFoundException('La encuesta no existe');
+    }
     return survey;
   }
 
@@ -80,10 +93,15 @@ export class SurveysController {
   @ApiOperation({ summary: 'Listar encuestas' })
   async list(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
-    const rows = await this.surveys.find({
-      where: { organizationId: req.organizationId, ...(clientId ? { clientId } : {}) },
-      order: { createdAt: 'DESC' },
-    });
+    // Sin empresa elegida, cada persona ve las de sus empresas y las internas del equipo; no las
+    // de toda la organización.
+    const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    const where = clientId
+      ? { organizationId: req.organizationId, clientId }
+      : permitidas === undefined
+        ? { organizationId: req.organizationId }
+        : [{ organizationId: req.organizationId, clientId: IsNull() }, ...(permitidas.length ? [{ organizationId: req.organizationId, clientId: In(permitidas) }] : [])];
+    const rows = await this.surveys.find({ where, order: { createdAt: 'DESC' } });
     return rows.map((row) => this.toContract(row));
   }
 
@@ -91,7 +109,7 @@ export class SurveysController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Leer una encuesta' })
   async detail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.toContract(await this.findOwned(id, req.organizationId));
+    return this.toContract(await this.findOwned(id, req));
   }
 
   @Post()
@@ -101,6 +119,7 @@ export class SurveysController {
     if (dto.type === 'customer' && !dto.clientId) throw new BadRequestException('Las encuestas de clientes requieren una empresa');
     if (dto.type === 'internal' && dto.clientId) throw new BadRequestException('Las encuestas internas no se asignan a una empresa');
     await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+    await exigirEncuestasHabilitadas(this.dataSource, dto.clientId);
     this.assertUniqueQuestionIds(dto.questions);
     const saved = await this.surveys.save(this.surveys.create({
       organizationId: req.organizationId,
@@ -126,7 +145,7 @@ export class SurveysController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Actualizar una encuesta' })
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateSurveyDto) {
-    const survey = await this.findOwned(id, req.organizationId);
+    const survey = await this.findOwned(id, req);
     if (dto.questions) {
       this.assertUniqueQuestionIds(dto.questions);
       // Cambiar las preguntas de una encuesta que ya tiene respuestas dejaría los resultados
@@ -142,6 +161,8 @@ export class SurveysController {
       await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
       survey.clientId = dto.clientId;
     }
+    // Publicar o mover a una empresa sin el servicio no se permite; cerrar o editar textos sí.
+    if (dto.clientId !== undefined || dto.status === 'active') await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
     if (survey.type === 'customer' && !survey.clientId) throw new BadRequestException('Las encuestas de clientes requieren una empresa');
     if (survey.type === 'internal' && survey.clientId) throw new BadRequestException('Las encuestas internas no se asignan a una empresa');
     if (dto.status !== undefined) survey.status = dto.status;
@@ -157,7 +178,7 @@ export class SurveysController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Eliminar una encuesta' })
   async remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const survey = await this.findOwned(id, req.organizationId);
+    const survey = await this.findOwned(id, req);
     // Las respuestas se van con la encuesta: sin sus preguntas no se pueden interpretar, y
     // conservarlas sueltas solo dejaría filas que nadie puede leer.
     await this.dataSource.transaction(async (manager) => {
@@ -171,7 +192,7 @@ export class SurveysController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Resultados agregados de una encuesta' })
   async results(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const survey = await this.findOwned(id, req.organizationId);
+    const survey = await this.findOwned(id, req);
     const rows = await this.responses.find({ where: { surveyId: survey.id }, order: { submittedAt: 'ASC' } });
     const responses: SurveyResponseContract[] = rows.map((row) => ({
       surveyId: row.surveyId,
@@ -207,7 +228,7 @@ export class SurveysController {
   @Roles(...Object.values(UserRole))
   @ApiOperation({ summary: 'Registrar una respuesta' })
   async submit(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: SubmitSurveyResponseDto) {
-    const survey = await this.findOwned(id, req.organizationId);
+    const survey = await this.findOwned(id, req);
     if (survey.status !== 'active') throw new BadRequestException('La encuesta no está recibiendo respuestas');
 
     const known = new Set((survey.questions ?? []).map((question) => question.id));
@@ -260,8 +281,8 @@ export class SurveysController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Enviar la encuesta por correo a sus destinatarios' })
   async sendEmail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const survey = await this.findOwned(id, req.organizationId);
-    await this.accountAccess.assertClient(req.organizationId, req.user, survey.clientId ?? undefined);
+    const survey = await this.findOwned(id, req);
+    await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
     if (survey.status !== 'active') throw new BadRequestException('Activa la encuesta antes de enviarla');
     if (!(survey.distribution ?? []).includes('email')) throw new BadRequestException('Esta encuesta no tiene el correo habilitado como canal');
 

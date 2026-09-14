@@ -18,6 +18,7 @@ exports.encuestaUtil = encuestaUtil;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const encuestas_de_la_empresa_1 = require("../../../modules/surveys/encuestas-de-la-empresa");
 const reservation_entity_1 = require("../../../modules/reservations/domain/reservation.entity");
 const reservation_form_entity_1 = require("../../../modules/reservations/domain/reservation-form.entity");
 const survey_entity_1 = require("../../../modules/surveys/survey.entity");
@@ -82,6 +83,8 @@ let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJo
                     encuestasPorId.set(ajustes.surveyId, encuesta);
                 }
                 if (!encuesta || !encuestaUtil(encuesta, form))
+                    continue;
+                if (!(await (0, encuestas_de_la_empresa_1.encuestasHabilitadas)(this.reservas, form.clientId)))
                     continue;
                 const encuestadaHacePoco = await this.reservas.count({ where: { formId: reserva.formId, guestEmail: reserva.guestEmail, postVisitSurveySentAt: (0, typeorm_2.MoreThan)(new Date(ahora - DIAS_ENTRE_ENCUESTAS * 24 * UNA_HORA)) } });
                 if (encuestadaHacePoco > 0) {

@@ -7,6 +7,7 @@ import { DataTable } from '../../shared/DataTable';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
+import { PermisosDeUsuario } from './PermisosDeUsuario';
 import { useSearchParams } from 'react-router-dom';
 
 interface UserRow {
@@ -68,6 +69,7 @@ export function UsersPage() {
   const [modalOpen, setModalOpen] = useState(searchParams.get('create') === '1');
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [accessTarget, setAccessTarget] = useState<UserRow | null>(null);
+  const [permisosDe, setPermisosDe] = useState<UserRow | null>(null);
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
   const [resetResult, setResetResult] = useState<ResetResult | null>(null);
   const [sendResetEmail, setSendResetEmail] = useState(true);
@@ -156,6 +158,9 @@ export function UsersPage() {
     || currentUser?.role === 'dev'
     || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role);
   const canResetPassword = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
+  // Ver permisos: Administración, Desarrollo y Dirección de operaciones. Cambiarlos: sólo las dos primeras.
+  const puedeVerPermisos = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
+  const puedeEditarPermisos = ['admin', 'dev'].includes(currentUser?.role ?? '');
 
   const openCreateModal = () => {
     setFeedback(null);
@@ -301,7 +306,7 @@ export function UsersPage() {
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
           { key: 'createdAt', label: 'Creado', sortable: true, render: (row) => new Date(row.createdAt).toLocaleDateString('es-CL') },
-          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}</div> },
+          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}{puedeVerPermisos && (row.role !== 'dev' || currentUser?.role === 'dev') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setPermisosDe(row)}>Permisos</button>}</div> },
         ]}
         data={users}
         emptyMessage="No hay usuarios para los filtros seleccionados"
@@ -373,6 +378,7 @@ export function UsersPage() {
         onClose={() => setPendingBulkAccess(null)}
         onConfirm={() => void confirmBulkAccess()}
       />
+      {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id} onCerrar={() => setPermisosDe(null)} />}
       <Modal open={Boolean(resetTarget)} onClose={() => { setResetTarget(null); setResetResult(null); }} title={`Resetear clave de ${resetTarget?.name ?? ''}`}>
         <div className="modal-form reset-access-modal">
           {!resetResult ? <><p>Se cerrarán las sesiones activas y se generará una contraseña temporal. La persona deberá cambiarla al ingresar.</p><label className="toggle-row"><input type="checkbox" checked={sendResetEmail} onChange={(event) => setSendResetEmail(event.target.checked)} /> Enviar también al correo {resetTarget?.email}</label>{resetMutation.error && <div className="alert alert-error">{resetMutation.error.message}</div>}<div className="modal-actions"><button className="btn btn-outline" type="button" onClick={() => setResetTarget(null)}>Cancelar</button><button className="btn btn-primary" type="button" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>{resetMutation.isPending ? 'Generando...' : 'Generar acceso temporal'}</button></div></> : <><div className="temporary-password-result"><span>CLAVE TEMPORAL · SE MUESTRA UNA VEZ</span><strong>{resetResult.temporaryPassword}</strong><button className="btn btn-outline btn-sm" type="button" onClick={() => navigator.clipboard.writeText(resetResult.temporaryPassword)}>Copiar clave</button></div><div className={`alert alert-${resetResult.emailSent ? 'success' : 'info'}`}>{resetResult.emailSent ? 'También fue enviada por correo.' : 'El correo no fue enviado. Comparte esta clave por un canal seguro.'}</div><button className="btn btn-primary btn-block" type="button" onClick={() => { setResetTarget(null); setResetResult(null); }}>Cerrar</button></>}

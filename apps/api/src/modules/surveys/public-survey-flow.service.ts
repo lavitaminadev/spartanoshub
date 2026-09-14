@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { encuestaPublicaDisponible } from './encuestas-de-la-empresa';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { DataSource, Repository } from 'typeorm';
@@ -68,6 +69,7 @@ export class PublicSurveyFlowService {
   private async activa(surveyId: string): Promise<Survey> {
     const survey = await this.surveys.findOne({ where: { id: surveyId } });
     if (!survey || survey.status !== 'active') throw new NotFoundException('La encuesta no está disponible');
+    await encuestaPublicaDisponible(this.surveys, survey.clientId);
     return survey;
   }
 

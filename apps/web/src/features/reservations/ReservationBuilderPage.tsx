@@ -120,7 +120,7 @@ function reservationDesignStyle(design: DesignConfig): CSSProperties {
     '--booking-font': design.fontFamily || 'system-ui',
     '--booking-button-radius': `${design.buttonRadius || '12'}px`,
     '--booking-field-radius': `${design.fieldRadius || '10'}px`,
-    '--booking-logo-size': `${safeNumber(design.logoSize, 64, 32, 180)}px`,
+    '--booking-logo-size': `${safeNumber(design.logoSize, 96, 32, 240)}px`,
     '--booking-title-size': `${safeNumber(design.titleSize, 72, 32, 96)}px`,
     '--booking-welcome-size': `${safeNumber(design.welcomeSize, 16, 12, 24)}px`,
     color: design.textColor || '#3f4e49',
@@ -890,7 +890,7 @@ function DesignStudioControls({
         <summary>Qué se muestra arriba: logo, título y sellos</summary>
         <div className="design-section-body">
           <label className="toggle-row"><input type="checkbox" checked={visible(design.showLogo)} onChange={(event) => update({ showLogo: String(event.target.checked) })} /> Mostrar logo</label>
-          <label>Tamaño del logo ({design.logoSize || '64'}px)<input type="range" min="32" max="180" value={design.logoSize || '64'} onChange={(event) => update({ logoSize: event.target.value })} /></label>
+          <label>Tamaño del logo ({design.logoSize || '96'}px de alto)<input type="range" min="32" max="240" value={design.logoSize || '96'} onChange={(event) => update({ logoSize: event.target.value })} /></label>
           <div className="segmented-control">
             <span>Alineación del logo</span>
             <div>{LOGO_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLogo === value ? 'active' : ''} onClick={() => update({ logoPosition: value })}>{label}</button>)}</div>

@@ -5,6 +5,7 @@ exports.normalizeClientCapabilities = normalizeClientCapabilities;
 exports.CLIENT_CAPABILITY_KEYS = [
     'reservations',
     'crm',
+    'surveys',
     'metaConversions',
     'googleConversions',
     'budgetVisibility',
@@ -12,6 +13,7 @@ exports.CLIENT_CAPABILITY_KEYS = [
 exports.DEFAULT_CLIENT_CAPABILITIES = {
     reservations: true,
     crm: true,
+    surveys: true,
     metaConversions: false,
     googleConversions: false,
     budgetVisibility: false,

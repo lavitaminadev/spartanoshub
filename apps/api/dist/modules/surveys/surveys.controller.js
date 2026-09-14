@@ -28,6 +28,8 @@ const survey_dto_1 = require("./dto/survey.dto");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const email_service_1 = require("../../core/notifications/email.service");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
+const encuestas_de_la_empresa_1 = require("./encuestas-de-la-empresa");
+const typeorm_3 = require("typeorm");
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 exports.MAXIMO_ENVIO_POR_PEDIDO = 500;
 function publicSurveyUrl(id) {
@@ -61,22 +63,30 @@ let SurveysController = class SurveysController {
             googleReview: survey.googleReview ?? undefined,
         };
     }
-    async findOwned(id, organizationId) {
-        const survey = await this.surveys.findOne({ where: { id, organizationId } });
+    async findOwned(id, req) {
+        const survey = await this.surveys.findOne({ where: { id, organizationId: req.organizationId } });
         if (!survey)
             throw new common_1.NotFoundException('La encuesta no existe');
+        if (survey.clientId) {
+            const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+            if (permitidas !== undefined && !permitidas.includes(survey.clientId))
+                throw new common_1.NotFoundException('La encuesta no existe');
+        }
         return survey;
     }
     async list(req, clientId) {
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
-        const rows = await this.surveys.find({
-            where: { organizationId: req.organizationId, ...(clientId ? { clientId } : {}) },
-            order: { createdAt: 'DESC' },
-        });
+        const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const where = clientId
+            ? { organizationId: req.organizationId, clientId }
+            : permitidas === undefined
+                ? { organizationId: req.organizationId }
+                : [{ organizationId: req.organizationId, clientId: (0, typeorm_3.IsNull)() }, ...(permitidas.length ? [{ organizationId: req.organizationId, clientId: (0, typeorm_3.In)(permitidas) }] : [])];
+        const rows = await this.surveys.find({ where, order: { createdAt: 'DESC' } });
         return rows.map((row) => this.toContract(row));
     }
     async detail(req, id) {
-        return this.toContract(await this.findOwned(id, req.organizationId));
+        return this.toContract(await this.findOwned(id, req));
     }
     async create(req, dto) {
         if (dto.type === 'customer' && !dto.clientId)
@@ -84,6 +94,7 @@ let SurveysController = class SurveysController {
         if (dto.type === 'internal' && dto.clientId)
             throw new common_1.BadRequestException('Las encuestas internas no se asignan a una empresa');
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+        await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, dto.clientId);
         this.assertUniqueQuestionIds(dto.questions);
         const saved = await this.surveys.save(this.surveys.create({
             organizationId: req.organizationId,
@@ -103,7 +114,7 @@ let SurveysController = class SurveysController {
         return this.toContract(saved);
     }
     async update(req, id, dto) {
-        const survey = await this.findOwned(id, req.organizationId);
+        const survey = await this.findOwned(id, req);
         if (dto.questions) {
             this.assertUniqueQuestionIds(dto.questions);
             if (survey.responseCount > 0) {
@@ -119,6 +130,8 @@ let SurveysController = class SurveysController {
             await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
             survey.clientId = dto.clientId;
         }
+        if (dto.clientId !== undefined || dto.status === 'active')
+            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, survey.clientId);
         if (survey.type === 'customer' && !survey.clientId)
             throw new common_1.BadRequestException('Las encuestas de clientes requieren una empresa');
         if (survey.type === 'internal' && survey.clientId)
@@ -138,7 +151,7 @@ let SurveysController = class SurveysController {
         return this.toContract(await this.surveys.save(survey));
     }
     async remove(req, id) {
-        const survey = await this.findOwned(id, req.organizationId);
+        const survey = await this.findOwned(id, req);
         await this.dataSource.transaction(async (manager) => {
             await manager.delete(survey_response_entity_1.SurveyResponse, { surveyId: survey.id });
             await manager.remove(survey);
@@ -146,7 +159,7 @@ let SurveysController = class SurveysController {
         return { removed: true };
     }
     async results(req, id) {
-        const survey = await this.findOwned(id, req.organizationId);
+        const survey = await this.findOwned(id, req);
         const rows = await this.responses.find({ where: { surveyId: survey.id }, order: { submittedAt: 'ASC' } });
         const responses = rows.map((row) => ({
             surveyId: row.surveyId,
@@ -168,7 +181,7 @@ let SurveysController = class SurveysController {
         return { ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses), respuestas: detalle };
     }
     async submit(req, id, dto) {
-        const survey = await this.findOwned(id, req.organizationId);
+        const survey = await this.findOwned(id, req);
         if (survey.status !== 'active')
             throw new common_1.BadRequestException('La encuesta no está recibiendo respuestas');
         const known = new Set((survey.questions ?? []).map((question) => question.id));
@@ -201,8 +214,8 @@ let SurveysController = class SurveysController {
         };
     }
     async sendEmail(req, id) {
-        const survey = await this.findOwned(id, req.organizationId);
-        await this.accountAccess.assertClient(req.organizationId, req.user, survey.clientId ?? undefined);
+        const survey = await this.findOwned(id, req);
+        await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, survey.clientId);
         if (survey.status !== 'active')
             throw new common_1.BadRequestException('Activa la encuesta antes de enviarla');
         if (!(survey.distribution ?? []).includes('email'))

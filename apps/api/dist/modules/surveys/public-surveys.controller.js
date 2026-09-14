@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PublicSurveysController = void 0;
 const common_1 = require("@nestjs/common");
+const encuestas_de_la_empresa_1 = require("./encuestas-de-la-empresa");
 const swagger_1 = require("@nestjs/swagger");
 const throttler_1 = require("@nestjs/throttler");
 const typeorm_1 = require("@nestjs/typeorm");
@@ -57,12 +58,14 @@ let PublicSurveysController = class PublicSurveysController {
         const survey = await this.surveys.findOne({ where: { id } });
         if (!survey || survey.status !== 'active')
             throw new common_1.NotFoundException('La encuesta no está disponible');
+        await (0, encuestas_de_la_empresa_1.encuestaPublicaDisponible)(this.surveys, survey.clientId);
         return this.toContract(survey);
     }
     async submit(id, dto) {
         const survey = await this.surveys.findOne({ where: { id } });
         if (!survey || survey.status !== 'active')
             throw new common_1.NotFoundException('La encuesta no está disponible');
+        await (0, encuestas_de_la_empresa_1.encuestaPublicaDisponible)(this.surveys, survey.clientId);
         const known = new Set((survey.questions ?? []).map((question) => question.id));
         const unknown = Object.keys(dto.answers ?? {}).filter((key) => !known.has(key));
         if (unknown.length > 0)

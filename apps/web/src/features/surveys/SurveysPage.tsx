@@ -7,7 +7,7 @@
  */
 
 import { useState, type JSX } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { CodigoQrDeEncuesta } from './CodigoQrDeEncuesta';
 import { Link } from 'react-router-dom';
@@ -35,7 +35,7 @@ const TYPE_FILTERS: Array<{ value: 'all' | SurveyType; label: string }> = [
 ];
 
 /** Claves que esta pantalla filtra. Limpiar suelta solo estas y no parámetros ajenos. */
-const FILTER_KEYS = ['tipo', 'estado'] as const;
+const FILTER_KEYS = ['tipo', 'estado', 'empresa'] as const;
 
 const STATUS_FILTER_OPTIONS = [
   { value: 'draft', label: 'Borrador' },
@@ -69,6 +69,12 @@ export function SurveysPage(): JSX.Element {
   const filtros = useUrlFilters(FILTER_KEYS);
   const typeFilter = (filtros.values.tipo || 'all') as 'all' | SurveyType;
   const { user } = useAuth();
+  // Empresas visibles para esta persona: el servidor ya recorta la lista a las suyas.
+  const { data: clientsResponse } = useQuery<{ data?: Array<{ id: string; name: string; capabilities?: { surveys?: boolean } }> }>({
+    queryKey: ['clients'], queryFn: () => api.get('/clients'),
+  });
+  const empresas = clientsResponse?.data ?? [];
+  const empresaPorId = new Map(empresas.map((empresa) => [empresa.id, empresa]));
   const canDeleteSurvey = Boolean(user && (user.role === 'admin' || user.role === 'dev' || user.role === 'operations_director'));
 
   if (isLoading) return <LoadingSpinner text="Cargando encuestas..." />;
@@ -86,6 +92,8 @@ export function SurveysPage(): JSX.Element {
   const visible = surveys.filter((survey) => {
     if (typeFilter !== 'all' && survey.type !== typeFilter) return false;
     if (filtros.values.estado && survey.status !== filtros.values.estado) return false;
+    if (filtros.values.empresa === 'equipo' && survey.clientId) return false;
+    if (filtros.values.empresa && filtros.values.empresa !== 'equipo' && survey.clientId !== filtros.values.empresa) return false;
     const buscado = filtros.search.trim().toLowerCase();
     return !buscado || survey.title.toLowerCase().includes(buscado);
   });
@@ -97,6 +105,18 @@ export function SurveysPage(): JSX.Element {
 
   const columns: Column<Survey>[] = [
     { key: 'title', label: 'Nombre', sortable: true },
+    {
+      key: 'clientId',
+      label: 'Empresa',
+      sortable: true,
+      sortValue: (survey) => (survey.clientId ? empresaPorId.get(survey.clientId)?.name ?? '' : ''),
+      render: (survey) => {
+        if (!survey.clientId) return <span className="survey-empresa is-equipo">Equipo interno</span>;
+        const empresa = empresaPorId.get(survey.clientId);
+        return <span className="survey-empresa">{empresa?.name ?? 'Empresa no disponible'}{empresa?.capabilities?.surveys === false && <small className="survey-empresa-apagada">Encuestas desactivado</small>}</span>;
+      },
+      exportValue: (survey) => (survey.clientId ? empresaPorId.get(survey.clientId)?.name ?? '' : 'Equipo interno'),
+    },
     {
       key: 'type',
       label: 'Tipo',
@@ -185,7 +205,10 @@ export function SurveysPage(): JSX.Element {
         search={filtros.search}
         onSearchChange={filtros.setSearch}
         searchPlaceholder="Buscar por título..."
-        filters={[{ key: 'estado', label: 'Estado', options: STATUS_FILTER_OPTIONS, allLabel: 'Todos los estados' }]}
+        filters={[
+          { key: 'empresa', label: 'Empresa', options: [{ value: 'equipo', label: 'Equipo interno' }, ...empresas.map((empresa) => ({ value: empresa.id, label: empresa.name }))], allLabel: 'Todas las empresas' },
+          { key: 'estado', label: 'Estado', options: STATUS_FILTER_OPTIONS, allLabel: 'Todos los estados' },
+        ]}
         values={filtros.values}
         onFilterChange={filtros.setValue}
         onClear={filtros.hasAny ? filtros.clear : undefined}

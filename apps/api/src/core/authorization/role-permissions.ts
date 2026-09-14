@@ -37,6 +37,9 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
     // del catálogo ni las facultades de Desarrollo.
     crm: 'manage',
     reservations: 'manage',
+    // Encuestas es el tercer servicio por empresa: el controlador ya aceptaba a Administración,
+    // pero la matriz no se lo daba y el guardia lo rechazaba igual.
+    surveys: 'manage',
   },
 
   /**

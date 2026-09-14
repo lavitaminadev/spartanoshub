@@ -312,10 +312,11 @@ export function CreateSurveyWizard(): JSX.Element {
   const { data: existingSurvey, isLoading } = useSurvey(editId);
   const createMutation = useCreateSurvey();
   const updateMutation = useUpdateSurvey();
-  const { data: clientsResponse } = useQuery<{ data?: Array<{ id: string; name: string }> }>({
+  const { data: clientsResponse } = useQuery<{ data?: Array<{ id: string; name: string; capabilities?: { surveys?: boolean } }> }>({
     queryKey: ['clients'], queryFn: () => api.get('/clients'),
   });
-  const clients = clientsResponse?.data ?? [];
+  // Sólo las empresas con Encuestas activo, más la ya elegida si se está editando una antigua.
+  const clients = (clientsResponse?.data ?? []).filter((client) => client.capabilities?.surveys !== false || client.id === existingSurvey?.clientId);
 
   const [step, setStep] = useState(0);
   const [state, setState] = useState<WizardState>(blankState());

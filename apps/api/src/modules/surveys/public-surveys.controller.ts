@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import { encuestaPublicaDisponible } from './encuestas-de-la-empresa';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -71,6 +72,7 @@ export class PublicSurveysController {
   async detail(@Param('id') id: string) {
     const survey = await this.surveys.findOne({ where: { id } });
     if (!survey || survey.status !== 'active') throw new NotFoundException('La encuesta no está disponible');
+    await encuestaPublicaDisponible(this.surveys, survey.clientId);
     return this.toContract(survey);
   }
 
@@ -79,6 +81,7 @@ export class PublicSurveysController {
   async submit(@Param('id') id: string, @Body() dto: SubmitSurveyResponseDto) {
     const survey = await this.surveys.findOne({ where: { id } });
     if (!survey || survey.status !== 'active') throw new NotFoundException('La encuesta no está disponible');
+    await encuestaPublicaDisponible(this.surveys, survey.clientId);
 
     const known = new Set((survey.questions ?? []).map((question) => question.id));
     const unknown = Object.keys(dto.answers ?? {}).filter((key) => !known.has(key));

@@ -149,12 +149,17 @@ describe('navegación bajo el alcance de fase', () => {
     expect(getFeatureForPath('/production')).toBe('production');
   });
 
-  it('Encuestas queda disponible sólo para Dirección Comercial en la operación inicial', () => {
+  it('Encuestas la deciden el permiso de la persona y la capacidad de su empresa, como CRM y Reservas', () => {
     expect(getFeatureForPath('/surveys')).toBe('surveys');
     expect(isPathEnabled('/surveys', { surveys: false }, undefined)).toBe(false);
-    expect(isPathEnabled('/surveys', { surveys: true }, { surveys: 'manage' }, undefined, 'commercial_director')).toBe(true);
-    expect(isPathEnabled('/surveys', { surveys: true }, { surveys: 'manage' }, undefined, 'admin')).toBe(false);
+    for (const cargo of ['commercial_director', 'admin', 'operations_director', 'community_manager']) {
+      expect(isPathEnabled('/surveys', { surveys: true }, { surveys: 'edit' }, undefined, cargo)).toBe(true);
+    }
     expect(isPathEnabled('/surveys', undefined, { surveys: 'none' }, undefined, 'commercial_director')).toBe(false);
+    // Cargos que no operan cuentas siguen fuera aunque alguien les dé el permiso.
+    expect(isPathEnabled('/surveys', { surveys: true }, { surveys: 'edit' }, undefined, 'designer')).toBe(false);
+    // Una empresa del portal sin el servicio no lo ve.
+    expect(isPathEnabled('/surveys', { surveys: true }, { surveys: 'edit' }, undefined, 'community_manager', { surveys: false })).toBe(false);
   });
 
   it('Dirección Comercial no recibe Reservas junto con Encuestas', () => {
