@@ -1,17 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { Reservation } from '../../../modules/reservations/domain/reservation.entity';
 import { ReservationForm } from '../../../modules/reservations/domain/reservation-form.entity';
 import { ReservationEvent } from '../../../modules/reservations/domain/reservation-event.entity';
 import { ReservationHold } from '../../../modules/reservations/domain/reservation-hold.entity';
 
-const ACTIVE = new Set(['pending', 'confirmed', 'rescheduled']);
+/** Sólo lo confirmado se da por asistido: una pendiente nunca la aprobó el local. */
+const ACTIVE = ['confirmed', 'rescheduled'];
 
 /**
  * Cierra asistencia sólo después del margen configurado. Es deliberadamente conservador:
  * una espera/lista de espera nunca se convierte en asistencia y un local puede apagarlo
- * con `designConfig.autoCloseAttendance = false`.
+ * con `designConfig.autoCloseAttendance = 'false'` (el editor lo guarda como texto).
  */
 @Injectable()
 export class AutoCloseReservationsJob {
@@ -25,14 +26,15 @@ export class AutoCloseReservationsJob {
   ) {}
 
   async handle(): Promise<void> {
-    const candidates = await this.reservations.find({ where: { endsAt: LessThan(new Date()) }, take: 500, order: { endsAt: 'ASC' } });
+    // El estado se filtra en la consulta: filtrarlo después dejaba que 500 reservas viejas ya
+    // cerradas ocuparan todo el lote y ninguna activa se cerrara nunca más.
+    const candidates = await this.reservations.find({ where: { endsAt: LessThan(new Date()), status: In(ACTIVE) }, take: 500, order: { endsAt: 'ASC' } });
     let closed = 0;
     for (const item of candidates) {
-      if (!ACTIVE.has(item.status)) continue;
       try {
         const form = await this.forms.findOne({ where: { id: item.formId } });
         const config = (form?.designConfig || {}) as Record<string, unknown>;
-        if (config.autoCloseAttendance === false) continue;
+        if (config.autoCloseAttendance === false || config.autoCloseAttendance === 'false') continue;
         const configured = Number(config.autoCloseAfterMinutes);
         const afterMinutes = Number.isInteger(configured) && configured >= 15 && configured <= 24 * 60 ? configured : 60;
         if (item.endsAt.getTime() + afterMinutes * 60_000 > Date.now()) continue;

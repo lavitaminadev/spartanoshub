@@ -93,6 +93,8 @@ describe('reservas simultáneas', () => {
         guestPhone: `+5691${String(i).padStart(7, '0')}`,
         partySize: 1,
         answers: { name: `${etiqueta} ${i + 1}`, phone: `+5691${String(i).padStart(7, '0')}`, consent: true },
+        // La página pública siempre la envía y el servidor la exige: sin ella no hay reserva.
+        reservationConsent: true,
         // Clave distinta en cada intento: acá se prueba la concurrencia, no la idempotencia.
         idempotencyKey: `${etiqueta}-${Date.now()}-${i}-aaaaaaaaaaaa`,
       },
