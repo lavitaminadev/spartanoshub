@@ -19,6 +19,7 @@ const REPARTO_NO_APLICADO = {
         reports: 'view',
         crm: 'manage',
         reservations: 'manage',
+        surveys: 'manage',
     },
     [user_role_enum_1.UserRole.DEV]: Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((key) => [key, 'manage'])),
     [user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR]: {

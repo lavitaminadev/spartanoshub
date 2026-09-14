@@ -299,3 +299,86 @@
 .booking-ocasiones-grilla.foto-horizontal img { aspect-ratio:4/3; object-fit:cover; }
 .booking-ocasiones-grilla.foto-cuadrada img { aspect-ratio:1/1; object-fit:cover; }
 .booking-ocasiones-grilla.foto-vertical img { aspect-ratio:3/4; object-fit:cover; }
+
+/*
+ * Logo de la empresa: manda el tamaño elegido en el editor.
+ * Dos reglas antiguas lo topaban en 64px de alto y 160px de ancho, así que el control no hacía nada
+ * sobre 64 y un ícono cuadrado quedaba diminuto. Un logo ancho puede ocupar hasta cuatro veces su alto.
+ */
+.public-booking-intro .public-booking-logo, .preview-public-intro .reservation-logo-preview { display:inline-block; width:auto; height:auto; max-height:var(--booking-logo-size, 96px); max-width:min(100%, calc(var(--booking-logo-size, 96px) * 4)); object-fit:contain; }
+.public-booking-intro .public-booking-logo { min-height:min(var(--booking-logo-size, 96px), 48px); }
+
+/* Grilla de ocasiones con fotos completas: con tope de alto para no alargar la columna. */
+.booking-ocasiones-grilla.foto-completa img { max-height:220px; object-fit:contain; background:rgba(0,0,0,.04); }
+@media (max-width: 900px) {
+  /* En columna única va encima del formulario: una fila deslizable, no un bloque que lo empuja. */
+  .booking-ocasiones .booking-ocasiones-grilla { display:flex; overflow-x:auto; gap:10px; padding-bottom:6px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+  .booking-ocasiones .booking-ocasiones-grilla > * { flex:0 0 min(62vw, 220px); scroll-snap-align:start; }
+  .booking-ocasiones .booking-ocasiones-grilla img { max-height:160px; }
+  .booking-ocasiones { margin-top:20px; }
+}
+
+/* ============================================================================================
+ * Orden visual de la página pública de reservas.
+ *
+ * Jerarquía: lo que se puede elegir se ve primero (días con horario marcados), lo que no, se
+ * apaga en vez de gritar con bordes punteados. Los controles del paso 1 comparten un solo estilo.
+ * ========================================================================================== */
+
+/* Columna de presentación fija en escritorio: acompaña mientras la tarjeta se alarga. */
+@media (min-width: 901px) {
+  .public-booking.layout-right .public-booking-intro, .public-booking.layout-left .public-booking-intro { position: sticky; top: 24px; align-self: start; }
+}
+
+/* Paso 1: etiquetas y selectores iguales. */
+.public-booking-card .public-party-size label, .public-booking-card .public-resource-choice > label, .public-booking-card .public-resource-tiles > label {
+  display: grid; gap: 6px; margin: 0 0 14px; color: var(--booking-card-ink, #3f4e49); font-size: 14px; font-weight: 700;
+}
+.public-booking-card .public-party-size label small, .public-booking-card .public-resource-choice > label small { display: inline; color: #6b7672; font-size: 12px; font-weight: 500; }
+.public-booking-card .public-party-size select, .public-booking-card .public-resource-choice select {
+  width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid #d9dfdc; border-radius: var(--booking-field-radius, 10px); background: #fff; color: var(--booking-card-ink, #3f4e49); font-size: 16px; font-weight: 600;
+}
+
+/* Mes: flechas compactas y el mes al centro. */
+.public-booking-card .calendar-month-nav { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px; margin: 18px 0 10px; }
+.public-booking-card .calendar-month-nav span { text-align: center; text-transform: none; font-size: 16px; font-weight: 700; }
+.public-booking-card .calendar-month-btn { width: 44px; height: 44px; border: 1px solid #d9dfdc; border-radius: 50%; background: #fff; color: var(--booking-primary-text, var(--booking-primary)); font-size: 22px; line-height: 1; cursor: pointer; }
+.public-booking-card .calendar-month-btn:disabled { opacity: .35; cursor: default; }
+.public-booking-card .calendar-month-btn:not(:disabled):hover { border-color: var(--booking-primary); }
+
+/* Días: disponible destacado, cerrado apagado, completo en rojo, elegido lleno. */
+.public-booking-card .calendar-day { border: 1px solid transparent; transition: background-color .15s, border-color .15s; }
+.public-booking-card .calendar-day.has-slots { border: 1px solid color-mix(in srgb, var(--booking-primary) 45%, transparent); background: color-mix(in srgb, var(--booking-primary) 7%, #fff); color: var(--booking-card-ink, #3f4e49); cursor: pointer; }
+.public-booking-card .calendar-day.has-slots .calendar-number { font-weight: 800; }
+.public-booking-card .calendar-day.has-slots:hover { border-color: var(--booking-primary); }
+.public-booking-card .calendar-day.no-slots, .public-booking-card .calendar-day.no-slots:disabled { border: 1px solid transparent; background: transparent; color: #9aa3a0; opacity: .6; }
+.public-booking-card .calendar-day.is-full { border: 1px solid rgba(181,51,45,.35); background: rgba(181,51,45,.05); }
+.public-booking-card .calendar-day.selected { border-color: var(--booking-primary); background: var(--booking-primary); color: var(--booking-primary-contrast, #fff); }
+.public-booking-card .calendar-day.selected .calendar-weekday { color: inherit; opacity: .85; }
+
+/* Leyenda con las mismas marcas que los días. */
+.public-booking-card .calendar-hint { flex-wrap: wrap; align-items: center; gap: 6px 14px; color: #6b7672; }
+.public-booking-card .calendar-hint .dot { width: 12px; height: 12px; margin-right: 4px; vertical-align: -1px; border-radius: 4px; }
+.public-booking-card .calendar-hint .dot.available { border: 1px solid color-mix(in srgb, var(--booking-primary) 45%, transparent); background: color-mix(in srgb, var(--booking-primary) 12%, #fff); }
+.public-booking-card .calendar-hint .dot.full { border: 1px solid rgba(181,51,45,.35); background: rgba(181,51,45,.15); }
+.public-booking-card .calendar-hint .dot.taken { border: 1px dashed #c4cbc8; background: transparent; }
+.public-booking-card .calendar-load-more { display: block; margin: 6px auto 0; }
+
+@media (max-width: 640px) {
+  .public-booking-card .calendar-month-nav { margin-top: 12px; }
+  .public-booking-card .calendar-day { min-height: 46px; padding: 4px 0; }
+  .public-booking-card .calendar-day .calendar-weekday { display: none; }
+}
+/* Ajustes finos del paso 1: el sector ocupa todo el ancho y «(opcional)» va junto a la etiqueta. */
+.public-booking .public-booking-card .public-resource-choice { display: block; }
+.public-booking .public-booking-card .public-party-size label, .public-booking .public-booking-card .public-resource-choice > label { display: block; color: var(--booking-card-ink, #3f4e49); }
+.public-booking .public-booking-card .public-party-size select, .public-booking .public-booking-card .public-resource-choice select { display: block; width: 100%; margin-top: 6px; }
+.public-booking .public-booking-card .calendar-weekdays { margin-bottom: 6px; }
+.public-booking .public-booking-card .calendar-grid { margin-top: 0; }
+/* La cabecera ya nombra el día: sin repetirlo en cada casilla, y sin heredar el alto de las semanas. */
+.public-booking .public-booking-card .calendar-weekdays { grid-auto-rows: auto; min-height: 0; height: auto; align-items: end; }
+.public-booking .public-booking-card .calendar-weekdays span { min-height: 0; height: auto; padding: 4px 0; }
+.public-booking .public-booking-card .calendar-day .calendar-weekday { display: none; }
+.public-booking .public-booking-card .calendar-day { min-height: 52px; justify-content: center; }
+.public-booking .public-booking-card .calendar-day .calendar-number { font-size: 17px; }
+.public-booking .public-booking-card .calendar-day { display: flex; flex-direction: column; align-items: center; justify-content: center; }

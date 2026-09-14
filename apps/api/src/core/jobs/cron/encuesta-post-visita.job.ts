@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, IsNull, MoreThan, Not, Repository } from 'typeorm';
+import { encuestasHabilitadas } from '../../../modules/surveys/encuestas-de-la-empresa';
 import { Reservation } from '../../../modules/reservations/domain/reservation.entity';
 import { ReservationForm } from '../../../modules/reservations/domain/reservation-form.entity';
 import { Survey } from '../../../modules/surveys/survey.entity';
@@ -97,6 +98,7 @@ export class EncuestaPostVisitaJob {
           encuestasPorId.set(ajustes.surveyId, encuesta);
         }
         if (!encuesta || !encuestaUtil(encuesta, form)) continue;
+        if (!(await encuestasHabilitadas(this.reservas, form.clientId))) continue;
 
         // Quien viene seguido no recibe una encuesta por visita: con una por semana por local basta.
         // La visita se marca igual para no volver a revisarla en cada pasada.

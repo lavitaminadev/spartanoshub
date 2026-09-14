@@ -182,8 +182,10 @@ function isModuleInInitialOperationScope(module, role) {
     if (['users', 'clients', 'integrations'].includes(module)) {
         return role === 'admin' || role === 'commercial_director';
     }
+    // Encuestas lo decide el permiso de cada persona y la capacidad de cada empresa, como CRM y
+    // Reservas. Antes sólo Dirección comercial la veía aunque la matriz se la diera a más cargos.
     if (module === 'surveys')
-        return role === 'commercial_director';
+        return ['admin', 'commercial_director', 'operations_director', 'community_manager'].includes(role ?? '');
     return true;
 }
 exports.PRODUCT_VISIBLE_LIFECYCLES = new Set(['active', 'pilot', 'maintenance']);

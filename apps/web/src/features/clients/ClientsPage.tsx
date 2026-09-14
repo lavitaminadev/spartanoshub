@@ -39,6 +39,7 @@ interface ClientRecord {
 interface ClientCapabilities {
   reservations: boolean;
   crm: boolean;
+  surveys: boolean;
   metaConversions: boolean;
   googleConversions: boolean;
 }
@@ -94,7 +95,7 @@ const EMPTY_FORM: ClientFormState = {
   driveFolderId: '',
   logoUrl: '',
   logoPublicId: '',
-  capabilities: { reservations: true, crm: true, metaConversions: false, googleConversions: false },
+  capabilities: { reservations: true, crm: true, surveys: true, metaConversions: false, googleConversions: false },
   pixelMode: 'none',
   pixelId: '',
   pixelName: '',
@@ -105,6 +106,7 @@ const EMPTY_FORM: ClientFormState = {
 const CAPABILITY_OPTIONS: Array<{ key: keyof ClientCapabilities; label: string; description: string }> = [
   { key: 'reservations', label: 'Reservas', description: 'Agenda pública, disponibilidad, bloqueos y asistencia.' },
   { key: 'crm', label: 'CRM', description: 'Contactos, leads, tablero, seguimiento e importación de esta empresa.' },
+  { key: 'surveys', label: 'Encuestas', description: 'Encuestas a sus clientes: enlace, QR, correo y la encuesta después de la visita.' },
   { key: 'metaConversions', label: 'Meta Pixel + CAPI', description: 'Envía Schedule y Reserva_Asistida al Pixel de esta empresa.' },
   { key: 'googleConversions', label: 'Google Ads (conversiones)', description: 'Sube la reserva y la asistencia como conversiones offline a Google Ads.' },
 ];
@@ -307,6 +309,7 @@ export function ClientsPage() {
       capabilities: {
         reservations: client.capabilities?.reservations ?? true,
         crm: client.capabilities?.crm ?? true,
+        surveys: client.capabilities?.surveys ?? true,
         metaConversions: client.capabilities?.metaConversions ?? Boolean(binding?.pixelId),
         googleConversions: client.capabilities?.googleConversions ?? false,
       },

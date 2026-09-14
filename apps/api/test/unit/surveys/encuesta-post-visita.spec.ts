@@ -15,7 +15,7 @@ function armar(opciones: { ajustes?: Record<string, unknown>; encuesta?: Record<
     startsAt: new Date(ahora - ((opciones.finHaceHoras ?? 5) + 2) * HORA),
     endsAt: new Date(ahora - (opciones.finHaceHoras ?? 5) * HORA),
   };
-  const reservas = { find: vi.fn().mockResolvedValue([reserva]), update: vi.fn().mockResolvedValue({}), count: vi.fn().mockResolvedValue(0) };
+  const reservas = { find: vi.fn().mockResolvedValue([reserva]), update: vi.fn().mockResolvedValue({}), count: vi.fn().mockResolvedValue(0), query: vi.fn().mockResolvedValue([]) };
   const formularios = { findOne: vi.fn().mockResolvedValue({ id: 'form-1', organizationId: 'org-1', clientId: 'cliente-1', name: 'Casa Costanera', timezone: 'America/Santiago', designConfig: { supportEmail: 'hola@local.test' } }) };
   const encuestas = { findOne: vi.fn().mockResolvedValue(opciones.encuesta === undefined ? { id: 'enc-1', status: 'active', type: 'customer', clientId: 'cliente-1' } : opciones.encuesta) };
   const correo = { send: vi.fn().mockResolvedValue(opciones.enviado ?? true) };

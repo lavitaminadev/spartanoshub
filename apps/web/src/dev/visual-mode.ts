@@ -254,6 +254,9 @@ const visualSavedViews: Array<{ id: string; scope: string; name: string; filters
  * Campos propios del CRM en memoria: uno de cada tipo común y uno archivado con valor guardado,
  * para revisar el panel de administración y cómo se ven en la ficha.
  */
+const VISUAL_NIVELES_CM: Record<string, string> = { dashboard: 'view', crm: 'manage', reservations: 'edit', surveys: 'edit', clients: 'view', users: 'none', integrations: 'none', reports: 'view' };
+const visualAjustesDePermiso: Record<string, Record<string, string>> = {};
+const visualEmpresasDeUsuario: Record<string, Array<{ clientId: string; source: string }>> = {};
 const visualLeadConCampos: Record<string, any> = {
   id: 'l1', name: 'Ricardo Galvez Lopez', phone: '+56983000089', email: 'galvezr941@gmail.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z',
   customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' },
@@ -266,6 +269,36 @@ const visualCrmFields: Array<Record<string, any>> = [
 ];
 
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
+  [/\/users(?:\?|$)/, () => ([
+    { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z' },
+    { id: 'u-ops', name: 'Rodrigo Pérez', email: 'rodrigo@espartanos.cl', role: 'operations_director', isActive: true, clientId: null, phone: '', createdAt: '2026-05-10T12:00:00.000Z' },
+    { id: 'u-cli', name: 'Casa Costanera (portal)', email: 'reservas@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-07-02T12:00:00.000Z' },
+  ])],
+  // Permisos por persona: ajustes y empresas en memoria para revisar el panel de Usuarios.
+  [/\/users\/[^/]+\/permissions\/[^/]+$/, (config) => {
+    const [, usuario, modulo] = config?.url?.match(/\/users\/([^/]+)\/permissions\/([^/?]+)/) ?? [];
+    const ajustes = visualAjustesDePermiso[usuario] ??= {};
+    if ((config?.method ?? '').toLowerCase() === 'delete') delete ajustes[modulo];
+    else ajustes[modulo] = visualRequestBody(config).level;
+    return { module: modulo };
+  }],
+  [/\/users\/[^/]+\/permissions$/, (config) => {
+    const usuario = (config?.url?.match(/\/users\/([^/]+)\/permissions/) ?? [])[1];
+    const ajustes = visualAjustesDePermiso[usuario] ?? {};
+    return { userId: usuario, role: 'community_manager', modules: Object.entries(VISUAL_NIVELES_CM).map(([module, level]) => ({ module, level: ajustes[module] ?? level, source: ajustes[module] ? 'override' : 'role', moduleDisabled: false, productHidden: false })) };
+  }],
+  [/\/roles\/[^/]+\/permissions$/, () => ({ role: 'community_manager', permissions: VISUAL_NIVELES_CM })],
+  [/\/users\/[^/]+\/client-access\/[^/]+$/, (config) => {
+    const [, usuario, empresa] = config?.url?.match(/\/users\/([^/]+)\/client-access\/([^/?]+)/) ?? [];
+    const lista = visualEmpresasDeUsuario[usuario] ??= [];
+    if ((config?.method ?? '').toLowerCase() === 'delete') visualEmpresasDeUsuario[usuario] = lista.filter((item) => item.clientId !== empresa);
+    else if (!lista.some((item) => item.clientId === empresa)) lista.push({ clientId: empresa, source: 'assignment' });
+    return { ok: true };
+  }],
+  [/\/users\/[^/]+\/client-access$/, (config) => {
+    const usuario = (config?.url?.match(/\/users\/([^/]+)\/client-access/) ?? [])[1];
+    return { userId: usuario, role: 'community_manager', access: visualEmpresasDeUsuario[usuario] ??= [{ clientId: 'visual-client', source: 'pod' }] };
+  }],
   [/\/crm\/leads\/l1$/, (config) => {
     const cambios = (config?.method ?? 'get').toLowerCase() === 'get' ? {} : visualRequestBody(config);
     if (cambios.customFields) Object.assign(visualLeadConCampos.customFields, cambios.customFields);

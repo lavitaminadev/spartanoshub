@@ -1,6 +1,7 @@
 export const CLIENT_CAPABILITY_KEYS = [
   'reservations',
   'crm',
+  'surveys',
   'metaConversions',
   'googleConversions',
   'budgetVisibility',
@@ -12,6 +13,11 @@ export type ClientCapabilities = Record<ClientCapabilityKey, boolean>;
 export const DEFAULT_CLIENT_CAPABILITIES: ClientCapabilities = {
   reservations: true,
   crm: true,
+  /**
+   * Encuestas de clientes de esta empresa. Encendida como CRM y Reservas: las empresas que ya
+   * usaban encuestas siguen igual, y se apaga cuenta por cuenta.
+   */
+  surveys: true,
   // Las capacidades que envían datos personales a terceros van desactivadas
   // por defecto: deben habilitarse de forma explícita por empresa.
   metaConversions: false,
