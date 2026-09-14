@@ -18,6 +18,7 @@ import { EmailService } from '../../core/notifications/email.service';
 import { armazonDeCorreo } from '../../core/notifications/plantilla-de-correo';
 import { exigirEncuestasHabilitadas } from './encuestas-de-la-empresa';
 import { In, IsNull } from 'typeorm';
+import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
 /** Correo plausible. La validación real la hace el servidor de correo; esto evita basura obvia. */
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -81,6 +82,10 @@ export class SurveysController {
   private async findOwned(id: string, req: AuthenticatedRequest): Promise<Survey> {
     const survey = await this.surveys.findOne({ where: { id, organizationId: req.organizationId } });
     if (!survey) throw new NotFoundException('La encuesta no existe');
+    if (req.user.role === UserRole.CLIENT) {
+      if (!survey.clientId || survey.clientId !== req.user.clientId) throw new NotFoundException('La encuesta no existe');
+      await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
+    }
     if (survey.clientId) {
       const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
       if (permitidas !== undefined && !permitidas.includes(survey.clientId)) throw new NotFoundException('La encuesta no existe');
@@ -89,13 +94,20 @@ export class SurveysController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar encuestas' })
   async list(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     // Sin empresa elegida, cada persona ve las de sus empresas y las internas del equipo; no las
     // de toda la organización.
     const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    // El portal ve sólo las de su empresa: nunca las internas del equipo.
+    if (req.user.role === UserRole.CLIENT) {
+      if (!req.user.clientId) return [];
+      await exigirEncuestasHabilitadas(this.dataSource, req.user.clientId);
+      const propias = await this.surveys.find({ where: { organizationId: req.organizationId, clientId: req.user.clientId }, order: { createdAt: 'DESC' } });
+      return propias.map((row) => this.toContract(row));
+    }
     const where = clientId
       ? { organizationId: req.organizationId, clientId }
       : permitidas === undefined
@@ -106,7 +118,7 @@ export class SurveysController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Leer una encuesta' })
   async detail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.toContract(await this.findOwned(id, req));
@@ -175,6 +187,7 @@ export class SurveysController {
   }
 
   @Delete(':id')
+  @RequiereAccion('surveys.borrar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Eliminar una encuesta' })
   async remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -189,7 +202,7 @@ export class SurveysController {
   }
 
   @Get(':id/results')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Resultados agregados de una encuesta' })
   async results(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const survey = await this.findOwned(id, req);
@@ -278,6 +291,7 @@ export class SurveysController {
    * Quien lo usa responde por tener permiso para escribirles. La pantalla lo pide confirmar antes.
    */
   @Post(':id/send-email')
+  @RequiereAccion('surveys.enviar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Enviar la encuesta por correo a sus destinatarios' })
   async sendEmail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

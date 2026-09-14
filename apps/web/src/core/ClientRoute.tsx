@@ -15,7 +15,7 @@ export interface ClientRouteProps {
   /** Elemento(s) de ruta hijo a renderizar cuando el usuario es un cliente. */
   children: React.ReactNode;
   /** Servicio contratado que exige esta rama del portal. */
-  capability?: 'crm' | 'reservations';
+  capability?: 'crm' | 'reservations' | 'surveys';
 }
 
 /**

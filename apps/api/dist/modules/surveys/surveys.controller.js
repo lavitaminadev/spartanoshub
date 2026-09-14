@@ -30,6 +30,7 @@ const email_service_1 = require("../../core/notifications/email.service");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
 const encuestas_de_la_empresa_1 = require("./encuestas-de-la-empresa");
 const typeorm_3 = require("typeorm");
+const requiere_accion_1 = require("../../core/authorization/requiere-accion");
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 exports.MAXIMO_ENVIO_POR_PEDIDO = 500;
 function publicSurveyUrl(id) {
@@ -67,6 +68,11 @@ let SurveysController = class SurveysController {
         const survey = await this.surveys.findOne({ where: { id, organizationId: req.organizationId } });
         if (!survey)
             throw new common_1.NotFoundException('La encuesta no existe');
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
+            if (!survey.clientId || survey.clientId !== req.user.clientId)
+                throw new common_1.NotFoundException('La encuesta no existe');
+            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, survey.clientId);
+        }
         if (survey.clientId) {
             const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
             if (permitidas !== undefined && !permitidas.includes(survey.clientId))
@@ -77,6 +83,13 @@ let SurveysController = class SurveysController {
     async list(req, clientId) {
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
+            if (!req.user.clientId)
+                return [];
+            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, req.user.clientId);
+            const propias = await this.surveys.find({ where: { organizationId: req.organizationId, clientId: req.user.clientId }, order: { createdAt: 'DESC' } });
+            return propias.map((row) => this.toContract(row));
+        }
         const where = clientId
             ? { organizationId: req.organizationId, clientId }
             : permitidas === undefined
@@ -254,7 +267,7 @@ let SurveysController = class SurveysController {
 exports.SurveysController = SurveysController;
 __decorate([
     (0, common_1.Get)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar encuestas' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -264,7 +277,7 @@ __decorate([
 ], SurveysController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Leer una encuesta' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -295,6 +308,7 @@ __decorate([
 ], SurveysController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requiere_accion_1.RequiereAccion)('surveys.borrar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -305,7 +319,7 @@ __decorate([
 ], SurveysController.prototype, "remove", null);
 __decorate([
     (0, common_1.Get)(':id/results'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Resultados agregados de una encuesta' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -326,6 +340,7 @@ __decorate([
 ], SurveysController.prototype, "submit", null);
 __decorate([
     (0, common_1.Post)(':id/send-email'),
+    (0, requiere_accion_1.RequiereAccion)('surveys.enviar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Enviar la encuesta por correo a sus destinatarios' }),
     __param(0, (0, common_1.Req)()),

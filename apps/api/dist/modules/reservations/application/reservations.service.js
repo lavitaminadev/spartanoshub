@@ -63,6 +63,10 @@ const RESPUESTAS_DEL_SISTEMA = {
     childrenCount: 'Niños',
     accessibilityNeed: 'Accesibilidad',
     dietaryNotes: 'Restricciones alimentarias',
+    smokingPreference: 'Fumadores',
+    seatingPreference: 'Preferencia de mesa',
+    firstVisit: 'Primera visita',
+    howFound: 'Cómo nos conoció',
 };
 const GESTION_TRAS_LA_VISITA_DIAS = 60;
 const STATUS_TRANSITIONS = {
@@ -467,13 +471,29 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const value = Number(form.designConfig.groupThreshold);
         return Number.isInteger(value) && value >= 2 && value <= 100 ? value : 8;
     }
+    motivoFueraDeHorario(rules, weekday, minute) {
+        const hhmm = (valor) => `${String(Math.floor(valor / 60)).padStart(2, '0')}:${String(valor % 60).padStart(2, '0')}`;
+        const delDia = rules.windows.filter((item) => item.day === weekday);
+        if (delDia.length === 0)
+            return 'ese día la sucursal no atiende';
+        const franjas = delDia.map((item) => `${item.start}–${item.end}`).join(', ');
+        const dentro = delDia.find((item) => minute >= this.minutes(item.start) && minute < this.minutes(item.end));
+        if (!dentro)
+            return `ese día atiende ${franjas}`;
+        const cierre = this.minutes(dentro.end);
+        if (minute + rules.duration > cierre)
+            return `cada reserva dura ${rules.duration} min y la sucursal cierra a las ${dentro.end}; la última hora posible es ${hhmm(cierre - rules.duration)}`;
+        if (minute > cierre - rules.lastReservableBeforeClose)
+            return `la última reserva se toma ${rules.lastReservableBeforeClose} min antes del cierre (${dentro.end})`;
+        return `los horarios se ofrecen cada ${rules.cadence} min desde las ${dentro.start}`;
+    }
     assertScheduled(form, startsAt, serviceId, resourceId) {
         const rules = this.effectiveRules(form, serviceId, resourceId);
         const local = (0, timezone_1.zonedParts)(startsAt, form.timezone);
         const minute = local.hour * 60 + local.minute;
         const window = rules.windows.find((item) => item.day === local.weekday && minute >= this.minutes(item.start) && minute + rules.duration <= this.minutes(item.end) && minute <= this.minutes(item.end) - rules.lastReservableBeforeClose);
         if (!window || (minute - this.minutes(window.start)) % rules.cadence !== 0)
-            throw new common_1.BadRequestException('El horario no pertenece a la disponibilidad publicada');
+            throw new common_1.BadRequestException(`El horario no pertenece a la disponibilidad publicada: ${this.motivoFueraDeHorario(rules, local.weekday, minute)}`);
         const now = Date.now();
         if (startsAt.getTime() < now + form.minimumNoticeHours * 3600000 || startsAt.getTime() > now + form.maximumAdvanceDays * 86400000)
             throw new common_1.BadRequestException('El horario está fuera del rango permitido');
@@ -1314,7 +1334,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         void this.avisarSolicitudSinCupo(form, 'grupo', { id: request.id, guestName: request.guestName, guestEmail: request.guestEmail, partySize: request.partySize, cuando: [request.preferredDate || 'fecha por acordar', request.preferredTime].filter(Boolean).join(' ') });
         return { id: request.id, status: request.status, kind: 'group_request' };
     }
-    async joinPublicWaitlist(slug, dto) {
+    async joinPublicWaitlist(slug, dto, ipAddress, userAgent) {
         if (dto.website)
             throw new common_1.BadRequestException('Solicitud inválida');
         if (!dto.reservationConsent)
@@ -1345,6 +1365,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentVersion: dto.networkConsent ? dto.networkConsentVersion || null : null,
                 networkConsentText: dto.networkConsent ? consent.network : null,
                 utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent,
+                ...(dto.measurementConsent ? {
+                    fbclid: dto.fbclid, fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined), fbp: dto.fbp,
+                    gclid: dto.gclid, gbraid: dto.gbraid, wbraid: dto.wbraid, clientIpAddress: ipAddress, clientUserAgent: userAgent,
+                } : {}),
             }));
             await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId: form.organizationId, clientId: form.clientId, reservationId: item.id, type: 'waitlist_joined', toStatus: 'waitlist', actorType: 'guest', metadata: { startsAt: startsAt.toISOString() } }));
             void this.avisarSolicitudSinCupo(form, 'espera', { id: item.id, guestName: item.guestName, guestEmail: item.guestEmail, partySize: item.partySize, cuando: startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }) });
@@ -1380,6 +1404,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             ...(details.childrenCount ? { childrenCount: details.childrenCount } : {}),
             ...(texto(details.accessibilityNeed) ? { accessibilityNeed: texto(details.accessibilityNeed) } : {}),
             ...(texto(details.dietaryNotes) ? { dietaryNotes: texto(details.dietaryNotes) } : {}),
+            ...(texto(details.smokingPreference) ? { smokingPreference: texto(details.smokingPreference) } : {}),
+            ...(texto(details.seatingPreference) ? { seatingPreference: texto(details.seatingPreference) } : {}),
+            ...(texto(details.firstVisit) ? { firstVisit: texto(details.firstVisit) } : {}),
+            ...(texto(details.howFound) ? { howFound: texto(details.howFound) } : {}),
         };
         const booking = await this.createManual(organizationId, actorId, {
             formId: request.formId,
@@ -1516,6 +1544,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     ...(dto.childrenCount ? { childrenCount: dto.childrenCount } : {}),
                     ...(dto.accessibilityNeed?.trim() ? { accessibilityNeed: dto.accessibilityNeed.trim() } : {}),
                     ...(dto.dietaryNotes?.trim() ? { dietaryNotes: dto.dietaryNotes.trim() } : {}),
+                    ...(dto.smokingPreference ? { smokingPreference: dto.smokingPreference } : {}),
+                    ...(dto.seatingPreference ? { seatingPreference: dto.seatingPreference } : {}),
+                    ...(dto.firstVisit ? { firstVisit: dto.firstVisit } : {}),
+                    ...(dto.howFound ? { howFound: dto.howFound } : {}),
                 },
                 consentVersion: dto.consentVersion,
                 reservationConsentAt: dto.reservationConsent ? new Date() : null,
@@ -1837,6 +1869,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         let statusChangedTo;
         let calendarNotification;
         let confirmoUnaPendiente = false;
+        let confirmoUnaEspera = false;
         let liberoCupo = false;
         const saved = await this.transaction('actualizar reserva', async (manager) => {
             const repo = manager.getRepository(reservation_entity_1.Reservation);
@@ -1874,6 +1907,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 if (item.status === 'waitlist' && dto.status === 'confirmed') {
                     const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
                     await this.availability(manager, form, item.startsAt, item.partySize, item.serviceId, item.resourceId, item.id);
+                    confirmoUnaEspera = true;
                 }
                 if (item.status === 'pending' && dto.status === 'confirmed')
                     confirmoUnaPendiente = true;
@@ -1926,6 +1960,19 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             }
             catch (err) {
                 this.logger.warn(`Comprobante de confirmacion de ${saved.id} no enviado: ${err instanceof Error ? err.message : err}`);
+            }
+        }
+        if (confirmoUnaEspera && saved.measurementConsentAt) {
+            try {
+                const form = await this.forms.findOne({ where: { id: saved.formId } });
+                const capacidades = form ? await this.clientCapabilities(organizationId, form.clientId) : undefined;
+                if (form?.metaCapiEnabled && capacidades?.metaConversions)
+                    await this.enqueueMetaConversion(saved, form, shared_2.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(Date.now() / 1000));
+                if (form)
+                    await this.enqueueGoogleConversion(saved, form, 'schedule', new Date());
+            }
+            catch (err) {
+                this.logger.warn(`Conversión de la espera confirmada ${saved.id} no encolada: ${err instanceof Error ? err.message : err}`);
             }
         }
         if (calendarNotification)

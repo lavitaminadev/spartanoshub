@@ -180,12 +180,16 @@ function isModuleInInitialOperationScope(module, role) {
     // Administración conserva el control general. Dirección comercial opera el alta de empresas,
     // sus cuentas y conexiones, sin que eso abra ninguno de los módulos futuros.
     if (['users', 'clients', 'integrations'].includes(module)) {
+        // Dirección de operaciones entra a Usuarios para ajustar los accesos de su equipo; las
+        // reglas de a quién y cuánto puede ajustar las aplica el servidor.
+        if (module === 'users' && role === 'operations_director')
+            return true;
         return role === 'admin' || role === 'commercial_director';
     }
     // Encuestas lo decide el permiso de cada persona y la capacidad de cada empresa, como CRM y
     // Reservas. Antes sólo Dirección comercial la veía aunque la matriz se la diera a más cargos.
     if (module === 'surveys')
-        return ['admin', 'commercial_director', 'operations_director', 'community_manager'].includes(role ?? '');
+        return ['admin', 'commercial_director', 'operations_director', 'community_manager', 'client'].includes(role ?? '');
     return true;
 }
 exports.PRODUCT_VISIBLE_LIFECYCLES = new Set(['active', 'pilot', 'maintenance']);

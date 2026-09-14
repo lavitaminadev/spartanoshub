@@ -282,6 +282,11 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
      * a su empresa, y la capacidad contratada a que esa empresa tenga CRM.
      */
     crm: 'edit',
+    /*
+     * Las encuestas de su empresa, en lectura: resultados y respuestas de sus propios clientes.
+     * Crear, publicar y enviar lo sigue haciendo el equipo que lleva la cuenta.
+     */
+    surveys: 'view',
   },
 };
 

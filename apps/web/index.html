@@ -1,7 +1,9 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" translate="no">
   <head>
     <meta charset="UTF-8" />
+    <!-- La app ya está en español: el traductor del navegador la pasaba al idioma del teléfono y, al reescribir el DOM, puede romper pantallas de React. -->
+    <meta name="google" content="notranslate" />
     <link rel="icon" type="image/png" href="/icon-192x192.png" />
     <link rel="apple-touch-icon" href="/icon-192x192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />

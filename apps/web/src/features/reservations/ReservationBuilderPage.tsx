@@ -422,13 +422,17 @@ export function ReservationBuilderPage() {
     <div className="builder-progress">{(clientMode ? PASOS_VISIBLES.cliente : PASOS_VISIBLES.equipo).map((real, index) => <button className={step === real ? 'active' : step > real ? 'done' : ''} key={STEPS[real]} onClick={() => setStep(real)}><span>{step > real ? '✓' : index + 1}</span>{STEPS[real]}</button>)}</div>
 
     {step === 0 && <Fragment>
-      <div className="builder-grid">
+      <div className="builder-grid paso-esencial">
         <div className="field-extras">
           <strong className="field-extras-title">Preguntas de la visita</strong>
-          <small className="schedule-nota">Estas tres son fijas a propósito: sus respuestas alimentan los avisos de la lista, el correo y la exportación, así que renombrarlas haría que el sistema mostrara una etiqueta y guardara otra cosa. Para cualquier otra pregunta, agrega un campo propio al formulario de aquí al lado.</small>
+          <small className="schedule-nota">Estas preguntas son fijas a propósito: sus respuestas alimentan los avisos de la lista, el correo y la exportación, así que renombrarlas haría que el sistema mostrara una etiqueta y guardara otra cosa. Para cualquier otra pregunta, agrega un campo propio al formulario de aquí al lado.</small>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askChildren === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askChildren: String(event.target.checked) } })} /> Preguntar por niños o silla infantil</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAccessibility === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAccessibility: String(event.target.checked) } })} /> Preguntar por accesibilidad</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAllergies === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAllergies: String(event.target.checked) } })} /> Preguntar por restricciones alimentarias</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askSmoking === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askSmoking: String(event.target.checked) } })} /> Preguntar si prefiere zona de fumadores</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askSeating === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askSeating: String(event.target.checked) } })} /> Preguntar preferencia de mesa (tranquila, ventana, barra)</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askFirstVisit === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askFirstVisit: String(event.target.checked) } })} /> Preguntar si es su primera visita</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askHowFound === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askHowFound: String(event.target.checked) } })} /> Preguntar cómo nos conoció</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.couponEnabled !== 'false'} onChange={(event) => change({ designConfig: { ...draft.designConfig, couponEnabled: event.target.checked ? 'true' : 'false' } })} /> Aceptar cupones promocionales</label>
         </div>
         <aside className="field-library"><span className="page-eyebrow">BIBLIOTECA DE CAMPOS</span><h3>Agrega campos</h3><p>Arrastra al formulario o usa los botones.</p>
@@ -449,6 +453,11 @@ export function ReservationBuilderPage() {
           </article>)}
           <div className="canvas-drop"><strong>Todo este flujo es zona para arrastrar</strong><span>Suelta en cualquier espacio libre para agregar al final, o sobre un campo para ordenar.</span></div>
         </main>
+        {/* Al lado de lo que se edita, cómo lo verá quien reserva en su teléfono. Se actualiza sola. */}
+        <aside className="builder-vista-previa" aria-label="Vista previa">
+          <div className="builder-vista-previa-titulo"><strong>Así se verá</strong><small>Vista de teléfono · se actualiza al editar</small></div>
+          <ReservationLivePreview draft={draft} fields={fields} previewDevice="mobile" style={designPreviewStyle} />
+        </aside>
       </div>
       {editingField && editingDraft && <div className="field-editor-overlay" onClick={() => closeEditor(true)}><div className="field-editor-popup" onClick={(e) => e.stopPropagation()}>
         <div className="field-editor-header"><h3>Editar {editingDraft.label}</h3><button type="button" className="btn btn-sm btn-outline" onClick={() => closeEditor(true)}>✕</button></div>

@@ -65,6 +65,8 @@ export interface User {
    * y las excepciones definidas para esta persona.
    */
   permissions?: Record<string, PermissionLevel>;
+  /** Acciones finas (importar, exportar, borrar, enviar) ya resueltas por el servidor. */
+  acciones?: Record<string, boolean>;
 }
 
 /** Niveles de acceso a un módulo, de menor a mayor. Espejo de `permission-level.ts`. */
@@ -117,13 +119,12 @@ export interface AuthState {
  * utilizable mientras el backend responde de nuevo.
  */
 async function loadProfile(): Promise<User> {
-  const [user, permissions] = await Promise.all([
+  const [user, resueltos] = await Promise.all([
     api.get<User>('/auth/me'),
-    api.get<{ permissions: Record<string, PermissionLevel> }>('/me/permissions')
-      .then((response) => response.permissions)
+    api.get<{ permissions: Record<string, PermissionLevel>; acciones?: Record<string, boolean> }>('/me/permissions')
       .catch(() => undefined),
   ]);
-  return { ...user, permissions };
+  return { ...user, permissions: resueltos?.permissions, acciones: resueltos?.acciones };
 }
 
 /**

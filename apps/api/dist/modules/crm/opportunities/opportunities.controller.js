@@ -27,6 +27,7 @@ const requires_feature_decorator_1 = require("../../../core/authorization/requir
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const process_templates_service_1 = require("../../process-templates/process-templates.service");
 const process_template_defaults_1 = require("../../process-templates/process-template-defaults");
+const requiere_accion_1 = require("../../../core/authorization/requiere-accion");
 let OpportunitiesController = class OpportunitiesController {
     constructor(createOpportunity, listOpportunities, getOpportunity, updateOpportunity, removeOpportunity, accountAccess, processTemplates) {
         this.createOpportunity = createOpportunity;
@@ -102,6 +103,7 @@ __decorate([
 ], OpportunitiesController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requiere_accion_1.RequiereAccion)('crm.borrar'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),

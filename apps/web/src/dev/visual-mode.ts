@@ -256,6 +256,7 @@ const visualSavedViews: Array<{ id: string; scope: string; name: string; filters
  */
 const VISUAL_NIVELES_CM: Record<string, string> = { dashboard: 'view', crm: 'manage', reservations: 'edit', surveys: 'edit', clients: 'view', users: 'none', integrations: 'none', reports: 'view' };
 const visualAjustesDePermiso: Record<string, Record<string, string>> = {};
+const visualAjustesDeAccion: Record<string, Record<string, boolean>> = {};
 const visualEmpresasDeUsuario: Record<string, Array<{ clientId: string; source: string }>> = {};
 const visualLeadConCampos: Record<string, any> = {
   id: 'l1', name: 'Ricardo Galvez Lopez', phone: '+56983000089', email: 'galvezr941@gmail.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z',
@@ -288,6 +289,26 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return { userId: usuario, role: 'community_manager', modules: Object.entries(VISUAL_NIVELES_CM).map(([module, level]) => ({ module, level: ajustes[module] ?? level, source: ajustes[module] ? 'override' : 'role', moduleDisabled: false, productHidden: false })) };
   }],
   [/\/roles\/[^/]+\/permissions$/, () => ({ role: 'community_manager', permissions: VISUAL_NIVELES_CM })],
+  [/\/users\/[^/]+\/actions\/[^/]+$/, (config) => {
+    const [, usuario, accion] = config?.url?.match(/\/users\/([^/]+)\/actions\/([^/?]+)/) ?? [];
+    const ajustes = visualAjustesDeAccion[usuario] ??= {};
+    if ((config?.method ?? '').toLowerCase() === 'delete') delete ajustes[accion];
+    else ajustes[accion] = Boolean(visualRequestBody(config).allowed);
+    return { accion };
+  }],
+  [/\/users\/[^/]+\/actions$/, (config) => {
+    const usuario = (config?.url?.match(/\/users\/([^/]+)\/actions/) ?? [])[1];
+    const ajustes = visualAjustesDeAccion[usuario] ?? {};
+    const base = [
+      { clave: 'crm.importar', modulo: 'crm', nombre: 'Importar leads', ayuda: 'Subir contactos desde un archivo.', porNivel: true },
+      { clave: 'crm.borrar', modulo: 'crm', nombre: 'Borrar oportunidades', ayuda: 'Eliminar una oportunidad del embudo.', porNivel: true },
+      { clave: 'reservations.exportar', modulo: 'reservations', nombre: 'Exportar reservas', ayuda: 'Descargar reservas con datos de contacto.', porNivel: true },
+      { clave: 'reservations.importar', modulo: 'reservations', nombre: 'Importar reservas', ayuda: 'Cargar reservas desde un archivo.', porNivel: true },
+      { clave: 'surveys.enviar', modulo: 'surveys', nombre: 'Enviar encuestas por correo', ayuda: 'Mandar la encuesta a sus destinatarios.', porNivel: true },
+      { clave: 'surveys.borrar', modulo: 'surveys', nombre: 'Eliminar encuestas', ayuda: 'Borrar una encuesta con todas sus respuestas.', porNivel: false },
+    ];
+    return { userId: usuario, acciones: base.map((accion) => ({ ...accion, permitida: ajustes[accion.clave] ?? accion.porNivel, origen: accion.clave in ajustes ? 'ajuste' : 'nivel' })) };
+  }],
   [/\/users\/[^/]+\/client-access\/[^/]+$/, (config) => {
     const [, usuario, empresa] = config?.url?.match(/\/users\/([^/]+)\/client-access\/([^/?]+)/) ?? [];
     const lista = visualEmpresasDeUsuario[usuario] ??= [];

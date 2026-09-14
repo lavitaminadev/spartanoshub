@@ -13,10 +13,14 @@ const ETIQUETAS_DEL_SISTEMA: Record<string, string> = {
   childrenCount: 'Niños',
   accessibilityNeed: 'Accesibilidad',
   dietaryNotes: 'Restricciones alimentarias',
+  smokingPreference: 'Fumadores',
+  seatingPreference: 'Preferencia de mesa',
+  firstVisit: 'Primera visita',
+  howFound: 'Cómo nos conoció',
 };
 
 /** Respuestas que conviene destacar en el tablero del dia, en el orden en que se atienden. */
-const DESTACADAS = ['dietaryNotes', 'accessibilityNeed', 'childrenCount', 'groupEventType'] as const;
+const DESTACADAS = ['dietaryNotes', 'accessibilityNeed', 'childrenCount', 'smokingPreference', 'firstVisit', 'groupEventType'] as const;
 
 export interface RespuestaLegible {
   clave: string;

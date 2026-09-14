@@ -25,6 +25,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { KanbanBoard, type KanbanColumn } from '../../shared/KanbanBoard';
 import { FilterBar } from '../../shared/FilterBar';
+import { useDefinicionesDeCampos } from './CamposPropiosEnFicha';
 import { useUrlFilters } from '../../shared/use-url-filters';
 import { VistasGuardadas } from '../../shared/VistasGuardadas';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -47,6 +48,7 @@ import { colorDePersona, mensajeDePrimerContacto, whatsapp } from './contacto';
 import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
 import { marcaDeInactividad } from './inactividad';
 import './leads-board.css';
+import { puedeAccion } from '../../core/acciones';
 
 interface Lead {
   id: string;
@@ -81,7 +83,7 @@ interface LeadsPage { data: Lead[]; total: number; limit: number; offset: number
 
 const LEADS_PAGE_SIZE = 100;
 
-const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana'] as const;
+const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana', 'campo', 'valor'] as const;
 
 /** Forma en que se mira el embudo. Se recuerda en la URL, junto con los filtros. */
 type Vista = 'tablero' | 'tabla';
@@ -135,6 +137,20 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // Cómo llama esta empresa a sus cosas. Devuelve el nombre de fábrica para lo que no renombró.
   const { termino } = useVocabulario(scope.clientId);
   const filtros = useUrlFilters(FILTER_KEYS);
+  /*
+   * Filtro por dato propio: primero el campo, después su valor. Los que tienen opciones las
+   * ofrecen en lista; los de texto, número o fecha piden el valor exacto.
+   */
+  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('lead');
+  const camposFiltrables = definicionesPropias.filter((campo) => !campo.archivedAt && campo.type !== 'long_text');
+  const campoElegido = camposFiltrables.find((campo) => campo.key === filtros.values.campo);
+  const opcionesDelCampo = campoElegido
+    ? campoElegido.type === 'boolean'
+      ? [{ value: 'true', label: 'Sí' }, { value: 'false', label: 'No' }]
+      : (campoElegido.options ?? []).map((opcion) => ({ value: opcion, label: opcion }))
+    : [];
+  // Un valor que no corresponde al campo elegido (quedó de otro campo) no filtra.
+  const valorFiltro = campoElegido && (opcionesDelCampo.length === 0 || opcionesDelCampo.some((opcion) => opcion.value === filtros.values.valor)) ? filtros.values.valor ?? '' : '';
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
   const [abierto, setAbierto] = useState<Lead | null>(null);
   /*
@@ -189,11 +205,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const { data, isLoading, error, refetch } = useQuery<LeadsPage>({
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
-    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, verDescartados],
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, campoElegido?.key, valorFiltro, verDescartados],
     // El servidor limita cada respuesta a 100, pero el tablero no: se navega de página en página.
     // Así una empresa no pierde los contactos más antiguos cuando supera el primer centenar.
     queryFn: () => api.get(
-      `/crm/leads?domain=${scope.domain}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}`,
+      `/crm/leads?domain=${scope.domain}${campoElegido && valorFiltro ? `&campoPropio=${encodeURIComponent(campoElegido.key)}&valorPropio=${encodeURIComponent(valorFiltro)}` : ''}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}`,
     ),
   });
 
@@ -201,7 +217,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // anterior podía mostrar un tablero vacío aunque la empresa sí tuviera prospectos.
   useEffect(() => {
     setPagina(1);
-  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, verDescartados]);
+  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, campoElegido?.key, valorFiltro, verDescartados]);
 
   /**
    * Campañas de la empresa que se está mirando.
@@ -579,7 +595,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               {user?.features?.integrations !== false ? (
                 <button type="button" className="btn btn-outline" onClick={() => setMetaAbierto(true)}>Traer de Meta</button>
               ) : null}
-              <button type="button" className="btn btn-outline" onClick={() => setImportarAbierto(true)}>Importar CSV</button>
+              {puedeAccion(useAuth.getState().user, 'crm.importar') && <button type="button" className="btn btn-outline" onClick={() => setImportarAbierto(true)}>Importar CSV</button>}
               <button type="button" className="btn btn-primary" onClick={() => { setAviso(null); setCrearAbierto(true); }}>
                 + Nuevo {termino(scope.domain === 'commercial' ? 'prospecto' : 'lead').toLowerCase()}
               </button>
@@ -633,11 +649,25 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             elegir una que no devuelve nada.
           */
           { key: 'campana', label: termino('campana'), allLabel: 'Todas', options: campanas.map((campana) => ({ value: campana.name, label: campana.name })) },
+          ...(camposFiltrables.length > 0 ? [{ key: 'campo', label: 'Dato propio', allLabel: 'Sin filtrar por dato propio', options: camposFiltrables.map((campo) => ({ value: campo.key, label: campo.label })) }] : []),
+          ...(campoElegido && opcionesDelCampo.length > 0 ? [{ key: 'valor', label: campoElegido.label, allLabel: 'Elige un valor', options: opcionesDelCampo }] : []),
         ]}
         values={filtros.values}
         onFilterChange={filtros.setValue}
         onClear={filtros.hasAny ? filtros.clear : undefined}
       />
+      {campoElegido && opcionesDelCampo.length === 0 && <label className="filtro-campo-propio">
+        <span>{campoElegido.label}</span>
+        <input
+          className="input"
+          type={campoElegido.type === 'number' ? 'number' : campoElegido.type === 'date' ? 'date' : 'text'}
+          key={campoElegido.key}
+          defaultValue={valorFiltro}
+          placeholder="Valor exacto y Enter"
+          onKeyDown={(evento) => { if (evento.key === 'Enter') filtros.setValue('valor', (evento.target as HTMLInputElement).value.trim()); }}
+          onBlur={(evento) => filtros.setValue('valor', evento.target.value.trim())}
+        />
+      </label>}
 
       {/*
         * El mismo recorte, sin rearmarlo.

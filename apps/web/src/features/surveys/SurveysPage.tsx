@@ -26,6 +26,7 @@ import { useUrlFilters } from '../../shared/use-url-filters';
 import { useAuth } from '../../core/auth';
 import type { Survey, SurveyType } from '@espartanos/shared';
 import './surveys.css';
+import { puedeAccion } from '../../core/acciones';
 
 const TYPE_LABELS: Record<SurveyType, string> = { internal: 'Equipo', customer: 'Clientes' };
 const TYPE_FILTERS: Array<{ value: 'all' | SurveyType; label: string }> = [
@@ -50,7 +51,11 @@ function nextSurveyStatus(status: Survey['status']): { status: Survey['status'];
 }
 
 
-export function SurveysPage(): JSX.Element {
+/**
+ * @param soloLectura - Portal de la empresa: lista y resultados, sin crear, editar, publicar,
+ *   enviar ni eliminar. El servidor igualmente rechaza esas acciones para el cargo cliente.
+ */
+export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } = {}): JSX.Element {
   const { data: surveys = [], isLoading, error, refetch, isFetching } = useSurveys();
   const deleteMutation = useDeleteSurvey();
   const statusMutation = useUpdateSurvey();
@@ -75,7 +80,8 @@ export function SurveysPage(): JSX.Element {
   });
   const empresas = clientsResponse?.data ?? [];
   const empresaPorId = new Map(empresas.map((empresa) => [empresa.id, empresa]));
-  const canDeleteSurvey = Boolean(user && (user.role === 'admin' || user.role === 'dev' || user.role === 'operations_director'));
+  const canDeleteSurvey = Boolean(user && (user.role === 'admin' || user.role === 'dev' || user.role === 'operations_director')) && puedeAccion(user, 'surveys.borrar');
+  const puedeEnviar = puedeAccion(user, 'surveys.enviar');
 
   if (isLoading) return <LoadingSpinner text="Cargando encuestas..." />;
   if (error) {
@@ -146,10 +152,11 @@ export function SurveysPage(): JSX.Element {
         const next = nextSurveyStatus(survey.status);
         return (
           <div className="actions-cell">
-            <Link className="btn btn-outline btn-sm" to={`/surveys/create?id=${survey.id}`}>Editar</Link>
-            <Link className="btn btn-outline btn-sm" to={`/surveys/${survey.id}/results`}>Ver resultados</Link>
+            {!soloLectura && <Link className="btn btn-outline btn-sm" to={`/surveys/create?id=${survey.id}`}>Editar</Link>}
+            <Link className="btn btn-outline btn-sm" to={soloLectura ? `/portal/surveys/${survey.id}/results` : `/surveys/${survey.id}/results`}>Ver resultados</Link>
+            {soloLectura ? null : <>
             {survey.status === 'active' && survey.distribution?.includes('link') && <button type="button" className="btn btn-outline btn-sm" onClick={() => copyPublicSurveyLink(survey)}>Copiar link</button>}
-            {survey.status === 'active' && survey.distribution?.includes('email') && <button type="button" className="btn btn-outline btn-sm" disabled={!survey.recipients?.length} title={survey.recipients?.length ? undefined : 'Agrega destinatarios en la encuesta'} onClick={() => { enviarCorreo.reset(); setCorreoDe(survey); }}>Enviar por correo</button>}
+            {puedeEnviar && survey.status === 'active' && survey.distribution?.includes('email') && <button type="button" className="btn btn-outline btn-sm" disabled={!survey.recipients?.length} title={survey.recipients?.length ? undefined : 'Agrega destinatarios en la encuesta'} onClick={() => { enviarCorreo.reset(); setCorreoDe(survey); }}>Enviar por correo</button>}
             {survey.status === 'active' && survey.distribution?.includes('qr') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setQrDe(survey)}>QR</button>}
             <button
               type="button"
@@ -171,6 +178,7 @@ export function SurveysPage(): JSX.Element {
                 Eliminar
               </button>
             )}
+            </>}
           </div>
         );
       },
@@ -183,7 +191,7 @@ export function SurveysPage(): JSX.Element {
         eyebrow="MEDICIÓN"
         title="Encuestas"
         subtitle="Encuestas al equipo y clientes: preguntas, publicación, respuestas y seguimiento."
-        actions={<Link className="btn btn-primary" to="/surveys/create">+ Nueva encuesta</Link>}
+        actions={soloLectura ? undefined : <Link className="btn btn-primary" to="/surveys/create">+ Nueva encuesta</Link>}
       />
 
       <div className="survey-type-switch" role="group" aria-label="Filtrar por tipo de encuesta">
@@ -206,7 +214,7 @@ export function SurveysPage(): JSX.Element {
         onSearchChange={filtros.setSearch}
         searchPlaceholder="Buscar por título..."
         filters={[
-          { key: 'empresa', label: 'Empresa', options: [{ value: 'equipo', label: 'Equipo interno' }, ...empresas.map((empresa) => ({ value: empresa.id, label: empresa.name }))], allLabel: 'Todas las empresas' },
+          ...(soloLectura ? [] : [{ key: 'empresa', label: 'Empresa', options: [{ value: 'equipo', label: 'Equipo interno' }, ...empresas.map((empresa) => ({ value: empresa.id, label: empresa.name }))], allLabel: 'Todas las empresas' }]),
           { key: 'estado', label: 'Estado', options: STATUS_FILTER_OPTIONS, allLabel: 'Todos los estados' },
         ]}
         values={filtros.values}
@@ -228,8 +236,8 @@ export function SurveysPage(): JSX.Element {
           <EmptyState
             icon="survey"
             title="Todavía no hay encuestas"
-            description="Crea la primera encuesta para el equipo o para tus clientes."
-            action={<Link className="btn btn-primary" to="/surveys/create">Crear encuesta</Link>}
+            description={soloLectura ? 'Cuando el equipo publique una encuesta para tu empresa, sus resultados aparecerán aquí.' : 'Crea la primera encuesta para el equipo o para tus clientes.'}
+            action={soloLectura ? undefined : <Link className="btn btn-primary" to="/surveys/create">Crear encuesta</Link>}
           />
         )
       ) : (

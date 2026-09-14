@@ -657,3 +657,79 @@
   /* En columna, la base de 260px del bloque del título pasaba a ser su alto. */
   .builder-top > div:first-child { flex: 0 0 auto; }
 }
+
+/* ============================================================================================
+ * Encabezado y pasos del editor, sin deformarse con el ancho.
+ *
+ * Los pasos vivían en una grilla de 4 columnas para 6 pasos: dos bajaban de fila y las líneas
+ * de unión quedaban partidas. Y el encabezado sumaba reglas de distintas épocas que cambiaban de
+ * fila a columna según el ancho. Esta regla manda en todos los tamaños.
+ * ========================================================================================== */
+.reservation-builder .builder-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; min-height: 0; padding: 12px 20px; }
+.reservation-builder .builder-top > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.reservation-builder .builder-top > div:first-child > a { width: fit-content; font-size: 13px; }
+.reservation-builder .builder-top > div:first-child > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.reservation-builder .builder-top > div:first-child input { width: auto; min-width: 0; max-width: 100%; field-sizing: content; font-size: 19px; font-weight: 800; }
+.reservation-builder .builder-top-actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 10px; }
+.reservation-builder .builder-top-actions .meta-conversion { white-space: nowrap; }
+
+.reservation-builder .builder-progress { display: flex; flex-wrap: nowrap; justify-content: safe center; gap: 6px; max-width: 100%; margin: 16px 0; padding: 4px 20px 8px; overflow-x: auto; scrollbar-width: thin; }
+.reservation-builder .builder-progress button { flex: 0 0 auto; gap: 8px; min-height: 40px; padding: 0 12px 0 4px; border: 1px solid transparent; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+.reservation-builder .builder-progress button::after { display: none; }
+.reservation-builder .builder-progress button.active { border-color: var(--line, #eee8ec); background: var(--white, #fff); }
+.reservation-builder .builder-progress span { flex: 0 0 28px; }
+
+@container editor-reservas (max-width: 640px) {
+  .reservation-builder .builder-top { grid-template-columns: minmax(0, 1fr); }
+  .reservation-builder .builder-top-actions { justify-content: flex-start; }
+  .reservation-builder .builder-progress { justify-content: flex-start; padding-inline: 12px; }
+  /* En angosto sólo el paso actual muestra su nombre; los demás, el número. */
+  .reservation-builder .builder-progress button:not(.active) { font-size: 0; padding-right: 4px; }
+  .reservation-builder .builder-progress button:not(.active) span { font-size: 12px; }
+}
+/* En anchos medianos los seis nombres no caben: se muestra el nombre del paso actual y los números. */
+@container editor-reservas (max-width: 980px) {
+  .reservation-builder .builder-progress { justify-content: flex-start; scrollbar-width: none; }
+  .reservation-builder .builder-progress::-webkit-scrollbar { display: none; }
+  .reservation-builder .builder-progress button:not(.active) { font-size: 0; gap: 0; padding-right: 4px; }
+  .reservation-builder .builder-progress button:not(.active) span { font-size: 12px; }
+}
+
+/* ============================================================================================
+ * Paso «Lo esencial»: primero las preguntas predeterminadas, abajo lo editable y al lado la
+ * vista previa. En angosto todo va en una columna, en ese mismo orden.
+ * ========================================================================================== */
+.reservation-builder .builder-top { top: 72px; }
+@media (max-width: 1020px) { .reservation-builder .builder-top { top: 60px; } }
+
+.reservation-builder .builder-grid.paso-esencial {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-areas: "preguntas preguntas" "biblioteca vista" "lienzo vista";
+  align-items: start; gap: 16px; max-width: 1400px; margin: 0 auto; padding: 0 20px 110px;
+}
+.reservation-builder .builder-grid.paso-esencial > * { min-width: 0; order: 0; grid-column: auto; }
+.reservation-builder .builder-grid.paso-esencial > .field-extras { grid-area: preguntas; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 6px 18px; padding: 16px 18px; border-radius: var(--radius-lg, 14px); background: var(--white, #fff); }
+.reservation-builder .builder-grid.paso-esencial > .field-extras > .field-extras-title, .reservation-builder .builder-grid.paso-esencial > .field-extras > .schedule-nota { grid-column: 1 / -1; }
+.reservation-builder .builder-grid.paso-esencial > .field-extras .toggle-row { min-height: 40px; font-size: 14px; }
+.reservation-builder .builder-grid.paso-esencial > .field-library { grid-area: biblioteca; position: static; height: auto; max-height: none; overflow: visible; }
+.reservation-builder .builder-grid.paso-esencial > .field-library > button { display: inline-flex; width: auto; margin: 4px 6px 0 0; }
+.reservation-builder .builder-grid.paso-esencial > .builder-canvas { grid-area: lienzo; }
+.reservation-builder .builder-grid.paso-esencial > .builder-vista-previa { grid-area: vista; position: sticky; top: 176px; display: grid; gap: 8px; max-height: calc(100vh - 196px); overflow: auto; }
+.builder-vista-previa-titulo { display: grid; gap: 2px; }
+.builder-vista-previa-titulo small { color: var(--muted); font-size: 12px; }
+.reservation-builder .builder-vista-previa .design-preview { padding: 12px; }
+.reservation-builder .builder-vista-previa .design-preview.mobile { width: 100%; max-width: 360px; margin: 0; }
+
+@container editor-reservas (max-width: 900px) {
+  .reservation-builder .builder-grid.paso-esencial { grid-template-columns: minmax(0, 1fr); grid-template-areas: "preguntas" "biblioteca" "lienzo" "vista"; padding-inline: 8px; }
+  .reservation-builder .builder-grid.paso-esencial > .builder-vista-previa { position: static; max-height: none; overflow: visible; }
+  .reservation-builder .builder-vista-previa .design-preview.mobile { margin: 0 auto; }
+}
+
+/* «Diseño público»: sin un segundo scroll dentro de la página; la vista previa acompaña. */
+.reservation-builder .design-studio .design-controls { max-height: none; overflow: visible; }
+.reservation-builder .design-studio .design-preview-column { position: sticky; top: 176px; align-self: start; }
+@container editor-reservas (max-width: 1100px) {
+  .reservation-builder .design-studio .design-preview-column { position: static; }
+}
