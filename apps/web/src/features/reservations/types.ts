@@ -32,7 +32,7 @@ export interface DesignConfig {
   /** Grilla de ocasiones: se guarda como JSON porque son varias y el resto de la config es plana. */
   ocasionesEnabled?: string; ocasionesTitulo?: string; ocasionesPopup?: string; ocasiones?: string;
   /** Cada texto del aviso es editable: el código no fija ninguno. */
-  ocasionesTexto?: string; ocasionesPreguntaId?: string; ocasionesBoton?: string; welcomePopupBoton?: string;
+  ocasionesTexto?: string; ocasionesPreguntaId?: string; ocasionesFoto?: string; ocasionesBoton?: string; welcomePopupBoton?: string;
   /** Consumo esperado por persona: sin él, Meta trata igual una mesa de dos y un grupo de doce. */
   valorPorPersona?: string; moneda?: string;
   [key: string]: string | undefined;

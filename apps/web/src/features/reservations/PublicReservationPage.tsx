@@ -831,7 +831,7 @@ export function PublicReservationPage() {
       <section onClick={(event) => event.stopPropagation()}>
         <h2>{design.ocasionesTitulo || 'Para cada ocasión'}</h2>
         {design.ocasionesTexto && <p>{design.ocasionesTexto}</p>}
-        <div className="booking-ocasiones-grilla">
+        <div className={`booking-ocasiones-grilla foto-${safeDesignChoice(design.ocasionesFoto, ['completa', 'horizontal', 'cuadrada', 'vertical'], 'completa')}`}>
           {ocasiones.map((ocasion) => tarjetaDeOcasion(ocasion, cerrarOcasiones))}
         </div>
         <div className="booking-ocasiones-cierre"><button type="button" className="btn btn-primary" autoFocus onClick={cerrarOcasiones}>{design.ocasionesBoton || 'Reservar ahora'}</button></div>
@@ -879,7 +879,7 @@ export function PublicReservationPage() {
       <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div></div>}
         {ocasionesEncendidas && <div className="booking-ocasiones">
           {design.ocasionesTitulo && <h2>{design.ocasionesTitulo}</h2>}
-          <div className="booking-ocasiones-grilla">
+          <div className={`booking-ocasiones-grilla foto-${safeDesignChoice(design.ocasionesFoto, ['completa', 'horizontal', 'cuadrada', 'vertical'], 'completa')}`}>
             {ocasiones.map((ocasion) => tarjetaDeOcasion(ocasion))}
           </div>
         </div>}
