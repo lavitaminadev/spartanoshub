@@ -28,6 +28,7 @@ import { ProcessHistoryService } from '../../../core/process-history/process-his
 import { ProcessSubject } from '../../../core/process-history/process-stage-change.entity';
 import { UserRole } from '../../organizations/user-role.enum';
 import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
+import { RequiereAccion } from '../../../core/authorization/requiere-accion';
 
 @ApiTags('CRM - Leads')
 @Controller('crm/leads')
@@ -93,6 +94,7 @@ export class LeadController {
    * petición inválida, y responder un error dejaría a quien importa sin saber qué se guardó.
    */
   @Post('import')
+  @RequiereAccion('crm.importar')
   @ApiOperation({ summary: 'Importar prospectos desde un archivo' })
   async import(@Body() dto: ImportLeadsDto, @Req() req: AuthenticatedRequest) {
     // La cuenta se comprueba antes de escribir una sola fila. Es un identificador que llega del
@@ -163,6 +165,8 @@ export class LeadController {
       assignedTo: query.assignedTo,
       domain: query.domain,
       incluirDescartados: query.incluirDescartados,
+      campoPropio: query.campoPropio,
+      valorPropio: query.valorPropio,
       clientId,
       agencyOnly: esEmbudoAgencia,
       allowedClientIds: conCrm,

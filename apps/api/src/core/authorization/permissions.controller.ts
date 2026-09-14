@@ -23,6 +23,10 @@ import { AccountAccessService } from '../client-scope/account-access.service';
 import { UserClientAccess } from '../client-scope/user-client-access.entity';
 import { GrantClientAccessDto } from './dto/grant-client-access.dto';
 import { Client } from '../../modules/clients/client.entity';
+import { AccionesService } from './acciones.service';
+import { UserActionOverride } from './user-action-override.entity';
+import { definicionDeAccion } from './acciones';
+import { AjustarAccionDto } from './dto/ajustar-accion.dto';
 
 /**
  * Consulta y administración de permisos por módulo.
@@ -42,7 +46,49 @@ export class PermissionsController {
     @InjectRepository(Client) private readonly clients: Repository<Client>,
     private readonly accountAccess: AccountAccessService,
     private readonly audit: AuditService,
+    private readonly acciones: AccionesService,
+    @InjectRepository(UserActionOverride) private readonly ajustesDeAccion: Repository<UserActionOverride>,
   ) {}
+
+  /** Acciones de una persona: lo que da su nivel, su ajuste si existe y el resultado. */
+  @Get('users/:id/actions')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @ApiOperation({ summary: 'Acciones permitidas de un usuario' })
+  async accionesDeUsuario(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const user = await this.findUser(id, req.organizationId);
+    return { userId: user.id, acciones: await this.acciones.explicar(req.organizationId, user.id, user.role as UserRole) };
+  }
+
+  /** Abre o cierra una acción para una persona. */
+  @Put('users/:id/actions/:accion')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @ApiOperation({ summary: 'Ajustar una acción de un usuario' })
+  async ajustarAccion(@Param('id') id: string, @Param('accion') accion: string, @Body() dto: AjustarAccionDto, @Req() req: AuthenticatedRequest) {
+    const definicion = definicionDeAccion(accion);
+    if (!definicion) throw new BadRequestException(`Acción desconocida: ${accion}`);
+    const user = await this.findUser(id, req.organizationId);
+    await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined);
+    const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
+    const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, grantedBy: req.user.id });
+    await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed } });
+    return guardado;
+  }
+
+  /** Quita el ajuste: la acción vuelve a seguir el nivel del módulo. */
+  @Delete('users/:id/actions/:accion')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @ApiOperation({ summary: 'Quitar el ajuste de una acción' })
+  async quitarAjusteDeAccion(@Param('id') id: string, @Param('accion') accion: string, @Req() req: AuthenticatedRequest) {
+    const definicion = definicionDeAccion(accion);
+    if (!definicion) throw new BadRequestException(`Acción desconocida: ${accion}`);
+    const user = await this.findUser(id, req.organizationId);
+    await this.assertCanManageUserPermissionException(req, user, definicion.modulo);
+    const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
+    if (!existente) return { removed: false, accion };
+    await this.ajustesDeAccion.remove(existente);
+    await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: existente.id, action: 'deleted', before: { accion, allowed: existente.allowed } });
+    return { removed: true, accion };
+  }
 
   /**
    * Matriz completa de cargos, con la procedencia de cada celda.
@@ -215,7 +261,9 @@ export class PermissionsController {
   @ApiOperation({ summary: 'Permisos efectivos del usuario autenticado' })
   async mine(@Req() req: AuthenticatedRequest) {
     const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role as UserRole);
-    return { permissions };
+    // Las acciones van junto a los niveles para que la pantalla esconda lo que el servidor rechazaría.
+    const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role as UserRole)).map((accion) => [accion.clave, accion.permitida]));
+    return { permissions, acciones };
   }
 
   /**
@@ -234,7 +282,8 @@ export class PermissionsController {
    * mostraría el acceso real de alguien identificable, que es otra cosa y más sensible.
    */
   @Get('roles/:role/permissions')
-  @Roles(UserRole.DEV, UserRole.ADMIN)
+  // Dirección de operaciones también: ajusta a su equipo y necesita ver qué da cada cargo.
+  @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Permisos de un cargo, para previsualizacion' })
   async ofRole(@Param('role') role: string, @Req() req: AuthenticatedRequest) {
     if (!Object.values(UserRole).includes(role as UserRole)) throw new NotFoundException('Cargo no encontrado');
@@ -278,7 +327,7 @@ export class PermissionsController {
    * Usar `level: 'none'` deniega de forma explícita un módulo que el cargo sí concede.
    */
   @Put('users/:id/permissions/:module')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Definir una excepción de permiso' })
   async upsert(
     @Param('id') id: string,
@@ -288,7 +337,7 @@ export class PermissionsController {
   ) {
     if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
     const user = await this.findUser(id, req.organizationId);
-    this.assertCanManageUserPermissionException(req.user.role as UserRole, user);
+    await this.assertCanManageUserPermissionException(req, user, module, dto.level);
     const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
     const saved = await this.overrides.save({
       ...(existing ?? {}),
@@ -317,12 +366,12 @@ export class PermissionsController {
 
   /** Elimina la excepción y devuelve el módulo al nivel que define el cargo. */
   @Delete('users/:id/permissions/:module')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Quitar una excepción de permiso' })
   async remove(@Param('id') id: string, @Param('module') module: string, @Req() req: AuthenticatedRequest) {
     if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
     const user = await this.findUser(id, req.organizationId);
-    this.assertCanManageUserPermissionException(req.user.role as UserRole, user);
+    await this.assertCanManageUserPermissionException(req, user, module);
     const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
     if (!existing) throw new NotFoundException('No existe una excepción para ese módulo');
     await this.overrides.remove(existing);
@@ -363,7 +412,7 @@ export class PermissionsController {
 
   /** Concede a una persona una cuenta que su pod no le da. */
   @Put('users/:id/client-access/:clientId')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Conceder acceso a una cuenta' })
   async grantClientAccess(
     @Param('id') id: string,
@@ -372,6 +421,7 @@ export class PermissionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     const user = await this.findUser(id, req.organizationId);
+    await this.assertCanManageUserPermissionException(req, user);
     if (user.role === UserRole.CLIENT) {
       throw new BadRequestException('El acceso de un cliente lo define su propia cuenta, no una asignación');
     }
@@ -408,7 +458,7 @@ export class PermissionsController {
    * visible, para que quien administra no crea haber cerrado algo que sigue abierto.
    */
   @Delete('users/:id/client-access/:clientId')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Retirar acceso a una cuenta' })
   async revokeClientAccess(
     @Param('id') id: string,
@@ -416,6 +466,7 @@ export class PermissionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     const user = await this.findUser(id, req.organizationId);
+    await this.assertCanManageUserPermissionException(req, user);
     const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
     if (!existing) throw new NotFoundException('No existe una asignación directa para esa cuenta');
 
@@ -462,10 +513,35 @@ export class PermissionsController {
    * gobierno de plataforma. Eso queda reservado al mismo rol que maneja matriz, módulos y
    * ciclo de vida para que admin no pueda degradar o elevar al usuario técnico por accidente.
    */
-  private assertCanManageUserPermissionException(actorRole: UserRole, target: User): void {
+  /**
+   * Quién puede ajustar los accesos de quién.
+   *
+   * - Nadie ajusta los suyos: sería darse permisos a sí mismo.
+   * - Una cuenta dev sólo la ajusta dev.
+   * - Dirección de operaciones ajusta a su equipo, no a Administración, Desarrollo ni a otra
+   *   Dirección de operaciones; no toca Usuarios, Ajustes ni Integraciones, y no concede más
+   *   de lo que ella misma tiene en ese módulo.
+   */
+  private async assertCanManageUserPermissionException(req: AuthenticatedRequest, target: User, module?: string, level?: PermissionLevel): Promise<void> {
+    const actorRole = req.user.role as UserRole;
     if (actorRole === UserRole.DEV) return;
+    if (target.id === req.user.id) throw new ForbiddenException('No puedes ajustar tus propios accesos');
     if (target.role === UserRole.DEV) {
       throw new ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
+    }
+    if (actorRole !== UserRole.OPERATIONS_DIRECTOR) return;
+    if ([UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR].includes(target.role as UserRole)) {
+      throw new ForbiddenException('Los accesos de Administración y de Dirección de operaciones los ajusta Administración');
+    }
+    if (module && ['users', 'settings', 'integrations'].includes(module)) {
+      throw new ForbiddenException('Usuarios, Ajustes e Integraciones los ajusta Administración');
+    }
+    if (module && level) {
+      const propios = await this.permissions.permissionsFor(req.organizationId, req.user.id, actorRole);
+      const orden = ['none', 'view', 'edit', 'manage'];
+      if (orden.indexOf(level) > orden.indexOf(String(propios[module as keyof typeof propios] ?? 'none'))) {
+        throw new ForbiddenException('No puedes conceder más acceso del que tienes en ese módulo');
+      }
     }
   }
 }

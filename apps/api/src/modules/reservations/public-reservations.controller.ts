@@ -130,8 +130,8 @@ export class PublicReservationsController {
 
   @Post(':slug/waitlist')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  waitlist(@Param('slug') slug: string, @Body() dto: PublicReservationDto) {
-    return this.service.joinPublicWaitlist(slug, dto);
+  waitlist(@Param('slug') slug: string, @Body() dto: PublicReservationDto, @Ip() ipAddress: string, @Headers('user-agent') userAgent: string | undefined) {
+    return this.service.joinPublicWaitlist(slug, dto, ipAddress, userAgent);
   }
 
   @Post(':slug')

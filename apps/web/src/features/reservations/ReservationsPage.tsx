@@ -17,7 +17,7 @@ import { EmptyState } from '../../shared/EmptyState';
 import { triggerToast } from '../../shared/toast-events';
 import { attendanceRateOf } from '../../shared/attendance';
 import type { GroupRequest, GuestHistory, MetaConversionStatus, Reservation, ReservationForm } from './types';
-import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc } from './local-time';
+import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc, plainDateInZone } from './local-time';
 import { publicReservationUrl } from '../../core/public-url';
 import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
 import { useAuth } from '../../core/auth';
@@ -25,6 +25,7 @@ import { ExportModal } from './ExportModal';
 import { ReservationResults } from '../dashboard/ReservationResults';
 import { safeUrl } from '../../core/safe-url';
 import './ReservationsPage.css';
+import { puedeAccion } from '../../core/acciones';
 
 interface Client { id: string; name: string }
 interface PixelBinding { clientId: string; pixelId: string | null; pixelName: string | null; tokenConfigured: boolean }
@@ -105,6 +106,13 @@ function metaConversionChip(conversion?: MetaConversionStatus): { tone: 'ok' | '
   }
   if (pending) return { tone: 'warn', label: 'Meta en cola', title: `Envío pendiente. ${matchFields} datos de coincidencia.` };
   return { tone: 'ok', label: attended ? 'Meta ✓ asistió' : 'Meta ✓', title: `${sent} evento(s) confirmados con ${matchFields} datos de coincidencia.` };
+}
+
+/** Tipo de evento de una solicitud, como lo lee el equipo. */
+const TIPO_DE_EVENTO: Record<string, string> = { cumpleanos: 'Cumpleaños', aniversario: 'Aniversario o celebración', empresa: 'Evento de empresa', otro: 'Otro grupo' };
+/** «2026-09-08» → «8 sept 2026». */
+function fechaLegible(fecha: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? new Date(`${fecha}T12:00:00Z`).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : fecha;
 }
 
 export function ReservationsPage({ clientView = false }: { clientView?: boolean }) {
@@ -347,7 +355,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    */
   const { data: gruposData = [], isFetching: cargandoGrupos, error: errorGrupos, refetch: recargarGrupos } = useQuery<GroupRequest[]>({
     queryKey: ['group-requests', clientFilter, filters.formId],
-    queryFn: () => api.get(`/reservations/group-requests${filters.formId ? `?formId=${encodeURIComponent(filters.formId)}` : ''}`),
+    queryFn: () => api.get(`/reservations/group-requests?${new URLSearchParams({ ...(filters.formId ? { formId: filters.formId } : {}), ...(clientFilter ? { clientId: clientFilter } : {}) })}`),
     enabled: tab === 'groups',
   });
   const grupos = Array.isArray(gruposData) ? gruposData : [];
@@ -464,13 +472,13 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <h2>{form.name}</h2><p>{formPublicUrl(form)}</p>
           {canReadPixels && (() => { const readiness = metaReadiness(form, pixelByClient.get(form.clientId)); return <span className={`meta-readiness is-${readiness.tone}`} title={readiness.title}>{readiness.label}</span>; })()}
           <div className="form-card-facts"><span>{form.durationMinutes} min</span><span>{form.capacityPerSlot} cupo(s)</span><span>{form.fieldSchema.length} campos</span></div>
-            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=disponibilidad`}>Bloquear día</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=ajustes#zonas`}>Zonas y sectores</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=diseno`}>Textos y diseño</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}<button className="btn btn-outline btn-sm" onClick={() => { void copiarEnlace(form); }}>Copiar enlace</button><button className="btn btn-outline btn-sm" onClick={() => { setExportFormId(form.id); setExportModalOpen(true); }}>Exportar</button>{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
+            <div className="form-card-actions">{isSurveyMode(form.mode) ? <Link className="btn btn-primary btn-sm" to="/surveys">Abrir encuesta</Link> : <><Link className="btn btn-primary btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(form.clientId)}&formId=${encodeURIComponent(form.id)}`}>Agenda</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}`}>Configurar</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=disponibilidad`}>Bloquear día</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=ajustes#zonas`}>Zonas y sectores</Link><Link className="btn btn-outline btn-sm" to={`${base}/forms/${form.id}/design?section=diseno`}>Textos y diseño</Link></>}{safeUrl(formPublicUrl(form)) ? <a className="btn btn-outline btn-sm" href={safeUrl(formPublicUrl(form))} target="_blank" rel="noreferrer">Vista pública</a> : null}<button className="btn btn-outline btn-sm" onClick={() => { void copiarEnlace(form); }}>Copiar enlace</button>{puedeAccion(useAuth.getState().user, 'reservations.exportar') && <button className="btn btn-outline btn-sm" onClick={() => { setExportFormId(form.id); setExportModalOpen(true); }}>Exportar</button>}{!clientView && form.status !== 'draft' && <button className="btn btn-outline btn-sm" disabled={updateFormMutation.isPending} onClick={() => form.status === 'paused' ? updateFormMutation.mutate({ id: form.id, status: 'published' }) : setConfirmFormAction({ id: form.id, action: 'pause' })}>{updateFormMutation.isPending ? 'Procesando...' : form.status === 'paused' ? 'Reanudar' : 'Pausar'}</button>}</div>
           </article>)}
         </div>}
       </section>}
 
       {tab === 'bookings' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">OPERACIÓN DE LA SUCURSAL</span><h1>Todas las reservas</h1></div><div className="reservation-actions"><button className={`btn btn-primary btn-sm ${clientView ? '' : 'duplica-menu'}`} onClick={() => setManualOpen(true)}>Anotar reserva</button><button className="btn btn-outline btn-sm" onClick={() => setExportModalOpen(true)}>Exportar datos</button></div></div>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">OPERACIÓN DE LA SUCURSAL</span><h1>Todas las reservas</h1></div><div className="reservation-actions"><button className={`btn btn-primary btn-sm ${clientView ? '' : 'duplica-menu'}`} onClick={() => setManualOpen(true)}>Anotar reserva</button>{puedeAccion(useAuth.getState().user, 'reservations.exportar') && <button className="btn btn-outline btn-sm" onClick={() => setExportModalOpen(true)}>Exportar datos</button>}</div></div>
       <div className="status-tiles" role="group" aria-label="Filtrar por estado del ciclo de reserva">
         {BOOKING_TILE_STATUSES.map((status) => { const option = findStatusOption(RESERVATION_STATUS_OPTIONS, status); return <button
           key={status}
@@ -502,7 +510,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       <button type="button" className="btn btn-outline btn-sm filtros-movil" aria-expanded={filtrosAbiertos} onClick={() => setFiltrosAbiertos((abiertos) => !abiertos)}>
         {filtrosAbiertos ? 'Ocultar filtros' : `Filtros${[filters.search, filters.status, filters.formId, filters.from, filters.to, clientFilter].filter(Boolean).length ? ` (${[filters.search, filters.status, filters.formId, filters.from, filters.to, clientFilter].filter(Boolean).length})` : ''}`}
       </button>
-      <div className={`reservation-filters ${filtrosAbiertos ? 'is-open' : ''}`}><input className="input" aria-label="Buscar reservas" placeholder="Buscar nombre, teléfono, correo o código" value={filters.search} onChange={(event) => resetFilters({ search: event.target.value })} /><select className="input" aria-label="Filtrar por formulario" value={filters.formId} onChange={(event) => resetFilters({ formId: event.target.value })}><option value="">Todos los formularios</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}</select><select className="input" aria-label="Filtrar por estado" value={filters.status} onChange={(event) => resetFilters({ status: event.target.value })}><option value="">Todos los estados</option>{Object.entries(STATUS_LABELS).map(([status, label]) => <option value={status} key={status}>{label}</option>)}</select>{!clientView && <select className="input" aria-label="Filtrar reservas por cliente" value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); setPage(1); }}><option value="">Todos los clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={!filters.search && !filters.formId && !filters.status && !filters.from && !filters.to && !clientFilter} onClick={() => { resetFilters({ search: '', formId: '', status: '', from: '', to: '' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
+      <div className={`reservation-filters ${filtrosAbiertos ? 'is-open' : ''}`}><input className="input" aria-label="Buscar reservas" placeholder="Buscar nombre, teléfono, correo o código" value={filters.search} onChange={(event) => resetFilters({ search: event.target.value })} /><select className="input" aria-label="Filtrar por formulario" value={filters.formId} onChange={(event) => resetFilters({ formId: event.target.value })}><option value="">Todos los formularios</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}</select><select className="input" aria-label="Filtrar por estado" value={filters.status} onChange={(event) => resetFilters({ status: event.target.value })}><option value="">Todos los estados</option>{Object.entries(STATUS_LABELS).map(([status, label]) => <option value={status} key={status}>{label}</option>)}</select>{!clientView && <select className="input" aria-label="Filtrar reservas por cliente" value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); resetFilters({ formId: '' }); setPage(1); }}><option value="">Todos los clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={!filters.search && !filters.formId && !filters.status && !filters.from && !filters.to && !clientFilter} onClick={() => { resetFilters({ search: '', formId: '', status: '', from: '', to: '' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
       {bookingsError ? (isForbiddenError(bookingsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas" message={bookingsError.message} onRetry={() => void refetchBookings()} retrying={loadingBookings} />)
         : loadingBookings && !bookingPage ? <LoadingSpinner text="Buscando reservas..." />
         : bookings.length === 0 ? <EmptyState icon="calendar" title="Sin reservas para estos filtros" description="Las nuevas solicitudes aparecerán aquí en tiempo real." /> : <div className="booking-list" aria-busy={loadingBookings}>
@@ -559,7 +567,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         */}
       <div className="reservation-filters">
         <select className="input" aria-label="Filtrar solicitudes por sucursal" value={filters.formId} onChange={(event) => resetFilters({ formId: event.target.value })}><option value="">Todas las sucursales</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}</select>
-        {!clientView && <select className="input" aria-label="Filtrar solicitudes por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todas las empresas</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}
+        {!clientView && <select className="input" aria-label="Filtrar solicitudes por cliente" value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); resetFilters({ formId: '' }); }}><option value="">Todas las empresas</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}
         <button type="button" className="btn btn-outline btn-sm" disabled={!filters.formId && !clientFilter} onClick={() => { resetFilters({ formId: '' }); setClientFilter(''); }}>Limpiar</button>
         <span className="filter-result-count">{grupos.length} solicitud{grupos.length === 1 ? '' : 'es'}</span>
       </div>
@@ -573,11 +581,11 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           return <article key={request.id} className="reservation-request-card">
             <div>
               <strong>{request.guestName} · {request.partySize} personas</strong>
-              <span>{request.eventType}{request.preferredDate ? ` · ${request.preferredDate}` : ''}{request.preferredTime ? ` · ${request.preferredTime}` : ''}</span>
+              <span>{TIPO_DE_EVENTO[request.eventType] ?? request.eventType}{request.preferredDate ? ` · ${fechaLegible(request.preferredDate)}` : ''}{request.preferredTime ? ` · ${request.preferredTime}` : ''}</span>
               <small>{local?.name || 'Sucursal no disponible'} · {request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>
               {request.notes && <p className="page-subtitle">{request.notes}</p>}
               <details open><summary>Lo que pidió</summary><dl className="success-summary">
-                <dt>Fecha solicitada</dt><dd>{request.preferredDate || 'Por acordar'} {request.preferredTime || ''}</dd>
+                <dt>Fecha solicitada</dt><dd>{request.preferredDate ? fechaLegible(request.preferredDate) : 'Por acordar'} {request.preferredTime || ''}{request.preferredDate && local && request.preferredDate < plainDateInZone(new Date(), local.timezone) ? <small className="error-text"> · ya pasó</small> : null}</dd>
                 <dt>Recibida</dt><dd>{new Date(request.createdAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</dd>
                 {Boolean(details.serviceId) && <><dt>Servicio</dt><dd>{(local?.servicesConfig || []).find((sv) => sv.id === details.serviceId)?.name || String(details.serviceId)}</dd></>}
                 {Boolean(details.resourceId) && <><dt>Zona</dt><dd>{(local?.resourcesConfig || []).find((zn) => zn.id === details.resourceId)?.name || String(details.resourceId)}</dd></>}
@@ -597,10 +605,12 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
                 {(local?.resourcesConfig || []).length > 0 && <label>Zona<select className="input" value={convirtiendo.zona} onChange={(event) => setConvirtiendo({ ...convirtiendo, zona: event.target.value })}><option value="">Sin zona</option>{(local?.resourcesConfig || []).map((zona) => <option key={zona.id} value={zona.id}>{zona.name}</option>)}</select></label>}
                 <small>Se crea con los datos y respuestas de la solicitud, y pasa por las mismas reglas de cupo que una reserva manual.</small>
                 {convertirGrupo.error && <><small className="error-text">{convertirGrupo.error.message}</small>
+                  <small>Puedes elegir una hora dentro de lo publicado o, si el evento se acordó así, crearla igual.</small>
                   <label className="toggle-row"><input type="checkbox" checked={forzarHorario} onChange={(event) => setForzarHorario(event.target.checked)} /> Crear igual en ese horario<small>Para un evento acordado fuera del horario publicado. No revisa cupo ni bloqueos.</small></label></>}
                 <div className="portal-item-actions"><button className="btn btn-primary btn-sm" disabled={convertirGrupo.isPending}>{convertirGrupo.isPending ? 'Creando...' : 'Confirmar reserva'}</button><button className="btn btn-outline btn-sm" type="button" onClick={() => setConvirtiendo(null)}>Cancelar</button></div>
               </form>}
               {request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => marcarGrupo.mutate({ id: request.id, status: 'contacted' })}>Marcar contactada</button>}
+              {!['converted', 'closed'].includes(request.status) && convirtiendo?.id !== request.id && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => { if (window.confirm('¿Cerrar esta solicitud sin crear reserva? Queda en el historial.')) marcarGrupo.mutate({ id: request.id, status: 'closed' }); }}>Cerrar sin reserva</button>}
               <Link className="btn btn-outline btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(request.clientId)}&formId=${encodeURIComponent(request.formId)}`}>Abrir agenda de la sucursal</Link>
             </div>
           </article>;

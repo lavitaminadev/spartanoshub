@@ -232,3 +232,6 @@
   .data-table th:first-child,
   .data-table td.col-marcar { width: 36px; }
 }
+
+/* Valor exacto del filtro por dato propio (texto, número o fecha). */
+.filtro-campo-propio { display: inline-grid; gap: 4px; margin: 8px 0; min-width: min(100%, 240px); font-size: 12px; font-weight: 700; color: var(--muted); }

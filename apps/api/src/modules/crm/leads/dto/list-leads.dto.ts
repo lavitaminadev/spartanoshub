@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, IsEnum, IsUUID, IsIn, MaxLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsEnum, IsUUID, IsIn, Matches, MaxLength, ValidateIf } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { PaginationDto } from '../../../../shared/dto/pagination.dto';
 import { LeadStatus } from '../lead-status.enum';
@@ -36,4 +36,12 @@ export class ListLeadsQueryDto extends PaginationDto {
    */
   @IsOptional() @Transform(({ value }) => value === true || value === 'true') @IsBoolean()
   incluirDescartados?: boolean;
+  /**
+   * Filtro por un campo propio: su clave y el valor buscado.
+   *
+   * La clave sigue la misma regla que al crear el campo, así nunca llega texto arbitrario a la
+   * ruta JSON. El valor se compara exacto; en una selección múltiple basta con que lo contenga.
+   */
+  @IsOptional() @Matches(/^[a-z][a-z0-9_]{0,39}$/) campoPropio?: string;
+  @ValidateIf((objeto: { campoPropio?: string }) => Boolean(objeto.campoPropio)) @IsString() @MaxLength(255) valorPropio?: string;
 }

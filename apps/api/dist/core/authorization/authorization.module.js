@@ -18,6 +18,9 @@ const role_permission_override_entity_1 = require("./role-permission-override.en
 const user_client_access_entity_1 = require("../client-scope/user-client-access.entity");
 const permission_resolver_service_1 = require("./permission-resolver.service");
 const permission_guard_1 = require("./permission.guard");
+const user_action_override_entity_1 = require("./user-action-override.entity");
+const acciones_service_1 = require("./acciones.service");
+const requiere_accion_1 = require("./requiere-accion");
 const permissions_controller_1 = require("./permissions.controller");
 const audit_module_1 = require("../audit/audit.module");
 const parameters_module_1 = require("../parameters/parameters.module");
@@ -27,15 +30,17 @@ exports.AuthorizationModule = AuthorizationModule;
 exports.AuthorizationModule = AuthorizationModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization, user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, role_permission_override_entity_1.RolePermissionOverride, user_client_access_entity_1.UserClientAccess]),
+            typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization, user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, role_permission_override_entity_1.RolePermissionOverride, user_client_access_entity_1.UserClientAccess, user_action_override_entity_1.UserActionOverride]),
             audit_module_1.AuditModule,
             parameters_module_1.ParametersModule,
         ],
         controllers: [permissions_controller_1.PermissionsController],
         providers: [
             permission_resolver_service_1.PermissionResolverService,
+            acciones_service_1.AccionesService,
             { provide: core_1.APP_GUARD, useClass: permission_guard_1.PermissionGuard },
+            { provide: core_1.APP_GUARD, useClass: requiere_accion_1.AccionGuard },
         ],
-        exports: [permission_resolver_service_1.PermissionResolverService, typeorm_1.TypeOrmModule],
+        exports: [permission_resolver_service_1.PermissionResolverService, acciones_service_1.AccionesService, typeorm_1.TypeOrmModule],
     })
 ], AuthorizationModule);

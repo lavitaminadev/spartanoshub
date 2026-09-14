@@ -315,6 +315,26 @@ __decorate([
 ], PublicReservationDto.prototype, "dietaryNotes", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(["Zona de fumadores", "Zona de no fumadores", "Me da lo mismo"]),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "smokingPreference", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(["Mesa tranquila", "Cerca de una ventana", "Cerca de la barra", "Sin preferencia"]),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "seatingPreference", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(["Sí, es mi primera vez", "No, ya he venido"]),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "firstVisit", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(["Redes sociales", "Recomendación", "Google o mapas", "Pasé por fuera", "Otro"]),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "howFound", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)

@@ -28,6 +28,7 @@ const reservations_service_1 = require("./application/reservations.service");
 const bulk_import_service_1 = require("./application/bulk-import.service");
 const reservation_dto_1 = require("./dto/reservation.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const requiere_accion_1 = require("../../core/authorization/requiere-accion");
 let ReservationsController = class ReservationsController {
     constructor(service, accountAccess, capabilities, bulkImport, audit) {
         this.service = service;
@@ -173,8 +174,8 @@ let ReservationsController = class ReservationsController {
         }
         return this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds);
     }
-    async allGroupRequests(req, formId) {
-        const scope = await this.scope(req);
+    async allGroupRequests(req, formId, clientId) {
+        const scope = await this.requestedScope(req, clientId);
         return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
     }
     async groupRequests(req, id) {
@@ -374,6 +375,7 @@ __decorate([
 ], ReservationsController.prototype, "createManual", null);
 __decorate([
     (0, common_1.Post)('import'),
+    (0, requiere_accion_1.RequiereAccion)('reservations.importar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     __param(0, (0, common_1.Req)()),
@@ -406,8 +408,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('formId')),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "allGroupRequests", null);
 __decorate([
@@ -495,6 +498,7 @@ __decorate([
 ], ReservationsController.prototype, "updateCoupon", null);
 __decorate([
     (0, common_1.Get)('export/csv'),
+    (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -505,6 +509,7 @@ __decorate([
 ], ReservationsController.prototype, "exportCsv", null);
 __decorate([
     (0, common_1.Post)('forms/:formId/export'),
+    (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('formId')),

@@ -15,6 +15,7 @@ import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
 import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
 @ApiTags('Reservas')
 @ApiBearerAuth()
@@ -197,6 +198,7 @@ export class ReservationsController {
   }
 
   @Post('import')
+  @RequiereAccion('reservations.importar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async importReservations(@Req() req: AuthenticatedRequest, @Body() dto: ImportReservationsDto) {
@@ -243,8 +245,9 @@ export class ReservationsController {
 
   @Get('group-requests')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async allGroupRequests(@Req() req: AuthenticatedRequest, @Query('formId') formId?: string) {
-    const scope = await this.scope(req);
+  async allGroupRequests(@Req() req: AuthenticatedRequest, @Query('formId') formId?: string, @Query('clientId') clientId?: string) {
+    // La empresa elegida en el filtro acota de verdad; antes se ignoraba y la lista no cambiaba.
+    const scope = await this.requestedScope(req, clientId);
     return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
   }
 
@@ -317,6 +320,7 @@ export class ReservationsController {
   }
 
   @Get('export/csv')
+  @RequiereAccion('reservations.exportar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async exportCsv(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto, @Res() res: Response) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -340,6 +344,7 @@ export class ReservationsController {
   }
 
   @Post('forms/:formId/export')
+  @RequiereAccion('reservations.exportar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async exportForm(
     @Req() req: AuthenticatedRequest,

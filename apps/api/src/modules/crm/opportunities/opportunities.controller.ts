@@ -13,6 +13,7 @@ import { RequiresFeature } from '../../../core/authorization/requires-feature.de
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ProcessTemplatesService } from '../../process-templates/process-templates.service';
 import { COMMERCIAL_PIPELINE_TEMPLATE } from '../../process-templates/process-template-defaults';
+import { RequiereAccion } from '../../../core/authorization/requiere-accion';
 
 @Controller('crm/opportunities')
 @UseGuards(AuthGuard('jwt'))
@@ -68,6 +69,7 @@ export class OpportunitiesController {
   }
 
   @Delete(':id')
+  @RequiereAccion('crm.borrar')
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.removeOpportunity.execute(id, req.organizationId);
   }

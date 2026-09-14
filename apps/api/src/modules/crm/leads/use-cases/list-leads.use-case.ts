@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, IsNull, Like, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Like, MoreThanOrEqual, Not, Raw, Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
 import { RESERVATION_LEAD_SOURCES, isReservationLeadSource } from '@espartanos/shared';
 
 /** Filtros aceptados al listar leads. */
 export interface ListLeadsFilters {
+  /** Clave de un campo propio (ya validada) y el valor que debe tener. */
+  campoPropio?: string;
+  valorPropio?: string;
   status?: string;
   fitStatus?: string;
   source?: string;
@@ -107,6 +110,11 @@ export class ListLeadsUseCase {
     else if (filters.assignedTo) where.assignedTo = filters.assignedTo;
     const domain = filters.domain ?? 'commercial';
     if (domain !== 'all') where.domain = domain;
+    if (filters.campoPropio && filters.valorPropio !== undefined && /^[a-z][a-z0-9_]{0,39}$/.test(filters.campoPropio)) {
+      const ruta = `$."${filters.campoPropio}"`;
+      // Igual para texto, número, fecha y sí/no; contenido para una selección múltiple.
+      (where as Record<string, unknown>).customFields = Raw((columna) => `(JSON_UNQUOTE(JSON_EXTRACT(${columna}, :rutaPropia)) = :valorPropio OR JSON_CONTAINS(JSON_EXTRACT(${columna}, :rutaPropia), JSON_QUOTE(:valorPropio)))`, { rutaPropia: ruta, valorPropio: filters.valorPropio });
+    }
 
     const scope = this.resolveClientScope(filters);
     if (scope === EMPTY_SCOPE) return { data: [], total: 0, limit, offset };

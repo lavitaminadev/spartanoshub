@@ -47,10 +47,11 @@ describe('PermissionsController: separación admin/dev', () => {
     for (const handler of [
       PermissionsController.prototype.roleMatrix,
       PermissionsController.prototype.updateRoleMatrix,
-      PermissionsController.prototype.ofRole,
     ]) {
       expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([UserRole.DEV, UserRole.ADMIN]);
     }
+    // Leer lo que da un cargo también lo necesita Dirección de operaciones para ajustar a su equipo.
+    expect(Reflect.getMetadata(ROLES_KEY, PermissionsController.prototype.ofRole)).toEqual([UserRole.DEV, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR]);
   });
 
   it('impide que admin administre excepciones de una cuenta dev', async () => {

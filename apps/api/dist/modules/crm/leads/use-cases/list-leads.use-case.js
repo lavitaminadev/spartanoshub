@@ -39,6 +39,10 @@ let ListLeadsUseCase = class ListLeadsUseCase {
         const domain = filters.domain ?? 'commercial';
         if (domain !== 'all')
             where.domain = domain;
+        if (filters.campoPropio && filters.valorPropio !== undefined && /^[a-z][a-z0-9_]{0,39}$/.test(filters.campoPropio)) {
+            const ruta = `$."${filters.campoPropio}"`;
+            where.customFields = (0, typeorm_2.Raw)((columna) => `(JSON_UNQUOTE(JSON_EXTRACT(${columna}, :rutaPropia)) = :valorPropio OR JSON_CONTAINS(JSON_EXTRACT(${columna}, :rutaPropia), JSON_QUOTE(:valorPropio)))`, { rutaPropia: ruta, valorPropio: filters.valorPropio });
+        }
         const scope = this.resolveClientScope(filters);
         if (scope === EMPTY_SCOPE)
             return { data: [], total: 0, limit, offset };

@@ -9,6 +9,9 @@ import { RolePermissionOverride } from './role-permission-override.entity';
 import { UserClientAccess } from '../client-scope/user-client-access.entity';
 import { PermissionResolverService } from './permission-resolver.service';
 import { PermissionGuard } from './permission.guard';
+import { UserActionOverride } from './user-action-override.entity';
+import { AccionesService } from './acciones.service';
+import { AccionGuard } from './requiere-accion';
 import { PermissionsController } from './permissions.controller';
 import { AuditModule } from '../audit/audit.module';
 import { ParametersModule } from '../parameters/parameters.module';
@@ -22,15 +25,18 @@ import { ParametersModule } from '../parameters/parameters.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Organization, User, Client, UserPermissionOverride, RolePermissionOverride, UserClientAccess]),
+    TypeOrmModule.forFeature([Organization, User, Client, UserPermissionOverride, RolePermissionOverride, UserClientAccess, UserActionOverride]),
     AuditModule,
     ParametersModule,
   ],
   controllers: [PermissionsController],
   providers: [
     PermissionResolverService,
+    AccionesService,
     { provide: APP_GUARD, useClass: PermissionGuard },
+    // Después del de módulo: primero se entra al módulo, luego se puede o no hacer la acción.
+    { provide: APP_GUARD, useClass: AccionGuard },
   ],
-  exports: [PermissionResolverService, TypeOrmModule],
+  exports: [PermissionResolverService, AccionesService, TypeOrmModule],
 })
 export class AuthorizationModule {}

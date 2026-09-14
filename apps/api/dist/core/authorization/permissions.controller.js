@@ -37,8 +37,12 @@ const account_access_service_1 = require("../client-scope/account-access.service
 const user_client_access_entity_1 = require("../client-scope/user-client-access.entity");
 const grant_client_access_dto_1 = require("./dto/grant-client-access.dto");
 const client_entity_1 = require("../../modules/clients/client.entity");
+const acciones_service_1 = require("./acciones.service");
+const user_action_override_entity_1 = require("./user-action-override.entity");
+const acciones_1 = require("./acciones");
+const ajustar_accion_dto_1 = require("./dto/ajustar-accion.dto");
 let PermissionsController = class PermissionsController {
-    constructor(permissions, overrides, roleOverrides, users, clientAccess, clients, accountAccess, audit) {
+    constructor(permissions, overrides, roleOverrides, users, clientAccess, clients, accountAccess, audit, acciones, ajustesDeAccion) {
         this.permissions = permissions;
         this.overrides = overrides;
         this.roleOverrides = roleOverrides;
@@ -47,6 +51,36 @@ let PermissionsController = class PermissionsController {
         this.clients = clients;
         this.accountAccess = accountAccess;
         this.audit = audit;
+        this.acciones = acciones;
+        this.ajustesDeAccion = ajustesDeAccion;
+    }
+    async accionesDeUsuario(id, req) {
+        const user = await this.findUser(id, req.organizationId);
+        return { userId: user.id, acciones: await this.acciones.explicar(req.organizationId, user.id, user.role) };
+    }
+    async ajustarAccion(id, accion, dto, req) {
+        const definicion = (0, acciones_1.definicionDeAccion)(accion);
+        if (!definicion)
+            throw new common_2.BadRequestException(`Acción desconocida: ${accion}`);
+        const user = await this.findUser(id, req.organizationId);
+        await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined);
+        const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
+        const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, grantedBy: req.user.id });
+        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed } });
+        return guardado;
+    }
+    async quitarAjusteDeAccion(id, accion, req) {
+        const definicion = (0, acciones_1.definicionDeAccion)(accion);
+        if (!definicion)
+            throw new common_2.BadRequestException(`Acción desconocida: ${accion}`);
+        const user = await this.findUser(id, req.organizationId);
+        await this.assertCanManageUserPermissionException(req, user, definicion.modulo);
+        const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
+        if (!existente)
+            return { removed: false, accion };
+        await this.ajustesDeAccion.remove(existente);
+        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: existente.id, action: 'deleted', before: { accion, allowed: existente.allowed } });
+        return { removed: true, accion };
     }
     async roleMatrix(req) {
         return this.permissions.roleMatrix(req.organizationId);
@@ -148,7 +182,8 @@ let PermissionsController = class PermissionsController {
     }
     async mine(req) {
         const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role);
-        return { permissions };
+        const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role)).map((accion) => [accion.clave, accion.permitida]));
+        return { permissions, acciones };
     }
     async ofRole(role, req) {
         if (!Object.values(user_role_enum_1.UserRole).includes(role))
@@ -176,7 +211,7 @@ let PermissionsController = class PermissionsController {
         if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
             throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
-        this.assertCanManageUserPermissionException(req.user.role, user);
+        await this.assertCanManageUserPermissionException(req, user, module, dto.level);
         const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
         const saved = await this.overrides.save({
             ...(existing ?? {}),
@@ -204,7 +239,7 @@ let PermissionsController = class PermissionsController {
         if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
             throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
-        this.assertCanManageUserPermissionException(req.user.role, user);
+        await this.assertCanManageUserPermissionException(req, user, module);
         const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una excepción para ese módulo');
@@ -235,6 +270,7 @@ let PermissionsController = class PermissionsController {
     }
     async grantClientAccess(id, clientId, dto, req) {
         const user = await this.findUser(id, req.organizationId);
+        await this.assertCanManageUserPermissionException(req, user);
         if (user.role === user_role_enum_1.UserRole.CLIENT) {
             throw new common_2.BadRequestException('El acceso de un cliente lo define su propia cuenta, no una asignación');
         }
@@ -264,6 +300,7 @@ let PermissionsController = class PermissionsController {
     }
     async revokeClientAccess(id, clientId, req) {
         const user = await this.findUser(id, req.organizationId);
+        await this.assertCanManageUserPermissionException(req, user);
         const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una asignación directa para esa cuenta');
@@ -298,15 +335,66 @@ let PermissionsController = class PermissionsController {
             throw new common_2.NotFoundException('Usuario no encontrado');
         return user;
     }
-    assertCanManageUserPermissionException(actorRole, target) {
+    async assertCanManageUserPermissionException(req, target, module, level) {
+        const actorRole = req.user.role;
         if (actorRole === user_role_enum_1.UserRole.DEV)
             return;
+        if (target.id === req.user.id)
+            throw new common_2.ForbiddenException('No puedes ajustar tus propios accesos');
         if (target.role === user_role_enum_1.UserRole.DEV) {
             throw new common_2.ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
+        }
+        if (actorRole !== user_role_enum_1.UserRole.OPERATIONS_DIRECTOR)
+            return;
+        if ([user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(target.role)) {
+            throw new common_2.ForbiddenException('Los accesos de Administración y de Dirección de operaciones los ajusta Administración');
+        }
+        if (module && ['users', 'settings', 'integrations'].includes(module)) {
+            throw new common_2.ForbiddenException('Usuarios, Ajustes e Integraciones los ajusta Administración');
+        }
+        if (module && level) {
+            const propios = await this.permissions.permissionsFor(req.organizationId, req.user.id, actorRole);
+            const orden = ['none', 'view', 'edit', 'manage'];
+            if (orden.indexOf(level) > orden.indexOf(String(propios[module] ?? 'none'))) {
+                throw new common_2.ForbiddenException('No puedes conceder más acceso del que tienes en ese módulo');
+            }
         }
     }
 };
 exports.PermissionsController = PermissionsController;
+__decorate([
+    (0, common_1.Get)('users/:id/actions'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, swagger_1.ApiOperation)({ summary: 'Acciones permitidas de un usuario' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], PermissionsController.prototype, "accionesDeUsuario", null);
+__decorate([
+    (0, common_1.Put)('users/:id/actions/:accion'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, swagger_1.ApiOperation)({ summary: 'Ajustar una acción de un usuario' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('accion')),
+    __param(2, (0, common_1.Body)()),
+    __param(3, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, ajustar_accion_dto_1.AjustarAccionDto, Object]),
+    __metadata("design:returntype", Promise)
+], PermissionsController.prototype, "ajustarAccion", null);
+__decorate([
+    (0, common_1.Delete)('users/:id/actions/:accion'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, swagger_1.ApiOperation)({ summary: 'Quitar el ajuste de una acción' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('accion')),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], PermissionsController.prototype, "quitarAjusteDeAccion", null);
 __decorate([
     (0, common_1.Get)('roles/permissions'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
@@ -348,7 +436,7 @@ __decorate([
 ], PermissionsController.prototype, "mine", null);
 __decorate([
     (0, common_1.Get)('roles/:role/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Permisos de un cargo, para previsualizacion' }),
     __param(0, (0, common_1.Param)('role')),
     __param(1, (0, common_1.Req)()),
@@ -368,7 +456,7 @@ __decorate([
 ], PermissionsController.prototype, "ofUser", null);
 __decorate([
     (0, common_1.Put)('users/:id/permissions/:module'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Definir una excepción de permiso' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),
@@ -380,7 +468,7 @@ __decorate([
 ], PermissionsController.prototype, "upsert", null);
 __decorate([
     (0, common_1.Delete)('users/:id/permissions/:module'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Quitar una excepción de permiso' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),
@@ -401,7 +489,7 @@ __decorate([
 ], PermissionsController.prototype, "clientAccessOfUser", null);
 __decorate([
     (0, common_1.Put)('users/:id/client-access/:clientId'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Conceder acceso a una cuenta' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('clientId')),
@@ -413,7 +501,7 @@ __decorate([
 ], PermissionsController.prototype, "grantClientAccess", null);
 __decorate([
     (0, common_1.Delete)('users/:id/client-access/:clientId'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Retirar acceso a una cuenta' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('clientId')),
@@ -433,6 +521,7 @@ exports.PermissionsController = PermissionsController = __decorate([
     __param(3, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(4, (0, typeorm_1.InjectRepository)(user_client_access_entity_1.UserClientAccess)),
     __param(5, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
+    __param(9, (0, typeorm_1.InjectRepository)(user_action_override_entity_1.UserActionOverride)),
     __metadata("design:paramtypes", [permission_resolver_service_1.PermissionResolverService,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -440,5 +529,7 @@ exports.PermissionsController = PermissionsController = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         account_access_service_1.AccountAccessService,
-        audit_service_1.AuditService])
+        audit_service_1.AuditService,
+        acciones_service_1.AccionesService,
+        typeorm_2.Repository])
 ], PermissionsController);

@@ -41,6 +41,7 @@ const process_history_service_1 = require("../../../core/process-history/process
 const process_stage_change_entity_1 = require("../../../core/process-history/process-stage-change.entity");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const parameter_resolver_service_1 = require("../../../core/parameters/parameter-resolver.service");
+const requiere_accion_1 = require("../../../core/authorization/requiere-accion");
 let LeadController = class LeadController {
     constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, parametros, capacidades, responsablesDelCrm) {
         this.createLead = createLead;
@@ -101,6 +102,8 @@ let LeadController = class LeadController {
             assignedTo: query.assignedTo,
             domain: query.domain,
             incluirDescartados: query.incluirDescartados,
+            campoPropio: query.campoPropio,
+            valorPropio: query.valorPropio,
             clientId,
             agencyOnly: esEmbudoAgencia,
             allowedClientIds: conCrm,
@@ -226,6 +229,7 @@ __decorate([
 ], LeadController.prototype, "create", null);
 __decorate([
     (0, common_1.Post)('import'),
+    (0, requiere_accion_1.RequiereAccion)('crm.importar'),
     (0, swagger_1.ApiOperation)({ summary: 'Importar prospectos desde un archivo' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),

@@ -205,6 +205,9 @@ export function AppRouter() {
           <Route path="reservations/calendar" element={<ClientRoute capability="reservations"><SafeSuspense><AvailabilityCalendarPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/forms/:id" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationLocalHubPage /></SafeSuspense></ClientRoute>} />
           <Route path="reservations/forms/:id/design" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationBuilderPage /></SafeSuspense></ClientRoute>} />
+          {/* Encuestas de la empresa en lectura: resultados y respuestas, sin crear ni publicar. */}
+          <Route path="surveys" element={<ClientRoute capability="surveys"><SafeSuspense><SurveysPage soloLectura /></SafeSuspense></ClientRoute>} />
+          <Route path="surveys/:id/results" element={<ClientRoute capability="surveys"><SafeSuspense><SurveyResultsPage /></SafeSuspense></ClientRoute>} />
         </Route>
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/404" element={<NotFoundPage />} />

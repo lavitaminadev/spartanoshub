@@ -69,8 +69,8 @@ let PublicReservationsController = class PublicReservationsController {
     groupRequest(slug, dto, ipAddress, userAgent) {
         return this.service.createPublicGroupRequest(slug, dto, ipAddress, userAgent);
     }
-    waitlist(slug, dto) {
-        return this.service.joinPublicWaitlist(slug, dto);
+    waitlist(slug, dto, ipAddress, userAgent) {
+        return this.service.joinPublicWaitlist(slug, dto, ipAddress, userAgent);
     }
     create(slug, dto, ipAddress, userAgent) {
         return this.service.createPublic(slug, dto, ipAddress, userAgent, this.eventSourceUrl(slug, dto.eventSourceUrl));
@@ -205,8 +205,10 @@ __decorate([
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     __param(0, (0, common_1.Param)('slug')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Ip)()),
+    __param(3, (0, common_1.Headers)('user-agent')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, reservation_dto_1.PublicReservationDto]),
+    __metadata("design:paramtypes", [String, reservation_dto_1.PublicReservationDto, String, Object]),
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "waitlist", null);
 __decorate([

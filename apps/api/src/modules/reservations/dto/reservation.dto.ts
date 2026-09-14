@@ -92,6 +92,11 @@ export class PublicReservationDto {
   @IsOptional() @IsInt() @Min(0) @Max(20) childrenCount?: number;
   @IsOptional() @IsString() @MaxLength(500) accessibilityNeed?: string;
   @IsOptional() @IsString() @MaxLength(1000) dietaryNotes?: string;
+  /** Preguntas básicas de la visita; se guardan con el texto que eligió la persona. */
+  @IsOptional() @IsIn(["Zona de fumadores","Zona de no fumadores","Me da lo mismo"]) smokingPreference?: string;
+  @IsOptional() @IsIn(["Mesa tranquila","Cerca de una ventana","Cerca de la barra","Sin preferencia"]) seatingPreference?: string;
+  @IsOptional() @IsIn(["Sí, es mi primera vez","No, ya he venido"]) firstVisit?: string;
+  @IsOptional() @IsIn(["Redes sociales","Recomendación","Google o mapas","Pasé por fuera","Otro"]) howFound?: string;
   @IsOptional() @IsString() @MaxLength(80) serviceId?: string;
   @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
   @IsObject() answers: Record<string, unknown>;

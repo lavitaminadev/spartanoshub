@@ -5,8 +5,8 @@
  * Cada fila muestra lo que da el cargo y, si hay un ajuste, lo marca como tal: volver a «Según
  * su cargo» borra el ajuste en vez de copiar el nivel, así un cambio futuro del cargo le llega.
  *
- * Sólo Administración y Desarrollo cambian permisos (lo exige el servidor); Dirección de
- * operaciones los ve en lectura.
+ * Administración y Desarrollo ajustan a cualquiera; Dirección de operaciones, sólo a su equipo y sin
+ * tocar Usuarios, Ajustes ni Integraciones. El servidor aplica las mismas reglas.
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,6 +18,7 @@ import './permisos-de-usuario.css';
 type Nivel = 'none' | 'view' | 'edit' | 'manage';
 interface PermisoEfectivo { module: string; level: Nivel; source: 'role' | 'override'; moduleDisabled: boolean; productHidden: boolean }
 interface AccesoEmpresa { clientId: string; source: 'pod' | 'assignment' | 'community-manager' }
+interface AccionEfectiva { clave: string; modulo: string; nombre: string; ayuda: string; permitida: boolean; porNivel: boolean; origen: 'nivel' | 'ajuste' }
 
 const NIVELES: Array<{ valor: Nivel; texto: string }> = [
   { valor: 'none', texto: 'Sin acceso' },
@@ -45,10 +46,12 @@ const ORIGEN_EMPRESA: Record<AccesoEmpresa['source'], string> = {
   assignment: 'asignada a mano',
 };
 
-export function PermisosDeUsuario({ usuario, empresas, puedeEditar, onCerrar }: {
+export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOperaciones = false, onCerrar }: {
   usuario: { id: string; name: string; role: string };
   empresas: Array<{ id: string; name: string }>;
   puedeEditar: boolean;
+  /** Dirección de operaciones no ajusta Usuarios, Ajustes ni Integraciones (lo exige el servidor). */
+  limitadoAOperaciones?: boolean;
   onCerrar: () => void;
 }) {
   const qc = useQueryClient();
@@ -65,8 +68,18 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, onCerrar }: 
     enabled: usuario.role !== 'client',
   });
 
+  const acciones = useQuery<{ acciones: AccionEfectiva[] }>({ queryKey: ['acciones-de-usuario', usuario.id], queryFn: () => api.get(`/users/${usuario.id}/actions`) });
+  const cambiarAccion = useMutation({
+    mutationFn: ({ accion, valor }: { accion: string; valor: 'nivel' | 'si' | 'no' }) => valor === 'nivel'
+      ? api.delete(`/users/${usuario.id}/actions/${accion}`)
+      : api.put(`/users/${usuario.id}/actions/${accion}`, { allowed: valor === 'si', reason: 'Ajuste desde Usuarios' }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['acciones-de-usuario', usuario.id] }); triggerToast('Acción actualizada'); },
+    onError: (error: Error) => triggerToast(error.message || 'No se pudo guardar el cambio', 'error'),
+  });
+
   const refrescar = () => {
     void qc.invalidateQueries({ queryKey: clave });
+    void qc.invalidateQueries({ queryKey: ['acciones-de-usuario', usuario.id] });
     void qc.invalidateQueries({ queryKey: ['empresas-de-usuario', usuario.id] });
     void qc.invalidateQueries({ queryKey: ['access-exceptions'] });
   };
@@ -103,13 +116,14 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, onCerrar }: 
               const efectivo = porModulo.get(modulo.clave);
               if (!efectivo) return null;
               const bloqueado = efectivo.moduleDisabled || efectivo.productHidden;
+              const soloAdministracion = limitadoAOperaciones && ['users', 'settings', 'integrations'].includes(modulo.clave);
               const nivelDelCargo = delCargo.data?.permissions?.[modulo.clave];
               return <div key={modulo.clave} className={`permisos-usuario-fila ${efectivo.source === 'override' ? 'es-ajuste' : ''}`}>
                 <div>
                   <strong>{modulo.nombre}</strong>
                   <small>{bloqueado ? 'Módulo no disponible en esta organización o etapa.' : modulo.ayuda}</small>
                 </div>
-                {puedeEditar && !bloqueado ? (
+                {puedeEditar && !bloqueado && !soloAdministracion ? (
                   <select
                     className="input"
                     aria-label={`Nivel en ${modulo.nombre}`}
@@ -122,6 +136,24 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, onCerrar }: 
                   </select>
                 ) : <span className={`level-pill level-${efectivo.level}`}>{TEXTO_NIVEL[efectivo.level]}</span>}
                 {efectivo.source === 'override' && <em className="permisos-usuario-marca">Ajustado para esta persona</em>}
+                {(acciones.data?.acciones ?? []).filter((accion) => accion.modulo === modulo.clave).map((accion) => (
+                  <div key={accion.clave} className={`permisos-usuario-accion ${accion.origen === 'ajuste' ? 'es-ajuste' : ''}`}>
+                    <span><strong>{accion.nombre}</strong><small>{accion.ayuda}</small></span>
+                    {puedeEditar && !bloqueado && !soloAdministracion ? (
+                      <select
+                        className="input"
+                        aria-label={accion.nombre}
+                        disabled={cambiarAccion.isPending}
+                        value={accion.origen === 'ajuste' ? (accion.permitida ? 'si' : 'no') : 'nivel'}
+                        onChange={(evento) => cambiarAccion.mutate({ accion: accion.clave, valor: evento.target.value as 'nivel' | 'si' | 'no' })}
+                      >
+                        <option value="nivel">Según su nivel ({accion.porNivel ? 'Sí' : 'No'})</option>
+                        <option value="si">Permitir</option>
+                        <option value="no">No permitir</option>
+                      </select>
+                    ) : <span className={`level-pill level-${accion.permitida ? 'edit' : 'none'}`}>{accion.permitida ? 'Sí' : 'No'}</span>}
+                  </div>
+                ))}
               </div>;
             })}
           </div>
@@ -155,7 +187,7 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, onCerrar }: 
         )}
       </section>}
 
-      {!puedeEditar && <p className="page-subtitle">Sólo Administración puede cambiar permisos.</p>}
+      {!puedeEditar && <p className="page-subtitle">No puedes cambiar los accesos de esta persona: los ajusta Administración.</p>}
       <div className="modal-actions"><button type="button" className="btn btn-primary" onClick={onCerrar}>Listo</button></div>
     </div>
   </Modal>;

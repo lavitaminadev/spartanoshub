@@ -13,6 +13,7 @@ export const CLIENT_NAV: ClientPortalEntry[] = [
   { label: 'Inicio', path: '/portal', icon: 'IN' },
   { label: 'CRM', path: '/crm', icon: 'CR', module: 'crm', capability: 'crm' },
   { label: 'Reservas', path: '/portal/reservations', icon: 'RS', module: 'reservations', capability: 'reservations' },
+  { label: 'Encuestas', path: '/portal/surveys', icon: 'EN', module: 'surveys', capability: 'surveys' },
 ];
 
 export const PORTAL_CARDS = [
@@ -31,6 +32,14 @@ export const PORTAL_CARDS = [
     action: 'Abrir reservas',
     module: 'reservations',
     capability: 'reservations',
+  },
+  {
+    title: 'Encuestas',
+    description: 'Mira qué opinan tus clientes y lee cada respuesta.',
+    link: '/portal/surveys',
+    action: 'Ver encuestas',
+    module: 'surveys',
+    capability: 'surveys',
   },
 ];
 
