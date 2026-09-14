@@ -826,6 +826,7 @@ function DesignStudioControls({
           <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnabled === 'true'} onChange={(event) => update({ ocasionesEnabled: event.target.checked ? 'true' : 'false' })} /> Mostrarla en la página, al lado del formulario</label>
           <small>Independiente del aviso al entrar: puedes mostrarla sólo como aviso, sólo en la página, en los dos lugares o en ninguno.</small>
           <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnEmail === 'true'} onChange={(event) => update({ ocasionesEnEmail: event.target.checked ? 'true' : 'false' })} /> Incluirla en el correo de confirmación</label>
+          <label>Fotos<select className="input" value={design.ocasionesFoto || 'completa'} onChange={(event) => update({ ocasionesFoto: event.target.value })}><option value="completa">Completas, sin recortar</option><option value="horizontal">Recortadas iguales, horizontales (4:3)</option><option value="cuadrada">Recortadas iguales, cuadradas</option><option value="vertical">Recortadas iguales, verticales (3:4)</option></select><small>Completas muestran toda la foto; recortadas dejan todas las tarjetas del mismo alto.</small></label>
           <label>Título de la grilla<input className="input" value={design.ocasionesTitulo || ''} placeholder="Ej. Para cada ocasión" onChange={(event) => update({ ocasionesTitulo: event.target.value })} /></label>
           {leerOcasiones(design.ocasiones).map((ocasion, indice) => (
             <div className="ocasion-fila" key={indice}>

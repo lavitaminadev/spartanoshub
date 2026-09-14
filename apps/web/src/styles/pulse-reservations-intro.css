@@ -258,7 +258,7 @@
 .booking-ocasiones h2 { margin:0 0 12px; font-size:18px; }
 .booking-ocasiones-grilla { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
 .booking-ocasiones-grilla article { display:grid; gap:4px; padding:10px; border:1px solid rgba(255,255,255,.5); border-radius:14px; background:rgba(255,255,255,.85); }
-.booking-ocasiones-grilla img { width:100%; height:96px; object-fit:cover; border-radius:10px; }
+.booking-ocasiones-grilla img { display:block; width:100%; height:auto; border-radius:10px; }
 .booking-ocasiones-grilla strong { font-size:14px; }
 .booking-ocasiones-grilla small { color:#5d6b63; font-size:12px; line-height:1.35; }
 /* Un aviso nunca puede crecer más que la ventana: si no cabe, desplaza su contenido. */
@@ -281,7 +281,7 @@
 
 /* Tarjeta de ocasión conectada a una pregunta: se toca para responderla. */
 .booking-ocasiones-grilla .booking-ocasion-elegible { display:grid; gap:4px; padding:10px; border:1px solid rgba(255,255,255,.5); border-radius:14px; background:rgba(255,255,255,.85); color:inherit; font:inherit; text-align:left; cursor:pointer; min-height:44px; }
-.booking-ocasiones-grilla .booking-ocasion-elegible img { width:100%; height:96px; object-fit:cover; border-radius:10px; }
+.booking-ocasiones-grilla .booking-ocasion-elegible img { display:block; width:100%; height:auto; border-radius:10px; }
 .booking-ocasiones-grilla .booking-ocasion-elegible strong { font-size:14px; }
 .booking-ocasiones-grilla .booking-ocasion-elegible small { color:#5d6b63; font-size:12px; line-height:1.35; }
 .booking-ocasiones-grilla .booking-ocasion-elegible:focus-visible { outline:2px solid var(--booking-primary, #087e79); outline-offset:2px; }
@@ -293,3 +293,9 @@
 .booking-medicion-aviso > div { display:flex; gap:8px; margin-left:auto; }
 .booking-medicion-aviso .btn { min-height:40px; }
 @media (max-width:640px) { .booking-medicion-aviso { bottom:8px; font-size:12px; } .booking-medicion-aviso > div { width:100%; } .booking-medicion-aviso .btn { flex:1; } }
+
+/* Fotos de la grilla: completas por defecto; recortadas iguales sólo si el local lo elige. */
+.booking-ocasiones-grilla { align-items:start; }
+.booking-ocasiones-grilla.foto-horizontal img { aspect-ratio:4/3; object-fit:cover; }
+.booking-ocasiones-grilla.foto-cuadrada img { aspect-ratio:1/1; object-fit:cover; }
+.booking-ocasiones-grilla.foto-vertical img { aspect-ratio:3/4; object-fit:cover; }
