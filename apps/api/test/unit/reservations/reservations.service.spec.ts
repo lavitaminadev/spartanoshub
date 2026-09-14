@@ -375,6 +375,12 @@ describe('ReservationsService', () => {
     expect((await service.pauseForm('org-1', 'form-1', '')).designConfig).toEqual({ title: 'Local' });
   });
 
+  it('la aceptación base se toma de la casilla legal: la lista de espera ya no falla por ella', () => {
+    const validar = (service as unknown as { validateSubmission: (f: unknown, a: unknown, g: unknown) => void }).validateSubmission.bind(service);
+    expect(() => validar(publishedForm(), {}, { guestName: 'Ana', reservationConsent: true })).not.toThrow();
+    expect(() => validar(publishedForm(), {}, { guestName: 'Ana', reservationConsent: false })).toThrow('Acepto');
+  });
+
   it('pauseForm rechaza una pausa que ya terminó', async () => {
     forms.findOne.mockResolvedValue({ ...publishedForm(), designConfig: {} });
     await expect(service.pauseForm('org-1', 'form-1', new Date(Date.now() - 60_000).toISOString())).rejects.toThrow('fecha futura');
@@ -408,7 +414,7 @@ describe('ReservationsService', () => {
   describe('protección del formulario público', () => {
     const validPayload = {
       startsAt: new Date(Date.now() + 86_400_000).toISOString(),
-      guestName: 'Ana Pérez', answers: {}, idempotencyKey: 'key-1',
+      guestName: 'Ana Pérez', answers: {}, idempotencyKey: 'key-1', reservationConsent: true,
     } as never;
 
     it('descarta el envío que rellenó el campo trampa', async () => {

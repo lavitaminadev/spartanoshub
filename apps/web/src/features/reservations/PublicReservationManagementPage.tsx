@@ -58,7 +58,7 @@ export function PublicReservationManagementPage() {
   const reschedule = useMutation({
     // Sin hora nueva se conserva la actual: así se puede cambiar solo la cantidad de personas.
     mutationFn: () => api.post(`/public/reservations/manage/${token}/reschedule`, { startsAt: hora || item!.startsAt, partySize: personasElegidas }),
-    onSuccess: () => { setCambiando(false); setDia(''); setHora(''); setPersonas(null); booking.refetch(); },
+    onSuccess: () => { setCambiando(false); setDia(''); setHora(''); setPersonas(null); void booking.refetch(); },
   });
 
   if (booking.isLoading) return <LoadingSpinner text="Cargando tu reserva..." />;
@@ -80,6 +80,7 @@ export function PublicReservationManagementPage() {
     <p>{item.guestName} · {item.partySize} persona{item.partySize === 1 ? '' : 's'}</p>
     <p className="success-datetime">{new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: item.timezone })}</p>
     {item.guestConfirmedAt && <p className="success-text">Asistencia confirmada el {new Date(item.guestConfirmedAt).toLocaleString('es-CL', { timeZone: item.timezone })}.</p>}
+    {item.status === 'pending' && <p className="page-subtitle">Tu reserva está pendiente: el local la confirmará.</p>}
     {item.status === 'cancelled_client' ? <p>Tu reserva fue cancelada y el cupo quedó liberado.</p> : item.canCancel ? <div className="success-actions">
       {confirm.isSuccess || item.guestConfirmedAt ? <p className="success-text">Confirmaste tu asistencia. ¡Te esperamos!</p> : <button className="btn btn-primary" disabled={confirm.isPending} onClick={() => confirm.mutate()}>{confirm.isPending ? 'Confirmando...' : 'Confirmar asistencia'}</button>}
       {item.canReschedule && !cambiando && <button type="button" className="btn btn-outline" onClick={() => setCambiando(true)}>Cambiar hora o personas</button>}
@@ -111,6 +112,7 @@ export function PublicReservationManagementPage() {
       </form>}
       <button className="btn btn-outline" disabled={cancel.isPending} onClick={() => { if (window.confirm('¿Cancelar esta reserva? El cupo quedará disponible.')) cancel.mutate(); }}>{cancel.isPending ? 'Cancelando...' : 'Cancelar reserva'}</button>
     </div> : <p>Esta reserva ya no admite cambios en línea.</p>}
+    {reschedule.isSuccess && !cambiando && <p className="success-text" role="status">Cambio guardado. El local ya fue avisado.</p>}
     {motivoDelError && <p className="error-text">{motivoDelError}</p>}
   </section></main>;
 }

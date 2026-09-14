@@ -305,10 +305,13 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       setRescheduleAt('');
       triggerToast('Reserva actualizada');
     },
+    // Los botones rápidos de la lista no abren el detalle: sin esto, un rechazo no se veía.
+    onError: (error: Error) => triggerToast(error.message || 'No se pudo actualizar la reserva', 'error'),
   });
   const updateFormMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.patch<ReservationForm>(`/reservations/forms/${id}`, { status }),
     onSuccess: (_data, vars) => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); triggerToast(vars.status === 'paused' ? 'Formulario pausado' : 'Formulario reanudado'); },
+    onError: (error: Error) => triggerToast(error.message || 'No se pudo cambiar el estado del formulario', 'error'),
   });
   const [_exportError, _setExportError] = useState('');
   const manualMutation = useMutation({
@@ -366,6 +369,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const marcarGrupo = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.patch(`/reservations/group-requests/${id}`, { status }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['group-requests'] }); triggerToast('Solicitud actualizada'); },
+    onError: (error: Error) => triggerToast(error.message || 'No se pudo actualizar la solicitud', 'error'),
   });
   /*
    * Si quien reserva ya estuvo antes. Se pide solo con la ficha abierta: es una consulta por
@@ -396,6 +400,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const couponToggle = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) => api.patch(`/reservations/coupons/${id}`, { active }),
     onSuccess: (_data, vars) => { qc.invalidateQueries({ queryKey: ['coupons'] }); triggerToast(vars.active ? 'Cupón activado' : 'Cupón desactivado'); },
+    onError: (error: Error) => triggerToast(error.message || 'No se pudo cambiar el cupón', 'error'),
   });
   const { data: couponUsagesData } = useQuery<ReservationPage>({ queryKey: ['coupon-usages', viewingCouponCode, filters.formId, clientFilter], queryFn: () => api.get(`/reservations?${new URLSearchParams({ couponCode: viewingCouponCode, pageSize: '100', ...(filters.formId ? { formId: filters.formId } : {}), ...(clientFilter ? { clientId: clientFilter } : {}) })}`), enabled: Boolean(viewingCouponCode) });
   const couponUsages = Array.isArray(couponUsagesData?.data) ? couponUsagesData.data : [];

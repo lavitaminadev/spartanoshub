@@ -305,7 +305,7 @@ export function AgendaPage() {
         </div>
         {(() => { const datos = respuestasLegibles(detalle.answers, activeForm?.fieldSchema); return datos.length > 0 && <div className="agenda-detalle-datos">{datos.map((item) => <p key={item.clave}><span>{item.etiqueta}</span><strong>{item.valor}</strong></p>)}</div>; })()}
         {detalle.internalNotes && <p className="page-subtitle">Notas internas: {detalle.internalNotes}</p>}
-        {actualizarReserva.error && <p className="error-text">No se pudo actualizar la reserva. Revisa el estado e inténtalo otra vez.</p>}
+        {actualizarReserva.error && <p className="error-text">{actualizarReserva.error instanceof Error && actualizarReserva.error.message ? actualizarReserva.error.message : 'No se pudo actualizar la reserva. Revisa el estado e inténtalo otra vez.'}</p>}
         {['pending', 'confirmed', 'rescheduled'].includes(detalle.status) ? <>
           <div className="modal-actions">
             <button type="button" className="btn btn-primary" disabled={actualizarReserva.isPending} onClick={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'attended' } })}>Asistió</button>

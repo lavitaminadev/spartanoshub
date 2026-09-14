@@ -59,7 +59,7 @@ type ScheduleWindow = { day: number; start: string; end: string };
 type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean };
 type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[]; active?: boolean };
 type FieldConfig = { id: string; type: string; label: string; required?: boolean; internal?: boolean; options?: string[] };
-type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string; partySize?: number };
+type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string; partySize?: number; reservationConsent?: boolean };
 /** Lo que se sabe de alguien por sus reservas anteriores, para quien la recibe. */
 export interface Preferencias {
   zonaHabitual?: string;
@@ -102,7 +102,7 @@ type DesignConfig = {
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
-  autoCloseAttendance?: string; autoCloseAfterMinutes?: string;
+  autoCloseAttendance?: string; autoCloseAfterMinutes?: string; couponEnabled?: string; groupRequestEnabled?: string;
   /** Instante UTC hasta el cual la página pública no ofrece nuevos horarios. */
   bookingPausedUntil?: string;
   /** Por defecto se conserva el límite global histórico de la empresa. */
@@ -288,7 +288,9 @@ export class ReservationsService {
       { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone, partySize: guest.partySize },
     );
     for (const field of visibles) {
-      const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : field.id === 'partySize' ? guest.partySize : answers[field.id];
+      // La aceptación base se marca en el bloque legal; en una reserva manda esa casilla y no la respuesta.
+      const aceptacionBase = field.id === 'consent' && field.type === 'consent' && guest.reservationConsent !== undefined;
+      const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : field.id === 'partySize' ? guest.partySize : aceptacionBase ? guest.reservationConsent : answers[field.id];
       const empty = value == null || value === '' || value === false || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && value.length === 0);
       if (field.required && empty) throw new BadRequestException(`Falta completar ${field.label}`);
       if (empty) continue;
@@ -767,7 +769,15 @@ export class ReservationsService {
     const holdsByDate = new Map<string, ReservationHold[]>();
     const blocksByDate = new Map<string, AvailabilityBlock[]>();
     if (form.dailyCapacity > 0) {
-      for (const item of existing) {
+      // El tope diario es de todo el local: con una zona elegida, `existing` sólo trae esa zona y
+      // ofrecía horarios que al reservar se rechazaban por tope.
+      const delDia = resourceId
+        ? await this.reservations.createQueryBuilder('r')
+          .select(['r.id', 'r.startsAt', 'r.partySize'])
+          .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: ACTIVE_STATUSES })
+          .getMany()
+        : existing;
+      for (const item of delDia) {
         const key = this.localDateKey(item.startsAt, form.timezone);
         dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + item.partySize);
       }
@@ -1170,12 +1180,18 @@ export class ReservationsService {
     const { reservation } = await this.managementReservation(token);
     const form = await this.forms.findOne({ where: { id: reservation.formId } });
     if (!form) throw new NotFoundException('El formulario ya no existe');
-    return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status), canReschedule: ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone, maxPartySize: this.groupThreshold(form), localName: form.name };
+    return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status) && !this.visitaYaEmpezo(reservation), canReschedule: !this.visitaYaEmpezo(reservation) && ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone, maxPartySize: this.groupThreshold(form), localName: form.name };
+  }
+
+  /** Una visita que ya empezó no se cancela, confirma ni cambia desde el enlace: pasa a asistencia o no-show. */
+  private visitaYaEmpezo(reservation: Pick<Reservation, 'startsAt'>): boolean {
+    return new Date(reservation.startsAt).getTime() <= Date.now();
   }
 
   async cancelPublicManagement(token: string) {
     const { record, reservation } = await this.managementReservation(token);
     if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede cancelar');
+    if (this.visitaYaEmpezo(reservation)) throw new ConflictException('La hora de esta reserva ya pasó: para cualquier cambio escribe al local');
     const saved = await this.transaction('cancelar reserva pública', async (manager) => {
       const booking = await manager.getRepository(Reservation).createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id', { id: reservation.id }).getOne();
       if (!booking || !ACTIVE_STATUSES.includes(booking.status)) throw new ConflictException('Esta reserva ya no se puede cancelar');
@@ -1189,12 +1205,14 @@ export class ReservationsService {
     await this.managementTokens.save(record);
     void this.sendCalendarUpdate(reservation, 'CANCELLED');
     void this.avisarCupoLiberado(saved);
+    void this.avisarCambioDelCliente(saved, 'cancelada');
     return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
   }
 
   async confirmPublicManagement(token: string) {
     const { record, reservation } = await this.managementReservation(token);
     if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede confirmar');
+    if (this.visitaYaEmpezo(reservation)) throw new ConflictException('La hora de esta reserva ya pasó');
     if (!reservation.guestConfirmedAt) {
       reservation.guestConfirmedAt = new Date();
       await this.reservations.save(reservation);
@@ -1416,6 +1434,7 @@ export class ReservationsService {
   async reschedulePublicManagement(token: string, requestedStartsAt: string, requestedPartySize?: number) {
     const { record, reservation } = await this.managementReservation(token);
     if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede reagendar');
+    if (this.visitaYaEmpezo(reservation)) throw new ConflictException('La hora de esta reserva ya pasó: para cualquier cambio escribe al local');
     const startsAt = new Date(requestedStartsAt);
     if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
     const saved = await this.transaction('reagendar reserva pública', async (manager) => {
@@ -1436,7 +1455,7 @@ export class ReservationsService {
       booking.partySize = personas;
       booking.startsAt = startsAt;
       booking.endsAt = availability.endsAt;
-      booking.status = 'rescheduled';
+      booking.status = previous === 'pending' ? 'pending' : 'rescheduled';
       await manager.save(booking);
       await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'rescheduled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link', previousStartsAt: previousStartsAt.toISOString(), startsAt: startsAt.toISOString(), previousPartySize, partySize: personas } }));
       return booking;
@@ -1447,7 +1466,33 @@ export class ReservationsService {
     record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
     await this.managementTokens.save(record);
     void this.sendCalendarUpdate(saved, 'PUBLISH');
+    void this.avisarCambioDelCliente(saved, 'cambiada', reservation.startsAt);
     return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
+  }
+
+  /**
+   * Avisa al equipo del local que el cliente canceló o cambió su reserva desde el enlace.
+   *
+   * Antes el cambio sólo quedaba en el historial: el turno preparaba una mesa que ya no venía o
+   * no veía la nueva hora. Nunca revierte el cambio si el aviso falla.
+   */
+  private async avisarCambioDelCliente(booking: Reservation, cambio: 'cancelada' | 'cambiada', horaAnterior?: Date): Promise<void> {
+    try {
+      const form = await this.forms.findOne({ where: { id: booking.formId } });
+      if (!form) return;
+      const fecha = (valor: Date) => new Date(valor).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
+      const titulo = cambio === 'cancelada' ? 'Reserva cancelada por el cliente' : 'Reserva cambiada por el cliente';
+      const detalle = cambio === 'cancelada'
+        ? `${booking.guestName} canceló su reserva ${booking.referenceCode} del ${fecha(booking.startsAt)} (${booking.partySize} personas) en ${form.name}.`
+        : `${booking.guestName} cambió su reserva ${booking.referenceCode} en ${form.name}: ahora ${fecha(booking.startsAt)}, ${booking.partySize} personas${horaAnterior ? ` (antes ${fecha(horaAnterior)})` : ''}.`;
+      const equipo = await this.equipoDelLocal(form);
+      if (equipo.userIds.length) await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle);
+      const { subject, html } = componerCorreo(titulo, '{{detalle}}', { detalle });
+      void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
+        .catch((err) => this.logger.warn(`Aviso de cambio de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
+    } catch (err) {
+      this.logger.warn(`No se pudo avisar el cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   /** Conserva un cupo por diez minutos mientras la persona termina el formulario. */
@@ -1482,6 +1527,9 @@ export class ReservationsService {
     if (!dto.guestEmail?.trim() && !dto.guestPhone?.trim()) throw new BadRequestException('Indica un correo o teléfono para responderte');
     this.validateEmailDomain(dto.guestEmail);
     const form = await this.publishedForm(slug);
+    // La autorización de red sólo existe si el local la pide: un envío que la marque igual no la guarda.
+    if ((form.designConfig as DesignConfig).networkConsentEnabled !== 'true') dto.networkConsent = false;
+    if ((form.designConfig as DesignConfig).groupRequestEnabled === 'false') throw new BadRequestException('Este local no está recibiendo solicitudes de grupo');
     const consent = this.consentTexts(form);
     const existing = await this.groupRequests.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
     if (existing) return { id: existing.id, status: existing.status, kind: 'group_request' };
@@ -1508,6 +1556,8 @@ export class ReservationsService {
     if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
     return this.transaction('crear espera pública', async (manager) => {
       const form = await this.publishedForm(slug, manager);
+      // La autorización de red sólo existe si el local la pide: un envío que la marque igual no la guarda.
+      if ((form.designConfig as DesignConfig).networkConsentEnabled !== 'true') dto.networkConsent = false;
       this.assertPublicBookingOpen(form);
       const existing = await manager.getRepository(Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
       if (existing) return existing;
@@ -1613,12 +1663,16 @@ export class ReservationsService {
   async createPublic(slug: string, dto: PublicReservationDto, ipAddress?: string, userAgent?: string, eventSourceUrl?: string) {
     if (dto.website) throw new BadRequestException('Solicitud inválida');
     if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
+    // Igual que la lista de espera y la solicitud de grupo: sin aceptar el tratamiento no hay reserva.
+    if (!dto.reservationConsent) throw new BadRequestException('Debes aceptar las condiciones para gestionar la reserva');
     this.validateEmailDomain(dto.guestEmail);
 
     const result = await this.transaction('crear reserva publica', async (manager) => {
       // El formulario se lee sin bloquear: lo que hay que serializar no es el formulario sino el
       // día del cliente, y para saber cuál es hace falta primero su zona horaria.
       const form = await this.publishedForm(slug, manager);
+      // La autorización de red sólo existe si el local la pide: un envío que la marque igual no la guarda.
+      if ((form.designConfig as DesignConfig).networkConsentEnabled !== 'true') dto.networkConsent = false;
       const consent = this.consentTexts(form);
       const existingIdempotent = await manager.getRepository(Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
       if (existingIdempotent) return { booking: existingIdempotent, form, created: false };
@@ -2148,6 +2202,11 @@ export class ReservationsService {
       if (dto.status && dto.status !== item.status) {
         if (!STATUS_TRANSITIONS[item.status]?.includes(dto.status)) throw new ConflictException(`No se puede pasar de ${item.status} a ${dto.status}`);
         if (dto.status === 'cancelled_business' && !dto.cancellationReason?.trim()) throw new BadRequestException('Indica el motivo para cancelar una reserva desde el local');
+        // Asistencia y no-show describen una visita que ocurrió: marcarlas por error en una futura
+        // enviaba a Meta una conversión de alguien que todavía no llega. Se admite llegar hasta una hora antes.
+        const inicio = new Date(item.startsAt).getTime();
+        if (dto.status === 'attended' && inicio > Date.now() + 60 * 60000) throw new BadRequestException('Todavía no es la hora de esta reserva: la asistencia se marca desde una hora antes');
+        if (dto.status === 'no_show' && inicio > Date.now()) throw new BadRequestException('No se puede marcar no-show antes de la hora de la reserva');
         if (item.status === 'waitlist' && dto.status === 'confirmed') {
           const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
           await this.availability(manager, form, item.startsAt, item.partySize, item.serviceId, item.resourceId, item.id);
@@ -2483,12 +2542,18 @@ export class ReservationsService {
     const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
     const toLine = (row: unknown[]) => row.map(escape).join(',');
 
-    yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => RESPUESTAS_DEL_SISTEMA[key] || key)]);
+    // La cabecera usa el enunciado de la pregunta, como la exportación por local: el identificador
+    // interno de un campo agregado en el editor (field_3f2a…) no le dice nada a quien abre la planilla.
+    const formularios = ((await this.forms.find({ where: { organizationId }, select: { id: true, fieldSchema: true } })) ?? []) as Array<{ fieldSchema?: FieldConfig[] }>;
+    const etiquetas = new Map<string, string>();
+    for (const formulario of formularios) for (const campo of formulario.fieldSchema ?? []) if (campo?.id && campo.label && !etiquetas.has(campo.id)) etiquetas.set(campo.id, campo.label);
+    const legible = (valor: unknown) => Array.isArray(valor) ? valor.join(', ') : typeof valor === 'boolean' ? (valor ? 'Sí' : 'No') : valor;
+    yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => etiquetas.get(key) || RESPUESTAS_DEL_SISTEMA[key] || key)]);
 
     for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
       const lines = (items as Reservation[]).map((item) => {
         const answers = (item.answers || {}) as Record<string, unknown>;
-        return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => answers[key])]);
+        return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => legible(answers[key]))]);
       });
       if (lines.length > 0) yield `\r\n${lines.join('\r\n')}`;
     }
@@ -2629,6 +2694,7 @@ export class ReservationsService {
 
   async validatePublicCoupon(slug: string, code: string, startsAt?: Date) {
     const form = await this.publishedForm(slug);
+    if ((form.designConfig as DesignConfig | undefined)?.couponEnabled === 'false') throw new BadRequestException('Este local no está aceptando cupones');
     const coupon = await this.coupons.findOne({ where: { organizationId: form.organizationId, code: code.trim().toUpperCase(), active: true } });
     if (!coupon) throw new BadRequestException('Cupón no válido');
     if (coupon.clientId && coupon.clientId !== form.clientId) throw new BadRequestException('Cupón no válido');
@@ -2656,6 +2722,8 @@ export class ReservationsService {
    */
   private async validateCoupon(code: string | undefined, form: ReservationForm, manager: EntityManager, startsAt: Date): Promise<ReservationCoupon | undefined> {
     if (!code) return undefined;
+    // Con «Aceptar cupones» apagado en el local, un código enviado igual no descuenta nada.
+    if ((form.designConfig as DesignConfig | undefined)?.couponEnabled === 'false') throw new BadRequestException('Este local no está aceptando cupones');
     const coupon = await manager.getRepository(ReservationCoupon).findOne({ where: { organizationId: form.organizationId, code: code.trim().toUpperCase(), active: true }, lock: { mode: 'pessimistic_write' } });
     if (!coupon) throw new BadRequestException('Cupón no válido');
     if (coupon.clientId && coupon.clientId !== form.clientId) throw new BadRequestException('Cupón no válido');

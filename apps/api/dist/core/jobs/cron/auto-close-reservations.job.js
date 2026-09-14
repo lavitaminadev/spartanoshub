@@ -21,7 +21,7 @@ const reservation_entity_1 = require("../../../modules/reservations/domain/reser
 const reservation_form_entity_1 = require("../../../modules/reservations/domain/reservation-form.entity");
 const reservation_event_entity_1 = require("../../../modules/reservations/domain/reservation-event.entity");
 const reservation_hold_entity_1 = require("../../../modules/reservations/domain/reservation-hold.entity");
-const ACTIVE = new Set(['pending', 'confirmed', 'rescheduled']);
+const ACTIVE = ['confirmed', 'rescheduled'];
 let AutoCloseReservationsJob = AutoCloseReservationsJob_1 = class AutoCloseReservationsJob {
     constructor(reservations, forms, events, holds) {
         this.reservations = reservations;
@@ -31,15 +31,13 @@ let AutoCloseReservationsJob = AutoCloseReservationsJob_1 = class AutoCloseReser
         this.logger = new common_1.Logger(AutoCloseReservationsJob_1.name);
     }
     async handle() {
-        const candidates = await this.reservations.find({ where: { endsAt: (0, typeorm_2.LessThan)(new Date()) }, take: 500, order: { endsAt: 'ASC' } });
+        const candidates = await this.reservations.find({ where: { endsAt: (0, typeorm_2.LessThan)(new Date()), status: (0, typeorm_2.In)(ACTIVE) }, take: 500, order: { endsAt: 'ASC' } });
         let closed = 0;
         for (const item of candidates) {
-            if (!ACTIVE.has(item.status))
-                continue;
             try {
                 const form = await this.forms.findOne({ where: { id: item.formId } });
                 const config = (form?.designConfig || {});
-                if (config.autoCloseAttendance === false)
+                if (config.autoCloseAttendance === false || config.autoCloseAttendance === 'false')
                     continue;
                 const configured = Number(config.autoCloseAfterMinutes);
                 const afterMinutes = Number.isInteger(configured) && configured >= 15 && configured <= 24 * 60 ? configured : 60;

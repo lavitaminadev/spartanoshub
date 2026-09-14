@@ -248,7 +248,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.validateAnswers(form, answers);
         const visibles = (0, shared_1.camposVisibles)(form.fieldSchema.map((field) => ({ ...field, mostrarSi: field.mostrarSi })), { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone, partySize: guest.partySize });
         for (const field of visibles) {
-            const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : field.id === 'partySize' ? guest.partySize : answers[field.id];
+            const aceptacionBase = field.id === 'consent' && field.type === 'consent' && guest.reservationConsent !== undefined;
+            const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : field.id === 'partySize' ? guest.partySize : aceptacionBase ? guest.reservationConsent : answers[field.id];
             const empty = value == null || value === '' || value === false || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && value.length === 0);
             if (field.required && empty)
                 throw new common_1.BadRequestException(`Falta completar ${field.label}`);
@@ -649,7 +650,13 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const holdsByDate = new Map();
         const blocksByDate = new Map();
         if (form.dailyCapacity > 0) {
-            for (const item of existing) {
+            const delDia = resourceId
+                ? await this.reservations.createQueryBuilder('r')
+                    .select(['r.id', 'r.startsAt', 'r.partySize'])
+                    .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: ACTIVE_STATUSES })
+                    .getMany()
+                : existing;
+            for (const item of delDia) {
                 const key = this.localDateKey(item.startsAt, form.timezone);
                 dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + item.partySize);
             }
@@ -972,12 +979,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const form = await this.forms.findOne({ where: { id: reservation.formId } });
         if (!form)
             throw new common_1.NotFoundException('El formulario ya no existe');
-        return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status), canReschedule: ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone, maxPartySize: this.groupThreshold(form), localName: form.name };
+        return { referenceCode: reservation.referenceCode, guestName: reservation.guestName, startsAt: reservation.startsAt, endsAt: reservation.endsAt, partySize: reservation.partySize, serviceId: reservation.serviceId, resourceId: reservation.resourceId, status: reservation.status, guestConfirmedAt: reservation.guestConfirmedAt, canCancel: ACTIVE_STATUSES.includes(reservation.status) && !this.visitaYaEmpezo(reservation), canReschedule: !this.visitaYaEmpezo(reservation) && ACTIVE_STATUSES.includes(reservation.status), publicSlug: form.publicSlug, timezone: form.timezone, maxPartySize: this.groupThreshold(form), localName: form.name };
+    }
+    visitaYaEmpezo(reservation) {
+        return new Date(reservation.startsAt).getTime() <= Date.now();
     }
     async cancelPublicManagement(token) {
         const { record, reservation } = await this.managementReservation(token);
         if (!ACTIVE_STATUSES.includes(reservation.status))
             throw new common_1.ConflictException('Esta reserva ya no se puede cancelar');
+        if (this.visitaYaEmpezo(reservation))
+            throw new common_1.ConflictException('La hora de esta reserva ya pasó: para cualquier cambio escribe al local');
         const saved = await this.transaction('cancelar reserva pública', async (manager) => {
             const booking = await manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id', { id: reservation.id }).getOne();
             if (!booking || !ACTIVE_STATUSES.includes(booking.status))
@@ -993,12 +1005,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         await this.managementTokens.save(record);
         void this.sendCalendarUpdate(reservation, 'CANCELLED');
         void this.avisarCupoLiberado(saved);
+        void this.avisarCambioDelCliente(saved, 'cancelada');
         return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
     }
     async confirmPublicManagement(token) {
         const { record, reservation } = await this.managementReservation(token);
         if (!ACTIVE_STATUSES.includes(reservation.status))
             throw new common_1.ConflictException('Esta reserva ya no se puede confirmar');
+        if (this.visitaYaEmpezo(reservation))
+            throw new common_1.ConflictException('La hora de esta reserva ya pasó');
         if (!reservation.guestConfirmedAt) {
             reservation.guestConfirmedAt = new Date();
             await this.reservations.save(reservation);
@@ -1172,6 +1187,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const { record, reservation } = await this.managementReservation(token);
         if (!ACTIVE_STATUSES.includes(reservation.status))
             throw new common_1.ConflictException('Esta reserva ya no se puede reagendar');
+        if (this.visitaYaEmpezo(reservation))
+            throw new common_1.ConflictException('La hora de esta reserva ya pasó: para cualquier cambio escribe al local');
         const startsAt = new Date(requestedStartsAt);
         if (Number.isNaN(startsAt.getTime()))
             throw new common_1.BadRequestException('Fecha inválida');
@@ -1194,7 +1211,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             booking.partySize = personas;
             booking.startsAt = startsAt;
             booking.endsAt = availability.endsAt;
-            booking.status = 'rescheduled';
+            booking.status = previous === 'pending' ? 'pending' : 'rescheduled';
             await manager.save(booking);
             await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId: booking.organizationId, clientId: booking.clientId, reservationId: booking.id, type: 'rescheduled', fromStatus: previous, toStatus: booking.status, actorType: 'guest', metadata: { via: 'management_link', previousStartsAt: previousStartsAt.toISOString(), startsAt: startsAt.toISOString(), previousPartySize, partySize: personas } }));
             return booking;
@@ -1203,7 +1220,29 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
         await this.managementTokens.save(record);
         void this.sendCalendarUpdate(saved, 'PUBLISH');
+        void this.avisarCambioDelCliente(saved, 'cambiada', reservation.startsAt);
         return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
+    }
+    async avisarCambioDelCliente(booking, cambio, horaAnterior) {
+        try {
+            const form = await this.forms.findOne({ where: { id: booking.formId } });
+            if (!form)
+                return;
+            const fecha = (valor) => new Date(valor).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
+            const titulo = cambio === 'cancelada' ? 'Reserva cancelada por el cliente' : 'Reserva cambiada por el cliente';
+            const detalle = cambio === 'cancelada'
+                ? `${booking.guestName} canceló su reserva ${booking.referenceCode} del ${fecha(booking.startsAt)} (${booking.partySize} personas) en ${form.name}.`
+                : `${booking.guestName} cambió su reserva ${booking.referenceCode} en ${form.name}: ahora ${fecha(booking.startsAt)}, ${booking.partySize} personas${horaAnterior ? ` (antes ${fecha(horaAnterior)})` : ''}.`;
+            const equipo = await this.equipoDelLocal(form);
+            if (equipo.userIds.length)
+                await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle);
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(titulo, '{{detalle}}', { detalle });
+            void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
+                .catch((err) => this.logger.warn(`Aviso de cambio de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
+        }
+        catch (err) {
+            this.logger.warn(`No se pudo avisar el cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
+        }
     }
     async holdPublic(slug, dto) {
         if (dto.website)
@@ -1246,6 +1285,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Indica un correo o teléfono para responderte');
         this.validateEmailDomain(dto.guestEmail);
         const form = await this.publishedForm(slug);
+        if (form.designConfig.networkConsentEnabled !== 'true')
+            dto.networkConsent = false;
+        if (form.designConfig.groupRequestEnabled === 'false')
+            throw new common_1.BadRequestException('Este local no está recibiendo solicitudes de grupo');
         const consent = this.consentTexts(form);
         const existing = await this.groupRequests.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
         if (existing)
@@ -1274,6 +1317,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Fecha inválida');
         return this.transaction('crear espera pública', async (manager) => {
             const form = await this.publishedForm(slug, manager);
+            if (form.designConfig.networkConsentEnabled !== 'true')
+                dto.networkConsent = false;
             this.assertPublicBookingOpen(form);
             const existing = await manager.getRepository(reservation_entity_1.Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
             if (existing)
@@ -1371,9 +1416,13 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('Solicitud inválida');
         if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800)
             throw new common_1.BadRequestException('Completa el formulario antes de enviarlo');
+        if (!dto.reservationConsent)
+            throw new common_1.BadRequestException('Debes aceptar las condiciones para gestionar la reserva');
         this.validateEmailDomain(dto.guestEmail);
         const result = await this.transaction('crear reserva publica', async (manager) => {
             const form = await this.publishedForm(slug, manager);
+            if (form.designConfig.networkConsentEnabled !== 'true')
+                dto.networkConsent = false;
             const consent = this.consentTexts(form);
             const existingIdempotent = await manager.getRepository(reservation_entity_1.Reservation).findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
             if (existingIdempotent)
@@ -1765,6 +1814,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     throw new common_1.ConflictException(`No se puede pasar de ${item.status} a ${dto.status}`);
                 if (dto.status === 'cancelled_business' && !dto.cancellationReason?.trim())
                     throw new common_1.BadRequestException('Indica el motivo para cancelar una reserva desde el local');
+                const inicio = new Date(item.startsAt).getTime();
+                if (dto.status === 'attended' && inicio > Date.now() + 60 * 60000)
+                    throw new common_1.BadRequestException('Todavía no es la hora de esta reserva: la asistencia se marca desde una hora antes');
+                if (dto.status === 'no_show' && inicio > Date.now())
+                    throw new common_1.BadRequestException('No se puede marcar no-show antes de la hora de la reserva');
                 if (item.status === 'waitlist' && dto.status === 'confirmed') {
                     const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
                     await this.availability(manager, form, item.startsAt, item.partySize, item.serviceId, item.resourceId, item.id);
@@ -2055,11 +2109,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const keys = [...answerKeys].sort();
         const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
         const toLine = (row) => row.map(escape).join(',');
-        yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => RESPUESTAS_DEL_SISTEMA[key] || key)]);
+        const formularios = ((await this.forms.find({ where: { organizationId }, select: { id: true, fieldSchema: true } })) ?? []);
+        const etiquetas = new Map();
+        for (const formulario of formularios)
+            for (const campo of formulario.fieldSchema ?? [])
+                if (campo?.id && campo.label && !etiquetas.has(campo.id))
+                    etiquetas.set(campo.id, campo.label);
+        const legible = (valor) => Array.isArray(valor) ? valor.join(', ') : typeof valor === 'boolean' ? (valor ? 'Sí' : 'No') : valor;
+        yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => etiquetas.get(key) || RESPUESTAS_DEL_SISTEMA[key] || key)]);
         for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
             const lines = items.map((item) => {
                 const answers = (item.answers || {});
-                return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => answers[key])]);
+                return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => legible(answers[key]))]);
             });
             if (lines.length > 0)
                 yield `\r\n${lines.join('\r\n')}`;
@@ -2192,6 +2253,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     }
     async validatePublicCoupon(slug, code, startsAt) {
         const form = await this.publishedForm(slug);
+        if (form.designConfig?.couponEnabled === 'false')
+            throw new common_1.BadRequestException('Este local no está aceptando cupones');
         const coupon = await this.coupons.findOne({ where: { organizationId: form.organizationId, code: code.trim().toUpperCase(), active: true } });
         if (!coupon)
             throw new common_1.BadRequestException('Cupón no válido');
@@ -2215,6 +2278,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async validateCoupon(code, form, manager, startsAt) {
         if (!code)
             return undefined;
+        if (form.designConfig?.couponEnabled === 'false')
+            throw new common_1.BadRequestException('Este local no está aceptando cupones');
         const coupon = await manager.getRepository(reservation_coupon_entity_1.ReservationCoupon).findOne({ where: { organizationId: form.organizationId, code: code.trim().toUpperCase(), active: true }, lock: { mode: 'pessimistic_write' } });
         if (!coupon)
             throw new common_1.BadRequestException('Cupón no válido');

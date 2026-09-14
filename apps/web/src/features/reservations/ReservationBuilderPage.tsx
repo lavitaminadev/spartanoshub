@@ -355,7 +355,7 @@ export function ReservationBuilderPage() {
     catch { triggerToast('Selecciona una hora válida para la zona de la sucursal.', 'error'); }
   };
 
-  const deleteBlock = useMutation({ mutationFn: (blockId: string) => api.delete(`/reservations/blocks/${blockId}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ['reservation-blocks', id] }); triggerToast('Bloqueo eliminado'); } });
+  const deleteBlock = useMutation({ mutationFn: (blockId: string) => api.delete(`/reservations/blocks/${blockId}`), onError: (error: Error) => triggerToast(error.message || 'No se pudo quitar el bloqueo', 'error'), onSuccess: () => { qc.invalidateQueries({ queryKey: ['reservation-blocks', id] }); triggerToast('Bloqueo eliminado'); } });
 
   if (isLoading || !draft) return <LoadingSpinner text="Abriendo constructor del flujo..." />;
   const fields = draft.fieldSchema || [];

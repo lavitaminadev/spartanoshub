@@ -317,10 +317,13 @@ export function PublicReservationPage() {
     }).catch(() => undefined);
   };
 
-  const submit = useMutation({
-    mutationFn: () => {
-      const meta = readMetaMatchData();
-      /*
+  /*
+   * Respuestas tal como se envían: sin las preguntas que quedaron ocultas y con la aceptación
+   * base tomada del bloque legal. La usan la reserva, la solicitud de grupo y la lista de espera;
+   * la espera mandaba las respuestas crudas y el servidor la rechazaba por la aceptación.
+   */
+  const respuestasParaEnviar = () => {
+    /*
      * Una respuesta que dejó de verse no se envía.
      *
      * Cambiar una respuesta puede esconder la pregunta siguiente —«¿cuántos niños?» tras decir
@@ -332,7 +335,12 @@ export function PublicReservationPage() {
       { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone, partySize: guest.partySize },
     ).map((field) => field.id));
     const respuestasVisibles = Object.fromEntries(Object.entries(answers).filter(([clave]) => visiblesAlEnviar.has(clave) || !(form?.fieldSchema || []).some((field) => field.id === clave)));
-    const reservationAnswers = isSurvey ? respuestasVisibles : { ...respuestasVisibles, ...Object.fromEntries((form?.fieldSchema || []).filter((field) => field.type === 'consent' && field.id === 'consent').map((field) => [field.id, reservationConsent])) };
+    return isSurvey ? respuestasVisibles : { ...respuestasVisibles, ...Object.fromEntries((form?.fieldSchema || []).filter((field) => field.type === 'consent' && field.id === 'consent').map((field) => [field.id, reservationConsent])) };
+  };
+  const submit = useMutation({
+    mutationFn: () => {
+      const meta = readMetaMatchData();
+      const reservationAnswers = respuestasParaEnviar();
       const baseBody = {
         ...guest, answers: reservationAnswers, idempotencyKey, website, measurementConsent,
         eventSourceUrl: window.location.href,
@@ -378,7 +386,7 @@ export function PublicReservationPage() {
   const waitlist = useMutation({
     mutationFn: () => api.post<Created>(`/public/reservations/${slug}/waitlist`, {
       startsAt: selected, serviceId: serviceId || undefined, resourceId: resourceId || undefined,
-      ...guest, answers, idempotencyKey, reservationConsent, marketingConsent, measurementConsent,
+      ...guest, answers: respuestasParaEnviar(), idempotencyKey, reservationConsent, marketingConsent, measurementConsent, networkConsent,
       consentVersion: 'reservation-v2', marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v2'),
       utmSource, utmMedium, utmCampaign, utmContent,
     }),
@@ -929,7 +937,8 @@ export function PublicReservationPage() {
               : <Fragment key={field.id}>{renderField(field, answers[field.id], (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
             {!isSurvey && (guest.partySize > groupThreshold || requestMode) && <div className={`group-event-fields ${errors.groupEvent ? 'has-error' : ''}`}><strong>Sobre tu grupo</strong><p>{requestMode ? 'Esta solicitud no toma cupo. El local confirmará disponibilidad contigo.' : 'Esto ayuda al local a preparar tu solicitud; no es una confirmación automática.'}</p>{!preguntaDeOcasiones && <label>¿Qué ocasión es?<select required value={groupEventType} onChange={(event) => setGroupEventType(event.target.value)}><option value="">Selecciona una opción</option><option value="cumpleanos">Cumpleaños</option><option value="aniversario">Aniversario / celebración</option><option value="empresa">Comida o evento de empresa</option><option value="otro">Otro grupo</option></select></label>}{requestMode && <div className="form-row"><label>Fecha preferida <small>(opcional)</small><input type="date" min={hoyEnElLocal} value={requestPreference.date} onChange={(event) => setRequestPreference({ ...requestPreference, date: event.target.value })} /></label><label>Horario preferido <small>(opcional)</small><input value={requestPreference.time} onChange={(event) => setRequestPreference({ ...requestPreference, time: event.target.value })} maxLength={80} placeholder="Ej. viernes desde 20:00" /></label></div>}<label>Cuéntanos lo importante <small>(opcional)</small><textarea value={groupEventNotes} onChange={(event) => setGroupEventNotes(event.target.value)} maxLength={1000} placeholder="Ej. silla de bebé, torta, horario flexible…" /></label>{errors.groupEvent && <span className="field-error" role="alert">{errors.groupEvent}</span>}</div>}
             {!isSurvey && (form.designConfig?.askChildren === 'true' || form.designConfig?.askAccessibility === 'true' || form.designConfig?.askAllergies === 'true') && <div className="group-event-fields"><strong>Necesidades de la visita</strong><p>Opcional. El local hará lo posible por considerarlas, pero no reemplaza una coordinación directa.</p>{form.designConfig?.askChildren === 'true' && <label>¿Cuántos niños vienen?<select value={visitNeeds.childrenCount} onChange={(event) => setVisitNeeds({ ...visitNeeds, childrenCount: Number(event.target.value) })}><option value={0}>No vienen niños / prefiero no indicar</option>{Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} niño{count > 1 ? 's' : ''}</option>)}</select></label>}{form.designConfig?.askAccessibility === 'true' && <label>Accesibilidad o comodidad <small>(opcional)</small><input value={visitNeeds.accessibilityNeed} onChange={(event) => setVisitNeeds({ ...visitNeeds, accessibilityNeed: event.target.value })} maxLength={500} placeholder="Ej. acceso sin escalón, espacio para coche" /></label>}{form.designConfig?.askAllergies === 'true' && <label>Restricciones alimentarias <small>(opcional)</small><textarea value={visitNeeds.dietaryNotes} onChange={(event) => setVisitNeeds({ ...visitNeeds, dietaryNotes: event.target.value })} maxLength={1000} placeholder="Ej. vegetariano, sin gluten. Confirma siempre directamente con el local." /></label>}</div>}
-            {form.designConfig?.couponEnabled && <div className="public-field"><label>Cupón de descuento<div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código opcional" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
+            {/* Encendido salvo que el local lo apague: así lo muestra el editor. Antes "false" (texto) contaba como sí. */}
+            {form.designConfig?.couponEnabled !== 'false' && <div className="public-field"><label>Cupón de descuento<div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código opcional" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
             {!isSurvey && <div className={`public-consent ${errors.reservationConsent ? 'has-error' : ''}`}><label><input type="checkbox" required checked={reservationConsent} onChange={(event) => setReservationConsent(event.target.checked)} aria-invalid={Boolean(errors.reservationConsent)} /><span><strong>Gestionar mi reserva <span className="required-star">*</span></strong><small>{reservationConsentText}</small></span></label><small className="consent-legal">{legalController}{design.legalCompanyId ? ` · ${design.legalCompanyId}` : ''} · {design.privacyUrl ? <a href={safeUrl(String(design.privacyUrl))} target="_blank" rel="noreferrer">Ver privacidad</a> : 'Información de privacidad disponible con el local.'}</small>{errors.reservationConsent && <span className="field-error" role="alert">{errors.reservationConsent}</span>}</div>}
             {!isSurvey && <div className="public-consent public-marketing-consent"><label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Recibir novedades <small>(opcional)</small></strong><small>{marketingConsentText}</small></span></label></div>}
             {/* Compartir con otros locales es una finalidad distinta y por eso pregunta aparte. */}
@@ -957,7 +966,7 @@ export function PublicReservationPage() {
           </div>
           <button className="public-submit" type="submit" disabled={submit.isPending}>{submit.isPending ? 'Enviando...' : requestMode ? 'Enviar solicitud' : 'Confirmar reserva'}</button>
           {/* La lista de espera guarda un cupo concreto: no tiene sentido para una solicitud sin horario. */}
-          {submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : requestMode ? 'Error al enviar la solicitud' : 'Error al crear la reserva'}</p>{!requestMode && /cupo|tope|ocup/i.test(submit.error instanceof Error ? submit.error.message : '') && <button type="button" className="btn btn-primary btn-sm" disabled={waitlist.isPending} onClick={() => waitlist.mutate()}>{waitlist.isPending ? 'Guardando...' : 'Unirme a la lista de espera'}</button>}<button type="button" className="btn btn-outline btn-sm" onClick={retrySubmit}>Intentar de nuevo</button>{waitlist.error && <p>No se pudo registrar la espera. Revisa los datos e inténtalo nuevamente.</p>}</div>}
+          {submit.isError && <div className="alert alert-error"><p>{submit.error instanceof Error ? submit.error.message : requestMode ? 'Error al enviar la solicitud' : 'Error al crear la reserva'}</p>{!requestMode && /cupo|tope|ocup/i.test(submit.error instanceof Error ? submit.error.message : '') && <button type="button" className="btn btn-primary btn-sm" disabled={waitlist.isPending} onClick={() => waitlist.mutate()}>{waitlist.isPending ? 'Guardando...' : 'Unirme a la lista de espera'}</button>}<button type="button" className="btn btn-outline btn-sm" onClick={retrySubmit}>Intentar de nuevo</button>{waitlist.error && <p>{waitlist.error instanceof Error && waitlist.error.message ? waitlist.error.message : 'No se pudo registrar la espera. Revisa los datos e inténtalo nuevamente.'}</p>}</div>}
           <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => setStep(2)}>← Volver</button>
         </div>}
       </form>
