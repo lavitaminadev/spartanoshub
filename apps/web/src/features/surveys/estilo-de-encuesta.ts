@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { Survey } from '@espartanos/shared';
+import { optimizedUrl } from '../../shared/imagen-optimizada';
 
 type Diseno = NonNullable<Survey['designConfig']>;
 
@@ -13,7 +14,7 @@ export function fondoDeEncuesta(design: Diseno): string {
   }
   if (design.backgroundMode === 'image' && design.backgroundImage) {
     const velo = Number(design.backgroundOpacity ?? 88) / 100;
-    return `linear-gradient(rgba(255,255,255,${velo}), rgba(255,255,255,${velo})), url("${design.backgroundImage}") center/cover`;
+    return `linear-gradient(rgba(255,255,255,${velo}), rgba(255,255,255,${velo})), url("${optimizedUrl(design.backgroundImage, 1920)}") center/cover`;
   }
   return design.backgroundColor || '#f6f4f5';
 }

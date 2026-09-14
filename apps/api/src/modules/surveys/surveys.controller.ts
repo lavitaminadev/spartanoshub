@@ -1,6 +1,8 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Req, UseGuards,
+  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, Req, UseGuards,
 } from '@nestjs/common';
+import { AuditService } from '../../core/audit/audit.service';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -12,7 +14,7 @@ import { UserRole } from '../organizations/user-role.enum';
 import { problemasDeRespuesta } from '@espartanos/shared';
 import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
-import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto } from './dto/survey.dto';
+import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurveyResponseDto } from './dto/survey.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { EmailService } from '../../core/notifications/email.service';
@@ -50,6 +52,7 @@ export class SurveysController {
     private readonly dataSource: DataSource,
     private readonly accountAccess: AccountAccessService,
     private readonly correo: EmailService,
+    private readonly audit: AuditService,
   ) {}
 
   /** Traduce la fila a la forma que el frontend ya consume, con el conteo desnormalizado. */
@@ -116,6 +119,34 @@ export class SurveysController {
         : [{ organizationId: req.organizationId, clientId: IsNull() }, ...(permitidas.length ? [{ organizationId: req.organizationId, clientId: In(permitidas) }] : [])];
     const rows = await this.surveys.find({ where, order: { createdAt: 'DESC' } });
     return rows.map((row) => this.toContract(row));
+  }
+
+  /**
+   * Datos legales de la empresa (compartidos con Reservas, que tiene su propia ruta).
+   *
+   * Va antes de `:id` para que la ruta no se lea como el id de una encuesta.
+   */
+  @Get('company-legal')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async companyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto) {
+    return leerDatosLegales(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
+  }
+
+  @Put('company-legal')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), dto, req.user.id);
+  }
+
+  private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {
+    if (req.user.role === UserRole.CLIENT) {
+      const propia = empresaDelPortal(req.user.clientId);
+      await exigirEncuestasHabilitadas(this.dataSource, propia);
+      return propia;
+    }
+    if (!pedida) throw new BadRequestException('Indica la empresa');
+    await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
+    return pedida;
   }
 
   @Get(':id')
@@ -222,6 +253,19 @@ export class SurveysController {
      * existen cuando la respuesta llegó por la invitación de una reserva: las de enlace o QR
      * siguen anónimas. Los ve sólo quien ya puede ver los resultados.
      */
+    // Nombres de quienes atendieron, en una sola consulta.
+    const idsQueAtendieron = [...new Set(rows.map((row) => row.attendedBy).filter((valor): valor is string => Boolean(valor)))];
+    const nombres = new Map<string, string>();
+    if (idsQueAtendieron.length) {
+      const filas = await this.dataSource.query(`SELECT id, name FROM users WHERE id IN (${idsQueAtendieron.map(() => '?').join(',')})`, idsQueAtendieron).catch(() => []) as Array<{ id: string; name: string }>;
+      for (const fila of filas) nombres.set(fila.id, fila.name);
+    }
+    // Visitas por canal y día del último año, para comparar con las respuestas en cualquier período.
+    const visitas = await this.dataSource.query(
+      'SELECT COALESCE(NULLIF(origen, \'\'), \'link\') origen, DATE(created_at) dia, COUNT(*) total FROM survey_visits WHERE survey_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 365 DAY) GROUP BY origen, dia',
+      [survey.id],
+    ).catch(() => []) as Array<{ origen: string; dia: string | Date; total: number }>;
+    const visitasPorDia = visitas.map((fila) => ({ origen: fila.origen, dia: (fila.dia instanceof Date ? fila.dia.toISOString() : String(fila.dia)).slice(0, 10), total: Number(fila.total) }));
     const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
       id: row.id,
       submittedAt: row.submittedAt.toISOString(),
@@ -233,12 +277,34 @@ export class SurveysController {
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
       privacyConsentAt: row.privacyConsentAt ? row.privacyConsentAt.toISOString() : null,
       // El canal viaja en el id de quien responde: `public:<origen>:<uuid>` o `reserva:<id>`.
+      attendedAt: row.attendedAt ? row.attendedAt.toISOString() : null,
+      attendedByName: row.attendedBy ? nombres.get(row.attendedBy) ?? null : null,
       origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
       answers: row.answers ?? {},
     }));
     // La misma función que usa el frontend para su respaldo local: un solo cálculo evita que
     // el panel muestre un NPS y la copia sin red muestre otro.
-    return { ...computeSurveyResults(this.toContract(survey), responses), respuestas: detalle };
+    return { ...computeSurveyResults(this.toContract(survey), responses), respuestas: detalle, visitasPorDia };
+  }
+
+  /**
+   * Marca una respuesta como atendida, o la vuelve a dejar pendiente.
+   *
+   * La empresa también puede hacerlo desde su portal: es quien suele contestarle a su cliente.
+   */
+  @Patch(':id/responses/:responseId/attention')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async attend(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('responseId') responseId: string, @Body() dto: AttendSurveyResponseDto) {
+    const survey = await this.findOwned(id, req);
+    const respuesta = await this.responses.findOne({ where: { id: responseId, surveyId: survey.id } });
+    if (!respuesta) throw new NotFoundException('La respuesta no existe');
+    await this.responses.update({ id: respuesta.id }, dto.atendida ? { attendedAt: new Date(), attendedBy: req.user.id } : { attendedAt: null, attendedBy: null });
+    return { id: respuesta.id, attendedAt: dto.atendida ? new Date().toISOString() : null, attendedByName: dto.atendida ? await this.nombreDe(req.user.id) : null };
+  }
+
+  private async nombreDe(userId: string): Promise<string | null> {
+    const filas = await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [userId]).catch(() => []) as Array<{ name?: string }>;
+    return filas?.[0]?.name ?? null;
   }
 
   @Post(':id/responses')

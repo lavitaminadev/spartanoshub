@@ -9,7 +9,7 @@ import type { Survey as SurveyContract, SurveyResponse as SurveyResponseContract
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
-import { CompleteSurveyResponseDto, StartSurveyResponseDto, SubmitSurveyResponseDto } from './dto/survey.dto';
+import { CompleteSurveyResponseDto, StartSurveyResponseDto, SubmitSurveyResponseDto, SurveyVisitDto } from './dto/survey.dto';
 import { PublicSurveyFlowService } from './public-survey-flow.service';
 import { problemasDeRespuesta } from '@espartanos/shared';
 import { aceptacionAGuardar, consentimientoDeEncuesta, contactoEscrito } from './consentimiento-de-encuesta';
@@ -69,6 +69,19 @@ export class PublicSurveysController {
       // Sólo si pide datos personales: el texto exacto que se acepta.
       consentimiento: await consentimientoDeEncuesta(this.surveys.manager, survey),
     } as SurveyContract;
+  }
+
+  /** Cuenta una visita por sesión con su canal. No guarda nada que identifique a la persona. */
+  @Post(':id/visit')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  async visit(@Param('id') id: string, @Body() dto: SurveyVisitDto) {
+    const survey = await this.surveys.findOne({ where: { id } });
+    if (!survey || survey.status !== 'active') return { registrada: false };
+    await this.surveys.manager.query(
+      'INSERT IGNORE INTO survey_visits (id, organization_id, survey_id, origen, session_id) VALUES (?, ?, ?, ?, ?)',
+      [randomUUID(), survey.organizationId, survey.id, (dto.origen || 'link').slice(0, 60), dto.sesion],
+    ).catch(() => undefined);
+    return { registrada: true };
   }
 
   @Get(':id')

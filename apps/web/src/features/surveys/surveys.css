@@ -586,7 +586,7 @@
 .survey-medicion header { display: grid; gap: 2px; }
 .survey-medicion header small { color: var(--muted); font-size: 12px; }
 .results-medicion { display: grid; gap: 12px; }
-@media (min-width: 960px) { .results-medicion { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
+/* Tendencia y canales a lo ancho: la tabla de canales no cabe en media columna. */
 .results-origen { display: grid; gap: 10px; align-content: start; padding: 16px; border: 1px solid var(--line); border-radius: var(--card-radius, 12px); background: var(--white); }
 .results-origen header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px; }
 .results-origen h3 { margin: 0; font-size: 15px; }
@@ -616,3 +616,17 @@
 .public-survey-field > span, .public-survey-field > legend { color: var(--survey-text, #151317); font-weight: 700; }
 .public-survey-grupo { margin: 6px 0 -4px; color: var(--survey-text, #151317); font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
 .public-survey-dato input[type="date"] { min-height: 46px; }
+
+.flujo-encuesta-vista { text-align: center; }
+.flujo-encuesta-vista .flujo-estrellas button { width: 44px; height: 44px; font-size: 34px; }
+
+/* Por atender */
+.respuestas-persona li.atendida { opacity: .78; box-shadow: inset 3px 0 0 #0b8a6a !important; border-color: #cfe9df !important; }
+.respuestas-persona-atendida { display: inline-flex; align-items: center; gap: 8px; color: #0b5a45; font-size: 12px; font-weight: 700; }
+.respuestas-persona-atendida button { padding: 0; border: 0; background: none; color: #6f6772; font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
+/* Canales con visitas */
+.results-origen-hallazgo { margin: 0; padding: 8px 10px; border-radius: 8px; background: #e8f6f1; color: #0b5a45; font-size: 13px; }
+.results-origen-tabla td, .results-origen-tabla th { padding: 8px 10px; font-size: 13px; }
+.canales-reservan-barra { display: block; height: 4px; margin-top: 5px; border-radius: 4px; background: #efeaee; overflow: hidden; max-width: 160px; }
+.canales-reservan-barra span { display: block; height: 100%; background: var(--cyan, #0fb9b1); border-radius: 4px; }
+.canales-reservan-poco { color: var(--muted, #7a7278); font-size: 11px; }

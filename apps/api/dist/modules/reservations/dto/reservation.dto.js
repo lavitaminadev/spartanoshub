@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.CompanyLegalDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.ConvertGroupRequestDto = exports.UpdateReservationDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.PublicLookupReservationDto = exports.PublicRecoverReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
+exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.ConvertGroupRequestDto = exports.UpdateReservationDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.PublicLookupReservationDto = exports.PublicRecoverReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const vacioComoAusente = ({ value }) => (value === '' ? undefined : value);
@@ -1320,56 +1320,6 @@ __decorate([
     (0, class_validator_1.MaxLength)(120, { each: true }),
     __metadata("design:type", Array)
 ], ExportFormReservationsDto.prototype, "fields", void 0);
-class CompanyLegalDto {
-}
-exports.CompanyLegalDto = CompanyLegalDto;
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(255),
-    __metadata("design:type", Object)
-], CompanyLegalDto.prototype, "legalName", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(30),
-    __metadata("design:type", Object)
-], CompanyLegalDto.prototype, "taxId", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEmail)(),
-    (0, class_validator_1.MaxLength)(190),
-    __metadata("design:type", Object)
-], CompanyLegalDto.prototype, "privacyEmail", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUrl)({ protocols: ['https'], require_protocol: true }),
-    (0, class_validator_1.MaxLength)(500),
-    __metadata("design:type", Object)
-], CompanyLegalDto.prototype, "privacyUrl", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUrl)({ protocols: ['https'], require_protocol: true }),
-    (0, class_validator_1.MaxLength)(500),
-    __metadata("design:type", Object)
-], CompanyLegalDto.prototype, "termsUrl", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsIn)(['enlace', 'texto']),
-    __metadata("design:type", String)
-], CompanyLegalDto.prototype, "legalMode", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(30000),
-    __metadata("design:type", Object)
-], CompanyLegalDto.prototype, "privacyText", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(30000),
-    __metadata("design:type", Object)
-], CompanyLegalDto.prototype, "termsText", void 0);
 class ReservationScopeDto {
 }
 exports.ReservationScopeDto = ReservationScopeDto;

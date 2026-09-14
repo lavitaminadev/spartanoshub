@@ -35,6 +35,9 @@ deployment:
 
     # Antes: `npm ci --omit=dev` conservaba miles de archivos en $HOME/.npm. El instalador
     # mantiene la misma instalacion productiva, pero usa una cache temporal y siempre la borra.
+    # Limpia archivos de la web con mas de 30 dias que ninguna version vigente usa. Sin esto se
+    # acumulan en cada despliegue hasta que el control de inodos detiene el siguiente.
+    - /bin/bash scripts/deploy/prune-old-assets.sh
     - /bin/bash scripts/deploy/check-inodes.sh
     - /bin/bash scripts/deploy/install-production-dependencies.sh
     - /bin/bash scripts/deploy/check-inodes.sh

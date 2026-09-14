@@ -8,6 +8,7 @@ import { Modal } from '../../shared/Modal';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { matchesSearch } from '../../shared/search';
 import { LogoUpload } from './LogoUpload';
+import { DatosLegalesDeCliente } from './DatosLegalesDeCliente';
 import { triggerToast } from '../../shared/toast-events';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
@@ -415,6 +416,7 @@ export function ClientsPage() {
             <label>Razón social</label>
             <input className="input" value={form.legalName} onChange={(e) => setForm({ ...form, legalName: e.target.value })} />
           </div>
+          {editingId && <DatosLegalesDeCliente clientId={editingId} capacidades={form.capabilities} />}
           <div className="form-group">
             <label>Rubro</label>
             <select className="input" value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })}>

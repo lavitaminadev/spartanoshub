@@ -71,6 +71,14 @@ __decorate([
     __metadata("design:type", Object)
 ], SurveyResponse.prototype, "privacyConsentText", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'attended_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "attendedAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'attended_by', type: 'varchar', length: 36, nullable: true }),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "attendedBy", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'submitted_at' }),
     __metadata("design:type", Date)
 ], SurveyResponse.prototype, "submittedAt", void 0);

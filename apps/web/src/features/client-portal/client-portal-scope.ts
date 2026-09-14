@@ -7,6 +7,8 @@ export interface ClientPortalEntry {
   icon: string;
   module?: string;
   capability?: string;
+  /** Visible si la empresa tiene al menos uno de estos servicios. */
+  anyCapability?: string[];
 }
 
 export const CLIENT_NAV: ClientPortalEntry[] = [
@@ -14,7 +16,8 @@ export const CLIENT_NAV: ClientPortalEntry[] = [
   { label: 'CRM', path: '/crm', icon: 'CR', module: 'crm', capability: 'crm' },
   { label: 'Reservas', path: '/portal/reservations', icon: 'RS', module: 'reservations', capability: 'reservations' },
   { label: 'Encuestas', path: '/portal/surveys', icon: 'EN', module: 'surveys', capability: 'surveys' },
-  { label: 'Datos legales', path: '/portal/legal', icon: 'DL', module: 'reservations', capability: 'reservations' },
+  // Lo usan Reservas y Encuestas: basta con tener uno de los dos.
+  { label: 'Datos legales', path: '/portal/legal', icon: 'DL', anyCapability: ['reservations', 'surveys'] },
 ];
 
 export const PORTAL_CARDS = [
@@ -48,6 +51,7 @@ export function isClientNavItemVisible(item: ClientPortalEntry, user: User | nul
   // En el portal la ausencia no significa «sí». Una sesión antigua, incompleta o una empresa
   // sin el servicio explícitamente activo debe fallar cerrada y no anunciar algo no contratado.
   if (item.capability && user?.capabilities?.[item.capability] !== true) return false;
+  if (item.anyCapability && !item.anyCapability.some((servicio) => user?.capabilities?.[servicio] === true)) return false;
   if (!item.module) return true;
   if (!isModuleInPhaseScope(item.module, user?.moduleLifecycle, user?.role)) return false;
   if (user?.features?.[item.module] === false) return false;

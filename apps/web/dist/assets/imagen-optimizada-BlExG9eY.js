@@ -1,0 +1,1 @@
+var e=/^[a-z]{1,3}_[^/]*$/;function t(t,n){if(t)try{let r=new URL(t);if(!r.hostname.endsWith(`cloudinary.com`))return t;let i=r.pathname.split(`/`),a=i.indexOf(`upload`);return a===-1||e.test(i[a+1]||``)?t:(i.splice(a+1,0,n?`f_auto,q_auto,c_limit,w_${n}`:`f_auto,q_auto`),r.pathname=i.join(`/`),r.toString())}catch{return t}}export{t};

@@ -169,6 +169,12 @@ export interface SurveyResultsSummary {
      * respaldo local sin red no sabe quién respondió.
      */
     respuestas?: SurveyIndividualResponse[];
+    /** Visitas a la página pública por canal y día (último año). */
+    visitasPorDia?: Array<{
+        origen: string;
+        dia: string;
+        total: number;
+    }>;
 }
 /** Una respuesta tal como se lee en los resultados, con su autor si llegó por una reserva. */
 export interface SurveyIndividualResponse {
@@ -185,6 +191,9 @@ export interface SurveyIndividualResponse {
     completedAt: string | null;
     /** Canal por el que llegó: `qr`, `whatsapp`, `reserva`… `null` si no se sabe. */
     origen?: string | null;
+    /** Cuándo y quién la marcó como atendida. */
+    attendedAt?: string | null;
+    attendedByName?: string | null;
     /** Cuándo aceptó el uso de sus datos, si la encuesta los pidió. */
     privacyConsentAt?: string | null;
     answers: Record<string, string | number>;

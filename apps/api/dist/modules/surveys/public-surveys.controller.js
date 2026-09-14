@@ -57,6 +57,13 @@ let PublicSurveysController = class PublicSurveysController {
             consentimiento: await (0, consentimiento_de_encuesta_1.consentimientoDeEncuesta)(this.surveys.manager, survey),
         };
     }
+    async visit(id, dto) {
+        const survey = await this.surveys.findOne({ where: { id } });
+        if (!survey || survey.status !== 'active')
+            return { registrada: false };
+        await this.surveys.manager.query('INSERT IGNORE INTO survey_visits (id, organization_id, survey_id, origen, session_id) VALUES (?, ?, ?, ?, ?)', [(0, node_crypto_1.randomUUID)(), survey.organizationId, survey.id, (dto.origen || 'link').slice(0, 60), dto.sesion]).catch(() => undefined);
+        return { registrada: true };
+    }
     async detail(id) {
         const survey = await this.surveys.findOne({ where: { id } });
         if (!survey || survey.status !== 'active')
@@ -125,6 +132,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String, survey_dto_1.CompleteSurveyResponseDto]),
     __metadata("design:returntype", Promise)
 ], PublicSurveysController.prototype, "complete", null);
+__decorate([
+    (0, common_1.Post)(':id/visit'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, survey_dto_1.SurveyVisitDto]),
+    __metadata("design:returntype", Promise)
+], PublicSurveysController.prototype, "visit", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),

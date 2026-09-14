@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { SelectorDeDegradado, leerDegradado } from '../../shared/SelectorDeDegradado';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -821,9 +822,19 @@ function DesignStudioControls({
         <label>Frase bajo el título<textarea className="input" rows={3} value={design.welcome || ''} onChange={(event) => update({ welcome: event.target.value })} /></label>
         <ImageUpload label="Logo de la empresa" value={design.logoUrl} onChange={(url) => onAsset('logoUrl', url)} placeholder="https://empresa.cl/logo.png" maxSizeMB={3} maxWidth={480} clientId={clientId} />
         <div className="color-controls"><label>Principal<input type="color" value={design.primaryColor || '#0ec6b8'} onChange={(event) => update({ primaryColor: event.target.value })} /></label><label>Acento<input type="color" value={design.accentColor || '#ea0f63'} onChange={(event) => update({ accentColor: event.target.value })} /></label><label>Fondo<input type="color" value={design.backgroundColor || '#f6f4f5'} onChange={(event) => update({ backgroundColor: event.target.value })} /></label><label>Letras<input type="color" value={design.textColor || '#3f4e49'} onChange={(event) => update({ textColor: event.target.value })} /></label></div>
-        <label>Tipo de fondo<select className="input" value={backgroundMode} onChange={(event) => update({ backgroundMode: event.target.value, ...(event.target.value === 'gradient' && !design.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) })}><option value="color">Color plano</option><option value="gradient">Degradado</option><option value="image">Imagen</option></select></label>
-        {backgroundMode === 'gradient' && <label>Degradado<input className="input" value={design.backgroundGradient || DEFAULT_BACKGROUND_GRADIENT} onChange={(event) => update({ backgroundGradient: event.target.value })} /></label>}
+        <div className="fondo-modos-campo"><span>Tipo de fondo</span>
+          <div className="fondo-modos" role="radiogroup" aria-label="Tipo de fondo">
+            {([['color', 'Color'], ['gradient', 'Degradado'], ['image', 'Imagen']] as const).map(([valor, etiqueta]) => (
+              <button key={valor} type="button" role="radio" aria-checked={backgroundMode === valor} className={backgroundMode === valor ? 'active' : ''}
+                onClick={() => update({ backgroundMode: valor, ...(valor === 'gradient' && !design.backgroundGradient ? { backgroundGradient: DEFAULT_BACKGROUND_GRADIENT } : {}) })}>{etiqueta}</button>
+            ))}
+          </div>
+          {backgroundMode === 'color' && <small>Usa el color «Fondo» de arriba.</small>}
+        </div>
+        {backgroundMode === 'gradient' && <SelectorDeDegradado valor={design.backgroundGradient} alCambiar={(backgroundGradient) => update({ backgroundGradient })} predeterminado={leerDegradado(DEFAULT_BACKGROUND_GRADIENT)!} />}
         {backgroundMode === 'image' && <ImageUpload label="Imagen de fondo" value={design.backgroundImage} onChange={(url) => onAsset('backgroundImage', url)} placeholder="https://..." maxSizeMB={5} maxWidth={1920} clientId={clientId} />}
+        {/* La claridad va junto a la imagen: escondida en «Cómo se recorta» nadie la encontraba. */}
+        {backgroundMode === 'image' && <label className="fondo-claridad">Claridad sobre la imagen ({design.backgroundOpacity || '88'}%)<small>Cuánto se aclara la imagen para que el texto siga legible.</small><input type="range" min="0" max="100" value={design.backgroundOpacity || '88'} onChange={(event) => update({ backgroundOpacity: event.target.value })} /></label>}
       </section>
 
       {!surveyMode && <details className="design-section">
@@ -880,10 +891,10 @@ function DesignStudioControls({
         </div>
       </details>
 
-      {backgroundMode !== 'color' && <details className="design-section">
+      {/* Posición y tamaño sólo cambian algo con una imagen; con degradado no hacen nada. */}
+      {backgroundMode === 'image' && <details className="design-section">
         <summary>Cómo se recorta el fondo</summary>
         <div className="design-section-body">
-          {backgroundMode === 'image' && <label>Visibilidad del fondo ({design.backgroundOpacity || '88'}%)<small>Cuánto se aclara la imagen para que el texto siga legible.</small><input type="range" min="0" max="100" value={design.backgroundOpacity || '88'} onChange={(event) => update({ backgroundOpacity: event.target.value })} /></label>}
           <div className="design-control-group">
             <span>Posición del fondo</span>
             <div className="position-grid">

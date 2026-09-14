@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type FormEvent, type JSX } from 'react';
+import { optimizedUrl } from '../../shared/imagen-optimizada';
 import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -65,6 +66,18 @@ export function PublicSurveyPage(): JSX.Element {
     },
   });
 
+  // Una visita por sesión del navegador, con su canal: permite comparar visitas con respuestas.
+  useEffect(() => {
+    if (!survey?.id || survey.status !== 'active') return;
+    let sesion = '';
+    try {
+      const clave = `vh.encuesta.sesion.${survey.id}`;
+      sesion = sessionStorage.getItem(clave) || '';
+      if (!sesion) { sesion = crypto.randomUUID().replace(/-/g, ''); sessionStorage.setItem(clave, sesion); }
+    } catch { sesion = crypto.randomUUID().replace(/-/g, ''); }
+    void api.post(`/public/surveys/${encodeURIComponent(survey.id)}/visit`, { sesion, origen: source.slice(0, 60).replace(/[^A-Za-z0-9._-]/g, '-') }).catch(() => undefined);
+  }, [survey?.id, survey?.status, source]);
+
   useEffect(() => {
     if (!survey?.ga4MeasurementId) return;
     trackGa4Event(survey.ga4MeasurementId, 'survey_viewed', {
@@ -98,7 +111,7 @@ export function PublicSurveyPage(): JSX.Element {
       <main className="public-survey-page" style={style}>
         <Ga4Tag measurementId={survey.ga4MeasurementId} />
         <section className="public-survey-card">
-          {design.logoUrl ? <img className="public-survey-logo" src={design.logoUrl} alt="" /> : null}
+          {design.logoUrl ? <img className="public-survey-logo" src={optimizedUrl(design.logoUrl, 480)} alt="" /> : null}
           <span className="public-survey-eyebrow">Tu opinión</span>
           <h1>{survey.title}</h1>
           {design.welcome ? <p>{design.welcome}</p> : null}
@@ -147,7 +160,7 @@ export function PublicSurveyPage(): JSX.Element {
     <main className="public-survey-page" style={style}>
       <Ga4Tag measurementId={survey.ga4MeasurementId} />
       <form className="public-survey-card" onSubmit={submit}>
-        {design.logoUrl ? <img className="public-survey-logo" src={design.logoUrl} alt="" /> : null}
+        {design.logoUrl ? <img className="public-survey-logo" src={optimizedUrl(design.logoUrl, 480)} alt="" /> : null}
         <span className="public-survey-eyebrow">Encuesta</span>
         <h1>{survey.title}</h1>
         <p>{design.welcome || 'Tu opinión ayuda a mejorar el servicio.'}</p>

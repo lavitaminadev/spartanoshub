@@ -147,6 +147,21 @@ export class CompleteSurveyResponseDto {
   aceptaPrivacidad?: boolean;
 }
 
+/** Marcar o desmarcar una respuesta como atendida. */
+export class AttendSurveyResponseDto {
+  @IsBoolean()
+  atendida: boolean;
+}
+
+/** Visita a la página pública: sólo el canal y una sesión anónima. */
+export class SurveyVisitDto {
+  @IsString() @MinLength(8) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/)
+  sesion: string;
+
+  @IsOptional() @IsString() @MaxLength(60) @Matches(/^[A-Za-z0-9._-]*$/)
+  origen?: string;
+}
+
 export class SubmitSurveyResponseDto {
   @IsOptional() @IsString() @MaxLength(100)
   respondentId?: string;
