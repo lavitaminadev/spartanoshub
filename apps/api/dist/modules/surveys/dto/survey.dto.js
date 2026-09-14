@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubmitSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = exports.SurveyShowRuleDto = void 0;
+exports.SubmitSurveyResponseDto = exports.SurveyVisitDto = exports.AttendSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = exports.SurveyShowRuleDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const QUESTION_TYPES = ['nps', 'rating', 'text', 'multiple-choice'];
@@ -241,6 +241,30 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CompleteSurveyResponseDto.prototype, "aceptaPrivacidad", void 0);
+class AttendSurveyResponseDto {
+}
+exports.AttendSurveyResponseDto = AttendSurveyResponseDto;
+__decorate([
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], AttendSurveyResponseDto.prototype, "atendida", void 0);
+class SurveyVisitDto {
+}
+exports.SurveyVisitDto = SurveyVisitDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(8),
+    (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9_-]+$/),
+    __metadata("design:type", String)
+], SurveyVisitDto.prototype, "sesion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9._-]*$/),
+    __metadata("design:type", String)
+], SurveyVisitDto.prototype, "origen", void 0);
 class SubmitSurveyResponseDto {
 }
 exports.SubmitSurveyResponseDto = SubmitSurveyResponseDto;

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { optimizedUrl } from '../../shared/imagen-optimizada';
 import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams, Link } from 'react-router-dom';
@@ -692,7 +693,7 @@ export function PublicReservationPage() {
     const elegible = Boolean(preguntaDeOcasiones?.options?.includes(ocasion.titulo));
     const elegida = elegible && answers[preguntaDeOcasiones!.id] === ocasion.titulo;
     const contenido = <>
-      {ocasion.imagen && <img src={ocasion.imagen} alt="" loading="lazy" />}
+      {ocasion.imagen && <img src={optimizedUrl(ocasion.imagen, 800)} alt="" loading="lazy" />}
       <strong>{ocasion.titulo}</strong>
       {ocasion.texto && <small>{ocasion.texto}</small>}
     </>;
@@ -713,7 +714,7 @@ export function PublicReservationPage() {
     // imagen para que una portada ya cargada nunca quede invisible; una elección explícita de
     // color o gradiente sigue prevaleciendo.
     : (design.backgroundMode === 'image' || !design.backgroundMode) && design.backgroundImage
-      ? `linear-gradient(rgba(243,245,239,${backgroundOpacity}),rgba(243,245,239,${backgroundOpacity})),url(${design.backgroundImage})`
+      ? `linear-gradient(rgba(243,245,239,${backgroundOpacity}),rgba(243,245,239,${backgroundOpacity})),url(${optimizedUrl(design.backgroundImage, 1920)})`
       : undefined;
   const style = {
     '--booking-primary': primary, '--booking-primary-contrast': contrastText(primary),
@@ -866,7 +867,7 @@ export function PublicReservationPage() {
       * que el botón para cerrarlo quedaba fuera de alcance. Ahora se limita al alto visible y
       * desplaza su contenido, igual que el aviso de ocasiones.
       */}
-    {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" className="booking-aviso"><section>{form.designConfig?.logoUrl && <img src={form.designConfig.logoUrl} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>{form.designConfig?.welcomePopupBoton || 'Continuar'}</button></section></div>}
+    {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" className="booking-aviso"><section>{form.designConfig?.logoUrl && <img src={optimizedUrl(form.designConfig.logoUrl, 480)} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>{form.designConfig?.welcomePopupBoton || 'Continuar'}</button></section></div>}
     {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}
     {reservaRecordada && !isSurvey && <aside className="booking-recordatorio">
       <div>
@@ -899,7 +900,7 @@ export function PublicReservationPage() {
       </div>
     </details>}
     <div className="public-booking-layout">
-      <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={design.logoUrl} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div></div>}
+      <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={optimizedUrl(design.logoUrl, 480)} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{eyebrowText}</span>}<h1>{design.title || form.name}</h1>{visible(design.showWelcome) && <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div></div>}
         {/* Sólo mientras se elige: en datos y confirmación empujaba el formulario hacia abajo. */}
         {ocasionesEncendidas && step === 1 && <div className="booking-ocasiones">
           {design.ocasionesTitulo && <h2>{design.ocasionesTitulo}</h2>}

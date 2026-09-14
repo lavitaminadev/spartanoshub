@@ -115,31 +115,59 @@ function TendenciaSemanal({ respuestas }: { respuestas: SurveyIndividualResponse
 }
 
 /** De dónde llegaron las respuestas y cómo calificó cada canal. */
-function PorOrigen({ respuestas }: { respuestas: SurveyIndividualResponse[] }) {
-  const grupos = new Map<string, { total: number; notas: number[] }>();
+/** Canal de una visita o respuesta, unificado: el enlace general y «qr» antiguo se agrupan. */
+function claveDeCanal(origen: string | null | undefined): string {
+  if (!origen || origen === 'link') return 'link';
+  return origen;
+}
+
+/**
+ * Por canal: visitas a la página, respuestas, tasa de respuesta y nota.
+ *
+ * Las respuestas que llegan por el correo post-reserva no pasan por un enlace con canal y no tienen
+ * visita propia: se muestran sin tasa.
+ */
+function PorOrigen({ respuestas, visitas, desde }: { respuestas: SurveyIndividualResponse[]; visitas: Array<{ origen: string; dia: string; total: number }>; desde: number | null }) {
+  const grupos = new Map<string, { respuestas: number; visitas: number; notas: number[] }>();
+  const grupo = (clave: string) => { const g = grupos.get(clave) ?? { respuestas: 0, visitas: 0, notas: [] }; grupos.set(clave, g); return g; };
   for (const r of respuestas) {
-    const clave = r.origen || '';
-    const grupo = grupos.get(clave) ?? { total: 0, notas: [] };
-    grupo.total += 1;
-    if (typeof r.rating === 'number') grupo.notas.push(r.rating);
-    grupos.set(clave, grupo);
+    const g = grupo(claveDeCanal(r.origen));
+    g.respuestas += 1;
+    if (typeof r.rating === 'number') g.notas.push(r.rating);
   }
-  const filas = [...grupos.entries()].sort((a, b) => b[1].total - a[1].total);
-  const maximo = Math.max(1, ...filas.map(([, g]) => g.total));
+  for (const v of visitas) {
+    if (desde !== null && new Date(`${v.dia}T23:59:59`).getTime() < desde) continue;
+    grupo(claveDeCanal(v.origen)).visitas += v.total;
+  }
+  const filas = [...grupos.entries()].sort((a, b) => b[1].respuestas - a[1].respuestas || b[1].visitas - a[1].visitas);
+  // Sólo se destaca un canal con suficientes visitas y respuestas: con una respuesta, un 3% no dice nada.
+  const conTasa = filas.filter(([clave, g]) => clave !== 'reserva' && g.visitas >= 20 && g.respuestas >= 3);
+  const mejor = [...conTasa].sort((a, b) => b[1].respuestas / b[1].visitas - a[1].respuestas / a[1].visitas)[0];
+  const maximo = Math.max(1, ...filas.map(([, g]) => Math.max(g.respuestas, g.visitas)));
   return (
     <section className="results-origen" aria-label="Respuestas por canal">
-      <header><h3>De dónde llegaron</h3><small>Según el enlace o QR usado</small></header>
-      {filas.length === 0 ? <p className="page-subtitle">Sin respuestas en este período.</p> : (
-        <ul>
-          {filas.map(([origen, g]) => (
-            <li key={origen}>
-              <span>{nombreDeOrigen(origen)}</span>
-              <div className="bar-track"><div className="bar-fill" style={{ width: `${(g.total / maximo) * 100}%`, background: 'var(--cyan, #0fb9b1)' }} /></div>
-              <b>{g.total}</b>
-              <small>{g.notas.length ? `${(g.notas.reduce((a, b) => a + b, 0) / g.notas.length).toFixed(1)}★` : '—'}</small>
-            </li>
-          ))}
-        </ul>
+      <header><h3>De dónde llegaron</h3><small>Visitas, respuestas y tasa por canal</small></header>
+      {mejor && conTasa.length > 1 && <p className="results-origen-hallazgo"><strong>{nombreDeOrigen(mejor[0])}</strong> es el canal donde más gente responde: {Math.round((mejor[1].respuestas / mejor[1].visitas) * 100)}% de sus visitas.</p>}
+      {filas.length === 0 ? <p className="page-subtitle">Sin visitas ni respuestas en este período.</p> : (
+        <div className="table-wrapper">
+          <table className="data-table results-origen-tabla">
+            <thead><tr><th>Canal</th><th>Visitas</th><th>Respuestas</th><th>Tasa</th><th>Nota</th></tr></thead>
+            <tbody>
+              {filas.map(([clave, g]) => (
+                <tr key={clave}>
+                  <td data-label="Canal">
+                    <span>{nombreDeOrigen(clave)}</span>
+                    <span className="canales-reservan-barra" aria-hidden="true"><span style={{ width: `${(Math.max(g.respuestas, g.visitas) / maximo) * 100}%` }} /></span>
+                  </td>
+                  <td data-label="Visitas">{clave === 'reserva' ? '—' : g.visitas}</td>
+                  <td data-label="Respuestas">{g.respuestas}</td>
+                  <td data-label="Tasa">{clave === 'reserva' || g.visitas === 0 ? '—' : `${Math.min(100, Math.round((g.respuestas / g.visitas) * 100))}%`}{g.visitas > 0 && g.visitas < 20 && clave !== 'reserva' ? <small className="canales-reservan-poco"> · pocas visitas</small> : null}</td>
+                  <td data-label="Nota">{g.notas.length ? `${(g.notas.reduce((a, b) => a + b, 0) / g.notas.length).toFixed(1)}★` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -341,7 +369,7 @@ export function SurveyResultsPage(): JSX.Element {
 
       {summary.totalResponses > 0 && hayDetalle && <div className="results-medicion">
         <TendenciaSemanal respuestas={summary.respuestas ?? []} />
-        <PorOrigen respuestas={filtradas} />
+        <PorOrigen respuestas={filtradas} visitas={summary.visitasPorDia ?? []} desde={periodo === 'todo' ? null : Date.now() - Number(periodo) * 86400000} />
       </div>}
 
       {resumen.totalResponses === 0 ? (
@@ -354,7 +382,7 @@ export function SurveyResultsPage(): JSX.Element {
 
       {/* Presente cuando el servidor lo entrega; la copia local sin red no tiene quién respondió. */}
       {filtradas.length > 0 && (
-        <RespuestasPorPersona respuestas={filtradas} preguntas={survey.questions} />
+        <RespuestasPorPersona surveyId={survey.id} respuestas={filtradas} preguntas={survey.questions} />
       )}
     </div>
   );

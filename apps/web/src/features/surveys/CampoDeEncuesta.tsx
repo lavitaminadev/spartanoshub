@@ -15,12 +15,15 @@ export function CampoDeEncuesta({
   value,
   onChange,
   mostrarError = false,
+  estrellas = false,
 }: {
   question: SurveyQuestion;
   value: string | number | undefined;
   onChange: (value: string | number) => void;
   /** Se muestra el error de formato recién cuando la persona sale del campo o intenta enviar. */
   mostrarError?: boolean;
+  /** Muestra la nota de 1 a 5 como estrellas grandes, igual que el flujo por pasos. */
+  estrellas?: boolean;
 }): JSX.Element {
   const [tocado, setTocado] = useState(false);
   const obligatoria = question.required ? ' *' : '';
@@ -68,6 +71,19 @@ export function CampoDeEncuesta({
           </label>
         ))}
       </fieldset>
+    );
+  }
+
+  if (estrellas && question.type === 'rating') {
+    return (
+      <div className="public-survey-field flujo-encuesta-vista">
+        <span>{question.question}{obligatoria}</span>
+        <div className="flujo-estrellas" role="radiogroup" aria-label={question.question}>
+          {[1, 2, 3, 4, 5].map((valor) => (
+            <button key={valor} type="button" role="radio" aria-checked={Number(value) === valor} aria-label={`${valor} ${valor === 1 ? 'estrella' : 'estrellas'}`} className={Number(value) >= valor ? 'activa' : ''} onClick={() => onChange(valor)}>★</button>
+          ))}
+        </div>
+      </div>
     );
   }
 

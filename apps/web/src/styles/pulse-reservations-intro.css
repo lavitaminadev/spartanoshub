@@ -505,3 +505,41 @@
   .datos-legales-portal .datos-legales-acciones .btn { width: 100%; min-height: 46px; }
 }
 .datos-legales-portal .datos-legales-form .input::placeholder { color: var(--text-muted, #a79fa4); opacity: 1; }
+
+/* Fondo del editor de sucursal: modos como botones y degradado con dos colores. */
+.fondo-modos-campo { display: grid; gap: 6px; font-size: 14px; font-weight: 700; color: var(--ink, #151317); }
+.fondo-modos-campo small { color: var(--muted, #6f6772); font-size: 12px; font-weight: 400; }
+.fondo-modos { display: inline-flex; width: max-content; max-width: 100%; padding: 3px; border: 1px solid #ddd6db; border-radius: 999px; background: #fff; }
+.fondo-modos button { min-height: 36px; padding: 4px 16px; border: 0; border-radius: 999px; background: transparent; color: var(--muted, #6f6772); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.fondo-modos button.active { background: var(--ink, #151317); color: #fff; }
+.selector-degradado { display: grid; gap: 10px; }
+.selector-degradado-aviso { margin: 0; padding: 8px 10px; border-radius: 8px; background: #fff4e5; color: #6b4200; font-size: 12px; }
+.selector-degradado-colores { display: grid; grid-template-columns: repeat(2, minmax(80px, 1fr)) minmax(160px, 2fr); gap: 10px; align-items: end; }
+.selector-degradado-colores label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink, #151317); }
+.selector-degradado-colores input[type="color"] { width: 100%; height: 42px; padding: 3px; border: 1px solid #ddd6db; border-radius: 10px; background: #fff; cursor: pointer; }
+.selector-degradado-muestras { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.selector-degradado-muestras button { width: 42px; height: 42px; border: 1px solid #ddd6db; border-radius: 10px; cursor: pointer; }
+.selector-degradado-vista { flex: 1 1 120px; height: 42px; border: 1px solid #ddd6db; border-radius: 10px; }
+@media (max-width: 520px) { .selector-degradado-colores { grid-template-columns: 1fr 1fr; } .selector-degradado-direccion { grid-column: 1 / -1; } }
+
+.datos-legales-portal .datos-legales-form.is-embebido { max-width: none; padding: 0; border: 0; box-shadow: none; background: transparent; }
+.datos-legales-nota { margin: 0; padding: 9px 12px; border-radius: 10px; background: #eef7ff; color: #23466b; font-size: 13px; }
+.datos-legales-cliente { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 4px 0 16px; padding: 12px 14px; border: 1px solid #e6dfe3; border-radius: 12px; background: #faf8f9; }
+.datos-legales-cliente div { display: grid; gap: 2px; min-width: 0; }
+.datos-legales-cliente strong { color: #151317; font-size: 14px; }
+.datos-legales-cliente small { color: #6f6772; font-size: 12px; }
+.datos-legales-cliente .is-completo { color: #0b5a45; }
+.datos-legales-cliente .is-incompleto { color: #8a5300; }
+
+/* Listas desplegables del editor: algunas quedaban sin borde y parecían texto suelto. */
+.design-studio select.input, .design-essentials select.input, .design-section select.input, .builder-panel select.input, .selector-degradado select.input {
+  min-height: 42px; padding: 8px 36px 8px 12px; border: 1px solid #ddd6db; border-radius: 10px; background-color: #fff; color: #151317; font-size: 14px;
+}
+.design-studio select.input:focus, .design-essentials select.input:focus, .design-section select.input:focus, .builder-panel select.input:focus, .selector-degradado select.input:focus {
+  outline: none; border-color: var(--primary, #cc0a55); box-shadow: 0 0 0 3px rgba(204, 10, 85, .12);
+}
+
+.fondo-claridad { display: grid; gap: 6px; font-size: 14px; font-weight: 700; color: var(--ink, #151317); }
+.fondo-claridad small { color: var(--muted, #6f6772); font-size: 12px; font-weight: 400; }
+.fondo-claridad input[type="range"] { width: 100%; accent-color: var(--primary, #cc0a55); }
+.modal-content .datos-legales-portal { min-width: 0; overflow-x: hidden; }

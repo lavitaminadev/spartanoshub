@@ -1,4 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { DataSource } from 'typeorm';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -13,7 +15,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, CompanyLegalDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
@@ -29,6 +31,7 @@ export class ReservationsController {
     private readonly capabilities: ClientCapabilityService,
     private readonly bulkImport: ReservationsBulkImportService,
     private readonly audit: AuditService,
+    private readonly dataSource: DataSource,
   ) {}
 
   private publicOrigin(): string | undefined {
@@ -68,27 +71,32 @@ export class ReservationsController {
   }
 
   /**
-   * Datos legales de la empresa para reservas y encuestas.
+   * Datos legales de la empresa (compartidos con Encuestas, que tiene su propia ruta).
    *
-   * La empresa es responsable de los datos de sus clientes, así que los maneja ella desde su
-   * portal. El equipo que lleva la cuenta puede verlos y ayudar a completarlos indicando la empresa.
+   * El portal lee y guarda los de su empresa; el equipo indica la empresa y se valida que la tenga
+   * a cargo.
    */
   @Get('company-legal')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async companyLegal(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
-    const scope = await this.requestedScope(req, req.user.role === UserRole.CLIENT ? undefined : query.clientId);
-    const clientId = scope.clientId;
-    if (!clientId) throw new BadRequestException('Indica la empresa');
-    return this.service.datosLegalesDeEmpresa(req.organizationId, clientId);
+  async companyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto) {
+    return leerDatosLegales(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
   }
 
   @Put('company-legal')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto, @Body() dto: CompanyLegalDto) {
-    const scope = await this.requestedScope(req, req.user.role === UserRole.CLIENT ? undefined : query.clientId);
-    const clientId = scope.clientId;
-    if (!clientId) throw new BadRequestException('Indica la empresa');
-    return this.service.guardarDatosLegalesDeEmpresa(req.organizationId, clientId, dto, req.user.id);
+  async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), dto, req.user.id);
+  }
+
+  private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {
+    if (req.user.role === UserRole.CLIENT) {
+      const propia = empresaDelPortal(req.user.clientId);
+      await this.capabilities.assert(req.organizationId, propia, 'reservations');
+      return propia;
+    }
+    if (!pedida) throw new BadRequestException('Indica la empresa');
+    await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
+    return pedida;
   }
 
   @Get('forms')

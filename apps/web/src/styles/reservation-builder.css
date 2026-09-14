@@ -733,3 +733,8 @@
 @container editor-reservas (max-width: 1100px) {
   .reservation-builder .design-studio .design-preview-column { position: static; }
 }
+
+/* En la ventana de cliente las tres columnas fijas no caben: se acomodan al ancho disponible. */
+.modal-content .client-capability-grid,.modal-content .pixel-mode-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.client-capability-toggle,.pixel-mode-grid button{min-width:0}
+.client-capability-toggle div{min-width:0;overflow-wrap:anywhere}

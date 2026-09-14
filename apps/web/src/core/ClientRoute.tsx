@@ -16,12 +16,14 @@ export interface ClientRouteProps {
   children: React.ReactNode;
   /** Servicio contratado que exige esta rama del portal. */
   capability?: 'crm' | 'reservations' | 'surveys';
+  /** Alternativa a `capability`: basta con que la empresa tenga uno de estos servicios. */
+  anyCapability?: Array<'crm' | 'reservations' | 'surveys'>;
 }
 
 /**
  * Envuelve rutas disponibles solo para usuarios con el rol `client`.
  */
-export function ClientRoute({ children, capability }: ClientRouteProps): JSX.Element {
+export function ClientRoute({ children, capability, anyCapability }: ClientRouteProps): JSX.Element {
   const { user, loading } = useAuth();
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;
@@ -30,6 +32,9 @@ export function ClientRoute({ children, capability }: ClientRouteProps): JSX.Ele
   // criterio que `ProtectedRoute` aplica a las cuentas del equipo.
   if (user.mustChangePassword || user.mustCompleteProfile || user.mustAcceptTerms) return <Navigate to="/first-access" replace />;
   if (capability && user.capabilities?.[capability] !== true) {
+    return <AccessDenied userRole={user.role} reason="module" />;
+  }
+  if (anyCapability && !anyCapability.some((servicio) => user.capabilities?.[servicio] === true)) {
     return <AccessDenied userRole={user.role} reason="module" />;
   }
   return <>{children}</>;

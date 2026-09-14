@@ -1300,20 +1300,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             this.logger.warn(`No se pudo avisar el cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
         }
     }
-    async datosLegalesDeEmpresa(organizationId, clientId) {
-        const filas = await this.dataSource.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
-        const fila = filas?.[0];
-        if (!fila)
-            throw new common_1.NotFoundException('Empresa no encontrada');
-        return { legalName: fila.legal_name, taxId: fila.tax_id, privacyEmail: fila.privacy_email, privacyUrl: fila.privacy_url, termsUrl: fila.terms_url, legalMode: fila.legal_mode === 'texto' ? 'texto' : 'enlace', privacyText: fila.privacy_text, termsText: fila.terms_text };
-    }
-    async guardarDatosLegalesDeEmpresa(organizationId, clientId, dto, actorId) {
-        const antes = await this.datosLegalesDeEmpresa(organizationId, clientId);
-        const limpio = (valor) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null);
-        await this.dataSource.query('UPDATE clients SET legal_name = ?, tax_id = ?, privacy_email = ?, privacy_url = ?, terms_url = ?, legal_mode = ?, privacy_text = ?, terms_text = ? WHERE id = ? AND organization_id = ?', [limpio(dto.legalName), limpio(dto.taxId), limpio(dto.privacyEmail), limpio(dto.privacyUrl), limpio(dto.termsUrl), dto.legalMode === 'texto' ? 'texto' : 'enlace', limpio(dto.privacyText), limpio(dto.termsText), clientId, organizationId]);
-        await this.audit.log({ organizationId, actorId, entityType: 'ClientLegalData', entityId: clientId, action: 'updated', before: antes, after: dto });
-        return this.datosLegalesDeEmpresa(organizationId, clientId);
-    }
     async holdPublic(slug, dto) {
         if (dto.website)
             throw new common_1.BadRequestException('Solicitud inválida');

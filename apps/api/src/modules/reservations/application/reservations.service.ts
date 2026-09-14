@@ -19,7 +19,7 @@ import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLo
 import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
-import { CloseReservationDayDto, CompanyLegalDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
+import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
@@ -1563,26 +1563,6 @@ export class ReservationsService {
     } catch (err) {
       this.logger.warn(`No se pudo avisar el cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
     }
-  }
-
-  /** Datos legales de una empresa, tal como los maneja ella en su portal. */
-  async datosLegalesDeEmpresa(organizationId: string, clientId: string) {
-    const filas = await this.dataSource.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]) as Array<Record<string, string | null>>;
-    const fila = filas?.[0];
-    if (!fila) throw new NotFoundException('Empresa no encontrada');
-    return { legalName: fila.legal_name, taxId: fila.tax_id, privacyEmail: fila.privacy_email, privacyUrl: fila.privacy_url, termsUrl: fila.terms_url, legalMode: fila.legal_mode === 'texto' ? 'texto' : 'enlace', privacyText: fila.privacy_text, termsText: fila.terms_text };
-  }
-
-  async guardarDatosLegalesDeEmpresa(organizationId: string, clientId: string, dto: CompanyLegalDto, actorId: string) {
-    const antes = await this.datosLegalesDeEmpresa(organizationId, clientId);
-    const limpio = (valor: string | null | undefined) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null);
-    await this.dataSource.query(
-      'UPDATE clients SET legal_name = ?, tax_id = ?, privacy_email = ?, privacy_url = ?, terms_url = ?, legal_mode = ?, privacy_text = ?, terms_text = ? WHERE id = ? AND organization_id = ?',
-      [limpio(dto.legalName), limpio(dto.taxId), limpio(dto.privacyEmail), limpio(dto.privacyUrl), limpio(dto.termsUrl), dto.legalMode === 'texto' ? 'texto' : 'enlace', limpio(dto.privacyText), limpio(dto.termsText), clientId, organizationId],
-    );
-    // Queda constancia: cambia lo que acepta quien reserve desde ahora.
-    await this.audit.log({ organizationId, actorId, entityType: 'ClientLegalData', entityId: clientId, action: 'updated', before: antes as never, after: dto as never });
-    return this.datosLegalesDeEmpresa(organizationId, clientId);
   }
 
   /** Conserva un cupo por diez minutos mientras la persona termina el formulario. */

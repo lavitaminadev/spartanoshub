@@ -14,6 +14,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReservationsController = void 0;
 const common_1 = require("@nestjs/common");
+const datos_legales_de_empresa_1 = require("../clients/datos-legales-de-empresa");
+const typeorm_1 = require("typeorm");
 const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
 const throttler_1 = require("@nestjs/throttler");
@@ -30,12 +32,13 @@ const reservation_dto_1 = require("./dto/reservation.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
 let ReservationsController = class ReservationsController {
-    constructor(service, accountAccess, capabilities, bulkImport, audit) {
+    constructor(service, accountAccess, capabilities, bulkImport, audit, dataSource) {
         this.service = service;
         this.accountAccess = accountAccess;
         this.capabilities = capabilities;
         this.bulkImport = bulkImport;
         this.audit = audit;
+        this.dataSource = dataSource;
     }
     publicOrigin() {
         return (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '') || undefined;
@@ -70,18 +73,21 @@ let ReservationsController = class ReservationsController {
         return { clientId: requestedClientId, clientIds: undefined };
     }
     async companyLegal(req, query) {
-        const scope = await this.requestedScope(req, req.user.role === user_role_enum_1.UserRole.CLIENT ? undefined : query.clientId);
-        const clientId = scope.clientId;
-        if (!clientId)
-            throw new common_1.BadRequestException('Indica la empresa');
-        return this.service.datosLegalesDeEmpresa(req.organizationId, clientId);
+        return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
     }
     async saveCompanyLegal(req, query, dto) {
-        const scope = await this.requestedScope(req, req.user.role === user_role_enum_1.UserRole.CLIENT ? undefined : query.clientId);
-        const clientId = scope.clientId;
-        if (!clientId)
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), dto, req.user.id);
+    }
+    async empresaLegal(req, pedida) {
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
+            const propia = (0, datos_legales_de_empresa_1.empresaDelPortal)(req.user.clientId);
+            await this.capabilities.assert(req.organizationId, propia, 'reservations');
+            return propia;
+        }
+        if (!pedida)
             throw new common_1.BadRequestException('Indica la empresa');
-        return this.service.guardarDatosLegalesDeEmpresa(req.organizationId, clientId, dto, req.user.id);
+        await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
+        return pedida;
     }
     async forms(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
@@ -289,7 +295,7 @@ __decorate([
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
+    __metadata("design:paramtypes", [Object, datos_legales_de_empresa_1.CompanyLegalScopeDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "companyLegal", null);
 __decorate([
@@ -299,7 +305,7 @@ __decorate([
     __param(1, (0, common_1.Query)()),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto, reservation_dto_1.CompanyLegalDto]),
+    __metadata("design:paramtypes", [Object, datos_legales_de_empresa_1.CompanyLegalScopeDto, datos_legales_de_empresa_1.CompanyLegalDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "saveCompanyLegal", null);
 __decorate([
@@ -608,5 +614,6 @@ exports.ReservationsController = ReservationsController = __decorate([
         account_access_service_1.AccountAccessService,
         client_capability_service_1.ClientCapabilityService,
         bulk_import_service_1.ReservationsBulkImportService,
-        audit_service_1.AuditService])
+        audit_service_1.AuditService,
+        typeorm_1.DataSource])
 ], ReservationsController);

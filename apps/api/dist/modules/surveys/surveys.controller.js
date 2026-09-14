@@ -14,6 +14,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SurveysController = exports.MAXIMO_ENVIO_POR_PEDIDO = void 0;
 const common_1 = require("@nestjs/common");
+const audit_service_1 = require("../../core/audit/audit.service");
+const datos_legales_de_empresa_1 = require("../clients/datos-legales-de-empresa");
 const swagger_1 = require("@nestjs/swagger");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -39,12 +41,13 @@ function publicSurveyUrl(id) {
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
 }
 let SurveysController = class SurveysController {
-    constructor(surveys, responses, dataSource, accountAccess, correo) {
+    constructor(surveys, responses, dataSource, accountAccess, correo, audit) {
         this.surveys = surveys;
         this.responses = responses;
         this.dataSource = dataSource;
         this.accountAccess = accountAccess;
         this.correo = correo;
+        this.audit = audit;
     }
     toContract(survey) {
         return {
@@ -98,6 +101,23 @@ let SurveysController = class SurveysController {
                 : [{ organizationId: req.organizationId, clientId: (0, typeorm_3.IsNull)() }, ...(permitidas.length ? [{ organizationId: req.organizationId, clientId: (0, typeorm_3.In)(permitidas) }] : [])];
         const rows = await this.surveys.find({ where, order: { createdAt: 'DESC' } });
         return rows.map((row) => this.toContract(row));
+    }
+    async companyLegal(req, query) {
+        return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
+    }
+    async saveCompanyLegal(req, query, dto) {
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), dto, req.user.id);
+    }
+    async empresaLegal(req, pedida) {
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
+            const propia = (0, datos_legales_de_empresa_1.empresaDelPortal)(req.user.clientId);
+            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, propia);
+            return propia;
+        }
+        if (!pedida)
+            throw new common_1.BadRequestException('Indica la empresa');
+        await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
+        return pedida;
     }
     async detail(req, id) {
         return this.toContract(await this.findOwned(id, req));
@@ -181,6 +201,15 @@ let SurveysController = class SurveysController {
             answers: row.answers ?? {},
             submittedAt: row.submittedAt.toISOString(),
         }));
+        const idsQueAtendieron = [...new Set(rows.map((row) => row.attendedBy).filter((valor) => Boolean(valor)))];
+        const nombres = new Map();
+        if (idsQueAtendieron.length) {
+            const filas = await this.dataSource.query(`SELECT id, name FROM users WHERE id IN (${idsQueAtendieron.map(() => '?').join(',')})`, idsQueAtendieron).catch(() => []);
+            for (const fila of filas)
+                nombres.set(fila.id, fila.name);
+        }
+        const visitas = await this.dataSource.query('SELECT COALESCE(NULLIF(origen, \'\'), \'link\') origen, DATE(created_at) dia, COUNT(*) total FROM survey_visits WHERE survey_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 365 DAY) GROUP BY origen, dia', [survey.id]).catch(() => []);
+        const visitasPorDia = visitas.map((fila) => ({ origen: fila.origen, dia: (fila.dia instanceof Date ? fila.dia.toISOString() : String(fila.dia)).slice(0, 10), total: Number(fila.total) }));
         const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
             id: row.id,
             submittedAt: row.submittedAt.toISOString(),
@@ -191,10 +220,24 @@ let SurveysController = class SurveysController {
             teamMessage: row.teamMessage ?? null,
             completedAt: row.completedAt ? row.completedAt.toISOString() : null,
             privacyConsentAt: row.privacyConsentAt ? row.privacyConsentAt.toISOString() : null,
+            attendedAt: row.attendedAt ? row.attendedAt.toISOString() : null,
+            attendedByName: row.attendedBy ? nombres.get(row.attendedBy) ?? null : null,
             origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
             answers: row.answers ?? {},
         }));
-        return { ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses), respuestas: detalle };
+        return { ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses), respuestas: detalle, visitasPorDia };
+    }
+    async attend(req, id, responseId, dto) {
+        const survey = await this.findOwned(id, req);
+        const respuesta = await this.responses.findOne({ where: { id: responseId, surveyId: survey.id } });
+        if (!respuesta)
+            throw new common_1.NotFoundException('La respuesta no existe');
+        await this.responses.update({ id: respuesta.id }, dto.atendida ? { attendedAt: new Date(), attendedBy: req.user.id } : { attendedAt: null, attendedBy: null });
+        return { id: respuesta.id, attendedAt: dto.atendida ? new Date().toISOString() : null, attendedByName: dto.atendida ? await this.nombreDe(req.user.id) : null };
+    }
+    async nombreDe(userId) {
+        const filas = await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [userId]).catch(() => []);
+        return filas?.[0]?.name ?? null;
     }
     async submit(req, id, dto) {
         const survey = await this.findOwned(id, req);
@@ -281,6 +324,25 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], SurveysController.prototype, "list", null);
 __decorate([
+    (0, common_1.Get)('company-legal'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, datos_legales_de_empresa_1.CompanyLegalScopeDto]),
+    __metadata("design:returntype", Promise)
+], SurveysController.prototype, "companyLegal", null);
+__decorate([
+    (0, common_1.Put)('company-legal'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, datos_legales_de_empresa_1.CompanyLegalScopeDto, datos_legales_de_empresa_1.CompanyLegalDto]),
+    __metadata("design:returntype", Promise)
+], SurveysController.prototype, "saveCompanyLegal", null);
+__decorate([
     (0, common_1.Get)(':id'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Leer una encuesta' }),
@@ -333,6 +395,17 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], SurveysController.prototype, "results", null);
 __decorate([
+    (0, common_1.Patch)(':id/responses/:responseId/attention'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Param)('responseId')),
+    __param(3, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, survey_dto_1.AttendSurveyResponseDto]),
+    __metadata("design:returntype", Promise)
+], SurveysController.prototype, "attend", null);
+__decorate([
     (0, common_1.Post)(':id/responses'),
     (0, roles_decorator_1.Roles)(...Object.values(user_role_enum_1.UserRole)),
     (0, swagger_1.ApiOperation)({ summary: 'Registrar una respuesta' }),
@@ -366,5 +439,6 @@ exports.SurveysController = SurveysController = __decorate([
         typeorm_2.Repository,
         typeorm_2.DataSource,
         account_access_service_1.AccountAccessService,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        audit_service_1.AuditService])
 ], SurveysController);

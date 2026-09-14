@@ -385,10 +385,18 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return { responseId: 'visual-response-nueva', token: 'token-visual-de-prueba-123', rating, siguiente: rating < 4 ? 'mensaje-al-equipo' : 'ofrecer-encuesta', reviewUrl: 'https://g.page/r/ejemplo/review', nombre: body.invitacion ? 'Camila' : null };
   }],
   [/\/public\/surveys\/visual-survey\/responses\/[^/]+\/complete$/, (config) => ({ completed: Boolean(visualRequestBody(config).terminar) })],
+  [/\/public\/surveys\/visual-survey\/visit$/, () => ({ registrada: true })],
+  [/\/surveys\/visual-survey\/responses\/[^/]+\/attention$/, (config) => ({ attendedAt: visualRequestBody(config).atendida ? new Date().toISOString() : null })],
   [/\/public\/surveys\/visual-survey$/, () => VISUAL_SURVEY],
   [/\/surveys\/visual-survey\/send-email$/, () => ({ enviados: 2, fallidos: 0, invalidos: 1 })],
   [/\/surveys\/visual-survey\/results$/, () => ({
-    surveyId: 'visual-survey', totalResponses: 6, completionRate: null, generatedAt: new Date().toISOString(),
+    surveyId: 'visual-survey', totalResponses: 6, completionRate: null,
+    visitasPorDia: [
+      { origen: 'qr-mesa', dia: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), total: 42 },
+      { origen: 'whatsapp', dia: new Date(Date.now() - 9 * 86400000).toISOString().slice(0, 10), total: 35 },
+      { origen: 'instagram', dia: new Date(Date.now() - 33 * 86400000).toISOString().slice(0, 10), total: 60 },
+      { origen: 'link', dia: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10), total: 12 },
+    ], generatedAt: new Date().toISOString(),
     questions: [
       { questionId: 'nota', question: '¿Cómo fue tu visita?', required: true, totalAnswers: 3, type: 'rating', average: 3.7, distribution: { '2': 1, '4': 1, '5': 1 } },
       { questionId: 'volveria', question: '¿Volverías?', required: true, totalAnswers: 1, type: 'multiple-choice', counts: { 'Sí': 1 } },
@@ -398,7 +406,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { id: 'r1', submittedAt: new Date(Date.now() - 2 * 3600000).toISOString(), rating: 2, respondentName: 'Sebastián Vera', respondentEmail: 'sebastian@example.test', origen: 'reserva', reservationId: 'visual-booking-2', teamMessage: 'La comida llegó fría y tuvimos que pedir la cuenta tres veces.', completedAt: new Date(Date.now() - 2 * 3600000).toISOString(), answers: { nota: 2 } },
       { id: 'r2', submittedAt: new Date(Date.now() - 26 * 3600000).toISOString(), rating: 5, respondentName: 'Camila Rojas', respondentEmail: 'camila@example.test', origen: 'reserva', reservationId: 'visual-booking-1', teamMessage: null, completedAt: new Date(Date.now() - 26 * 3600000).toISOString(), answers: { nota: 5, volveria: 'Sí', mejorar: 'Más opciones sin gluten' } },
       { id: 'r3', origen: 'qr', submittedAt: new Date(Date.now() - 50 * 3600000).toISOString(), rating: 4, respondentName: null, respondentEmail: null, reservationId: null, teamMessage: null, completedAt: null, answers: { nota: 4 } },
-      { id: 'r4', origen: 'whatsapp', submittedAt: new Date(Date.now() - 9 * 86400000).toISOString(), rating: 3, respondentName: 'Ignacia Muñoz', respondentEmail: 'ignacia@example.test', reservationId: null, teamMessage: null, completedAt: new Date(Date.now() - 9 * 86400000).toISOString(), privacyConsentAt: new Date(Date.now() - 9 * 86400000).toISOString(), answers: { nota: 3, volveria: 'Tal vez', fallo: 'El tiempo de espera', 'dato-nombre': 'Ignacia Muñoz', 'dato-correo': 'ignacia@example.test', 'dato-telefono': '+56 9 8765 4321' } },
+      { id: 'r4', origen: 'whatsapp', attendedAt: new Date(Date.now() - 8 * 86400000).toISOString(), attendedByName: 'Valentina Soto', submittedAt: new Date(Date.now() - 9 * 86400000).toISOString(), rating: 3, respondentName: 'Ignacia Muñoz', respondentEmail: 'ignacia@example.test', reservationId: null, teamMessage: null, completedAt: new Date(Date.now() - 9 * 86400000).toISOString(), privacyConsentAt: new Date(Date.now() - 9 * 86400000).toISOString(), answers: { nota: 3, volveria: 'Tal vez', fallo: 'El tiempo de espera', 'dato-nombre': 'Ignacia Muñoz', 'dato-correo': 'ignacia@example.test', 'dato-telefono': '+56 9 8765 4321' } },
       { id: 'r5', origen: 'qr', submittedAt: new Date(Date.now() - 20 * 86400000).toISOString(), rating: 5, respondentName: null, respondentEmail: null, reservationId: null, teamMessage: null, completedAt: new Date(Date.now() - 20 * 86400000).toISOString(), answers: { nota: 5, volveria: 'Sí' } },
       { id: 'r6', origen: 'instagram', submittedAt: new Date(Date.now() - 33 * 86400000).toISOString(), rating: 4, respondentName: null, respondentEmail: null, reservationId: null, teamMessage: null, completedAt: new Date(Date.now() - 33 * 86400000).toISOString(), answers: { nota: 4, volveria: 'Sí', mejorar: 'Música un poco más baja' } },
     ],
@@ -542,7 +550,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
   [/\/uploads\/images\/status/, () => ({ configured: true })],
-  [/\/reservations\/company-legal/, (config) => {
+  [/\/(reservations|surveys)\/company-legal/, (config) => {
     const clave = 'vh.visual.companyLegal';
     let actual: Record<string, unknown> = { legalName: 'Casa Costanera SpA', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace', privacyText: '', termsText: '' };
     try { actual = { ...actual, ...JSON.parse(localStorage.getItem(clave) || '{}') }; } catch { /* sin almacenamiento */ }

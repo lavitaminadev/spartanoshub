@@ -184,7 +184,10 @@ function atajosDeValores(pregunta: SurveyQuestion): Array<{ etiqueta: string; va
 function VistaPrevia({ state }: { state: WizardState }) {
   const [modo, setModo] = useState<'escritorio' | 'celular'>('celular');
   const [respuestas, setRespuestas] = useState<Record<string, string | number>>({});
-  const visibles = ordenarParaMostrar(preguntasVisibles(state.questions.filter((q) => q.question.trim()), respuestas));
+  // Mismo orden que la página real: con estrellas, la nota va sola primero y después los datos y el resto.
+  const ordenadas = ordenarParaMostrar(preguntasVisibles(state.questions.filter((q) => q.question.trim()), respuestas));
+  const nota = ordenadas.find((q) => q.type === 'rating');
+  const visibles = nota ? [nota, ...ordenadas.filter((q) => q.id !== nota.id)] : ordenadas;
   const pideDatos = state.questions.some((q) => q.dato);
   return (
     <aside className="survey-preview" aria-label="Vista previa">
@@ -205,7 +208,7 @@ function VistaPrevia({ state }: { state: WizardState }) {
             <p>{state.welcome || 'Tu opinión ayuda a mejorar el servicio.'}</p>
             <div className="public-survey-questions">
               {visibles.map((question) => (
-                <CampoDeEncuesta key={question.id} question={question} value={respuestas[question.id]} onChange={(value) => setRespuestas((r) => ({ ...r, [question.id]: value }))} />
+                <CampoDeEncuesta key={question.id} question={question} estrellas value={respuestas[question.id]} onChange={(value) => setRespuestas((r) => ({ ...r, [question.id]: value }))} />
               ))}
             </div>
             {pideDatos ? <div className="public-survey-aceptacion"><label><input type="checkbox" disabled /><span>Acepto que la empresa use los datos que dejo en esta encuesta… (el texto se completa con sus datos legales)</span></label></div> : null}

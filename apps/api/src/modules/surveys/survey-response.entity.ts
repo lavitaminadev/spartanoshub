@@ -42,5 +42,9 @@ export class SurveyResponse {
   @Column({ name: 'privacy_consent_at', type: 'timestamp', nullable: true }) privacyConsentAt?: Date | null;
   @Column({ name: 'privacy_consent_text', type: 'text', nullable: true, select: false }) privacyConsentText?: string | null;
 
+  /** Cuándo y quién marcó como atendido el mensaje o la nota baja. */
+  @Column({ name: 'attended_at', type: 'timestamp', nullable: true }) attendedAt?: Date | null;
+  @Column({ name: 'attended_by', type: 'varchar', length: 36, nullable: true }) attendedBy?: string | null;
+
   @CreateDateColumn({ name: 'submitted_at' }) submittedAt: Date;
 }
