@@ -731,8 +731,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const form = await this.publishedForm(slug);
         if (dto.sessionId) {
             const existing = await this.formEvents.findOne({ where: { formId: form.id, type: dto.type, sessionId: dto.sessionId } });
-            if (existing)
+            if (existing) {
+                if (dto.type === 'start' && dto.measurementConsent)
+                    await this.enqueueMetaInitiateCheckout(existing, form, dto, ipAddress, userAgent);
                 return existing;
+            }
         }
         const saved = await this.saveFormEventOnce(this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent }));
         if (dto.type === 'start' && dto.measurementConsent) {
@@ -1274,7 +1277,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return { expiresAt: hold.expiresAt, available: availability.available };
         });
     }
-    async createPublicGroupRequest(slug, dto) {
+    async createPublicGroupRequest(slug, dto, ipAddress, userAgent) {
         if (dto.website)
             throw new common_1.BadRequestException('Solicitud inválida');
         if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800)
@@ -1299,11 +1302,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             organizationId: form.organizationId, clientId: form.clientId, formId: form.id, idempotencyKey: dto.idempotencyKey,
             guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase() || null, guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone) || null,
             partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
-            notes: dto.notes?.trim() || null, details: dto.details ?? null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+            notes: dto.notes?.trim() || null,
+            details: { ...(dto.details ?? {}), ...(dto.measurementConsent ? { medicion: { aceptadaEn: new Date().toISOString(), fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined), fbp: dto.fbp, ip: ipAddress, userAgent } } : {}) },
+            reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
             marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
             networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentText: dto.networkConsent ? consent.network : null,
             utmSource: dto.utmSource || null, utmMedium: dto.utmMedium || null, utmCampaign: dto.utmCampaign || null, utmContent: dto.utmContent || null, status: 'pending',
         }));
+        if (dto.measurementConsent)
+            void this.enqueueMetaGroupLead(request, form, dto, ipAddress, userAgent);
         void this.avisarSolicitudSinCupo(form, 'grupo', { id: request.id, guestName: request.guestName, guestEmail: request.guestEmail, partySize: request.partySize, cuando: [request.preferredDate || 'fecha por acordar', request.preferredTime].filter(Boolean).join(' ') });
         return { id: request.id, status: request.status, kind: 'group_request' };
     }
@@ -1388,11 +1395,56 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             skipAvailability: dto.skipAvailability === true,
         }, clientId, clientIds);
         const reservationId = booking.id ?? booking.booking?.id;
+        const medicion = (details.medicion || null);
+        if (reservationId && medicion?.aceptadaEn) {
+            await this.reservations.update(reservationId, { measurementConsentAt: new Date(medicion.aceptadaEn), fbc: medicion.fbc ?? null, fbp: medicion.fbp ?? null, clientIpAddress: medicion.ip ?? null, clientUserAgent: medicion.userAgent ?? null });
+        }
         request.status = 'converted';
         request.details = { ...details, reservationId };
         await this.groupRequests.save(request);
         await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'converted', after: { reservationId, startsAt: dto.startsAt } });
         return booking;
+    }
+    async enqueueMetaGroupLead(request, form, dto, ipAddress, userAgent) {
+        try {
+            if (!form.metaCapiEnabled)
+                return;
+            const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
+            if (!capabilities.metaConversions)
+                return;
+            const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
+            if (!pixelId || !accessToken)
+                return;
+            const fallbackUrl = process.env.APP_PUBLIC_URL ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}` : undefined;
+            const [firstName, ...lastNameParts] = (request.guestName ?? '').trim().split(/\s+/);
+            const location = (0, geo_inference_1.inferLocationFromPhone)(request.guestPhone ?? undefined);
+            const medicion = (request.details || {}).medicion;
+            await this.metaOutbox.enqueue(form.organizationId, pixelId, {
+                eventName: shared_2.META_DEDUPLICATED_EVENTS.LEAD,
+                eventTime: Math.floor((request.createdAt ?? new Date()).getTime() / 1000),
+                actionSource: 'website',
+                eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
+                userData: {
+                    em: request.guestEmail ? [request.guestEmail] : undefined,
+                    ph: request.guestPhone ? [request.guestPhone] : undefined,
+                    fn: firstName ? [firstName] : undefined,
+                    ln: lastNameParts.length ? [lastNameParts.join(' ')] : undefined,
+                    externalId: [request.id],
+                    ct: location.city ? [location.city] : undefined,
+                    st: location.region ? [location.region] : undefined,
+                    country: location.country ? [location.country] : undefined,
+                    fbc: medicion?.fbc ?? dto.fbc ?? undefined,
+                    fbp: dto.fbp ?? undefined,
+                    client_ip_address: ipAddress ?? undefined,
+                    client_user_agent: userAgent ?? undefined,
+                },
+                customData: { contentIds: [form.id], contentType: 'group_request', ...this.valorDeLaReserva(form, request.partySize) },
+                eventId: (0, shared_2.metaEventId)(shared_2.META_DEDUPLICATED_EVENTS.LEAD, request.id),
+            }, form.clientId);
+        }
+        catch (err) {
+            this.logger.warn(`Meta CAPI Lead de la solicitud ${request.id} no encolado: ${err instanceof Error ? err.message : err}`);
+        }
     }
     async updateGroupRequest(organizationId, id, dto, actorId, clientId, clientIds) {
         const item = await this.groupRequests.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
@@ -1485,7 +1537,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 gbraid: dto.gbraid,
                 wbraid: dto.wbraid,
                 fbclid: dto.fbclid,
-                fbc: dto.fbc,
+                fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined),
                 fbp: dto.fbp,
                 clientIpAddress: ipAddress,
                 clientUserAgent: userAgent,
@@ -1850,7 +1902,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
         if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) {
             try {
-                await this.enqueueMetaConversion(saved, formForMeta, shared_2.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000));
+                await this.enqueueMetaConversion(saved, formForMeta, shared_2.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(Math.min(saved.startsAt.getTime(), Date.now()) / 1000));
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);

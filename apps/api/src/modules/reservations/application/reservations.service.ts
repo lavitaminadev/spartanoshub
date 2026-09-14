@@ -854,7 +854,12 @@ export class ReservationsService {
       const existing = await this.formEvents.findOne({ where: { formId: form.id, type: dto.type, sessionId: dto.sessionId } });
       // Ya registrado: no se reenvía a Meta. La deduplicación por `eventId` la cubriría, pero
       // gastar la llamada igual llena la cola de duplicados que se descartan al otro lado.
-      if (existing) return existing;
+      if (existing) {
+        // El embudo cuenta el inicio aunque no haya medición; si la persona la acepta después,
+        // el inicio recién ahí viaja a Meta. La cola descarta el duplicado por identificador.
+        if (dto.type === 'start' && dto.measurementConsent) await this.enqueueMetaInitiateCheckout(existing, form, dto, ipAddress, userAgent);
+        return existing;
+      }
     }
     const saved = await this.saveFormEventOnce(
       this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent }),
@@ -1520,7 +1525,7 @@ export class ReservationsService {
     });
   }
 
-  async createPublicGroupRequest(slug: string, dto: PublicGroupRequestDto) {
+  async createPublicGroupRequest(slug: string, dto: PublicGroupRequestDto, ipAddress?: string, userAgent?: string) {
     if (dto.website) throw new BadRequestException('Solicitud inválida');
     if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
     if (!dto.reservationConsent) throw new BadRequestException('Debes aceptar las condiciones para enviar la solicitud');
@@ -1538,12 +1543,18 @@ export class ReservationsService {
       organizationId: form.organizationId, clientId: form.clientId, formId: form.id, idempotencyKey: dto.idempotencyKey,
       guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase() || null, guestPhone: normalizePhone(dto.guestPhone) || null,
       partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
-      notes: dto.notes?.trim() || null, details: dto.details ?? null, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+      notes: dto.notes?.trim() || null,
+      // Las señales de medición se guardan con la solicitud para que, al convertirla en reserva,
+      // la asistencia pueda informarse a Meta como la de cualquier reserva con medición aceptada.
+      details: { ...(dto.details ?? {}), ...(dto.measurementConsent ? { medicion: { aceptadaEn: new Date().toISOString(), fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined), fbp: dto.fbp, ip: ipAddress, userAgent } } : {}) },
+      reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
       marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
       networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentText: dto.networkConsent ? consent.network : null,
       utmSource: dto.utmSource || null, utmMedium: dto.utmMedium || null, utmCampaign: dto.utmCampaign || null, utmContent: dto.utmContent || null, status: 'pending',
     }));
-    // Es una solicitud, no una conversión de reserva: no toma cupo ni dispara Schedule.
+    // Es una solicitud, no una conversión de reserva: no toma cupo ni dispara Schedule. Sí es un
+    // lead —y de los que más valen—, así que con medición aceptada viaja a Meta como `Lead`.
+    if (dto.measurementConsent) void this.enqueueMetaGroupLead(request, form, dto, ipAddress, userAgent);
     void this.avisarSolicitudSinCupo(form, 'grupo', { id: request.id, guestName: request.guestName, guestEmail: request.guestEmail, partySize: request.partySize, cuando: [request.preferredDate || 'fecha por acordar', request.preferredTime].filter(Boolean).join(' ') });
     return { id: request.id, status: request.status, kind: 'group_request' };
   }
@@ -1640,11 +1651,60 @@ export class ReservationsService {
       skipAvailability: dto.skipAvailability === true,
     }, clientId, clientIds);
     const reservationId = (booking as { id?: string; booking?: { id?: string } }).id ?? (booking as { booking?: { id?: string } }).booking?.id;
+    const medicion = (details.medicion || null) as { aceptadaEn?: string; fbc?: string; fbp?: string; ip?: string; userAgent?: string } | null;
+    if (reservationId && medicion?.aceptadaEn) {
+      // Sin esto la asistencia de un evento —la conversión más valiosa— nunca llegaba a Meta:
+      // la reserva nacía sin la medición que la persona sí había aceptado al pedirlo.
+      await this.reservations.update(reservationId, { measurementConsentAt: new Date(medicion.aceptadaEn), fbc: medicion.fbc ?? null, fbp: medicion.fbp ?? null, clientIpAddress: medicion.ip ?? null, clientUserAgent: medicion.userAgent ?? null } as never);
+    }
     request.status = 'converted';
     request.details = { ...details, reservationId };
     await this.groupRequests.save(request);
     await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'converted', after: { reservationId, startsAt: dto.startsAt } });
     return booking;
+  }
+
+  /**
+   * Lead de Meta por una solicitud de grupo, deduplicado con el que dispara el navegador.
+   *
+   * Con valor: un evento de nueve personas le dice a la campaña más que diez reservas de dos.
+   */
+  private async enqueueMetaGroupLead(request: ReservationGroupRequest, form: ReservationForm, dto: PublicGroupRequestDto, ipAddress?: string, userAgent?: string): Promise<void> {
+    try {
+      if (!form.metaCapiEnabled) return;
+      const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
+      if (!capabilities.metaConversions) return;
+      const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
+      if (!pixelId || !accessToken) return;
+      const fallbackUrl = process.env.APP_PUBLIC_URL ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}` : undefined;
+      const [firstName, ...lastNameParts] = (request.guestName ?? '').trim().split(/\s+/);
+      const location = inferLocationFromPhone(request.guestPhone ?? undefined);
+      const medicion = ((request.details || {}) as { medicion?: { fbc?: string } }).medicion;
+      await this.metaOutbox.enqueue(form.organizationId, pixelId, {
+        eventName: META_DEDUPLICATED_EVENTS.LEAD,
+        eventTime: Math.floor((request.createdAt ?? new Date()).getTime() / 1000),
+        actionSource: 'website',
+        eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
+        userData: {
+          em: request.guestEmail ? [request.guestEmail] : undefined,
+          ph: request.guestPhone ? [request.guestPhone] : undefined,
+          fn: firstName ? [firstName] : undefined,
+          ln: lastNameParts.length ? [lastNameParts.join(' ')] : undefined,
+          externalId: [request.id],
+          ct: location.city ? [location.city] : undefined,
+          st: location.region ? [location.region] : undefined,
+          country: location.country ? [location.country] : undefined,
+          fbc: medicion?.fbc ?? dto.fbc ?? undefined,
+          fbp: dto.fbp ?? undefined,
+          client_ip_address: ipAddress ?? undefined,
+          client_user_agent: userAgent ?? undefined,
+        },
+        customData: { contentIds: [form.id], contentType: 'group_request', ...this.valorDeLaReserva(form, request.partySize) },
+        eventId: metaEventId(META_DEDUPLICATED_EVENTS.LEAD, request.id),
+      }, form.clientId);
+    } catch (err) {
+      this.logger.warn(`Meta CAPI Lead de la solicitud ${request.id} no encolado: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   async updateGroupRequest(organizationId: string, id: string, dto: { status: string; quoteAmount?: number; quoteMessage?: string; quoteExpiresAt?: string }, actorId: string, clientId?: string, clientIds?: string[]) {
@@ -1746,7 +1806,8 @@ export class ReservationsService {
         gbraid: dto.gbraid,
         wbraid: dto.wbraid,
         fbclid: dto.fbclid,
-        fbc: dto.fbc,
+        // Si el navegador no alcanzó a armar `_fbc` (sin cookie aún), se arma con el fbclid del anuncio: sin él Meta no liga la reserva al clic.
+        fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined),
         fbp: dto.fbp,
         clientIpAddress: ipAddress,
         clientUserAgent: userAgent,
@@ -2227,7 +2288,7 @@ export class ReservationsService {
     // por una inasistencia — enviar cualquier cosa le diría al algoritmo "esta persona convirtió",
     // que es lo opuesto de lo que pasó. 'attended' es el único resultado que produce una señal
     // de conversión real. Los resultados se mantienen exclusivamente en Reservas.
-    if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
+    if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) { try { await this.enqueueMetaConversion(saved, formForMeta, META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(Math.min(saved.startsAt.getTime(), Date.now()) / 1000)); } catch (err) { this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'meta_capi'); } }
     if (statusChangedTo === 'attended' && formForMeta) { try { await this.enqueueGoogleConversion(saved, formForMeta, 'attended', saved.startsAt); } catch (err) { this.logger.warn(`Google Ads attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`); await this.recordIntegrationFailure(saved, 'google_ads'); } }
     /*
      * La solicitud pendiente quedo confirmada: hay que decirlo.

@@ -26,6 +26,7 @@ const email_service_1 = require("../../notifications/email.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 const UNA_HORA = 3_600_000;
+const DIAS_ENTRE_ENCUESTAS = 7;
 exports.HORAS_POST_VISITA_POR_DEFECTO = 3;
 exports.MARGEN_MAXIMO_HORAS = 48;
 let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJob {
@@ -82,6 +83,11 @@ let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJo
                 }
                 if (!encuesta || !encuestaUtil(encuesta, form))
                     continue;
+                const encuestadaHacePoco = await this.reservas.count({ where: { formId: reserva.formId, guestEmail: reserva.guestEmail, postVisitSurveySentAt: (0, typeorm_2.MoreThan)(new Date(ahora - DIAS_ENTRE_ENCUESTAS * 24 * UNA_HORA)) } });
+                if (encuestadaHacePoco > 0) {
+                    await this.reservas.update(reserva.id, { postVisitSurveySentAt: new Date() });
+                    continue;
+                }
                 const enlace = `${origen}/survey/${encodeURIComponent(encuesta.id)}?src=email&i=${encodeURIComponent((0, invitacion_a_encuesta_1.crearInvitacion)(encuesta.id, reserva.id, secreto))}`;
                 const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(ajustes.asunto, ajustes.cuerpo, {
                     nombre: reserva.guestName?.trim().split(/\s+/)[0] || '',

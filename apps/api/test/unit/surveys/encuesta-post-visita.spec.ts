@@ -15,7 +15,7 @@ function armar(opciones: { ajustes?: Record<string, unknown>; encuesta?: Record<
     startsAt: new Date(ahora - ((opciones.finHaceHoras ?? 5) + 2) * HORA),
     endsAt: new Date(ahora - (opciones.finHaceHoras ?? 5) * HORA),
   };
-  const reservas = { find: vi.fn().mockResolvedValue([reserva]), update: vi.fn().mockResolvedValue({}) };
+  const reservas = { find: vi.fn().mockResolvedValue([reserva]), update: vi.fn().mockResolvedValue({}), count: vi.fn().mockResolvedValue(0) };
   const formularios = { findOne: vi.fn().mockResolvedValue({ id: 'form-1', organizationId: 'org-1', clientId: 'cliente-1', name: 'Casa Costanera', timezone: 'America/Santiago', designConfig: { supportEmail: 'hola@local.test' } }) };
   const encuestas = { findOne: vi.fn().mockResolvedValue(opciones.encuesta === undefined ? { id: 'enc-1', status: 'active', type: 'customer', clientId: 'cliente-1' } : opciones.encuesta) };
   const correo = { send: vi.fn().mockResolvedValue(opciones.enviado ?? true) };
@@ -90,6 +90,14 @@ describe('encuesta post-visita', () => {
     const { job, reservas } = armar({ enviado: false });
     await expect(job.handle()).resolves.toEqual({ enviados: 0, revisados: 1 });
     expect(reservas.update).not.toHaveBeenCalled();
+  });
+
+  it('no encuesta de nuevo a quien ya respondió una en esa semana, pero marca la visita', async () => {
+    const { job, reservas, correo } = armar();
+    reservas.count.mockResolvedValue(1);
+    await job.handle();
+    expect(correo.send).not.toHaveBeenCalled();
+    expect(reservas.update).toHaveBeenCalledWith('reserva-1', { postVisitSurveySentAt: expect.any(Date) });
   });
 
   it('no hace nada sin la dirección pública para armar el enlace', async () => {

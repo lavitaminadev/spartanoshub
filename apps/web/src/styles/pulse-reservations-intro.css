@@ -286,3 +286,10 @@
 .booking-ocasiones-grilla .booking-ocasion-elegible small { color:#5d6b63; font-size:12px; line-height:1.35; }
 .booking-ocasiones-grilla .booking-ocasion-elegible:focus-visible { outline:2px solid var(--booking-primary, #087e79); outline-offset:2px; }
 .booking-ocasiones-grilla .booking-ocasion-elegible.is-elegida { border-color:var(--booking-primary, #087e79); box-shadow:inset 0 0 0 1px var(--booking-primary, #087e79); }
+
+/* Aviso de medición al entrar: abajo, discreto y sin tapar el formulario. */
+.booking-medicion-aviso { position:fixed; left:50%; bottom:16px; z-index:20; display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; width:min(720px, calc(100% - 24px)); padding:12px 16px; border-radius:14px; background:#fff; color:#27332f; box-shadow:0 10px 30px rgba(0,0,0,.18); transform:translateX(-50%); font-size:13px; line-height:1.4; }
+.booking-medicion-aviso p { flex:1 1 320px; margin:0; }
+.booking-medicion-aviso > div { display:flex; gap:8px; margin-left:auto; }
+.booking-medicion-aviso .btn { min-height:40px; }
+@media (max-width:640px) { .booking-medicion-aviso { bottom:8px; font-size:12px; } .booking-medicion-aviso > div { width:100%; } .booking-medicion-aviso .btn { flex:1; } }
