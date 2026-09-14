@@ -246,9 +246,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     }
     validateSubmission(form, answers, guest) {
         this.validateAnswers(form, answers);
-        const visibles = (0, shared_1.camposVisibles)(form.fieldSchema.map((field) => ({ ...field, mostrarSi: field.mostrarSi })), { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone });
+        const visibles = (0, shared_1.camposVisibles)(form.fieldSchema.map((field) => ({ ...field, mostrarSi: field.mostrarSi })), { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone, partySize: guest.partySize });
         for (const field of visibles) {
-            const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : answers[field.id];
+            const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : field.id === 'partySize' ? guest.partySize : answers[field.id];
             const empty = value == null || value === '' || value === false || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && value.length === 0);
             if (field.required && empty)
                 throw new common_1.BadRequestException(`Falta completar ${field.label}`);
@@ -361,6 +361,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async pauseForm(organizationId, id, until, clientId, clientIds) {
         const form = await this.getForm(organizationId, id, clientId, clientIds);
         const design = { ...form.designConfig };
+        if (until && !(new Date(until).getTime() > Date.now()))
+            throw new common_1.BadRequestException('La pausa debe terminar en una fecha futura');
         if (until)
             design.bookingPausedUntil = until;
         else
@@ -378,6 +380,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('El fin debe ser posterior al inicio');
         if (endsAt.getTime() - startsAt.getTime() > 366 * 86400000)
             throw new common_1.BadRequestException('Un bloqueo no puede superar 366 días');
+        if (endsAt.getTime() <= Date.now())
+            throw new common_1.BadRequestException('Ese bloqueo ya terminó: elige un horario futuro');
         const affected = await this.reservations.createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId, startsAt, endsAt, statuses: ACTIVE_STATUSES }).getCount();
         if (affected > 0)
             throw new common_1.ConflictException(`Hay ${affected} reserva(s) en este horario. Reagenda o contacta a esas personas antes de bloquearlo.`);
@@ -1246,6 +1250,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const existing = await this.groupRequests.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
         if (existing)
             return { id: existing.id, status: existing.status, kind: 'group_request' };
+        if (dto.preferredDate && dto.preferredDate < this.localDateKey(new Date(), form.timezone))
+            throw new common_1.BadRequestException('La fecha preferida ya pasó: elige hoy o una fecha futura');
         const request = await this.groupRequests.save(this.groupRequests.create({
             organizationId: form.organizationId, clientId: form.clientId, formId: form.id, idempotencyKey: dto.idempotencyKey,
             guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase() || null, guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone) || null,
@@ -1310,6 +1316,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.NotFoundException('Solicitud no encontrada');
         if (request.status === 'converted')
             throw new common_1.ConflictException('Esta solicitud ya se convirtió en reserva');
+        const acordada = new Date(dto.startsAt);
+        if (Number.isNaN(acordada.getTime()) || acordada.getTime() < Date.now() - 5 * 60000)
+            throw new common_1.BadRequestException('La fecha acordada ya pasó: elige una fecha y hora futuras');
         const details = (request.details || {});
         const texto = (valor) => (typeof valor === 'string' && valor.trim() ? valor.trim() : undefined);
         const answers = {

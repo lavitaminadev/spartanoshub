@@ -173,6 +173,28 @@ const VISUAL_RESERVATION_LOCAL = {
  */
 const visualReservationForms: any[] = [VISUAL_RESERVATION_LOCAL];
 
+/*
+ * Los formularios del modo visual se guardan en este navegador.
+ *
+ * Sólo en memoria, cualquier recarga —abrir la página pública, la vista previa en otra pestaña—
+ * volvía al ejemplo original y parecía que el editor no guardaba. Borrar el sitio en el
+ * navegador restablece el ejemplo.
+ */
+const CLAVE_FORMULARIOS_VISUALES = 'vh.visual.reservationForms';
+try {
+  const guardados = JSON.parse(localStorage.getItem(CLAVE_FORMULARIOS_VISUALES) || '[]');
+  if (Array.isArray(guardados)) {
+    for (const guardado of guardados) {
+      if (!guardado?.id) continue;
+      if (guardado.id === VISUAL_RESERVATION_LOCAL.id) Object.assign(VISUAL_RESERVATION_LOCAL, guardado);
+      else visualReservationForms.push(guardado);
+    }
+  }
+} catch { /* sin almacenamiento: queda el ejemplo en memoria */ }
+function guardarFormulariosVisuales() {
+  try { localStorage.setItem(CLAVE_FORMULARIOS_VISUALES, JSON.stringify(visualReservationForms)); } catch { /* sin almacenamiento */ }
+}
+
 function visualRequestBody(config?: any): Record<string, any> {
   if (!config?.data) return {};
   if (typeof config.data === 'string') {
@@ -453,6 +475,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
         updatedAt: new Date().toISOString(),
       };
       visualReservationForms.push(created);
+      guardarFormulariosVisuales();
       return created;
     }
     const clientId = new URL(config?.url || '/', window.location.origin).searchParams.get('clientId');
@@ -464,8 +487,9 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * duración, una llegada cada N minutos, anticipación mínima y ventana máxima. Usa la hora del
    * navegador como si fuera la del local; alcanza para revisar la pantalla.
    */
-  [/\/public\/reservations\/casa-costanera\/slots/, (config) => {
-    const local = visualReservationForms.find((item) => item.publicSlug === 'casa-costanera') ?? VISUAL_RESERVATION_LOCAL;
+  [/\/public\/reservations\/[^/?]+\/slots/, (config) => {
+    const slugPedido = (config?.url?.match(/\/public\/reservations\/([^/?]+)\/slots/) ?? [])[1];
+    const local = visualReservationForms.find((item) => item.publicSlug === slugPedido) ?? VISUAL_RESERVATION_LOCAL;
     const url = new URL(`http://x${config?.url ?? ''}`);
     const desde = url.searchParams.get('from') || new Date().toISOString().slice(0, 10);
     const dias = Math.min(62, Number(url.searchParams.get('days') || '14') || 14);
@@ -598,6 +622,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     const form = visualReservationForms.find((item) => item.id === id) || VISUAL_RESERVATION_LOCAL;
     const until = String(visualRequestBody(config).until || '');
     form.designConfig = { ...form.designConfig, bookingPausedUntil: until || undefined };
+    guardarFormulariosVisuales();
     return form;
   }],
   [/\/reservations\/forms\/[^/?]+$/, (config) => {
@@ -607,6 +632,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     const body = visualRequestBody(config);
     // Como el servidor: la pausa sólo cambia por su propia ruta.
     Object.assign(form, body, { designConfig: { ...form.designConfig, ...body.designConfig, bookingPausedUntil: form.designConfig?.bookingPausedUntil }, updatedAt: new Date().toISOString() });
+    guardarFormulariosVisuales();
     return form;
   }],
   [/\/roles\/permissions$/, () => {

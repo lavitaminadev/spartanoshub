@@ -14,6 +14,7 @@ import { VitaIcons } from '../../shared/Icons';
 import { publicReservationUrl } from '../../core/public-url';
 import { imageOverlayAlpha, leerOcasiones, safeDesignChoice, safeNumber, uuid, visible } from './booking-utils';
 import { safeUrl } from '../../core/safe-url';
+import { camposVisibles } from '@espartanos/shared';
 
 const FIELD_LIBRARY = [
   ['text', 'Texto corto'], ['textarea', 'Texto largo'], ['email', 'Correo'],
@@ -366,7 +367,7 @@ export function ReservationBuilderPage() {
   const diasHabilitados = new Set(windows.map((window) => window.day)).size;
   const surveyMode = isSurveyMode(draft.mode);
   const flowLabel = surveyMode ? 'encuesta post-visita' : 'formulario de reserva';
-  const fieldLibrary = surveyMode ? FIELD_LIBRARY : FIELD_LIBRARY.filter(([type]) => type !== 'rating');
+  const fieldLibrary = FIELD_LIBRARY.filter(([type]) => type !== 'coupon' && (surveyMode || type !== 'rating'));
 
   const addField = (type: string) => {
     const field: FormField = { id: `field_${uuid().slice(0, 8)}`, type, label: FIELD_LIBRARY.find(([key]) => key === type)?.[1] || 'Campo', required: false, ...(['select', 'multi_select'].includes(type) ? { options: ['Opción 1', 'Opción 2'] } : {}) };
@@ -439,7 +440,7 @@ export function ReservationBuilderPage() {
             <span>El alcance pide lo mínimo: nombre, teléfono, correo opcional y número de personas. La fecha y la hora las resuelve la agenda. Cada campo extra baja la tasa de reserva desde el celular, que es por donde llega casi todo el tráfico de los anuncios.</span>
           </div>}
           {fields.map((field, index) => <article tabIndex={0} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.stopPropagation(); const { fieldId } = builderDragPayload(event); if (fieldId) reorder(fieldId, field.id); }} className={`canvas-field ${selected === field.id ? 'selected' : ''}`} key={field.id} onClick={() => setSelected(field.id)} onFocus={() => setSelected(field.id)}>
-            <span className="drag-handle" draggable onDragStart={(event) => beginExistingFieldDrag(event, field.id)} aria-label="Arrastrar para ordenar" title="Arrastrar para ordenar">⠿</span><div><label>{field.label}{field.required && ' *'}{field.system && <em> Protegido</em>}</label><div className="field-preview-input">{field.placeholder || (['select', 'multi_select'].includes(field.type) ? 'Selecciona una opcion' : 'Respuesta del visitante')}</div></div><div className="field-actions">
+            <span className="drag-handle" draggable onDragStart={(event) => beginExistingFieldDrag(event, field.id)} aria-label="Arrastrar para ordenar" title="Arrastrar para ordenar">⠿</span><div><label>{field.label}{field.required && ' *'}{field.system && <em> Protegido</em>}{field.id === 'partySize' && <em> Se pregunta en el paso 1, no en este orden</em>}{field.id === 'consent' && !surveyMode && <em> Va en el bloque de aceptaciones</em>}{field.type === 'coupon' && <em> Se muestra con «Aceptar cupones»</em>}</label><div className="field-preview-input">{field.placeholder || (['select', 'multi_select'].includes(field.type) ? 'Selecciona una opcion' : 'Respuesta del visitante')}</div></div><div className="field-actions">
               <button type="button" className="btn btn-sm btn-outline" aria-label={`Editar ${field.label}`} onClick={(e) => { e.stopPropagation(); openEditor(field); }} title="Editar campo"><VitaIcons.edit /></button>
               {!field.system && <button type="button" className="btn btn-sm btn-outline btn-danger" aria-label={`Eliminar ${field.label}`} onClick={(e) => { e.stopPropagation(); setConfirmDeleteField(field.id); }} title="Eliminar campo"><VitaIcons.delete /></button>}
               <button type="button" className="btn btn-sm btn-outline" aria-label={`Subir ${field.label}`} disabled={index === 0} onClick={(e) => { e.stopPropagation(); moveField(field.id, -1); }} title="Subir">↑</button>
@@ -544,7 +545,7 @@ export function ReservationBuilderPage() {
         </div>
 
         <h3>Semana habitual</h3><div className="week-editor week-editor-multi">{DAYS.map((label, uiDay) => { const jsDay = UI_TO_JS_DAY[uiDay]; const dayWindows = windows.map((window, index) => ({ window, index })).filter((entry) => entry.window.day === jsDay); return <div key={label} className={dayWindows.length ? 'enabled' : ''}><label className="toggle-row"><input type="checkbox" checked={dayWindows.length > 0} onChange={() => toggleDay(uiDay)} /><strong>{label}</strong></label><div className="day-windows">{dayWindows.map(({ window, index }) => <div key={`${jsDay}-${index}`}><input aria-label={`Inicio ${label}`} type="time" value={window.start} onChange={(event) => updateWindow(index, { start: event.target.value })} /><span>a</span><input aria-label={`Fin ${label}`} type="time" value={window.end} onChange={(event) => updateWindow(index, { end: event.target.value })} /><button type="button" aria-label={`Quitar franja de ${label}`} onClick={() => removeWindow(index)}>×</button></div>)}{dayWindows.length > 0 && dayWindows.length < 4 && <button type="button" className="add-window" onClick={() => addWindow(uiDay)}>+ Agregar franja</button>}{dayWindows.length === 0 && <em>Cerrado</em>}</div></div>; })}</div></div>
-      <section className="schedule-card" id="pausa"><div><h3>Detener todo por un tiempo</h3><p className="page-subtitle">La página pública no ofrecerá horarios hasta la fecha indicada. No elimina reservas ni despublica el local. Se aplica al elegir la fecha, sin «Guardar»; es la misma pausa del botón de «Hoy».</p></div><div className="schedule-settings"><label>Reanudar automáticamente el<input className="input" type="datetime-local" disabled={pausaMutation.isPending} value={utcToLocalInput(draft.designConfig?.bookingPausedUntil, draft.timezone)} onChange={(event) => setBookingPause(event.target.value)} /></label></div><button type="button" className="btn btn-outline btn-sm" disabled={!draft.designConfig?.bookingPausedUntil || pausaMutation.isPending} onClick={() => setBookingPause('')}>Quitar pausa programada</button></section>
+      <section className="schedule-card" id="pausa"><div><h3>Detener todo por un tiempo</h3><p className="page-subtitle">La página pública no ofrecerá horarios hasta la fecha indicada. No elimina reservas ni despublica el local. Se aplica al elegir la fecha, sin «Guardar»; es la misma pausa del botón de «Hoy».</p></div><div className="schedule-settings"><label>Reanudar automáticamente el<input className="input" type="datetime-local" min={utcToLocalInput(new Date().toISOString(), draft.timezone)} disabled={pausaMutation.isPending} value={utcToLocalInput(draft.designConfig?.bookingPausedUntil, draft.timezone)} onChange={(event) => setBookingPause(event.target.value)} /></label></div><button type="button" className="btn btn-outline btn-sm" disabled={!draft.designConfig?.bookingPausedUntil || pausaMutation.isPending} onClick={() => setBookingPause('')}>Quitar pausa programada</button></section>
       <aside className="schedule-card"><h3>Cierres y bloqueos</h3><p className="page-subtitle">Toca un día para cerrarlo. Vuelve a tocarlo para reabrirlo.</p>
         <div className="block-calendar">
           <div className="block-calendar-nav"><button type="button" className="btn btn-outline btn-xs" disabled={blockMonth <= 0} onClick={() => setBlockMonth((value) => Math.max(0, value - 1))}>←</button><span>{blockCalendar.label}</span><button type="button" className="btn btn-outline btn-xs" onClick={() => setBlockMonth((value) => value + 1)}>→</button></div>
@@ -569,7 +570,7 @@ export function ReservationBuilderPage() {
         {blockMutation.error && <div className="alert alert-error">{blockMutation.error.message}</div>}
         <details className="block-range">
           <summary>Bloquear solo algunas horas</summary>
-          <form className="block-form" onSubmit={(event) => { event.preventDefault(); if (blockRepeat > 1) { batchBlockMutation.mutate({ ...block, repeat: blockRepeat }); } else { blockMutation.mutate(block); } }}><label>Desde<input className="input" type="datetime-local" required value={block.startsAt} onChange={(event) => setBlock({ ...block, startsAt: event.target.value })} /></label><label>Hasta<input className="input" type="datetime-local" required value={block.endsAt} onChange={(event) => setBlock({ ...block, endsAt: event.target.value })} /></label><label>Motivo<input className="input" value={block.reason} onChange={(event) => setBlock({ ...block, reason: event.target.value })} placeholder="Feriado, evento interno..." /></label><label>Repetir durante<small>Cantidad de semanas consecutivas.</small><input className="input" type="number" min="1" max="12" value={blockRepeat} onChange={(event) => setBlockRepeat(Number(event.target.value))} /></label>{batchBlockMutation.error && <div className="alert alert-error">{batchBlockMutation.error.message}</div>}<button className="btn btn-primary btn-block" disabled={blockMutation.isPending || batchBlockMutation.isPending}>{batchBlockMutation.isPending ? 'Creando bloqueos...' : blockRepeat > 1 ? `Crear ${blockRepeat} bloqueos` : 'Agregar bloqueo'}</button></form>
+          <form className="block-form" onSubmit={(event) => { event.preventDefault(); if (blockRepeat > 1) { batchBlockMutation.mutate({ ...block, repeat: blockRepeat }); } else { blockMutation.mutate(block); } }}><label>Desde<input className="input" type="datetime-local" required min={utcToLocalInput(new Date().toISOString(), draft.timezone)} value={block.startsAt} onChange={(event) => setBlock({ ...block, startsAt: event.target.value })} /></label><label>Hasta<input className="input" type="datetime-local" required min={block.startsAt || utcToLocalInput(new Date().toISOString(), draft.timezone)} value={block.endsAt} onChange={(event) => setBlock({ ...block, endsAt: event.target.value })} /></label><label>Motivo<input className="input" value={block.reason} onChange={(event) => setBlock({ ...block, reason: event.target.value })} placeholder="Feriado, evento interno..." /></label><label>Repetir durante<small>Cantidad de semanas consecutivas.</small><input className="input" type="number" min="1" max="12" value={blockRepeat} onChange={(event) => setBlockRepeat(Number(event.target.value))} /></label>{batchBlockMutation.error && <div className="alert alert-error">{batchBlockMutation.error.message}</div>}<button className="btn btn-primary btn-block" disabled={blockMutation.isPending || batchBlockMutation.isPending}>{batchBlockMutation.isPending ? 'Creando bloqueos...' : blockRepeat > 1 ? `Crear ${blockRepeat} bloqueos` : 'Agregar bloqueo'}</button></form>
         </details>
         <div className="block-list">{blocks.length === 0 ? <p className="page-subtitle">No hay bloqueos futuros.</p> : blocks.map((item) => <div key={item.id}><div><strong>{item.reason || 'Agenda cerrada'}</strong><small>{new Date(item.startsAt).toLocaleString('es-CL')} → {new Date(item.endsAt).toLocaleString('es-CL')}</small></div><button onClick={() => setConfirmDeleteBlock(item.id)}>Quitar</button></div>)}</div></aside>
     </div></div>}
@@ -956,9 +957,19 @@ function ReservationLivePreview({
   style: CSSProperties;
 }) {
   const design = draft.designConfig || {};
-  const systemFields = new Map(fields.map((field) => [field.id, field]));
-  const customFields = fields.filter((field) => !['name', 'email', 'phone'].includes(field.id)).slice(0, 6);
-  const sampleSlots = ['12:00', '13:30', '20:00'];
+  /*
+   * Las mismas preguntas y en el mismo orden que la página pública: sin las que se contestan en
+   * otro lugar y con las condicionales ocultas, como las ve alguien al abrirla.
+   */
+  const camposEnOrden = camposVisibles(fields.filter((field) => field.id !== 'partySize' && field.type !== 'coupon' && field.id !== 'consent'), {});
+  const ocultas = fields.filter((field) => field.mostrarSi?.campo).length - camposEnOrden.filter((field) => field.mostrarSi?.campo).length;
+  const ventana = draft.scheduleConfig?.windows?.[0];
+  const ritmo = Number(design.slotCadenceMinutes || '15') || 15;
+  const sampleSlots: string[] = [];
+  if (ventana) {
+    const [hi, mi] = ventana.start.split(':').map(Number); const [hf, mf] = ventana.end.split(':').map(Number);
+    for (let minuto = hi * 60 + mi; minuto + draft.durationMinutes <= hf * 60 + mf && sampleSlots.length < 3; minuto += ritmo) sampleSlots.push(`${String(Math.floor(minuto / 60)).padStart(2, '0')}:${String(minuto % 60).padStart(2, '0')}`);
+  }
 
   return (
     <div className={`design-preview live ${previewDevice} layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style}>
@@ -975,18 +986,15 @@ function ReservationLivePreview({
           </div>
         </section>
         <section className="preview-public-card">
-          <div className="booking-step-title"><span>01</span><div><strong>Selecciona fecha y hora</strong><small>Vista previa de disponibilidad.</small></div></div>
+          <div className="booking-step-title"><span>01</span><div><strong>Selecciona fecha y hora</strong><small>Personas, fecha y hora se eligen aquí.</small></div></div>
           <div className="preview-slot-group">
-            <h3>Hoy</h3>
+            <h3>{sampleSlots.length ? 'Horarios de ejemplo' : 'Sin días de atención configurados'}</h3>
             <div>{sampleSlots.map((slot, index) => <button type="button" className={index === 0 ? 'active' : ''} key={slot}>{slot}<small>{draft.capacityPerSlot} disp.</small></button>)}</div>
           </div>
           <div className="booking-step-title"><span>02</span><div><strong>Datos de la reserva</strong><small>Estos son los campos configurados.</small></div></div>
           <div className="preview-public-fields">
-            <PreviewField label={systemFields.get('name')?.label || 'Nombre completo'} required={systemFields.get('name')?.required !== false} />
-            <PreviewField label={systemFields.get('phone')?.label || 'Teléfono'} required={Boolean(systemFields.get('phone')?.required)} />
-            <PreviewField label={systemFields.get('email')?.label || 'Correo'} required={Boolean(systemFields.get('email')?.required)} />
-            <PreviewField label="Número de personas" />
-            {customFields.map((field) => <PreviewField key={field.id} label={field.label} required={field.required} type={field.type} />)}
+            {camposEnOrden.map((field) => <PreviewField key={field.id} label={field.label} required={field.required} type={field.type} />)}
+            {ocultas > 0 && <small className="preview-nota">{ocultas} pregunta{ocultas === 1 ? '' : 's'} más aparece{ocultas === 1 ? '' : 'n'} según lo que se responda.</small>}
           </div>
           <span className="preview-submit">Confirmar reserva</span>
           <p className="privacy-note">Tus datos no son públicos y quedan asociados exclusivamente a esta empresa.</p>

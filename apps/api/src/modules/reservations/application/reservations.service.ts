@@ -59,7 +59,7 @@ type ScheduleWindow = { day: number; start: string; end: string };
 type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean };
 type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[]; active?: boolean };
 type FieldConfig = { id: string; type: string; label: string; required?: boolean; internal?: boolean; options?: string[] };
-type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string };
+type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string; partySize?: number };
 /** Lo que se sabe de alguien por sus reservas anteriores, para quien la recibe. */
 export interface Preferencias {
   zonaHabitual?: string;
@@ -285,10 +285,10 @@ export class ReservationsService {
      */
     const visibles = camposVisibles(
       (form.fieldSchema as FieldConfig[]).map((field) => ({ ...field, mostrarSi: (field as FieldConfig & { mostrarSi?: ReglaDeCampo }).mostrarSi })),
-      { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone },
+      { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone, partySize: guest.partySize },
     );
     for (const field of visibles) {
-      const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : answers[field.id];
+      const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : field.id === 'partySize' ? guest.partySize : answers[field.id];
       const empty = value == null || value === '' || value === false || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && value.length === 0);
       if (field.required && empty) throw new BadRequestException(`Falta completar ${field.label}`);
       if (empty) continue;
@@ -411,6 +411,7 @@ export class ReservationsService {
   async pauseForm(organizationId: string, id: string, until: string, clientId?: string, clientIds?: string[]) {
     const form = await this.getForm(organizationId, id, clientId, clientIds);
     const design = { ...(form.designConfig as DesignConfig) };
+    if (until && !(new Date(until).getTime() > Date.now())) throw new BadRequestException('La pausa debe terminar en una fecha futura');
     if (until) design.bookingPausedUntil = until; else delete design.bookingPausedUntil;
     form.designConfig = design as ReservationForm['designConfig'];
     this.validateConfiguration(form);
@@ -423,6 +424,7 @@ export class ReservationsService {
     const startsAt = new Date(dto.startsAt); const endsAt = new Date(dto.endsAt);
     if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new BadRequestException('El fin debe ser posterior al inicio');
     if (endsAt.getTime() - startsAt.getTime() > 366 * 86400000) throw new BadRequestException('Un bloqueo no puede superar 366 días');
+    if (endsAt.getTime() <= Date.now()) throw new BadRequestException('Ese bloqueo ya terminó: elige un horario futuro');
     // Nunca ocultar ni cancelar reservas existentes al crear un evento privado: primero se
     // resuelven con el cliente y luego se cierra la franja.
     const affected = await this.reservations.createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId, startsAt, endsAt, statuses: ACTIVE_STATUSES }).getCount();
@@ -1483,6 +1485,7 @@ export class ReservationsService {
     const consent = this.consentTexts(form);
     const existing = await this.groupRequests.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
     if (existing) return { id: existing.id, status: existing.status, kind: 'group_request' };
+    if (dto.preferredDate && dto.preferredDate < this.localDateKey(new Date(), form.timezone)) throw new BadRequestException('La fecha preferida ya pasó: elige hoy o una fecha futura');
     const request = await this.groupRequests.save(this.groupRequests.create({
       organizationId: form.organizationId, clientId: form.clientId, formId: form.id, idempotencyKey: dto.idempotencyKey,
       guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase() || null, guestPhone: normalizePhone(dto.guestPhone) || null,
@@ -1559,6 +1562,8 @@ export class ReservationsService {
     const request = await this.groupRequests.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
     if (!request) throw new NotFoundException('Solicitud no encontrada');
     if (request.status === 'converted') throw new ConflictException('Esta solicitud ya se convirtió en reserva');
+    const acordada = new Date(dto.startsAt);
+    if (Number.isNaN(acordada.getTime()) || acordada.getTime() < Date.now() - 5 * 60000) throw new BadRequestException('La fecha acordada ya pasó: elige una fecha y hora futuras');
     const details = (request.details || {}) as Record<string, unknown>;
     const texto = (valor: unknown) => (typeof valor === 'string' && valor.trim() ? valor.trim() : undefined);
     const answers: Record<string, unknown> = {
