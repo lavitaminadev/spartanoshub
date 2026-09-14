@@ -251,7 +251,7 @@ export function DashboardPage() {
         <div className="section-title-row"><div><h2>Rendimiento digital</h2><p className="page-subtitle">Métricas de Meta y Google.</p></div><span className={`data-health ${performance?.hasData ? 'is-live' : ''}`}>{performance?.hasData ? 'Datos conectados' : 'Sin datos sincronizados'}</span></div>
         {performance?.hasData ? <div className="dashboard-charts-row">
           <div className="dashboard-chart-card"><h3>Inversion por plataforma</h3>
-            <ResponsiveContainer width="100%" height={200}><BarChart data={performance.providers.map((p) => ({ name: PROVIDER_LABELS[p.provider] ?? p.provider, spend: p.spend, leads: p.leads }))}><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(v: number) => `$${v.toLocaleString('es-CL')}`} /><Bar dataKey="spend" fill="#0ec6b8" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={200}><BarChart data={performance.providers.map((p) => ({ name: PROVIDER_LABELS[p.provider] ?? p.provider, spend: p.spend, leads: p.leads }))}><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => `$${Number(v).toLocaleString('es-CL')}`} /><Bar dataKey="spend" fill="#0ec6b8" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
           </div>
           <div className="dashboard-chart-card"><h3>Metricas de conversion</h3>
             <div className="metric-grid">

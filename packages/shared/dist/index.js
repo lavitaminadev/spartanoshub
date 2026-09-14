@@ -39,4 +39,6 @@ __exportStar(require("./types/survey"), exports);
 __exportStar(require("./survey-metrics"), exports);
 __exportStar(require("./enums"), exports);
 __exportStar(require("./constants"), exports);
+__exportStar(require("./reglas-de-campo"), exports);
+__exportStar(require("./campos-personalizados"), exports);
 //# sourceMappingURL=index.js.map

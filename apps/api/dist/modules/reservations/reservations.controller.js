@@ -84,6 +84,11 @@ let ReservationsController = class ReservationsController {
         const form = await this.service.getForm(req.organizationId, id, scope.clientId, scope.clientIds);
         return this.decorateForm(req.organizationId, form.clientId, form);
     }
+    async pause(req, id, dto) {
+        const scope = await this.scope(req);
+        const form = await this.service.pauseForm(req.organizationId, id, dto.until ?? '', scope.clientId, scope.clientIds);
+        return this.decorateForm(req.organizationId, form.clientId, form);
+    }
     async update(req, id, dto) {
         const scope = await this.scope(req);
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
@@ -290,6 +295,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "form", null);
+__decorate([
+    (0, common_1.Patch)('forms/:id/pause'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.PauseReservationFormDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "pause", null);
 __decorate([
     (0, common_1.Patch)('forms/:id'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),

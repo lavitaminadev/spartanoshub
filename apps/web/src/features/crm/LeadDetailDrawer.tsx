@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
+import { CamposPropiosEnFicha, hayValoresInvalidos, useDefinicionesDeCampos, type ValoresEnEdicion } from './CamposPropiosEnFicha';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { api } from '../../core/api';
@@ -53,7 +54,9 @@ interface Lead {
   fitStatus?: 'sold' | 'qualified' | 'in_review' | 'review' | 'unqualified';
   trafficLight?: 'green' | 'yellow' | 'red' | null;
   excludedFromMeta?: boolean;
-  tags?: string[];
+  tags?: string[] | null;
+  /** Campos propios, por clave. Ver `CamposPropiosEnFicha`. */
+  customFields?: Record<string, unknown> | null;
   consentCapturedAt?: string | null;
   /** Datos variables del origen: respuestas del formulario, atribución y campos personalizados. */
   metadata?: Record<string, unknown> | null;
@@ -222,6 +225,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [calificacion, setCalificacion] = useState(lead.fitStatus ?? 'review');
   const [semaforo, setSemaforo] = useState(lead.trafficLight ?? '');
   const [etiquetas, setEtiquetas] = useState((lead.tags ?? []).join(', '));
+  const [camposPropios, setCamposPropios] = useState<ValoresEnEdicion>(lead.customFields ?? {});
+  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('lead');
   const [fueraDeMeta, setFueraDeMeta] = useState(Boolean(lead.excludedFromMeta));
   const [motivoCatalogo, setMotivoCatalogo] = useState(motivoInicial(lead.discardReason).catalogo);
   const [motivoOtro, setMotivoOtro] = useState(motivoInicial(lead.discardReason).detalle);
@@ -272,7 +277,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
    * de dejar a la persona con un botón de guardar que no funciona y sin saber por qué.
    */
   const cambiarCalificacion = (valor: Lead['fitStatus']) => {
-    editar(setCalificacion, valor);
+    editar(setCalificacion, valor ?? 'review');
     if (valor !== 'unqualified' || etapa === 'lost') return;
     editar(setEtapa, 'lost');
     // Tras el repintado: el campo del motivo no existe hasta que la etapa es «Descartado».
@@ -295,6 +300,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setCalificacion(lead.fitStatus ?? 'review');
     setSemaforo(lead.trafficLight ?? '');
     setEtiquetas((lead.tags ?? []).join(', '));
+    setCamposPropios(lead.customFields ?? {});
     setFueraDeMeta(Boolean(lead.excludedFromMeta));
     setMotivoCatalogo(motivoInicial(lead.discardReason).catalogo);
     setMotivoOtro(motivoInicial(lead.discardReason).detalle);
@@ -304,7 +310,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     lead.id, lead.name, lead.phone, lead.email, lead.notes, lead.status, lead.assignedTo,
     lead.company, lead.campaignName,
     lead.estimatedAmount, lead.fitStatus, lead.trafficLight, lead.tags, lead.discardReason, lead.source, lead.clientId,
-    lead.excludedFromMeta,
+    lead.excludedFromMeta, lead.customFields,
   ]);
 
   const { data: historial, isLoading } = useQuery<Paso[]>({
@@ -424,6 +430,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       // Se separan por coma, como en la importación, para que la misma persona escriba igual en
       // los dos sitios. Vacío limpia las etiquetas en vez de dejarlas como estaban.
       tags: etiquetas.split(',').map((t) => t.trim()).filter(Boolean),
+      // Sólo si se tocaron: el servidor exige los obligatorios cuando llegan, y mandarlos siempre
+      // impediría corregir el teléfono de un lead creado antes de que ese campo existiera.
+      customFields: camposPropiosCambiados ? camposPropios : undefined,
       // Solo viaja si el lead queda descartado: un motivo guardado en un lead vivo reaparece
       // como explicación de un cierre que no ocurrió.
       discardReason: etapa === 'lost'
@@ -588,6 +597,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     .map((registro) => new Date(registro.date))
     .filter((fecha) => fecha <= new Date())
     .sort((a, b) => b.getTime() - a.getTime())[0];
+  /** Comparación por contenido: el orden de las claves no cuenta como cambio. */
+  const camposPropiosCambiados = JSON.stringify(Object.entries(camposPropios).filter(([, v]) => v !== '' && v !== null && !(Array.isArray(v) && v.length === 0)).sort())
+    !== JSON.stringify(Object.entries(lead.customFields ?? {}).sort());
   const sinCambios =
     // Los campos nuevos entran acá o «Guardar» se quedaría apagado justo al corregir un nombre.
     nombre === lead.name &&
@@ -602,6 +614,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     && calificacion === (lead.fitStatus ?? 'review')
     && semaforo === (lead.trafficLight ?? '')
     && etiquetas === (lead.tags ?? []).join(', ')
+    && !camposPropiosCambiados
     && (scope.esPortalCliente || fueraDeMeta === Boolean(lead.excludedFromMeta))
     && fuente === (lead.source ?? '')
     && empresaDelContacto === (lead.company ?? '')
@@ -817,6 +830,14 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             La columna se conserva y lo guardado no se toca: si vuelven, será con un catálogo
             cerrado y con filtro, que es lo que las haría servir para algo.
           */}
+
+          {/* Datos propios que el CRM no trae, definidos en Administración. */}
+          <CamposPropiosEnFicha
+            entidad="lead"
+            valores={camposPropios}
+            deshabilitado={!scope.puedeEditar}
+            onCambiar={(clave, valor) => editar(setCamposPropios, { ...camposPropios, [clave]: valor })}
+          />
 
           <label>
             <span>Monto estimado</span>
@@ -1202,7 +1223,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <button
               type="button"
               className="btn btn-primary"
-              disabled={guardar.isPending || fichaSinCambios || (etapa === 'lost' && (!motivoCatalogo || (motivoCatalogo === 'Otro' && !motivoOtro.trim())))}
+              disabled={guardar.isPending || fichaSinCambios || (camposPropiosCambiados && hayValoresInvalidos(definicionesPropias, camposPropios)) || (etapa === 'lost' && (!motivoCatalogo || (motivoCatalogo === 'Otro' && !motivoOtro.trim())))}
               onClick={() => guardar.mutate()}
             >
               {guardar.isPending ? 'Guardando...' : 'Guardar cambios'}

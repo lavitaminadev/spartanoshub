@@ -364,3 +364,11 @@ export class OccupancyQueryDto extends ReservationScopeDto {
   /** Si se elige un local, nunca se agregan sus reservas con las de los demás locales del cliente. */
   @IsOptional() @IsUUID() formId?: string;
 }
+
+/** Pausa de reservas públicas: fecha ISO hasta la que se detienen, o vacío para quitarla. */
+export class PauseReservationFormDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  until?: string;
+}

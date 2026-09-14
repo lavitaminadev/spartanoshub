@@ -21,5 +21,22 @@ export class SurveyResponse {
   /** Respuesta por id de pregunta: numérica en `nps`/`rating`, texto en el resto. */
   @Column({ type: 'json' }) answers: Record<string, string | number>;
 
+  /** Reserva que originó la invitación. Nulo en las respuestas por enlace o QR abiertos. */
+  @Column({ name: 'reservation_id', type: 'varchar', length: 36, nullable: true }) reservationId?: string | null;
+  @Column({ name: 'respondent_name', type: 'varchar', length: 180, nullable: true }) respondentName?: string | null;
+  @Column({ name: 'respondent_email', type: 'varchar', length: 190, nullable: true }) respondentEmail?: string | null;
+
+  /** La nota por separado: se lista y se filtra sin abrir el JSON. */
+  @Column({ name: 'rating', type: 'tinyint', nullable: true }) rating?: number | null;
+
+  /** Lo que la persona quiso decirle al equipo en privado. */
+  @Column({ name: 'team_message', type: 'text', nullable: true }) teamMessage?: string | null;
+
+  /** Nulo mientras la respuesta está a medias: dejó la nota y aún no decidió si seguir. */
+  @Column({ name: 'completed_at', type: 'timestamp', nullable: true }) completedAt?: Date | null;
+
+  /** Hash del token con que quien la creó puede completarla. El valor nunca se guarda. */
+  @Column({ name: 'edit_token_hash', type: 'char', length: 64, nullable: true, select: false }) editTokenHash?: string | null;
+
   @CreateDateColumn({ name: 'submitted_at' }) submittedAt: Date;
 }

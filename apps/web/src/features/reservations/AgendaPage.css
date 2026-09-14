@@ -67,6 +67,7 @@
 }
 
 .agenda-zone-tabs button span {
+  color: var(--ink);
   background: var(--gray);
   border-radius: 999px;
   padding: 0 6px;
@@ -78,6 +79,8 @@
   color: var(--white);
   background: var(--primary);
 }
+/* La cuenta hereda el blanco del botón activo. Sobre gris quedaba en 1,1:1, y aclarando el rosa en 4,28: se oscurece el fondo, no se aclara. */
+.agenda-zone-tabs button.active span { background: rgba(0, 0, 0, .2); color: var(--white); }
 
 .agenda-board {
   display: grid;

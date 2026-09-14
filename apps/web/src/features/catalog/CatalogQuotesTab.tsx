@@ -33,9 +33,9 @@ export function CatalogQuotesTab() {
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const quotesQuery = useQuery<QuoteRow[]>({ queryKey: ['catalog-quotes'], queryFn: () => api.get('/catalog/quotes') });
   const { data: leadsResp, error: leadsError } = useQuery<{ data: Target[] }>({ queryKey: ['crm-leads'], queryFn: () => api.get('/crm/leads') });
-  const leads = (leadsResp as any)?.data ?? [];
+  const leads = leadsResp?.data ?? [];
   const { data: clientsResp, error: clientsError } = useQuery<{ data: Target[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
-  const clients = (clientsResp as any)?.data ?? [];
+  const clients = clientsResp?.data ?? [];
   const { data: services = [], error: servicesError } = useQuery<ServiceOption[]>({ queryKey: ['catalog-services'], queryFn: () => api.get('/catalog/services') });
   const rows = (quotesQuery.data ?? []).filter((quote) => (!status || quote.status === status) && matchesSearch(search, [quote.number, quote.title, quote.client?.name, quote.lead?.name]));
   const total = form.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);

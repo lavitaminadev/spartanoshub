@@ -9,6 +9,7 @@ import { ProcessSubject } from '../../../../core/process-history/process-stage-c
 import { LeadCierreService } from '../lead-cierre.service';
 import { ResponsablesDelCrmService } from '../responsables-del-crm.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CrmFieldsService } from '../../fields/crm-fields.service';
 
 /** Nombre del dominio en los mensajes de error, para que digan algo accionable. */
 const DOMAIN_LABELS: Record<string, string> = {
@@ -40,6 +41,7 @@ export class UpdateLeadUseCase {
     private readonly cierre: LeadCierreService,
     private readonly eventEmitter: EventEmitter2,
     private readonly responsables: ResponsablesDelCrmService,
+    private readonly campos: CrmFieldsService,
   ) {}
 
   async execute(
@@ -51,6 +53,7 @@ export class UpdateLeadUseCase {
       tags?: string[]; estimatedAmount?: number; assignedTo?: string | null;
       source?: string; clientId?: string | null; trafficLight?: 'green' | 'yellow' | 'red' | null;
       excludedFromMeta?: boolean;
+      customFields?: Record<string, unknown>;
     },
     organizationId: string,
     actorId?: string,
@@ -115,6 +118,18 @@ export class UpdateLeadUseCase {
     if (data.source !== undefined) lead.source = data.source;
     // Igual que el responsable: `null` lo deja sin cuenta y omitirlo no toca lo que había.
     if (data.clientId !== undefined) lead.clientId = data.clientId;
+
+    /*
+     * Campos propios: sólo si la petición los trae.
+     *
+     * Mover una tarjeta en el tablero o cambiar etapas en lote no manda campos propios, y no puede
+     * fallar por un obligatorio que nadie tocó. Cuando llegan —desde la ficha, donde edita una
+     * persona—, se validan contra sus definiciones, se exigen los obligatorios y se fusionan campo
+     * por campo con lo que ya había.
+     */
+    if (data.customFields !== undefined) {
+      lead.customFields = await this.campos.validarPara(organizationId, 'lead', lead.customFields, data.customFields, true);
+    }
 
     /*
      * Solo el desenlace decide la calificación por su cuenta.

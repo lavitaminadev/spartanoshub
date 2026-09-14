@@ -8,7 +8,12 @@
 :root {
   /* Primarios */
   --cian: var(--cyan);
-  --cian-dark: var(--cyan);
+  /*
+   * «Oscuro» tiene que ser oscuro. Apuntaba al cian de relleno, así que cada texto que lo usaba
+   * creyéndolo legible —etiquetas de sección, días del calendario, íconos— quedaba en 2,2:1. El
+   * rosa ya lo hacía bien (`--rosa-dark` → `--pink-dark`); el cian había quedado al revés.
+   */
+  --cian-dark: var(--cyan-deep);
 
   /* Secundarios */
   --rosa: var(--pink);

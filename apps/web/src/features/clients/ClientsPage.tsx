@@ -133,7 +133,7 @@ export function ClientsPage() {
     // correctamente y desaparecer de inmediato al reconciliar el listado.
     queryFn: () => api.get('/clients?limit=100'),
   });
-  const clients = (clientsResp as any)?.data ?? [];
+  const clients = clientsResp?.data ?? [];
 
   const { data: users } = useQuery<UserOption[]>({
     queryKey: ['client-manager-options'],

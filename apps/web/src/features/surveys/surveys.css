@@ -26,7 +26,7 @@
 .survey-type-switch button strong { font-size: 18px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .survey-type-switch button span { font-size: 11px; }
 .survey-type-switch button.active { border-color: var(--cyan); background: var(--cyan-soft); }
-.survey-type-switch button.active strong { color: var(--cyan); }
+.survey-type-switch button.active strong { color: var(--cyan-text); }
 
 .survey-list { display: flex; flex-direction: column; gap: 12px; }
 
@@ -395,3 +395,59 @@
 .public-survey-choice label { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--survey-primary, #0fb9b1) 30%, #ffffff); border-radius: 8px; background: #ffffff; cursor: pointer; }
 .public-survey-choice label.active { border-color: var(--survey-primary, #0fb9b1); background: color-mix(in srgb, var(--survey-primary, #0fb9b1) 9%, #ffffff); }
 .public-survey-submit { justify-self: start; color: var(--survey-primary-contrast, #fff); }
+
+/* Flujo simple: una sola pregunta visible por vez. */
+.flujo-encuesta { display: grid; gap: 14px; margin-top: 8px; text-align: center; }
+.flujo-encuesta-pregunta { margin: 4px 0 0; font-size: 20px; line-height: 1.25; color: var(--survey-text, #151317); }
+.flujo-encuesta p { margin: 0; }
+.flujo-encuesta .public-survey-field { text-align: left; }
+.flujo-encuesta .public-survey-questions { text-align: left; }
+.flujo-encuesta-ayuda { color: #5d565f; font-size: 13px; }
+
+/* Estrellas grandes: se tocan con el pulgar y la nota se lee de lejos. */
+.flujo-estrellas { display: flex; justify-content: center; gap: 6px; }
+.flujo-estrellas button { width: 52px; height: 52px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: #d6d0d5; font-size: 40px; line-height: 1; cursor: pointer; transition: transform .12s ease, color .12s ease; }
+.flujo-estrellas button:hover:not(:disabled), .flujo-estrellas button:focus-visible { transform: scale(1.08); color: #f2b01e; }
+.flujo-estrellas button.activa { color: #f2b01e; }
+.flujo-estrellas button:focus-visible { outline: 2px solid var(--survey-primary, #07706b); outline-offset: 2px; }
+.flujo-encuesta-acciones { display: grid; gap: 8px; }
+
+/* Presente, pero sin la fuerza de un botón: se ofreció primero el canal privado. */
+.flujo-encuesta-resena-discreta { display: inline-block; margin-top: 6px; color: #5d565f; font-size: 13px; text-decoration: underline; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 420px) {
+  .flujo-estrellas button { width: 48px; height: 48px; font-size: 36px; }
+}
+
+/* Respuestas por persona: los mensajes al equipo se ven primero y se distinguen. */
+.respuestas-persona { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--white); }
+.respuestas-persona > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.respuestas-persona h2 { margin: 0; font-size: 18px; }
+.respuestas-persona-filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+.respuestas-persona-filtros button { min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; }
+.respuestas-persona-filtros button.active { border-color: var(--primary); background: var(--primary); color: var(--white); }
+.respuestas-persona ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.respuestas-persona li { border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.respuestas-persona li.con-mensaje { border-color: #f0c7a0; box-shadow: inset 3px 0 0 #c67912; }
+.respuestas-persona-fila { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 14px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.respuestas-persona-nota { color: #c98a00; letter-spacing: 1px; white-space: nowrap; }
+.respuestas-persona-fila small { color: var(--muted); font-size: 12px; }
+.respuestas-persona blockquote { margin: 0 14px 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: #fff6e7; color: #5a3b00; font-size: 14px; line-height: 1.45; }
+.respuestas-persona dl { display: grid; grid-template-columns: minmax(120px, 30%) 1fr; gap: 6px 12px; margin: 0; padding: 0 14px 14px; font-size: 13px; }
+.respuestas-persona dt { color: var(--muted); }
+.respuestas-persona dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .respuestas-persona-fila { grid-template-columns: 1fr auto; }
+  .respuestas-persona-fila small { grid-column: 1 / -1; }
+  .respuestas-persona dl { grid-template-columns: 1fr; }
+  .respuestas-persona dd { margin-bottom: 6px; }
+}
+
+/* QR generado en la página. */
+.qr-encuesta { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.qr-encuesta img { width: min(320px, 100%); height: auto; image-rendering: pixelated; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.qr-encuesta small { max-width: 100%; color: var(--muted); overflow-wrap: anywhere; }
+.qr-encuesta-acciones { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.qr-encuesta-acciones .disabled { pointer-events: none; opacity: .6; }

@@ -45,7 +45,7 @@
 
 /* La sección activa se marca con línea y color, no solo con color: en pantallas con poco
    contraste el color solo es imperceptible. */
-.crm-nav-link.activo { color: var(--cyan); border-bottom-color: var(--cyan); }
+.crm-nav-link.activo { color: var(--cyan-text); border-bottom-color: var(--cyan); }
 .crm-nav-link:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; border-radius: 2px; }
 
 .crm-nav-usuario { flex: 0 0 auto; font-size: 12px; color: var(--muted); }
@@ -82,4 +82,16 @@
   .crm-nav-derecha { flex-wrap: wrap; gap: 8px; padding: 0 2px 8px; }
   .crm-nav-cuenta { flex: 1 1 100%; }
   .crm-nav-cuenta .input { flex: 1 1 auto; min-width: 0; }
+}
+
+/*
+ * Entre teléfono y escritorio las secciones y el selector de empresa no caben en una fila: el
+ * selector baja a su propia fila y las pestañas usan todo el ancho, con un desvanecido a la
+ * derecha que avisa que hay más al deslizar.
+ */
+@media (max-width: 1280px) {
+  .crm-nav { flex-direction: column; align-items: stretch; gap: 4px; }
+  .crm-nav-derecha { justify-content: space-between; padding: 0 2px 8px; }
+  .crm-nav-secciones { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); padding-right: 24px; }
+  .crm-nav-link { padding-inline: 12px; }
 }

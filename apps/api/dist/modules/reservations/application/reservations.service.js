@@ -14,6 +14,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 var ReservationsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReservationsService = void 0;
+const identificadores_meta_1 = require("../../integrations/meta/identificadores-meta");
+const shared_1 = require("@espartanos/shared");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -33,7 +35,7 @@ const timezone_1 = require("../domain/timezone");
 const phone_1 = require("../../../shared/phone");
 const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
-const shared_1 = require("@espartanos/shared");
+const shared_2 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
 const notification_service_1 = require("../../../core/notifications/notification.service");
@@ -244,7 +246,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     }
     validateSubmission(form, answers, guest) {
         this.validateAnswers(form, answers);
-        for (const field of form.fieldSchema) {
+        const visibles = (0, shared_1.camposVisibles)(form.fieldSchema.map((field) => ({ ...field, mostrarSi: field.mostrarSi })), { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone });
+        for (const field of visibles) {
             const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : answers[field.id];
             const empty = value == null || value === '' || value === false || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && value.length === 0);
             if (field.required && empty)
@@ -337,13 +340,33 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.ForbiddenException('Reservas no está habilitado para esta empresa');
         if (dto.metaCapiEnabled && !capabilities.metaConversions)
             throw new common_1.BadRequestException('Meta Pixel + CAPI no está habilitado para esta empresa');
+        const pausaVigente = form.designConfig?.bookingPausedUntil;
         Object.assign(form, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
         form.crmEnabled = false;
         if (!capabilities.metaConversions)
             form.metaCapiEnabled = false;
+        if (dto.designConfig !== undefined) {
+            const design = { ...form.designConfig };
+            if (pausaVigente)
+                design.bookingPausedUntil = pausaVigente;
+            else
+                delete design.bookingPausedUntil;
+            form.designConfig = design;
+        }
         this.validateConfiguration(form);
         if (form.status === 'published' && (form.scheduleConfig.windows?.length || 0) === 0)
             throw new common_1.BadRequestException('No puedes publicar sin disponibilidad');
+        return this.forms.save(form);
+    }
+    async pauseForm(organizationId, id, until, clientId, clientIds) {
+        const form = await this.getForm(organizationId, id, clientId, clientIds);
+        const design = { ...form.designConfig };
+        if (until)
+            design.bookingPausedUntil = until;
+        else
+            delete design.bookingPausedUntil;
+        form.designConfig = design;
+        this.validateConfiguration(form);
         return this.forms.save(form);
     }
     async duplicateForm(organizationId, id, userId, clientIds) { const source = await this.getForm(organizationId, id, undefined, clientIds); const copy = this.forms.create({ ...source, id: undefined, name: `${source.name} (copia)`, publicSlug: await this.uniqueSlug(source.publicSlug), status: 'draft', createdBy: userId, createdAt: undefined, updatedAt: undefined }); return this.forms.save(copy); }
@@ -397,7 +420,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = await this.clientCapabilities(organizationId, clientId);
         const { pixelId, pixelName, accessToken } = capabilities.metaConversions ? await this.getClientMetaConfig(clientId, organizationId) : { pixelId: '', pixelName: null, accessToken: undefined };
         const google = await this.dataSource.query('SELECT 1 FROM integrations WHERE organization_id = ? AND provider = ? LIMIT 1', [organizationId, 'google']);
-        return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0 };
+        const companyDailyCap = await this.clientDailyCap(this.dataSource, clientId);
+        return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap };
     }
     effectiveRules(form, serviceId, resourceId) {
         const { services, resources } = this.configs(form);
@@ -719,7 +743,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}`
                 : undefined;
             await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-                eventName: shared_1.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT,
+                eventName: shared_2.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT,
                 eventTime: Math.floor(event.createdAt.getTime() / 1000),
                 actionSource: 'website',
                 eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
@@ -731,7 +755,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     client_user_agent: userAgent ?? undefined,
                 },
                 customData: { contentIds: [form.id], contentType: 'reservation' },
-                eventId: (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
+                eventId: (0, shared_2.metaEventId)(shared_2.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
             }, form.clientId);
         }
         catch (err) {
@@ -1444,7 +1468,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         if (result.created && result.booking.measurementConsentAt && result.form.metaCapiEnabled && capabilities.metaConversions) {
             try {
-                await this.enqueueMetaConversion(result.booking, result.form, shared_1.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
+                await this.enqueueMetaConversion(result.booking, result.form, shared_2.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI enqueue failed for booking ${result.booking.id}: ${err instanceof Error ? err.message : err}`);
@@ -1504,6 +1528,23 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             },
         });
     }
+    valorDeLaReserva(form, partySize) {
+        const design = form.designConfig;
+        const porPersona = Number(design.valorPorPersona || '0');
+        if (!Number.isFinite(porPersona) || porPersona <= 0)
+            return undefined;
+        const personas = Number.isFinite(partySize) && partySize > 0 ? partySize : 1;
+        const moneda = String(design.moneda || 'CLP').trim().toUpperCase();
+        return { value: Math.round(porPersona * personas), currency: /^[A-Z]{3}$/.test(moneda) ? moneda : 'CLP' };
+    }
+    identificadoresDePersona(booking) {
+        const contacto = booking.guestEmail?.trim() ? (0, identificadores_meta_1.normalizarCorreo)(booking.guestEmail) : (0, identificadores_meta_1.normalizarTelefono)(booking.guestPhone || '');
+        const ids = [];
+        if (contacto)
+            ids.push((0, crypto_1.createHash)('sha256').update(`${booking.clientId}:${contacto}`).digest('hex'));
+        ids.push(booking.id);
+        return ids;
+    }
     async enqueueMetaConversion(booking, form, eventName, eventTime, eventSourceUrl) {
         const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
         if (!pixelId || !accessToken)
@@ -1522,7 +1563,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 ph: booking.guestPhone ? [booking.guestPhone] : undefined,
                 fn: firstName ? [firstName] : undefined,
                 ln: lastName ? [lastName] : undefined,
-                externalId: [booking.id],
+                externalId: this.identificadoresDePersona(booking),
                 ct: location.city ? [location.city] : undefined,
                 st: location.region ? [location.region] : undefined,
                 country: location.country ? [location.country] : undefined,
@@ -1531,8 +1572,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 client_ip_address: booking.clientIpAddress ?? undefined,
                 client_user_agent: booking.clientUserAgent ?? undefined,
             },
-            customData: { contentIds: [form.id], contentType: 'reservation' },
-            eventId: (0, shared_1.metaEventId)(eventName, booking.id),
+            customData: { contentIds: [form.id], contentType: 'reservation', ...this.valorDeLaReserva(form, booking.partySize) },
+            eventId: (0, shared_2.metaEventId)(eventName, booking.id),
         }, form.clientId);
     }
     async enqueueMetaSurveyConversion(response, form, dto, ipAddress, userAgent, eventSourceUrl) {
@@ -1545,7 +1586,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const phone = dto.guestPhone?.replace(/[^\d+]/g, '');
         const location = (0, geo_inference_1.inferLocationFromPhone)(phone);
         await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-            eventName: shared_1.META_DEDUPLICATED_EVENTS.LEAD,
+            eventName: shared_2.META_DEDUPLICATED_EVENTS.LEAD,
             eventTime: Math.floor(response.createdAt.getTime() / 1000),
             actionSource: 'website',
             eventSourceUrl: eventSourceUrl || fallbackUrl || undefined,
@@ -1564,7 +1605,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 client_user_agent: userAgent ?? undefined,
             },
             customData: { contentIds: [form.id], contentType: 'survey' },
-            eventId: (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.LEAD, response.id),
+            eventId: (0, shared_2.metaEventId)(shared_2.META_DEDUPLICATED_EVENTS.LEAD, response.id),
         }, form.clientId);
     }
     async enviarComprobante(form, booking, managementToken) {
@@ -1659,8 +1700,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (items.length === 0)
             return result;
         const eventIds = items.flatMap((item) => [
-            (0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id),
-            (0, shared_1.metaEventId)(shared_1.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id),
+            (0, shared_2.metaEventId)(shared_2.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id),
+            (0, shared_2.metaEventId)(shared_2.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id),
         ]);
         let rows = [];
         try {
@@ -1674,8 +1715,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         for (const item of items) {
             const matchFields = [item.guestEmail, item.guestPhone, item.fbc, item.fbp, item.clientIpAddress].filter(Boolean).length;
             result.set(item.id, {
-                schedule: byEvent.get((0, shared_1.metaEventId)(shared_1.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id)) ?? null,
-                attended: byEvent.get((0, shared_1.metaEventId)(shared_1.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id)) ?? null,
+                schedule: byEvent.get((0, shared_2.metaEventId)(shared_2.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id)) ?? null,
+                attended: byEvent.get((0, shared_2.metaEventId)(shared_2.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id)) ?? null,
                 matchFields,
             });
         }
@@ -1746,7 +1787,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
         if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) {
             try {
-                await this.enqueueMetaConversion(saved, formForMeta, shared_1.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000));
+                await this.enqueueMetaConversion(saved, formForMeta, shared_2.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(saved.startsAt.getTime() / 1000));
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);
@@ -1803,7 +1844,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.NotFoundException('Reserva no encontrada');
         const correo = actual.guestEmail?.trim().toLowerCase();
         const telefono = actual.guestPhone?.trim();
-        const vacio = { total: 0, attended: 0, noShow: 0, anteriores: [] };
+        const vacio = { total: 0, attended: 0, noShow: 0, anteriores: [], preferencias: undefined };
         if (!correo && !telefono)
             return vacio;
         const qb = this.reservations.createQueryBuilder('r')
@@ -1819,7 +1860,43 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             total: previas.length,
             attended: previas.filter((item) => item.status === 'attended').length,
             noShow: previas.filter((item) => item.status === 'no_show').length,
+            preferencias: this.preferenciasDeLaPersona(previas, actual),
             anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize })),
+        };
+    }
+    preferenciasDeLaPersona(previas, actual) {
+        if (previas.length === 0)
+            return undefined;
+        const masRepetido = (valores) => {
+            const cuenta = new Map();
+            for (const valor of valores)
+                if (valor !== null && valor !== undefined && valor !== '')
+                    cuenta.set(valor, (cuenta.get(valor) || 0) + 1);
+            let mejor;
+            let veces = 0;
+            for (const [valor, n] of cuenta)
+                if (n > veces) {
+                    mejor = valor;
+                    veces = n;
+                }
+            return veces >= 2 ? mejor : undefined;
+        };
+        const respuesta = (item, clave) => {
+            const valor = item.answers?.[clave];
+            return typeof valor === 'string' && valor.trim() ? valor.trim() : undefined;
+        };
+        const alergias = [...new Set(previas.map((item) => respuesta(item, 'dietaryNotes')).filter((valor) => Boolean(valor)))];
+        const accesibilidad = [...new Set(previas.map((item) => respuesta(item, 'accessibilityNeed')).filter((valor) => Boolean(valor)))];
+        const ultima = previas[0];
+        return {
+            zonaHabitual: masRepetido(previas.map((item) => item.resourceId)),
+            personasHabitual: masRepetido(previas.map((item) => item.partySize)),
+            alergias: alergias.filter((texto) => texto !== respuesta(actual, 'dietaryNotes')),
+            accesibilidad: accesibilidad.filter((texto) => texto !== respuesta(actual, 'accessibilityNeed')),
+            ultimaVisita: ultima ? ultima.startsAt : undefined,
+            diasDesdeLaUltima: ultima ? Math.max(0, Math.round((actual.startsAt.getTime() - ultima.startsAt.getTime()) / 86_400_000)) : undefined,
+            vinoConNinos: previas.some((item) => Number(item.answers?.childrenCount || 0) > 0),
+            usoCupon: previas.some((item) => Boolean(item.couponCode)),
         };
     }
     async history(organizationId, reservationId, clientId, clientIds) { const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } }); if (!reservation)

@@ -23,14 +23,22 @@ const public_decorator_1 = require("../../core/auth/decorators/public.decorator"
 const survey_entity_1 = require("./survey.entity");
 const survey_response_entity_1 = require("./survey-response.entity");
 const survey_dto_1 = require("./dto/survey.dto");
+const public_survey_flow_service_1 = require("./public-survey-flow.service");
 function publicSurveyUrl(id) {
     const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
 }
 let PublicSurveysController = class PublicSurveysController {
-    constructor(surveys, responses) {
+    constructor(surveys, responses, flujo) {
         this.surveys = surveys;
         this.responses = responses;
+        this.flujo = flujo;
+    }
+    async start(id, dto) {
+        return this.flujo.iniciar(id, dto.rating, dto.invitacion, dto.origen);
+    }
+    async complete(id, responseId, dto) {
+        return this.flujo.completar(id, responseId, dto.token, dto);
     }
     toContract(survey) {
         return {
@@ -87,6 +95,25 @@ let PublicSurveysController = class PublicSurveysController {
 };
 exports.PublicSurveysController = PublicSurveysController;
 __decorate([
+    (0, common_1.Post)(':id/start'),
+    (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, survey_dto_1.StartSurveyResponseDto]),
+    __metadata("design:returntype", Promise)
+], PublicSurveysController.prototype, "start", null);
+__decorate([
+    (0, common_1.Post)(':id/responses/:responseId/complete'),
+    (0, throttler_1.Throttle)({ default: { limit: 20, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('responseId')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, survey_dto_1.CompleteSurveyResponseDto]),
+    __metadata("design:returntype", Promise)
+], PublicSurveysController.prototype, "complete", null);
+__decorate([
     (0, common_1.Get)(':id'),
     (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),
     __param(0, (0, common_1.Param)('id')),
@@ -110,5 +137,6 @@ exports.PublicSurveysController = PublicSurveysController = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(survey_entity_1.Survey)),
     __param(1, (0, typeorm_1.InjectRepository)(survey_response_entity_1.SurveyResponse)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        public_survey_flow_service_1.PublicSurveyFlowService])
 ], PublicSurveysController);

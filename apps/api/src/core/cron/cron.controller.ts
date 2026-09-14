@@ -10,6 +10,7 @@ import { RecordatorioDeTareasJob } from '../jobs/cron/recordatorio-de-tareas.job
 import { ResumenDiarioJob } from '../jobs/cron/resumen-diario.job';
 import { SaludoDeCumpleanosJob } from '../jobs/cron/saludo-de-cumpleanos.job';
 import { RecordatorioDeReservasJob } from '../jobs/cron/recordatorio-de-reservas.job';
+import { EncuestaPostVisitaJob } from '../jobs/cron/encuesta-post-visita.job';
 import { OperationalAlertsJob } from '../jobs/cron/operational-alerts.job';
 import { CreateMonthlyCyclesJob } from '../jobs/cron/create-monthly-cycles.job';
 import { CollectionEmailsJob } from '../jobs/cron/collection-emails.job';
@@ -36,6 +37,7 @@ export class CronController {
     private readonly resumen: ResumenDiarioJob,
     private readonly cumpleanos: SaludoDeCumpleanosJob,
     private readonly recordatorioReservas: RecordatorioDeReservasJob,
+    private readonly encuestaPostVisita: EncuestaPostVisitaJob,
     private readonly operationalAlerts: OperationalAlertsJob,
     private readonly cycles: CreateMonthlyCyclesJob,
     private readonly collections: CollectionEmailsJob,
@@ -234,6 +236,20 @@ export class CronController {
   async cumpleanosGet(@Headers('x-cron-secret') secret: string) {
     this.verifySecret(secret);
     return this.runLocked('cumpleanos', () => this.cumpleanos.handle());
+  }
+
+  @Post('encuesta-post-visita')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async encuestaPostVisitaPost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('encuesta-post-visita', () => this.encuestaPostVisita.handle());
+  }
+
+  @Get('encuesta-post-visita')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async encuestaPostVisitaGet(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('encuesta-post-visita', () => this.encuestaPostVisita.handle());
   }
 
   @Post('recordatorio-reservas')

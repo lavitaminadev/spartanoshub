@@ -146,6 +146,9 @@ const VISUAL_RESERVATION_LOCAL = {
     { id: 'name', type: 'text', label: 'Nombre y apellido', required: true, system: true },
     { id: 'phone', type: 'phone', label: 'Teléfono celular', required: true, system: true },
     { id: 'email', type: 'email', label: 'Correo electrónico', required: true, system: true },
+    // Ejemplo de pregunta condicional, para ver la regla funcionando en el modo visual.
+    { id: 'ocasion', type: 'select', label: '¿Celebras algo?', required: false, options: ['No', 'Cumpleaños', 'Aniversario', 'Empresa', 'Con niños'] },
+    { id: 'detalleOcasion', type: 'text', label: '¿Qué preparamos?', required: true, mostrarSi: { campo: 'ocasion', operador: 'distinto', valor: 'No' } },
   ],
   designConfig: {
     title: 'Reserva tu mesa', welcome: 'Elige personas, fecha y horario.', primaryColor: '#0f766e', accentColor: '#e11d48', backgroundColor: '#f8fafc', fontFamily: 'system-ui',
@@ -154,13 +157,13 @@ const VISUAL_RESERVATION_LOCAL = {
     networkConsentEnabled: 'true', networkBrandName: 'Espartanos',
     marketingConsentText: 'Quiero recibir novedades, experiencias y beneficios de Casa Costanera.', marketingConsentVersion: 'cc-2026-01',
     welcomePopupTitle: 'Bienvenido a Casa Costanera', welcomePopupText: 'Reserva en pocos pasos. Si organizas una celebración o grupo, también puedes enviar una solicitud sin tomar un horario.',
-    ocasionesEnabled: 'true', ocasionesPopup: 'true', ocasionesVeces: 'siempre', ocasionesTitulo: 'Para cada ocasión', ocasionesTexto: 'Cuéntanos qué celebras y lo preparamos contigo.', ocasionesBoton: 'Ver horarios',
+    ocasionesEnabled: 'true', ocasionesPopup: 'true', ocasionesVeces: 'siempre', ocasionesTitulo: 'Para cada ocasión', ocasionesTexto: 'Cuéntanos qué celebras y lo preparamos contigo.', ocasionesBoton: 'Ver horarios', ocasionesPreguntaId: 'ocasion',
     ocasiones: JSON.stringify([{ titulo: 'Cumpleaños', texto: 'Torta, decoración y un rincón para la foto.' }, { titulo: 'Aniversario', texto: 'Mesa tranquila, luz baja y brindis de cortesía.' }, { titulo: 'Empresa', texto: 'Salón privado, menú acordado y boleta a nombre de la empresa.' }, { titulo: 'Con niños', texto: 'Sillas altas, menú infantil y espacio para el coche.' }]),
     askChildren: 'true', askAccessibility: 'true', askAllergies: 'true', whatsappBusinessNumber: '+56 9 1234 5678', whatsappGroupMessage: 'Hola, envié una solicitud de grupo desde Casa Costanera y me gustaría coordinar los detalles.',
   },
   scheduleConfig: { windows: [{ day: 1, start: '13:00', end: '23:00' }, { day: 2, start: '13:00', end: '23:00' }, { day: 3, start: '13:00', end: '23:00' }, { day: 4, start: '13:00', end: '23:00' }, { day: 5, start: '13:00', end: '23:30' }, { day: 6, start: '13:00', end: '23:30' }] },
   resourcesConfig: [{ id: 'terrace', name: 'Terraza', capacity: 40, description: 'Exterior techado', smokingAllowed: false }, { id: 'salon', name: 'Salón', capacity: 80, description: 'Interior climatizado', smokingAllowed: false }],
-  campaignId: 'verano-2026', crmEnabled: false, calendarEnabled: true, metaCapiEnabled: true, teamNotifications: ['reservas@casacostanera.cl'], pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', metaReady: true, ga4MeasurementId: 'G-CC2026TEST', capabilities: { reservations: true, crm: false, metaConversions: true }, updatedAt: new Date().toISOString(),
+  campaignId: 'verano-2026', crmEnabled: false, calendarEnabled: true, metaCapiEnabled: true, teamNotifications: ['reservas@casacostanera.cl'], pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', metaReady: true, companyDailyCap: 200, ga4MeasurementId: 'G-CC2026TEST', capabilities: { reservations: true, crm: false, metaConversions: true }, updatedAt: new Date().toISOString(),
 };
 
 /**
@@ -192,11 +195,129 @@ const VISUAL_RESERVATIONS = [
 const visualManagedReservation = {
   token: 'visual-management-token', referenceCode: 'CC-1044', guestName: 'Alexis Muñoz',
   startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), partySize: 2,
-  status: 'confirmed', guestConfirmedAt: null, canCancel: true, canReschedule: true,
+  status: 'confirmed', guestConfirmedAt: null as string | null, canCancel: true, canReschedule: true,
   timezone: 'America/Santiago',
 };
 
+/*
+ * Encuesta de ejemplo, para recorrer el flujo simple sin backend.
+ *
+ * Tiene la pregunta de estrellas —que activa el flujo por pasos—, dos preguntas más, reseña de
+ * Google y los tres canales, así cada botón de la lista y cada paso de la página pública se pueden
+ * probar.
+ */
+const VISUAL_SURVEY = {
+  id: 'visual-survey', clientId: 'visual-client', title: 'Tu visita a Casa Costanera', type: 'customer', status: 'active',
+  createdAt: new Date(Date.now() - 20 * 86400000).toISOString(), createdBy: 'visual-user', responses: 3,
+  distribution: ['email', 'qr', 'link'], recipients: ['camila@example.test', 'sebastian@example.test', 'no-es-correo'],
+  publicUrl: 'http://localhost:5176/survey/visual-survey',
+  questions: [
+    { id: 'nota', type: 'rating', question: '¿Cómo fue tu visita?', required: true },
+    { id: 'volveria', type: 'multiple-choice', question: '¿Volverías?', required: true, options: ['Sí', 'Tal vez', 'No'] },
+    { id: 'mejorar', type: 'text', question: '¿Qué podríamos hacer mejor?', required: false },
+  ],
+  designConfig: { welcome: 'Nos ayuda mucho saber cómo te fue.', primaryColor: '#07706b' },
+  googleReview: { url: 'https://g.page/r/ejemplo/review', minRating: 4 },
+};
+
+/*
+ * Vistas guardadas en memoria, con una compartida por otra persona del equipo: así se ve la
+ * diferencia entre las propias —se comparten y se borran— y las ajenas, que sólo se aplican.
+ */
+const visualSavedViews: Array<{ id: string; scope: string; name: string; filters: Record<string, string>; shared: boolean; propia: boolean }> = [
+  { id: 'vista-equipo-1', scope: 'reservas.lista', name: 'Pendientes (del equipo)', filters: { status: 'pending' }, shared: true, propia: false },
+];
+
+/*
+ * Campos propios del CRM en memoria: uno de cada tipo común y uno archivado con valor guardado,
+ * para revisar el panel de administración y cómo se ven en la ficha.
+ */
+const visualLeadConCampos: Record<string, any> = {
+  id: 'l1', name: 'Ricardo Galvez Lopez', phone: '+56983000089', email: 'galvezr941@gmail.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z',
+  customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' },
+};
+const visualCrmFields: Array<Record<string, any>> = [
+  { id: 'f1', entity: 'lead', key: 'canal', label: 'Canal preferido', type: 'select', options: ['WhatsApp', 'Correo', 'Llamada'], required: true, position: 0, archivedAt: null },
+  { id: 'f2', entity: 'lead', key: 'presupuesto_mensual', label: 'Presupuesto mensual', type: 'number', options: null, required: false, position: 1, archivedAt: null },
+  { id: 'f3', entity: 'lead', key: 'servicios_interes', label: 'Servicios de interés', type: 'multi_select', options: ['Meta Ads', 'Sitio web', 'Branding'], required: false, position: 2, archivedAt: null },
+  { id: 'f4', entity: 'lead', key: 'rubro_antiguo', label: 'Rubro', type: 'text', options: null, required: false, position: 3, archivedAt: '2026-08-01T00:00:00.000Z' },
+];
+
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
+  [/\/crm\/leads\/l1$/, (config) => {
+    const cambios = (config?.method ?? 'get').toLowerCase() === 'get' ? {} : visualRequestBody(config);
+    if (cambios.customFields) Object.assign(visualLeadConCampos.customFields, cambios.customFields);
+    return { ...visualLeadConCampos, ...cambios, customFields: { ...visualLeadConCampos.customFields } };
+  }],
+  [/\/crm\/fields\/[^/]+\/archivo$/, (config) => {
+    const id = (config?.url?.match(/\/crm\/fields\/([^/]+)\/archivo/) ?? [])[1];
+    const campo = visualCrmFields.find((item) => item.id === id);
+    if (!campo) return {};
+    campo.archivedAt = visualRequestBody(config).archivado ? new Date().toISOString() : null;
+    return campo;
+  }],
+  [/\/crm\/fields\/[^/?]+$/, (config) => {
+    const id = (config?.url?.match(/\/crm\/fields\/([^/?]+)/) ?? [])[1];
+    const campo = visualCrmFields.find((item) => item.id === id);
+    if (!campo) return {};
+    Object.assign(campo, visualRequestBody(config));
+    return campo;
+  }],
+  [/\/crm\/fields(?:\?|$)/, (config) => {
+    if ((config?.method ?? 'get').toLowerCase() === 'post') {
+      const body = visualRequestBody(config);
+      const nuevo = { id: `f${Date.now()}`, entity: body.entity, key: body.key, label: body.label, type: body.type, options: body.options ?? null, required: Boolean(body.required), position: visualCrmFields.length, archivedAt: null };
+      visualCrmFields.push(nuevo);
+      return nuevo;
+    }
+    const url = new URL(`http://x${config?.url ?? ''}`);
+    const entidad = url.searchParams.get('entity');
+    const archivados = url.searchParams.get('archivados') === 'true';
+    return visualCrmFields.filter((campo) => campo.entity === entidad && (archivados || !campo.archivedAt)).sort((a, b) => a.position - b.position);
+  }],
+  [/\/saved-views\/[^/?]+$/, (config) => {
+    const id = decodeURIComponent((config?.url?.match(/\/saved-views\/([^/?]+)/) ?? [])[1] ?? '');
+    const indice = visualSavedViews.findIndex((vista) => vista.id === id);
+    if (indice < 0) return {};
+    if ((config?.method ?? '').toLowerCase() === 'delete') { visualSavedViews.splice(indice, 1); return { deleted: true }; }
+    visualSavedViews[indice].shared = Boolean(visualRequestBody(config).shared);
+    return visualSavedViews[indice];
+  }],
+  [/\/saved-views(?:\?|$)/, (config) => {
+    if ((config?.method ?? 'get').toLowerCase() === 'post') {
+      const body = visualRequestBody(config);
+      const existente = visualSavedViews.find((vista) => vista.propia && vista.scope === body.scope && vista.name === body.name);
+      if (existente) { Object.assign(existente, { filters: body.filters, shared: Boolean(body.shared) }); return existente; }
+      const nueva = { id: `vista-${Date.now()}`, scope: String(body.scope), name: String(body.name), filters: body.filters ?? {}, shared: Boolean(body.shared), propia: true };
+      visualSavedViews.push(nueva);
+      return nueva;
+    }
+    const scope = new URL(`http://x${config?.url ?? ''}`).searchParams.get('scope');
+    return visualSavedViews.filter((vista) => vista.scope === scope);
+  }],
+  [/\/public\/surveys\/visual-survey\/start$/, (config) => {
+    const body = visualRequestBody(config);
+    const rating = Number(body.rating);
+    return { responseId: 'visual-response-nueva', token: 'token-visual-de-prueba-123', rating, siguiente: rating < 4 ? 'mensaje-al-equipo' : 'ofrecer-encuesta', reviewUrl: 'https://g.page/r/ejemplo/review', nombre: body.invitacion ? 'Camila' : null };
+  }],
+  [/\/public\/surveys\/visual-survey\/responses\/[^/]+\/complete$/, (config) => ({ completed: Boolean(visualRequestBody(config).terminar) })],
+  [/\/public\/surveys\/visual-survey$/, () => VISUAL_SURVEY],
+  [/\/surveys\/visual-survey\/send-email$/, () => ({ enviados: 2, fallidos: 0, invalidos: 1 })],
+  [/\/surveys\/visual-survey\/results$/, () => ({
+    surveyId: 'visual-survey', totalResponses: 3, completionRate: null, generatedAt: new Date().toISOString(),
+    questions: [
+      { questionId: 'nota', question: '¿Cómo fue tu visita?', required: true, totalAnswers: 3, type: 'rating', average: 3.7, distribution: { '2': 1, '4': 1, '5': 1 } },
+      { questionId: 'volveria', question: '¿Volverías?', required: true, totalAnswers: 1, type: 'multiple-choice', counts: { 'Sí': 1 } },
+      { questionId: 'mejorar', question: '¿Qué podríamos hacer mejor?', required: false, totalAnswers: 1, type: 'text', answers: ['Más opciones sin gluten'] },
+    ],
+    respuestas: [
+      { id: 'r1', submittedAt: new Date(Date.now() - 2 * 3600000).toISOString(), rating: 2, respondentName: 'Sebastián Vera', respondentEmail: 'sebastian@example.test', reservationId: 'visual-booking-2', teamMessage: 'La comida llegó fría y tuvimos que pedir la cuenta tres veces.', completedAt: new Date(Date.now() - 2 * 3600000).toISOString(), answers: { nota: 2 } },
+      { id: 'r2', submittedAt: new Date(Date.now() - 26 * 3600000).toISOString(), rating: 5, respondentName: 'Camila Rojas', respondentEmail: 'camila@example.test', reservationId: 'visual-booking-1', teamMessage: null, completedAt: new Date(Date.now() - 26 * 3600000).toISOString(), answers: { nota: 5, volveria: 'Sí', mejorar: 'Más opciones sin gluten' } },
+      { id: 'r3', submittedAt: new Date(Date.now() - 50 * 3600000).toISOString(), rating: 4, respondentName: null, respondentEmail: null, reservationId: null, teamMessage: null, completedAt: null, answers: { nota: 4 } },
+    ],
+  })],
+  [/\/surveys\/visual-survey$/, () => VISUAL_SURVEY],
+  [/\/surveys(?:\?|$)/, () => [VISUAL_SURVEY]],
   [/\/auth\/session$/, () => ({ authenticated: true, accessToken: syntheticJwt() })],
   [/\/auth\/refresh$/, () => ({ accessToken: syntheticJwt() })],
   [/\/auth\/login$/, () => ({ accessToken: syntheticJwt(), user: VISUAL_USER })],
@@ -260,7 +381,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   ])],
   [/\/crm\/leads(\?|$)/, () => ({
     data: [
-      { id: 'l1', name: 'Ricardo Galvez Lopez', phone: '+56983000089', email: 'galvezr941@gmail.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z' },
+      { id: 'l1', customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' }, name: 'Ricardo Galvez Lopez', phone: '+56983000089', email: 'galvezr941@gmail.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z' },
       { id: 'l2', name: 'Fabiana Ibanez Escalona', phone: '+56948532342', email: 'fabiana@gmail.com', status: 'contacted', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: 'u1', clientId: null, estimatedAmount: 7800000, createdAt: '2026-08-17T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
       { id: 'l3', name: 'Matias Cancino Caceres', phone: '+56967338235', email: 'matias09@hotmail.com', status: 'quote_sent', source: 'Formulario web', campaignName: null, assignedTo: 'u1', clientId: null, estimatedAmount: 12000000, createdAt: '2026-08-14T02:15:20.676Z', updatedAt: '2026-08-10T02:15:20.676Z' },
       { id: 'l4', name: 'Yohana Valenzuela', phone: '+56996118555', email: 'yohana@gmail.com', status: 'meeting_scheduled', source: 'Referido', campaignName: null, assignedTo: 'u2', clientId: null, estimatedAmount: 9200000, createdAt: '2026-08-11T02:15:20.676Z', updatedAt: '2026-08-18T02:15:20.676Z' },
@@ -338,10 +459,35 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return visualReservationForms.filter((form) => !clientId || form.clientId === clientId);
   }],
   [/\/reservations\?(?!.*analytics)/, () => ({ data: VISUAL_RESERVATIONS, total: VISUAL_RESERVATIONS.length, page: 1, pageSize: 100, pages: 1 })],
-  [/\/public\/reservations\/casa-costanera\/slots/, () => {
-    const day = new Date(); day.setDate(day.getDate() + 1); day.setHours(20, 0, 0, 0);
-    const first = day.toISOString(); day.setHours(21, 30, 0, 0); const second = day.toISOString();
-    return { slots: [{ startsAt: first, available: 18 }, { startsAt: second, available: 12 }], fullDays: [] };
+  /*
+   * Horarios calculados con la configuración del local, como el servidor: semana habitual,
+   * duración, una llegada cada N minutos, anticipación mínima y ventana máxima. Usa la hora del
+   * navegador como si fuera la del local; alcanza para revisar la pantalla.
+   */
+  [/\/public\/reservations\/casa-costanera\/slots/, (config) => {
+    const local = visualReservationForms.find((item) => item.publicSlug === 'casa-costanera') ?? VISUAL_RESERVATION_LOCAL;
+    const url = new URL(`http://x${config?.url ?? ''}`);
+    const desde = url.searchParams.get('from') || new Date().toISOString().slice(0, 10);
+    const dias = Math.min(62, Number(url.searchParams.get('days') || '14') || 14);
+    const personas = Number(url.searchParams.get('partySize') || '2') || 2;
+    const ritmo = Number(local.designConfig?.slotCadenceMinutes || '15') || 15;
+    const primero = Date.now() + local.minimumNoticeHours * 3_600_000;
+    const ultimo = Date.now() + local.maximumAdvanceDays * 86_400_000;
+    const [anio, mes, dia] = desde.split('-').map(Number);
+    const slots: Array<{ startsAt: string; available: number }> = [];
+    for (let indice = 0; indice < dias; indice += 1) {
+      const fecha = new Date(anio, mes - 1, dia + indice);
+      for (const ventana of (local.scheduleConfig?.windows ?? []).filter((item: { day: number }) => item.day === fecha.getDay())) {
+        const [hi, mi] = ventana.start.split(':').map(Number); const [hf, mf] = ventana.end.split(':').map(Number);
+        for (let minuto = hi * 60 + mi; minuto + local.durationMinutes <= hf * 60 + mf; minuto += ritmo) {
+          const inicio = new Date(fecha); inicio.setHours(Math.floor(minuto / 60), minuto % 60, 0, 0);
+          if (inicio.getTime() < primero || inicio.getTime() > ultimo) continue;
+          const available = Math.max(0, local.capacityPerSlot - ((inicio.getDate() * 7 + minuto) % 9));
+          if (available >= personas) slots.push({ startsAt: inicio.toISOString(), available });
+        }
+      }
+    }
+    return { slots, fullDays: [] };
   }],
   [/\/public\/reservations\/manage\/[^/?]+\/cancel$/, () => {
     visualManagedReservation.status = 'cancelled_client';
@@ -360,6 +506,40 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return { referenceCode: visualManagedReservation.referenceCode, startsAt: visualManagedReservation.startsAt, status: visualManagedReservation.status };
   }],
   [/\/public\/reservations\/manage\/[^/?]+$/, () => ({ ...visualManagedReservation })],
+  /*
+   * Solicitud de grupo: no toma horario, así que su respuesta no trae fecha.
+   *
+   * Faltaba la regla, y al no coincidir con ninguna el flujo terminaba en una respuesta sin
+   * `kind` ni `startsAt` —justo la forma que hacía caer la pantalla de confirmación—.
+   */
+  /*
+   * Historial de quien reserva, para poder revisar el bloque que lo muestra.
+   *
+   * Sin datos previos la ficha decía siempre «primera vez» y no había forma de ver en pantalla
+   * lo que se deduce de visitas anteriores.
+   */
+  [/\/reservations\/[^/?]+\/guest-history$/, () => ({
+    total: 4,
+    attended: 3,
+    noShow: 1,
+    anteriores: [
+      { id: 'h1', referenceCode: 'CC-0931', startsAt: new Date(Date.now() - 21 * 86400000).toISOString(), status: 'attended', partySize: 2 },
+      { id: 'h2', referenceCode: 'CC-0844', startsAt: new Date(Date.now() - 58 * 86400000).toISOString(), status: 'attended', partySize: 2 },
+      { id: 'h3', referenceCode: 'CC-0777', startsAt: new Date(Date.now() - 96 * 86400000).toISOString(), status: 'no_show', partySize: 4 },
+      { id: 'h4', referenceCode: 'CC-0612', startsAt: new Date(Date.now() - 150 * 86400000).toISOString(), status: 'attended', partySize: 2 },
+    ],
+    preferencias: {
+      zonaHabitual: 'terrace',
+      personasHabitual: 2,
+      alergias: ['Sin gluten'],
+      accesibilidad: ['Acceso sin escalón'],
+      ultimaVisita: new Date(Date.now() - 21 * 86400000).toISOString(),
+      diasDesdeLaUltima: 21,
+      vinoConNinos: true,
+      usoCupon: true,
+    },
+  })],
+  [/\/public\/reservations\/[^/?]+\/group-request$/, () => ({ id: 'visual-group-1', status: 'pending', kind: 'group_request' })],
   [/\/public\/reservations\/[^/?]+$/, (config) => {
     const slug = (config?.url?.match(/\/public\/reservations\/([^/?]+)/) ?? [])[1];
     if (config?.method?.toLowerCase() !== 'post') return visualReservationForms.find((form) => form.publicSlug === slug) || VISUAL_RESERVATION_LOCAL;
@@ -413,12 +593,20 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * segundo nivel, de modo que un formulario sin esos objetos la tumba. Se responde con un
    * formulario completo para poder revisar los cuatro pasos, incluido el entorno visual.
    */
+  [/\/reservations\/forms\/[^/?]+\/pause$/, (config) => {
+    const id = (config?.url?.match(/\/reservations\/forms\/([^/?]+)\/pause$/) ?? [])[1];
+    const form = visualReservationForms.find((item) => item.id === id) || VISUAL_RESERVATION_LOCAL;
+    const until = String(visualRequestBody(config).until || '');
+    form.designConfig = { ...form.designConfig, bookingPausedUntil: until || undefined };
+    return form;
+  }],
   [/\/reservations\/forms\/[^/?]+$/, (config) => {
     const id = (config?.url?.match(/\/reservations\/forms\/([^/?]+)$/) ?? [])[1];
     const form = visualReservationForms.find((item) => item.id === id) || VISUAL_RESERVATION_LOCAL;
     if (config?.method?.toLowerCase() !== 'patch') return form;
     const body = visualRequestBody(config);
-    Object.assign(form, body, { designConfig: { ...form.designConfig, ...body.designConfig }, updatedAt: new Date().toISOString() });
+    // Como el servidor: la pausa sólo cambia por su propia ruta.
+    Object.assign(form, body, { designConfig: { ...form.designConfig, ...body.designConfig, bookingPausedUntil: form.designConfig?.bookingPausedUntil }, updatedAt: new Date().toISOString() });
     return form;
   }],
   [/\/roles\/permissions$/, () => {
@@ -634,6 +822,20 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   })],
   [/\/consent\/active$/, () => null], // null → muestra EmptyState "Sin consentimiento publicado"
   [/\/consent\/pending-count$/, () => ({ pending: 0, total: 0 })],
+  /*
+   * Panel de correos: el aviso de encuesta después de la visita, para revisar el selector.
+   *
+   * Sólo con la empresa elegida —\`?clientId=\`—: la encuesta es de cada empresa, y la vista general
+   * tiene que decir que se elige empresa primero.
+   */
+  [/\/settings\?clientId=[^&]+$/, () => [
+    { key: 'email.post_visit_survey_enabled', label: 'Encuesta después de la visita', description: 'Unas horas después de una reserva asistida.', valueType: 'boolean', value: true, source: 'client' },
+    { key: 'email.post_visit_survey_id', label: 'Encuesta después de la visita · encuesta', description: 'Qué encuesta se envía.', valueType: 'text', value: 'visual-survey', source: 'client' },
+    { key: 'email.post_visit_survey_hours', label: 'Encuesta después de la visita · espera', description: 'Horas después del fin de la visita.', valueType: 'number', value: 3, source: 'master_default', min: 1, max: 72, unit: 'horas' },
+    { key: 'email.post_visit_survey_subject', label: 'Encuesta después de la visita · asunto', description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text', value: '¿Cómo te fue en {{local}}?', source: 'master_default' },
+    { key: 'email.post_visit_survey_body', label: 'Encuesta después de la visita · cuerpo', description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text', value: 'Hola {{nombre}}:\n\nGracias por venir a {{local}}.', source: 'master_default' },
+  ]],
+  [/\/settings\/destinatarios-de-prueba$/, () => [{ id: 'visual-user', name: 'Modo Visual', email: 'visual@espartanos.local' }]],
   [/\/settings\?prefix=security\.password$/, () => ({
     'security.password.minLength': '8',
     'security.password.requireUppercase': 'true',

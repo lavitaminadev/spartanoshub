@@ -1,3 +1,5 @@
+import { normalizarCorreo, normalizarTelefono } from '../../integrations/meta/identificadores-meta';
+import { camposVisibles, type ReglaDeCampo } from '@espartanos/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
@@ -58,6 +60,18 @@ type ServiceConfig = { id: string; name: string; durationMinutes?: number; capac
 type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[]; active?: boolean };
 type FieldConfig = { id: string; type: string; label: string; required?: boolean; internal?: boolean; options?: string[] };
 type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string };
+/** Lo que se sabe de alguien por sus reservas anteriores, para quien la recibe. */
+export interface Preferencias {
+  zonaHabitual?: string;
+  personasHabitual?: number;
+  alergias: string[];
+  accesibilidad: string[];
+  ultimaVisita?: Date;
+  diasDesdeLaUltima?: number;
+  vinoConNinos: boolean;
+  usoCupon: boolean;
+}
+
 type DesignConfig = {
   primaryColor?: string;
   accentColor?: string;
@@ -80,6 +94,8 @@ type DesignConfig = {
   fontFamily?: string;
   legalCompanyName?: string; legalCompanyId?: string; supportEmail?: string; privacyUrl?: string; termsUrl?: string;
   cancellationPolicy?: string; reservationConsentText?: string; marketingConsentText?: string; marketingConsentVersion?: string;
+  /** Consumo esperado por persona, para que Meta pueda pujar por la reserva que deja más. */
+  valorPorPersona?: string; moneda?: string;
   /** Autorización opcional para reutilizar los datos en los demás locales de la red. */
   networkConsentText?: string; networkConsentVersion?: string; networkBrandName?: string; networkConsentEnabled?: string;
   campaignAlias?: string; welcomePopupEnabled?: string; welcomePopupTitle?: string; welcomePopupText?: string;
@@ -259,7 +275,19 @@ export class ReservationsService {
 
   private validateSubmission(form: ReservationForm, answers: Record<string, unknown>, guest: GuestSubmission): void {
     this.validateAnswers(form, answers);
-    for (const field of form.fieldSchema as FieldConfig[]) {
+    /*
+     * Sólo se revisa lo que la persona llegó a ver.
+     *
+     * Un campo condicional oculto no tiene respuesta, y exigirlo igual dejaba la reserva
+     * imposible de enviar con un mensaje que nombra una pregunta que no está en pantalla. La
+     * regla se evalúa con la misma función que usa el navegador para decidir si pintarla: si
+     * cada lado tuviera la suya, cualquier diferencia aparecería como ese error sin salida.
+     */
+    const visibles = camposVisibles(
+      (form.fieldSchema as FieldConfig[]).map((field) => ({ ...field, mostrarSi: (field as FieldConfig & { mostrarSi?: ReglaDeCampo }).mostrarSi })),
+      { ...answers, name: guest.guestName, email: guest.guestEmail, phone: guest.guestPhone },
+    );
+    for (const field of visibles) {
       const value = field.id === 'name' ? guest.guestName : field.id === 'email' ? guest.guestEmail : field.id === 'phone' ? guest.guestPhone : answers[field.id];
       const empty = value == null || value === '' || value === false || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && value.length === 0);
       if (field.required && empty) throw new BadRequestException(`Falta completar ${field.label}`);
@@ -360,11 +388,32 @@ export class ReservationsService {
     // Reservas y CRM son capacidades independientes. No se crea ni sincroniza un lead
     // desde una reserva; se conserva la columna histórica solo para no borrar datos.
     if (dto.metaCapiEnabled && !capabilities.metaConversions) throw new BadRequestException('Meta Pixel + CAPI no está habilitado para esta empresa');
+    const pausaVigente = (form.designConfig as DesignConfig | undefined)?.bookingPausedUntil;
     Object.assign(form, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
     form.crmEnabled = false;
     if (!capabilities.metaConversions) form.metaCapiEnabled = false;
+    // La pausa sólo la cambia `pauseForm`: el editor y la agenda guardan copias del diseño que
+    // pueden ser anteriores a una pausa puesta desde la otra pantalla.
+    if (dto.designConfig !== undefined) {
+      const design = { ...(form.designConfig as DesignConfig) };
+      if (pausaVigente) design.bookingPausedUntil = pausaVigente; else delete design.bookingPausedUntil;
+      form.designConfig = design as ReservationForm['designConfig'];
+    }
     this.validateConfiguration(form);
     if (form.status === 'published' && ((form.scheduleConfig as { windows?: unknown[] }).windows?.length || 0) === 0) throw new BadRequestException('No puedes publicar sin disponibilidad');
+    return this.forms.save(form);
+  }
+  /**
+   * Pausa las reservas públicas hasta `until` (ISO) o la quita con cadena vacía.
+   *
+   * Es la única vía que toca `bookingPausedUntil`: así ninguna otra pantalla la borra al guardar.
+   */
+  async pauseForm(organizationId: string, id: string, until: string, clientId?: string, clientIds?: string[]) {
+    const form = await this.getForm(organizationId, id, clientId, clientIds);
+    const design = { ...(form.designConfig as DesignConfig) };
+    if (until) design.bookingPausedUntil = until; else delete design.bookingPausedUntil;
+    form.designConfig = design as ReservationForm['designConfig'];
+    this.validateConfiguration(form);
     return this.forms.save(form);
   }
   async duplicateForm(organizationId: string, id: string, userId: string, clientIds?: string[]) { const source = await this.getForm(organizationId, id, undefined, clientIds); const copy = this.forms.create({ ...source, id: undefined, name: `${source.name} (copia)`, publicSlug: await this.uniqueSlug(source.publicSlug), status: 'draft', createdBy: userId, createdAt: undefined, updatedAt: undefined }); return this.forms.save(copy); }
@@ -419,7 +468,9 @@ export class ReservationsService {
      * ofrecerlo.
      */
     const google = await this.dataSource.query('SELECT 1 FROM integrations WHERE organization_id = ? AND provider = ? LIMIT 1', [organizationId, 'google']);
-    return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0 };
+    // El tope diario de la empresa (en personas) se muestra junto al del local: manda el más estricto.
+    const companyDailyCap = await this.clientDailyCap(this.dataSource, clientId);
+    return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap };
   }
 
   private effectiveRules(form: ReservationForm, serviceId?: string, resourceId?: string) {
@@ -1789,6 +1840,45 @@ export class ReservationsService {
     });
   }
 
+  /**
+   * Cuánto vale una reserva, para quien la compra.
+   *
+   * Sin `value`, Meta optimiza tratando igual una mesa de dos y un grupo de doce: gasta lo mismo
+   * por conseguir cualquiera de las dos y no puede pujar por la que deja más. El valor no se
+   * inventa —un promedio inventado enseña a la campaña algo falso—: sale del monto por persona
+   * que el local declara, y si no lo declaró, no se manda nada.
+   *
+   * Es una estimación de consumo esperado, no una venta registrada. Vale para ordenar campañas
+   * entre sí, no para cuadrar con la caja.
+   */
+  private valorDeLaReserva(form: ReservationForm, partySize: number): { value: number; currency: string } | undefined {
+    const design = form.designConfig as DesignConfig;
+    const porPersona = Number(design.valorPorPersona || '0');
+    if (!Number.isFinite(porPersona) || porPersona <= 0) return undefined;
+    const personas = Number.isFinite(partySize) && partySize > 0 ? partySize : 1;
+    const moneda = String(design.moneda || 'CLP').trim().toUpperCase();
+    return { value: Math.round(porPersona * personas), currency: /^[A-Z]{3}$/.test(moneda) ? moneda : 'CLP' };
+  }
+
+  /**
+   * Identificador estable de la persona, no de la reserva.
+   *
+   * `external_id` es lo que permite a Meta reconocer que dos eventos son de la misma persona. Con
+   * el identificador de la reserva, cada visita parecía alguien distinto: se perdía la conexión
+   * entre quien miró, quien reservó y quien asistió, que es justo lo que mide una campaña.
+   *
+   * Se manda primero el de la persona y después el de la reserva, que sigue sirviendo para
+   * rastrear un envío concreto. Va hasheado como el resto: sale del correo o del teléfono ya
+   * normalizados, así que la misma persona produce la misma clave acá, en el CRM y en Google.
+   */
+  private identificadoresDePersona(booking: Reservation): string[] {
+    const contacto = booking.guestEmail?.trim() ? normalizarCorreo(booking.guestEmail) : normalizarTelefono(booking.guestPhone || '');
+    const ids: string[] = [];
+    if (contacto) ids.push(createHash('sha256').update(`${booking.clientId}:${contacto}`).digest('hex'));
+    ids.push(booking.id);
+    return ids;
+  }
+
   private async enqueueMetaConversion(booking: Reservation, form: ReservationForm, eventName: string, eventTime?: number, eventSourceUrl?: string) {
     const { pixelId, accessToken } = await this.getClientMetaConfig(form.clientId, form.organizationId, form);
     if (!pixelId || !accessToken) throw new Error('Meta pixel or CAPI token is not configured');
@@ -1813,7 +1903,7 @@ export class ReservationsService {
         ph: booking.guestPhone ? [booking.guestPhone] : undefined,
         fn: firstName ? [firstName] : undefined,
         ln: lastName ? [lastName] : undefined,
-        externalId: [booking.id],
+        externalId: this.identificadoresDePersona(booking),
         ct: location.city ? [location.city] : undefined,
         st: location.region ? [location.region] : undefined,
         country: location.country ? [location.country] : undefined,
@@ -1822,7 +1912,7 @@ export class ReservationsService {
         client_ip_address: booking.clientIpAddress ?? undefined,
         client_user_agent: booking.clientUserAgent ?? undefined,
       },
-      customData: { contentIds: [form.id], contentType: 'reservation' },
+      customData: { contentIds: [form.id], contentType: 'reservation', ...this.valorDeLaReserva(form, booking.partySize) },
       // El identificador sale de la función compartida con el navegador: si los dos lados no
       // coinciden, Meta cuenta dos conversiones donde hubo una y nadie se entera.
       eventId: metaEventId(eventName as MetaEvent, booking.id),
@@ -2126,7 +2216,7 @@ export class ReservationsService {
     if (!actual) throw new NotFoundException('Reserva no encontrada');
     const correo = actual.guestEmail?.trim().toLowerCase();
     const telefono = actual.guestPhone?.trim();
-    const vacio = { total: 0, attended: 0, noShow: 0, anteriores: [] as Array<Record<string, unknown>> };
+    const vacio = { total: 0, attended: 0, noShow: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
     if (!correo && !telefono) return vacio;
     const qb = this.reservations.createQueryBuilder('r')
       .where('r.organization_id = :organizationId AND r.client_id = :clientIdActual AND r.id != :id', { organizationId, clientIdActual: actual.clientId, id: actual.id });
@@ -2139,7 +2229,48 @@ export class ReservationsService {
       total: previas.length,
       attended: previas.filter((item) => item.status === 'attended').length,
       noShow: previas.filter((item) => item.status === 'no_show').length,
+      preferencias: this.preferenciasDeLaPersona(previas, actual),
       anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize })),
+    };
+  }
+
+  /**
+   * Lo que ya se sabe de esta persona, sin tener que abrir sus reservas una por una.
+   *
+   * Contar visitas dice que alguien vuelve; no dice qué hacer cuando llega. Lo que decide eso es
+   * dónde se sienta, cuántos suelen venir, qué no puede comer y si alguna vez no llegó. Todo sale
+   * de reservas que ella misma completó —no se infiere ni se compra—, y por eso puede estar
+   * desactualizado: es una ayuda para quien recibe, no una ficha que reemplace preguntar.
+   *
+   * La zona y la cantidad se toman por repetición, no por la última vez: quien siempre pide
+   * terraza y una vez aceptó salón sigue prefiriendo terraza.
+   */
+  private preferenciasDeLaPersona(previas: Reservation[], actual: Reservation): Preferencias | undefined {
+    if (previas.length === 0) return undefined;
+    const masRepetido = <T>(valores: Array<T | null | undefined>): T | undefined => {
+      const cuenta = new Map<T, number>();
+      for (const valor of valores) if (valor !== null && valor !== undefined && valor !== ('' as unknown as T)) cuenta.set(valor, (cuenta.get(valor) || 0) + 1);
+      let mejor: T | undefined; let veces = 0;
+      for (const [valor, n] of cuenta) if (n > veces) { mejor = valor; veces = n; }
+      return veces >= 2 ? mejor : undefined;
+    };
+    const respuesta = (item: Reservation, clave: string): string | undefined => {
+      const valor = (item.answers as Record<string, unknown> | undefined)?.[clave];
+      return typeof valor === 'string' && valor.trim() ? valor.trim() : undefined;
+    };
+    const alergias = [...new Set(previas.map((item) => respuesta(item, 'dietaryNotes')).filter((valor): valor is string => Boolean(valor)))];
+    const accesibilidad = [...new Set(previas.map((item) => respuesta(item, 'accessibilityNeed')).filter((valor): valor is string => Boolean(valor)))];
+    const ultima = previas[0];
+    return {
+      zonaHabitual: masRepetido(previas.map((item) => item.resourceId)),
+      personasHabitual: masRepetido(previas.map((item) => item.partySize)),
+      // Sólo lo declarado antes y que no viene ya en esta reserva: repetirlo no aporta nada.
+      alergias: alergias.filter((texto) => texto !== respuesta(actual, 'dietaryNotes')),
+      accesibilidad: accesibilidad.filter((texto) => texto !== respuesta(actual, 'accessibilityNeed')),
+      ultimaVisita: ultima ? ultima.startsAt : undefined,
+      diasDesdeLaUltima: ultima ? Math.max(0, Math.round((actual.startsAt.getTime() - ultima.startsAt.getTime()) / 86_400_000)) : undefined,
+      vinoConNinos: previas.some((item) => Number((item.answers as Record<string, unknown> | undefined)?.childrenCount || 0) > 0),
+      usoCupon: previas.some((item) => Boolean(item.couponCode)),
     };
   }
 

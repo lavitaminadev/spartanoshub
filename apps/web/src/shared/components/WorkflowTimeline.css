@@ -60,7 +60,7 @@
 }
 
 .wf-timeline-stage--done .wf-timeline-index {
-  color: var(--cyan);
+  color: var(--cyan-text);
   background: var(--cyan-soft);
 }
 

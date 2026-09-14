@@ -5,6 +5,7 @@
 
 import { type JSX } from 'react';
 import { useParams } from 'react-router-dom';
+import { RespuestasPorPersona } from './RespuestasPorPersona';
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from 'recharts';
 import { PageHero } from '../../shared/PageHero';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -215,6 +216,11 @@ export function SurveyResultsPage(): JSX.Element {
         <div className="results-grid">
           {summary.questions.map((result) => <QuestionResultCard key={result.questionId} result={result} />)}
         </div>
+      )}
+
+      {/* Presente cuando el servidor lo entrega; la copia local sin red no tiene quién respondió. */}
+      {summary.totalResponses > 0 && summary.respuestas && (
+        <RespuestasPorPersona respuestas={summary.respuestas} preguntas={survey.questions} />
       )}
     </div>
   );

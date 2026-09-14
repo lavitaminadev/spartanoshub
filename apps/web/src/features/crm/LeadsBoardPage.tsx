@@ -26,6 +26,7 @@ import { api } from '../../core/api';
 import { KanbanBoard, type KanbanColumn } from '../../shared/KanbanBoard';
 import { FilterBar } from '../../shared/FilterBar';
 import { useUrlFilters } from '../../shared/use-url-filters';
+import { VistasGuardadas } from '../../shared/VistasGuardadas';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
@@ -636,6 +637,19 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         values={filtros.values}
         onFilterChange={filtros.setValue}
         onClear={filtros.hasAny ? filtros.clear : undefined}
+      />
+
+      {/*
+        * El mismo recorte, sin rearmarlo.
+        *
+        * Los filtros ya viven en la direccion, asi que sobreviven a una recarga y se pueden pasar
+        * por mensaje; lo que faltaba era poder volver a los tres o cuatro de siempre con un clic.
+        */}
+      <VistasGuardadas
+        ambito={`crm.leads.${scope.domain}`}
+        filtrosActuales={{ ...filtros.values, q: filtros.search }}
+        hayFiltros={filtros.hasAny}
+        onAplicar={(guardados) => { for (const [clave, valor] of Object.entries(guardados)) { if (clave === 'q') filtros.setSearch(valor); else filtros.setValue(clave, valor); } }}
       />
 
       {/* Sin alternador: la sección ya dice qué se está mirando. Queda el conteo, que es lo

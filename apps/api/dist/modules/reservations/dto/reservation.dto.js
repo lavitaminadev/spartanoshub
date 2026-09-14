@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.ConvertGroupRequestDto = exports.UpdateReservationDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.PublicLookupReservationDto = exports.PublicRecoverReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
+exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.ConvertGroupRequestDto = exports.UpdateReservationDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.PublicLookupReservationDto = exports.PublicRecoverReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const vacioComoAusente = ({ value }) => (value === '' ? undefined : value);
@@ -1318,3 +1318,12 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], OccupancyQueryDto.prototype, "formId", void 0);
+class PauseReservationFormDto {
+}
+exports.PauseReservationFormDto = PauseReservationFormDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], PauseReservationFormDto.prototype, "until", void 0);

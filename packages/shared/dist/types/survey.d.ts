@@ -136,5 +136,25 @@ export interface SurveyResultsSummary {
     completionRate: number | null;
     questions: SurveyQuestionResult[];
     generatedAt: string;
+    /**
+     * Cada respuesta con quién la dejó, más reciente primero. Sólo la entrega el servidor: el
+     * respaldo local sin red no sabe quién respondió.
+     */
+    respuestas?: SurveyIndividualResponse[];
+}
+/** Una respuesta tal como se lee en los resultados, con su autor si llegó por una reserva. */
+export interface SurveyIndividualResponse {
+    id: string;
+    submittedAt: string;
+    rating: number | null;
+    /** Sólo en respuestas que llegaron por la invitación de una reserva. */
+    respondentName: string | null;
+    respondentEmail: string | null;
+    reservationId: string | null;
+    /** Lo que la persona quiso decirle al equipo en privado. */
+    teamMessage: string | null;
+    /** Nulo si dejó la nota y no siguió. */
+    completedAt: string | null;
+    answers: Record<string, string | number>;
 }
 //# sourceMappingURL=survey.d.ts.map

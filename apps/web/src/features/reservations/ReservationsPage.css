@@ -14,6 +14,16 @@
   align-items: flex-end;
 }
 
+/*
+ * En columna, `flex-end` ya no baja las acciones: empuja el título a la derecha. Esta hoja se
+ * carga con la pantalla, después de las generales, así que la corrección tiene que vivir acá.
+ */
+@media (max-width: 700px) {
+  .reservation-module .reservation-section-head {
+    align-items: stretch;
+  }
+}
+
 .reservation-module .reservation-section-head h1 {
   color: var(--txt);
 }

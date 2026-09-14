@@ -50,6 +50,7 @@ import { AudiovisualModule } from './modules/audiovisual/audiovisual.module';
 import { DataProtectionModule } from './core/data-protection/data-protection.module';
 import { AccountCyclesModule } from './modules/account-cycles/account-cycles.module';
 import { ObjectivesModule } from './modules/objectives/objectives.module';
+import { SavedViewsModule } from './modules/saved-views/saved-views.module';
 import { PortalModule } from './modules/client-portal/portal.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { SurveysModule } from './modules/surveys/surveys.module';
@@ -149,6 +150,7 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
     MetaModule,
     GoogleModule,
     KnowledgeModule,
+    SavedViewsModule,
     UploadsModule,
     OperationsModule,
     AudiovisualModule,

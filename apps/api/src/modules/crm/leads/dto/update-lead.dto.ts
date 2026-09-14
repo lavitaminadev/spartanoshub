@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEnum, IsIn, IsOptional, IsString, MaxLength, IsNumber, Min, Max, IsUUID, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsIn, IsObject, IsOptional, IsString, MaxLength, IsNumber, Min, Max, IsUUID, ValidateIf } from 'class-validator';
 import { LeadStatus } from '../lead-status.enum';
 import { LeadFitStatus } from '../lead-fit-status.enum';
 
@@ -83,4 +83,12 @@ export class UpdateLeadDto {
    * este campo sería una forma de mover datos a una cuenta ajena.
    */
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsUUID() clientId?: string | null;
+
+  /**
+   * Campos propios, por clave. Sólo los que se envían cambian; un valor vacío borra ese campo.
+   *
+   * La forma y los valores se validan contra las definiciones en el caso de uso: acá sólo se
+   * asegura que llegue un objeto.
+   */
+  @IsOptional() @IsObject() customFields?: Record<string, unknown>;
 }

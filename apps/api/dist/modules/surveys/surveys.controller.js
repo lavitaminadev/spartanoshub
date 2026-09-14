@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SurveysController = void 0;
+exports.SurveysController = exports.MAXIMO_ENVIO_POR_PEDIDO = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const typeorm_1 = require("@nestjs/typeorm");
@@ -26,16 +26,21 @@ const survey_entity_1 = require("./survey.entity");
 const survey_response_entity_1 = require("./survey-response.entity");
 const survey_dto_1 = require("./dto/survey.dto");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
+const email_service_1 = require("../../core/notifications/email.service");
+const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
+const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+exports.MAXIMO_ENVIO_POR_PEDIDO = 500;
 function publicSurveyUrl(id) {
     const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
 }
 let SurveysController = class SurveysController {
-    constructor(surveys, responses, dataSource, accountAccess) {
+    constructor(surveys, responses, dataSource, accountAccess, correo) {
         this.surveys = surveys;
         this.responses = responses;
         this.dataSource = dataSource;
         this.accountAccess = accountAccess;
+        this.correo = correo;
     }
     toContract(survey) {
         return {
@@ -149,7 +154,18 @@ let SurveysController = class SurveysController {
             answers: row.answers ?? {},
             submittedAt: row.submittedAt.toISOString(),
         }));
-        return (0, shared_1.computeSurveyResults)(this.toContract(survey), responses);
+        const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
+            id: row.id,
+            submittedAt: row.submittedAt.toISOString(),
+            rating: row.rating ?? null,
+            respondentName: row.respondentName ?? null,
+            respondentEmail: row.respondentEmail ?? null,
+            reservationId: row.reservationId ?? null,
+            teamMessage: row.teamMessage ?? null,
+            completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+            answers: row.answers ?? {},
+        }));
+        return { ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses), respuestas: detalle };
     }
     async submit(req, id, dto) {
         const survey = await this.findOwned(id, req.organizationId);
@@ -183,6 +199,37 @@ let SurveysController = class SurveysController {
             answers: saved.answers,
             submittedAt: saved.submittedAt.toISOString(),
         };
+    }
+    async sendEmail(req, id) {
+        const survey = await this.findOwned(id, req.organizationId);
+        await this.accountAccess.assertClient(req.organizationId, req.user, survey.clientId ?? undefined);
+        if (survey.status !== 'active')
+            throw new common_1.BadRequestException('Activa la encuesta antes de enviarla');
+        if (!(survey.distribution ?? []).includes('email'))
+            throw new common_1.BadRequestException('Esta encuesta no tiene el correo habilitado como canal');
+        const base = publicSurveyUrl(survey.id);
+        if (!base)
+            throw new common_1.BadRequestException('Falta configurar la dirección pública de la aplicación');
+        const unicos = [...new Set((survey.recipients ?? []).map((correo) => correo.trim().toLowerCase()))];
+        const validos = unicos.filter((correo) => CORREO.test(correo));
+        const invalidos = unicos.length - validos.length;
+        if (validos.length === 0)
+            throw new common_1.BadRequestException('La encuesta no tiene destinatarios con un correo válido');
+        if (validos.length > exports.MAXIMO_ENVIO_POR_PEDIDO) {
+            throw new common_1.BadRequestException(`Son ${validos.length} destinatarios; el máximo por envío es ${exports.MAXIMO_ENVIO_POR_PEDIDO}.`);
+        }
+        const enlace = `${base}?src=email`;
+        const html = (0, plantilla_de_correo_1.armazonDeCorreo)(survey.title, survey.designConfig?.welcome || 'Nos gustaría saber tu opinión. Es un minuto.', { texto: 'Responder la encuesta', url: enlace });
+        let enviados = 0;
+        let fallidos = 0;
+        for (const destino of validos) {
+            const ok = await this.correo.send(destino, survey.title, html).catch(() => false);
+            if (ok)
+                enviados += 1;
+            else
+                fallidos += 1;
+        }
+        return { enviados, fallidos, invalidos };
     }
     assertUniqueQuestionIds(questions) {
         const ids = questions.map((question) => question.id);
@@ -264,6 +311,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, survey_dto_1.SubmitSurveyResponseDto]),
     __metadata("design:returntype", Promise)
 ], SurveysController.prototype, "submit", null);
+__decorate([
+    (0, common_1.Post)(':id/send-email'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    (0, swagger_1.ApiOperation)({ summary: 'Enviar la encuesta por correo a sus destinatarios' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], SurveysController.prototype, "sendEmail", null);
 exports.SurveysController = SurveysController = __decorate([
     (0, swagger_1.ApiTags)('Encuestas'),
     (0, common_1.Controller)('surveys'),
@@ -275,5 +332,6 @@ exports.SurveysController = SurveysController = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.DataSource,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        email_service_1.EmailService])
 ], SurveysController);

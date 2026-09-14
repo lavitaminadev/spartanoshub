@@ -59,7 +59,7 @@ export function MetaConnectCard({ integration }: MetaConnectCardProps) {
     queryKey: ['clients'],
     queryFn: () => api.get('/clients'),
   });
-  const clients = (clientsResp as any)?.data ?? [];
+  const clients = clientsResp?.data ?? [];
 
   const catalogQuery = useQuery<MetaPixelCatalog>({
     queryKey: ['meta-client-pixel-catalog'],

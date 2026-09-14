@@ -44,7 +44,11 @@ const DESIGN_TEMPLATES: Array<{ name: string; config: Record<string, string> }> 
   { name: 'Cuartel', config: { primaryColor: '#087e79', accentColor: '#b90749', backgroundColor: '#f6f4f5', textColor: '#151317', fontFamily: "'Espartano Sans', system-ui, sans-serif", backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #e9fbf9 0%, #fff0f6 100%)', backgroundOpacity: '86', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '12' } },
   { name: 'Noche', config: { primaryColor: '#0fb9b1', accentColor: '#ec0b61', backgroundColor: '#171417', textColor: '#ffffff', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(145deg, #151317 0%, #30272c 100%)', backgroundOpacity: '92', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
 ];
-const RECOMMENDED_FIELDS = new Set(['text', 'phone', 'email', 'number', 'consent', 'rating']);
+/** Lo que Meta usa para reconocer a la persona. Nombre ya viene fijo en el formulario. */
+const RECOMMENDED_FIELDS = new Set(['phone', 'email', 'consent']);
+/** Un distintivo por tipo: con las dos primeras letras, texto corto, texto largo y teléfono decían «TE». */
+const FIELD_BADGES: Record<string, string> = { text: 'Aa', textarea: '¶', email: '@', phone: 'Tel', select: '▾', multi_select: '☰', number: '123', date: 'Día', consent: '✓', rating: '★', coupon: '%' };
+const DURACIONES = [15, 30, 45, 60, 75, 90, 105, 120, 150, 180, 240];
 const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)';
 const BACKGROUND_POSITIONS = [
   ['left top', 'Arriba izquierda'], ['center top', 'Arriba centro'], ['right top', 'Arriba derecha'],
@@ -187,7 +191,7 @@ export function ReservationBuilderPage() {
   const openEditor = (field: FormField) => { setEditingField(field); setEditingDraft({ ...field }); };
   const closeEditor = (save: boolean) => {
     if (save && editingDraft) {
-      change({ fieldSchema: fields.map((f) => f.id === editingField?.id ? editingDraft : f) });
+      change({ fieldSchema: sincronizarPreguntaDeOcasiones(draft?.designConfig || {}, fields.map((f) => f.id === editingField?.id ? editingDraft : f)) });
     }
     setEditingField(null); setEditingDraft(null);
   };
@@ -328,10 +332,25 @@ export function ReservationBuilderPage() {
   const addZone = () => setZones([...zones, { id: `zona-${Date.now()}`, name: '', capacity: draft?.capacityPerSlot ?? 1, description: '', smokingAllowed: false }]);
   const teamEmails = (draft?.teamNotifications || []).join(', ');
   /** No hay hora posible cuando lo más temprano reservable cae después de lo más lejano. */
-  const ventanaImposible = Boolean(draft) && draft.minimumNoticeHours > draft.maximumAdvanceDays * 24;
+  const ventanaImposible = draft !== null && draft.minimumNoticeHours > draft.maximumAdvanceDays * 24;
   /** La pausa se escribe en la zona del local: una hora que no existe allí se rechaza al guardar. */
+  /*
+   * La pausa se guarda al momento y por su propia ruta: no espera al «Guardar» del editor ni
+   * viaja con él, así una pausa puesta desde «Hoy» no se pierde al guardar otra cosa aquí.
+   */
+  const pausaMutation = useMutation({
+    mutationFn: (until: string) => api.patch<ReservationForm>(`/reservations/forms/${id}/pause`, { until }),
+    onSuccess: (next) => {
+      setDraft((current) => (current ? { ...current, designConfig: { ...current.designConfig, bookingPausedUntil: next.designConfig?.bookingPausedUntil } } : current));
+      qc.setQueryData(['reservation-form', id], next);
+      void qc.invalidateQueries({ queryKey: ['agenda-forms'] });
+      triggerToast(next.designConfig?.bookingPausedUntil ? 'Reservas pausadas' : 'Pausa quitada');
+    },
+    onError: (error: Error) => triggerToast(error.message || 'No se pudo cambiar la pausa', 'error'),
+  });
   const setBookingPause = (valor: string) => {
-    try { cambiarAjuste('bookingPausedUntil', valor ? localInputToUtc(valor, draft?.timezone || 'America/Santiago') : ''); }
+    if (!valor) { pausaMutation.mutate(''); return; }
+    try { pausaMutation.mutate(localInputToUtc(valor, draft?.timezone || 'America/Santiago')); }
     catch { triggerToast('Selecciona una hora válida para la zona de la sucursal.', 'error'); }
   };
 
@@ -396,7 +415,7 @@ export function ReservationBuilderPage() {
       <div><Link to={clientMode ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`}>← Volver a la sucursal</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
       <div className="builder-top-actions">
         {draft.metaCapiEnabled && <span className="meta-conversion" title="La conversión se enviará cuando exista consentimiento de medición.">CAPI activada</span>}
-        <button type="button" className="btn btn-outline btn-sm" onClick={openPreview}>{previewLabel}</button><button className="btn btn-primary btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>{saveMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button></div>
+        <button type="button" className="btn btn-outline btn-sm" onClick={openPreview}>{previewLabel}</button></div>
     </header>
     {saveMutation.error && <div className="builder-error alert alert-error">{saveMutation.error.message}</div>}
     <div className="builder-progress">{(clientMode ? PASOS_VISIBLES.cliente : PASOS_VISIBLES.equipo).map((real, index) => <button className={step === real ? 'active' : step > real ? 'done' : ''} key={STEPS[real]} onClick={() => setStep(real)}><span>{step > real ? '✓' : index + 1}</span>{STEPS[real]}</button>)}</div>
@@ -412,7 +431,7 @@ export function ReservationBuilderPage() {
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.couponEnabled !== 'false'} onChange={(event) => change({ designConfig: { ...draft.designConfig, couponEnabled: event.target.checked ? 'true' : 'false' } })} /> Aceptar cupones promocionales</label>
         </div>
         <aside className="field-library"><span className="page-eyebrow">BIBLIOTECA DE CAMPOS</span><h3>Agrega campos</h3><p>Arrastra al formulario o usa los botones.</p>
-          <div className="field-library-help field-library-meta"><strong>Campos que mejoran CAPI</strong><small>Nombre, teléfono, correo y consentimiento aumentan la calidad de coincidencia en Meta (EMQ). Cada campo que agregues sin estos reduce la tasa de match.</small></div>{fieldLibrary.map(([type, label]) => <button draggable onDragStart={(event) => beginNewFieldDrag(event, type)} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span>{label.slice(0, 2).toUpperCase()}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Recomendado para reservas' : 'Campo opcional'}</small></div><em>Agregar</em></button>)}</aside>
+          <div className="field-library-help field-library-meta"><strong>Para que Meta reconozca a quien reserva</strong><small>Teléfono, correo y la aceptación de medición son los que usa Meta para saber qué anuncio trajo la reserva. Los demás campos no suman ni restan en eso: sirven al local.</small></div>{fieldLibrary.map(([type, label]) => <button draggable onDragStart={(event) => beginNewFieldDrag(event, type)} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span aria-hidden="true">{FIELD_BADGES[type] ?? label.slice(0, 2)}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Ayuda a medir campañas' : 'Opcional'}</small></div><em>Agregar</em></button>)}</aside>
         <main className={`builder-canvas ${canvasDragOver ? 'drag-over' : ''}`} onDragEnter={() => setCanvasDragOver(true)} onDragLeave={(event) => { if (event.currentTarget === event.target) setCanvasDragOver(false); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setCanvasDragOver(true); }} onDrop={(event) => { event.preventDefault(); setCanvasDragOver(false); const { newField, fieldId } = builderDragPayload(event); if (newField) { addField(newField); return; } if (fieldId && fields.length > 1) { const current = fields.find((field) => field.id === fieldId); if (current && fields[fields.length - 1]?.id !== fieldId) change({ fieldSchema: [...fields.filter((field) => field.id !== fieldId), current] }); } }}>
           <div className="canvas-intro"><span>FORMULARIO</span><h2>{design.title || draft.name}</h2><p>{design.welcome}</p><small>Arrastra campos o usa los botones de cada fila.</small></div>
           {fields.length > RECOMMENDED_FIELD_COUNT && <div className="canvas-scope-hint" role="status">
@@ -436,7 +455,34 @@ export function ReservationBuilderPage() {
           <label>Etiqueta<input className="input" value={editingDraft.label} onChange={(e) => updateEditor({ label: e.target.value })} /></label>
           <label>Texto de ayuda<input className="input" value={editingDraft.placeholder || ''} onChange={(e) => updateEditor({ placeholder: e.target.value })} /></label>
           {!editingDraft.system && <label className="toggle-row"><input type="checkbox" checked={editingDraft.required} onChange={(e) => updateEditor({ required: e.target.checked })} /> Campo obligatorio</label>}
-          {editingDraft.options && <label>Opciones (una por linea)<textarea className="input" rows={6} value={editingDraft.options.join('\n')} onChange={(e) => updateEditor({ options: e.target.value.split('\n').map((v) => v.trim()).filter(Boolean) })} /></label>}
+          {editingDraft.options && draft.designConfig?.ocasionesPreguntaId === editingDraft.id && <small className="schedule-nota">Las opciones de esta pregunta salen de la «Grilla de ocasiones» (paso Diseño público). Cámbialas allí y se actualizan aquí solas.</small>}
+          {editingDraft.options && draft.designConfig?.ocasionesPreguntaId !== editingDraft.id && <label>Opciones (una por linea)<textarea className="input" rows={6} value={editingDraft.options.join('\n')} onChange={(e) => updateEditor({ options: e.target.value.split('\n').map((v) => v.trim()).filter(Boolean) })} /></label>}
+          {/*
+            * Preguntar sólo cuando corresponde.
+            *
+            * Antes esto era una bandera en la configuración y una condición escrita a mano en la
+            * página pública, así que cada pregunta condicional nueva exigía desplegar. La misma
+            * regla la lee el servidor para no exigir un campo que nadie llegó a ver.
+            */}
+          {!editingDraft.system && <div className="field-editor-regla">
+            <strong>Mostrar esta pregunta</strong>
+            <select className="input" aria-label="Cuándo se muestra" value={editingDraft.mostrarSi?.campo || ''} onChange={(event) => updateEditor({ mostrarSi: event.target.value ? { campo: event.target.value, operador: editingDraft.mostrarSi?.operador || 'igual', valor: editingDraft.mostrarSi?.valor || '' } : undefined })}>
+              <option value="">Siempre</option>
+              {fields.filter((campo) => campo.id !== editingDraft.id && campo.type !== 'consent').map((campo) => <option key={campo.id} value={campo.id}>Según «{campo.label}»</option>)}
+            </select>
+            {editingDraft.mostrarSi && <div className="form-row">
+              <label>Cuando la respuesta<select className="input" value={editingDraft.mostrarSi.operador} onChange={(event) => updateEditor({ mostrarSi: { ...editingDraft.mostrarSi!, operador: event.target.value as FormField['mostrarSi'] extends undefined ? never : NonNullable<FormField['mostrarSi']>['operador'] } })}>
+                <option value="igual">sea igual a</option>
+                <option value="distinto">sea distinta de</option>
+                <option value="contiene">contenga</option>
+                <option value="mayor_que">sea mayor que</option>
+                <option value="respondido">esté respondida</option>
+                <option value="vacio">esté vacía</option>
+              </select></label>
+              {!['respondido', 'vacio'].includes(editingDraft.mostrarSi.operador) && <label>Este valor<input className="input" value={editingDraft.mostrarSi.valor || ''} onChange={(event) => updateEditor({ mostrarSi: { ...editingDraft.mostrarSi!, valor: event.target.value } })} /></label>}
+            </div>}
+            {editingDraft.mostrarSi && editingDraft.required && <small className="error-text">Es obligatoria y condicional: mientras esté oculta no se pedirá, y volverá a ser obligatoria al aparecer.</small>}
+          </div>}
           <div className="field-editor-actions">
             <button type="button" className="btn btn-outline btn-sm" onClick={() => { const copy = { ...editingDraft, id: editingDraft.id, label: `${editingDraft.label} copia`, system: false }; const idx = fields.findIndex((f) => f.id === editingDraft.id); const next = [...fields]; next.splice(idx + 1, 0, copy); change({ fieldSchema: next }); closeEditor(false); }}>Duplicar</button>
             {!editingDraft.system && <button type="button" className="btn btn-outline btn-danger btn-sm" onClick={() => { const id = editingDraft.id; closeEditor(false); setConfirmDeleteField(id); }}>Eliminar campo</button>}
@@ -450,10 +496,15 @@ export function ReservationBuilderPage() {
       <div className="schedule-card">
         <h3>Cuánto puedes recibir</h3>
         <div className="schedule-capacity">
-          <label className="capacity-primary">Tope diario de reservas<small>0 = sin límite. Al alcanzarlo, el día se muestra completo en la página pública.</small><input className="input" type="number" min="0" max="5000" value={draft.dailyCapacity ?? 0} onChange={(event) => change({ dailyCapacity: Number(event.target.value) })} /></label>
-          <label className="toggle-row"><input type="checkbox" checked={draft.designConfig?.enforceCompanyDailyCap !== 'false'} onChange={(event) => cambiarAjuste('enforceCompanyDailyCap', String(event.target.checked))} /> Aplicar además el tope diario global de la empresa</label>
-          <label>Cupos por bloque<input className="input" type="number" min="1" max="500" value={draft.capacityPerSlot} onChange={(event) => change({ capacityPerSlot: Number(event.target.value) })} /></label>
-          <label>Duración<select className="input" value={draft.durationMinutes} onChange={(event) => change({ durationMinutes: Number(event.target.value) })}>{[15, 30, 45, 60, 90, 120].map((value) => <option key={value} value={value}>{value} minutos</option>)}</select></label>
+          <label className="capacity-primary">Tope diario de personas<small>Se suman las personas de cada reserva: 120 pueden ser 30 mesas de 4. 0 = sin límite. Al alcanzarlo, el día se muestra completo.</small><input className="input" type="number" min="0" max="5000" value={draft.dailyCapacity ?? 0} onChange={(event) => change({ dailyCapacity: Number(event.target.value) })} /></label>
+          <label className="toggle-row"><input type="checkbox" checked={draft.designConfig?.enforceCompanyDailyCap !== 'false'} onChange={(event) => cambiarAjuste('enforceCompanyDailyCap', String(event.target.checked))} /> Respetar también el tope diario de la empresa</label>
+          <small className="schedule-nota">{(draft.companyDailyCap ?? 0) > 0
+            ? draft.designConfig?.enforceCompanyDailyCap !== 'false'
+              ? `La empresa tiene un tope de ${draft.companyDailyCap} personas al día sumando todas sus sucursales. Manda el que se llene primero${draft.dailyCapacity > 0 && draft.dailyCapacity > (draft.companyDailyCap ?? 0) ? ': aquí el de la empresa es más bajo que el de esta sucursal' : ''}.`
+              : `La empresa tiene un tope de ${draft.companyDailyCap} personas al día, pero esta sucursal no lo aplica.`
+            : 'La empresa no tiene tope diario propio: sólo cuenta el de esta sucursal.'}</small>
+          <label>Personas por horario<small>Cuántas personas pueden llegar en un mismo horario.</small><input className="input" type="number" min="1" max="500" value={draft.capacityPerSlot} onChange={(event) => change({ capacityPerSlot: Number(event.target.value) })} /></label>
+          <label>Duración de cada reserva<select className="input" value={draft.durationMinutes} onChange={(event) => change({ durationMinutes: Number(event.target.value) })}>{[...new Set([...DURACIONES, draft.durationMinutes])].sort((a, b) => a - b).map((value) => <option key={value} value={value}>{value} minutos</option>)}</select></label>
         </div>
         <div className="schedule-timezone">
           <span>Zona horaria</span>
@@ -464,13 +515,14 @@ export function ReservationBuilderPage() {
           <small>Con esta hora se calculan los horarios, los bloqueos y los recordatorios. Cambiarla mueve también lo que ya está publicado y reservado.</small>
         </div>
 
+        <RitmoDeHorarios duracion={draft.durationMinutes} separacion={draft.bufferMinutes} ritmo={Number(draft.designConfig?.slotCadenceMinutes || '15')} ventana={windows[0]} />
         {/* Fuera del desplegable: avisaba de una agenda que no ofrece nada, escondido tras un
             resumen cerrado que justamente no se abre cuando todo parece estar bien. */}
         {ventanaImposible && <div className="alert alert-error">La anticipación mínima ({draft.minimumNoticeHours} h) cae fuera de la ventana máxima ({draft.maximumAdvanceDays} día{draft.maximumAdvanceDays === 1 ? '' : 's'}): con estos valores la página no ofrece ningún horario. Está en «Ajustes avanzados».</div>}
         <details className="schedule-advanced" open={ventanaImposible}>
           <summary>Ajustes avanzados</summary>
-          <div className="schedule-settings schedule-settings-wide"><label>Separación (min)<input className="input" type="number" min="0" max="240" value={draft.bufferMinutes} onChange={(event) => change({ bufferMinutes: Number(event.target.value) })} /></label><label>Anticipación mínima (h)<input className="input" type="number" min="0" value={draft.minimumNoticeHours} onChange={(event) => change({ minimumNoticeHours: Number(event.target.value) })} /></label><label>Ventana máxima (días)<input className="input" type="number" min="1" max="365" value={draft.maximumAdvanceDays} onChange={(event) => change({ maximumAdvanceDays: Number(event.target.value) })} aria-invalid={ventanaImposible} /></label><label>Confirmación<select className="input" value={draft.confirmationMode} onChange={(event) => change({ confirmationMode: event.target.value })}><option value="automatic">Automática</option><option value="manual">Revisión manual</option></select></label>
-            <label>Ritmo de llegadas (min)<input className="input" type="number" min="5" max="240" value={String(draft.designConfig?.slotCadenceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, slotCadenceMinutes: event.target.value } })} /></label><label>Retener cupo (min)<input className="input" type="number" min="1" max="30" value={String(draft.designConfig?.holdMinutes || '5')} onChange={(event) => change({ designConfig: { ...draft.designConfig, holdMinutes: event.target.value } })} /></label></div>
+          <div className="schedule-settings schedule-settings-wide"><label>Margen entre reservas (min)<small>Tiempo para dejar lista la mesa.</small><input className="input" type="number" min="0" max="240" value={draft.bufferMinutes} onChange={(event) => change({ bufferMinutes: Number(event.target.value) })} /></label><label>Anticipación mínima (h)<input className="input" type="number" min="0" value={draft.minimumNoticeHours} onChange={(event) => change({ minimumNoticeHours: Number(event.target.value) })} /></label><label>Ventana máxima (días)<input className="input" type="number" min="1" max="365" value={draft.maximumAdvanceDays} onChange={(event) => change({ maximumAdvanceDays: Number(event.target.value) })} aria-invalid={ventanaImposible} /></label><label>Confirmación<select className="input" value={draft.confirmationMode} onChange={(event) => change({ confirmationMode: event.target.value })}><option value="automatic">Automática</option><option value="manual">Revisión manual</option></select></label>
+            <label>Una llegada cada (min)<small>Cada cuánto se ofrece un horario.</small><input className="input" type="number" min="5" max="240" value={String(draft.designConfig?.slotCadenceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, slotCadenceMinutes: event.target.value } })} /></label><label>Retener cupo (min)<input className="input" type="number" min="1" max="30" value={String(draft.designConfig?.holdMinutes || '5')} onChange={(event) => change({ designConfig: { ...draft.designConfig, holdMinutes: event.target.value } })} /></label></div>
         </details>
         <h3>Grupos grandes y eventos</h3>
         <div className="schedule-capacity">
@@ -481,6 +533,7 @@ export function ReservationBuilderPage() {
             </select>
           </label>
           <label>Grupo grande desde<small>Sobre esta cantidad la reserva pasa por el equipo.</small><input className="input" type="number" min="2" max="100" value={String(draft.designConfig?.groupThreshold || '8')} onChange={(event) => change({ designConfig: { ...draft.designConfig, groupThreshold: event.target.value } })} /></label>
+          {draft.designConfig?.groupRequestEnabled !== 'false' && <label className="capacity-primary">Mensaje de WhatsApp para grupos<small>Texto con que se abre el chat al pedir un evento. El número del local está en «Datos del local».</small><textarea className="input" rows={2} value={String(draft.designConfig?.whatsappGroupMessage || '')} onChange={(e) => cambiarAjuste('whatsappGroupMessage', e.target.value)} /></label>}
         </div>
 
         <h3>Cuándo se cierra el turno</h3>
@@ -491,7 +544,7 @@ export function ReservationBuilderPage() {
         </div>
 
         <h3>Semana habitual</h3><div className="week-editor week-editor-multi">{DAYS.map((label, uiDay) => { const jsDay = UI_TO_JS_DAY[uiDay]; const dayWindows = windows.map((window, index) => ({ window, index })).filter((entry) => entry.window.day === jsDay); return <div key={label} className={dayWindows.length ? 'enabled' : ''}><label className="toggle-row"><input type="checkbox" checked={dayWindows.length > 0} onChange={() => toggleDay(uiDay)} /><strong>{label}</strong></label><div className="day-windows">{dayWindows.map(({ window, index }) => <div key={`${jsDay}-${index}`}><input aria-label={`Inicio ${label}`} type="time" value={window.start} onChange={(event) => updateWindow(index, { start: event.target.value })} /><span>a</span><input aria-label={`Fin ${label}`} type="time" value={window.end} onChange={(event) => updateWindow(index, { end: event.target.value })} /><button type="button" aria-label={`Quitar franja de ${label}`} onClick={() => removeWindow(index)}>×</button></div>)}{dayWindows.length > 0 && dayWindows.length < 4 && <button type="button" className="add-window" onClick={() => addWindow(uiDay)}>+ Agregar franja</button>}{dayWindows.length === 0 && <em>Cerrado</em>}</div></div>; })}</div></div>
-      <section className="schedule-card" id="pausa"><div><h3>Detener todo por un tiempo</h3><p className="page-subtitle">La página pública no ofrecerá horarios hasta la fecha indicada. No elimina reservas ni despublica el local.</p></div><div className="schedule-settings"><label>Reanudar automáticamente el<input className="input" type="datetime-local" value={utcToLocalInput(draft.designConfig?.bookingPausedUntil, draft.timezone)} onChange={(event) => setBookingPause(event.target.value)} /></label></div><button type="button" className="btn btn-outline btn-sm" disabled={!draft.designConfig?.bookingPausedUntil} onClick={() => cambiarAjuste('bookingPausedUntil', '')}>Quitar pausa programada</button></section>
+      <section className="schedule-card" id="pausa"><div><h3>Detener todo por un tiempo</h3><p className="page-subtitle">La página pública no ofrecerá horarios hasta la fecha indicada. No elimina reservas ni despublica el local. Se aplica al elegir la fecha, sin «Guardar»; es la misma pausa del botón de «Hoy».</p></div><div className="schedule-settings"><label>Reanudar automáticamente el<input className="input" type="datetime-local" disabled={pausaMutation.isPending} value={utcToLocalInput(draft.designConfig?.bookingPausedUntil, draft.timezone)} onChange={(event) => setBookingPause(event.target.value)} /></label></div><button type="button" className="btn btn-outline btn-sm" disabled={!draft.designConfig?.bookingPausedUntil || pausaMutation.isPending} onClick={() => setBookingPause('')}>Quitar pausa programada</button></section>
       <aside className="schedule-card"><h3>Cierres y bloqueos</h3><p className="page-subtitle">Toca un día para cerrarlo. Vuelve a tocarlo para reabrirlo.</p>
         <div className="block-calendar">
           <div className="block-calendar-nav"><button type="button" className="btn btn-outline btn-xs" disabled={blockMonth <= 0} onClick={() => setBlockMonth((value) => Math.max(0, value - 1))}>←</button><span>{blockCalendar.label}</span><button type="button" className="btn btn-outline btn-xs" onClick={() => setBlockMonth((value) => value + 1)}>→</button></div>
@@ -524,7 +577,7 @@ export function ReservationBuilderPage() {
     {step === 2 && <div className="builder-stage">
       <div className="stage-heading"><span className="page-eyebrow">ENTORNO VISUAL</span><h2>Haz que {surveyMode ? 'la encuesta' : 'la reserva'} se sienta propia.</h2><p>Elige una plantilla y ajusta solo lo que quieras cambiar. Cada bloque cerrado ya trae un valor que funciona.</p></div>
       <div className="design-studio">
-        <DesignStudioControls design={design} surveyMode={surveyMode} onChange={(designConfig) => change({ designConfig })} onAsset={saveDesignAsset} />
+        <DesignStudioControls design={design} fields={fields} surveyMode={surveyMode} onChange={(designConfig) => change({ designConfig, fieldSchema: sincronizarPreguntaDeOcasiones(designConfig, fields) })} onAsset={saveDesignAsset} />
         <div className="design-preview-column">
           <div className="preview-device-toggle"><button type="button" className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>Vista móvil</button><button type="button" className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>Vista escritorio</button></div>
           <ReservationLivePreview draft={draft} fields={fields} previewDevice={previewDevice} style={designPreviewStyle} />
@@ -533,6 +586,14 @@ export function ReservationBuilderPage() {
     </div>}
 
     {!clientMode && step === 3 && <div className="builder-stage">
+      {/*
+        * Cuánto vale una reserva para el local.
+        *
+        * Sin esto, las campañas optimizan tratando igual una mesa de dos y un grupo de doce.
+        * No se inventa un promedio: si se deja en cero, el evento viaja sin valor, que es
+        * preferible a enseñarle a la campaña una cifra falsa.
+        */}
+      <section className="reservation-readiness"><div><span className="page-eyebrow">VALOR DE UNA RESERVA</span><h2>Para que la campaña sepa cuál le conviene</h2><p className="page-subtitle">Es el consumo esperado por persona, una estimación para ordenar campañas entre sí. No cuadra con la caja ni se le muestra a quien reserva.</p></div><div className="form-row"><label>Consumo esperado por persona<input className="input" type="number" min="0" step="500" value={String(draft.designConfig?.valorPorPersona || '')} placeholder="0 = no enviar valor" onChange={(event) => cambiarAjuste('valorPorPersona', event.target.value)} /></label><label>Moneda<input className="input" maxLength={3} value={String(draft.designConfig?.moneda || 'CLP')} onChange={(event) => cambiarAjuste('moneda', event.target.value.toUpperCase())} /></label></div>{Number(draft.designConfig?.valorPorPersona || '0') > 0 && <small>Una reserva de 4 personas se reportará como {(Number(draft.designConfig?.valorPorPersona) * 4).toLocaleString('es-CL')} {String(draft.designConfig?.moneda || 'CLP')}.</small>}</section>
       <div className="stage-heading"><span className="page-eyebrow">MEDICIÓN</span><h2>Conecta el origen y las conversiones.</h2><p>Esta parte es opcional para compartir el enlace, pero clave si el formulario se usará en campañas pagadas.</p></div>
       <div className="publish-grid">
         <div className="publish-summary">
@@ -634,8 +695,8 @@ export function ReservationBuilderPage() {
     </div>}
 
     {step === 4 && <div className="builder-stage builder-stage-ajustes">
-      <div className="stage-heading"><span className="page-eyebrow">DATOS DEL LOCAL</span><h2>Quién responde, a quién se avisa y qué se acepta</h2><p>Los horarios se configuran en Disponibilidad y la apariencia en Diseño público.</p></div>
-      <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2></div><div className="form-row"><label>Razón social o responsable<input className="input" value={String(draft.designConfig?.legalCompanyName || '')} onChange={(e) => cambiarAjuste('legalCompanyName', e.target.value)} /></label><label>RUT / identificador<input className="input" value={String(draft.designConfig?.legalCompanyId || '')} onChange={(e) => cambiarAjuste('legalCompanyId', e.target.value)} /></label><label>Correo de soporte<input className="input" type="email" value={String(draft.designConfig?.supportEmail || '')} onChange={(e) => cambiarAjuste('supportEmail', e.target.value)} /></label></div><div className="form-row"><label>WhatsApp del local<input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label><label>Mensaje para grupos<textarea className="input" value={String(draft.designConfig?.whatsappGroupMessage || '')} onChange={(e) => cambiarAjuste('whatsappGroupMessage', e.target.value)} /></label></div><div className="form-row"><label>URL de privacidad<input className="input" type="url" value={String(draft.designConfig?.privacyUrl || '')} onChange={(e) => cambiarAjuste('privacyUrl', e.target.value)} placeholder="https://..." /></label><label>URL de condiciones<input className="input" type="url" value={String(draft.designConfig?.termsUrl || '')} onChange={(e) => cambiarAjuste('termsUrl', e.target.value)} placeholder="https://..." /></label></div><label>Política de cancelación visible<textarea className="input" value={String(draft.designConfig?.cancellationPolicy || '')} onChange={(e) => cambiarAjuste('cancellationPolicy', e.target.value)} /></label></section>
+      <div className="stage-heading"><span className="page-eyebrow">DATOS DEL LOCAL</span><h2>Quién responde, a quién se avisa y qué se acepta</h2><p>Contacto, correos, consentimientos y zonas de esta sucursal.</p></div>
+      <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2></div><div className="form-row"><label>Razón social o responsable<input className="input" value={String(draft.designConfig?.legalCompanyName || '')} onChange={(e) => cambiarAjuste('legalCompanyName', e.target.value)} /></label><label>RUT / identificador<input className="input" value={String(draft.designConfig?.legalCompanyId || '')} onChange={(e) => cambiarAjuste('legalCompanyId', e.target.value)} /></label><label>WhatsApp del local<input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label></div><div className="form-row"><label>URL de privacidad<input className="input" type="url" value={String(draft.designConfig?.privacyUrl || '')} onChange={(e) => cambiarAjuste('privacyUrl', e.target.value)} placeholder="https://..." /></label><label>URL de condiciones<input className="input" type="url" value={String(draft.designConfig?.termsUrl || '')} onChange={(e) => cambiarAjuste('termsUrl', e.target.value)} placeholder="https://..." /></label></div></section>
       {/*
         * Los correos salen siempre desde el servidor de Espartanos. Esta casilla no cambia el
         * remitente: dice a qué bandejas del local llega el aviso de cada reserva nueva. Sin
@@ -644,7 +705,10 @@ export function ReservationBuilderPage() {
         * El calendario aparece únicamente si Google está conectado en la organización; activarlo
         * sin conexión dejaba reservas esperando un evento que nunca se creaba.
         */}
-      <section className="reservation-readiness"><div><span className="page-eyebrow">AVISOS AL EQUIPO</span><h2>A quién le llega cada reserva nueva</h2></div><label>Casillas del local<input className="input" value={teamEmails} onChange={(e) => change({ teamNotifications: e.target.value.split(/[,;\s]+/).map((email) => email.trim()).filter(Boolean) })} placeholder="reservas@local.cl, gerente@local.cl" /><small>Separa varias con coma. El correo lo envía Espartanos a estas casillas; no cambia el remitente que ve quien reserva.</small></label>{draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}</section>
+      <section className="reservation-readiness correos-del-local"><div><span className="page-eyebrow">CORREOS</span><h2>Quién envía, quién responde y a quién se avisa</h2><p className="page-subtitle">Tres casillas con tres funciones distintas.</p></div>
+        <div className="correo-rol"><strong>1. Quién envía</strong><small>Los correos a quien reserva salen desde la casilla general del sistema. No se cambia aquí.</small></div>
+        <label className="correo-rol"><strong>2. A dónde llegan las respuestas del cliente</strong><small>Si quien reserva contesta un correo, le llega a esta casilla. También se muestra en la página para cambios y cancelaciones.</small><input className="input" type="email" value={String(draft.designConfig?.supportEmail || '')} onChange={(e) => cambiarAjuste('supportEmail', e.target.value)} placeholder="contacto@local.cl" /></label>
+        <label className="correo-rol"><strong>3. A quién se avisa de cada reserva nueva</strong><small>Casillas del equipo, separadas por coma. También reciben los comentarios de encuestas con nota baja. No las ve quien reserva.</small><input className="input" value={teamEmails} onChange={(e) => change({ teamNotifications: e.target.value.split(/[,;\s]+/).map((email) => email.trim()).filter(Boolean) })} placeholder="reservas@local.cl, gerente@local.cl" /></label>{draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}</section>
       {/*
         * Tres finalidades distintas, tres casillas separadas.
         *
@@ -663,7 +727,7 @@ export function ReservationBuilderPage() {
       <section className="reservation-readiness" id="zonas"><div><span className="page-eyebrow">ZONAS Y PREFERENCIAS</span><h2>Terraza, salón y condiciones de visita</h2><p className="page-subtitle">Desactivar conserva la zona y su historial, pero deja de mostrarla para nuevas reservas.</p></div>{zones.map((zone, index) => <div className="reservation-zone-row" key={zone.id}><label>Nombre<input className="input" value={zone.name} onChange={(e) => updateZone(index, { name: e.target.value })} placeholder="Ej. Terraza" /></label><label>Cupo<input className="input" type="number" min="1" max="500" value={zone.capacity || draft.capacityPerSlot} onChange={(e) => updateZone(index, { capacity: Number(e.target.value) })} /></label><label>Descripción<input className="input" value={zone.description || ''} onChange={(e) => updateZone(index, { description: e.target.value })} /></label><label className="toggle-row"><input type="checkbox" checked={Boolean(zone.smokingAllowed)} onChange={(e) => updateZone(index, { smokingAllowed: e.target.checked })} /> Fumadores</label><label className="toggle-row"><input type="checkbox" checked={zone.active !== false} onChange={(e) => updateZone(index, { active: e.target.checked })} /> Disponible para reservar</label><button type="button" className="btn btn-outline btn-sm" onClick={() => updateZone(index, { active: zone.active === false })}>{zone.active === false ? 'Activar' : 'Desactivar'}</button></div>)}<button type="button" className="btn btn-outline btn-sm" onClick={addZone}>Agregar zona</button></section>
     </div>}
 
-    <footer className="builder-footer"><span>Paso {(clientMode ? PASOS_VISIBLES.cliente : PASOS_VISIBLES.equipo).indexOf(step) + 1} de {clientMode ? PASOS_VISIBLES.cliente.length : PASOS_VISIBLES.equipo.length}</span>{step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(clientMode && step === 4 ? 2 : step - 1)}>Anterior</button>}{step < STEPS.length - 1 && <button className="btn btn-primary btn-sm" onClick={() => setStep(clientMode && step === 2 ? 4 : step + 1)}>Continuar</button>}{step < STEPS.length - 1 && <button className="btn btn-outline btn-sm" disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>Guardar</button>}</footer>
+    <footer className="builder-footer"><span>Paso {(clientMode ? PASOS_VISIBLES.cliente : PASOS_VISIBLES.equipo).indexOf(step) + 1} de {clientMode ? PASOS_VISIBLES.cliente.length : PASOS_VISIBLES.equipo.length}</span>{step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(clientMode && step === 4 ? 2 : step - 1)}>Anterior</button>}{step < STEPS.length - 1 && <button className="btn btn-primary btn-sm" onClick={() => setStep(clientMode && step === 2 ? 4 : step + 1)}>Continuar</button>}{step < STEPS.length - 1 && <button className={`btn btn-sm ${saved ? 'btn-outline' : 'btn-primary'}`} disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Guardado' : 'Guardar cambios'}</button>}</footer>
     <ConfirmDialog open={Boolean(confirmDeleteField)} title="Eliminar campo" description="¿Eliminar este campo? Las respuestas ya recibidas siguen guardadas, pero al quedarse sin enunciado pasan a mostrarse con su nombre técnico en el detalle y en la exportación." confirmLabel="Eliminar" onClose={() => setConfirmDeleteField(null)} onConfirm={() => { if (confirmDeleteField) { change({ fieldSchema: fields.filter((field) => field.id !== confirmDeleteField) }); setSelected(null); } setConfirmDeleteField(null); }} />
     <ConfirmDialog open={Boolean(confirmDeleteBlock)} title="Quitar bloqueo" description="¿Eliminar este bloqueo? La agenda volverá a mostrar disponibilidad en ese horario." confirmLabel="Quitar" onClose={() => setConfirmDeleteBlock(null)} onConfirm={() => { if (confirmDeleteBlock) { deleteBlock.mutate(confirmDeleteBlock); } setConfirmDeleteBlock(null); }} />
   </div>;
@@ -680,13 +744,46 @@ export function ReservationBuilderPage() {
  * Los ajustes de fondo (posición, tamaño, visibilidad) aparecen solo con degradado o imagen,
  * que es cuando tienen efecto: sobre un color plano no cambian nada y solo hacían dudar.
  */
+/**
+ * Mantiene las opciones de la pregunta conectada a la grilla de ocasiones: «No» más cada ocasión.
+ *
+ * La grilla y la pregunta mostraban lo mismo sin estar unidas, y editar una no cambiaba la otra.
+ * Conectadas, hay una sola lista; el servidor sigue validando la respuesta contra estas opciones.
+ */
+export function sincronizarPreguntaDeOcasiones(design: DesignConfig, fields: FormField[]): FormField[] {
+  const idConectado = design.ocasionesPreguntaId;
+  if (!idConectado) return fields;
+  const titulos = leerOcasiones(design.ocasiones).map((ocasion) => ocasion.titulo.trim()).filter(Boolean);
+  if (titulos.length === 0) return fields;
+  const opciones = ['No', ...new Set(titulos.filter((titulo) => titulo.toLowerCase() !== 'no'))];
+  return fields.map((field) => (field.id === idConectado && field.type === 'select' ? { ...field, options: opciones } : field));
+}
+
+/** Frase con los primeros horarios que resultan de duración, margen y ritmo. */
+function RitmoDeHorarios({ duracion, separacion, ritmo, ventana }: { duracion: number; separacion: number; ritmo: number; ventana?: { start: string; end: string } }) {
+  if (!ventana || !(ritmo > 0)) return null;
+  const aMinutos = (hora: string) => { const [h, m] = hora.split(':').map(Number); return h * 60 + m; };
+  const aHora = (minutos: number) => `${String(Math.floor(minutos / 60) % 24).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
+  const inicio = aMinutos(ventana.start); const fin = aMinutos(ventana.end) || 24 * 60;
+  const horarios: string[] = [];
+  for (let minuto = inicio; minuto + duracion <= fin && horarios.length < 5; minuto += ritmo) horarios.push(aHora(minuto));
+  return <div className="ritmo-de-horarios" role="note">
+    <strong>Así se ofrecen los horarios</strong>
+    <span>Reservas de {duracion} min, una llegada cada {ritmo} min{separacion > 0 ? `, ${separacion} min para dejar lista la mesa` : ''}.</span>
+    <span>{horarios.length > 0 ? `Ej. ${ventana.start}–${ventana.end}: ${horarios.join(', ')}${horarios.length === 5 ? '…' : ''}` : `Con ${duracion} min no cabe ninguna reserva entre ${ventana.start} y ${ventana.end}.`}</span>
+    {ritmo < duracion && <small>Los horarios se superponen: el cupo «Personas por horario» se cuenta por cada llegada, no por la noche entera.</small>}
+  </div>;
+}
+
 function DesignStudioControls({
   design,
+  fields,
   surveyMode,
   onChange,
   onAsset,
 }: {
   design: DesignConfig;
+  fields: FormField[];
   surveyMode: boolean;
   onChange: (design: DesignConfig) => void;
   onAsset: (key: 'logoUrl' | 'backgroundImage', url: string) => void;
@@ -720,8 +817,13 @@ function DesignStudioControls({
       {!surveyMode && <details className="design-section">
         <summary>Grilla de ocasiones (opcional)</summary>
         <div className="design-section-body">
-          <small>Una grilla con las ocasiones que atiende el local —cumpleaños, aniversario, after office—. Es solo visual: ayuda a que quien entra se imagine su visita.</small>
-          <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnabled === 'true'} onChange={(event) => update({ ocasionesEnabled: event.target.checked ? 'true' : 'false' })} /> Mostrar la grilla en la página</label>
+          <small>Tarjetas con las ocasiones que atiende el local —cumpleaños, aniversario, after office—.</small>
+          <label>Pregunta del formulario conectada<select className="input" value={design.ocasionesPreguntaId || ''} onChange={(event) => update({ ocasionesPreguntaId: event.target.value })}>
+            <option value="">Ninguna: la grilla es sólo decorativa</option>
+            {fields.filter((campo) => campo.type === 'select' && !campo.system).map((campo) => <option key={campo.id} value={campo.id}>«{campo.label}»</option>)}
+          </select><small>{design.ocasionesPreguntaId ? 'Las opciones de esa pregunta son estas ocasiones (más «No»), y tocar una tarjeta la deja respondida.' : 'Si tu formulario pregunta qué celebra, conéctala para no mantener dos listas.'}</small></label>
+          <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnabled === 'true'} onChange={(event) => update({ ocasionesEnabled: event.target.checked ? 'true' : 'false' })} /> Mostrarla en la página, al lado del formulario</label>
+          <small>Independiente del aviso al entrar: puedes mostrarla sólo como aviso, sólo en la página, en los dos lugares o en ninguno.</small>
           <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnEmail === 'true'} onChange={(event) => update({ ocasionesEnEmail: event.target.checked ? 'true' : 'false' })} /> Incluirla en el correo de confirmación</label>
           <label>Título de la grilla<input className="input" value={design.ocasionesTitulo || ''} placeholder="Ej. Para cada ocasión" onChange={(event) => update({ ocasionesTitulo: event.target.value })} /></label>
           {leerOcasiones(design.ocasiones).map((ocasion, indice) => (
@@ -748,7 +850,7 @@ function DesignStudioControls({
             <option value="bienvenida">Un mensaje de bienvenida</option>
             <option value="ocasiones">La grilla de ocasiones</option>
           </select></label>
-          {design.ocasionesPopup === 'true' && design.ocasionesEnabled !== 'true' && <small className="error-text">La grilla no tiene ocasiones activas: enciéndela en «Grilla de ocasiones» o no se mostrará nada.</small>}
+          {design.ocasionesPopup === 'true' && leerOcasiones(design.ocasiones).length === 0 && <small className="error-text">Todavía no hay ocasiones cargadas: agrégalas en «Grilla de ocasiones» o el aviso no tendrá nada que mostrar.</small>}
         {design.welcomePopupEnabled === 'true' && <div className="form-row"><label>Título del popup<input className="input" value={design.welcomePopupTitle || ''} onChange={(event) => update({ welcomePopupTitle: event.target.value })} /></label><label>Texto del popup<textarea className="input" rows={2} value={design.welcomePopupText || ''} onChange={(event) => update({ welcomePopupText: event.target.value })} /></label></div>}
           {design.welcomePopupEnabled === 'true' && <label>Texto del botón<input className="input" value={design.welcomePopupBoton || ''} placeholder="Continuar" onChange={(event) => update({ welcomePopupBoton: event.target.value })} /></label>}
           {design.ocasionesPopup === 'true' && <label>Frase bajo el título <small>(opcional)</small><textarea className="input" rows={2} value={design.ocasionesTexto || ''} placeholder="Ej. Cuéntanos qué celebras y lo preparamos." onChange={(event) => update({ ocasionesTexto: event.target.value })} /></label>}
@@ -820,6 +922,7 @@ function DesignStudioControls({
       <details className="design-section">
         <summary>Pantalla de confirmación</summary>
         <div className="design-section-body">
+          <label>Política de cancelación<small>Se muestra al reservar y en la confirmación.</small><textarea className="input" rows={3} value={design.cancellationPolicy || ''} onChange={(event) => update({ cancellationPolicy: event.target.value })} placeholder="Ej. Puedes cancelar sin costo hasta 2 horas antes." /></label>
           <label>Mensaje de confirmación<textarea className="input" rows={3} value={design.confirmationMessage || ''} onChange={(event) => update({ confirmationMessage: event.target.value })} placeholder="Tu reserva quedó registrada. Te esperamos." /></label>
           <label className="toggle-row"><input type="checkbox" checked={design.calendarSaveEnabled !== 'false'} onChange={(event) => update({ calendarSaveEnabled: String(event.target.checked) })} /> Ofrecer guardar la reserva en calendario</label>
           <label>Texto de esa opción<textarea className="input" rows={2} value={design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'} onChange={(event) => update({ calendarSaveText: event.target.value })} /></label>

@@ -63,7 +63,7 @@ export function ContentGridPage() {
     queryFn: () => api.get(`/content/grids?${query}`),
   });
   const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
-  const clients = (clientsResp as any)?.data ?? [];
+  const clients = clientsResp?.data ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['content-grids'] });
   const createGrid = useMutation({

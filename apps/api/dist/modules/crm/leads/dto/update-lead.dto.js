@@ -110,3 +110,8 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", Object)
 ], UpdateLeadDto.prototype, "clientId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpdateLeadDto.prototype, "customFields", void 0);

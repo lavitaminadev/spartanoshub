@@ -25,6 +25,7 @@ const recordatorio_de_tareas_job_1 = require("../jobs/cron/recordatorio-de-tarea
 const resumen_diario_job_1 = require("../jobs/cron/resumen-diario.job");
 const saludo_de_cumpleanos_job_1 = require("../jobs/cron/saludo-de-cumpleanos.job");
 const recordatorio_de_reservas_job_1 = require("../jobs/cron/recordatorio-de-reservas.job");
+const encuesta_post_visita_job_1 = require("../jobs/cron/encuesta-post-visita.job");
 const operational_alerts_job_1 = require("../jobs/cron/operational-alerts.job");
 const create_monthly_cycles_job_1 = require("../jobs/cron/create-monthly-cycles.job");
 const collection_emails_job_1 = require("../jobs/cron/collection-emails.job");
@@ -37,7 +38,7 @@ const automation_runner_service_1 = require("../../modules/automations/automatio
 const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 let CronController = class CronController {
-    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks) {
+    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks) {
         this.capiOutbox = capiOutbox;
         this.googleOutbox = googleOutbox;
         this.stale = stale;
@@ -46,6 +47,7 @@ let CronController = class CronController {
         this.resumen = resumen;
         this.cumpleanos = cumpleanos;
         this.recordatorioReservas = recordatorioReservas;
+        this.encuestaPostVisita = encuestaPostVisita;
         this.operationalAlerts = operationalAlerts;
         this.cycles = cycles;
         this.collections = collections;
@@ -173,6 +175,14 @@ let CronController = class CronController {
     async cumpleanosGet(secret) {
         this.verifySecret(secret);
         return this.runLocked('cumpleanos', () => this.cumpleanos.handle());
+    }
+    async encuestaPostVisitaPost(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('encuesta-post-visita', () => this.encuestaPostVisita.handle());
+    }
+    async encuestaPostVisitaGet(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('encuesta-post-visita', () => this.encuestaPostVisita.handle());
     }
     async recordatorioReservasPost(secret) {
         this.verifySecret(secret);
@@ -396,6 +406,22 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CronController.prototype, "cumpleanosGet", null);
 __decorate([
+    (0, common_1.Post)('encuesta-post-visita'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "encuestaPostVisitaPost", null);
+__decorate([
+    (0, common_1.Get)('encuesta-post-visita'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "encuestaPostVisitaGet", null);
+__decorate([
     (0, common_1.Post)('recordatorio-reservas'),
     (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
     __param(0, (0, common_1.Headers)('x-cron-secret')),
@@ -598,6 +624,7 @@ exports.CronController = CronController = __decorate([
         resumen_diario_job_1.ResumenDiarioJob,
         saludo_de_cumpleanos_job_1.SaludoDeCumpleanosJob,
         recordatorio_de_reservas_job_1.RecordatorioDeReservasJob,
+        encuesta_post_visita_job_1.EncuestaPostVisitaJob,
         operational_alerts_job_1.OperationalAlertsJob,
         create_monthly_cycles_job_1.CreateMonthlyCyclesJob,
         collection_emails_job_1.CollectionEmailsJob,

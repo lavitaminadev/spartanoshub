@@ -60,6 +60,11 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string }> = [
     explica: 'Cuando la reserva cambia de horario, desde el local o desde su enlace. Lleva la cita nueva para el calendario.',
   },
   {
+    prefijo: 'email.post_visit_survey',
+    titulo: 'Encuesta después de la visita',
+    explica: 'Unas horas después de una reserva marcada como asistida. Primero pide estrellas; con nota baja ofrece escribirle al equipo, con nota alta ofrece contestar la encuesta.',
+  },
+  {
     prefijo: 'email.reservation_cancellation',
     titulo: 'Cancelación',
     explica: 'Cuando se cancela, desde el local o por la propia persona. Si la canceló el local, {{motivo}} trae la razón.',
@@ -135,6 +140,17 @@ export function PanelDeCorreo(): JSX.Element {
   const queryClient = useQueryClient();
   /** Vacío significa «la plantilla general», la que usa quien no tenga la suya. */
   const [empresa, setEmpresa] = useState('');
+  /*
+   * Encuestas que se pueden enviar después de la visita.
+   *
+   * Sólo las activas y de clientes, de la empresa elegida o generales. Ofrecer una cerrada, o una
+   * de otra empresa, dejaría elegir algo que el envío después descarta sin decir nada.
+   */
+  const encuestasQuery = useQuery<Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }>>({
+    queryKey: ['encuestas-para-correo', empresa],
+    queryFn: () => api.get(`/surveys${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
+  });
+  const encuestasElegibles = (encuestasQuery.data ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer' && (!encuesta.clientId || encuesta.clientId === empresa));
   const [borrador, setBorrador] = useState<Record<string, string | number | boolean> | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   /** Qué aviso tiene una prueba en vuelo, para deshabilitar solo su botón. */
@@ -265,6 +281,28 @@ export function PanelDeCorreo(): JSX.Element {
             */}
             {activo ? (
               <div className="panel-correo-campos">
+                {porClave.get(`${grupo.prefijo}_id`) && grupo.prefijo === 'email.post_visit_survey' ? (() => {
+                  const ajuste = porClave.get(`${grupo.prefijo}_id`)!;
+                  const elegida = String(valorDe(ajuste.key) ?? '');
+                  const vigente = encuestasElegibles.some((encuesta) => encuesta.id === elegida);
+                  return (
+                    <label key={ajuste.key}>
+                      <span>Encuesta que se envía</span>
+                      {!empresa ? (
+                        <small>Elige una empresa arriba: cada empresa envía su propia encuesta.</small>
+                      ) : (
+                        <>
+                          <select className="input" value={elegida} onChange={(evento) => editar(ajuste.key, evento.target.value)}>
+                            <option value="">— Ninguna: no se envía —</option>
+                            {encuestasElegibles.map((encuesta) => <option key={encuesta.id} value={encuesta.id}>{encuesta.title}</option>)}
+                          </select>
+                          {elegida && !vigente && !encuestasQuery.isLoading ? <small className="error-text">La encuesta elegida ya no está activa o no es de esta empresa: no se enviará nada hasta elegir otra.</small> : null}
+                          {encuestasElegibles.length === 0 && !encuestasQuery.isLoading ? <small>Esta empresa no tiene encuestas activas de clientes. Crea una en Encuestas, con una pregunta de estrellas.</small> : null}
+                        </>
+                      )}
+                    </label>
+                  );
+                })() : null}
                 {['subject', 'body', 'hours'].map((sufijo) => {
                   const ajuste = porClave.get(`${grupo.prefijo}_${sufijo}`);
                   if (!ajuste) return null;

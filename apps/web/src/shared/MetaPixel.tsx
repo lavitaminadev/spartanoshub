@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 interface MetaPixelProps {
-  pixelId?: string;
+  pixelId?: string | null;
   enabled?: boolean;
 }
 

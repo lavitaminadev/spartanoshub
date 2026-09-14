@@ -39,9 +39,20 @@
   /* Colores de marca */
   --cyan: #0fb9b1;
   --cyan-soft: #e9fbf9;
-  --cyan-deep: #087e79;          /* cian oscuro: estados ok y texto meta */
+  /*
+   * Texto en cian.
+   *
+   * `--cyan` es un color de relleno: como texto sobre fondo claro da 2,2:1 y en un teléfono al
+   * sol no se lee. Todo texto cian usa este tono, que pasa 4,5:1 sobre blanco, sobre el lavanda de
+   * la página, sobre el cian suave y sobre el panel salvia. El anterior (#087e79) quedaba en 4,49
+   * sobre el fondo de página: por una centésima, pero fallaba justo en el caso más común.
+   */
+  --cyan-deep: #07706b;          /* cian oscuro: estados ok y texto meta */
+  --cyan-text: #07706b;
   --pink: #ec0b61;
   --pink-dark: #b90749;
+  /* Rosa para botones con texto blanco y para texto rosa: el de marca da 4,39:1 y no llega. */
+  --pink-strong: #cc0a55;
   --pink-soft: #fff0f6;
   --lime: #4bd6cf;               /* cian vivo: resaltos sobre oscuro */
   --amber: #c67912;
@@ -49,19 +60,19 @@
   --amber-soft: #fff6e7;
 
   /* Alias para compatibilidad con código actual */
-  --primary: #ec0b61;              /* pink: acción principal (prototipo) */
+  --primary: #cc0a55;              /* acción principal: rosa legible con texto blanco (5,6:1) */
   --primary-light: #ff75aa;
   --primary-hover: #b90749;
   --primary-deep: #b90749;
-  --accent: #ec0b61;               /* pink */
+  --accent: #cc0a55;               /* igual que --primary: se usa como color de acción */
   --accent-hover: #b90749;          /* pink-dark */
   --brand-cyan: #0fb9b1;
-  --brand-cyan-dark: #087e79;
+  --brand-cyan-dark: #07706b;
   --brand-pink: #ec0b61;
   --brand-pink-dark: #b90749;
   --brand-ink: #151317;
   --brand-mint: #4bd6cf;            /* acento menta del gradiente de marca */
-  --success: #087e79;              /* ok: cian oscuro, no verde */
+  --success: #07706b;              /* ok: cian oscuro, no verde */
   --success-deep: #096f6b;         /* cian profundo: "asistió", marcas de ok */
   --success-bg: #e9fbf9;
   --warning: #c67912;              /* amber */
