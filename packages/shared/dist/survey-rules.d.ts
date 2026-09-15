@@ -48,6 +48,8 @@ export declare function errorDeDato(dato: SurveyContactField | undefined, valor:
 export declare function problemasDeRespuesta(preguntas: SurveyQuestion[], respuestas: Respuestas, omitir?: string[]): string[];
 /** Si la encuesta pide algún dato que identifica a la persona: entonces se necesita su aceptación. */
 export declare function pideDatosPersonales(preguntas: SurveyQuestion[]): boolean;
+/** Si la encuesta tiene preguntas sensibles vigentes (salud, alimentación). */
+export declare function pideDatosSensibles(preguntas: SurveyQuestion[]): boolean;
 /** Si en lo contestado viene algún dato personal escrito. */
 export declare function traeDatosPersonales(preguntas: SurveyQuestion[], respuestas: Respuestas): boolean;
 export {};

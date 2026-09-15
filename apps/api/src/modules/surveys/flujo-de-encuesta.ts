@@ -30,7 +30,7 @@ export type SiguientePaso = 'mensaje-al-equipo' | 'ofrecer-encuesta';
  * y se responde completa de una vez, como hasta ahora.
  */
 export function preguntaDeNota(preguntas: SurveyQuestion[]): SurveyQuestion | undefined {
-  return preguntas.find((pregunta) => pregunta.type === 'rating');
+  return preguntas.find((pregunta) => pregunta.type === 'rating' && !pregunta.archivada);
 }
 
 /** Si la nota es válida para una pregunta de estrellas. */

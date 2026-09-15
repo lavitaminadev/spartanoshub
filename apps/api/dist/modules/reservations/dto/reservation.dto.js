@@ -13,7 +13,7 @@ exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.Reservatio
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const vacioComoAusente = ({ value }) => (value === '' ? undefined : value);
-exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'];
+exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'];
 exports.CHILEAN_MOBILE_PHONE = /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/;
 exports.CHILEAN_MOBILE_PHONE_MESSAGE = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
 class FormFieldDto {
@@ -49,6 +49,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], FormFieldDto.prototype, "internal", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], FormFieldDto.prototype, "sensible", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -371,12 +376,23 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
+], PublicReservationDto.prototype, "sensitiveConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
 ], PublicReservationDto.prototype, "marketingConsent", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], PublicReservationDto.prototype, "measurementConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(30),
+    __metadata("design:type", String)
+], PublicReservationDto.prototype, "measurementConsentVersion", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
@@ -423,6 +439,11 @@ __decorate([
     (0, class_validator_1.MaxLength)(180),
     __metadata("design:type", String)
 ], PublicReservationDto.prototype, "utmContent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicReservationDto.prototype, "origenDetectado", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -544,6 +565,11 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
+], PublicGroupRequestDto.prototype, "sensitiveConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
 ], PublicGroupRequestDto.prototype, "marketingConsent", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -583,6 +609,11 @@ __decorate([
 ], PublicGroupRequestDto.prototype, "utmContent", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicGroupRequestDto.prototype, "origenDetectado", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], PublicGroupRequestDto.prototype, "details", void 0);
@@ -602,6 +633,12 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], PublicGroupRequestDto.prototype, "measurementConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(30),
+    __metadata("design:type", String)
+], PublicGroupRequestDto.prototype, "measurementConsentVersion", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -829,6 +866,12 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(30),
+    __metadata("design:type", String)
+], PublicFormEventDto.prototype, "measurementConsentVersion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], PublicFormEventDto.prototype, "sessionId", void 0);
@@ -856,6 +899,11 @@ __decorate([
     (0, class_validator_1.MaxLength)(180),
     __metadata("design:type", String)
 ], PublicFormEventDto.prototype, "utmContent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicFormEventDto.prototype, "origenDetectado", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -902,7 +950,18 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
+], PublicSurveyResponseDto.prototype, "sensitiveConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
 ], PublicSurveyResponseDto.prototype, "measurementConsent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(30),
+    __metadata("design:type", String)
+], PublicSurveyResponseDto.prototype, "measurementConsentVersion", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MinLength)(24),
@@ -934,6 +993,11 @@ __decorate([
     (0, class_validator_1.MaxLength)(180),
     __metadata("design:type", String)
 ], PublicSurveyResponseDto.prototype, "utmContent", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PublicSurveyResponseDto.prototype, "origenDetectado", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

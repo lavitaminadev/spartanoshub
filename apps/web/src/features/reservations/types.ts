@@ -2,6 +2,8 @@ import type { ReglaDeCampo } from '@espartanos/shared';
 export interface FormField {
   id: string; type: string; label: string; required: boolean;
   placeholder?: string; options?: string[]; system?: boolean; display?: string;
+  /** Pide salud, alimentación u otro dato sensible: la página exige consentimiento expreso. */
+  sensible?: boolean;
   /** Condición para mostrarlo. Sin ella se muestra siempre. */
   mostrarSi?: ReglaDeCampo;
 }
@@ -24,6 +26,8 @@ export interface DesignConfig {
   welcomePopupEnabled?: string; welcomePopupTitle?: string; welcomePopupText?: string;
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
+  /** Textos del acceso a «Solicitar evento» en la página. Vacíos, se usan los de siempre. */
+  eventoCtaTitulo?: string; eventoCtaTexto?: string; eventoCtaBoton?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
   autoCloseAttendance?: string; autoCloseAfterMinutes?: string;
   bookingPausedUntil?: string; enforceCompanyDailyCap?: string;

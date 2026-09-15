@@ -71,6 +71,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Survey.prototype, "googleReview", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'change_log', type: 'json', nullable: true }),
+    __metadata("design:type", Object)
+], Survey.prototype, "changeLog", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Survey.prototype, "createdAt", void 0);

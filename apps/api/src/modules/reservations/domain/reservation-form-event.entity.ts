@@ -14,6 +14,8 @@ export class ReservationFormEvent {
   @Column({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }) utmMedium?: string;
   @Column({ name: 'utm_campaign', type: 'varchar', length: 180, nullable: true }) utmCampaign?: string;
   @Column({ name: 'utm_content', type: 'varchar', length: 180, nullable: true }) utmContent?: string;
+  /** El canal se reconoció solo (app, anuncio o sitio de origen), sin enlace marcado. */
+  @Column({ name: 'origin_detected', type: 'tinyint', width: 1, default: 0, transformer: { to: (valor?: boolean) => (valor ? 1 : 0), from: (valor: number) => Boolean(valor) } }) originDetected?: boolean;
   @Column({ type: 'json', nullable: true }) metadata?: Record<string, unknown>;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
 }

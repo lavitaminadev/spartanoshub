@@ -7,7 +7,9 @@ interface MetaPixelProps {
 
 export function MetaPixel({ pixelId, enabled = false }: MetaPixelProps) {
   useEffect(() => {
-    if (!pixelId || !enabled) return;
+    // Sin permiso: si el Pixel ya estaba cargado, se revoca y deja de enviar.
+    if (!enabled) { window.fbq?.('consent', 'revoke'); return; }
+    if (!pixelId) return;
     if (!window.fbq) {
       const queue = ((...args: unknown[]) => {
         if (queue.callMethod) queue.callMethod(...args);
@@ -29,6 +31,7 @@ export function MetaPixel({ pixelId, enabled = false }: MetaPixelProps) {
       document.head.appendChild(script);
     }
 
+    window.fbq('consent', 'grant');
     window.__espartanosMetaPixels ??= new Set<string>();
     if (!window.__espartanosMetaPixels.has(pixelId)) {
       window.fbq('init', pixelId);

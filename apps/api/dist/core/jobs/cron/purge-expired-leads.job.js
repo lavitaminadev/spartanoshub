@@ -17,9 +17,10 @@ exports.PurgeExpiredLeadsJob = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const shared_1 = require("@espartanos/shared");
 const lead_entity_1 = require("../../../modules/crm/leads/lead.entity");
 const data_protection_service_1 = require("../../data-protection/data-protection.service");
-const RESERVATION_RETENTION_DAYS = 180;
+const RESERVATION_RETENTION_DAYS = Math.round(shared_1.PLAZOS_DE_CONSERVACION.reservasMeses * 30.44);
 const ETAPAS_CON_FUNDAMENTO = ['won'];
 let PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = class PurgeExpiredLeadsJob {
     constructor(leadRepo, dataProtection) {
@@ -53,6 +54,19 @@ let PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = class PurgeExpiredLeadsJob {
         this.logger.log(`Expired leads reviewed: ${expiredLeads.length}, anonymized: ${anonymized}`);
         const reservations = await this.dataProtection.anonymizeExpiredReservations(RESERVATION_RETENTION_DAYS);
         this.logger.log(`Expired reservations reviewed: ${reservations.reviewed}, anonymized: ${reservations.anonymized}`);
+        const pasos = [
+            ['measurement identifiers cleared', () => this.dataProtection.borrarIdentificadoresDeMedicionVencidos(shared_1.PLAZOS_DE_CONSERVACION.medicionMeses)],
+            ['group requests anonymized', () => this.dataProtection.anonimizarSolicitudesDeGrupoVencidas(shared_1.PLAZOS_DE_CONSERVACION.solicitudesDeGrupoMeses)],
+            ['survey responses anonymized', () => this.dataProtection.anonimizarRespuestasDeEncuestaVencidas(shared_1.PLAZOS_DE_CONSERVACION.encuestasMeses)],
+        ];
+        for (const [nombre, paso] of pasos) {
+            try {
+                this.logger.log(`Retention: ${await paso()} ${nombre}`);
+            }
+            catch (error) {
+                this.logger.error(`Retention step failed (${nombre}): ${error instanceof Error ? error.message : error}`);
+            }
+        }
     }
 };
 exports.PurgeExpiredLeadsJob = PurgeExpiredLeadsJob;

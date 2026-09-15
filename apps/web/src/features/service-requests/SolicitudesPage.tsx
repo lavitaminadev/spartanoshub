@@ -166,7 +166,7 @@ export function SolicitudesPage(): JSX.Element {
                     {aviso
                       ? <p className="privacy-text">{aviso.text}</p>
                       : <p>No fue posible cargar el aviso de privacidad. Vuelve a intentarlo antes de enviar tu solicitud.</p>}
-                    {aviso && !aviso.provisional && <small className="privacy-version">Versión {aviso.version}</small>}
+                    {aviso && !aviso.provisional && aviso.version > 0 && <small className="privacy-version">Versión {aviso.version}</small>}
                     {aviso?.provisional && (
                       <small className="privacy-version is-provisional">
                         Texto provisional. La agencia aún no publica su aviso definitivo.

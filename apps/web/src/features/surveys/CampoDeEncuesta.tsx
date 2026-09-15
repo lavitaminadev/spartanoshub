@@ -6,6 +6,7 @@
  */
 
 import { useState, type JSX } from 'react';
+import { documentoATexto, faltantesDeIdentidadLegal, politicaDePrivacidadDelLocal, rutaDocumentoLegal } from '@espartanos/shared';
 import type { SurveyConsent, SurveyQuestion } from '@espartanos/shared';
 import { DATOS_DE_CONTACTO, errorDeDato, formatearRut } from '@espartanos/shared';
 import { safeUrl } from '../../core/safe-url';
@@ -108,6 +109,10 @@ export function CampoDeEncuesta({
 export function AceptacionDeDatos({ consentimiento, aceptada, onChange }: { consentimiento: SurveyConsent; aceptada: boolean; onChange: (aceptada: boolean) => void }): JSX.Element {
   const [verTexto, setVerTexto] = useState(false);
   const enlace = consentimiento.privacyUrl ? safeUrl(consentimiento.privacyUrl) : '';
+  // Sin política propia se muestra la generada con los datos reales del responsable; si la encuesta es de Espartanos, la de Espartanos.
+  const identidad = consentimiento.identidad;
+  const generada = !enlace && !consentimiento.privacyText && identidad && faltantesDeIdentidadLegal(identidad).length === 0 ? documentoATexto(politicaDePrivacidadDelLocal(identidad)) : '';
+  const textoPolitica = consentimiento.privacyText || generada;
   return (
     <div className="public-survey-aceptacion">
       <label>
@@ -115,12 +120,13 @@ export function AceptacionDeDatos({ consentimiento, aceptada, onChange }: { cons
         <span>{consentimiento.texto}</span>
       </label>
       {enlace ? <a href={enlace} target="_blank" rel="noopener noreferrer">Ver política de privacidad</a> : null}
-      {!enlace && consentimiento.privacyText ? (
+      {!enlace && textoPolitica ? (
         <>
           <button type="button" className="public-survey-enlace" aria-expanded={verTexto} onClick={() => setVerTexto(!verTexto)}>{verTexto ? 'Ocultar política de privacidad' : 'Ver política de privacidad'}</button>
-          {verTexto ? <div className="public-survey-privacidad">{consentimiento.privacyText}</div> : null}
+          {verTexto ? <div className="public-survey-privacidad">{textoPolitica}</div> : null}
         </>
       ) : null}
+      <a href={rutaDocumentoLegal('privacidad')} target="_blank" rel="noopener">{identidad ? 'Privacidad de Espartanos (plataforma)' : 'Política de privacidad de Espartanos'}</a>
     </div>
   );
 }

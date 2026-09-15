@@ -9,7 +9,7 @@ import { Transform, Type } from 'class-transformer';
 const vacioComoAusente = ({ value }: { value: unknown }) => (value === '' ? undefined : value);
 
 /** Tipos de pregunta que acepta el esquema de un formulario o encuesta. */
-export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'] as const;
+export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'] as const;
 
 /**
  * Número móvil chileno, con o sin prefijo de país y con espacios o guiones
@@ -38,6 +38,8 @@ export class FormFieldDto {
   @IsOptional() @IsBoolean() system?: boolean;
   /** Se guarda pero no se expone en la página pública. */
   @IsOptional() @IsBoolean() internal?: boolean;
+  /** Pide información de salud, alimentación u otro dato sensible: exige consentimiento expreso. */
+  @IsOptional() @IsBoolean() sensible?: boolean;
   @IsOptional() @IsString() @MaxLength(180) placeholder?: string;
   @IsOptional() @IsIn(['radio', 'select']) display?: string;
   /**
@@ -103,8 +105,11 @@ export class PublicReservationDto {
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(80) consentVersion?: string;
   @IsOptional() @IsBoolean() reservationConsent?: boolean;
+  /** Consentimiento expreso para información de salud o alimentación. */
+  @IsOptional() @IsBoolean() sensitiveConsent?: boolean;
   @IsOptional() @IsBoolean() marketingConsent?: boolean;
   @IsOptional() @IsBoolean() measurementConsent?: boolean;
+  @IsOptional() @IsString() @MaxLength(30) measurementConsentVersion?: string;
   /** Permiso separado para reutilizar los datos en los demás locales de la red. */
   @IsOptional() @IsBoolean() networkConsent?: boolean;
   @IsOptional() @IsString() @MaxLength(30) networkConsentVersion?: string;
@@ -120,6 +125,8 @@ export class PublicReservationDto {
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
   @IsOptional() @IsString() @MaxLength(180) utmContent?: string;
+  /** El canal lo reconoció la página sin enlace marcado. */
+  @IsOptional() @IsBoolean() origenDetectado?: boolean;
   /** @deprecated Lo siguen enviando los formularios en caché. Se interpreta como `gclid`. */
   @IsOptional() @IsString() @MaxLength(255) clickId?: string;
   @IsOptional() @IsString() @MaxLength(255) gclid?: string;
@@ -144,6 +151,8 @@ export class PublicGroupRequestDto {
   @IsOptional() @IsString() @MaxLength(80) preferredTime?: string;
   @IsOptional() @IsString() @MaxLength(2000) notes?: string;
   @IsBoolean() reservationConsent: boolean;
+  /** Consentimiento expreso para información de salud o alimentación. */
+  @IsOptional() @IsBoolean() sensitiveConsent?: boolean;
   @IsOptional() @IsBoolean() marketingConsent?: boolean;
   @IsOptional() @IsBoolean() networkConsent?: boolean;
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
@@ -151,12 +160,15 @@ export class PublicGroupRequestDto {
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
   @IsOptional() @IsString() @MaxLength(180) utmContent?: string;
+  /** El canal lo reconoció la página sin enlace marcado. */
+  @IsOptional() @IsBoolean() origenDetectado?: boolean;
   /** Respuestas y preferencias operativas que el equipo debe conservar al cotizar. */
   @IsOptional() @IsObject() details?: Record<string, unknown>;
   @IsOptional() @IsString() @MaxLength(200) website?: string;
   @IsOptional() @IsDateString() renderedAt?: string;
   /** Medición: sólo con la casilla marcada se avisa a Meta y se guardan las señales del navegador. */
   @IsOptional() @IsBoolean() measurementConsent?: boolean;
+  @IsOptional() @IsString() @MaxLength(30) measurementConsentVersion?: string;
   @IsOptional() @IsString() @MaxLength(255) fbc?: string;
   @IsOptional() @IsString() @MaxLength(255) fbp?: string;
   @IsOptional() @IsString() @MaxLength(500) fbclid?: string;
@@ -232,11 +244,14 @@ export class PublicFormEventDto {
   @IsIn(['view', 'start']) type: string;
   /** Sin aceptación no se envía el evento a proveedores de medición. */
   @IsOptional() @IsBoolean() measurementConsent?: boolean;
+  @IsOptional() @IsString() @MaxLength(30) measurementConsentVersion?: string;
   @IsOptional() @IsString() @MaxLength(80) sessionId?: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
   @IsOptional() @IsString() @MaxLength(180) utmContent?: string;
+  /** El canal lo reconoció la página sin enlace marcado. */
+  @IsOptional() @IsBoolean() origenDetectado?: boolean;
   @IsOptional() @IsString() @MaxLength(255) fbc?: string;
   @IsOptional() @IsString() @MaxLength(255) fbp?: string;
   @IsOptional() @IsString() @MaxLength(500) eventSourceUrl?: string;
@@ -246,12 +261,17 @@ export class PublicSurveyResponseDto {
   @IsOptional() @IsEmail() guestEmail?: string;
   @IsOptional() @IsString() @MaxLength(50) guestPhone?: string;
   @IsObject() answers: Record<string, unknown>;
+  /** Consentimiento expreso para información de salud o alimentación. */
+  @IsOptional() @IsBoolean() sensitiveConsent?: boolean;
   @IsOptional() @IsBoolean() measurementConsent?: boolean;
+  @IsOptional() @IsString() @MaxLength(30) measurementConsentVersion?: string;
   @IsString() @MinLength(24) @MaxLength(80) @Matches(/^[A-Za-z0-9_-]+$/, { message: 'La clave de idempotencia no es válida' }) idempotencyKey: string;
   @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
   @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
   @IsOptional() @IsString() @MaxLength(180) utmCampaign?: string;
   @IsOptional() @IsString() @MaxLength(180) utmContent?: string;
+  /** El canal lo reconoció la página sin enlace marcado. */
+  @IsOptional() @IsBoolean() origenDetectado?: boolean;
   /** @deprecated Lo siguen enviando los formularios en caché. Se interpreta como `gclid`. */
   @IsOptional() @IsString() @MaxLength(255) clickId?: string;
   @IsOptional() @IsString() @MaxLength(255) gclid?: string;

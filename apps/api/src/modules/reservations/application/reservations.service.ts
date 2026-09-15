@@ -1,4 +1,5 @@
 import { normalizarCorreo, normalizarTelefono } from '../../integrations/meta/identificadores-meta';
+import { rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, type ReglaDeCampo } from '@espartanos/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -58,8 +59,8 @@ const DEFAULT_VENUE_TIPS = [
 type ScheduleWindow = { day: number; start: string; end: string };
 type ServiceConfig = { id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean };
 type ResourceConfig = { id: string; name: string; capacity?: number; windows?: ScheduleWindow[]; active?: boolean };
-type FieldConfig = { id: string; type: string; label: string; required?: boolean; internal?: boolean; options?: string[] };
-type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string; partySize?: number; reservationConsent?: boolean };
+type FieldConfig = { id: string; type: string; label: string; required?: boolean; internal?: boolean; options?: string[]; sensible?: boolean };
+type GuestSubmission = { guestName: string; guestEmail?: string; guestPhone?: string; partySize?: number; reservationConsent?: boolean; sensitiveConsent?: boolean; accessibilityNeed?: string; dietaryNotes?: string };
 /** Lo que se sabe de alguien por sus reservas anteriores, para quien la recibe. */
 export interface Preferencias {
   zonaHabitual?: string;
@@ -103,6 +104,7 @@ type DesignConfig = {
   campaignAlias?: string; welcomePopupEnabled?: string; welcomePopupTitle?: string; welcomePopupText?: string;
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   askSmoking?: string; askSeating?: string; askFirstVisit?: string; askHowFound?: string;
+  eventoCtaTitulo?: string; eventoCtaTexto?: string; eventoCtaBoton?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
   autoCloseAttendance?: string; autoCloseAfterMinutes?: string; couponEnabled?: string; groupRequestEnabled?: string;
@@ -258,6 +260,7 @@ export class ReservationsService {
       ['El texto de marketing', design.marketingConsentText, 800], ['La versión de marketing', design.marketingConsentVersion, 30],
       ['El alias de campaña', design.campaignAlias, 80], ['El título de bienvenida', design.welcomePopupTitle, 180], ['El texto de bienvenida', design.welcomePopupText, 1200],
       ['El mensaje de WhatsApp', design.whatsappGroupMessage, 1200],
+      ['El título del botón de evento', design.eventoCtaTitulo, 80], ['El texto del botón de evento', design.eventoCtaTexto, 180], ['El botón de evento', design.eventoCtaBoton, 40],
     ] as Array<[string, unknown, number]>) if (value !== undefined && (typeof value !== 'string' || value.length > limit)) throw new BadRequestException(`${label} no es válido`);
     if (design.welcomePopupEnabled !== undefined && design.welcomePopupEnabled !== 'true' && design.welcomePopupEnabled !== 'false') throw new BadRequestException('La bienvenida no es válida');
     if (design.whatsappBusinessNumber && (typeof design.whatsappBusinessNumber !== 'string' || !/^\+?[1-9]\d{7,14}$/.test(design.whatsappBusinessNumber.replace(/[\s()-]/g, '')))) throw new BadRequestException('El WhatsApp del local debe usar formato internacional');
@@ -277,11 +280,14 @@ export class ReservationsService {
       if (field.type === 'number' && (typeof value !== 'number' && typeof value !== 'string' || !Number.isFinite(Number(value)))) throw new BadRequestException(`La respuesta de ${field.label} debe ser numérica`);
       if (field.type === 'rating' && (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 5)) throw new BadRequestException(`La respuesta de ${field.label} debe estar entre 1 y 5`);
       if (field.type === 'consent' && typeof value !== 'boolean') throw new BadRequestException(`La respuesta de ${field.label} debe ser una aceptación`);
+      if (field.type === 'rut' && typeof value === 'string' && value.trim() && !rutValido(value)) throw new BadRequestException(`El RUT de ${field.label} no es válido`);
     }
   }
 
   private validateSubmission(form: ReservationForm, answers: Record<string, unknown>, guest: GuestSubmission): void {
     this.validateAnswers(form, answers);
+    // Salud o alimentación sólo con consentimiento expreso y separado (dato sensible).
+    if (!guest.sensitiveConsent && traeDatosSensibles(form.fieldSchema as FieldConfig[], answers, guest)) throw new BadRequestException(MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE);
     /*
      * Sólo se revisa lo que la persona llegó a ver.
      *
@@ -392,6 +398,7 @@ export class ReservationsService {
   async getForm(organizationId: string, id: string, clientId?: string, clientIds?: string[]) { const form = await this.forms.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } }); if (!form) throw new NotFoundException('Formulario no encontrado'); return form; }
   async updateForm(organizationId: string, id: string, dto: UpdateReservationFormDto, clientId?: string, clientIds?: string[]) {
     const form = await this.getForm(organizationId, id, clientId, clientIds);
+    const estabaPublicado = form.status === 'published';
     const capabilities = await this.clientCapabilities(organizationId, form.clientId);
     if (!capabilities.reservations) throw new ForbiddenException('Reservas no está habilitado para esta empresa');
     // Reservas y CRM son capacidades independientes. No se crea ni sincroniza un lead
@@ -410,6 +417,11 @@ export class ReservationsService {
     }
     this.validateConfiguration(form);
     if (form.status === 'published' && ((form.scheduleConfig as { windows?: unknown[] }).windows?.length || 0) === 0) throw new BadRequestException('No puedes publicar sin disponibilidad');
+    // Publicar exige saber quién responde por los datos. Lo ya publicado sigue funcionando y el editor avisa.
+    if (form.status === 'published' && !estabaPublicado) {
+      const faltan = await this.faltantesLegales(form);
+      if (faltan.length) throw new BadRequestException(mensajeDeIdentidadIncompleta(faltan));
+    }
     return this.forms.save(form);
   }
   /**
@@ -768,28 +780,41 @@ export class ReservationsService {
     }
   }
 
+  /** Identidad legal efectiva del formulario: lo de la sucursal y, donde falte, lo de su empresa. */
+  private identidadLegal(form: ReservationForm) {
+    const design = form.designConfig as DesignConfig;
+    return { razonSocial: design.legalCompanyName, rut: design.legalCompanyId, correo: design.supportEmail, nombreComercial: form.name };
+  }
+
+  /** Datos legales que faltan para publicar, sin modificar el formulario que se va a guardar. */
+  async faltantesLegales(form: ReservationForm): Promise<string[]> {
+    const copia = { ...form, designConfig: { ...(form.designConfig as DesignConfig) } } as ReservationForm;
+    await this.completarDatosLegales(copia);
+    return faltantesDeIdentidadLegal(this.identidadLegal(copia));
+  }
+
+  /**
+   * Textos de las casillas, generados por el servidor: el navegador no puede falsificar lo aceptado.
+   *
+   * La casilla obligatoria acepta las condiciones e informa el tratamiento necesario para la
+   * reserva; las opcionales son autorizaciones separadas. Un texto propio del local reemplaza al
+   * de la plantilla. Se guardan junto a la reserva tal como se mostraron.
+   */
   private consentTexts(form: ReservationForm) {
     const design = form.designConfig as DesignConfig;
-    const controller = String(design.legalCompanyName || form.name).trim();
-    const identifier = design.legalCompanyId ? `, ${String(design.legalCompanyId).trim()}` : '';
-    const contact = design.supportEmail ? ` Puedes ejercer tus derechos de acceso, rectificación, supresión u oposición escribiendo a ${String(design.supportEmail).trim()}.` : '';
-    const privacy = design.legalMode === 'texto' && design.privacyText
-      ? ' La política de privacidad está disponible en esta misma página.'
-      : design.privacyUrl ? ` Revisa la política de privacidad en ${String(design.privacyUrl).trim()}.` : '';
-    /*
-     * Cada casilla dice quién trata los datos, para qué, por cuánto tiempo y cómo se revoca, y
-     * ninguna arrastra a la otra: la operativa es lo mínimo para que exista la reserva, y las dos
-     * opcionales quedan sin marcar si la persona no las marca.
-     *
-     * El texto se guarda junto a la reserva tal como se mostró. Editarlo después cambia lo que
-     * leerá quien reserve mañana y no lo que aceptó quien reservó ayer.
-     */
-    const red = String(design.networkBrandName || 'Espartanos').trim();
+    const base = textosDeAceptacionDeReserva(this.identidadLegal(form), { red: design.networkBrandName });
     return {
-      reservation: String(design.reservationConsentText || `Autorizo a ${controller}${identifier} a tratar mi nombre, teléfono, correo y los antecedentes de esta reserva con la única finalidad de gestionarla, confirmarla, modificarla o cancelarla y comunicarse conmigo por ese motivo. Los datos se conservan mientras dure esa gestión y después sólo el plazo que la ley exija. La plataforma Espartanos los trata por encargo de ${controller}.${contact}${privacy}`),
-      marketing: String(design.marketingConsentText || `Autorizo voluntariamente a ${controller}${identifier} a enviarme novedades, promociones y comunicaciones comerciales al correo o teléfono que indiqué. Es opcional, no condiciona mi reserva y puedo revocarla cuando quiera, sin costo, desde el enlace de cada mensaje${design.supportEmail ? ` o escribiendo a ${String(design.supportEmail).trim()}` : ''}.`),
-      network: String(design.networkConsentText || `Autorizo que ${controller}${identifier} comparta mi nombre, mis datos de contacto y mis preferencias de visita con los demás locales de ${red}, para no tener que repetirlos al reservar en otro de ellos. Es opcional, no condiciona esta reserva, cada local responde por el uso que haga de esos datos y puedo revocarlo cuando quiera.${contact}`),
+      reservation: String(design.reservationConsentText || base.reserva),
+      marketing: String(design.marketingConsentText || base.novedades),
+      network: String(design.networkConsentText || base.red),
+      sensibles: base.sensibles,
     };
+  }
+
+  /** Fecha y texto del consentimiento para datos sensibles, sólo si se enviaron y se autorizaron. */
+  private evidenciaSensible(form: ReservationForm, answers: Record<string, unknown>, guest: GuestSubmission, texto: string) {
+    if (!guest.sensitiveConsent || !traeDatosSensibles(form.fieldSchema as FieldConfig[], answers, guest)) return {};
+    return { sensitiveConsentAt: new Date(), sensitiveConsentText: `[${VERSION_DATOS_SENSIBLES}] ${texto}` };
   }
 
   async slots(slug: string, from: string, days = 14, serviceId?: string, resourceId?: string, partySize = 1) {
@@ -927,7 +952,7 @@ export class ReservationsService {
       }
     }
     const saved = await this.saveFormEventOnce(
-      this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent }),
+      this.formEvents.create({ organizationId: form.organizationId, clientId: form.clientId, formId: form.id, type: dto.type, sessionId: dto.sessionId, utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent, originDetected: Boolean(dto.origenDetectado) }),
     );
 
     if (dto.type === 'start' && dto.measurementConsent) {
@@ -1036,17 +1061,23 @@ export class ReservationsService {
         guestEmail: dto.guestEmail?.trim().toLowerCase(),
         guestPhone: normalizePhone(dto.guestPhone),
         answers: dto.answers,
-        clickId: dto.clickId,
-        // El formulario en caché todavía manda `clickId`; se interpreta como `gclid` porque
-        // ese era su destino real. Un `gclid` explícito manda sobre él.
-        gclid: dto.gclid ?? dto.clickId,
-        gbraid: dto.gbraid,
-        wbraid: dto.wbraid,
-        fbclid: dto.fbclid,
-        fbc: dto.fbc,
-        fbp: dto.fbp,
-        clientIpAddress: ipAddress,
-        clientUserAgent: userAgent,
+        ...(() => { const evidencia = this.evidenciaSensible(form, dto.answers, dto, this.consentTexts(form).sensibles); return 'sensitiveConsentAt' in evidencia ? { datosSensibles: { aceptadoEn: evidencia.sensitiveConsentAt!.toISOString(), texto: evidencia.sensitiveConsentText } } : {}; })(),
+        // Identificadores de anuncio, IP y navegador sólo con permiso de medición: sin él no hay
+        // para qué guardarlos.
+        ...(dto.measurementConsent ? {
+          clickId: dto.clickId,
+          // El formulario en caché todavía manda `clickId`; se interpreta como `gclid` porque
+          // ese era su destino real. Un `gclid` explícito manda sobre él.
+          gclid: dto.gclid ?? dto.clickId,
+          gbraid: dto.gbraid,
+          wbraid: dto.wbraid,
+          fbclid: dto.fbclid,
+          fbc: dto.fbc,
+          fbp: dto.fbp,
+          clientIpAddress: ipAddress,
+          clientUserAgent: userAgent,
+          measurementConsentVersion: dto.measurementConsentVersion || VERSION_MEDICION,
+        } : {}),
       },
     }));
     const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);
@@ -1565,6 +1596,42 @@ export class ReservationsService {
     }
   }
 
+  /**
+   * Cómo le va al envío de conversiones a Meta de una sucursal en los últimos 30 días.
+   *
+   * «Pixel listo» sólo dice que hay credenciales; esto dice si los eventos realmente salen: cuántos
+   * se enviaron, cuántos esperan reintento, cuántos fallaron y el último error, que suele bastar
+   * para saber si venció el token o cambió el Pixel.
+   */
+  async saludDeMedicion(organizationId: string, formId: string, clientId?: string, clientIds?: string[]) {
+    const form = await this.getForm(organizationId, formId, clientId, clientIds);
+    const filas = await this.dataSource.query(
+      `SELECT status, COUNT(*) total, MAX(processed_at) ultimo FROM meta_conversion_outbox
+        WHERE organization_id = ? AND client_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND JSON_UNQUOTE(JSON_EXTRACT(event_data, '$.customData.contentIds[0]')) = ?
+        GROUP BY status`,
+      [organizationId, form.clientId, form.id],
+    ).catch(() => []) as Array<{ status: string; total: number; ultimo: Date | string | null }>;
+    const porEstado = Object.fromEntries(filas.map((fila) => [fila.status, Number(fila.total)]));
+    const error = await this.dataSource.query(
+      `SELECT last_error, updated_at FROM meta_conversion_outbox
+        WHERE organization_id = ? AND client_id = ? AND last_error IS NOT NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND JSON_UNQUOTE(JSON_EXTRACT(event_data, '$.customData.contentIds[0]')) = ?
+        ORDER BY updated_at DESC LIMIT 1`,
+      [organizationId, form.clientId, form.id],
+    ).catch(() => []) as Array<{ last_error: string; updated_at: Date | string }>;
+    const ultimoEnvio = filas.map((fila) => fila.ultimo).filter(Boolean).map((fecha) => new Date(fecha as string)).sort((a, b) => b.getTime() - a.getTime())[0];
+    return {
+      // Estados de la cola: pending y retry esperan; processed salió; failed y expired no llegarán.
+      enviados: porEstado.processed ?? 0,
+      pendientes: (porEstado.pending ?? 0) + (porEstado.retry ?? 0),
+      fallidos: (porEstado.failed ?? 0) + (porEstado.expired ?? 0),
+      ultimoEnvio: ultimoEnvio ? ultimoEnvio.toISOString() : null,
+      ultimoError: error[0] ? { mensaje: String(error[0].last_error).slice(0, 300), cuando: new Date(error[0].updated_at).toISOString() } : null,
+      pausadoPorCredencial: Boolean(error[0] && /\[TOKEN\]/.test(String(error[0].last_error)) && Date.now() - new Date(error[0].updated_at).getTime() < 24 * 3600000 && !(ultimoEnvio && ultimoEnvio.getTime() > new Date(error[0].updated_at).getTime())),
+    };
+  }
+
   /** Conserva un cupo por diez minutos mientras la persona termina el formulario. */
   async holdPublic(slug: string, dto: PublicReservationHoldDto) {
     // Retener cupo aparta inventario real, asi que exige las mismas senales que el alta.
@@ -1601,6 +1668,10 @@ export class ReservationsService {
     if ((form.designConfig as DesignConfig).networkConsentEnabled !== 'true') dto.networkConsent = false;
     if ((form.designConfig as DesignConfig).groupRequestEnabled === 'false') throw new BadRequestException('Este local no está recibiendo solicitudes de grupo');
     const consent = this.consentTexts(form);
+    const detalles = (dto.details ?? {}) as Record<string, unknown>;
+    const respuestasGrupo = (detalles.answers ?? {}) as Record<string, unknown>;
+    const hayDatosSensibles = traeDatosSensibles(form.fieldSchema as FieldConfig[], respuestasGrupo, detalles);
+    if (hayDatosSensibles && !dto.sensitiveConsent) throw new BadRequestException(MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE);
     const existing = await this.groupRequests.findOne({ where: { formId: form.id, idempotencyKey: dto.idempotencyKey } });
     if (existing) return { id: existing.id, status: existing.status, kind: 'group_request' };
     if (dto.preferredDate && dto.preferredDate < this.localDateKey(new Date(), form.timezone)) throw new BadRequestException('La fecha preferida ya pasó: elige hoy o una fecha futura');
@@ -1611,11 +1682,11 @@ export class ReservationsService {
       notes: dto.notes?.trim() || null,
       // Las señales de medición se guardan con la solicitud para que, al convertirla en reserva,
       // la asistencia pueda informarse a Meta como la de cualquier reserva con medición aceptada.
-      details: { ...(dto.details ?? {}), ...(dto.measurementConsent ? { medicion: { aceptadaEn: new Date().toISOString(), fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined), fbp: dto.fbp, ip: ipAddress, userAgent } } : {}) },
+      details: { ...(dto.details ?? {}), ...(hayDatosSensibles ? { datosSensibles: { aceptadoEn: new Date().toISOString(), texto: `[${VERSION_DATOS_SENSIBLES}] ${consent.sensibles}` } } : {}), ...(dto.measurementConsent ? { medicion: { aceptadaEn: new Date().toISOString(), version: dto.measurementConsentVersion || VERSION_MEDICION, texto: TEXTO_MEDICION, fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined), fbp: dto.fbp, ip: ipAddress, userAgent } } : {}) },
       reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
       marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
       networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentText: dto.networkConsent ? consent.network : null,
-      utmSource: dto.utmSource || null, utmMedium: dto.utmMedium || null, utmCampaign: dto.utmCampaign || null, utmContent: dto.utmContent || null, status: 'pending',
+      utmSource: dto.utmSource || null, utmMedium: dto.utmMedium || null, utmCampaign: dto.utmCampaign || null, utmContent: dto.utmContent || null, originDetected: Boolean(dto.origenDetectado), status: 'pending',
     }));
     // Es una solicitud, no una conversión de reserva: no toma cupo ni dispara Schedule. Sí es un
     // lead —y de los que más valen—, así que con medición aceptada viaja a Meta como `Lead`.
@@ -1649,9 +1720,11 @@ export class ReservationsService {
         consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
         marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
+        measurementConsentVersion: dto.measurementConsent ? dto.measurementConsentVersion || VERSION_MEDICION : null, measurementConsentText: dto.measurementConsent ? TEXTO_MEDICION : null,
         networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentVersion: dto.networkConsent ? dto.networkConsentVersion || null : null,
         networkConsentText: dto.networkConsent ? consent.network : null,
-        utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent,
+        ...this.evidenciaSensible(form, dto.answers, dto, consent.sensibles),
+        utmSource: dto.utmSource, utmMedium: dto.utmMedium, utmCampaign: dto.utmCampaign, utmContent: dto.utmContent, originDetected: Boolean(dto.origenDetectado),
         // Las señales de medición se guardan como en una reserva: si el equipo la confirma
         // después, esa reserva se informa a Meta y Google como cualquier otra.
         ...(dto.measurementConsent ? {
@@ -1730,7 +1803,7 @@ export class ReservationsService {
     if (reservationId && medicion?.aceptadaEn) {
       // Sin esto la asistencia de un evento —la conversión más valiosa— nunca llegaba a Meta:
       // la reserva nacía sin la medición que la persona sí había aceptado al pedirlo.
-      await this.reservations.update(reservationId, { measurementConsentAt: new Date(medicion.aceptadaEn), fbc: medicion.fbc ?? null, fbp: medicion.fbp ?? null, clientIpAddress: medicion.ip ?? null, clientUserAgent: medicion.userAgent ?? null } as never);
+      await this.reservations.update(reservationId, { measurementConsentAt: new Date(medicion.aceptadaEn), measurementConsentVersion: (medicion as { version?: string }).version ?? VERSION_MEDICION, measurementConsentText: (medicion as { texto?: string }).texto ?? TEXTO_MEDICION, fbc: medicion.fbc ?? null, fbp: medicion.fbp ?? null, clientIpAddress: medicion.ip ?? null, clientUserAgent: medicion.userAgent ?? null } as never);
     }
     request.status = 'converted';
     request.details = { ...details, reservationId };
@@ -1868,9 +1941,12 @@ export class ReservationsService {
         marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null,
         measurementConsentAt: dto.measurementConsent ? new Date() : null,
+        measurementConsentVersion: dto.measurementConsent ? dto.measurementConsentVersion || VERSION_MEDICION : null,
+        measurementConsentText: dto.measurementConsent ? TEXTO_MEDICION : null,
         networkConsentAt: dto.networkConsent ? new Date() : null,
         networkConsentVersion: dto.networkConsent ? dto.networkConsentVersion || null : null,
         networkConsentText: dto.networkConsent ? consent.network : null,
+        ...this.evidenciaSensible(form, dto.answers, dto, consent.sensibles),
         // La casilla llega como booleano y se guarda con su instante, que es lo que se puede
         // mostrar. Sin marcar no se inventa una fecha: queda como «no consta», que es la verdad.
         adultDeclaredAt: dto.adultDeclared ? new Date() : null,
@@ -1878,18 +1954,22 @@ export class ReservationsService {
         utmMedium: dto.utmMedium,
         utmCampaign: dto.utmCampaign,
         utmContent: dto.utmContent,
-        clickId: dto.clickId,
-        // El formulario en caché todavía manda `clickId`; se interpreta como `gclid` porque
-        // ese era su destino real. Un `gclid` explícito manda sobre él.
-        gclid: dto.gclid ?? dto.clickId,
-        gbraid: dto.gbraid,
-        wbraid: dto.wbraid,
-        fbclid: dto.fbclid,
-        // Si el navegador no alcanzó a armar `_fbc` (sin cookie aún), se arma con el fbclid del anuncio: sin él Meta no liga la reserva al clic.
-        fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined),
-        fbp: dto.fbp,
-        clientIpAddress: ipAddress,
-        clientUserAgent: userAgent,
+        // Sin permiso de medición no se guardan identificadores de anuncio ni IP/navegador: aunque
+        // un formulario viejo en caché los mande, se descartan aquí.
+        ...(dto.measurementConsent ? {
+          clickId: dto.clickId,
+          // El formulario en caché todavía manda `clickId`; se interpreta como `gclid` porque
+          // ese era su destino real. Un `gclid` explícito manda sobre él.
+          gclid: dto.gclid ?? dto.clickId,
+          gbraid: dto.gbraid,
+          wbraid: dto.wbraid,
+          fbclid: dto.fbclid,
+          // Si el navegador no alcanzó a armar `_fbc` (sin cookie aún), se arma con el fbclid del anuncio: sin él Meta no liga la reserva al clic.
+          fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined),
+          fbp: dto.fbp,
+          clientIpAddress: ipAddress,
+          clientUserAgent: userAgent,
+        } : {}),
         couponCode: coupon?.code,
       }));
 
@@ -2572,7 +2652,7 @@ export class ReservationsService {
     const scoped = this.sqlClientScope(clientId, clientIds); const params = [organizationId, ...scoped.params]; const scope = scoped.clause;
     const daysNum = Math.min(Math.max(Number(days) || 30, 1), 365);
     params.push(daysNum as never);
-    const [totals, daily, sources, funnel, areas] = await Promise.all([this.dataSource.query(`SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='attended') attended, SUM(status='no_show') no_show, SUM(status='waitlist') waitlist, SUM(status LIKE 'cancelled%') cancelled FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT DATE(starts_at) day, COUNT(*) total, SUM(status='attended') attended, SUM(status='no_show') no_show FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY day ORDER BY day`, params), this.dataSource.query(`SELECT COALESCE(utm_source,'direct') source, COALESCE(utm_medium,'Sin medio') medium, COALESCE(utm_campaign,'Sin campaña') campaign, COALESCE(utm_content,'') content, COUNT(*) total, SUM(status='attended') attended FROM reservations WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source,medium,campaign,content ORDER BY total DESC LIMIT 20`, params), this.dataSource.query(`SELECT SUM(type='view') views, SUM(type='start') starts FROM reservation_form_events WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT COALESCE(NULLIF(resource_id,''),'Sin área') area, COUNT(*) total FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY area ORDER BY total DESC LIMIT 10`, params)]);
+    const [totals, daily, sources, funnel, areas] = await Promise.all([this.dataSource.query(`SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='attended') attended, SUM(status='no_show') no_show, SUM(status='waitlist') waitlist, SUM(status LIKE 'cancelled%') cancelled FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT DATE(starts_at) day, COUNT(*) total, SUM(status='attended') attended, SUM(status='no_show') no_show FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY day ORDER BY day`, params), this.dataSource.query(`SELECT COALESCE(utm_source,'direct') source, COALESCE(utm_medium,'Sin medio') medium, COALESCE(utm_campaign,'Sin campaña') campaign, COALESCE(NULLIF(utm_content,'deteccion-automatica'),'') content, MAX(COALESCE(origin_detected, 0)) detectado, COUNT(*) total, SUM(status='attended') attended FROM reservations WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source,medium,campaign,content ORDER BY total DESC LIMIT 20`, params), this.dataSource.query(`SELECT SUM(type='view') views, SUM(type='start') starts FROM reservation_form_events WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, params), this.dataSource.query(`SELECT COALESCE(NULLIF(resource_id,''),'Sin área') area, COUNT(*) total FROM reservations WHERE organization_id = ?${scope} AND starts_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY area ORDER BY total DESC LIMIT 10`, params)]);
     /*
     * Tres preguntas que el panel no sabía responder y que cambian decisiones operativas:
     * a qué hora se llena, con cuánta anticipación reserva la gente, y cuánta vuelve.
@@ -2597,16 +2677,16 @@ export class ReservationsService {
     // Canales: visitas y reservas de cada fuente, para ver cuál convierte. Lo detectado se separa
     // de lo marcado con enlace para no presentar una suposición como dato.
     const visitasPorCanal = await this.dataSource.query(
-      `SELECT COALESCE(NULLIF(utm_source,''),'directo') source, MAX(utm_content='deteccion-automatica') detectado, COUNT(DISTINCT COALESCE(session_id, id)) visitas FROM reservation_form_events WHERE organization_id = ?${scope} AND type='view' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source`,
+      `SELECT COALESCE(NULLIF(utm_source,''),'directo') source, MAX(COALESCE(origin_detected, 0) = 1 OR utm_content = 'deteccion-automatica') detectado, COUNT(DISTINCT COALESCE(session_id, id)) visitas FROM reservation_form_events WHERE organization_id = ?${scope} AND type='view' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY source`,
       params,
     ).catch(() => []) as Array<{ source: string; detectado: number; visitas: number }>;
     const reservasPorCanal = new Map<string, { reservas: number; asistieron: number; detectado: boolean }>();
-    for (const fila of sources as Array<{ source: string; content?: string; total: number; attended: number }>) {
+    for (const fila of sources as Array<{ source: string; content?: string; detectado?: number; total: number; attended: number }>) {
       const clave = fila.source || 'directo';
       const actual = reservasPorCanal.get(clave) ?? { reservas: 0, asistieron: 0, detectado: false };
       actual.reservas += Number(fila.total || 0);
       actual.asistieron += Number(fila.attended || 0);
-      actual.detectado ||= fila.content === 'deteccion-automatica';
+      actual.detectado ||= Boolean(Number(fila.detectado || 0));
       reservasPorCanal.set(clave, actual);
     }
     const nombresDeCanal = new Set([...reservasPorCanal.keys(), ...visitasPorCanal.map((fila) => fila.source)]);

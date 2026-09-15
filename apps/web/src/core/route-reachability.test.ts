@@ -20,6 +20,8 @@ const ENTRADA_DIRECTA = new Set([
   '/', '/404', '/login', '/logout',
   '/forgot-password', '/reset-password', '/change-password', '/first-access',
   '/solicitudes',
+  // Índice de documentos legales: se enlaza desde fuera (sitio, correos) y abre la política de privacidad.
+  '/legal',
   '/portal',
   // Meta devuelve el navegador acá tras autorizar. La puerta está en Meta, no en el código.
   '/integrations/meta/callback',

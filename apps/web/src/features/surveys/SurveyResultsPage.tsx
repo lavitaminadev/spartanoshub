@@ -290,11 +290,12 @@ function TextWordCloud({ result }: { result: TextQuestionResult }) {
   );
 }
 
-function QuestionResultCard({ result }: { result: SurveyQuestionResult }) {
+function QuestionResultCard({ result, editadaEn }: { result: SurveyQuestionResult; editadaEn?: string }) {
   return (
     <article className="results-question-card">
       <header>
         <h3>{result.question}</h3>
+        {editadaEn && <small className="results-editada" title="Las respuestas anteriores contestaron la redacción previa">Redacción cambiada el {new Date(editadaEn).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}</small>}
         <span className="results-question-meta">{result.totalAnswers} respuesta{result.totalAnswers === 1 ? '' : 's'}{result.required ? ' · Obligatoria' : ''}</span>
       </header>
       {result.type === 'nps' && <NpsGauge result={result} />}
@@ -376,8 +377,22 @@ export function SurveyResultsPage(): JSX.Element {
         <EmptyState icon="chart" title={summary.totalResponses === 0 ? 'Todavía no hay respuestas' : 'Sin respuestas en este período'} description={summary.totalResponses === 0 ? 'Cuando alguien responda, los resultados de cada pregunta aparecerán aquí.' : 'Elige un período más largo.'} />
       ) : (
         <div className="results-grid">
-          {resumen.questions.map((result) => <QuestionResultCard key={result.questionId} result={result} />)}
+          {resumen.questions.map((result) => <QuestionResultCard key={result.questionId} result={result} editadaEn={survey.questions.find((q) => q.id === result.questionId)?.editadaEn} />)}
         </div>
+      )}
+
+      {(survey.historial?.length ?? 0) > 0 && (
+        <details className="survey-historial">
+          <summary>Historial de cambios ({survey.historial!.length})</summary>
+          <ol>
+            {survey.historial!.map((entrada) => (
+              <li key={entrada.fecha}>
+                <strong>{new Date(entrada.fecha).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}{entrada.autor ? ` · ${entrada.autor}` : ''}</strong>
+                <ul>{entrada.cambios.map((cambio) => <li key={cambio}>{cambio}</li>)}</ul>
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
 
       {/* Presente cuando el servidor lo entrega; la copia local sin red no tiene quién respondió. */}

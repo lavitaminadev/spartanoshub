@@ -85,7 +85,7 @@ export class ReservationsController {
   @Put('company-legal')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), dto, req.user.id);
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
   }
 
   private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {
@@ -97,6 +97,14 @@ export class ReservationsController {
     if (!pedida) throw new BadRequestException('Indica la empresa');
     await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
     return pedida;
+  }
+
+  /** Envíos a Meta de una sucursal en los últimos 30 días: enviados, pendientes, fallidos y último error. */
+  @Get('forms/:id/meta-health')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  async metaHealth(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const scope = await this.scope(req);
+    return this.service.saludDeMedicion(req.organizationId, id, scope.clientId, scope.clientIds);
   }
 
   @Get('forms')
@@ -261,8 +269,10 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateReservation(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReservationDto) {
     const scope = await this.scope(req);
-    if (req.user.role === UserRole.CLIENT && (dto.internalNotes !== undefined || dto.startsAt !== undefined || (dto.status && dto.status !== 'cancelled_client'))) {
-      throw new ForbiddenException('El portal cliente solo permite cancelar una reserva');
+    // La empresa opera su propio local: confirma, marca asistencia, reprograma, cancela y anota.
+    // La etapa de producción es de la agencia y queda fuera del portal.
+    if (req.user.role === UserRole.CLIENT && dto.workflowState !== undefined) {
+      throw new ForbiddenException('La etapa de producción la gestiona el equipo de Espartanos');
     }
     return this.service.updateReservation(
       req.organizationId,

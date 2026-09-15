@@ -71,6 +71,22 @@ __decorate([
     (0, class_transformer_1.Type)(() => SurveyShowRuleDto),
     __metadata("design:type", SurveyShowRuleDto)
 ], SurveyQuestionDto.prototype, "mostrarSi", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], SurveyQuestionDto.prototype, "archivada", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], SurveyQuestionDto.prototype, "sensible", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], SurveyQuestionDto.prototype, "editadaEn", void 0);
 class CreateSurveyDto {
 }
 exports.CreateSurveyDto = CreateSurveyDto;

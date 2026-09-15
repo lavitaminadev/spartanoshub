@@ -64,14 +64,14 @@ export function ReservationLocalHubPage() {
       <Link className="local-hub-card is-primary" to={`${base}/forms/${id}/design?section=esencial`}><span className="local-hub-icon">1</span><div><strong>Configurar la sucursal</strong><small>Horario, cupos, campos, logo, portada y publicación en un recorrido guiado.</small></div><b>Configurar</b></Link>
       <Link className="local-hub-card" to={`${base}?tab=bookings&clientId=${encodeURIComponent(local.clientId)}&formId=${encodeURIComponent(id)}`}><span className="local-hub-icon">2</span><div><strong>Reservas</strong><small>Lista, detalle, filtros, exportación y cupones de este local.</small></div><b>Ver reservas</b></Link>
       <Link className="local-hub-card" to={`${base}/agenda?clientId=${encodeURIComponent(local.clientId)}&formId=${encodeURIComponent(id)}`}><span className="local-hub-icon">3</span><div><strong>Agenda del día</strong><small>Disponibilidad, bloqueos, asistencia y solicitudes de grupos o eventos.</small></div><b>Abrir agenda</b></Link>
-      <Link className="local-hub-card" to={`${base}/forms/${id}/design?section=ajustes`}><span className="local-hub-icon">4</span><div><strong>Zonas, avisos y textos legales</strong><small>Terrazas y salones, alergias y niños, correos del equipo, consentimientos y política de cancelación.</small></div><b>Abrir</b></Link>
+      <Link className="local-hub-card" to={`${base}/forms/${id}/design?section=ajustes`}><span className="local-hub-icon">4</span><div><strong>Datos del local y textos legales</strong><small>WhatsApp, correos del equipo, consentimientos y política de cancelación. Las zonas están en Disponibilidad.</small></div><b>Abrir</b></Link>
     </div></section>
 
     <section className="local-hub-section"><div><span className="page-eyebrow">AJUSTES RÁPIDOS</span><h2>Lo que se toca a diario</h2><p>Cada enlace abre directamente el ajuste, sin recorrer el resto de la configuración.</p></div>
       <div className="portal-item-actions">
         <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/design?section=disponibilidad`}>Horario, cupos y cierres</Link>
-        <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/design?section=ajustes`}>Pausar reservas</Link>
-        <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/design?section=ajustes`}>Zonas y preferencias</Link>
+        <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/design?section=disponibilidad#pausa`}>Pausar reservas</Link>
+        <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/design?section=disponibilidad#zonas`}>Zonas y sectores</Link>
         <Link className="btn btn-outline btn-sm" to={`${base}?tab=coupons`}>Cupones</Link>
         <Link className="btn btn-outline btn-sm" to={`${base}/forms/${id}/design?section=publicar`}>Enlace y publicación</Link>
         {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={duplicar.isPending} onClick={() => setConfirmarDuplicado(true)}>{duplicar.isPending ? 'Duplicando...' : 'Duplicar esta sucursal'}</button>}

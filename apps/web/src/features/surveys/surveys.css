@@ -630,3 +630,17 @@
 .canales-reservan-barra { display: block; height: 4px; margin-top: 5px; border-radius: 4px; background: #efeaee; overflow: hidden; max-width: 160px; }
 .canales-reservan-barra span { display: block; height: 100%; background: var(--cyan, #0fb9b1); border-radius: 4px; }
 .canales-reservan-poco { color: var(--muted, #7a7278); font-size: 11px; }
+
+/* Edición segura con respuestas */
+.survey-edicion-nota { margin: 0; font-size: 13px; line-height: 1.45; }
+.question-card.is-archivada { opacity: .75; border-style: dashed; background: #faf8f9; }
+.question-card.is-archivada p { margin: 0; color: #4f4852; font-size: 14px; }
+.survey-cambios-previstos { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid #cfe0f0; border-radius: 12px; background: #f3f8fd; }
+.survey-cambios-previstos ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 13px; }
+.survey-cambios-previstos small { color: var(--muted, #6f6772); font-size: 12px; }
+.results-editada { color: #8a5300; font-size: 12px; font-weight: 600; }
+.survey-historial { padding: 14px 16px; border: 1px solid var(--line, #e7e1e5); border-radius: var(--card-radius, 12px); background: var(--white, #fff); }
+.survey-historial summary { font-weight: 700; cursor: pointer; }
+.survey-historial ol { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
+.survey-historial ol > li { padding-left: 12px; border-left: 3px solid #e7e1e5; }
+.survey-historial ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: #4f4852; }

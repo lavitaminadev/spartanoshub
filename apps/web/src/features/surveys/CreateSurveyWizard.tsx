@@ -17,7 +17,7 @@ import { triggerToast } from '../../shared/toast-events';
 import { useCreateSurvey, useSurvey, useUpdateSurvey } from './useSurveys';
 import { api } from '../../core/api';
 import type { QuestionType, Survey, SurveyContactField, SurveyDistributionChannel, SurveyQuestion, SurveyType } from '@espartanos/shared';
-import { DATOS_DE_CONTACTO, ORDEN_DE_DATOS, ordenarParaMostrar, preguntasVisibles } from '@espartanos/shared';
+import { aplicarEdicionDePreguntas, DATOS_DE_CONTACTO, ORDEN_DE_DATOS, ordenarParaMostrar, preguntasVisibles } from '@espartanos/shared';
 import { CampoDeEncuesta } from './CampoDeEncuesta';
 import { estiloDeEncuesta } from './estilo-de-encuesta';
 import { PLANTILLAS, preguntaDeDato, preguntasDePlantilla } from './plantillas-de-encuesta';
@@ -53,7 +53,7 @@ function blankQuestion(): SurveyQuestion {
 /** Forma comparable de las preguntas: ignora campos vacíos que el servidor puede devolver como null. */
 function firmaDePreguntas(questions: SurveyQuestion[]): string {
   return JSON.stringify(questions.map((q) => ({
-    id: q.id, type: q.type, question: q.question.trim(), required: Boolean(q.required), dato: q.dato ?? null,
+    id: q.id, type: q.type, question: q.question.trim(), required: Boolean(q.required), dato: q.dato ?? null, archivada: Boolean(q.archivada), sensible: Boolean(q.sensible),
     options: q.type === 'multiple-choice' ? (q.options ?? []).map((o) => o.trim()).filter(Boolean) : [],
     mostrarSi: q.mostrarSi?.preguntaId ? { p: q.mostrarSi.preguntaId, v: [...q.mostrarSi.valores].sort() } : null,
   })));
@@ -166,7 +166,7 @@ function designFromState(state: WizardState): NonNullable<Survey['designConfig']
 
 /** Valores que puede tomar una pregunta para usarla en una regla. */
 function valoresPosibles(pregunta: SurveyQuestion): Array<{ valor: string; etiqueta: string }> {
-  if (pregunta.dato) return [];
+  if (pregunta.dato || pregunta.archivada) return [];
   if (pregunta.type === 'rating') return ['1', '2', '3', '4', '5'].map((valor) => ({ valor, etiqueta: `${valor}★` }));
   if (pregunta.type === 'nps') return Array.from({ length: 11 }, (_, i) => ({ valor: String(i), etiqueta: String(i) }));
   if (pregunta.type === 'multiple-choice') return (pregunta.options ?? []).filter((o) => o.trim()).map((valor) => ({ valor, etiqueta: valor }));
@@ -224,8 +224,8 @@ function VistaPrevia({ state }: { state: WizardState }) {
 type SetState = (updater: (current: WizardState) => WizardState) => void;
 
 /** Paso 1: público, empresa, plantilla, nombre y bienvenida. */
-function PasoInicio({ state, setState, clients, bloqueadas, isEdit }: {
-  state: WizardState; setState: SetState; clients: Array<{ id: string; name: string }>; bloqueadas: boolean; isEdit: boolean;
+function PasoInicio({ state, setState, clients, conRespuestas, isEdit }: {
+  state: WizardState; setState: SetState; clients: Array<{ id: string; name: string }>; conRespuestas: boolean; isEdit: boolean;
 }) {
   const plantillas = PLANTILLAS.filter((plantilla) => plantilla.publico === state.type);
   const aplicar = (id: string) => {
@@ -252,7 +252,8 @@ function PasoInicio({ state, setState, clients, bloqueadas, isEdit }: {
         <small>La encuesta y sus resultados quedan aislados para esta empresa. Sus datos legales se usan en la aceptación.</small>
       </label>}
 
-      {!bloqueadas && (
+      {conRespuestas && <p className="survey-edicion-nota">Esta encuesta ya tiene respuestas: las plantillas no se ofrecen porque reemplazarían sus preguntas. Puedes editar cada pregunta en el paso siguiente sin perder nada.</p>}
+      {!conRespuestas && (
         <fieldset className="survey-plantillas">
           <legend>¿Por dónde empiezas?{isEdit ? ' (reemplaza las preguntas actuales)' : ''}</legend>
           <div>
@@ -280,13 +281,19 @@ function PasoInicio({ state, setState, clients, bloqueadas, isEdit }: {
 }
 
 /** Paso 2: datos de quien responde y preguntas con reglas. */
-function PasoPreguntas({ questions, onChange, bloqueadas }: { questions: SurveyQuestion[]; onChange: (next: SurveyQuestion[]) => void; bloqueadas: boolean }) {
+function PasoPreguntas({ questions, onChange, conRespuestas, idsGuardados }: { questions: SurveyQuestion[]; onChange: (next: SurveyQuestion[]) => void; conRespuestas: boolean; idsGuardados: Set<string> }) {
   const preguntas = questions.filter((q) => !q.dato);
   const datos = questions.filter((q) => q.dato);
+  /** Si una pregunta pudo recibir respuestas: entonces se archiva en vez de quitarse. */
+  const tieneRespuestas = (id: string) => conRespuestas && idsGuardados.has(id);
+  const activas = preguntas.filter((q) => !q.archivada).length;
   const conDatos = (lista: SurveyQuestion[]) => [...lista, ...datos];
   const update = (id: string, patch: Partial<SurveyQuestion>) => onChange(questions.map((q) => (q.id === id ? { ...q, ...patch } : q)));
-  // Quitar una pregunta también quita las reglas que dependían de ella.
-  const remove = (id: string) => onChange(questions.filter((q) => q.id !== id).map((q) => (q.mostrarSi?.preguntaId === id ? { ...q, mostrarSi: undefined } : q)));
+  // Quitar una pregunta también quita las reglas que dependían de ella. Con respuestas, se archiva.
+  const remove = (id: string) => onChange((tieneRespuestas(id)
+    ? questions.map((q) => (q.id === id ? { ...q, archivada: true } : q))
+    : questions.filter((q) => q.id !== id)).map((q) => (q.mostrarSi?.preguntaId === id ? { ...q, mostrarSi: undefined } : q)));
+  const restaurar = (id: string) => onChange(questions.map((q) => (q.id === id ? { ...q, archivada: undefined } : q)));
   const mover = (indice: number, delta: number) => {
     const lista = [...preguntas];
     const destino = indice + delta;
@@ -298,14 +305,16 @@ function PasoPreguntas({ questions, onChange, bloqueadas }: { questions: SurveyQ
   };
   const alternarDato = (dato: SurveyContactField) => {
     const existente = datos.find((q) => q.dato === dato);
+    if (existente?.archivada) { restaurar(existente.id); return; }
+    if (existente && tieneRespuestas(existente.id)) { remove(existente.id); return; }
     if (existente) onChange(questions.filter((q) => q.id !== existente.id));
     else onChange([...preguntas, ...[...datos, preguntaDeDato(dato, false)].sort((a, b) => DATOS.indexOf(a.dato!) - DATOS.indexOf(b.dato!))]);
   };
 
   return (
     <div className="wizard-step-body">
-      {bloqueadas && <div className="alert alert-info">Esta encuesta ya tiene respuestas, así que sus preguntas no se pueden cambiar: los resultados dejarían de corresponder. Puedes editar inicio, diseño y distribución, o duplicarla desde el listado para cambiar preguntas.</div>}
-      <fieldset className="questions-editor-fieldset" disabled={bloqueadas}>
+      {conRespuestas && <div className="alert alert-info survey-edicion-nota">Esta encuesta ya tiene respuestas y se puede editar sin perderlas: cambiar la redacción, agregar o reordenar mantiene lo contestado; <strong>quitar archiva</strong> la pregunta (deja de mostrarse, pero sus respuestas siguen en resultados). El tipo de una pregunta con respuestas no se cambia. Todo lo que cambies queda en el historial.</div>}
+      <fieldset className="questions-editor-fieldset">
         <section className="survey-datos">
           <header>
             <strong>Datos de quien responde</strong>
@@ -313,7 +322,7 @@ function PasoPreguntas({ questions, onChange, bloqueadas }: { questions: SurveyQ
           </header>
           <div className="survey-datos-lista">
             {DATOS.map((dato) => {
-              const pregunta = datos.find((q) => q.dato === dato);
+              const pregunta = datos.find((q) => q.dato === dato && !q.archivada);
               return (
                 <div key={dato} className={`survey-dato ${pregunta ? 'active' : ''}`}>
                   <label className="survey-dato-principal"><input type="checkbox" checked={Boolean(pregunta)} onChange={() => alternarDato(dato)} /> {DATOS_DE_CONTACTO[dato].etiqueta}</label>
@@ -326,6 +335,17 @@ function PasoPreguntas({ questions, onChange, bloqueadas }: { questions: SurveyQ
 
         <div className="questions-editor">
           {preguntas.map((question, index) => {
+            if (question.archivada) {
+              return (
+                <article className="question-card is-archivada" key={question.id}>
+                  <header>
+                    <span className="question-index">Archivada · sus respuestas se conservan</span>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => restaurar(question.id)}>Restaurar</button>
+                  </header>
+                  <p>{question.question}</p>
+                </article>
+              );
+            }
             const anteriores = preguntas.slice(0, index).filter((q) => valoresPosibles(q).length > 0);
             const origen = anteriores.find((q) => q.id === question.mostrarSi?.preguntaId);
             const valores = question.mostrarSi?.valores ?? [];
@@ -336,7 +356,7 @@ function PasoPreguntas({ questions, onChange, bloqueadas }: { questions: SurveyQ
                   <div className="question-card-acciones">
                     <button type="button" className="btn btn-outline btn-sm" aria-label="Subir pregunta" disabled={index === 0} onClick={() => mover(index, -1)}>↑</button>
                     <button type="button" className="btn btn-outline btn-sm" aria-label="Bajar pregunta" disabled={index === preguntas.length - 1} onClick={() => mover(index, 1)}>↓</button>
-                    <button type="button" className="btn btn-outline btn-sm" disabled={preguntas.length <= 1} onClick={() => remove(question.id)}>Quitar</button>
+                    <button type="button" className="btn btn-outline btn-sm" disabled={activas <= 1} title={tieneRespuestas(question.id) ? 'Deja de mostrarse; sus respuestas se conservan' : undefined} onClick={() => remove(question.id)}>{tieneRespuestas(question.id) ? 'Archivar' : 'Quitar'}</button>
                   </div>
                 </header>
                 <label>Enunciado
@@ -344,7 +364,7 @@ function PasoPreguntas({ questions, onChange, bloqueadas }: { questions: SurveyQ
                 </label>
                 <div className="form-row">
                   <label>Tipo de pregunta
-                    <select className="input" value={question.type} onChange={(event) => {
+                    <select className="input" value={question.type} disabled={tieneRespuestas(question.id)} title={tieneRespuestas(question.id) ? 'Ya tiene respuestas: agrega una pregunta nueva para otro tipo' : undefined} onChange={(event) => {
                       const type = event.target.value as QuestionType;
                       // Cambiar el tipo invalida las reglas que dependían de sus valores.
                       onChange(questions.map((q) => q.id === question.id
@@ -357,6 +377,10 @@ function PasoPreguntas({ questions, onChange, bloqueadas }: { questions: SurveyQ
                   <label className="toggle-row">
                     <input type="checkbox" checked={question.required} onChange={(event) => update(question.id, { required: event.target.checked })} />
                     Obligatoria
+                  </label>
+                  <label className="toggle-row" title="Salud, alergias u otro dato sensible: quien responda deberá autorizarlo expresamente">
+                    <input type="checkbox" checked={Boolean(question.sensible)} onChange={(event) => update(question.id, { sensible: event.target.checked })} />
+                    Dato sensible
                   </label>
                 </div>
                 {question.type === 'multiple-choice' && (
@@ -504,15 +528,22 @@ function DistributionSelector({ selected, recipients, onToggleChannel, onRecipie
 }
 
 /** Paso 5: resumen antes de guardar. */
-function ReviewAndSubmit({ state, isEdit }: { state: WizardState; isEdit: boolean }) {
+function ReviewAndSubmit({ state, isEdit, cambiosPrevistos, errorDeEdicion }: { state: WizardState; isEdit: boolean; cambiosPrevistos: string[]; errorDeEdicion?: string }) {
   const recipientCount = state.recipients.split(',').map((value) => value.trim()).filter(Boolean).length;
-  const preguntas = state.questions.filter((q) => !q.dato);
-  const datos = state.questions.filter((q) => q.dato);
+  const preguntas = state.questions.filter((q) => !q.dato && !q.archivada);
+  const datos = state.questions.filter((q) => q.dato && !q.archivada);
   const porId = new Map(state.questions.map((q) => [q.id, q]));
   const condicionales = preguntas.filter((q) => q.mostrarSi).length;
   return (
     <div className="wizard-step-body">
       <p className="page-subtitle">{isEdit ? 'Revisa los cambios antes de guardar.' : 'Revisa la encuesta antes de crearla como borrador.'}</p>
+      {isEdit && (errorDeEdicion
+        ? <div className="alert alert-error" role="alert">{errorDeEdicion}</div>
+        : <section className="survey-cambios-previstos">
+          <strong>{cambiosPrevistos.length ? `Lo que cambiará (${cambiosPrevistos.length})` : 'No hay cambios todavía'}</strong>
+          {cambiosPrevistos.length > 0 && <ul>{cambiosPrevistos.map((cambio) => <li key={cambio}>{cambio}</li>)}</ul>}
+          <small>Queda registrado en el historial de la encuesta, con fecha y quién lo hizo.</small>
+        </section>)}
       <div className="review-summary">
         <div><span>Nombre</span><strong>{state.title || 'Sin nombre aún'}</strong></div>
         <div><span>Público</span><strong>{state.type === 'internal' ? 'Equipo' : 'Clientes'}</strong></div>
@@ -568,16 +599,26 @@ export function CreateSurveyWizard(): JSX.Element {
 
   if ((editId || duplicarId) && isLoading) return <LoadingSpinner text="Cargando encuesta..." />;
 
-  const bloqueadas = Boolean(editId && (existingSurvey?.responses ?? 0) > 0);
+  const conRespuestas = Boolean(editId && (existingSurvey?.responses ?? 0) > 0);
+  const idsGuardados = new Set((existingSurvey?.questions ?? []).map((q) => q.id));
+  // Mismo cálculo que hará el servidor: lo que se ve aquí es lo que queda en el historial.
+  const edicionPrevista = editId && existingSurvey
+    ? aplicarEdicionDePreguntas(existingSurvey.questions ?? [], ordenarParaMostrar(state.questions), conRespuestas, new Date().toISOString())
+    : null;
+  const cambiosPrevistos = [
+    ...(edicionPrevista?.cambios ?? []),
+    ...(existingSurvey && state.title.trim() !== existingSurvey.title ? [`Nombre: «${existingSurvey.title}» → «${state.title.trim()}»`] : []),
+    ...(existingSurvey && state.welcome.trim() !== (existingSurvey.designConfig?.welcome ?? '') ? ['Mensaje de bienvenida actualizado'] : []),
+  ];
   const reglasIncompletas = state.questions.some((q) => q.mostrarSi && q.mostrarSi.valores.length === 0);
   const stepReady: boolean[] = [
     Boolean(state.title.trim()) && (state.type !== 'customer' || Boolean(state.clientId)),
-    state.questions.some((q) => !q.dato)
+    state.questions.some((q) => !q.dato && !q.archivada)
       && state.questions.every((question) => question.question.trim() && (question.type !== 'multiple-choice' || (question.options ?? []).filter((option) => option.trim()).length >= 2))
       && !reglasIncompletas,
     true,
     !state.ga4MeasurementId || /^G-[A-Z0-9]{4,20}$/i.test(state.ga4MeasurementId),
-    true,
+    !edicionPrevista?.error,
   ];
 
   const mutation = editId ? updateMutation : createMutation;
@@ -636,8 +677,8 @@ export function CreateSurveyWizard(): JSX.Element {
             isStepDisabled={(index) => index > step && !stepReady.slice(0, index).every(Boolean)}
           />
 
-          {step === 0 && <PasoInicio state={state} setState={setState} clients={clients} bloqueadas={bloqueadas} isEdit={Boolean(editId)} />}
-          {step === 1 && <PasoPreguntas questions={state.questions} bloqueadas={bloqueadas} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
+          {step === 0 && <PasoInicio state={state} setState={setState} clients={clients} conRespuestas={conRespuestas} isEdit={Boolean(editId)} />}
+          {step === 1 && <PasoPreguntas questions={state.questions} conRespuestas={conRespuestas} idsGuardados={idsGuardados} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
           {step === 2 && <PasoDiseno state={state} setState={setState} />}
           {step === 3 && (
             <DistributionSelector
@@ -652,7 +693,7 @@ export function CreateSurveyWizard(): JSX.Element {
               onGa4Change={(ga4MeasurementId) => setState((current) => ({ ...current, ga4MeasurementId }))}
             />
           )}
-          {step === 4 && <ReviewAndSubmit state={state} isEdit={Boolean(editId)} />}
+          {step === 4 && <ReviewAndSubmit state={state} isEdit={Boolean(editId)} cambiosPrevistos={cambiosPrevistos} errorDeEdicion={edicionPrevista?.error} />}
 
           {mutation.error && <div className="alert alert-error">{mutation.error.message}</div>}
 

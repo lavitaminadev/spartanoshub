@@ -76,7 +76,7 @@ let ReservationsController = class ReservationsController {
         return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
     }
     async saveCompanyLegal(req, query, dto) {
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), dto, req.user.id);
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
     }
     async empresaLegal(req, pedida) {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
@@ -88,6 +88,10 @@ let ReservationsController = class ReservationsController {
             throw new common_1.BadRequestException('Indica la empresa');
         await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
         return pedida;
+    }
+    async metaHealth(req, id) {
+        const scope = await this.scope(req);
+        return this.service.saludDeMedicion(req.organizationId, id, scope.clientId, scope.clientIds);
     }
     async forms(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
@@ -189,8 +193,8 @@ let ReservationsController = class ReservationsController {
     }
     async updateReservation(req, id, dto) {
         const scope = await this.scope(req);
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT && (dto.internalNotes !== undefined || dto.startsAt !== undefined || (dto.status && dto.status !== 'cancelled_client'))) {
-            throw new common_1.ForbiddenException('El portal cliente solo permite cancelar una reserva');
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.workflowState !== undefined) {
+            throw new common_1.ForbiddenException('La etapa de producción la gestiona el equipo de Espartanos');
         }
         return this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds);
     }
@@ -308,6 +312,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, datos_legales_de_empresa_1.CompanyLegalScopeDto, datos_legales_de_empresa_1.CompanyLegalDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "saveCompanyLegal", null);
+__decorate([
+    (0, common_1.Get)('forms/:id/meta-health'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "metaHealth", null);
 __decorate([
     (0, common_1.Get)('forms'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),

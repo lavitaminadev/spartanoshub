@@ -52,6 +52,9 @@ export class Survey {
 
   @Column({ name: 'google_review', type: 'json', nullable: true }) googleReview?: Record<string, unknown> | null;
 
+  /** Ediciones hechas a la encuesta, en palabras, la más reciente primero. */
+  @Column({ name: 'change_log', type: 'json', nullable: true }) changeLog?: Array<{ fecha: string; autor: string | null; cambios: string[] }> | null;
+
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

@@ -15,6 +15,7 @@ exports.guardarDatosLegales = guardarDatosLegales;
 exports.empresaDelPortal = empresaDelPortal;
 const common_1 = require("@nestjs/common");
 const class_validator_1 = require("class-validator");
+const shared_1 = require("@espartanos/shared");
 class CompanyLegalDto {
 }
 exports.CompanyLegalDto = CompanyLegalDto;
@@ -65,6 +66,11 @@ __decorate([
     (0, class_validator_1.MaxLength)(30000),
     __metadata("design:type", Object)
 ], CompanyLegalDto.prototype, "termsText", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CompanyLegalDto.prototype, "aceptaEncargo", void 0);
 class CompanyLegalScopeDto {
 }
 exports.CompanyLegalScopeDto = CompanyLegalScopeDto;
@@ -74,17 +80,25 @@ __decorate([
     __metadata("design:type", String)
 ], CompanyLegalScopeDto.prototype, "clientId", void 0);
 async function leerDatosLegales(db, organizationId, clientId) {
-    const filas = await db.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
+    const filas = await db.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text, encargo_version, encargo_accepted_at, encargo_accepted_name FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]);
     const fila = filas?.[0];
     if (!fila)
         throw new common_1.NotFoundException('Empresa no encontrada');
-    return { legalName: fila.legal_name, taxId: fila.tax_id, privacyEmail: fila.privacy_email, privacyUrl: fila.privacy_url, termsUrl: fila.terms_url, legalMode: fila.legal_mode === 'texto' ? 'texto' : 'enlace', privacyText: fila.privacy_text, termsText: fila.terms_text };
+    const aceptadoEn = fila.encargo_accepted_at ? new Date(fila.encargo_accepted_at).toISOString() : null;
+    return {
+        legalName: fila.legal_name, taxId: fila.tax_id, privacyEmail: fila.privacy_email, privacyUrl: fila.privacy_url, termsUrl: fila.terms_url, legalMode: fila.legal_mode === 'texto' ? 'texto' : 'enlace', privacyText: fila.privacy_text, termsText: fila.terms_text,
+        encargo: { version: fila.encargo_version ?? null, aceptadoEn, aceptadoPor: fila.encargo_accepted_name ?? null, vigente: fila.encargo_version === shared_1.VERSION_DOCUMENTOS_LEGALES, versionVigente: shared_1.VERSION_DOCUMENTOS_LEGALES },
+    };
 }
-async function guardarDatosLegales(db, audit, organizationId, clientId, dto, actorId) {
+async function guardarDatosLegales(db, audit, organizationId, clientId, dto, actorId, actorName) {
     const antes = await leerDatosLegales(db, organizationId, clientId);
     const limpio = (valor) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null);
     await db.query('UPDATE clients SET legal_name = ?, tax_id = ?, privacy_email = ?, privacy_url = ?, terms_url = ?, legal_mode = ?, privacy_text = ?, terms_text = ? WHERE id = ? AND organization_id = ?', [limpio(dto.legalName), limpio(dto.taxId), limpio(dto.privacyEmail), limpio(dto.privacyUrl), limpio(dto.termsUrl), dto.legalMode === 'texto' ? 'texto' : 'enlace', limpio(dto.privacyText), limpio(dto.termsText), clientId, organizationId]);
     await audit.log({ organizationId, actorId, entityType: 'ClientLegalData', entityId: clientId, action: 'updated', before: antes, after: dto });
+    if (dto.aceptaEncargo === true && !antes.encargo.vigente) {
+        await db.query('UPDATE clients SET encargo_version = ?, encargo_accepted_at = ?, encargo_accepted_by = ?, encargo_accepted_name = ? WHERE id = ? AND organization_id = ?', [shared_1.VERSION_DOCUMENTOS_LEGALES, new Date(), actorId, actorName?.slice(0, 180) ?? null, clientId, organizationId]);
+        await audit.log({ organizationId, actorId, entityType: 'ClientDataProcessingAgreement', entityId: clientId, action: 'accepted', after: { version: shared_1.VERSION_DOCUMENTOS_LEGALES } });
+    }
     return leerDatosLegales(db, organizationId, clientId);
 }
 function empresaDelPortal(clientId) {

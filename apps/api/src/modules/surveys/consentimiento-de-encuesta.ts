@@ -7,11 +7,12 @@
  */
 
 import type { SurveyConsent, SurveyQuestion } from '@espartanos/shared';
-import { pideDatosPersonales, traeDatosPersonales } from '@espartanos/shared';
+import { BadRequestException } from '@nestjs/common';
+import { OPERADOR_ESPARTANOS, PLAZOS_DE_CONSERVACION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, nombreLegalDelLocal, nombreLegalDelOperador, pideDatosPersonales, pideDatosSensibles, traeDatosPersonales } from '@espartanos/shared';
 
 interface ConsultaSql { query(sql: string, parametros?: unknown[]): Promise<unknown> }
 
-export const VERSION_CONSENTIMIENTO_ENCUESTA = 'survey-v1';
+export const VERSION_CONSENTIMIENTO_ENCUESTA = 'survey-v2';
 
 /** Texto de la aceptación para una encuesta, o `null` si no pide datos personales. */
 export async function consentimientoDeEncuesta(db: ConsultaSql, survey: { clientId?: string | null; questions?: SurveyQuestion[] | null }): Promise<SurveyConsent | null> {
@@ -19,23 +20,27 @@ export async function consentimientoDeEncuesta(db: ConsultaSql, survey: { client
   let empresa: Record<string, string | null> | undefined;
   if (survey.clientId) {
     const filas = await db.query(
-      'SELECT name, legal_name, privacy_email, privacy_url, legal_mode, privacy_text FROM clients WHERE id = ? LIMIT 1',
+      'SELECT name, legal_name, tax_id, privacy_email, privacy_url, legal_mode, privacy_text FROM clients WHERE id = ? LIMIT 1',
       [survey.clientId],
     ).catch(() => []) as Array<Record<string, string | null>>;
     empresa = filas?.[0];
   }
-  const responsable = empresa?.legal_name?.trim() || empresa?.name?.trim() || 'Espartanos';
-  const correo = empresa?.privacy_email?.trim();
-  const porEncargo = empresa ? ` La plataforma Espartanos los trata por encargo de ${responsable}.` : '';
-  const derechos = correo
-    ? ` Puedo pedir acceso, corrección o eliminación escribiendo a ${correo}.`
-    : ' Puedo pedir acceso, corrección o eliminación de mis datos.';
-  const texto = `Acepto que ${responsable} use los datos que dejo en esta encuesta para conocer mi opinión y, si corresponde, contactarme sobre ella. Se conservan mientras sirvan a ese fin.${derechos}${porEncargo}`;
+  // Sin empresa, la encuesta es de Espartanos y Espartanos es el responsable.
+  const responsable = empresa
+    ? nombreLegalDelLocal({ razonSocial: empresa.legal_name, rut: empresa.tax_id, nombreComercial: empresa.name })
+    : nombreLegalDelOperador();
+  const correo = empresa?.privacy_email?.trim() || OPERADOR_ESPARTANOS.correo;
+  const porEncargo = empresa ? ` La plataforma ${OPERADOR_ESPARTANOS.marca} los trata por encargo de ${responsable}.` : '';
+  const sensibles = pideDatosSensibles(survey.questions ?? [])
+    ? ` Autorizo expresamente el uso de la información de salud o alimentación que indique sólo para atender mi respuesta; no se usa para publicidad ni se comparte con terceros.`
+    : '';
+  const texto = `Acepto que ${responsable} use los datos que dejo en esta encuesta para conocer mi opinión y, si corresponde, contactarme sobre ella. Se conservan hasta ${PLAZOS_DE_CONSERVACION.encuestasMeses} meses y luego se anonimizan. Puedo ejercer mis derechos de acceso, rectificación, supresión, oposición, portabilidad y bloqueo escribiendo a ${correo}, y reclamar ante la Agencia de Protección de Datos Personales.${sensibles}${porEncargo}`;
   const modoTexto = empresa?.legal_mode === 'texto';
   return {
     texto,
     version: VERSION_CONSENTIMIENTO_ENCUESTA,
     responsable,
+    identidad: empresa ? { razonSocial: empresa.legal_name, rut: empresa.tax_id, correo: empresa.privacy_email, nombreComercial: empresa.name } : null,
     privacyUrl: modoTexto ? null : empresa?.privacy_url || null,
     privacyText: modoTexto ? empresa?.privacy_text || null : null,
   };
@@ -67,4 +72,20 @@ export function contactoEscrito(questions: SurveyQuestion[], respuestas: Record<
     return typeof escrito === 'string' && escrito.trim() ? escrito.trim() : undefined;
   };
   return { nombre: valor('nombre')?.slice(0, 180), correo: valor('correo')?.slice(0, 190) };
+}
+
+/**
+ * Impide activar una encuesta de una empresa que pide datos personales sin su identidad legal.
+ *
+ * Una encuesta sin empresa es de Espartanos, que ya está identificado; una sin datos personales no
+ * necesita responsable ante quien responde.
+ *
+ * @throws BadRequestException con lo que falta completar.
+ */
+export async function exigirIdentidadLegalDeEncuesta(db: ConsultaSql, clientId: string | null | undefined, preguntas: SurveyQuestion[] | null | undefined): Promise<void> {
+  if (!clientId || !pideDatosPersonales(preguntas ?? [])) return;
+  const filas = await db.query('SELECT legal_name, tax_id, privacy_email FROM clients WHERE id = ? LIMIT 1', [clientId]) as Array<Record<string, string | null>>;
+  const empresa = filas?.[0];
+  const faltan = faltantesDeIdentidadLegal({ razonSocial: empresa?.legal_name, rut: empresa?.tax_id, correo: empresa?.privacy_email });
+  if (faltan.length) throw new BadRequestException(mensajeDeIdentidadIncompleta(faltan));
 }

@@ -1,16 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThan, Not, Repository } from 'typeorm';
+import { PLAZOS_DE_CONSERVACION } from '@espartanos/shared';
 import { Lead } from '../../../modules/crm/leads/lead.entity';
 import { DataProtectionService } from '../../data-protection/data-protection.service';
 
 /**
  * Dias que se conservan los datos personales de una reserva despues de ocurrida.
  *
- * Meta acepta conversiones hasta 7 dias despues del evento; el margen restante cubre la
- * revision operativa del periodo y los reportes mensuales antes de borrar el dato.
+ * Sale de `PLAZOS_DE_CONSERVACION`, el mismo valor que publican las politicas de privacidad.
  */
-const RESERVATION_RETENTION_DAYS = 180;
+const RESERVATION_RETENTION_DAYS = Math.round(PLAZOS_DE_CONSERVACION.reservasMeses * 30.44);
 
 /**
  * Etapas en las que un lead ya no espera nada de nadie.
@@ -80,5 +80,19 @@ export class PurgeExpiredLeadsJob {
     // despues, sin tocar fecha ni estado para no alterar la analitica de asistencia.
     const reservations = await this.dataProtection.anonymizeExpiredReservations(RESERVATION_RETENTION_DAYS);
     this.logger.log(`Expired reservations reviewed: ${reservations.reviewed}, anonymized: ${reservations.anonymized}`);
+
+    // El resto de los plazos publicados; cada paso es independiente para que un fallo no frene a los demas.
+    const pasos: Array<[string, () => Promise<number>]> = [
+      ['measurement identifiers cleared', () => this.dataProtection.borrarIdentificadoresDeMedicionVencidos(PLAZOS_DE_CONSERVACION.medicionMeses)],
+      ['group requests anonymized', () => this.dataProtection.anonimizarSolicitudesDeGrupoVencidas(PLAZOS_DE_CONSERVACION.solicitudesDeGrupoMeses)],
+      ['survey responses anonymized', () => this.dataProtection.anonimizarRespuestasDeEncuestaVencidas(PLAZOS_DE_CONSERVACION.encuestasMeses)],
+    ];
+    for (const [nombre, paso] of pasos) {
+      try {
+        this.logger.log(`Retention: ${await paso()} ${nombre}`);
+      } catch (error) {
+        this.logger.error(`Retention step failed (${nombre}): ${error instanceof Error ? error.message : error}`);
+      }
+    }
   }
 }
