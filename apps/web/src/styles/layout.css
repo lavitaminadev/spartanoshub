@@ -132,3 +132,14 @@
 .app-layout.menu-compacto .sidebar:not(:hover) .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
 .app-layout.menu-compacto .sidebar:not(:hover) .sidebar-footer { align-items: center; padding-left: 0; padding-right: 0; }
 }
+/* Durante el despliegue del menú compacto: sin barra horizontal ni textos partidos en dos líneas. */
+.app-layout.menu-compacto .sidebar-nav { overflow-x: hidden; }
+.app-layout.menu-compacto .nav-item,
+.app-layout.menu-compacto .nav-label,
+.app-layout.menu-compacto .sidebar-nav-section-title,
+.app-layout.menu-compacto .user-info,
+.app-layout.menu-compacto .sidebar-account-link,
+.app-layout.menu-compacto .sidebar-header > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* En íconos la barra de desplazamiento vertical tapaba parte del menú: se oculta, se sigue desplazando con la rueda. */
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-nav { scrollbar-width: none; }
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-nav::-webkit-scrollbar { display: none; }
