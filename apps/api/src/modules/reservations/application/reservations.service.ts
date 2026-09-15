@@ -1,4 +1,5 @@
 import { normalizarCorreo, normalizarTelefono } from '../../integrations/meta/identificadores-meta';
+import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, type ReglaDeCampo } from '@espartanos/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
@@ -471,6 +472,25 @@ export class ReservationsService {
     }
     return form;
   }
+  /** HTML con las etiquetas de vista previa del enlace público. Sin formulario publicado, una genérica. */
+  async vistaPreviaDelEnlace(slug: string): Promise<string> {
+    const origen = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
+    const url = `${origen}/book/${encodeURIComponent(slug)}`;
+    try {
+      const form = await this.publishedForm(slug);
+      const design = form.designConfig as DesignConfig & Record<string, string | undefined>;
+      const ocasiones = (() => { try { return JSON.parse(design.ocasiones || '[]') as Array<{ imagen?: string }>; } catch { return []; } })();
+      return htmlDeVistaPrevia({
+        titulo: `${design.title && design.title !== form.name ? `${design.title} · ` : ''}${form.name}`,
+        descripcion: design.welcome || 'Reserva en línea: elige personas, fecha y horario.',
+        url,
+        imagen: primeraImagen(design.shareImage, design.backgroundImage, ...ocasiones.map((ocasion) => ocasion.imagen), design.logoUrl),
+      });
+    } catch {
+      return htmlDeVistaPrevia({ titulo: 'Reserva en línea', descripcion: 'Reserva en línea con Espartanos.', url });
+    }
+  }
+
   async publicForm(slug: string) {
     const form = await this.publishedForm(slug);
     const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);

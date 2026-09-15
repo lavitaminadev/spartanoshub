@@ -247,7 +247,7 @@ const PATH_FEATURE: Record<string, string> = {
   // Las plantillas de correo se guardan por el endpoint de ajustes, asi que responden al mismo
   // modulo: quien no puede tocar la configuracion tampoco debe reescribir lo que le llega a un
   // cliente.
-  '/correos': 'settings',
+  '/correos': 'reservations',
   '/crm/contacts': 'crm',
   '/crm/leads': 'crm',
 

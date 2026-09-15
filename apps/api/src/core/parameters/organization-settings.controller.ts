@@ -14,6 +14,10 @@ import type { AuthenticatedRequest } from '../../shared/types/request';
 import { UpdateOrganizationSettingsDto } from './dto/update-organization-settings.dto';
 import { OrganizationSettingsService } from './organization-settings.service';
 import { ModuleScope } from '../authorization/module-scope.decorator';
+import { RequiresPermission } from '../authorization/requires-permission.decorator';
+
+/** Claves que maneja la pantalla de Correos. */
+const ES_CLAVE_DE_CORREO = (clave: string) => clave.startsWith('email.');
 import { REQUIRED_LIFECYCLE_KEYS } from '../../modules/organizations/organization-features';
 import { isModuleLifecycleVisible, moduleLifecycleSettingKey, type ModuleLifecycleStatus } from '@espartanos/shared';
 
@@ -107,7 +111,45 @@ export class OrganizationSettingsController {
    * sin un desplegable habría que escribir la dirección a mano, que es justo lo que no se
    * permite.
    */
+  /**
+   * Plantillas de correo, sin el resto de la configuración.
+   *
+   * La configuración general sigue reservada a desarrollo; los correos que recibe quien reserva
+   * los escribe quien administra las reservas. Por eso se gobiernan con el permiso de Reservas y
+   * sólo alcanzan las claves `email.*`.
+   */
+  @Get('correos')
+  @RequiresPermission('reservations', 'edit')
+  @ApiOperation({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' })
+  async correos(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    const organizationId = request.organizationId || request.user.organizationId;
+    await this.accountAccess.assertClient(organizationId, request.user, clientId);
+    const ajustes = await this.settings.list(organizationId, clientId ?? null) as Array<{ key: string }>;
+    return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key));
+  }
+
+  @Put('correos')
+  @RequiresPermission('reservations', 'edit')
+  @ApiOperation({ summary: 'Guardar plantillas de correo' })
+  async guardarCorreos(@Req() request: AuthenticatedRequest, @Body() dto: UpdateOrganizationSettingsDto, @Query('clientId') clientId?: string) {
+    const valores = dto.values ?? {};
+    const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
+    if (ajenas.length) throw new ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
+    const organizationId = request.organizationId || request.user.organizationId;
+    await this.accountAccess.assertClient(organizationId, request.user, clientId);
+    return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);
+  }
+
+  /** Si el servidor de correo está listo para enviar, y qué falta si no. */
+  @Get('estado-del-correo')
+  @RequiresPermission('reservations', 'edit')
+  @ApiOperation({ summary: 'Estado del envío de correos' })
+  estadoDelCorreo() {
+    return this.correo.estado();
+  }
+
   @Get('destinatarios-de-prueba')
+  @RequiresPermission('reservations', 'edit')
   @ApiOperation({ summary: 'Personas del equipo a las que se puede enviar una prueba' })
   async destinatariosDePrueba(@Req() request: AuthenticatedRequest) {
     const organizationId = request.organizationId || request.user.organizationId;
@@ -139,6 +181,7 @@ export class OrganizationSettingsController {
    * reserva se trata, y dejarlas vacías mostraría un texto con huecos que no se parece al real.
    */
   @Post('probar')
+  @RequiresPermission('reservations', 'edit')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Enviar una plantilla de correo a alguien del equipo' })
   async probar(

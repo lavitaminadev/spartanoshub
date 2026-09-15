@@ -50,14 +50,13 @@ export function ReservationLocalHubPage() {
   const hasBackground = Boolean(local.designConfig?.backgroundImage);
 
   return <main className="reservation-local-hub">
-    <header className="local-hub-hero">
+    <header className="local-hub-cabecera">
       <div>
         <Link className="back-link" to={base}>← Sucursales</Link>
-        <span className="page-eyebrow">SUCURSAL · {local.status === 'published' ? 'PUBLICADO' : local.status === 'paused' ? 'PAUSADO' : 'BORRADOR'}</span>
-        <h1>{local.name}</h1>
-        <p className="page-subtitle">{local.status === 'published' ? 'Canal publicado y listo para recibir reservas.' : 'Canal en borrador o pausado. Configúralo antes de compartirlo.'}</p>
+        <h1>{local.name}<span className={`estado-sucursal ${local.status === 'published' ? '' : 'is-borrador'}`}>{local.status === 'published' ? 'Publicada' : local.status === 'paused' ? 'Pausada' : 'Borrador'}</span></h1>
+        <p className="page-subtitle">{local.status === 'published' ? 'Recibiendo reservas.' : 'Configúrala y publícala antes de compartir el enlace.'}</p>
       </div>
-      <div className="portal-item-actions"><Link className="btn btn-primary" to={`${base}/forms/${id}/design?section=esencial`}>Configurar lo esencial</Link><a className="btn btn-outline" href={publicUrl} target="_blank" rel="noreferrer">Ver como cliente</a></div>
+      <div className="portal-item-actions"><a className="btn btn-outline" href={publicUrl} target="_blank" rel="noreferrer">Ver como cliente ↗</a><button type="button" className="btn btn-primary" onClick={() => setCompartir(true)}>Compartir enlace</button></div>
     </header>
 
     <section className="local-hub-section"><div><span className="page-eyebrow">GESTIONAR ESTA SUCURSAL</span><h2>Elige una tarea</h2><p>Todo lo que abras queda restringido a {local.name}. Las opciones detalladas aparecen dentro de cada tarea.</p></div><div className="local-hub-grid">
@@ -80,7 +79,7 @@ export function ReservationLocalHubPage() {
     </section>
 
     <section className="local-hub-status">
-      <div><span className="page-eyebrow">PUBLICACIÓN</span><h2>Identidad y enlace</h2><p className="page-subtitle">La identidad es opcional: se puede publicar con la plantilla y personalizarla después.</p></div>
+      <div><span className="page-eyebrow">PUBLICACIÓN</span><h2>Identidad y enlace</h2><p className="page-subtitle">Logo y portada son opcionales, pero la portada es la imagen que aparece al compartir el enlace por WhatsApp o redes.</p></div>
       <div className="reservation-metric-grid reservation-metric-grid-four"><div><span>Estado</span><strong>{local.status === 'published' ? 'Publicado' : local.status === 'paused' ? 'Pausado' : 'Borrador'}</strong></div><Link to={`${base}/forms/${id}/design?section=diseno`}><span>Logo</span><strong>{hasLogo ? 'Cambiar logo' : 'Agregar logo'}</strong></Link><Link to={`${base}/forms/${id}/design?section=diseno`}><span>Portada</span><strong>{hasBackground ? 'Cambiar portada' : 'Agregar portada'}</strong></Link>{clientMode ? <div><span>Medición</span><strong>{local.metaCapiEnabled || local.ga4MeasurementId ? 'Activa para esta sucursal' : 'No configurada'}</strong></div> : <Link to={`${base}/forms/${id}/design?section=medicion`}><span>Medición</span><strong>{local.metaCapiEnabled || local.ga4MeasurementId ? 'Revisar medición' : 'Configurar si la necesitas'}</strong></Link>}</div>
       <p className="page-subtitle local-hub-enlace">Enlace público: <code>{publicUrl}</code> <button type="button" className="btn btn-primary btn-sm" onClick={() => setCompartir(true)}>Compartir</button></p>
       <PanelCompartir abierto={compartir} titulo="Compartir reservas" nombre={local.name} urlBase={publicUrl} textoAbrir="Abrir página de reservas ↗" onCerrar={() => setCompartir(false)}

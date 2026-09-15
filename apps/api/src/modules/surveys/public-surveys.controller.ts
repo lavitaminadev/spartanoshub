@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Header, NotFoundException, Param, Post } from '@nestjs/common';
+import { htmlDeVistaPrevia, primeraImagen } from '../../shared/vista-previa-de-enlace';
 import { encuestaPublicaDisponible } from './encuestas-de-la-empresa';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -82,6 +83,25 @@ export class PublicSurveysController {
       [randomUUID(), survey.organizationId, survey.id, (dto.origen || 'link').slice(0, 60), dto.sesion],
     ).catch(() => undefined);
     return { registrada: true };
+  }
+
+  /** Título, descripción e imagen del enlace para WhatsApp, Facebook e Instagram. */
+  @Get(':id/vista-previa')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=600')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  async vistaPrevia(@Param('id') id: string): Promise<string> {
+    const origen = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
+    const url = `${origen}/survey/${encodeURIComponent(id)}`;
+    const survey = await this.surveys.findOne({ where: { id } }).catch(() => null);
+    if (!survey || survey.status !== 'active') return htmlDeVistaPrevia({ titulo: 'Encuesta', descripcion: 'Cuéntanos cómo fue tu experiencia.', url });
+    const diseno = (survey.designConfig ?? {}) as Record<string, string | undefined>;
+    return htmlDeVistaPrevia({
+      titulo: survey.title,
+      descripcion: diseno.welcome || 'Tu opinión nos ayuda a mejorar. Toma menos de un minuto.',
+      url,
+      imagen: primeraImagen(diseno.shareImage, diseno.backgroundImage, diseno.logoUrl),
+    });
   }
 
   @Get(':id')

@@ -689,3 +689,15 @@
 .oferta-beneficios.is-lista { grid-template-columns: 1fr; background: #e7f5ec; border-color: #cbe8d5; }
 @media (max-width: 420px) { .oferta-beneficios { grid-template-columns: 1fr; } .oferta-beneficios .btn { width: 100%; } }
 .toggle-row .toggle-nota.bloque { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; }
+
+.booking-success > span.success-state { display: inline-block; width: auto; height: auto; margin: 14px auto 0; padding: 5px 12px; border-radius: 999px; background: rgba(22, 163, 74, .12); color: #166534; font-size: 11px; font-weight: 800; letter-spacing: .08em; line-height: 1.3; }
+.booking-success > span.success-state.is-pending { background: rgba(217, 119, 6, .14); color: #92400e; }
+/* Estado y accesos de la sucursal: el texto cabe en la tarjeta. */
+.reservation-metric-grid-four > * strong { display: block; font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
+.reservation-metric-grid-four > a { padding: 20px; border: 1px solid var(--border-light, #e7e1e4); border-radius: var(--radius-md, 12px); background: #fff; text-decoration: none; }
+/* Cabecera clara de la sucursal. */
+.local-hub-cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 4px 0 8px; }
+.local-hub-cabecera h1 { margin: 6px 0 4px; font-size: clamp(1.5rem, 3vw, 2.1rem); color: var(--text-dark, #151317); }
+.local-hub-cabecera .page-subtitle { margin: 0; }
+.local-hub-cabecera .estado-sucursal { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #e7f5ec; color: #1d5b35; font-size: 11px; font-weight: 700; letter-spacing: .04em; vertical-align: middle; }
+.local-hub-cabecera .estado-sucursal.is-borrador { background: #fff4d6; color: #6b4d00; }

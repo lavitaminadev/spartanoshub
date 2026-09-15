@@ -15,6 +15,7 @@ var ReservationsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReservationsService = void 0;
 const identificadores_meta_1 = require("../../integrations/meta/identificadores-meta");
+const vista_previa_de_enlace_1 = require("../../../shared/vista-previa-de-enlace");
 const shared_1 = require("@espartanos/shared");
 const shared_2 = require("@espartanos/shared");
 const common_1 = require("@nestjs/common");
@@ -428,6 +429,29 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.NotFoundException('Este formulario no está disponible');
         }
         return form;
+    }
+    async vistaPreviaDelEnlace(slug) {
+        const origen = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
+        const url = `${origen}/book/${encodeURIComponent(slug)}`;
+        try {
+            const form = await this.publishedForm(slug);
+            const design = form.designConfig;
+            const ocasiones = (() => { try {
+                return JSON.parse(design.ocasiones || '[]');
+            }
+            catch {
+                return [];
+            } })();
+            return (0, vista_previa_de_enlace_1.htmlDeVistaPrevia)({
+                titulo: `${design.title && design.title !== form.name ? `${design.title} · ` : ''}${form.name}`,
+                descripcion: design.welcome || 'Reserva en línea: elige personas, fecha y horario.',
+                url,
+                imagen: (0, vista_previa_de_enlace_1.primeraImagen)(design.shareImage, design.backgroundImage, ...ocasiones.map((ocasion) => ocasion.imagen), design.logoUrl),
+            });
+        }
+        catch {
+            return (0, vista_previa_de_enlace_1.htmlDeVistaPrevia)({ titulo: 'Reserva en línea', descripcion: 'Reserva en línea con Espartanos.', url });
+        }
     }
     async publicForm(slug) {
         const form = await this.publishedForm(slug);

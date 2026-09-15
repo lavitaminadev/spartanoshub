@@ -42,6 +42,15 @@ RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,NE]
   </FilesMatch>
 </IfModule>
 
+# Vista previa de enlaces: WhatsApp, Facebook, Instagram y similares no ejecutan JavaScript, así
+# que leen título e imagen desde el servidor. Sólo esos lectores; personas y buscadores siguen igual.
+RewriteCond %{HTTP_HOST} ^cuartel\.espartanos\.cl$ [NC]
+RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|WhatsApp|Instagram|Twitterbot|LinkedInBot|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Pinterestbot|redditbot|Applebot|vkShare|W3C_Validator) [NC]
+RewriteRule ^book/([A-Za-z0-9_-]+) https://refugio.espartanos.cl/api/public/reservations/$1/vista-previa [R=302,L]
+RewriteCond %{HTTP_HOST} ^cuartel\.espartanos\.cl$ [NC]
+RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|WhatsApp|Instagram|Twitterbot|LinkedInBot|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Pinterestbot|redditbot|Applebot|vkShare|W3C_Validator) [NC]
+RewriteRule ^survey/([A-Za-z0-9_-]+) https://refugio.espartanos.cl/api/public/surveys/$1/vista-previa [R=302,L]
+
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]

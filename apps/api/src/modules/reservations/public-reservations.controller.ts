@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Ip, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Header, Headers, Ip, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../core/auth/decorators/public.decorator';
@@ -48,6 +48,13 @@ export class PublicReservationsController {
   rescheduleManagement(@Param('token') token: string, @Body() dto: PublicRescheduleReservationDto) {
     return this.service.reschedulePublicManagement(token, dto.startsAt, dto.partySize);
   }
+
+  /** Título, descripción e imagen del enlace para WhatsApp, Facebook e Instagram. */
+  @Get(':slug/vista-previa')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=600')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  vistaPrevia(@Param('slug') slug: string) { return this.service.vistaPreviaDelEnlace(slug); }
 
   @Post('manage/:token/beneficios')
   @Throttle({ default: { limit: 5, ttl: 60000 } })

@@ -161,7 +161,7 @@ export function PanelDeCorreo(): JSX.Element {
   const ajustesQuery = useQuery<Ajuste[]>({
     // La empresa forma parte de la clave: cambiarla trae otros valores, no los mismos filtrados.
     queryKey: ['ajustes-correo', empresa],
-    queryFn: () => api.get(`/settings${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
+    queryFn: () => api.get(`/settings/correos${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
   });
 
   const equipoQuery = useQuery<Destinatario[]>({
@@ -178,7 +178,7 @@ export function PanelDeCorreo(): JSX.Element {
 
   const guardar = useMutation({
     mutationFn: (values: Record<string, unknown>) => api.put(
-      `/settings${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`,
+      `/settings/correos${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`,
       { values },
     ),
     onSuccess: async () => {
@@ -216,6 +216,11 @@ export function PanelDeCorreo(): JSX.Element {
     setAviso(null);
   };
 
+  const estadoQuery = useQuery({
+    queryKey: ['estado-del-correo'],
+    queryFn: () => api.get<{ habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[] }>('/settings/estado-del-correo'),
+  });
+
   if (ajustesQuery.isLoading) return <LoadingSpinner />;
 
   return (
@@ -243,6 +248,27 @@ export function PanelDeCorreo(): JSX.Element {
           </select>
         </label>
       </header>
+
+      {/* Dónde se configura cada cosa: una sola explicación para no buscar en varias pantallas. */}
+      <section className="panel-correo-guia" aria-label="Cómo se configuran los correos">
+        <div className={`panel-correo-paso ${estadoQuery.data?.habilitado ? 'is-listo' : 'is-pendiente'}`}>
+          <span>1</span>
+          <div>
+            <strong>Casilla que envía {estadoQuery.data?.habilitado ? '· lista' : '· falta configurar'}</strong>
+            {estadoQuery.data?.habilitado
+              ? <small>Los correos salen desde <b>{estadoQuery.data.remitente}</b> ({estadoQuery.data.servidor}:{estadoQuery.data.puerto}). Es la misma para todas las empresas y sucursales.</small>
+              : <small>Crea una casilla en cPanel → Cuentas de correo (por ejemplo reservas@espartanos.cl) y en cPanel → Setup Node.js App → Environment variables agrega: <code>SMTP_ENABLED=true</code>, <code>SMTP_HOST=mail.espartanos.cl</code>, <code>SMTP_PORT=465</code>, <code>SMTP_SECURE=true</code>, <code>SMTP_USER</code> y <code>SMTP_FROM</code> con esa casilla, y <code>SMTP_PASSWORD</code> con su contraseña. Luego reinicia la aplicación.{estadoQuery.data?.faltan?.length ? ` Falta: ${estadoQuery.data.faltan.join(', ')}.` : ''}</small>}
+          </div>
+        </div>
+        <div className="panel-correo-paso is-listo">
+          <span>2</span>
+          <div><strong>Qué dice cada correo · aquí</strong><small>Enciende y escribe los avisos de abajo: confirmación, recordatorio, cambios y encuesta después de la visita. Puedes tener una versión por empresa.</small></div>
+        </div>
+        <div className="panel-correo-paso is-listo">
+          <span>3</span>
+          <div><strong>Respuestas y avisos de cada sucursal · en la sucursal</strong><small>A qué correo del local llegan las respuestas de los clientes y quién del equipo recibe el aviso de cada reserva nueva: Reservas → sucursal → Datos del local y textos legales → Correos.</small></div>
+        </div>
+      </section>
 
       {empresa ? (
         <p className="panel-correo-nota">

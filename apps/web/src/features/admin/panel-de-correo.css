@@ -58,3 +58,13 @@
   .panel-correo-destinatario { flex: 1 1 100%; }
   .panel-correo-probar { width: 100%; }
 }
+
+.panel-correo-guia { display: grid; gap: 10px; margin: 0 0 18px; }
+.panel-correo-paso { display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: start; padding: 12px 14px; border: 1px solid #e7e1e4; border-radius: 12px; background: #fff; }
+.panel-correo-paso > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #efeaed; font-weight: 800; font-size: 13px; }
+.panel-correo-paso.is-listo > span { background: #e7f5ec; color: #1d5b35; }
+.panel-correo-paso.is-pendiente { border-color: #f1d9a6; background: #fffaf0; }
+.panel-correo-paso.is-pendiente > span { background: #fff4d6; color: #6b4d00; }
+.panel-correo-paso strong { display: block; margin-bottom: 3px; }
+.panel-correo-paso small { display: block; line-height: 1.5; overflow-wrap: anywhere; }
+.panel-correo-paso code { padding: 1px 4px; border-radius: 4px; background: #f4f1f3; font-size: 12px; }

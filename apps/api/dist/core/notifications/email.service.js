@@ -50,6 +50,17 @@ let EmailService = EmailService_1 = class EmailService {
             socketTimeout: 20_000,
         });
     }
+    estado() {
+        const faltan = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM'].filter((clave) => !process.env[clave]?.trim());
+        return {
+            habilitado: Boolean(this.transporter) && faltan.length === 0,
+            remitente: this.from || null,
+            servidor: process.env.SMTP_HOST?.trim() || null,
+            puerto: process.env.SMTP_HOST ? Number(process.env.SMTP_PORT || 465) : null,
+            respuestasA: this.replyTo ?? null,
+            faltan: process.env.SMTP_ENABLED === 'true' ? faltan : ['SMTP_ENABLED=true', ...faltan],
+        };
+    }
     async send(to, subject, html, options) {
         const recipient = to.trim().toLowerCase();
         if (!validRecipient(recipient)) {
