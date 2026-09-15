@@ -92,22 +92,43 @@
 
 /*
  * Menú compacto (sólo computador): la barra lateral queda en íconos y deja más espacio al
- * contenido. Cada ícono muestra su nombre al pasar el cursor y lo anuncia el lector de pantalla.
+ * contenido. Pasar el cursor, o llegar con el teclado, lo despliega completo por encima del
+ * contenido sin moverlo; al salir vuelve a íconos. Una pequeña espera evita que se abra al cruzar
+ * el cursor por accidente. Sin cursor (táctil), queda en íconos con su nombre al tocar.
  */
 .menu-compacto-boton { margin-left: auto; display: grid; place-items: center; width: 30px; height: 30px; flex: none; padding: 0; border: 1px solid rgba(255, 255, 255, .18); border-radius: 8px; background: transparent; color: #fff; font-size: 16px; line-height: 1; cursor: pointer; }
 .menu-compacto-boton:hover, .menu-compacto-boton:focus-visible { background: rgba(255, 255, 255, .1); }
 .app-layout.menu-compacto { --sidebar-width: 76px; }
-.app-layout.menu-compacto .sidebar { width: 76px; }
 .app-layout.menu-compacto .app-workspace { margin-left: 76px; }
-.app-layout.menu-compacto .sidebar-header { flex-direction: column; gap: 10px; padding-left: 0; padding-right: 0; align-items: center; }
-.app-layout.menu-compacto .sidebar-header > div,
-.app-layout.menu-compacto .nav-label,
-.app-layout.menu-compacto .sidebar-nav-section-title,
-.app-layout.menu-compacto .user-info,
-.app-layout.menu-compacto .sidebar-account-link,
-.app-layout.menu-compacto .sidebar-footer .btn,
-.app-layout.menu-compacto .sidebar-footer .pwa-install-button { display: none; }
-.app-layout.menu-compacto .menu-compacto-boton { margin-left: 0; }
-.app-layout.menu-compacto .sidebar-nav-section { padding-top: 6px; margin-top: 6px; border-top: 1px solid rgba(255, 255, 255, .08); }
-.app-layout.menu-compacto .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
-.app-layout.menu-compacto .sidebar-footer { align-items: center; padding-left: 0; padding-right: 0; }
+.app-layout.menu-compacto .sidebar { width: 240px; overflow-x: hidden; transition: width .18s ease .12s, box-shadow .18s ease .12s; }
+.app-layout.menu-compacto .sidebar:hover, .app-layout.menu-compacto .sidebar:has(:focus-visible) { box-shadow: 12px 0 40px rgba(21, 19, 23, .35); }
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) { width: 76px; }
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-header { flex-direction: column; gap: 10px; padding-left: 0; padding-right: 0; align-items: center; }
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-header > div,
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .nav-label,
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-nav-section-title,
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .user-info,
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-account-link,
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-footer .btn,
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-footer .pwa-install-button { display: none; }
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .menu-compacto-boton { margin-left: 0; }
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-nav-section { padding-top: 6px; margin-top: 6px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+.app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-footer { align-items: center; padding-left: 0; padding-right: 0; }
+
+/* Navegadores sin :has(): se despliega sólo al pasar el cursor. */
+@supports not selector(:has(a)) {
+.app-layout.menu-compacto .sidebar:not(:hover) { width: 76px; }
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-header { flex-direction: column; gap: 10px; padding-left: 0; padding-right: 0; align-items: center; }
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-header > div,
+.app-layout.menu-compacto .sidebar:not(:hover) .nav-label,
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-nav-section-title,
+.app-layout.menu-compacto .sidebar:not(:hover) .user-info,
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-account-link,
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-footer .btn,
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-footer .pwa-install-button { display: none; }
+.app-layout.menu-compacto .sidebar:not(:hover) .menu-compacto-boton { margin-left: 0; }
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-nav-section { padding-top: 6px; margin-top: 6px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.app-layout.menu-compacto .sidebar:not(:hover) .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+.app-layout.menu-compacto .sidebar:not(:hover) .sidebar-footer { align-items: center; padding-left: 0; padding-right: 0; }
+}
