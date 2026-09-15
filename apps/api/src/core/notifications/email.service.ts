@@ -48,6 +48,22 @@ export class EmailService {
    *   quien le toca contestar: la confirmacion de una reserva la responde el local, no la
    *   agencia que le presta el servidor de correo.
    */
+  /**
+   * Estado del envío para mostrarlo en pantalla, sin contraseña ni usuario completo.
+   * Los datos del servidor se configuran en el entorno del servidor, no desde la aplicación.
+   */
+  estado(): { habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[] } {
+    const faltan = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM'].filter((clave) => !process.env[clave]?.trim());
+    return {
+      habilitado: Boolean(this.transporter) && faltan.length === 0,
+      remitente: this.from || null,
+      servidor: process.env.SMTP_HOST?.trim() || null,
+      puerto: process.env.SMTP_HOST ? Number(process.env.SMTP_PORT || 465) : null,
+      respuestasA: this.replyTo ?? null,
+      faltan: process.env.SMTP_ENABLED === 'true' ? faltan : ['SMTP_ENABLED=true', ...faltan],
+    };
+  }
+
   async send(to: string, subject: string, html: string, options?: Pick<SendMailOptions, 'attachments' | 'replyTo'>): Promise<boolean> {
     const recipient = to.trim().toLowerCase();
     if (!validRecipient(recipient)) {

@@ -28,6 +28,8 @@ const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const update_organization_settings_dto_1 = require("./dto/update-organization-settings.dto");
 const organization_settings_service_1 = require("./organization-settings.service");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
+const requires_permission_decorator_1 = require("../authorization/requires-permission.decorator");
+const ES_CLAVE_DE_CORREO = (clave) => clave.startsWith('email.');
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const shared_1 = require("@espartanos/shared");
 let OrganizationSettingsController = class OrganizationSettingsController {
@@ -60,6 +62,24 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null);
+    }
+    async correos(request, clientId) {
+        const organizationId = request.organizationId || request.user.organizationId;
+        await this.accountAccess.assertClient(organizationId, request.user, clientId);
+        const ajustes = await this.settings.list(organizationId, clientId ?? null);
+        return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key));
+    }
+    async guardarCorreos(request, dto, clientId) {
+        const valores = dto.values ?? {};
+        const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
+        if (ajenas.length)
+            throw new common_1.ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
+        const organizationId = request.organizationId || request.user.organizationId;
+        await this.accountAccess.assertClient(organizationId, request.user, clientId);
+        return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);
+    }
+    estadoDelCorreo() {
+        return this.correo.estado();
     }
     async destinatariosDePrueba(request) {
         const organizationId = request.organizationId || request.user.organizationId;
@@ -120,7 +140,37 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "update", null);
 __decorate([
+    (0, common_1.Get)('correos'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, swagger_1.ApiOperation)({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], OrganizationSettingsController.prototype, "correos", null);
+__decorate([
+    (0, common_1.Put)('correos'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, swagger_1.ApiOperation)({ summary: 'Guardar plantillas de correo' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, update_organization_settings_dto_1.UpdateOrganizationSettingsDto, String]),
+    __metadata("design:returntype", Promise)
+], OrganizationSettingsController.prototype, "guardarCorreos", null);
+__decorate([
+    (0, common_1.Get)('estado-del-correo'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, swagger_1.ApiOperation)({ summary: 'Estado del envío de correos' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], OrganizationSettingsController.prototype, "estadoDelCorreo", null);
+__decorate([
     (0, common_1.Get)('destinatarios-de-prueba'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
     (0, swagger_1.ApiOperation)({ summary: 'Personas del equipo a las que se puede enviar una prueba' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -129,6 +179,7 @@ __decorate([
 ], OrganizationSettingsController.prototype, "destinatariosDePrueba", null);
 __decorate([
     (0, common_1.Post)('probar'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     (0, swagger_1.ApiOperation)({ summary: 'Enviar una plantilla de correo a alguien del equipo' }),
     __param(0, (0, common_1.Req)()),

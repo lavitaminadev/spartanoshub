@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PublicSurveysController = void 0;
 const common_1 = require("@nestjs/common");
+const vista_previa_de_enlace_1 = require("../../shared/vista-previa-de-enlace");
 const encuestas_de_la_empresa_1 = require("./encuestas-de-la-empresa");
 const swagger_1 = require("@nestjs/swagger");
 const throttler_1 = require("@nestjs/throttler");
@@ -63,6 +64,20 @@ let PublicSurveysController = class PublicSurveysController {
             return { registrada: false };
         await this.surveys.manager.query('INSERT IGNORE INTO survey_visits (id, organization_id, survey_id, origen, session_id) VALUES (?, ?, ?, ?, ?)', [(0, node_crypto_1.randomUUID)(), survey.organizationId, survey.id, (dto.origen || 'link').slice(0, 60), dto.sesion]).catch(() => undefined);
         return { registrada: true };
+    }
+    async vistaPrevia(id) {
+        const origen = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
+        const url = `${origen}/survey/${encodeURIComponent(id)}`;
+        const survey = await this.surveys.findOne({ where: { id } }).catch(() => null);
+        if (!survey || survey.status !== 'active')
+            return (0, vista_previa_de_enlace_1.htmlDeVistaPrevia)({ titulo: 'Encuesta', descripcion: 'Cuéntanos cómo fue tu experiencia.', url });
+        const diseno = (survey.designConfig ?? {});
+        return (0, vista_previa_de_enlace_1.htmlDeVistaPrevia)({
+            titulo: survey.title,
+            descripcion: diseno.welcome || 'Tu opinión nos ayuda a mejorar. Toma menos de un minuto.',
+            url,
+            imagen: (0, vista_previa_de_enlace_1.primeraImagen)(diseno.shareImage, diseno.backgroundImage, diseno.logoUrl),
+        });
     }
     async detail(id) {
         const survey = await this.surveys.findOne({ where: { id } });
@@ -141,6 +156,16 @@ __decorate([
     __metadata("design:paramtypes", [String, survey_dto_1.SurveyVisitDto]),
     __metadata("design:returntype", Promise)
 ], PublicSurveysController.prototype, "visit", null);
+__decorate([
+    (0, common_1.Get)(':id/vista-previa'),
+    (0, common_1.Header)('Content-Type', 'text/html; charset=utf-8'),
+    (0, common_1.Header)('Cache-Control', 'public, max-age=600'),
+    (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PublicSurveysController.prototype, "vistaPrevia", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),

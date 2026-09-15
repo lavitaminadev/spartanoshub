@@ -40,6 +40,7 @@ let PublicReservationsController = class PublicReservationsController {
     rescheduleManagement(token, dto) {
         return this.service.reschedulePublicManagement(token, dto.startsAt, dto.partySize);
     }
+    vistaPrevia(slug) { return this.service.vistaPreviaDelEnlace(slug); }
     aceptarBeneficios(token) { return this.service.aceptarBeneficiosPublic(token); }
     confirmManagement(token) { return this.service.confirmPublicManagement(token); }
     lookup(slug, dto) {
@@ -103,6 +104,16 @@ __decorate([
     __metadata("design:paramtypes", [String, reservation_dto_1.PublicRescheduleReservationDto]),
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "rescheduleManagement", null);
+__decorate([
+    (0, common_1.Get)(':slug/vista-previa'),
+    (0, common_1.Header)('Content-Type', 'text/html; charset=utf-8'),
+    (0, common_1.Header)('Cache-Control', 'public, max-age=600'),
+    (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('slug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "vistaPrevia", null);
 __decorate([
     (0, common_1.Post)('manage/:token/beneficios'),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),

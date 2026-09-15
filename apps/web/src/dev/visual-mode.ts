@@ -553,6 +553,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
   [/\/uploads\/images\/status/, () => ({ configured: true })],
   [/\/public\/reservations\/manage\/[^/]+\/beneficios$/, () => ({ aceptado: true })],
+  [/\/settings\/estado-del-correo$/, () => ({ habilitado: false, remitente: null, servidor: null, puerto: null, respuestasA: null, faltan: ['SMTP_ENABLED=true', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM'] })],
   [/\/(reservations|surveys)\/company-legal/, (config) => {
     const clave = 'vh.visual.companyLegal';
     let actual: Record<string, unknown> = { legalName: 'Casa Costanera SpA', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace', privacyText: '', termsText: '' };
@@ -971,7 +972,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * Sólo con la empresa elegida —\`?clientId=\`—: la encuesta es de cada empresa, y la vista general
    * tiene que decir que se elige empresa primero.
    */
-  [/\/settings\?clientId=[^&]+$/, () => [
+  [/\/settings(\/correos)?\?clientId=[^&]+$/, () => [
     { key: 'email.post_visit_survey_enabled', label: 'Encuesta después de la visita', description: 'Unas horas después de una reserva asistida.', valueType: 'boolean', value: true, source: 'client' },
     { key: 'email.post_visit_survey_id', label: 'Encuesta después de la visita · encuesta', description: 'Qué encuesta se envía.', valueType: 'text', value: 'visual-survey', source: 'client' },
     { key: 'email.post_visit_survey_hours', label: 'Encuesta después de la visita · espera', description: 'Horas después del fin de la visita.', valueType: 'number', value: 3, source: 'master_default', min: 1, max: 72, unit: 'horas' },
@@ -988,7 +989,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     'security.password.preventReuse': '5',
   })],
   [/\/organizations\/features$/, () => ({ features: forEveryModule(true) })],
-  [/\/settings$/, () => {
+  [/\/settings(\/correos)?$/, () => {
     const lifecycleSettings: Array<{ key: string; value: string; source: 'organization' }> = [];
     for (const mod of ORGANIZATION_MODULE_CATALOG) {
       lifecycleSettings.push({ key: `modules.lifecycle.${mod.key}`, value: mod.lifecycle, source: 'organization' });
