@@ -52,6 +52,8 @@ function vacia(valor: unknown): boolean {
  * puede mostrar algo cuyo origen nadie vio.
  */
 export function preguntaVisible(pregunta: SurveyQuestion, preguntas: SurveyQuestion[], respuestas: Respuestas, visitadas = new Set<string>()): boolean {
+  // Una pregunta archivada no se muestra nunca a quien responde.
+  if (pregunta.archivada) return false;
   const regla = pregunta.mostrarSi;
   if (!regla?.preguntaId || !regla.valores?.length) return true;
   if (visitadas.has(pregunta.id)) return false;
@@ -123,10 +125,15 @@ export function problemasDeRespuesta(preguntas: SurveyQuestion[], respuestas: Re
 
 /** Si la encuesta pide algún dato que identifica a la persona: entonces se necesita su aceptación. */
 export function pideDatosPersonales(preguntas: SurveyQuestion[]): boolean {
-  return preguntas.some((pregunta) => Boolean(pregunta.dato));
+  return preguntas.some((pregunta) => (Boolean(pregunta.dato) || Boolean(pregunta.sensible)) && !pregunta.archivada);
+}
+
+/** Si la encuesta tiene preguntas sensibles vigentes (salud, alimentación). */
+export function pideDatosSensibles(preguntas: SurveyQuestion[]): boolean {
+  return preguntas.some((pregunta) => Boolean(pregunta.sensible) && !pregunta.archivada);
 }
 
 /** Si en lo contestado viene algún dato personal escrito. */
 export function traeDatosPersonales(preguntas: SurveyQuestion[], respuestas: Respuestas): boolean {
-  return preguntas.some((pregunta) => pregunta.dato && !vacia(respuestas[pregunta.id]));
+  return preguntas.some((pregunta) => (pregunta.dato || pregunta.sensible) && !vacia(respuestas[pregunta.id]));
 }

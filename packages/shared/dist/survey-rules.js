@@ -16,6 +16,7 @@ exports.formatearRut = formatearRut;
 exports.errorDeDato = errorDeDato;
 exports.problemasDeRespuesta = problemasDeRespuesta;
 exports.pideDatosPersonales = pideDatosPersonales;
+exports.pideDatosSensibles = pideDatosSensibles;
 exports.traeDatosPersonales = traeDatosPersonales;
 /** Nombre visible y tipo de campo de cada dato de contacto. */
 exports.DATOS_DE_CONTACTO = {
@@ -56,6 +57,9 @@ function vacia(valor) {
  * puede mostrar algo cuyo origen nadie vio.
  */
 function preguntaVisible(pregunta, preguntas, respuestas, visitadas = new Set()) {
+    // Una pregunta archivada no se muestra nunca a quien responde.
+    if (pregunta.archivada)
+        return false;
     const regla = pregunta.mostrarSi;
     if (!regla?.preguntaId || !regla.valores?.length)
         return true;
@@ -137,10 +141,14 @@ function problemasDeRespuesta(preguntas, respuestas, omitir = []) {
 }
 /** Si la encuesta pide algún dato que identifica a la persona: entonces se necesita su aceptación. */
 function pideDatosPersonales(preguntas) {
-    return preguntas.some((pregunta) => Boolean(pregunta.dato));
+    return preguntas.some((pregunta) => (Boolean(pregunta.dato) || Boolean(pregunta.sensible)) && !pregunta.archivada);
+}
+/** Si la encuesta tiene preguntas sensibles vigentes (salud, alimentación). */
+function pideDatosSensibles(preguntas) {
+    return preguntas.some((pregunta) => Boolean(pregunta.sensible) && !pregunta.archivada);
 }
 /** Si en lo contestado viene algún dato personal escrito. */
 function traeDatosPersonales(preguntas, respuestas) {
-    return preguntas.some((pregunta) => pregunta.dato && !vacia(respuestas[pregunta.id]));
+    return preguntas.some((pregunta) => (pregunta.dato || pregunta.sensible) && !vacia(respuestas[pregunta.id]));
 }
 //# sourceMappingURL=survey-rules.js.map

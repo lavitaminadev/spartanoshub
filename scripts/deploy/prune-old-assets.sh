@@ -10,7 +10,9 @@
 # - Sólo archivos con más de 30 días.
 # - Conserva todo lo que nombran el `index.html` o `sw.js` publicados y los de la versión nueva.
 # - Si falta alguno de esos archivos de referencia, no borra nada.
-set -euo pipefail
+# - Nunca detiene el despliegue: ante cualquier imprevisto sale sin borrar nada más.
+set -uo pipefail
+trap 'echo "PODA ASSETS: imprevisto en la limpieza; no se borra nada más y el despliegue sigue."; exit 0' ERR
 
 readonly EXPECTED_FRONTEND="/home/espartanoscl/public_html/cuartel.espartanos.cl"
 readonly DIAS=30
@@ -36,7 +38,11 @@ for referencia in "${REFERENCIAS[@]}"; do
 done
 
 # Nombres de archivo que alguna versión vigente todavía usa.
-EN_USO="$(cat "${REFERENCIAS[@]}" | grep -oE '[A-Za-z0-9._-]+\.(js|css|woff2?|png|jpe?g|svg|webp|avif|ico|json|webmanifest)' | sort -u)"
+EN_USO="$(cat "${REFERENCIAS[@]}" | grep -oE '[A-Za-z0-9._-]+\.(js|css|woff2?|png|jpe?g|svg|webp|avif|ico|json|webmanifest)' | sort -u || true)"
+if [ -z "$EN_USO" ]; then
+  echo "PODA ASSETS: no se pudo leer qué archivos usa la web; por seguridad no se borra nada."
+  exit 0
+fi
 # La versión nueva completa: todo lo que trae su carpeta assets se conserva aunque ya existiera.
 if [ -d "apps/web/dist/assets" ]; then
   EN_USO="$(printf '%s\n%s\n' "$EN_USO" "$(find apps/web/dist/assets -type f -printf '%f\n')" | sort -u)"

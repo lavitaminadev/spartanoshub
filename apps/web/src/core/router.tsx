@@ -66,6 +66,7 @@ const ReservationLocalHubPage = lazy(() => import('../features/reservations/Rese
 const ReservationBuilderPage = lazy(() => import('../features/reservations/ReservationBuilderPage').then(m => ({ default: m.ReservationBuilderPage })));
 const PublicReservationPage = lazy(() => import('../features/reservations/PublicReservationPage').then(m => ({ default: m.PublicReservationPage })));
 const PublicReservationManagementPage = lazy(() => import('../features/reservations/PublicReservationManagementPage').then(m => ({ default: m.PublicReservationManagementPage })));
+const DocumentoLegalPage = lazy(() => import('../features/legal/DocumentoLegalPage').then(m => ({ default: m.DocumentoLegalPage })));
 const PublicSurveyPage = lazy(() => import('../features/surveys/PublicSurveyPage').then(m => ({ default: m.PublicSurveyPage })));
 const AudiovisualPage = lazy(() => import('../features/audiovisual/AudiovisualPage').then(m => ({ default: m.AudiovisualPage })));
 const GovernancePage = lazy(() => import('../features/governance/GovernancePage').then(m => ({ default: m.GovernancePage })));
@@ -118,6 +119,8 @@ export function AppRouter() {
         {/* Enlaces cortos por canal: se convierten en UTM y abren la misma página. */}
         <Route path="/book/:slug/:canal/:campana?" element={<RedireccionDeCanal base="book" />} />
         <Route path="/survey/:id" element={<SafeSuspense><PublicSurveyPage /></SafeSuspense>} />
+        <Route path="/legal" element={<SafeSuspense><DocumentoLegalPage /></SafeSuspense>} />
+        <Route path="/legal/:id" element={<SafeSuspense><DocumentoLegalPage /></SafeSuspense>} />
         <Route path="/survey/:slug/:canal/:campana?" element={<RedireccionDeCanal base="survey" />} />
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<ProtectedRoute path="/dashboard"><SafeSuspense><DashboardPage /></SafeSuspense></ProtectedRoute>} />

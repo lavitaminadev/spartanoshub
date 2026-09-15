@@ -135,6 +135,22 @@ __decorate([
     __metadata("design:type", Object)
 ], Reservation.prototype, "measurementConsentAt", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'measurement_consent_version', type: 'varchar', length: 30, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "measurementConsentVersion", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'measurement_consent_text', type: 'text', nullable: true, select: false }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "measurementConsentText", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'sensitive_consent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "sensitiveConsentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'sensitive_consent_text', type: 'text', nullable: true, select: false }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "sensitiveConsentText", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'adult_declared_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "adultDeclaredAt", void 0);
@@ -166,6 +182,10 @@ __decorate([
     (0, typeorm_1.Column)({ name: 'utm_content', type: 'varchar', length: 180, nullable: true }),
     __metadata("design:type", String)
 ], Reservation.prototype, "utmContent", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'origin_detected', type: 'tinyint', width: 1, default: 0, transformer: { to: (valor) => (valor ? 1 : 0), from: (valor) => Boolean(valor) } }),
+    __metadata("design:type", Boolean)
+], Reservation.prototype, "originDetected", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'click_id', type: 'varchar', length: 255, nullable: true }),
     __metadata("design:type", String)

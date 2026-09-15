@@ -29,7 +29,6 @@
   --txt-muted: var(--muted);
 
   /* Componentes */
-  --line: var(--line);
   --gray: var(--soft);
   --dark-card: #1a1819;
 
@@ -50,6 +49,7 @@
   --surface: var(--gray);
   --text-primary: var(--txt);
   --text-secondary: var(--txt-secondary);
+  /* --line lo define tokens.css; aquí sólo se le da otro nombre. */
   --border: var(--line);
 
   /* Rediseño de layout (sidebar/topbar): superficie de item activo en verde

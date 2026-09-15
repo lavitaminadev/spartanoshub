@@ -17,6 +17,7 @@
  */
 
 import axios, { type AxiosAdapter } from 'axios';
+import { VERSION_DOCUMENTOS_LEGALES } from '@espartanos/shared';
 import { ORGANIZATION_MODULE_CATALOG, WEB_ONLY_MODULE_CATALOG } from '@espartanos/shared';
 
 /** Verdadero solo bajo `npm run dev:visual`. */
@@ -161,7 +162,7 @@ const VISUAL_RESERVATION_LOCAL = {
     marketingConsentText: 'Quiero recibir novedades, experiencias y beneficios de Casa Costanera.', marketingConsentVersion: 'cc-2026-01',
     welcomePopupTitle: 'Bienvenido a Casa Costanera', welcomePopupText: 'Reserva en pocos pasos. Si organizas una celebración o grupo, también puedes enviar una solicitud sin tomar un horario.',
     ocasionesEnabled: 'true', ocasionesPopup: 'true', ocasionesVeces: 'siempre', ocasionesTitulo: 'Para cada ocasión', ocasionesTexto: 'Cuéntanos qué celebras y lo preparamos contigo.', ocasionesBoton: 'Ver horarios', ocasionesPreguntaId: 'ocasion',
-    ocasiones: JSON.stringify([{ titulo: 'Cumpleaños', texto: 'Torta, decoración y un rincón para la foto.' }, { titulo: 'Aniversario', texto: 'Mesa tranquila, luz baja y brindis de cortesía.' }, { titulo: 'Empresa', texto: 'Salón privado, menú acordado y boleta a nombre de la empresa.' }, { titulo: 'Con niños', texto: 'Sillas altas, menú infantil y espacio para el coche.' }]),
+    ocasiones: JSON.stringify([{ titulo: 'Cumpleaños', texto: 'Torta, decoración y un rincón para la foto.', imagen: 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%22600%22%3E%3Crect%20width%3D%22800%22%20height%3D%22600%22%20fill%3D%22%23f7c9d9%22%2F%3E%3Ccircle%20cx%3D%22400%22%20cy%3D%22300%22%20r%3D%22160%22%20fill%3D%22%23ea0f63%22%2F%3E%3Ctext%20x%3D%22400%22%20y%3D%22320%22%20font-size%3D%2260%22%20text-anchor%3D%22middle%22%20fill%3D%22%23fff%22%3ECumple%3C%2Ftext%3E%3C%2Fsvg%3E' }, { titulo: 'Aniversario', texto: 'Mesa tranquila, luz baja y brindis de cortesía.' }, { titulo: 'Empresa', texto: 'Salón privado, menú acordado y boleta a nombre de la empresa.' }, { titulo: 'Con niños', texto: 'Sillas altas, menú infantil y espacio para el coche.' }]),
     askChildren: 'true', askAccessibility: 'true', askAllergies: 'true', whatsappBusinessNumber: '+56 9 1234 5678', whatsappGroupMessage: 'Hola, envié una solicitud de grupo desde Casa Costanera y me gustaría coordinar los detalles.',
   },
   scheduleConfig: { windows: [{ day: 1, start: '13:00', end: '23:00' }, { day: 2, start: '13:00', end: '23:00' }, { day: 3, start: '13:00', end: '23:00' }, { day: 4, start: '13:00', end: '23:00' }, { day: 5, start: '13:00', end: '23:30' }, { day: 6, start: '13:00', end: '23:30' }] },
@@ -504,6 +505,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * Se responde con la forma declarada en `OperationalHomeData`, en cero.
    */
   // Resultados con canales: uno que convierte bien, uno flojo, uno detectado y mucho directo.
+  [/\/reservations\/forms\/[^/]+\/meta-health/, () => ({ enviados: 184, pendientes: 2, fallidos: 3, ultimoEnvio: new Date(Date.now() - 40 * 60000).toISOString(), ultimoError: { mensaje: 'Invalid parameter: event_time is too far in the past', cuando: new Date(Date.now() - 3 * 86400000).toISOString() } })],
   [/\/reservations\/analytics\/metrics/, () => ({
     days: 30,
     totals: { total: 96, attended: 61, no_show: 7, pending: 9, confirmed: 19, cancelled: 4 },
@@ -555,7 +557,10 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     let actual: Record<string, unknown> = { legalName: 'Casa Costanera SpA', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace', privacyText: '', termsText: '' };
     try { actual = { ...actual, ...JSON.parse(localStorage.getItem(clave) || '{}') }; } catch { /* sin almacenamiento */ }
     if (config?.method?.toLowerCase() === 'put') {
-      actual = { ...actual, ...visualRequestBody(config) };
+      const cuerpo = visualRequestBody(config);
+      actual = { ...actual, ...cuerpo };
+      if (cuerpo.aceptaEncargo === true) actual.encargo = { version: VERSION_DOCUMENTOS_LEGALES, aceptadoEn: new Date().toISOString(), aceptadoPor: 'Usuario visual', vigente: true, versionVigente: VERSION_DOCUMENTOS_LEGALES };
+      delete actual.aceptaEncargo;
       try { localStorage.setItem(clave, JSON.stringify(actual)); } catch { /* sin almacenamiento */ }
     }
     return actual;
@@ -615,7 +620,9 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
         for (let minuto = hi * 60 + mi; minuto + local.durationMinutes <= hf * 60 + mf; minuto += ritmo) {
           const inicio = new Date(fecha); inicio.setHours(Math.floor(minuto / 60), minuto % 60, 0, 0);
           if (inicio.getTime() < primero || inicio.getTime() > ultimo) continue;
-          const available = Math.max(0, local.capacityPerSlot - ((inicio.getDate() * 7 + minuto) % 9));
+          // `?cupoPrueba=N` en la página simula un cupo bajo, para revisar el aviso de «sin horarios para N personas».
+          const cupoPrueba = Number(new URLSearchParams(window.location.search).get('cupoPrueba'));
+          const available = cupoPrueba > 0 ? cupoPrueba : Math.max(0, local.capacityPerSlot - ((inicio.getDate() * 7 + minuto) % 9));
           if (available >= personas) slots.push({ startsAt: inicio.toISOString(), available });
         }
       }

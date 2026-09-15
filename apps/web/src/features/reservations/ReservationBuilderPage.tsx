@@ -1,4 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { CATEGORIAS_DE_EVENTO, leerTiposDeEvento, type CategoriaDeEvento } from './tipos-de-evento';
+import { SaludDeMedicion } from './SaludDeMedicion';
 import { SelectorDeDegradado, leerDegradado } from '../../shared/SelectorDeDegradado';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -19,10 +21,18 @@ import { camposVisibles } from '@espartanos/shared';
 
 const FIELD_LIBRARY = [
   ['text', 'Texto corto'], ['textarea', 'Texto largo'], ['email', 'Correo'],
-  ['phone', 'Teléfono'], ['select', 'Selector'], ['multi_select', 'Selección múltiple'],
-  ['number', 'Número'], ['date', 'Fecha'], ['consent', 'Aceptación'],
+  ['phone', 'Teléfono'], ['rut', 'RUT'], ['select', 'Elegir una opción'], ['multi_select', 'Elegir varias opciones'],
+  ['number', 'Número'], ['date', 'Fecha'], ['consent', 'Casilla para confirmar'],
   ['rating', 'Calificación'], ['coupon', 'Cupón promocional'],
 ] as const;
+
+/** Qué hace cada campo, en palabras de quien arma el formulario. */
+const FIELD_HINTS: Record<string, string> = {
+  text: 'Una línea: nombre de empresa, patente…', textarea: 'Un comentario o detalle largo',
+  email: 'Ayuda a medir campañas', phone: 'Ayuda a medir campañas', rut: 'Con dígito verificador; opcional',
+  select: 'Botones o lista: marca sólo una', multi_select: 'Casillas: puede marcar varias',
+  number: 'Sólo números', date: 'Calendario para elegir un día', consent: 'Obligatoria al agregarla',
+};
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 /**
@@ -47,9 +57,11 @@ const DESIGN_TEMPLATES: Array<{ name: string; config: Record<string, string> }> 
   { name: 'Noche', config: { primaryColor: '#0fb9b1', accentColor: '#ec0b61', backgroundColor: '#171417', textColor: '#ffffff', fontFamily: 'system-ui', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(145deg, #151317 0%, #30272c 100%)', backgroundOpacity: '92', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10' } },
 ];
 /** Lo que Meta usa para reconocer a la persona. Nombre ya viene fijo en el formulario. */
-const RECOMMENDED_FIELDS = new Set(['phone', 'email', 'consent']);
+// Correo y teléfono son los datos con que Meta empareja a quien reserva. La casilla libre no mide
+// nada: la medición la da la aceptación fija del bloque de aceptaciones.
+const RECOMMENDED_FIELDS = new Set(['phone', 'email']);
 /** Un distintivo por tipo: con las dos primeras letras, texto corto, texto largo y teléfono decían «TE». */
-const FIELD_BADGES: Record<string, string> = { text: 'Aa', textarea: '¶', email: '@', phone: 'Tel', select: '▾', multi_select: '☰', number: '123', date: 'Día', consent: '✓', rating: '★', coupon: '%' };
+const FIELD_BADGES: Record<string, string> = { text: 'Aa', textarea: '¶', email: '@', phone: 'Tel', rut: 'RUT', select: '◉', multi_select: '☰', number: '123', date: 'Día', consent: '✓', rating: '★', coupon: '%' };
 const DURACIONES = [15, 30, 45, 60, 75, 90, 105, 120, 150, 180, 240];
 const DEFAULT_BACKGROUND_GRADIENT = 'linear-gradient(135deg, #f4f5f7 0%, #d8f3f0 100%)';
 const BACKGROUND_POSITIONS = [
@@ -190,7 +202,9 @@ export function ReservationBuilderPage() {
   const [confirmDeleteField, setConfirmDeleteField] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<FormField | null>(null);
   const [editingDraft, setEditingDraft] = useState<FormField | null>(null);
-  const openEditor = (field: FormField) => { setEditingField(field); setEditingDraft({ ...field }); };
+  /** Texto crudo de las opciones: se parsea al escribir, pero el cuadro conserva líneas nuevas y espacios. */
+  const [opcionesTexto, setOpcionesTexto] = useState('');
+  const openEditor = (field: FormField) => { setEditingField(field); setEditingDraft({ ...field }); setOpcionesTexto((field.options ?? []).join('\n')); };
   const closeEditor = (save: boolean) => {
     if (save && editingDraft) {
       change({ fieldSchema: sincronizarPreguntaDeOcasiones(draft?.designConfig || {}, fields.map((f) => f.id === editingField?.id ? editingDraft : f)) });
@@ -328,6 +342,10 @@ export function ReservationBuilderPage() {
    * Ahora son un paso más del recorrido y comparten el borrador, así que solo hay un «Guardar».
    */
   const cambiarAjuste = (clave: string, valor: string) => change({ designConfig: { ...draft?.designConfig, [clave]: valor } });
+  /** Desde cuántas personas es grupo: el mismo cálculo que usa la página pública. */
+  const umbralDeGrupo = Math.max(2, Math.min(100, Number(draft?.designConfig?.groupThreshold) || 8));
+  /** Datos legales propios de la sucursal: si alguno está escrito, se muestran para editar. */
+  const [usaDatosPropios, setUsaDatosPropios] = useState<boolean | null>(null);
   const zones = draft?.resourcesConfig ?? [];
   const setZones = (next: NonNullable<ReservationForm['resourcesConfig']>) => change({ resourcesConfig: next });
   const updateZone = (index: number, patch: Partial<NonNullable<ReservationForm['resourcesConfig']>[number]>) => setZones(zones.map((zone, current) => (current === index ? { ...zone, ...patch } : zone)));
@@ -371,7 +389,7 @@ export function ReservationBuilderPage() {
   const fieldLibrary = FIELD_LIBRARY.filter(([type]) => type !== 'coupon' && (surveyMode || type !== 'rating'));
 
   const addField = (type: string) => {
-    const field: FormField = { id: `field_${uuid().slice(0, 8)}`, type, label: FIELD_LIBRARY.find(([key]) => key === type)?.[1] || 'Campo', required: false, ...(['select', 'multi_select'].includes(type) ? { options: ['Opción 1', 'Opción 2'] } : {}) };
+    const field: FormField = { id: `field_${uuid().slice(0, 8)}`, type, label: type === 'consent' ? 'Acepto las condiciones de la reserva' : type === 'select' ? '¿Cuál prefieres?' : type === 'multi_select' ? '¿Cuáles prefieres?' : FIELD_LIBRARY.find(([key]) => key === type)?.[1] || 'Campo', required: type === 'consent', ...(type === 'rut' ? { placeholder: '12.345.678-9' } : {}), ...(['select', 'multi_select'].includes(type) ? { options: ['Opción 1', 'Opción 2'] } : {}) };
     change({ fieldSchema: [...fields, field] }); setSelected(field.id);
   };
   const moveField = (fieldId: string, direction: -1 | 1) => {
@@ -428,16 +446,16 @@ export function ReservationBuilderPage() {
           <strong className="field-extras-title">Preguntas de la visita</strong>
           <small className="schedule-nota">Estas preguntas son fijas a propósito: sus respuestas alimentan los avisos de la lista, el correo y la exportación, así que renombrarlas haría que el sistema mostrara una etiqueta y guardara otra cosa. Para cualquier otra pregunta, agrega un campo propio al formulario de aquí al lado.</small>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askChildren === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askChildren: String(event.target.checked) } })} /> Preguntar por niños o silla infantil</label>
-          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAccessibility === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAccessibility: String(event.target.checked) } })} /> Preguntar por accesibilidad</label>
-          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAllergies === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAllergies: String(event.target.checked) } })} /> Preguntar por restricciones alimentarias</label>
-          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askSmoking === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askSmoking: String(event.target.checked) } })} /> Preguntar si prefiere zona de fumadores</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAccessibility === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAccessibility: String(event.target.checked) } })} /> Preguntar por accesibilidad <small className="toggle-nota">· dato de salud: se pide autorización expresa</small></label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAllergies === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAllergies: String(event.target.checked) } })} /> Preguntar por restricciones alimentarias <small className="toggle-nota">· dato de salud: se pide autorización expresa</small></label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askSmoking === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askSmoking: String(event.target.checked) } })} /> Preguntar si prefiere zona de fumadores{zones.length > 0 && <small className="toggle-nota"> · con zonas, se indica en el sector</small>}</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askSeating === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askSeating: String(event.target.checked) } })} /> Preguntar preferencia de mesa (tranquila, ventana, barra)</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askFirstVisit === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askFirstVisit: String(event.target.checked) } })} /> Preguntar si es su primera visita</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askHowFound === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askHowFound: String(event.target.checked) } })} /> Preguntar cómo nos conoció</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.couponEnabled !== 'false'} onChange={(event) => change({ designConfig: { ...draft.designConfig, couponEnabled: event.target.checked ? 'true' : 'false' } })} /> Aceptar cupones promocionales</label>
         </div>
         <aside className="field-library"><span className="page-eyebrow">BIBLIOTECA DE CAMPOS</span><h3>Agrega campos</h3><p>Arrastra al formulario o usa los botones.</p>
-          <div className="field-library-help field-library-meta"><strong>Para que Meta reconozca a quien reserva</strong><small>Teléfono, correo y la aceptación de medición son los que usa Meta para saber qué anuncio trajo la reserva. Los demás campos no suman ni restan en eso: sirven al local.</small></div>{fieldLibrary.map(([type, label]) => <button draggable onDragStart={(event) => beginNewFieldDrag(event, type)} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span aria-hidden="true">{FIELD_BADGES[type] ?? label.slice(0, 2)}</span><div><strong>{label}</strong><small>{RECOMMENDED_FIELDS.has(type) ? 'Ayuda a medir campañas' : 'Opcional'}</small></div><em>Agregar</em></button>)}</aside>
+          <div className="field-library-help field-library-meta"><strong>Para que Meta reconozca a quien reserva</strong><small>Teléfono y correo son los datos con que Meta sabe qué anuncio trajo la reserva. Las aceptaciones legales y la de medición ya van incluidas en la página: no hace falta agregarlas.</small></div>{fieldLibrary.map(([type, label]) => <button draggable onDragStart={(event) => beginNewFieldDrag(event, type)} onDragEnd={() => setCanvasDragOver(false)} onClick={() => addField(type)} key={type} className={RECOMMENDED_FIELDS.has(type) ? 'recommended' : ''}><span aria-hidden="true">{FIELD_BADGES[type] ?? label.slice(0, 2)}</span><div><strong>{label}</strong><small>{FIELD_HINTS[type] ?? 'Opcional'}</small></div><em>Agregar</em></button>)}</aside>
         <main className={`builder-canvas ${canvasDragOver ? 'drag-over' : ''}`} onDragEnter={() => setCanvasDragOver(true)} onDragLeave={(event) => { if (event.currentTarget === event.target) setCanvasDragOver(false); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setCanvasDragOver(true); }} onDrop={(event) => { event.preventDefault(); setCanvasDragOver(false); const { newField, fieldId } = builderDragPayload(event); if (newField) { addField(newField); return; } if (fieldId && fields.length > 1) { const current = fields.find((field) => field.id === fieldId); if (current && fields[fields.length - 1]?.id !== fieldId) change({ fieldSchema: [...fields.filter((field) => field.id !== fieldId), current] }); } }}>
           <div className="canvas-intro"><span>FORMULARIO</span><h2>{design.title || draft.name}</h2><p>{design.welcome}</p><small>Arrastra campos o usa los botones de cada fila.</small></div>
           {fields.length > RECOMMENDED_FIELD_COUNT && <div className="canvas-scope-hint" role="status">
@@ -445,7 +463,9 @@ export function ReservationBuilderPage() {
             <span>El alcance pide lo mínimo: nombre, teléfono, correo opcional y número de personas. La fecha y la hora las resuelve la agenda. Cada campo extra baja la tasa de reserva desde el celular, que es por donde llega casi todo el tráfico de los anuncios.</span>
           </div>}
           {fields.map((field, index) => <article tabIndex={0} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.stopPropagation(); const { fieldId } = builderDragPayload(event); if (fieldId) reorder(fieldId, field.id); }} className={`canvas-field ${selected === field.id ? 'selected' : ''}`} key={field.id} onClick={() => setSelected(field.id)} onFocus={() => setSelected(field.id)}>
-            <span className="drag-handle" draggable onDragStart={(event) => beginExistingFieldDrag(event, field.id)} aria-label="Arrastrar para ordenar" title="Arrastrar para ordenar">⠿</span><div><label>{field.label}{field.required && ' *'}{field.system && <em> Protegido</em>}{field.id === 'partySize' && <em> Se pregunta en el paso 1, no en este orden</em>}{field.id === 'consent' && !surveyMode && <em> Va en el bloque de aceptaciones</em>}{field.type === 'coupon' && <em> Se muestra con «Aceptar cupones»</em>}</label><div className="field-preview-input">{field.placeholder || (['select', 'multi_select'].includes(field.type) ? 'Selecciona una opcion' : 'Respuesta del visitante')}</div></div><div className="field-actions">
+            <span className="drag-handle" draggable onDragStart={(event) => beginExistingFieldDrag(event, field.id)} aria-label="Arrastrar para ordenar" title="Arrastrar para ordenar">⠿</span><div><label>{field.label}{field.required && ' *'}{field.system && <em> Protegido</em>}{field.id === 'partySize' && <em> Se pregunta en el paso 1, no en este orden</em>}{field.id === 'consent' && !surveyMode && <em> Va en el bloque de aceptaciones</em>}{field.type === 'coupon' && <em> Se muestra con «Aceptar cupones»</em>}</label>{['select', 'multi_select'].includes(field.type) && field.options?.length
+                ? <div className={`field-preview-opciones ${field.type === 'multi_select' ? 'es-multiple' : ''}`}>{field.options.map((opcion) => <span key={opcion}>{opcion}</span>)}</div>
+                : <div className="field-preview-input">{field.placeholder || 'Respuesta del visitante'}</div>}</div><div className="field-actions">
               <button type="button" className="btn btn-sm btn-outline" aria-label={`Editar ${field.label}`} onClick={(e) => { e.stopPropagation(); openEditor(field); }} title="Editar campo"><VitaIcons.edit /></button>
               {!field.system && <button type="button" className="btn btn-sm btn-outline btn-danger" aria-label={`Eliminar ${field.label}`} onClick={(e) => { e.stopPropagation(); setConfirmDeleteField(field.id); }} title="Eliminar campo"><VitaIcons.delete /></button>}
               <button type="button" className="btn btn-sm btn-outline" aria-label={`Subir ${field.label}`} disabled={index === 0} onClick={(e) => { e.stopPropagation(); moveField(field.id, -1); }} title="Subir">↑</button>
@@ -466,8 +486,14 @@ export function ReservationBuilderPage() {
           <label>Etiqueta<input className="input" value={editingDraft.label} onChange={(e) => updateEditor({ label: e.target.value })} /></label>
           <label>Texto de ayuda<input className="input" value={editingDraft.placeholder || ''} onChange={(e) => updateEditor({ placeholder: e.target.value })} /></label>
           {!editingDraft.system && <label className="toggle-row"><input type="checkbox" checked={editingDraft.required} onChange={(e) => updateEditor({ required: e.target.checked })} /> Campo obligatorio</label>}
+          {!editingDraft.system && <label className="toggle-row"><input type="checkbox" checked={Boolean(editingDraft.sensible)} onChange={(e) => updateEditor({ sensible: e.target.checked })} /> <span>Pide salud, alergias u otro dato sensible<small className="toggle-nota bloque">Quien responda deberá autorizarlo expresamente.</small></span></label>}
           {editingDraft.options && draft.designConfig?.ocasionesPreguntaId === editingDraft.id && <small className="schedule-nota">Las opciones de esta pregunta salen de la «Grilla de ocasiones» (paso Diseño público). Cámbialas allí y se actualizan aquí solas.</small>}
-          {editingDraft.options && draft.designConfig?.ocasionesPreguntaId !== editingDraft.id && <label>Opciones (una por linea)<textarea className="input" rows={6} value={editingDraft.options.join('\n')} onChange={(e) => updateEditor({ options: e.target.value.split('\n').map((v) => v.trim()).filter(Boolean) })} /></label>}
+          {editingDraft.options && draft.designConfig?.ocasionesPreguntaId !== editingDraft.id && <label>Opciones <small className="toggle-nota">una por línea</small><textarea className="input" rows={6} value={opcionesTexto} onChange={(e) => { setOpcionesTexto(e.target.value); updateEditor({ options: [...new Set(e.target.value.split('\n').map((v) => v.trim()).filter(Boolean))] }); }} />{editingDraft.options.length < 2 && <small className="error-text">Agrega al menos dos opciones.</small>}</label>}
+          {editingDraft.type === 'select' && <label>Cómo se muestra<select className="input" value={editingDraft.display || ''} onChange={(e) => updateEditor({ display: e.target.value || undefined })}>
+            <option value="">Automático: botones hasta 5 opciones, lista desde 6</option>
+            <option value="radio">Siempre como botones</option>
+            <option value="select">Siempre como lista desplegable</option>
+          </select></label>}
           {/*
             * Preguntar sólo cuando corresponde.
             *
@@ -490,7 +516,13 @@ export function ReservationBuilderPage() {
                 <option value="respondido">esté respondida</option>
                 <option value="vacio">esté vacía</option>
               </select></label>
-              {!['respondido', 'vacio'].includes(editingDraft.mostrarSi.operador) && <label>Este valor<input className="input" value={editingDraft.mostrarSi.valor || ''} onChange={(event) => updateEditor({ mostrarSi: { ...editingDraft.mostrarSi!, valor: event.target.value } })} /></label>}
+              {!['respondido', 'vacio'].includes(editingDraft.mostrarSi.operador) && (() => {
+                const origen = fields.find((campo) => campo.id === editingDraft.mostrarSi!.campo);
+                const cambiarValor = (valor: string) => updateEditor({ mostrarSi: { ...editingDraft.mostrarSi!, valor } });
+                return <label>Este valor{origen?.options?.length
+                  ? <select className="input" value={editingDraft.mostrarSi!.valor || ''} onChange={(event) => cambiarValor(event.target.value)}><option value="">Elige una opción</option>{origen.options.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}</select>
+                  : <input className="input" value={editingDraft.mostrarSi!.valor || ''} onChange={(event) => cambiarValor(event.target.value)} />}</label>;
+              })()}
             </div>}
             {editingDraft.mostrarSi && editingDraft.required && <small className="error-text">Es obligatoria y condicional: mientras esté oculta no se pedirá, y volverá a ser obligatoria al aparecer.</small>}
           </div>}
@@ -514,7 +546,8 @@ export function ReservationBuilderPage() {
               ? `La empresa tiene un tope de ${draft.companyDailyCap} personas al día sumando todas sus sucursales. Manda el que se llene primero${draft.dailyCapacity > 0 && draft.dailyCapacity > (draft.companyDailyCap ?? 0) ? ': aquí el de la empresa es más bajo que el de esta sucursal' : ''}.`
               : `La empresa tiene un tope de ${draft.companyDailyCap} personas al día, pero esta sucursal no lo aplica.`
             : 'La empresa no tiene tope diario propio: sólo cuenta el de esta sucursal.'}</small>
-          <label>Personas por horario<small>Cuántas personas pueden llegar en un mismo horario.</small><input className="input" type="number" min="1" max="500" value={draft.capacityPerSlot} onChange={(event) => change({ capacityPerSlot: Number(event.target.value) })} /></label>
+          <label>Personas por horario<small>Cuántas personas pueden llegar en un mismo horario (no mesas).</small><input className="input" type="number" min="1" max="500" value={draft.capacityPerSlot} onChange={(event) => change({ capacityPerSlot: Number(event.target.value) })} /></label>
+          {draft.capacityPerSlot < umbralDeGrupo && <div className="alert alert-warning cupo-aviso">Con {draft.capacityPerSlot} persona{draft.capacityPerSlot === 1 ? '' : 's'} por horario, una reserva de {draft.capacityPerSlot + 1} a {umbralDeGrupo} personas nunca verá horarios. Si pensabas en mesas, escribe cuántas personas caben en total.</div>}
           <label>Duración de cada reserva<select className="input" value={draft.durationMinutes} onChange={(event) => change({ durationMinutes: Number(event.target.value) })}>{[...new Set([...DURACIONES, draft.durationMinutes])].sort((a, b) => a - b).map((value) => <option key={value} value={value}>{value} minutos</option>)}</select></label>
         </div>
         <div className="schedule-timezone">
@@ -535,16 +568,38 @@ export function ReservationBuilderPage() {
           <div className="schedule-settings schedule-settings-wide"><label>Margen entre reservas (min)<small>Tiempo para dejar lista la mesa.</small><input className="input" type="number" min="0" max="240" value={draft.bufferMinutes} onChange={(event) => change({ bufferMinutes: Number(event.target.value) })} /></label><label>Anticipación mínima (h)<input className="input" type="number" min="0" value={draft.minimumNoticeHours} onChange={(event) => change({ minimumNoticeHours: Number(event.target.value) })} /></label><label>Ventana máxima (días)<input className="input" type="number" min="1" max="365" value={draft.maximumAdvanceDays} onChange={(event) => change({ maximumAdvanceDays: Number(event.target.value) })} aria-invalid={ventanaImposible} /></label><label>Confirmación<select className="input" value={draft.confirmationMode} onChange={(event) => change({ confirmationMode: event.target.value })}><option value="automatic">Automática</option><option value="manual">Revisión manual</option></select></label>
             <label>Una llegada cada (min)<small>Cada cuánto se ofrece un horario.</small><input className="input" type="number" min="5" max="240" value={String(draft.designConfig?.slotCadenceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, slotCadenceMinutes: event.target.value } })} /></label><label>Retener cupo (min)<input className="input" type="number" min="1" max="30" value={String(draft.designConfig?.holdMinutes || '5')} onChange={(event) => change({ designConfig: { ...draft.designConfig, holdMinutes: event.target.value } })} /></label></div>
         </details>
+      <section className="reservation-readiness zonas-en-agenda" id="zonas"><div><span className="page-eyebrow">ZONAS Y PREFERENCIAS</span><h2>Zonas y sectores</h2><p className="page-subtitle">Terraza, salón o barra, con su cupo de personas. Quien reserva elige el sector y ve si permite fumar. Desactivar conserva la zona y su historial.</p></div>{zones.some((zona) => zona.active !== false && (zona.capacity || draft.capacityPerSlot) < umbralDeGrupo) && <div className="alert alert-warning cupo-aviso">Hay zonas con cupo menor a {umbralDeGrupo} personas: quien elija esa zona con un grupo más grande no verá horarios.</div>}{draft.designConfig?.askSmoking === 'true' && zones.length > 0 && <small className="schedule-nota">Con zonas cargadas, la preferencia de fumadores se muestra en el selector de sector («· fumadores») y no se pregunta aparte.</small>}{zones.map((zone, index) => <div className="reservation-zone-row" key={zone.id}><label>Nombre<input className="input" value={zone.name} onChange={(e) => updateZone(index, { name: e.target.value })} placeholder="Ej. Terraza" /></label><label>Cupo<input className="input" type="number" min="1" max="500" value={zone.capacity || draft.capacityPerSlot} onChange={(e) => updateZone(index, { capacity: Number(e.target.value) })} /></label><label>Descripción<input className="input" value={zone.description || ''} onChange={(e) => updateZone(index, { description: e.target.value })} /></label><label className="toggle-row"><input type="checkbox" checked={Boolean(zone.smokingAllowed)} onChange={(e) => updateZone(index, { smokingAllowed: e.target.checked })} /> Fumadores</label><label className="toggle-row"><input type="checkbox" checked={zone.active !== false} onChange={(e) => updateZone(index, { active: e.target.checked })} /> Disponible para reservar</label><button type="button" className="btn btn-outline btn-sm" onClick={() => updateZone(index, { active: zone.active === false })}>{zone.active === false ? 'Activar' : 'Desactivar'}</button></div>)}<button type="button" className="btn btn-outline btn-sm" onClick={addZone}>Agregar zona</button></section>
         <h3>Grupos grandes y eventos</h3>
         <div className="schedule-capacity">
-          <label className="capacity-primary">Solicitudes de evento o grupo<small>Quien no encuentre hora puede pedir un evento sin tomar cupo. El equipo lo resuelve desde Reservas.</small>
+          <label className="capacity-primary">Solicitudes de evento o grupo<small>Botón «Solicitar evento» en la página y opción «{umbralDeGrupo + 1} o más personas». No toma cupo: el equipo lo resuelve desde Reservas → Grupos.</small>
             <select className="input" value={draft.designConfig?.groupRequestEnabled === 'false' ? 'no' : 'si'} onChange={(event) => change({ designConfig: { ...draft.designConfig, groupRequestEnabled: event.target.value === 'si' ? 'true' : 'false' } })}>
               <option value="si">Aceptar solicitudes</option>
               <option value="no">No aceptar</option>
             </select>
           </label>
-          <label>Grupo grande desde<small>Sobre esta cantidad la reserva pasa por el equipo.</small><input className="input" type="number" min="2" max="100" value={String(draft.designConfig?.groupThreshold || '8')} onChange={(event) => change({ designConfig: { ...draft.designConfig, groupThreshold: event.target.value } })} /></label>
-          {draft.designConfig?.groupRequestEnabled !== 'false' && <label className="capacity-primary">Mensaje de WhatsApp para grupos<small>Texto con que se abre el chat al pedir un evento. El número del local está en «Datos del local».</small><textarea className="input" rows={2} value={String(draft.designConfig?.whatsappGroupMessage || '')} onChange={(e) => cambiarAjuste('whatsappGroupMessage', e.target.value)} /></label>}
+          {draft.designConfig?.groupRequestEnabled !== 'false' && <div className="capacity-primary tipos-de-evento">
+            <strong>Tipos de evento que ofreces</strong>
+            <small>Nómbralos como tu local. Cada uno cuenta en una categoría para los reportes. {draft.designConfig?.ocasionesPreguntaId ? 'Como la grilla de ocasiones está conectada, la página usa esas ocasiones en lugar de esta lista.' : ''}</small>
+            {leerTiposDeEvento(draft.designConfig?.tiposDeEvento, true).map((tipo, indice, lista) => (
+              <div className="tipo-de-evento" key={indice}>
+                <input className="input" value={tipo.nombre} maxLength={60} aria-label={`Nombre del tipo ${indice + 1}`} onChange={(e) => { const nueva = [...lista]; nueva[indice] = { ...tipo, nombre: e.target.value }; cambiarAjuste('tiposDeEvento', JSON.stringify(nueva)); }} />
+                <select className="input" value={tipo.categoria} aria-label="Categoría" onChange={(e) => { const nueva = [...lista]; nueva[indice] = { ...tipo, categoria: e.target.value as CategoriaDeEvento }; cambiarAjuste('tiposDeEvento', JSON.stringify(nueva)); }}>
+                  {CATEGORIAS_DE_EVENTO.map((categoria) => <option key={categoria.valor} value={categoria.valor}>{categoria.nombre}</option>)}
+                </select>
+                <button type="button" className="btn btn-outline btn-sm" disabled={lista.length <= 1} onClick={() => cambiarAjuste('tiposDeEvento', JSON.stringify(lista.filter((_, i) => i !== indice)))}>Quitar</button>
+              </div>
+            ))}
+            {leerTiposDeEvento(draft.designConfig?.tiposDeEvento, true).length < 12 && <button type="button" className="btn btn-outline btn-sm" onClick={() => cambiarAjuste('tiposDeEvento', JSON.stringify([...leerTiposDeEvento(draft.designConfig?.tiposDeEvento, true), { nombre: '', categoria: 'otro' }]))}>Agregar tipo</button>}
+          </div>}
+          {draft.designConfig?.groupRequestEnabled !== 'false' && <div className="capacity-primary textos-evento">
+            <strong>Botón en la página</strong>
+            <small>Vacío usa el texto de siempre. Se ve bajo el calendario.</small>
+            <label>Título<input className="input" maxLength={80} placeholder="¿Es un evento o una celebración?" value={String(draft.designConfig?.eventoCtaTitulo || '')} onChange={(e) => cambiarAjuste('eventoCtaTitulo', e.target.value)} /></label>
+            <label>Texto<input className="input" maxLength={180} placeholder={`Cumpleaños, empresa o grupos de ${umbralDeGrupo + 1} o más. El local te contacta para coordinar fecha y detalles.`} value={String(draft.designConfig?.eventoCtaTexto || '')} onChange={(e) => cambiarAjuste('eventoCtaTexto', e.target.value)} /></label>
+            <label>Botón<input className="input" maxLength={40} placeholder="Solicitar evento" value={String(draft.designConfig?.eventoCtaBoton || '')} onChange={(e) => cambiarAjuste('eventoCtaBoton', e.target.value)} /></label>
+          </div>}
+          <label>Grupo grande desde<small>Desde {umbralDeGrupo + 1} personas la página ofrece «Solicitar evento» en vez de horarios.</small><input className="input" type="number" min="2" max="100" value={String(draft.designConfig?.groupThreshold || '8')} onChange={(event) => change({ designConfig: { ...draft.designConfig, groupThreshold: event.target.value } })} /></label>
+          {draft.designConfig?.groupRequestEnabled !== 'false' && <label className="capacity-primary">Mensaje de WhatsApp para grupos<small>Texto con que se abre el chat al pedir un evento. {draft.designConfig?.whatsappBusinessNumber ? `Se envía al ${draft.designConfig.whatsappBusinessNumber}.` : 'Falta el WhatsApp del local: agrégalo aquí abajo en «Datos del local».'}</small><textarea className="input" rows={2} value={String(draft.designConfig?.whatsappGroupMessage || '')} onChange={(e) => cambiarAjuste('whatsappGroupMessage', e.target.value)} /></label>}
         </div>
 
         <h3>Cuándo se cierra el turno</h3>
@@ -643,6 +698,7 @@ export function ReservationBuilderPage() {
                 ? `Cuenta conectada${draft.pixelName ? `: ${draft.pixelName}` : ''}. Las reservas se informarán automáticamente.`
                 : 'Se puede publicar igual, pero las reservas no llegarán a Meta hasta completar la integración.'}</small>
               {!draft.metaReady && <Link className="btn btn-outline btn-sm" to="/integrations">Conectar la cuenta de Meta</Link>}
+              {draft.metaReady && draft.metaCapiEnabled && <SaludDeMedicion formId={id} />}
             </div>}
 
             <label>Nombre de esta campaña
@@ -706,8 +762,22 @@ export function ReservationBuilderPage() {
     </div>}
 
     {step === 4 && <div className="builder-stage builder-stage-ajustes">
-      <div className="stage-heading"><span className="page-eyebrow">DATOS DEL LOCAL</span><h2>Quién responde, a quién se avisa y qué se acepta</h2><p>Contacto, correos, consentimientos y zonas de esta sucursal.</p></div>
-      <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2><p className="page-subtitle">Se toman de la ficha de la empresa. Escribe aquí sólo si esta sucursal usa otros.</p></div><div className="form-row"><label>Razón social o responsable<input className="input" placeholder={draft.datosLegalesEmpresa?.legalName || 'Completa la ficha de la empresa'} value={String(draft.designConfig?.legalCompanyName || '')} onChange={(e) => cambiarAjuste('legalCompanyName', e.target.value)} /></label><label>RUT / identificador<input className="input" placeholder={draft.datosLegalesEmpresa?.taxId || 'Completa la ficha de la empresa'} value={String(draft.designConfig?.legalCompanyId || '')} onChange={(e) => cambiarAjuste('legalCompanyId', e.target.value)} /></label><label>WhatsApp del local<input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label></div><div className="form-row"><label>URL de privacidad<input className="input" type="url" value={String(draft.designConfig?.privacyUrl || '')} onChange={(e) => cambiarAjuste('privacyUrl', e.target.value)} placeholder={draft.datosLegalesEmpresa?.privacyUrl || 'https://...'} /></label><label>URL de condiciones<input className="input" type="url" value={String(draft.designConfig?.termsUrl || '')} onChange={(e) => cambiarAjuste('termsUrl', e.target.value)} placeholder={draft.datosLegalesEmpresa?.termsUrl || 'https://...'} /></label></div></section>
+      <div className="stage-heading"><span className="page-eyebrow">DATOS DEL LOCAL</span><h2>Quién responde, a quién se avisa y qué se acepta</h2><p>Contacto, correos y consentimientos de esta sucursal.</p></div>
+      <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2><p className="page-subtitle">Los datos legales los mantiene la empresa en su portal y valen para todas sus sucursales.</p></div>
+        <div className="datos-heredados">
+          <div><span>Razón social</span><strong>{draft.datosLegalesEmpresa?.legalName || 'Sin completar'}</strong></div>
+          <div><span>RUT</span><strong>{draft.datosLegalesEmpresa?.taxId || 'Sin completar'}</strong></div>
+          <div><span>Correo para derechos</span><strong>{draft.datosLegalesEmpresa?.privacyEmail || 'Sin completar'}</strong></div>
+          <div><span>Privacidad</span><strong>{draft.datosLegalesEmpresa?.legalMode === 'texto' ? 'Texto propio' : draft.datosLegalesEmpresa?.privacyUrl || 'Sin completar'}</strong></div>
+        </div>
+        {(!draft.datosLegalesEmpresa?.legalName || !draft.datosLegalesEmpresa?.taxId || !draft.datosLegalesEmpresa?.privacyEmail) && <p className="datos-heredados-nota">Faltan datos de la empresa. Los completa la empresa en su portal («Datos legales») o el equipo desde Clientes → Editar cliente.</p>}
+        <div className="form-row"><label>WhatsApp del local<small>Para grupos, eventos y cuando no hay horarios.</small><input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label></div>
+        <label className="toggle-row"><input type="checkbox" checked={usaDatosPropios ?? Boolean(draft.designConfig?.legalCompanyName || draft.designConfig?.legalCompanyId || draft.designConfig?.privacyUrl || draft.designConfig?.termsUrl)} onChange={(e) => {
+          setUsaDatosPropios(e.target.checked);
+          // Volver a los de la empresa borra los propios: si no, seguirían mandando sin verse.
+          if (!e.target.checked) change({ designConfig: { ...draft.designConfig, legalCompanyName: '', legalCompanyId: '', privacyUrl: '', termsUrl: '' } });
+        }} /> Esta sucursal usa otra razón social o política</label>
+        {(usaDatosPropios ?? Boolean(draft.designConfig?.legalCompanyName || draft.designConfig?.legalCompanyId || draft.designConfig?.privacyUrl || draft.designConfig?.termsUrl)) && <><div className="form-row"><label>Razón social o responsable<input className="input" placeholder={draft.datosLegalesEmpresa?.legalName || 'Completa la ficha de la empresa'} value={String(draft.designConfig?.legalCompanyName || '')} onChange={(e) => cambiarAjuste('legalCompanyName', e.target.value)} /></label><label>RUT / identificador<input className="input" placeholder={draft.datosLegalesEmpresa?.taxId || 'Completa la ficha de la empresa'} value={String(draft.designConfig?.legalCompanyId || '')} onChange={(e) => cambiarAjuste('legalCompanyId', e.target.value)} /></label></div><div className="form-row"><label>URL de privacidad<input className="input" type="url" value={String(draft.designConfig?.privacyUrl || '')} onChange={(e) => cambiarAjuste('privacyUrl', e.target.value)} placeholder={draft.datosLegalesEmpresa?.privacyUrl || 'https://...'} /></label><label>URL de condiciones<input className="input" type="url" value={String(draft.designConfig?.termsUrl || '')} onChange={(e) => cambiarAjuste('termsUrl', e.target.value)} placeholder={draft.datosLegalesEmpresa?.termsUrl || 'https://...'} /></label></div></>}</section>
       {/*
         * Los correos salen siempre desde el servidor de Espartanos. Esta casilla no cambia el
         * remitente: dice a qué bandejas del local llega el aviso de cada reserva nueva. Sin
@@ -735,7 +805,6 @@ export function ReservationBuilderPage() {
         {draft.designConfig?.networkConsentEnabled === 'true' && <div className="form-row"><label>Nombre de la red<input className="input" value={String(draft.designConfig?.networkBrandName || '')} onChange={(e) => cambiarAjuste('networkBrandName', e.target.value)} placeholder="Espartanos" /></label><label>Texto de la autorización<textarea className="input" rows={3} value={String(draft.designConfig?.networkConsentText || '')} onChange={(e) => cambiarAjuste('networkConsentText', e.target.value)} /></label><label>Versión<input className="input" value={String(draft.designConfig?.networkConsentVersion || 'red-v1')} onChange={(e) => cambiarAjuste('networkConsentVersion', e.target.value)} /></label></div>}
         {draft.designConfig?.networkConsentEnabled === 'true' && !draft.designConfig?.privacyUrl && <small className="error-text">Falta la URL de privacidad: sin ella, quien reserva no tiene dónde leer el detalle de ese tratamiento.</small>}
       </section>
-      <section className="reservation-readiness" id="zonas"><div><span className="page-eyebrow">ZONAS Y PREFERENCIAS</span><h2>Terraza, salón y condiciones de visita</h2><p className="page-subtitle">Desactivar conserva la zona y su historial, pero deja de mostrarla para nuevas reservas.</p></div>{zones.map((zone, index) => <div className="reservation-zone-row" key={zone.id}><label>Nombre<input className="input" value={zone.name} onChange={(e) => updateZone(index, { name: e.target.value })} placeholder="Ej. Terraza" /></label><label>Cupo<input className="input" type="number" min="1" max="500" value={zone.capacity || draft.capacityPerSlot} onChange={(e) => updateZone(index, { capacity: Number(e.target.value) })} /></label><label>Descripción<input className="input" value={zone.description || ''} onChange={(e) => updateZone(index, { description: e.target.value })} /></label><label className="toggle-row"><input type="checkbox" checked={Boolean(zone.smokingAllowed)} onChange={(e) => updateZone(index, { smokingAllowed: e.target.checked })} /> Fumadores</label><label className="toggle-row"><input type="checkbox" checked={zone.active !== false} onChange={(e) => updateZone(index, { active: e.target.checked })} /> Disponible para reservar</label><button type="button" className="btn btn-outline btn-sm" onClick={() => updateZone(index, { active: zone.active === false })}>{zone.active === false ? 'Activar' : 'Desactivar'}</button></div>)}<button type="button" className="btn btn-outline btn-sm" onClick={addZone}>Agregar zona</button></section>
     </div>}
 
     <footer className="builder-footer"><span>Paso {(clientMode ? PASOS_VISIBLES.cliente : PASOS_VISIBLES.equipo).indexOf(step) + 1} de {clientMode ? PASOS_VISIBLES.cliente.length : PASOS_VISIBLES.equipo.length}</span>{step > 0 && <button className="btn btn-outline btn-sm" onClick={() => setStep(clientMode && step === 4 ? 2 : step - 1)}>Anterior</button>}{step < STEPS.length - 1 && <button className="btn btn-primary btn-sm" onClick={() => setStep(clientMode && step === 2 ? 4 : step + 1)}>Continuar</button>}{step < STEPS.length - 1 && <button className={`btn btn-sm ${saved ? 'btn-outline' : 'btn-primary'}`} disabled={saved || saveMutation.isPending} onClick={() => saveMutation.mutate(draft)}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Guardado' : 'Guardar cambios'}</button>}</footer>
@@ -847,6 +916,12 @@ function DesignStudioControls({
           </select><small>{design.ocasionesPreguntaId ? 'Las opciones de esa pregunta son estas ocasiones (más «No»), y tocar una tarjeta la deja respondida.' : 'Si tu formulario pregunta qué celebra, conéctala para no mantener dos listas.'}</small></label>
           <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnabled === 'true'} onChange={(event) => update({ ocasionesEnabled: event.target.checked ? 'true' : 'false' })} /> Mostrarla en la página, al lado del formulario</label>
           <small>Independiente del aviso al entrar: puedes mostrarla sólo como aviso, sólo en la página, en los dos lugares o en ninguno.</small>
+          <label className="toggle-row"><input type="checkbox" checked={design.ocasionesPopup === 'true'} onChange={(event) => update({ ocasionesPopup: event.target.checked ? 'true' : 'false', ...(event.target.checked ? { welcomePopupEnabled: 'false', ocasionesVeces: design.ocasionesVeces || '1' } : {}) })} /> Mostrarla como aviso al entrar</label>
+          {design.ocasionesPopup === 'true' && <div className="ocasiones-aviso-ajustes">
+            <label>Frase bajo el título <small>(opcional)</small><textarea className="input" rows={2} value={design.ocasionesTexto || ''} placeholder="Ej. Cuéntanos qué celebras y lo preparamos." onChange={(event) => update({ ocasionesTexto: event.target.value })} /></label>
+            <label>Texto del botón<input className="input" value={design.ocasionesBoton || ''} placeholder="Reservar ahora" onChange={(event) => update({ ocasionesBoton: event.target.value })} /></label>
+            <label>Veces que se muestra<select className="input" value={design.ocasionesVeces || '1'} onChange={(event) => update({ ocasionesVeces: event.target.value })}><option value="1">Una vez</option><option value="2">Dos veces</option><option value="3">Tres veces</option><option value="siempre">En cada visita</option></select><small>Se cuenta por navegador. Repetirlo siempre molesta a quien ya lo vio y viene a reservar.</small></label>
+          </div>}
           <label className="toggle-row"><input type="checkbox" checked={design.ocasionesEnEmail === 'true'} onChange={(event) => update({ ocasionesEnEmail: event.target.checked ? 'true' : 'false' })} /> Incluirla en el correo de confirmación</label>
           <label>Fotos<select className="input" value={design.ocasionesFoto || 'completa'} onChange={(event) => update({ ocasionesFoto: event.target.value })}><option value="completa">Completas, sin recortar</option><option value="horizontal">Recortadas iguales, horizontales (4:3)</option><option value="cuadrada">Recortadas iguales, cuadradas</option><option value="vertical">Recortadas iguales, verticales (3:4)</option></select><small>Completas muestran toda la foto; recortadas dejan todas las tarjetas del mismo alto.</small></label>
           <label>Título de la grilla<input className="input" value={design.ocasionesTitulo || ''} placeholder="Ej. Para cada ocasión" onChange={(event) => update({ ocasionesTitulo: event.target.value })} /></label>
@@ -863,23 +938,12 @@ function DesignStudioControls({
       </details>}
 
       <details className="design-section">
-        <summary>Aviso al entrar (opcional)</summary>
+        <summary>Mensaje de bienvenida (opcional)</summary>
         <div className="design-section-body">
-          <small>Un cuadro antes de empezar a reservar. Se elige uno solo: había dos interruptores distintos y, encendidos a la vez, se abrían uno encima del otro.</small>
-          <label>Qué se muestra al entrar<select className="input" value={design.ocasionesPopup === 'true' ? 'ocasiones' : design.welcomePopupEnabled === 'true' ? 'bienvenida' : 'nada'} onChange={(event) => update({
-            welcomePopupEnabled: event.target.value === 'bienvenida' ? 'true' : 'false',
-            ocasionesPopup: event.target.value === 'ocasiones' ? 'true' : 'false',
-          })}>
-            <option value="nada">Nada, entra directo a reservar</option>
-            <option value="bienvenida">Un mensaje de bienvenida</option>
-            <option value="ocasiones">La grilla de ocasiones</option>
-          </select></label>
-          {design.ocasionesPopup === 'true' && leerOcasiones(design.ocasiones).length === 0 && <small className="error-text">Todavía no hay ocasiones cargadas: agrégalas en «Grilla de ocasiones» o el aviso no tendrá nada que mostrar.</small>}
-        {design.welcomePopupEnabled === 'true' && <div className="form-row"><label>Título del popup<input className="input" value={design.welcomePopupTitle || ''} onChange={(event) => update({ welcomePopupTitle: event.target.value })} /></label><label>Texto del popup<textarea className="input" rows={2} value={design.welcomePopupText || ''} onChange={(event) => update({ welcomePopupText: event.target.value })} /></label></div>}
-          {design.welcomePopupEnabled === 'true' && <label>Texto del botón<input className="input" value={design.welcomePopupBoton || ''} placeholder="Continuar" onChange={(event) => update({ welcomePopupBoton: event.target.value })} /></label>}
-          {design.ocasionesPopup === 'true' && <label>Frase bajo el título <small>(opcional)</small><textarea className="input" rows={2} value={design.ocasionesTexto || ''} placeholder="Ej. Cuéntanos qué celebras y lo preparamos." onChange={(event) => update({ ocasionesTexto: event.target.value })} /></label>}
-          {design.ocasionesPopup === 'true' && <label>Texto del botón<input className="input" value={design.ocasionesBoton || ''} placeholder="Reservar ahora" onChange={(event) => update({ ocasionesBoton: event.target.value })} /></label>}
-          {design.ocasionesPopup === 'true' && <label>Veces que se muestra<select className="input" value={design.ocasionesVeces || '1'} onChange={(event) => update({ ocasionesVeces: event.target.value })}><option value="1">Una vez</option><option value="2">Dos veces</option><option value="3">Tres veces</option><option value="siempre">En cada visita</option></select><small>Se cuenta por navegador. Repetirlo siempre molesta a quien ya lo vio y viene a reservar.</small></label>}
+          <small>Un cuadro antes de empezar a reservar. Si la grilla de ocasiones se muestra al entrar, ese es el aviso y este mensaje no se usa.</small>
+          <label className="toggle-row"><input type="checkbox" disabled={design.ocasionesPopup === 'true'} checked={design.welcomePopupEnabled === 'true' && design.ocasionesPopup !== 'true'} onChange={(event) => update({ welcomePopupEnabled: event.target.checked ? 'true' : 'false' })} /> Mostrar un mensaje de bienvenida al entrar</label>
+          {design.welcomePopupEnabled === 'true' && design.ocasionesPopup !== 'true' && <div className="form-row"><label>Título<input className="input" value={design.welcomePopupTitle || ''} onChange={(event) => update({ welcomePopupTitle: event.target.value })} /></label><label>Texto<textarea className="input" rows={2} value={design.welcomePopupText || ''} onChange={(event) => update({ welcomePopupText: event.target.value })} /></label></div>}
+          {design.welcomePopupEnabled === 'true' && design.ocasionesPopup !== 'true' && <label>Texto del botón<input className="input" value={design.welcomePopupBoton || ''} placeholder="Continuar" onChange={(event) => update({ welcomePopupBoton: event.target.value })} /></label>}
         </div>
       </details>
 
@@ -986,6 +1050,17 @@ function ReservationLivePreview({
    */
   const camposEnOrden = camposVisibles(fields.filter((field) => field.id !== 'partySize' && field.type !== 'coupon' && field.id !== 'consent'), {});
   const ocultas = fields.filter((field) => field.mostrarSi?.campo).length - camposEnOrden.filter((field) => field.mostrarSi?.campo).length;
+  const zonasActivas = (draft.resourcesConfig ?? []).filter((zona) => zona.active !== false);
+  // Las mismas preguntas y condiciones que muestra la página pública.
+  const preguntasDeVisita = ([
+    ['askChildren', '¿Vienen niños o necesitas silla infantil?'],
+    ['askAccessibility', '¿Alguien necesita accesibilidad?'],
+    ['askAllergies', '¿Restricciones alimentarias?'],
+    ['askSmoking', '¿Zona de fumadores?'],
+    ['askSeating', '¿Qué mesa prefieres?'],
+    ['askFirstVisit', '¿Es tu primera visita?'],
+    ['askHowFound', '¿Cómo nos conociste?'],
+  ] as const).filter(([clave]) => (design as Record<string, unknown>)[clave] === 'true' && !(clave === 'askSmoking' && zonasActivas.length > 0)).map(([, texto]) => texto);
   const ventana = draft.scheduleConfig?.windows?.[0];
   const ritmo = Number(design.slotCadenceMinutes || '15') || 15;
   const sampleSlots: string[] = [];
@@ -1016,9 +1091,11 @@ function ReservationLivePreview({
           </div>
           <div className="booking-step-title"><span>02</span><div><strong>Datos de la reserva</strong><small>Estos son los campos configurados.</small></div></div>
           <div className="preview-public-fields">
-            {camposEnOrden.map((field) => <PreviewField key={field.id} label={field.label} required={field.required} type={field.type} />)}
+            {camposEnOrden.map((field) => <PreviewField key={field.id} label={field.label} required={field.required} type={field.type} options={field.options} />)}
             {ocultas > 0 && <small className="preview-nota">{ocultas} pregunta{ocultas === 1 ? '' : 's'} más aparece{ocultas === 1 ? '' : 'n'} según lo que se responda.</small>}
+            {preguntasDeVisita.length > 0 && <div className="preview-preferencias"><strong>Preferencias de la visita (opcional)</strong>{preguntasDeVisita.map((pregunta) => <PreviewField key={pregunta} label={pregunta} type="select" />)}</div>}
           </div>
+          {design.groupRequestEnabled !== 'false' && <div className="preview-evento"><strong>¿Es un evento o una celebración?</strong><span>Solicitar evento →</span></div>}
           <span className="preview-submit">Confirmar reserva</span>
           <p className="privacy-note">Tus datos no son públicos y quedan asociados exclusivamente a esta empresa.</p>
         </section>
@@ -1027,7 +1104,8 @@ function ReservationLivePreview({
   );
 }
 
-function PreviewField({ label, required, type = 'text' }: { label: string; required?: boolean; type?: string }) {
+function PreviewField({ label, required, type = 'text', options }: { label: string; required?: boolean; type?: string; options?: string[] }) {
+  if ((type === 'select' || type === 'multi_select') && options?.length) return <fieldset className="preview-opciones"><legend>{label}{required ? ' *' : ''}</legend>{options.slice(0, 6).map((opcion) => <span key={opcion}><i className={type === 'multi_select' ? 'es-casilla' : 'es-radio'} />{opcion}</span>)}</fieldset>;
   if (type === 'consent') return <label className="preview-consent"><span className="preview-checkbox" />{label}{required ? ' *' : ''}</label>;
   if (type === 'textarea') return <label>{label}{required ? ' *' : ''}<span className="preview-input textarea" /></label>;
   if (type === 'select' || type === 'multi_select') return <label>{label}{required ? ' *' : ''}<span className="preview-input select">Selecciona una opción</span></label>;

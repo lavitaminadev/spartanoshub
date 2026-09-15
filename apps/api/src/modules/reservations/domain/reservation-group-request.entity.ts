@@ -33,6 +33,8 @@ export class ReservationGroupRequest {
   @Column({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }) utmMedium?: string | null;
   @Column({ name: 'utm_campaign', type: 'varchar', length: 180, nullable: true }) utmCampaign?: string | null;
   @Column({ name: 'utm_content', type: 'varchar', length: 180, nullable: true }) utmContent?: string | null;
+  /** El canal se reconoció solo (app, anuncio o sitio de origen), sin enlace marcado. */
+  @Column({ name: 'origin_detected', type: 'tinyint', width: 1, default: 0, transformer: { to: (valor?: boolean) => (valor ? 1 : 0), from: (valor: number) => Boolean(valor) } }) originDetected?: boolean;
   @Column({ type: 'varchar', length: 20, default: 'pending' }) status: string;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

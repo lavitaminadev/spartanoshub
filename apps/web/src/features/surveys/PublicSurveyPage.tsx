@@ -1,4 +1,7 @@
 import { Fragment, useEffect, useMemo, useState, type FormEvent, type JSX } from 'react';
+import { PieLegal } from '../../shared/PieLegal';
+import { retirarMedicion } from '../../shared/consentimiento-medicion';
+import { AvisoDeMedicion, EnlacePreferenciasDeMedicion } from '../../shared/AvisoDeMedicion';
 import { optimizedUrl } from '../../shared/imagen-optimizada';
 import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -31,6 +34,15 @@ export function PublicSurveyPage(): JSX.Element {
   const [searchParams] = useSearchParams();
   const [answers, setAnswers] = useState<Answers>({});
   const [submitted, setSubmitted] = useState(false);
+  const claveMedicion = `vh-medicion-encuesta:${id}`;
+  const [medicion, setMedicion] = useState<'si' | 'no' | ''>(() => { try { const v = localStorage.getItem(claveMedicion); return v === 'si' || v === 'no' ? v : ''; } catch { return ''; } });
+  const [avisoMedicionAbierto, setAvisoMedicionAbierto] = useState(false);
+  const elegirMedicion = (acepta: boolean) => {
+    setMedicion(acepta ? 'si' : 'no');
+    setAvisoMedicionAbierto(false);
+    try { localStorage.setItem(claveMedicion, acepta ? 'si' : 'no'); } catch { /* sin almacenamiento */ }
+    if (!acepta) retirarMedicion();
+  };
   const [aceptada, setAceptada] = useState(false);
   const [intentoEnviar, setIntentoEnviar] = useState(false);
   const source = useMemo(() => sourceFromParams(searchParams), [searchParams]);
@@ -105,11 +117,11 @@ export function PublicSurveyPage(): JSX.Element {
    * Con una pregunta de estrellas, la encuesta se responde por pasos: la nota primero y el resto
    * según cómo le fue. Sin ella no hay con qué decidir el camino y se responde completa, como antes.
    */
-  const preguntaNota = survey.questions.find((question) => question.type === 'rating');
+  const preguntaNota = survey.questions.find((question) => question.type === 'rating' && !question.archivada);
   if (preguntaNota) {
     return (
       <main className="public-survey-page" style={style}>
-        <Ga4Tag measurementId={survey.ga4MeasurementId} />
+        <Ga4Tag measurementId={survey.ga4MeasurementId} enabled={medicion === 'si'} />{survey.ga4MeasurementId ? <><AvisoDeMedicion abierto={medicion === '' || avisoMedicionAbierto} aceptada={medicion === 'si'} onElegir={elegirMedicion} onCerrar={medicion !== '' ? () => setAvisoMedicionAbierto(false) : undefined} />{medicion !== '' && !avisoMedicionAbierto && <div className="preferencias-medicion-pie"><EnlacePreferenciasDeMedicion aceptada={medicion === 'si'} onAbrir={() => setAvisoMedicionAbierto(true)} /></div>}</> : null}
         <section className="public-survey-card">
           {design.logoUrl ? <img className="public-survey-logo" src={optimizedUrl(design.logoUrl, 480)} alt="" /> : null}
           <span className="public-survey-eyebrow">Tu opinión</span>
@@ -144,7 +156,7 @@ export function PublicSurveyPage(): JSX.Element {
   if (submitted) {
     return (
       <main className="public-survey-page" style={style}>
-        <Ga4Tag measurementId={survey.ga4MeasurementId} />
+        <Ga4Tag measurementId={survey.ga4MeasurementId} enabled={medicion === 'si'} />{survey.ga4MeasurementId ? <><AvisoDeMedicion abierto={medicion === '' || avisoMedicionAbierto} aceptada={medicion === 'si'} onElegir={elegirMedicion} onCerrar={medicion !== '' ? () => setAvisoMedicionAbierto(false) : undefined} />{medicion !== '' && !avisoMedicionAbierto && <div className="preferencias-medicion-pie"><EnlacePreferenciasDeMedicion aceptada={medicion === 'si'} onAbrir={() => setAvisoMedicionAbierto(true)} /></div>}</> : null}
         <section className="public-survey-card public-survey-success">
           <span>✓</span>
           <h1>Gracias por responder</h1>
@@ -158,7 +170,7 @@ export function PublicSurveyPage(): JSX.Element {
 
   return (
     <main className="public-survey-page" style={style}>
-      <Ga4Tag measurementId={survey.ga4MeasurementId} />
+      <Ga4Tag measurementId={survey.ga4MeasurementId} enabled={medicion === 'si'} />{survey.ga4MeasurementId ? <><AvisoDeMedicion abierto={medicion === '' || avisoMedicionAbierto} aceptada={medicion === 'si'} onElegir={elegirMedicion} onCerrar={medicion !== '' ? () => setAvisoMedicionAbierto(false) : undefined} />{medicion !== '' && !avisoMedicionAbierto && <div className="preferencias-medicion-pie"><EnlacePreferenciasDeMedicion aceptada={medicion === 'si'} onAbrir={() => setAvisoMedicionAbierto(true)} /></div>}</> : null}
       <form className="public-survey-card" onSubmit={submit}>
         {design.logoUrl ? <img className="public-survey-logo" src={optimizedUrl(design.logoUrl, 480)} alt="" /> : null}
         <span className="public-survey-eyebrow">Encuesta</span>
@@ -188,6 +200,7 @@ export function PublicSurveyPage(): JSX.Element {
           {submitMutation.isPending ? 'Enviando...' : 'Enviar respuesta'}
         </button>
       </form>
+      <PieLegal />
     </main>
   );
 }

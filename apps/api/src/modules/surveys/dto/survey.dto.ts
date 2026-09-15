@@ -41,6 +41,13 @@ export class SurveyQuestionDto {
 
   @IsOptional() @ValidateNested() @Type(() => SurveyShowRuleDto)
   mostrarSi?: SurveyShowRuleDto;
+
+  @IsOptional() @IsBoolean()
+  archivada?: boolean;
+  @IsOptional() @IsBoolean() sensible?: boolean;
+
+  @IsOptional() @IsString() @MaxLength(40)
+  editadaEn?: string;
 }
 
 export class CreateSurveyDto {

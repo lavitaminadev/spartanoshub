@@ -1,6 +1,7 @@
 import {
   BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, Req, UseGuards,
 } from '@nestjs/common';
+import { exigirIdentidadLegalDeEncuesta } from './consentimiento-de-encuesta';
 import { AuditService } from '../../core/audit/audit.service';
 import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -9,9 +10,10 @@ import { DataSource, Repository } from 'typeorm';
 import { computeSurveyResults, type Survey as SurveyContract, type SurveyResponse as SurveyResponseContract } from '@espartanos/shared';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../../core/authorization/roles.decorator';
+import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { UserRole } from '../organizations/user-role.enum';
-import { problemasDeRespuesta } from '@espartanos/shared';
+import { aplicarEdicionDePreguntas, MAXIMO_HISTORIAL, problemasDeRespuesta, type SurveyQuestion } from '@espartanos/shared';
 import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
 import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurveyResponseDto } from './dto/survey.dto';
@@ -73,6 +75,7 @@ export class SurveysController {
       responses: survey.responseCount,
       designConfig: survey.designConfig ?? undefined,
       googleReview: survey.googleReview ?? undefined,
+      historial: survey.changeLog ?? [],
     } as SurveyContract;
   }
 
@@ -133,9 +136,11 @@ export class SurveysController {
   }
 
   @Put('company-legal')
+  // Son los datos de la propia empresa: una empresa con sólo Encuestas (lectura) debe poder mantenerlos.
+  @RequiresPermission('surveys', 'view')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), dto, req.user.id);
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
   }
 
   private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {
@@ -190,14 +195,31 @@ export class SurveysController {
   @ApiOperation({ summary: 'Actualizar una encuesta' })
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateSurveyDto) {
     const survey = await this.findOwned(id, req);
+    const ahora = new Date().toISOString();
+    const cambios: string[] = [];
     if (dto.questions) {
       this.assertUniqueQuestionIds(dto.questions);
-      // Cambiar las preguntas de una encuesta que ya tiene respuestas dejaría los resultados
-      // agregando contra ids que ya no existen, sin forma de saber a qué contestó cada quien.
-      if (survey.responseCount > 0) {
-        throw new BadRequestException('No se pueden cambiar las preguntas de una encuesta que ya tiene respuestas');
-      }
-      survey.questions = dto.questions;
+      // Con respuestas se edita sin perder nada: lo quitado se archiva y el tipo no cambia.
+      const edicion = aplicarEdicionDePreguntas(survey.questions ?? [], dto.questions as SurveyQuestion[], survey.responseCount > 0, ahora);
+      if (edicion.error) throw new BadRequestException(edicion.error);
+      survey.questions = edicion.preguntas;
+      cambios.push(...edicion.cambios);
+    }
+    if (dto.title !== undefined && dto.title !== survey.title) cambios.push(`Nombre: «${survey.title}» → «${dto.title}»`);
+    if (dto.designConfig !== undefined) {
+      const antes = (survey.designConfig ?? {}) as Record<string, string>;
+      const despues = dto.designConfig as Record<string, string>;
+      if ((antes.welcome ?? '') !== (despues.welcome ?? '')) cambios.push('Mensaje de bienvenida actualizado');
+      const otras = new Set([...Object.keys(antes), ...Object.keys(despues)].filter((clave) => clave !== 'welcome' && (antes[clave] ?? '') !== (despues[clave] ?? '')));
+      if (otras.size) cambios.push(`Diseño actualizado (${[...otras].slice(0, 4).join(', ')}${otras.size > 4 ? '…' : ''})`);
+    }
+    if (dto.distribution !== undefined && JSON.stringify(dto.distribution ?? []) !== JSON.stringify(survey.distribution ?? [])) cambios.push('Canales de distribución actualizados');
+    if (dto.ga4MeasurementId !== undefined && (dto.ga4MeasurementId?.trim() || null) !== (survey.ga4MeasurementId ?? null)) cambios.push('Medición de Google Analytics actualizada');
+    if (dto.googleReview !== undefined && JSON.stringify(dto.googleReview ?? null) !== JSON.stringify(survey.googleReview ?? null)) cambios.push('Reseñas en Google actualizadas');
+    if (dto.status !== undefined && dto.status !== survey.status) cambios.push(dto.status === 'active' ? 'Encuesta publicada' : dto.status === 'closed' ? 'Encuesta cerrada' : 'Encuesta pasada a borrador');
+    if (cambios.length) {
+      const autor = await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [req.user.id]).then((filas: Array<{ name?: string }>) => filas?.[0]?.name ?? null).catch(() => null);
+      survey.changeLog = [{ fecha: ahora, autor, cambios }, ...(survey.changeLog ?? [])].slice(0, MAXIMO_HISTORIAL);
     }
     if (dto.title !== undefined) survey.title = dto.title;
     if (dto.type !== undefined) survey.type = dto.type;
@@ -207,6 +229,7 @@ export class SurveysController {
     }
     // Publicar o mover a una empresa sin el servicio no se permite; cerrar o editar textos sí.
     if (dto.clientId !== undefined || dto.status === 'active') await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
+    if (dto.status === 'active' && survey.status !== 'active') await exigirIdentidadLegalDeEncuesta(this.dataSource, survey.clientId, dto.questions ?? survey.questions);
     if (survey.type === 'customer' && !survey.clientId) throw new BadRequestException('Las encuestas de clientes requieren una empresa');
     if (survey.type === 'internal' && survey.clientId) throw new BadRequestException('Las encuestas internas no se asignan a una empresa');
     if (dto.status !== undefined) survey.status = dto.status;
@@ -293,6 +316,8 @@ export class SurveysController {
    * La empresa también puede hacerlo desde su portal: es quien suele contestarle a su cliente.
    */
   @Patch(':id/responses/:responseId/attention')
+  // Marcar atendida no modifica la encuesta: basta con poder verla (la empresa tiene lectura).
+  @RequiresPermission('surveys', 'view')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async attend(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('responseId') responseId: string, @Body() dto: AttendSurveyResponseDto) {
     const survey = await this.findOwned(id, req);

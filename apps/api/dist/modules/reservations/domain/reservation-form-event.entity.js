@@ -55,6 +55,10 @@ __decorate([
     __metadata("design:type", String)
 ], ReservationFormEvent.prototype, "utmContent", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'origin_detected', type: 'tinyint', width: 1, default: 0, transformer: { to: (valor) => (valor ? 1 : 0), from: (valor) => Boolean(valor) } }),
+    __metadata("design:type", Boolean)
+], ReservationFormEvent.prototype, "originDetected", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'json', nullable: true }),
     __metadata("design:type", Object)
 ], ReservationFormEvent.prototype, "metadata", void 0);

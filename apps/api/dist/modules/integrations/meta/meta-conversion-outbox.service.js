@@ -48,6 +48,8 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         const existing = await this.repository.findOne({ where: { organizationId, eventId } });
         if (existing)
             return existing;
+        if (await this.pausadoPorCredencial(organizationId, pixelId))
+            return null;
         const infracciones = (0, politica_meta_capi_1.revisarEvento)(event);
         if (infracciones.length > 0) {
             (0, politica_meta_capi_1.registrarBloqueo)(eventId, infracciones);
@@ -101,6 +103,29 @@ let MetaConversionOutboxService = MetaConversionOutboxService_1 = class MetaConv
         if (existe > 0)
             return null;
         return 'El lead que originó este evento ya no existe en el CRM, así que no se reporta.';
+    }
+    async pausadoPorCredencial(organizationId, pixelId) {
+        try {
+            const rechazo = await this.repository.createQueryBuilder('o')
+                .where('o.organizationId = :organizationId AND o.pixelId = :pixelId', { organizationId, pixelId })
+                .andWhere('o.lastError LIKE :marca', { marca: '%[TOKEN]%' })
+                .andWhere('o.updatedAt >= :desde', { desde: new Date(Date.now() - 24 * 3600000) })
+                .orderBy('o.updatedAt', 'DESC')
+                .getOne();
+            if (!rechazo)
+                return false;
+            const exitoPosterior = await this.repository.createQueryBuilder('o')
+                .where('o.organizationId = :organizationId AND o.pixelId = :pixelId AND o.status = :estado', { organizationId, pixelId, estado: 'processed' })
+                .andWhere('o.processedAt > :cuando', { cuando: rechazo.updatedAt })
+                .getCount();
+            if (exitoPosterior > 0)
+                return false;
+            this.logger.warn(`Meta en pausa para el Pixel ${pixelId}: el acceso fue rechazado y no se encolan eventos nuevos hasta renovarlo o por 24 horas`);
+            return true;
+        }
+        catch {
+            return false;
+        }
     }
     async send(item) {
         const token = await this.clientPixels.resolveByPixel(item.organizationId, item.pixelId, item.clientId);

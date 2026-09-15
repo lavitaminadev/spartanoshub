@@ -123,6 +123,10 @@ __decorate([
     __metadata("design:type", Object)
 ], ReservationGroupRequest.prototype, "utmContent", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'origin_detected', type: 'tinyint', width: 1, default: 0, transformer: { to: (valor) => (valor ? 1 : 0), from: (valor) => Boolean(valor) } }),
+    __metadata("design:type", Boolean)
+], ReservationGroupRequest.prototype, "originDetected", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 20, default: 'pending' }),
     __metadata("design:type", String)
 ], ReservationGroupRequest.prototype, "status", void 0);

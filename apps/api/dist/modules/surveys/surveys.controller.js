@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SurveysController = exports.MAXIMO_ENVIO_POR_PEDIDO = void 0;
 const common_1 = require("@nestjs/common");
+const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
 const audit_service_1 = require("../../core/audit/audit.service");
 const datos_legales_de_empresa_1 = require("../clients/datos-legales-de-empresa");
 const swagger_1 = require("@nestjs/swagger");
@@ -22,6 +23,7 @@ const typeorm_2 = require("typeorm");
 const shared_1 = require("@espartanos/shared");
 const passport_1 = require("@nestjs/passport");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
+const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const shared_2 = require("@espartanos/shared");
@@ -66,6 +68,7 @@ let SurveysController = class SurveysController {
             responses: survey.responseCount,
             designConfig: survey.designConfig ?? undefined,
             googleReview: survey.googleReview ?? undefined,
+            historial: survey.changeLog ?? [],
         };
     }
     async findOwned(id, req) {
@@ -106,7 +109,7 @@ let SurveysController = class SurveysController {
         return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
     }
     async saveCompanyLegal(req, query, dto) {
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), dto, req.user.id);
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
     }
     async empresaLegal(req, pedida) {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
@@ -149,12 +152,38 @@ let SurveysController = class SurveysController {
     }
     async update(req, id, dto) {
         const survey = await this.findOwned(id, req);
+        const ahora = new Date().toISOString();
+        const cambios = [];
         if (dto.questions) {
             this.assertUniqueQuestionIds(dto.questions);
-            if (survey.responseCount > 0) {
-                throw new common_1.BadRequestException('No se pueden cambiar las preguntas de una encuesta que ya tiene respuestas');
-            }
-            survey.questions = dto.questions;
+            const edicion = (0, shared_2.aplicarEdicionDePreguntas)(survey.questions ?? [], dto.questions, survey.responseCount > 0, ahora);
+            if (edicion.error)
+                throw new common_1.BadRequestException(edicion.error);
+            survey.questions = edicion.preguntas;
+            cambios.push(...edicion.cambios);
+        }
+        if (dto.title !== undefined && dto.title !== survey.title)
+            cambios.push(`Nombre: «${survey.title}» → «${dto.title}»`);
+        if (dto.designConfig !== undefined) {
+            const antes = (survey.designConfig ?? {});
+            const despues = dto.designConfig;
+            if ((antes.welcome ?? '') !== (despues.welcome ?? ''))
+                cambios.push('Mensaje de bienvenida actualizado');
+            const otras = new Set([...Object.keys(antes), ...Object.keys(despues)].filter((clave) => clave !== 'welcome' && (antes[clave] ?? '') !== (despues[clave] ?? '')));
+            if (otras.size)
+                cambios.push(`Diseño actualizado (${[...otras].slice(0, 4).join(', ')}${otras.size > 4 ? '…' : ''})`);
+        }
+        if (dto.distribution !== undefined && JSON.stringify(dto.distribution ?? []) !== JSON.stringify(survey.distribution ?? []))
+            cambios.push('Canales de distribución actualizados');
+        if (dto.ga4MeasurementId !== undefined && (dto.ga4MeasurementId?.trim() || null) !== (survey.ga4MeasurementId ?? null))
+            cambios.push('Medición de Google Analytics actualizada');
+        if (dto.googleReview !== undefined && JSON.stringify(dto.googleReview ?? null) !== JSON.stringify(survey.googleReview ?? null))
+            cambios.push('Reseñas en Google actualizadas');
+        if (dto.status !== undefined && dto.status !== survey.status)
+            cambios.push(dto.status === 'active' ? 'Encuesta publicada' : dto.status === 'closed' ? 'Encuesta cerrada' : 'Encuesta pasada a borrador');
+        if (cambios.length) {
+            const autor = await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [req.user.id]).then((filas) => filas?.[0]?.name ?? null).catch(() => null);
+            survey.changeLog = [{ fecha: ahora, autor, cambios }, ...(survey.changeLog ?? [])].slice(0, shared_2.MAXIMO_HISTORIAL);
         }
         if (dto.title !== undefined)
             survey.title = dto.title;
@@ -166,6 +195,8 @@ let SurveysController = class SurveysController {
         }
         if (dto.clientId !== undefined || dto.status === 'active')
             await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, survey.clientId);
+        if (dto.status === 'active' && survey.status !== 'active')
+            await (0, consentimiento_de_encuesta_1.exigirIdentidadLegalDeEncuesta)(this.dataSource, survey.clientId, dto.questions ?? survey.questions);
         if (survey.type === 'customer' && !survey.clientId)
             throw new common_1.BadRequestException('Las encuestas de clientes requieren una empresa');
         if (survey.type === 'internal' && survey.clientId)
@@ -334,6 +365,7 @@ __decorate([
 ], SurveysController.prototype, "companyLegal", null);
 __decorate([
     (0, common_1.Put)('company-legal'),
+    (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -396,6 +428,7 @@ __decorate([
 ], SurveysController.prototype, "results", null);
 __decorate([
     (0, common_1.Patch)(':id/responses/:responseId/attention'),
+    (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),

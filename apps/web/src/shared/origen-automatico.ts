@@ -3,8 +3,9 @@
  *
  * Una UTM escrita (o un enlace corto por canal) siempre manda: esto es sólo el respaldo para quien
  * llega por la bio de Instagram, un anuncio o una búsqueda sin enlace marcado. Lo detectado se
- * guarda con `utm_content = deteccion-automatica`, para que en los resultados se distinga de lo
- * que alguien marcó a propósito sin romper cómo Google Analytics agrupa fuente y medio.
+ * guarda marcado como detectado, para que en los resultados se distinga de lo
+ * que alguien marcó a propósito sin romper cómo Google Analytics agrupa fuente y medio. La marca
+ * viaja aparte (`origenDetectado`): el campo del anuncio queda libre para los anuncios.
  *
  * WhatsApp, QR, correo y SMS no dejan rastro: sin enlace por canal quedan como directo.
  */

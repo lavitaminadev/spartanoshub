@@ -543,3 +543,140 @@
 .fondo-claridad small { color: var(--muted, #6f6772); font-size: 12px; font-weight: 400; }
 .fondo-claridad input[type="range"] { width: 100%; accent-color: var(--primary, #cc0a55); }
 .modal-content .datos-legales-portal { min-width: 0; overflow-x: hidden; }
+
+/* Ocasiones: tarjeta con botón para ampliar la foto sin elegir la ocasión. */
+.booking-ocasion { position: relative; display: grid; min-width: 0; }
+.booking-ocasion > article, .booking-ocasion > button:first-child { height: 100%; }
+.booking-ocasion-ampliar { position: absolute; top: 16px; right: 16px; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: rgba(21, 19, 23, .72); color: #fff; font-size: 16px; line-height: 1; cursor: zoom-in; }
+.booking-ocasion-ampliar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.booking-foto-ampliada { position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; overscroll-behavior: contain; z-index: 40; display: grid; place-items: center; padding: 16px; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); background: rgba(12, 12, 14, .86); }
+.booking-foto-ampliada { cursor: zoom-out; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.booking-foto-ampliada figure { display: grid; gap: 10px; justify-items: center; width: fit-content; max-width: min(960px, 100%); max-height: 100%; margin: 0; }
+.booking-foto-ampliada img { cursor: default; -webkit-user-select: none; user-select: none; }
+.booking-foto-cerrar { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .16); color: #fff; font-size: 28px; line-height: 1; cursor: pointer; }
+.booking-foto-cerrar:hover, .booking-foto-cerrar:focus-visible { background: rgba(255, 255, 255, .3); outline: 2px solid #fff; outline-offset: 2px; }
+.booking-foto-ampliada img { max-width: 100%; max-height: calc(100vh - 140px); max-height: calc(100dvh - 140px); border-radius: 12px; object-fit: contain; background: #111; }
+.booking-foto-ampliada figcaption { color: #fff; font-weight: 700; }
+.sin-cupo-grupo { display: grid; gap: 6px; text-align: center; }
+.sin-cupo-grupo .btn { justify-self: center; }
+
+/* Solicitud de evento: destacada, porque es la reserva que más vale para el local. */
+.public-evento-cta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 18px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--booking-accent, #ea0f63) 35%, #eee); border-radius: 14px; background: color-mix(in srgb, var(--booking-accent, #ea0f63) 6%, #fff); text-align: left; }
+.public-evento-cta > div { display: grid; gap: 2px; min-width: 0; flex: 1 1 220px; }
+.public-evento-cta strong { color: var(--booking-text, #151317); font-size: 15px; }
+.public-evento-cta small { color: #5d565f; font-size: 13px; line-height: 1.4; }
+.public-evento-cta .btn { flex: none; }
+
+/* ---- Editor de sucursal: casillas en fila, texto escrito normal y etiquetas legibles. */
+.design-controls label { font-size: 13px; font-weight: 700; color: var(--ink, #151317); }
+.design-controls label small { font-size: 12px; font-weight: 400; color: var(--muted, #6f6772); line-height: 1.35; }
+.design-controls label.toggle-row { flex-direction: row; align-items: center; gap: 10px; font-weight: 600; }
+.design-controls label.toggle-row input[type="checkbox"] { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--primary, #cc0a55); }
+.design-controls .input, .design-controls textarea, .design-controls select { font-size: 14px; font-weight: 400; color: #151317; }
+.design-section-body small { font-size: 12px; }
+.reservation-builder .input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) { border: 1px solid #ddd6db; background-color: #fff; }
+.reservation-builder .input:focus { border-color: var(--primary, #cc0a55); box-shadow: 0 0 0 3px rgba(204, 10, 85, .12); outline: none; }
+.ocasiones-aviso-ajustes { display: grid; gap: 10px; margin: -2px 0 6px 28px; padding-left: 12px; border-left: 2px solid #eee6ea; }
+.toggle-nota { color: var(--muted, #6f6772); font-weight: 400; }
+/* Biblioteca de campos en grilla pareja, con «Agregar» siempre en el mismo lugar. */
+.field-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; align-content: start; }
+.field-library > span, .field-library > h3, .field-library > p, .field-library > .field-library-help { grid-column: 1 / -1; margin-bottom: 0; }
+.field-library > button { display: grid !important; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; margin: 0 !important; text-align: left; }
+.field-library > button > div { min-width: 0; }
+.field-library > button strong { display: block; font-size: 15px; line-height: 1.2; }
+.field-library > button small { display: block; font-size: 12px; }
+.field-library > button em { justify-self: end; font-style: normal; font-size: 12px; }
+/* Pasos con nombre y estado, también en pantallas medianas. */
+.builder-progress { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)) !important; gap: 6px; max-width: 980px; }
+.builder-progress button { flex-direction: column; justify-content: flex-start; gap: 4px; min-height: 56px; padding: 6px 4px; font-size: 12px !important; line-height: 1.2; text-align: center; border-radius: 12px; }
+.builder-progress button::after { display: none; }
+.builder-progress button.active { background: #fff; box-shadow: 0 1px 6px rgba(21, 19, 23, .08); }
+@media (max-width: 640px) { .builder-progress { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } .builder-progress button { font-size: 11px !important; } }
+.cupo-aviso { margin: 4px 0 8px; padding: 9px 12px; border-radius: 10px; background: #fff4e5; color: #6b4200; font-size: 13px; line-height: 1.4; }
+.zonas-en-agenda { margin: 18px 0; }
+.datos-heredados { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 10px 0 14px; }
+.datos-heredados > div { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid #e6dfe3; border-radius: 10px; background: #faf8f9; min-width: 0; }
+.datos-heredados span { color: var(--muted, #6f6772); font-size: 12px; }
+.datos-heredados strong { color: #151317; font-size: 14px; overflow-wrap: anywhere; }
+.preview-preferencias { display: grid; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e6dfe3; }
+.preview-preferencias > strong { font-size: 12px; }
+.preview-evento { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--booking-accent, #ea0f63) 7%, #fff); font-size: 12px; }
+.preview-evento span { color: var(--booking-accent, #ea0f63); font-weight: 800; }
+
+.salud-medicion { display: grid; gap: 6px; margin-top: 10px; padding: 12px 14px; border: 1px solid #e6dfe3; border-radius: 12px; background: #fff; }
+.salud-medicion strong { font-size: 14px; color: #151317; }
+.salud-medicion.is-bien { border-color: #cfe9df; background: #f2faf6; }
+.salud-medicion.is-revisar { border-color: #f0d6a8; background: #fff8ec; }
+.salud-medicion.is-mal { border-color: #f1c4c0; background: #fff2f1; }
+.salud-medicion-cifras { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #4f4852; }
+.salud-medicion-cifras b { color: #151317; font-size: 16px; }
+.salud-medicion small { color: #6f6772; font-size: 12px; }
+.salud-medicion-error { color: #8a2a22 !important; overflow-wrap: anywhere; }
+
+/* Zonas dentro de Disponibilidad: una fila compacta por zona. */
+.zonas-en-agenda { display: grid; gap: 10px; padding: 16px; border: 1px solid #e6dfe3; border-radius: 14px; background: #faf8f9; }
+.zonas-en-agenda > div:first-child h2 { margin: 2px 0 4px; font-size: 17px; }
+.zonas-en-agenda .reservation-zone-row { display: grid; grid-template-columns: minmax(120px, 1.4fr) 90px minmax(140px, 2fr); gap: 8px 10px; align-items: end; padding: 12px; border: 1px solid #e6dfe3; border-radius: 12px; background: #fff; }
+.zonas-en-agenda .reservation-zone-row > label { display: grid; gap: 4px; margin: 0; color: #151317; font-size: 12px; font-weight: 700; }
+.zonas-en-agenda .reservation-zone-row > label.toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.zonas-en-agenda .reservation-zone-row > label.toggle-row input { width: 17px; height: 17px; margin: 0; accent-color: var(--primary, #cc0a55); }
+.zonas-en-agenda .reservation-zone-row > .btn { justify-self: end; }
+.zonas-en-agenda .reservation-zone-row .input { min-height: 40px; font-size: 14px; font-weight: 400; }
+.zonas-en-agenda > .btn { justify-self: start; }
+@media (max-width: 640px) { .zonas-en-agenda .reservation-zone-row { grid-template-columns: 1fr 80px; } .zonas-en-agenda .reservation-zone-row > label:nth-child(3) { grid-column: 1 / -1; } }
+.zonas-en-agenda .reservation-zone-row > label.toggle-row { white-space: nowrap; }
+.zonas-en-agenda .reservation-zone-row > label.toggle-row:nth-of-type(4) { grid-column: 1; }
+.zonas-en-agenda .reservation-zone-row > label.toggle-row:nth-of-type(5) { grid-column: 2 / 4; }
+
+/* Datos del local: mismas etiquetas legibles que el resto del editor. */
+.builder-stage .reservation-readiness label, .builder-stage .schedule-card label { display: grid; gap: 4px; color: #151317; font-size: 13px; font-weight: 700; }
+.builder-stage .reservation-readiness label small, .builder-stage .schedule-card label small { color: var(--muted, #6f6772); font-size: 12px; font-weight: 400; line-height: 1.35; }
+.builder-stage .reservation-readiness label.toggle-row, .builder-stage .schedule-card label.toggle-row { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.builder-stage .reservation-readiness label.toggle-row input, .builder-stage .schedule-card label.toggle-row input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--primary, #cc0a55); }
+.builder-stage .reservation-readiness .input, .builder-stage .schedule-card .input { font-size: 14px; font-weight: 400; }
+.datos-heredados-nota { margin: -6px 0 10px; color: var(--muted, #6f6772); font-size: 12px; }
+
+/* Permiso de medición */
+.aviso-medicion { display: grid; gap: 8px; }
+.aviso-medicion > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.aviso-medicion-texto { margin: 0; font-size: 12px; line-height: 1.45; color: #4f4852; }
+.aviso-medicion .enlace, .preferencias-medicion .enlace { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.aviso-medicion-detalle { justify-self: start; font-size: 12px; }
+.preferencias-medicion { margin: 8px 0 0; font-size: 12px; color: #5d565f; }
+.preferencias-medicion-pie { position: fixed; left: 12px; bottom: 10px; z-index: 18; padding: 6px 10px; border-radius: 999px; background: rgba(255, 255, 255, .92); box-shadow: 0 2px 10px rgba(21, 19, 23, .12); }
+.preferencias-medicion-pie .preferencias-medicion { margin: 0; }
+@media (max-width: 520px) { .preferencias-medicion-pie { left: 8px; right: auto; bottom: 8px; font-size: 11px; } }
+
+.tipos-de-evento { display: grid; gap: 8px; }
+.tipos-de-evento > strong { font-size: 14px; color: #151317; }
+.tipos-de-evento > small { color: var(--muted, #6f6772); font-size: 12px; }
+.tipo-de-evento { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(120px, 1fr) auto; gap: 8px; align-items: center; }
+@media (max-width: 560px) { .tipo-de-evento { grid-template-columns: 1fr auto; } .tipo-de-evento select { grid-column: 1 / -1; } }
+
+/* La tarjeta de evento no hereda la columna estirada del flujo antiguo. */
+.public-other-flow.public-evento-cta { flex-direction: row; align-items: center; gap: 12px; border-style: solid; }
+.public-other-flow.public-evento-cta > div { display: flex; flex-direction: column; gap: 3px; }
+.public-other-flow.public-evento-cta button { width: auto; }
+@media (max-width: 480px) { .public-other-flow.public-evento-cta { flex-direction: column; align-items: stretch; } .public-other-flow.public-evento-cta button { width: 100%; } }
+.schedule-capacity .tipos-de-evento .input { min-height: 40px; padding: 8px 12px; font-size: 14px !important; font-weight: 400; }
+.schedule-capacity .tipos-de-evento .btn { min-height: 36px; }
+
+@media (pointer: coarse) { .booking-ocasion-ampliar { width: 44px; height: 44px; top: 10px; right: 10px; } }
+
+.pie-legal { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin: 24px auto 72px; padding: 0 16px; font-size: 12px; }
+.pie-legal a { color: inherit; opacity: .75; text-decoration: underline; text-underline-offset: 2px; }
+.pie-legal a:hover, .pie-legal a:focus-visible { opacity: 1; }
+
+.datos-legales-estado { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 14px; }
+.datos-legales-estado.is-incompleto { background: #fff4d6; color: #6b4d00; }
+.datos-legales-estado.is-completo { background: #e7f5ec; color: #1d5b35; }
+.datos-legales-encargo { display: grid; gap: 8px; margin: 0; padding: 12px 14px; border: 1px solid #e6e1dc; border-radius: 10px; }
+.datos-legales-encargo legend { padding: 0 4px; font-weight: 700; }
+.datos-legales-portal .datos-legales-encargo label { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; }
+.datos-legales-encargo p { margin: 0; font-size: 14px; }
+
+/* Preferencias de medición: al pie, sin tapar el calendario ni los botones en el celular. */
+.preferencias-medicion-pie { position: static; display: flex; justify-content: center; margin: 8px auto 0; box-shadow: none; background: transparent; }
+.textos-evento { display: grid; gap: 8px; }
+.textos-evento > strong { font-size: 14px; color: #151317; }
+.textos-evento > small { color: var(--muted, #6f6772); font-size: 12px; }

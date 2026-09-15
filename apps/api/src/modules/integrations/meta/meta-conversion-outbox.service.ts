@@ -77,11 +77,12 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
    * El `eventId` es la clave de deduplicación que Meta usa para no contar dos veces la misma
    * conversión, así que sin él no se puede encolar nada.
    */
-  async enqueue(organizationId: string, pixelId: string, event: ConversionEvent, clientId?: string | null): Promise<MetaConversionOutbox> {
+  async enqueue(organizationId: string, pixelId: string, event: ConversionEvent, clientId?: string | null): Promise<MetaConversionOutbox | null> {
     const eventId = event.eventId;
     if (!eventId) throw new Error('A stable eventId is required for Meta CAPI');
     const existing = await this.repository.findOne({ where: { organizationId, eventId } });
     if (existing) return existing;
+    if (await this.pausadoPorCredencial(organizationId, pixelId)) return null;
     /*
      * Los identificadores se hashean antes de guardar, no antes de enviar.
      *
@@ -199,6 +200,37 @@ export class MetaConversionOutboxService extends OutboxProcessor<MetaConversionO
     if (existe > 0) return null;
 
     return 'El lead que originó este evento ya no existe en el CRM, así que no se reporta.';
+  }
+
+  /**
+   * Pausa automática cuando Meta rechazó el acceso de este Pixel.
+   *
+   * Si el token venció o se revocó, cada evento nuevo fallaría igual: se acumularían fallos y
+   * datos personales en una cola que no va a salir. Mientras haya un rechazo de credencial en las
+   * últimas 24 horas sin un envío exitoso posterior, los eventos nuevos no se encolan. Se reanuda
+   * solo: al pasar las 24 horas se vuelve a probar, y si alguien reconecta Meta y reintenta los
+   * fallidos, el primer envío exitoso levanta la pausa de inmediato.
+   */
+  private async pausadoPorCredencial(organizationId: string, pixelId: string): Promise<boolean> {
+    try {
+      const rechazo = await this.repository.createQueryBuilder('o')
+        .where('o.organizationId = :organizationId AND o.pixelId = :pixelId', { organizationId, pixelId })
+        .andWhere('o.lastError LIKE :marca', { marca: '%[TOKEN]%' })
+        .andWhere('o.updatedAt >= :desde', { desde: new Date(Date.now() - 24 * 3600000) })
+        .orderBy('o.updatedAt', 'DESC')
+        .getOne();
+      if (!rechazo) return false;
+      const exitoPosterior = await this.repository.createQueryBuilder('o')
+        .where('o.organizationId = :organizationId AND o.pixelId = :pixelId AND o.status = :estado', { organizationId, pixelId, estado: 'processed' })
+        .andWhere('o.processedAt > :cuando', { cuando: rechazo.updatedAt })
+        .getCount();
+      if (exitoPosterior > 0) return false;
+      this.logger.warn(`Meta en pausa para el Pixel ${pixelId}: el acceso fue rechazado y no se encolan eventos nuevos hasta renovarlo o por 24 horas`);
+      return true;
+    } catch {
+      // Si no se puede comprobar, se encola como siempre: la pausa es una protección, no un requisito.
+      return false;
+    }
   }
 
   protected async send(item: MetaConversionOutbox): Promise<void> {

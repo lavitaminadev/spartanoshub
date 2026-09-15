@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rutaDatosLegales } from './ClientLegalData';
+import { datosLegalesCompletos, rutaDatosLegales } from './ClientLegalData';
 import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
 import type { User } from '../../core/auth';
 
@@ -14,6 +14,13 @@ describe('datos legales en el portal', () => {
     expect(isClientNavItemVisible(legal, empresa({ reservations: true }))).toBe(true);
     expect(isClientNavItemVisible(legal, empresa({ surveys: true }))).toBe(true);
     expect(isClientNavItemVisible(legal, empresa({ crm: true }))).toBe(false);
+  });
+
+  it('exigen razón social, RUT válido y correo; la política propia es opcional', () => {
+    const base = { legalName: 'Casa SpA', taxId: '76.086.428-5', privacyEmail: 'priv@casa.cl', privacyUrl: null, termsUrl: null, legalMode: 'enlace' as const, privacyText: null, termsText: null };
+    expect(datosLegalesCompletos(base)).toEqual({ completos: 3, total: 3, faltan: [] });
+    expect(datosLegalesCompletos({ ...base, taxId: '76.086.428-0' }).faltan).toEqual(['RUT válido']);
+    expect(datosLegalesCompletos(undefined).faltan).toHaveLength(3);
   });
 
   it('usan la ruta del servicio que la empresa tiene', () => {

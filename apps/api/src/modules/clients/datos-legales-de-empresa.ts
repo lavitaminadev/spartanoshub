@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { IsEmail, IsIn, IsOptional, IsString, IsUrl, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, IsUrl, IsUUID, MaxLength } from 'class-validator';
+import { VERSION_DOCUMENTOS_LEGALES } from '@espartanos/shared';
 import type { DataSource } from 'typeorm';
 import type { AuditService } from '../../core/audit/audit.service';
 
@@ -22,6 +23,8 @@ export class CompanyLegalDto {
   @IsOptional() @IsIn(['enlace', 'texto']) legalMode?: string;
   @IsOptional() @IsString() @MaxLength(30000) privacyText?: string | null;
   @IsOptional() @IsString() @MaxLength(30000) termsText?: string | null;
+  /** Acepta la versión vigente del contrato de encargo. Se registra quién y cuándo; no se puede desmarcar. */
+  @IsOptional() @IsBoolean() aceptaEncargo?: boolean;
 }
 
 export class CompanyLegalScopeDto {
@@ -29,13 +32,17 @@ export class CompanyLegalScopeDto {
 }
 
 export async function leerDatosLegales(db: DataSource, organizationId: string, clientId: string) {
-  const filas = await db.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]) as Array<Record<string, string | null>>;
-  const fila = filas?.[0];
+  const filas = await db.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode, privacy_text, terms_text, encargo_version, encargo_accepted_at, encargo_accepted_name FROM clients WHERE id = ? AND organization_id = ? LIMIT 1', [clientId, organizationId]) as Array<Record<string, string | Date | null>>;
+  const fila = filas?.[0] as Record<string, string | null> | undefined;
   if (!fila) throw new NotFoundException('Empresa no encontrada');
-  return { legalName: fila.legal_name, taxId: fila.tax_id, privacyEmail: fila.privacy_email, privacyUrl: fila.privacy_url, termsUrl: fila.terms_url, legalMode: fila.legal_mode === 'texto' ? 'texto' : 'enlace', privacyText: fila.privacy_text, termsText: fila.terms_text };
+  const aceptadoEn = fila.encargo_accepted_at ? new Date(fila.encargo_accepted_at).toISOString() : null;
+  return {
+    legalName: fila.legal_name, taxId: fila.tax_id, privacyEmail: fila.privacy_email, privacyUrl: fila.privacy_url, termsUrl: fila.terms_url, legalMode: fila.legal_mode === 'texto' ? 'texto' : 'enlace', privacyText: fila.privacy_text, termsText: fila.terms_text,
+    encargo: { version: fila.encargo_version ?? null, aceptadoEn, aceptadoPor: fila.encargo_accepted_name ?? null, vigente: fila.encargo_version === VERSION_DOCUMENTOS_LEGALES, versionVigente: VERSION_DOCUMENTOS_LEGALES },
+  };
 }
 
-export async function guardarDatosLegales(db: DataSource, audit: AuditService, organizationId: string, clientId: string, dto: CompanyLegalDto, actorId: string) {
+export async function guardarDatosLegales(db: DataSource, audit: AuditService, organizationId: string, clientId: string, dto: CompanyLegalDto, actorId: string, actorName?: string | null) {
   const antes = await leerDatosLegales(db, organizationId, clientId);
   const limpio = (valor: string | null | undefined) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null);
   await db.query(
@@ -43,6 +50,13 @@ export async function guardarDatosLegales(db: DataSource, audit: AuditService, o
     [limpio(dto.legalName), limpio(dto.taxId), limpio(dto.privacyEmail), limpio(dto.privacyUrl), limpio(dto.termsUrl), dto.legalMode === 'texto' ? 'texto' : 'enlace', limpio(dto.privacyText), limpio(dto.termsText), clientId, organizationId],
   );
   await audit.log({ organizationId, actorId, entityType: 'ClientLegalData', entityId: clientId, action: 'updated', before: antes as never, after: dto as never });
+  if (dto.aceptaEncargo === true && !antes.encargo.vigente) {
+    await db.query(
+      'UPDATE clients SET encargo_version = ?, encargo_accepted_at = ?, encargo_accepted_by = ?, encargo_accepted_name = ? WHERE id = ? AND organization_id = ?',
+      [VERSION_DOCUMENTOS_LEGALES, new Date(), actorId, actorName?.slice(0, 180) ?? null, clientId, organizationId],
+    );
+    await audit.log({ organizationId, actorId, entityType: 'ClientDataProcessingAgreement', entityId: clientId, action: 'accepted', after: { version: VERSION_DOCUMENTOS_LEGALES } as never });
+  }
   return leerDatosLegales(db, organizationId, clientId);
 }
 

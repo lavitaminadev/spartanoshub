@@ -738,3 +738,24 @@
 .modal-content .client-capability-grid,.modal-content .pixel-mode-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .client-capability-toggle,.pixel-mode-grid button{min-width:0}
 .client-capability-toggle div{min-width:0;overflow-wrap:anywhere}
+
+/* Casillas del editor de campo: casilla y texto en la misma línea. */
+.field-editor-body label.toggle-row { flex-direction: row; align-items: center; gap: 10px; font-size: 13px; }
+.field-editor-body label.toggle-row input[type="checkbox"] { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--primary, #cc0a55); }
+.field-editor-body label.toggle-row .toggle-nota { font-weight: 500; color: var(--text-light, #706a73); }
+.field-editor-body label > small.toggle-nota { font-weight: 500; color: var(--text-light, #706a73); }
+/* Vista de opciones en el lienzo y en la vista previa. */
+.field-preview-opciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.field-preview-opciones span { padding: 6px 12px; border: 1px solid var(--border-color-strong, #e3dade); border-radius: 999px; background: #fff; font-size: 13px; color: var(--text-dark, #22161d); }
+.field-preview-opciones.es-multiple span { border-radius: 6px; }
+.preview-opciones { display: grid; gap: 6px; margin: 0; padding: 0; border: 0; }
+.preview-opciones legend { margin-bottom: 4px; font-size: 12px; font-weight: 700; }
+.preview-opciones span { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.preview-opciones i { flex: none; width: 14px; height: 14px; border: 1.5px solid currentColor; opacity: .6; }
+.preview-opciones i.es-radio { border-radius: 50%; }
+.preview-opciones i.es-casilla { border-radius: 3px; }
+.field-editor-body label.toggle-row .toggle-nota.bloque { display: block; margin-top: 2px; font-size: 12px; }
+/* La hora no se parte en dos líneas («01:45 p.» / «m.»): columnas con ancho para la hora completa. */
+.slot-time-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.slot-time-btn strong { white-space: nowrap; }
+@media (max-width: 420px) { .slot-time-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .slot-time-btn strong { font-size: 13px; } }

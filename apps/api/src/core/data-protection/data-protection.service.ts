@@ -9,6 +9,14 @@ import { Contact } from '../../modules/crm/contacts/contact.entity';
 import { Reservation } from '../../modules/reservations/domain/reservation.entity';
 import { ServiceRequest } from '../../modules/service-requests/service-request.entity';
 import { ConsentVersion } from './consent-version.entity';
+import { documentoATexto, politicaDePrivacidadDeEspartanos } from '@espartanos/shared';
+
+/** Fecha de hace `meses` meses calendario. */
+function haceMeses(meses: number, ahora = new Date()): Date {
+  const fecha = new Date(ahora);
+  fecha.setMonth(fecha.getMonth() - meses);
+  return fecha;
+}
 
 /** Aviso de privacidad que se muestra donde se pide un consentimiento. */
 export interface AvisoPrivacidad {
@@ -22,29 +30,13 @@ export interface AvisoPrivacidad {
 }
 
 /**
- * Texto de reemplazo mientras la agencia no publique el suyo.
- *
- * **No es un aviso de privacidad válido y no pretende serlo.** Describe en términos generales
- * qué se hace con los datos para que el formulario no pida aceptar en blanco, y dice
- * explícitamente que es provisional para que nadie lo confunda con el definitivo.
- *
- * Se publica el real desde Configuración; al hacerlo, este deja de usarse solo.
+ * Aviso que rige mientras la organización no publique uno propio desde Configuración: la Política
+ * de privacidad de Espartanos, completa y versionada en `@espartanos/shared`.
  */
-const AVISO_PROVISIONAL = {
-  title: 'Aviso de privacidad (texto provisional)',
-  text: [
-    'Este es un texto provisional mientras la agencia publica su aviso de privacidad definitivo.',
-    '',
-    'Los datos que entregas —nombre, correo, y el RUT o teléfono cuando corresponda— se usan',
-    'únicamente para gestionar, responder y dar seguimiento a tu solicitud, y para dejar',
-    'registro de qué se pidió, quién lo resolvió y cuándo.',
-    '',
-    'No se utilizan para otros fines ni se comparten con terceros, salvo obligación legal.',
-    '',
-    'Puedes ejercer tus derechos de acceso, rectificación, anonimización, portabilidad y baja',
-    'por este mismo canal, conforme a la Ley 19.628 y a la Ley 21.719 que la actualiza.',
-  ].join('\n'),
-};
+function avisoDeEspartanos() {
+  const politica = politicaDePrivacidadDeEspartanos();
+  return { title: politica.titulo, text: documentoATexto(politica), documentVersion: politica.version };
+}
 
 @Injectable()
 export class DataProtectionService {
@@ -62,15 +54,9 @@ export class DataProtectionService {
   /**
    * Aviso de privacidad vigente, para mostrarlo donde se pide un consentimiento.
    *
-   * Devuelve siempre algo: si la organización todavía no publicó ninguna versión entrega un
-   * texto **provisional** marcado como tal. Se prefiere eso a no mostrar nada porque un
-   * formulario que pide aceptar sin decir qué es peor que uno con un texto genérico, y peor
-   * aún es un literal escondido en el código, que cambia sin dejar rastro.
-   *
-   * El texto provisional no se guarda como versión publicada: nadie lo redactó ni lo aprobó, y
-   * fabricar ese registro sería inventar una traza. Queda identificado con versión `0` para
-   * que la pantalla lo advierta y para que las aceptaciones registradas bajo él se distingan
-   * de las que aceptaron un texto real.
+   * Devuelve siempre un texto válido: la versión publicada por la organización o, si no hay,
+   * la Política de privacidad de Espartanos. Esta última no se guarda como versión publicada de
+   * la organización; queda con versión `0` y su propia versión de documento en el título del texto.
    */
   async avisoPrivacidadVigente(organizationId: string): Promise<AvisoPrivacidad> {
     const publicada = await this.consentVersionRepo.findOne({
@@ -86,7 +72,8 @@ export class DataProtectionService {
         provisional: false,
       };
     }
-    return { versionId: null, version: 0, ...AVISO_PROVISIONAL, provisional: true };
+    const { title, text } = avisoDeEspartanos();
+    return { versionId: null, version: 0, title, text, provisional: false };
   }
 
   /**
@@ -259,6 +246,64 @@ export class DataProtectionService {
       }
     }
     return { reviewed: expired.length, anonymized };
+  }
+
+  /**
+   * Borra los identificadores de medición (cookies de Meta, IP y navegador) de las reservas creadas
+   * hace más de `meses`, sin tocar el resto de la reserva.
+   *
+   * @returns Cuántas reservas se limpiaron.
+   */
+  async borrarIdentificadoresDeMedicionVencidos(meses: number): Promise<number> {
+    const resultado = await this.reservationRepo.manager.query(
+      'UPDATE reservations SET fbc = NULL, fbp = NULL, client_ip_address = NULL, client_user_agent = NULL WHERE created_at < ? AND (fbc IS NOT NULL OR fbp IS NOT NULL OR client_ip_address IS NOT NULL OR client_user_agent IS NOT NULL) LIMIT 2000',
+      [haceMeses(meses)],
+    ) as { affectedRows?: number };
+    return resultado?.affectedRows ?? 0;
+  }
+
+  /**
+   * Anonimiza las solicitudes de evento o grupo enviadas hace más de `meses`.
+   *
+   * Quedan el tamaño del grupo, la ocasión, las fechas, el estado y el origen: lo que sirve para
+   * reportes sin identificar a nadie. Los textos de aceptación también quedan, como constancia.
+   */
+  async anonimizarSolicitudesDeGrupoVencidas(meses: number): Promise<number> {
+    const resultado = await this.reservationRepo.manager.query(
+      "UPDATE reservation_group_requests SET guest_name = CONCAT('Solicitante anonimizado ', LEFT(id, 8)), guest_email = NULL, guest_phone = NULL, notes = NULL, details = NULL, quote_message = NULL WHERE created_at < ? AND (guest_email IS NOT NULL OR guest_phone IS NOT NULL OR guest_name NOT LIKE 'Solicitante anonimizado%') LIMIT 2000",
+      [haceMeses(meses)],
+    ) as { affectedRows?: number };
+    return resultado?.affectedRows ?? 0;
+  }
+
+  /**
+   * Anonimiza las respuestas de encuestas enviadas hace más de `meses` que traen datos de contacto.
+   *
+   * Se borran nombre, correo, mensaje al equipo y las respuestas a preguntas de datos personales
+   * (nombre, RUT, correo, teléfono, nacimiento) y a preguntas sensibles. Las notas y opiniones quedan para los resultados.
+   */
+  async anonimizarRespuestasDeEncuestaVencidas(meses: number): Promise<number> {
+    const manager = this.reservationRepo.manager;
+    const filas = await manager.query(
+      'SELECT r.id, r.answers, s.questions FROM survey_responses r JOIN surveys s ON s.id = r.survey_id WHERE r.submitted_at < ? AND (r.respondent_name IS NOT NULL OR r.respondent_email IS NOT NULL OR r.team_message IS NOT NULL OR r.privacy_consent_at IS NOT NULL) LIMIT 500',
+      [haceMeses(meses)],
+    ) as Array<{ id: string; answers: unknown; questions: unknown }>;
+    let anonimizadas = 0;
+    for (const fila of filas) {
+      try {
+        const preguntas = (typeof fila.questions === 'string' ? JSON.parse(fila.questions) : fila.questions) as Array<{ id: string; dato?: string; sensible?: boolean }> | null;
+        const respuestas = { ...((typeof fila.answers === 'string' ? JSON.parse(fila.answers) : fila.answers) as Record<string, unknown> ?? {}) };
+        for (const pregunta of preguntas ?? []) if (pregunta.dato || pregunta.sensible) delete respuestas[pregunta.id];
+        await manager.query(
+          'UPDATE survey_responses SET respondent_name = NULL, respondent_email = NULL, team_message = NULL, answers = ?, privacy_consent_at = NULL WHERE id = ?',
+          [JSON.stringify(respuestas), fila.id],
+        );
+        anonimizadas += 1;
+      } catch {
+        // Una respuesta dañada no detiene al resto del lote.
+      }
+    }
+    return anonimizadas;
   }
 
   async recordConsent(userId: string, action: string, granted: boolean, ipAddress?: string): Promise<DataConsent> {

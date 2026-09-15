@@ -47,7 +47,9 @@ function aggregateChoice(values: string[]): Record<string, number> {
  */
 export function computeSurveyResults(survey: Survey, responses: SurveyResponse[]): SurveyResultsSummary {
   // Los datos de contacto identifican a una persona: se leen en cada respuesta, no se agregan.
-  const questions: SurveyQuestionResult[] = survey.questions.filter((question) => !question.dato).map((question) => {
+  // Las archivadas siguen en resultados con su marca: sus respuestas se conservan.
+  const questions: SurveyQuestionResult[] = survey.questions.filter((question) => !question.dato).map((original) => {
+    const question = original.archivada ? { ...original, question: `${original.question} (archivada)` } : original;
     const raw = responses
       .map((response) => response.answers[question.id])
       .filter((value): value is string | number => value !== undefined && value !== '');

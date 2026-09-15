@@ -24,21 +24,16 @@ const contact_entity_1 = require("../../modules/crm/contacts/contact.entity");
 const reservation_entity_1 = require("../../modules/reservations/domain/reservation.entity");
 const service_request_entity_1 = require("../../modules/service-requests/service-request.entity");
 const consent_version_entity_1 = require("./consent-version.entity");
-const AVISO_PROVISIONAL = {
-    title: 'Aviso de privacidad (texto provisional)',
-    text: [
-        'Este es un texto provisional mientras la agencia publica su aviso de privacidad definitivo.',
-        '',
-        'Los datos que entregas —nombre, correo, y el RUT o teléfono cuando corresponda— se usan',
-        'únicamente para gestionar, responder y dar seguimiento a tu solicitud, y para dejar',
-        'registro de qué se pidió, quién lo resolvió y cuándo.',
-        '',
-        'No se utilizan para otros fines ni se comparten con terceros, salvo obligación legal.',
-        '',
-        'Puedes ejercer tus derechos de acceso, rectificación, anonimización, portabilidad y baja',
-        'por este mismo canal, conforme a la Ley 19.628 y a la Ley 21.719 que la actualiza.',
-    ].join('\n'),
-};
+const shared_1 = require("@espartanos/shared");
+function haceMeses(meses, ahora = new Date()) {
+    const fecha = new Date(ahora);
+    fecha.setMonth(fecha.getMonth() - meses);
+    return fecha;
+}
+function avisoDeEspartanos() {
+    const politica = (0, shared_1.politicaDePrivacidadDeEspartanos)();
+    return { title: politica.titulo, text: (0, shared_1.documentoATexto)(politica), documentVersion: politica.version };
+}
 let DataProtectionService = class DataProtectionService {
     constructor(userRepo, leadRepo, auditRepo, consentRepo, contactRepo, reservationRepo, serviceRequestRepo, consentVersionRepo) {
         this.userRepo = userRepo;
@@ -64,7 +59,8 @@ let DataProtectionService = class DataProtectionService {
                 provisional: false,
             };
         }
-        return { versionId: null, version: 0, ...AVISO_PROVISIONAL, provisional: true };
+        const { title, text } = avisoDeEspartanos();
+        return { versionId: null, version: 0, title, text, provisional: false };
     }
     async recordAnonymization(organizationId, entityType, entityId, reason) {
         await this.auditRepo.save(this.auditRepo.create({
@@ -190,6 +186,33 @@ let DataProtectionService = class DataProtectionService {
             }
         }
         return { reviewed: expired.length, anonymized };
+    }
+    async borrarIdentificadoresDeMedicionVencidos(meses) {
+        const resultado = await this.reservationRepo.manager.query('UPDATE reservations SET fbc = NULL, fbp = NULL, client_ip_address = NULL, client_user_agent = NULL WHERE created_at < ? AND (fbc IS NOT NULL OR fbp IS NOT NULL OR client_ip_address IS NOT NULL OR client_user_agent IS NOT NULL) LIMIT 2000', [haceMeses(meses)]);
+        return resultado?.affectedRows ?? 0;
+    }
+    async anonimizarSolicitudesDeGrupoVencidas(meses) {
+        const resultado = await this.reservationRepo.manager.query("UPDATE reservation_group_requests SET guest_name = CONCAT('Solicitante anonimizado ', LEFT(id, 8)), guest_email = NULL, guest_phone = NULL, notes = NULL, details = NULL, quote_message = NULL WHERE created_at < ? AND (guest_email IS NOT NULL OR guest_phone IS NOT NULL OR guest_name NOT LIKE 'Solicitante anonimizado%') LIMIT 2000", [haceMeses(meses)]);
+        return resultado?.affectedRows ?? 0;
+    }
+    async anonimizarRespuestasDeEncuestaVencidas(meses) {
+        const manager = this.reservationRepo.manager;
+        const filas = await manager.query('SELECT r.id, r.answers, s.questions FROM survey_responses r JOIN surveys s ON s.id = r.survey_id WHERE r.submitted_at < ? AND (r.respondent_name IS NOT NULL OR r.respondent_email IS NOT NULL OR r.team_message IS NOT NULL OR r.privacy_consent_at IS NOT NULL) LIMIT 500', [haceMeses(meses)]);
+        let anonimizadas = 0;
+        for (const fila of filas) {
+            try {
+                const preguntas = (typeof fila.questions === 'string' ? JSON.parse(fila.questions) : fila.questions);
+                const respuestas = { ...((typeof fila.answers === 'string' ? JSON.parse(fila.answers) : fila.answers) ?? {}) };
+                for (const pregunta of preguntas ?? [])
+                    if (pregunta.dato || pregunta.sensible)
+                        delete respuestas[pregunta.id];
+                await manager.query('UPDATE survey_responses SET respondent_name = NULL, respondent_email = NULL, team_message = NULL, answers = ?, privacy_consent_at = NULL WHERE id = ?', [JSON.stringify(respuestas), fila.id]);
+                anonimizadas += 1;
+            }
+            catch {
+            }
+        }
+        return anonimizadas;
     }
     async recordConsent(userId, action, granted, ipAddress) {
         const consent = this.consentRepo.create({ userId, action, granted, ipAddress });

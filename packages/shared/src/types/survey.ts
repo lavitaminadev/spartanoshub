@@ -51,6 +51,12 @@ export interface SurveyQuestion {
   dato?: SurveyContactField;
   /** Mostrarla sólo si otra pregunta tiene ciertos valores. */
   mostrarSi?: SurveyShowRule;
+  /** Quitada después de recibir respuestas: no se muestra, pero sus respuestas se conservan. */
+  archivada?: boolean;
+  /** Pregunta sobre salud, alimentación u otro dato sensible: exige consentimiento expreso. */
+  sensible?: boolean;
+  /** Cuándo cambió su redacción teniendo ya respuestas. */
+  editadaEn?: string;
 }
 
 /** Aceptación que se pide cuando la encuesta solicita datos personales. */
@@ -61,6 +67,8 @@ export interface SurveyConsent {
   responsable: string;
   privacyUrl?: string | null;
   privacyText?: string | null;
+  /** Datos legales reales del responsable, para generar su política si no publicó una. Ausente si la encuesta es de Espartanos. */
+  identidad?: { razonSocial?: string | null; rut?: string | null; correo?: string | null; nombreComercial?: string | null } | null;
 }
 
 /** Encuesta completa: definición, distribución y estado agregado. */
@@ -84,6 +92,8 @@ export interface Survey {
   distribution?: SurveyDistributionChannel[];
   publicUrl?: string;
   ga4MeasurementId?: string | null;
+  /** Ediciones hechas a la encuesta, la más reciente primero. */
+  historial?: Array<{ fecha: string; autor: string | null; cambios: string[] }>;
   /** Sólo en la página pública, cuando la encuesta pide datos personales. */
   consentimiento?: SurveyConsent | null;
   /** Conteo de respuestas recibidas. Se mantiene desnormalizado para listar sin agregar. */

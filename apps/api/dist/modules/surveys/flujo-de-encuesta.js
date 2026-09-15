@@ -9,7 +9,7 @@ exports.obligatoriasPendientes = obligatoriasPendientes;
 const shared_1 = require("@espartanos/shared");
 exports.UMBRAL_POR_DEFECTO = 4;
 function preguntaDeNota(preguntas) {
-    return preguntas.find((pregunta) => pregunta.type === 'rating');
+    return preguntas.find((pregunta) => pregunta.type === 'rating' && !pregunta.archivada);
 }
 function notaValida(nota) {
     return typeof nota === 'number' && Number.isInteger(nota) && nota >= 1 && nota <= 5;

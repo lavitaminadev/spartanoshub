@@ -17,8 +17,8 @@ export function DatosLegalesDeCliente({ clientId, capacidades }: { clientId: str
     queryKey: ['company-legal', clientId],
     queryFn: () => api.get<Parameters<typeof datosLegalesCompletos>[0]>(rutaDatosLegales(capacidades ?? { reservations: true }, clientId)),
   });
-  const { completos, total } = datosLegalesCompletos(data ?? undefined);
-  const listo = completos === total;
+  const { faltan } = datosLegalesCompletos(data ?? undefined);
+  const listo = faltan.length === 0;
 
   return (
     <div className="datos-legales-cliente">
@@ -26,7 +26,7 @@ export function DatosLegalesDeCliente({ clientId, capacidades }: { clientId: str
         <strong>Datos legales</strong>
         {isLoading ? <small>Revisando…</small> : error ? <small>No se pudieron leer.</small> : (
           <small className={listo ? 'is-completo' : 'is-incompleto'}>
-            {listo ? 'Completos: la empresa los mantiene desde su portal.' : `Faltan ${total - completos} de ${total} (razón social, RUT, correo o política). Los completa la empresa en su portal.`}
+            {listo ? 'Completos: la empresa los mantiene desde su portal.' : `Falta ${faltan.join(', ')}. Sin esto no se pueden publicar reservas ni encuestas con datos personales.`}
           </small>
         )}
       </div>

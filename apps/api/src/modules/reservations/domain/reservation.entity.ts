@@ -58,6 +58,12 @@ export class Reservation {
   @Column({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }) guestConfirmedAt?: Date | null;
   /** Opt-in separado para analítica/conversiones; nunca se deduce del consentimiento operativo. */
   @Column({ name: 'measurement_consent_at', type: 'timestamp', nullable: true }) measurementConsentAt?: Date | null;
+  /** Versión y texto exacto del permiso de medición aceptado. */
+  @Column({ name: 'measurement_consent_version', type: 'varchar', length: 30, nullable: true }) measurementConsentVersion?: string | null;
+  @Column({ name: 'measurement_consent_text', type: 'text', nullable: true, select: false }) measurementConsentText?: string | null;
+  /** Consentimiento expreso para datos sensibles (salud, alimentación), con el texto aceptado. */
+  @Column({ name: 'sensitive_consent_at', type: 'timestamp', nullable: true }) sensitiveConsentAt?: Date | null;
+  @Column({ name: 'sensitive_consent_text', type: 'text', nullable: true, select: false }) sensitiveConsentText?: string | null;
   /**
    * Cuándo declaró ser mayor de 18 años.
    *
@@ -88,6 +94,8 @@ export class Reservation {
   @Column({ name: 'utm_medium', type: 'varchar', length: 120, nullable: true }) utmMedium?: string;
   @Column({ name: 'utm_campaign', type: 'varchar', length: 180, nullable: true }) utmCampaign?: string;
   @Column({ name: 'utm_content', type: 'varchar', length: 180, nullable: true }) utmContent?: string;
+  /** El canal se reconoció solo (app, anuncio o sitio de origen), sin enlace marcado. */
+  @Column({ name: 'origin_detected', type: 'tinyint', width: 1, default: 0, transformer: { to: (valor?: boolean) => (valor ? 1 : 0), from: (valor: number) => Boolean(valor) } }) originDetected?: boolean;
   /** @deprecated Se conserva por el histórico y por los formularios aún en caché. Usar `gclid`. */
   @Column({ name: 'click_id', type: 'varchar', length: 255, nullable: true }) clickId?: string;
   @Column({ name: 'gclid', type: 'varchar', length: 255, nullable: true }) gclid?: string | null;

@@ -67,13 +67,15 @@ describe('datos de quien responde', () => {
 });
 
 describe('aceptación de datos en encuestas', () => {
-  const db = { query: async () => [{ name: 'Casa', legal_name: 'Casa SpA', privacy_email: 'priv@casa.cl', privacy_url: 'https://casa.cl/p', legal_mode: 'enlace', privacy_text: null }] };
+  const db = { query: async () => [{ name: 'Casa', legal_name: 'Casa SpA', tax_id: '76.086.428-5', privacy_email: 'priv@casa.cl', privacy_url: 'https://casa.cl/p', legal_mode: 'enlace', privacy_text: null }] };
 
   it('arma el texto con la empresa responsable y Espartanos como encargado', async () => {
     const c = await consentimientoDeEncuesta(db, { clientId: 'c1', questions: PREGUNTAS });
-    expect(c?.responsable).toBe('Casa SpA');
+    expect(c?.responsable).toBe('Casa SpA, RUT 76.086.428-5 («Casa»)');
+    expect(c?.identidad).toEqual({ razonSocial: 'Casa SpA', rut: '76.086.428-5', correo: 'priv@casa.cl', nombreComercial: 'Casa' });
+    expect(c?.texto).toContain('Agencia de Protección de Datos Personales');
     expect(c?.texto).toContain('priv@casa.cl');
-    expect(c?.texto).toContain('por encargo de Casa SpA');
+    expect(c?.texto).toContain('por encargo de Casa SpA, RUT 76.086.428-5');
     expect(c?.privacyUrl).toBe('https://casa.cl/p');
     expect(await consentimientoDeEncuesta(db, { clientId: 'c1', questions: [PREGUNTAS[0]] })).toBeNull();
   });
@@ -82,7 +84,7 @@ describe('aceptación de datos en encuestas', () => {
     await expect(aceptacionAGuardar(db, { clientId: 'c1', questions: PREGUNTAS }, { nota: 5 }, undefined)).resolves.toEqual({});
     await expect(aceptacionAGuardar(db, { clientId: 'c1', questions: PREGUNTAS }, { 'dato-correo': 'a@b.cl' }, false)).rejects.toThrow('aceptar');
     const guardado = await aceptacionAGuardar(db, { clientId: 'c1', questions: PREGUNTAS }, { 'dato-correo': 'a@b.cl' }, true);
-    expect(guardado.privacyConsentText).toMatch(/^\[survey-v1\] Acepto que Casa SpA/);
+    expect(guardado.privacyConsentText).toMatch(/^\[survey-v2\] Acepto que Casa SpA/);
     expect(guardado.privacyConsentAt).toBeInstanceOf(Date);
   });
 
