@@ -75,6 +75,12 @@ describe('reservas simultáneas', () => {
     });
     expect(creado.status, `crear formulario: ${JSON.stringify(creado.body)}`).toBe(201);
 
+    // Publicar exige la identidad legal de la empresa: quien reserva debe saber quién responde por sus datos.
+    const legal = await banco.pedir('PUT', `/reservations/company-legal?clientId=${clientId}`, token, {
+      legalName: 'Empresa de Prueba SpA', taxId: '76.086.428-5', privacyEmail: 'privacidad@prueba.cl', legalMode: 'enlace',
+    });
+    expect(legal.status, `datos legales: ${JSON.stringify(legal.body)}`).toBe(200);
+
     const publicado = await banco.pedir('PATCH', `/reservations/forms/${creado.body.id}`, token, {
       ...topes, minimumNoticeHours: 0, status: 'published',
     });
