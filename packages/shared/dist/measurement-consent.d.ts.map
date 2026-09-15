@@ -1,1 +1,1 @@
-{"version":3,"file":"measurement-consent.d.ts","sourceRoot":"","sources":["../src/measurement-consent.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;GAUG;AAEH,eAAO,MAAM,gBAAgB,gBAAgB,CAAC;AAE9C,uCAAuC;AACvC,eAAO,MAAM,cAAc,kNAAwM,CAAC;AAEpO,gDAAgD;AAChD,eAAO,MAAM,cAAc,wmBAA2jB,CAAC"}
+{"version":3,"file":"measurement-consent.d.ts","sourceRoot":"","sources":["../src/measurement-consent.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;GAUG;AAEH,eAAO,MAAM,gBAAgB,gBAAgB,CAAC;AAE9C,uCAAuC;AACvC,eAAO,MAAM,cAAc,oRAAqQ,CAAC;AAEjS,gDAAgD;AAChD,eAAO,MAAM,cAAc,mqBAAsnB,CAAC"}

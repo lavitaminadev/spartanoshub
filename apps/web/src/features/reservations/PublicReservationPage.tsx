@@ -6,7 +6,7 @@ import { optimizedUrl } from '../../shared/imagen-optimizada';
 import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { PieLegal } from '../../shared/PieLegal';
-import { formatearRut, rutValido, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, documentoATexto, faltantesDeIdentidadLegal, nombreLegalDelLocal, politicaDePrivacidadDelLocal, rutaDocumentoLegal, textosDeAceptacionDeReserva, type IdentidadLegal } from '@espartanos/shared';
+import { VERSION_BENEFICIOS, formatearRut, rutValido, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, documentoATexto, faltantesDeIdentidadLegal, nombreLegalDelLocal, politicaDePrivacidadDelLocal, rutaDocumentoLegal, textosDeAceptacionDeReserva, type IdentidadLegal } from '@espartanos/shared';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../core/api';
 import { camposVisibles } from '@espartanos/shared';
@@ -463,7 +463,7 @@ export function PublicReservationPage() {
         firstVisit: visitNeeds.firstVisit || undefined,
         howFound: visitNeeds.howFound || undefined,
         ...baseBody, renderedAt, consentVersion: 'reservation-v3', reservationConsent,
-        marketingConsent, marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v2'),
+        marketingConsent, marketingConsentVersion: VERSION_BENEFICIOS,
         couponCode: couponCode.trim() || undefined, measurementConsent,
         networkConsent, networkConsentVersion: String(form?.designConfig?.networkConsentVersion || 'red-v1'),
       });
@@ -476,7 +476,7 @@ export function PublicReservationPage() {
       ...guest, answers: respuestasParaEnviar(), idempotencyKey, reservationConsent, sensitiveConsent: hayDatosSensibles && sensitiveConsent, marketingConsent, measurementConsent, networkConsent,
       accessibilityNeed: visitNeeds.accessibilityNeed.trim() || undefined, dietaryNotes: visitNeeds.dietaryNotes.trim() || undefined,
       ...(measurementConsent ? (() => { const meta = readMetaMatchData(); return { fbc: meta.fbc, fbp: meta.fbp, fbclid: meta.fbclid, gclid: params.get('gclid') || undefined, gbraid: params.get('gbraid') || undefined, wbraid: params.get('wbraid') || undefined }; })() : {}),
-      consentVersion: 'reservation-v3', marketingConsentVersion: String(form?.designConfig?.marketingConsentVersion || 'mkt-v2'),
+      consentVersion: 'reservation-v3', marketingConsentVersion: VERSION_BENEFICIOS,
       utmSource, utmMedium, utmCampaign, utmContent, origenDetectado,
     }),
   });
@@ -847,7 +847,7 @@ export function PublicReservationPage() {
    * Los textos se repiten en el servidor, que es el que guarda la evidencia junto a la reserva.
    * Acá se muestran; allá quedan escritos tal como se mostraron. Si divergen, manda el servidor.
    */
-  const textosBase = textosDeAceptacionDeReserva(identidadLegal, { red: design.networkBrandName });
+  const textosBase = textosDeAceptacionDeReserva(identidadLegal, { red: design.networkBrandName, grupo: design.beneficiosDelGrupo === 'true' });
   const networkBrand = String(design.networkBrandName || 'Espartanos');
   const reservationConsentText = String(design.reservationConsentText || textosBase.reserva);
   const marketingConsentText = String(design.marketingConsentText || textosBase.novedades);
@@ -889,6 +889,7 @@ export function PublicReservationPage() {
     return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} enabled={measurementConsent} /><Ga4Tag measurementId={form?.ga4MeasurementId} enabled={measurementConsent} /><section className="booking-success"><span className="success-icon">✓</span><span className={`success-state ${isPending ? 'is-pending' : ''}`}>{isPending ? 'PENDIENTE DE CONFIRMACIÓN' : 'RESERVA CONFIRMADA'}</span><h1>{isPending ? 'Recibimos tu reserva' : '¡Te esperamos!'}</h1><p>{isPending ? 'Aún no está confirmada. El local revisará tu solicitud y te responderá al correo indicado.' : (design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.')}</p><p className="success-datetime">{startDate ? startDate.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }) : 'Te confirmaremos la fecha por correo.'}</p>{/* Resumen de lo que quedó registrado. Antes la pantalla confirmaba sin mostrar con qué datos:
     quien se equivocaba en el nombre o en la cantidad de personas no tenía cómo darse cuenta, y el
     error aparecía recién al llegar al local. */}
+{!marketingConsent && submit.data?.managementToken && <OfertaDeBeneficios token={submit.data.managementToken} texto={textosBase.novedades} nombre={identidadLegal.nombreComercial || responsableLegal} />}
 <dl className="success-summary">
   {guest.guestName.trim() && <><dt>A nombre de</dt><dd>{guest.guestName.trim()}</dd></>}
   {guest.guestPhone.trim() && <><dt>Teléfono</dt><dd>{guest.guestPhone.trim()}</dd></>}
@@ -1137,7 +1138,7 @@ export function PublicReservationPage() {
                 {errors.sensitiveConsent && <span className="field-error" role="alert">{errors.sensitiveConsent}</span>}
               </div>}
               {!isSurvey && <div className="public-consent public-marketing-consent">
-                <label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Quiero recibir novedades de {identidadLegal.nombreComercial || responsableLegal} <small>(opcional)</small></strong></span></label>
+                <label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Quiero beneficios y novedades de {identidadLegal.nombreComercial || responsableLegal}{design.beneficiosDelGrupo === 'true' ? ` y sus locales` : ''} <small>(opcional)</small></strong><small className="consent-beneficio">Promociones, beneficios de cumpleaños y eventos, cuando el local los ofrezca.</small></span></label>
                 <details className="consent-detalle"><summary>Ver detalle</summary><p>{marketingConsentText}</p></details>
               </div>}
               {!isSurvey && design.networkConsentEnabled === 'true' && <div className="public-consent public-marketing-consent">
@@ -1266,4 +1267,19 @@ function renderField(field: FormField, value: unknown, onChange: (v: string | bo
   if (field.type === 'rut') return <div className={`public-field ${error ? 'has-error' : ''}`}><label>{field.label} {field.required ? <span className="required-star">*</span> : <small>(opcional)</small>}<input className={error ? 'input-error' : ''} inputMode="text" autoComplete="off" maxLength={12} placeholder={field.placeholder || '12.345.678-9'} value={String(value || '')} onChange={(event) => onChange(event.target.value.replace(/[^0-9kK.\-]/g, ''))} onBlur={(event) => { if (rutValido(event.target.value)) onChange(formatearRut(event.target.value)); }} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
   if (field.type === 'textarea') return <label>{field.label}{field.required && <span className="required-star"> *</span>}<textarea className={error ? 'input-error' : ''} required={field.required} value={String(value || '')} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} />{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</label>;
   return <div className={`public-field ${error ? 'has-error' : ''}`}><label>{field.label} {field.required ? <span className="required-star">*</span> : null}<input className={error ? 'input-error' : ''} type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'} required={field.required} placeholder={field.placeholder} value={String(value || '')} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
+}
+
+/**
+ * Segunda oportunidad de aceptar beneficios, en la pantalla de éxito: el mismo permiso y texto de
+ * la casilla, sin condicionar nada, con un toque.
+ */
+function OfertaDeBeneficios({ token, texto, nombre }: { token: string; texto: string; nombre: string }) {
+  const aceptar = useMutation({ mutationFn: () => api.post(`/public/reservations/manage/${encodeURIComponent(token)}/beneficios`, {}) });
+  if (aceptar.isSuccess) return <div className="oferta-beneficios is-lista" role="status"><strong>¡Listo!</strong><span>Te avisaremos de beneficios y novedades de {nombre}.</span></div>;
+  return <div className="oferta-beneficios">
+    <div><strong>¿Quieres beneficios de {nombre}?</strong><span>Promociones, beneficios de cumpleaños y eventos, cuando el local los ofrezca.</span></div>
+    <button type="button" className="btn btn-primary btn-sm" disabled={aceptar.isPending} onClick={() => aceptar.mutate()}>{aceptar.isPending ? 'Guardando…' : 'Sí, quiero beneficios'}</button>
+    <details className="consent-detalle"><summary>Qué acepto</summary><p>{texto}</p></details>
+    {aceptar.isError && <small className="error-text">No se pudo guardar. Inténtalo de nuevo.</small>}
+  </div>;
 }

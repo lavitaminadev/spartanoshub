@@ -49,6 +49,10 @@ export class PublicReservationsController {
     return this.service.reschedulePublicManagement(token, dto.startsAt, dto.partySize);
   }
 
+  @Post('manage/:token/beneficios')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  aceptarBeneficios(@Param('token') token: string) { return this.service.aceptarBeneficiosPublic(token); }
+
   @Post('manage/:token/confirm')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   confirmManagement(@Param('token') token: string) { return this.service.confirmPublicManagement(token); }

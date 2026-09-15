@@ -47,13 +47,20 @@ export declare const PLAZOS_DE_CONSERVACION: {
      * Meta sólo acepta conversiones de hasta 7 días; el resto cubre revisión y reportes del período.
      */
     readonly medicionMeses: 6;
+    /**
+     * Con el permiso de beneficios vigente, el historial de visitas y preferencias se conserva para
+     * personalizar, hasta este máximo contado desde la última visita. Sin permiso rigen los plazos normales.
+     */
+    readonly clientesConBeneficiosMeses: 60;
 };
+/** Versión del permiso de beneficios y novedades. */
+export declare const VERSION_BENEFICIOS = "beneficios-v1";
 /** Días corridos para responder una solicitud de derechos, prorrogables una vez por el mismo plazo. */
 export declare const PLAZO_RESPUESTA_DERECHOS_DIAS = 30;
 /** Horas máximas para que Espartanos avise al local de una vulneración que afecte sus datos. */
 export declare const PLAZO_AVISO_VULNERACION_HORAS = 48;
 /** Versión vigente del conjunto de documentos. */
-export declare const VERSION_DOCUMENTOS_LEGALES = "legal-2026-09-15b";
+export declare const VERSION_DOCUMENTOS_LEGALES = "legal-2026-09-15c";
 export declare const VIGENCIA_DOCUMENTOS_LEGALES = "2026-09-15";
 export type IdDocumentoLegal = 'privacidad' | 'terminos' | 'servicio' | 'medicion' | 'encargo' | 'derechos';
 export interface TablaLegal {
@@ -122,6 +129,7 @@ export declare function documentoATexto(documento: DocumentoLegal): string;
 /** Textos de las casillas de una reserva o solicitud, iguales en la página y en la evidencia que guarda el servidor. */
 export declare function textosDeAceptacionDeReserva(identidad: IdentidadLegal, opciones?: {
     red?: string;
+    grupo?: boolean;
 }): {
     /** Casilla obligatoria: aceptación de condiciones e información, no un consentimiento. */
     reserva: string;
@@ -129,6 +137,16 @@ export declare function textosDeAceptacionDeReserva(identidad: IdentidadLegal, o
     red: string;
     sensibles: string;
 };
+/**
+ * Permiso de beneficios y novedades: un solo permiso, específico en canales, contenidos y uso de
+ * historial, para no multiplicar casillas sin perder validez.
+ *
+ * @param opciones.grupo Si el local lo ofrece, incluye beneficios de los demás locales de su red.
+ */
+export declare function textoDeBeneficios(identidad: IdentidadLegal, opciones?: {
+    red?: string;
+    grupo?: boolean;
+}): string;
 /** Versión del texto de consentimiento para datos sensibles. */
 export declare const VERSION_DATOS_SENSIBLES = "sensibles-v1";
 /**

@@ -171,12 +171,15 @@ let DataProtectionService = class DataProtectionService {
         await this.recordAnonymization(organizationId, 'Reservation', reservationId, reason);
         return saved;
     }
-    async anonymizeExpiredReservations(retentionDays, reason = 'Retención expirada') {
+    async anonymizeExpiredReservations(retentionDays, reason = 'Retención expirada', mesesConBeneficios = 0) {
         const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+        const limiteConBeneficios = haceMeses(mesesConBeneficios);
         const expired = await this.reservationRepo.find({ where: { startsAt: (0, typeorm_2.LessThan)(cutoff) } });
         let anonymized = 0;
         for (const reservation of expired) {
             if (reservation.guestEmail === null && reservation.guestPhone === null && reservation.guestName.startsWith('Visitante anonimizado'))
+                continue;
+            if (mesesConBeneficios > 0 && reservation.marketingConsentAt && reservation.startsAt > limiteConBeneficios)
                 continue;
             try {
                 await this.anonymizeReservation(reservation.id, reservation.organizationId, reason);

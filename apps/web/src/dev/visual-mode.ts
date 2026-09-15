@@ -552,6 +552,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
   [/\/uploads\/images\/status/, () => ({ configured: true })],
+  [/\/public\/reservations\/manage\/[^/]+\/beneficios$/, () => ({ aceptado: true })],
   [/\/(reservations|surveys)\/company-legal/, (config) => {
     const clave = 'vh.visual.companyLegal';
     let actual: Record<string, unknown> = { legalName: 'Casa Costanera SpA', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace', privacyText: '', termsText: '' };
