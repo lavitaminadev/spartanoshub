@@ -262,6 +262,13 @@ export function PublicReservationPage() {
     window.addEventListener('keydown', onKeyDown);
     return () => { window.removeEventListener('keydown', onKeyDown); document.body.style.overflow = desbordeAnterior; };
   }, [fotoAmpliada]);
+  // Un documento legal abierto también se cierra con Escape (la foto ampliada tiene prioridad).
+  useEffect(() => {
+    if (!documentoLegal || fotoAmpliada) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setDocumentoLegal(null); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [documentoLegal, fotoAmpliada]);
 
   const from = form ? plainDateInZone(new Date(), form.timezone) : new Date().toISOString().slice(0, 10);
   const fromDate = useMemo(() => {
