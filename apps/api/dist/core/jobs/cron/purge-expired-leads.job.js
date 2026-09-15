@@ -52,7 +52,7 @@ let PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = class PurgeExpiredLeadsJob {
             }
         }
         this.logger.log(`Expired leads reviewed: ${expiredLeads.length}, anonymized: ${anonymized}`);
-        const reservations = await this.dataProtection.anonymizeExpiredReservations(RESERVATION_RETENTION_DAYS);
+        const reservations = await this.dataProtection.anonymizeExpiredReservations(RESERVATION_RETENTION_DAYS, 'Retención expirada', shared_1.PLAZOS_DE_CONSERVACION.clientesConBeneficiosMeses);
         this.logger.log(`Expired reservations reviewed: ${reservations.reviewed}, anonymized: ${reservations.anonymized}`);
         const pasos = [
             ['measurement identifiers cleared', () => this.dataProtection.borrarIdentificadoresDeMedicionVencidos(shared_1.PLAZOS_DE_CONSERVACION.medicionMeses)],

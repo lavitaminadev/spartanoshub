@@ -48,7 +48,20 @@ describe('documentos legales de Espartanos', () => {
     const textos = textosDeAceptacionDeReserva(LOCAL);
     expect(textos.reserva).toMatch(/^Acepto las condiciones de la reserva/);
     expect(textos.reserva).toContain('Agencia de Protección de Datos Personales');
-    expect(textos.novedades).toMatch(/^Autorizo/);
+    expect(textos.novedades).toMatch(/^Quiero recibir beneficios/);
+  });
+});
+
+describe('beneficios y novedades', () => {
+  it('un solo permiso específico: canales, contenidos, historial, plazo y retiro', () => {
+    const texto = textosDeAceptacionDeReserva(LOCAL).novedades;
+    for (const parte of ['correo, WhatsApp o SMS', 'cumpleaños', 'visitas y preferencias', 'nunca datos de salud', '60 meses', 'no condiciona mi reserva', 'retirarlo']) expect(texto).toContain(parte);
+    expect(texto).not.toContain('locales de');
+    expect(textosDeAceptacionDeReserva(LOCAL, { grupo: true, red: 'Grupo Costa' }).novedades).toContain('y de los locales de Grupo Costa');
+  });
+  it('la medición informa remarketing y audiencias', () => {
+    expect(TEXTO_MEDICION).toContain('audiencias');
+    expect(documentoATexto(documentoDeEspartanos('medicion'))).toContain('audiencias');
   });
 });
 

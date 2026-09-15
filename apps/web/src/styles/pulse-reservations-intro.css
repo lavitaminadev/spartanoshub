@@ -680,3 +680,12 @@
 .textos-evento { display: grid; gap: 8px; }
 .textos-evento > strong { font-size: 14px; color: #151317; }
 .textos-evento > small { color: var(--muted, #6f6772); font-size: 12px; }
+
+.consent-beneficio { display: block; margin-top: 2px; font-weight: 500; opacity: .8; }
+.oferta-beneficios { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px; margin: 14px 0; padding: 12px 14px; border: 1px solid #f1d5df; border-radius: 12px; background: #fdf2f6; text-align: left; }
+.oferta-beneficios > div { display: grid; gap: 2px; }
+.oferta-beneficios > div span, .oferta-beneficios.is-lista span { font-size: 13px; opacity: .85; }
+.oferta-beneficios .consent-detalle { grid-column: 1 / -1; font-size: 12px; }
+.oferta-beneficios.is-lista { grid-template-columns: 1fr; background: #e7f5ec; border-color: #cbe8d5; }
+@media (max-width: 420px) { .oferta-beneficios { grid-template-columns: 1fr; } .oferta-beneficios .btn { width: 100%; } }
+.toggle-row .toggle-nota.bloque { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; }

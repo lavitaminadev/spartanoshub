@@ -9,9 +9,9 @@
  *
  * Si cambia el texto, cambia la versión: lo ya aceptado queda guardado con la anterior.
  */
-export declare const VERSION_MEDICION = "medicion-v2";
+export declare const VERSION_MEDICION = "medicion-v3";
 /** Frase corta del aviso al entrar. */
-export declare const AVISO_MEDICION = "\u00BFNos ayudas a saber qu\u00E9 anuncios traen reservas? Con tu permiso usamos cookies de Meta y Google y les enviamos datos de tu reserva protegidos con cifrado. Tu reserva funciona igual si no aceptas.";
+export declare const AVISO_MEDICION = "\u00BFNos ayudas a mejorar nuestros anuncios? Con tu permiso usamos cookies de Meta y Google para medir qu\u00E9 anuncios traen reservas y mostrarte anuncios relevantes, envi\u00E1ndoles datos de tu reserva protegidos con cifrado. Tu reserva funciona igual si no aceptas.";
 /** Texto completo que se acepta y se guarda. */
-export declare const TEXTO_MEDICION = "Acepto que esta p\u00E1gina use cookies e identificadores de Meta (Pixel y Conversions API) y de Google (Analytics y Ads) para medir qu\u00E9 anuncios traen reservas y mejorar su alcance. Para eso se env\u00EDan a Meta y Google el evento, la fecha, cookies de medici\u00F3n, mi direcci\u00F3n IP y navegador, y mi correo y tel\u00E9fono cifrados de forma irreversible. Meta y Google tratan estos datos fuera de Chile. Es voluntario, no condiciona la reserva y puedo retirarlo en cualquier momento desde \u00ABPreferencias de medici\u00F3n\u00BB: se dejan de enviar datos y se borran estas cookies del navegador.";
+export declare const TEXTO_MEDICION = "Acepto que esta p\u00E1gina use cookies e identificadores de Meta (Pixel y Conversions API) y de Google (Analytics y Ads) para medir qu\u00E9 anuncios traen reservas y mostrarme anuncios relevantes de este local, incluidas audiencias de clientes. Para eso se env\u00EDan a Meta y Google el evento, la fecha, cookies de medici\u00F3n, mi direcci\u00F3n IP y navegador, y mi correo y tel\u00E9fono cifrados de forma irreversible. Meta y Google tratan estos datos fuera de Chile. Es voluntario, no condiciona la reserva y puedo retirarlo en cualquier momento desde \u00ABPreferencias de medici\u00F3n\u00BB: se dejan de enviar datos y se borran estas cookies del navegador.";
 //# sourceMappingURL=measurement-consent.d.ts.map

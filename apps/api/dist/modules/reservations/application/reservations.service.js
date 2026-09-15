@@ -667,7 +667,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     }
     consentTexts(form) {
         const design = form.designConfig;
-        const base = (0, shared_1.textosDeAceptacionDeReserva)(this.identidadLegal(form), { red: design.networkBrandName });
+        const base = (0, shared_1.textosDeAceptacionDeReserva)(this.identidadLegal(form), { red: design.networkBrandName, grupo: design.beneficiosDelGrupo === 'true' });
         return {
             reservation: String(design.reservationConsentText || base.reserva),
             marketing: String(design.marketingConsentText || base.novedades),
@@ -1088,6 +1088,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         void this.avisarCupoLiberado(saved);
         void this.avisarCambioDelCliente(saved, 'cancelada');
         return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
+    }
+    async aceptarBeneficiosPublic(token) {
+        const { reservation } = await this.managementReservation(token);
+        if (!reservation.marketingConsentAt) {
+            const form = await this.forms.findOne({ where: { id: reservation.formId } });
+            if (!form)
+                throw new common_1.NotFoundException('El local ya no está disponible');
+            await this.completarDatosLegales(form);
+            await this.reservations.update(reservation.id, { marketingConsentAt: new Date(), marketingConsentVersion: shared_1.VERSION_BENEFICIOS, marketingConsentText: this.consentTexts(form).marketing });
+            await this.events.save(this.events.create({ organizationId: reservation.organizationId, clientId: reservation.clientId, reservationId: reservation.id, type: 'marketing_consent', fromStatus: reservation.status, toStatus: reservation.status, actorType: 'guest' }));
+        }
+        return { aceptado: true };
     }
     async confirmPublicManagement(token) {
         const { record, reservation } = await this.managementReservation(token);

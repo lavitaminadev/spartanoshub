@@ -1,5 +1,5 @@
 import { normalizarCorreo, normalizarTelefono } from '../../integrations/meta/identificadores-meta';
-import { rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
+import { VERSION_BENEFICIOS, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, type ReglaDeCampo } from '@espartanos/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -104,7 +104,7 @@ type DesignConfig = {
   campaignAlias?: string; welcomePopupEnabled?: string; welcomePopupTitle?: string; welcomePopupText?: string;
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   askSmoking?: string; askSeating?: string; askFirstVisit?: string; askHowFound?: string;
-  eventoCtaTitulo?: string; eventoCtaTexto?: string; eventoCtaBoton?: string;
+  eventoCtaTitulo?: string; eventoCtaTexto?: string; eventoCtaBoton?: string; beneficiosDelGrupo?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
   autoCloseAttendance?: string; autoCloseAfterMinutes?: string; couponEnabled?: string; groupRequestEnabled?: string;
@@ -802,7 +802,7 @@ export class ReservationsService {
    */
   private consentTexts(form: ReservationForm) {
     const design = form.designConfig as DesignConfig;
-    const base = textosDeAceptacionDeReserva(this.identidadLegal(form), { red: design.networkBrandName });
+    const base = textosDeAceptacionDeReserva(this.identidadLegal(form), { red: design.networkBrandName, grupo: design.beneficiosDelGrupo === 'true' });
     return {
       reservation: String(design.reservationConsentText || base.reserva),
       marketing: String(design.marketingConsentText || base.novedades),
@@ -1308,6 +1308,22 @@ export class ReservationsService {
     void this.avisarCupoLiberado(saved);
     void this.avisarCambioDelCliente(saved, 'cancelada');
     return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
+  }
+
+  /**
+   * Quien ya reservó acepta después beneficios y novedades desde la pantalla de éxito o su enlace.
+   * Guarda el mismo texto y versión que la casilla del formulario; si ya lo había aceptado, no cambia nada.
+   */
+  async aceptarBeneficiosPublic(token: string) {
+    const { reservation } = await this.managementReservation(token);
+    if (!reservation.marketingConsentAt) {
+      const form = await this.forms.findOne({ where: { id: reservation.formId } });
+      if (!form) throw new NotFoundException('El local ya no está disponible');
+      await this.completarDatosLegales(form);
+      await this.reservations.update(reservation.id, { marketingConsentAt: new Date(), marketingConsentVersion: VERSION_BENEFICIOS, marketingConsentText: this.consentTexts(form).marketing } as never);
+      await this.events.save(this.events.create({ organizationId: reservation.organizationId, clientId: reservation.clientId, reservationId: reservation.id, type: 'marketing_consent', fromStatus: reservation.status, toStatus: reservation.status, actorType: 'guest' } as never));
+    }
+    return { aceptado: true };
   }
 
   async confirmPublicManagement(token: string) {

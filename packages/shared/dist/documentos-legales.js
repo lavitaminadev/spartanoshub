@@ -20,7 +20,7 @@
  * Personales dicte instrucciones o normas de aplicación.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE = exports.CAMPOS_DE_VISITA_SENSIBLES = exports.VERSION_DATOS_SENSIBLES = exports.DOCUMENTOS_DE_ESPARTANOS = exports.VIGENCIA_DOCUMENTOS_LEGALES = exports.VERSION_DOCUMENTOS_LEGALES = exports.PLAZO_AVISO_VULNERACION_HORAS = exports.PLAZO_RESPUESTA_DERECHOS_DIAS = exports.PLAZOS_DE_CONSERVACION = exports.OPERADOR_ESPARTANOS = void 0;
+exports.MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE = exports.CAMPOS_DE_VISITA_SENSIBLES = exports.VERSION_DATOS_SENSIBLES = exports.DOCUMENTOS_DE_ESPARTANOS = exports.VIGENCIA_DOCUMENTOS_LEGALES = exports.VERSION_DOCUMENTOS_LEGALES = exports.PLAZO_AVISO_VULNERACION_HORAS = exports.PLAZO_RESPUESTA_DERECHOS_DIAS = exports.VERSION_BENEFICIOS = exports.PLAZOS_DE_CONSERVACION = exports.OPERADOR_ESPARTANOS = void 0;
 exports.faltantesDeIdentidadLegal = faltantesDeIdentidadLegal;
 exports.mensajeDeIdentidadIncompleta = mensajeDeIdentidadIncompleta;
 exports.nombreLegalDelOperador = nombreLegalDelOperador;
@@ -36,6 +36,7 @@ exports.documentoDeEspartanos = documentoDeEspartanos;
 exports.rutaDocumentoLegal = rutaDocumentoLegal;
 exports.documentoATexto = documentoATexto;
 exports.textosDeAceptacionDeReserva = textosDeAceptacionDeReserva;
+exports.textoDeBeneficios = textoDeBeneficios;
 exports.textoDeDatosSensibles = textoDeDatosSensibles;
 exports.traeDatosSensibles = traeDatosSensibles;
 const survey_rules_1 = require("./survey-rules");
@@ -68,13 +69,20 @@ exports.PLAZOS_DE_CONSERVACION = {
      * Meta sólo acepta conversiones de hasta 7 días; el resto cubre revisión y reportes del período.
      */
     medicionMeses: 6,
+    /**
+     * Con el permiso de beneficios vigente, el historial de visitas y preferencias se conserva para
+     * personalizar, hasta este máximo contado desde la última visita. Sin permiso rigen los plazos normales.
+     */
+    clientesConBeneficiosMeses: 60,
 };
+/** Versión del permiso de beneficios y novedades. */
+exports.VERSION_BENEFICIOS = 'beneficios-v1';
 /** Días corridos para responder una solicitud de derechos, prorrogables una vez por el mismo plazo. */
 exports.PLAZO_RESPUESTA_DERECHOS_DIAS = 30;
 /** Horas máximas para que Espartanos avise al local de una vulneración que afecte sus datos. */
 exports.PLAZO_AVISO_VULNERACION_HORAS = 48;
 /** Versión vigente del conjunto de documentos. */
-exports.VERSION_DOCUMENTOS_LEGALES = 'legal-2026-09-15b';
+exports.VERSION_DOCUMENTOS_LEGALES = 'legal-2026-09-15c';
 exports.VIGENCIA_DOCUMENTOS_LEGALES = '2026-09-15';
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 /** Lo que falta para que un local pueda publicar algo que recoge datos personales. Vacío si está completo. */
@@ -166,8 +174,9 @@ function politicaDePrivacidadDeEspartanos() {
                         ['Nombre, teléfono, correo, fecha, hora, cantidad de personas y respuestas del formulario de reserva o solicitud', 'Gestionar, confirmar, recordar, modificar o cancelar la reserva o solicitud y comunicarse contigo por ese motivo', 'Ejecución de lo que tú solicitas (relación con el local)', `Hasta ${p.reservasMeses} meses después de la visita; solicitudes de grupo ${p.solicitudesDeGrupoMeses} meses desde su envío`],
                         ['Información de salud o alimentación que decidas indicar, como alergias o movilidad reducida', 'Que el local te atienda de forma segura', 'Tu consentimiento expreso, en una casilla separada', 'Igual que la reserva o respuesta en que la indicaste'],
                         ['Respuestas de encuestas y, si los entregas, nombre, RUT, correo, teléfono o fecha de nacimiento', 'Conocer tu opinión, mejorar la atención y, si lo pides, contactarte sobre tu respuesta', 'Tu consentimiento cuando entregas datos de contacto; interés legítimo del local en evaluar su servicio cuando la encuesta es anónima', `${p.encuestasMeses} meses desde la respuesta`],
-                        ['Correo o teléfono para novedades', 'Enviarte promociones y comunicaciones comerciales del local', 'Tu consentimiento', 'Hasta que retires la autorización'],
-                        ['Cookies de medición, dirección IP, navegador, correo y teléfono cifrados', 'Medir qué anuncios traen reservas y mejorar su alcance', 'Tu consentimiento', `${p.medicionMeses} meses en la plataforma; en Meta y Google, según sus políticas`],
+                        ['Correo y teléfono de quien asistió a una reserva', 'Invitarte, una vez por visita, a una encuesta sobre cómo te atendieron', 'Interés legítimo del local en evaluar el servicio que prestó; puedes pedir no recibirlas', 'Igual que la reserva'],
+                        ['Correo, teléfono, fecha de nacimiento si la entregas, historial de visitas y preferencias (nunca datos de salud)', 'Enviarte beneficios y novedades del local (y de los locales de su grupo si así lo indica la casilla): promociones, beneficio de cumpleaños, invitaciones a eventos y encuestas, por correo, WhatsApp o SMS, elegidos según tus visitas y preferencias', 'Tu consentimiento', `Mientras mantengas el permiso, hasta ${p.clientesConBeneficiosMeses} meses desde tu última visita`],
+                        ['Cookies de medición, dirección IP, navegador, correo y teléfono cifrados', 'Medir qué anuncios traen reservas y mostrarte anuncios relevantes del local en Meta y Google, incluidas audiencias de clientes', 'Tu consentimiento', `${p.medicionMeses} meses en la plataforma; en Meta y Google, según sus políticas`],
                         ['Nombre, contacto y preferencias de visita compartidos con otros locales de la red', 'No repetir tus datos al reservar en otro local de la misma red', 'Tu consentimiento', 'Hasta que lo retires o se cumpla el plazo de cada reserva'],
                         ['Dirección IP, navegador, fecha y hora de acceso, intentos fallidos', 'Seguridad de la plataforma, prevenir reservas falsas o automatizadas y resolver fallas', 'Interés legítimo del local y de Espartanos en proteger el servicio', 'El necesario para la seguridad del servicio y la investigación de incidentes'],
                         ['Nombre, correo, rol y actividad de las cuentas de acceso de las empresas', 'Prestar el servicio contratado, dar soporte, auditar cambios y mantener la seguridad', 'Ejecución del contrato con la empresa e interés legítimo en la seguridad', 'Mientras dure el contrato y luego el plazo legal de prescripción'],
@@ -231,15 +240,21 @@ function politicaDePrivacidadDeEspartanos() {
                     'Detectar y bloquear envíos automatizados o abusivos para proteger el servicio. Si una reserva legítima fue bloqueada, puedes pedir revisión humana al local o al correo de privacidad.',
                 ],
                 cierre: [
+                    'Con el permiso de beneficios, el local puede agrupar a sus clientes según visitas y preferencias (por ejemplo, quienes no vienen hace tiempo o cumplen años este mes) para enviarles beneficios pertinentes. Es sólo para elegir qué ofrecerte, no produce efectos jurídicos y puedes oponerte retirando el permiso.',
                     'Espartanos no usa tus datos para entrenar sistemas de inteligencia artificial ni para elaborar perfiles propios. Si aceptas la medición, Meta y Google pueden usar los datos para optimizar anuncios según sus propias políticas; retirar la autorización detiene ese envío.',
                 ],
             },
             {
                 titulo: '12. Cuánto tiempo se conservan',
                 parrafos: [
+                    `Si aceptaste beneficios y novedades, tu historial de visitas y preferencias se conserva mientras mantengas ese permiso, con un máximo de ${p.clientesConBeneficiosMeses} meses desde tu última visita. Al retirarlo, se aplican los plazos normales.`,
                     'Los plazos de la tabla del punto 5 se aplican de forma automática. Cumplido el plazo, los datos se anonimizan: se borran nombre, contacto, respuestas personales, datos sensibles e identificadores, y quedan sólo cifras que no permiten identificar a nadie, como cantidad de reservas por día o nota promedio de una encuesta.',
                     'Si pides la supresión antes, se atiende sin esperar el plazo, salvo lo que una ley obligue a conservar o lo necesario para defender un reclamo en curso, lo que se te informará.',
                 ],
+            },
+            {
+                titulo: '12 bis. Estadísticas anónimas',
+                parrafos: ['Espartanos puede elaborar estadísticas agregadas y anonimizadas a partir del uso de la plataforma, por ejemplo tasas de asistencia, horas de mayor demanda o promedios por tipo de local, para mejorar el servicio y publicar comparativas del rubro. Esas cifras no permiten identificar a ninguna persona ni a un local sin su autorización.'],
             },
             {
                 titulo: '13. Tus derechos',
@@ -396,7 +411,11 @@ function condicionesDelServicio() {
                     'No son atribuibles a Espartanos las fallas de internet, de los dispositivos de la empresa, de proveedores externos como Meta o Google, ni las causadas por mal uso o configuración incorrecta.',
                 ] },
             { titulo: '10. Precios y pagos', parrafos: ['Los precios, la forma de pago, la facturación y la renovación se rigen por la propuesta o contrato comercial vigente con la empresa. Espartanos comunicará cualquier cambio de precio con al menos 30 días de anticipación; si la empresa no lo acepta, puede terminar el servicio antes de que rija. La falta de pago permite suspender el servicio previo aviso.'] },
-            { titulo: '11. Propiedad intelectual', parrafos: [`La plataforma, su software, diseño, marcas y documentación pertenecen a ${marca}. La empresa recibe un derecho de uso limitado, no exclusivo e intransferible mientras dure el servicio. Las marcas y contenidos de la empresa siguen siendo suyos; la empresa autoriza a Espartanos a usarlos sólo para prestar el servicio.`] },
+            { titulo: '11. Propiedad intelectual', parrafos: [`La plataforma, su software, diseño, marcas y documentación pertenecen a ${marca}. La empresa recibe un derecho de uso limitado, no exclusivo e intransferible mientras dure el servicio. Las marcas y contenidos de la empresa siguen siendo suyos; la empresa autoriza a Espartanos a usarlos para prestar el servicio.`] },
+            { titulo: '11 bis. Referencia comercial y estadísticas', parrafos: [
+                    `La empresa autoriza a ${marca} a mencionar su nombre comercial y logo como cliente en su sitio, presentaciones y redes, sin revelar datos de su operación. Puede revocarlo en cualquier momento escribiendo a ${correo}.`,
+                    `${marca} puede usar estadísticas agregadas y anonimizadas del uso de la plataforma para mejorar el servicio y publicar comparativas del rubro, sin identificar a personas ni a la empresa.`,
+                ] },
             { titulo: '12. Limitación de responsabilidad', parrafos: [
                     'La responsabilidad de Espartanos frente a la empresa por daños relacionados con el servicio se limita al monto pagado por la empresa en los 6 meses anteriores al hecho que la origina, y no comprende lucro cesante ni daños indirectos.',
                     'Esta limitación no se aplica al dolo o culpa grave, ni a infracciones de Espartanos a la ley de protección de datos personales o al contrato de encargo, ni limita los derechos de las personas titulares de datos o de los consumidores frente a quien corresponda.',
@@ -436,7 +455,7 @@ function politicaDeMedicion() {
                 titulo: '2. Medición publicitaria (sólo si la aceptas)',
                 parrafos: [
                     'Al entrar se te pregunta, con la opción de no aceptar igual de visible. Si no respondes o no aceptas, no se instala nada de lo que sigue y Google queda con el consentimiento denegado por defecto. Tu reserva funciona igual en ambos casos.',
-                    'Si la aceptas, se usan estas herramientas:',
+                    'Si la aceptas, se usan para medir qué anuncios traen reservas y para mostrarte anuncios relevantes del local en Meta (Facebook, Instagram) y Google, incluidas audiencias formadas con clientes y personas con intereses parecidos. Estas son las herramientas:',
                 ],
                 tabla: {
                     columnas: ['Cookie o herramienta', 'Proveedor', 'Para qué', 'Duración'],
@@ -504,7 +523,7 @@ function contratoDeEncargo() {
                 titulo: '5. Obligaciones del encargado',
                 parrafos: ['El encargado se obliga a:'],
                 lista: [
-                    'No usar los datos para fines propios, no elaborar perfiles con ellos, no venderlos ni comunicarlos a terceros salvo a los subencargados autorizados o por obligación legal.',
+                    'No usar los datos personales para fines propios, no elaborar perfiles con ellos, no venderlos ni comunicarlos a terceros salvo a los subencargados autorizados o por obligación legal. Se exceptúa la elaboración de estadísticas agregadas y anonimizadas, que no son datos personales, para mejorar la plataforma y publicar comparativas del rubro.',
                     'Exigir confidencialidad a todas las personas que accedan a los datos, también después de terminada su relación.',
                     'Mantener medidas de seguridad adecuadas al riesgo: conexión cifrada, control de acceso por roles, contraseñas con cifrado irreversible, registro de auditoría, copias de seguridad y anonimización automática.',
                     `Notificar al responsable toda vulneración de seguridad que afecte sus datos dentro de ${exports.PLAZO_AVISO_VULNERACION_HORAS} horas desde que la detecte, con la información disponible sobre su naturaleza, datos y titulares afectados y medidas adoptadas, y apoyarlo en las comunicaciones a la autoridad y a los titulares.`,
@@ -643,8 +662,9 @@ function politicaDePrivacidadDelLocal(identidad) {
                         ['Nombre, teléfono, correo, fecha, hora, personas y respuestas del formulario', 'Gestionar, confirmar, recordar, modificar o cancelar tu reserva o solicitud y contactarte por ese motivo', 'Ejecución de lo que solicitas', `${p.reservasMeses} meses desde la visita; solicitudes de grupo ${p.solicitudesDeGrupoMeses} meses`],
                         ['Alergias, restricciones alimentarias u otra información de salud que decidas indicar', 'Atenderte de forma segura', 'Tu consentimiento expreso y separado', 'Igual que la reserva o respuesta'],
                         ['Respuestas de encuestas y datos de contacto que entregues en ellas', 'Conocer tu opinión, mejorar y responderte si lo pides', 'Tu consentimiento; interés legítimo si la encuesta es anónima', `${p.encuestasMeses} meses`],
-                        ['Correo o teléfono para novedades', 'Enviarte promociones', 'Tu consentimiento', 'Hasta que lo retires'],
-                        ['Cookies, IP, navegador, correo y teléfono cifrados', 'Medir qué anuncios traen reservas', 'Tu consentimiento', `${p.medicionMeses} meses`],
+                        ['Correo y teléfono de quien asistió', 'Invitarte a una encuesta sobre tu visita', 'Interés legítimo en evaluar nuestro servicio; puedes pedir no recibirlas', 'Igual que la reserva'],
+                        ['Correo, teléfono, cumpleaños si lo entregas, historial de visitas y preferencias (nunca salud)', 'Beneficios y novedades: promociones, cumpleaños, eventos y encuestas por correo, WhatsApp o SMS, según tus visitas y preferencias', 'Tu consentimiento', `Mientras mantengas el permiso, hasta ${p.clientesConBeneficiosMeses} meses desde tu última visita`],
+                        ['Cookies, IP, navegador, correo y teléfono cifrados', 'Medir qué anuncios traen reservas y mostrarte anuncios relevantes, incluidas audiencias', 'Tu consentimiento', `${p.medicionMeses} meses`],
                         ['Nombre, contacto y preferencias compartidos con otros locales de la red', 'No repetir tus datos en otros locales', 'Tu consentimiento', 'Hasta que lo retires'],
                         ['IP, navegador y registros de acceso', 'Seguridad y prevención de reservas falsas', 'Interés legítimo', 'El necesario para la seguridad del servicio'],
                     ],
@@ -715,10 +735,22 @@ function textosDeAceptacionDeReserva(identidad, opciones = {}) {
     return {
         /** Casilla obligatoria: aceptación de condiciones e información, no un consentimiento. */
         reserva: `Acepto las condiciones de la reserva y declaro haber leído la política de privacidad. ${local} usará mi nombre, teléfono, correo y los datos de esta reserva para gestionarla, confirmarla, modificarla o cancelarla y contactarme por ese motivo, porque son necesarios para el servicio que pido. Se conservan hasta ${exports.PLAZOS_DE_CONSERVACION.reservasMeses} meses después de la visita y luego se anonimizan. La plataforma ${exports.OPERADOR_ESPARTANOS.marca} los trata por encargo de ${local}. Puedo ejercer mis derechos de ${DERECHOS} escribiendo a ${correo}, y reclamar ante la ${AGENCIA}.`,
-        novedades: `Autorizo a ${local} a enviarme novedades, promociones y comunicaciones comerciales al correo o teléfono que indiqué. Es opcional, no condiciona mi reserva y puedo retirarla cuando quiera, sin costo, desde el enlace de cada mensaje o escribiendo a ${correo}.`,
+        novedades: textoDeBeneficios(identidad, opciones),
         red: `Autorizo a ${local} a compartir mi nombre, datos de contacto y preferencias de visita con los demás locales de ${red}, para no repetirlos al reservar en ellos. Es opcional, no condiciona esta reserva, cada local responde por el uso que haga de esos datos y puedo retirarla cuando quiera escribiendo a ${correo}.`,
         sensibles: textoDeDatosSensibles(identidad),
     };
+}
+/**
+ * Permiso de beneficios y novedades: un solo permiso, específico en canales, contenidos y uso de
+ * historial, para no multiplicar casillas sin perder validez.
+ *
+ * @param opciones.grupo Si el local lo ofrece, incluye beneficios de los demás locales de su red.
+ */
+function textoDeBeneficios(identidad, opciones = {}) {
+    const local = nombreLegalDelLocal(identidad);
+    const correo = identidad.correo?.trim() || exports.OPERADOR_ESPARTANOS.correo;
+    const grupo = opciones.grupo ? ` y de los locales de ${opciones.red?.trim() || exports.OPERADOR_ESPARTANOS.marca}` : '';
+    return `Quiero recibir beneficios y novedades de ${local}${grupo}: promociones, beneficio de cumpleaños, invitaciones a eventos y encuestas, por correo, WhatsApp o SMS. Autorizo usar mis visitas y preferencias, nunca datos de salud, para ofrecerme lo que me interese, y conservarlas mientras mantenga este permiso, hasta ${exports.PLAZOS_DE_CONSERVACION.clientesConBeneficiosMeses} meses desde mi última visita. Es opcional, no condiciona mi reserva y puedo retirarlo cuando quiera, sin costo, desde cada mensaje o escribiendo a ${correo}.`;
 }
 /** Versión del texto de consentimiento para datos sensibles. */
 exports.VERSION_DATOS_SENSIBLES = 'sensibles-v1';

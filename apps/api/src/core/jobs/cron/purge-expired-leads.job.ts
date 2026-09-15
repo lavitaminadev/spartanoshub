@@ -78,7 +78,7 @@ export class PurgeExpiredLeadsJob {
     // Meta) viven en las reservas, no en los leads, y hasta ahora ningun trabajo los
     // revisaba. Se conservan mientras la ventana de conversion sigue viva y se anonimizan
     // despues, sin tocar fecha ni estado para no alterar la analitica de asistencia.
-    const reservations = await this.dataProtection.anonymizeExpiredReservations(RESERVATION_RETENTION_DAYS);
+    const reservations = await this.dataProtection.anonymizeExpiredReservations(RESERVATION_RETENTION_DAYS, 'Retención expirada', PLAZOS_DE_CONSERVACION.clientesConBeneficiosMeses);
     this.logger.log(`Expired reservations reviewed: ${reservations.reviewed}, anonymized: ${reservations.anonymized}`);
 
     // El resto de los plazos publicados; cada paso es independiente para que un fallo no frene a los demas.

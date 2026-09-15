@@ -28,6 +28,8 @@ export interface DesignConfig {
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   /** Textos del acceso a «Solicitar evento» en la página. Vacíos, se usan los de siempre. */
   eventoCtaTitulo?: string; eventoCtaTexto?: string; eventoCtaBoton?: string;
+  /** El permiso de beneficios incluye a los demás locales de la red. */
+  beneficiosDelGrupo?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
   autoCloseAttendance?: string; autoCloseAfterMinutes?: string;
   bookingPausedUntil?: string; enforceCompanyDailyCap?: string;

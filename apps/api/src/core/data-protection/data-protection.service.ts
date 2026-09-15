@@ -231,13 +231,16 @@ export class DataProtectionService {
    *
    * @returns Cuantas reservas se revisaron y cuantas se anonimizaron.
    */
-  async anonymizeExpiredReservations(retentionDays: number, reason = 'Retención expirada'): Promise<{ reviewed: number; anonymized: number }> {
+  async anonymizeExpiredReservations(retentionDays: number, reason = 'Retención expirada', mesesConBeneficios = 0): Promise<{ reviewed: number; anonymized: number }> {
     const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+    const limiteConBeneficios = haceMeses(mesesConBeneficios);
     const expired = await this.reservationRepo.find({ where: { startsAt: LessThan(cutoff) } });
 
     let anonymized = 0;
     for (const reservation of expired) {
       if (reservation.guestEmail === null && reservation.guestPhone === null && reservation.guestName.startsWith('Visitante anonimizado')) continue;
+      // Con permiso de beneficios vigente, el historial se conserva hasta el máximo publicado.
+      if (mesesConBeneficios > 0 && reservation.marketingConsentAt && reservation.startsAt > limiteConBeneficios) continue;
       try {
         await this.anonymizeReservation(reservation.id, reservation.organizationId, reason);
         anonymized += 1;
