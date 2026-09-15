@@ -251,10 +251,10 @@ export function PanelDeCorreo(): JSX.Element {
 
       {/* Dónde se configura cada cosa: una sola explicación para no buscar en varias pantallas. */}
       <section className="panel-correo-guia" aria-label="Cómo se configuran los correos">
-        <div className={`panel-correo-paso ${estadoQuery.data?.habilitado ? 'is-listo' : 'is-pendiente'}`}>
+        <div className={`panel-correo-paso ${estadoQuery.isLoading ? '' : estadoQuery.data?.habilitado ? 'is-listo' : 'is-pendiente'}`} aria-busy={estadoQuery.isLoading}>
           <span>1</span>
           <div>
-            <strong>Casilla que envía {estadoQuery.data?.habilitado ? '· lista' : '· falta configurar'}</strong>
+            <strong>Casilla que envía {estadoQuery.isLoading ? '· revisando…' : estadoQuery.isError ? '· no se pudo revisar' : estadoQuery.data?.habilitado ? '· lista' : '· falta configurar'}</strong>
             {estadoQuery.data?.habilitado
               ? <small>Los correos salen desde <b>{estadoQuery.data.remitente}</b> ({estadoQuery.data.servidor}:{estadoQuery.data.puerto}). Es la misma para todas las empresas y sucursales.</small>
               : <small>Crea una casilla en cPanel → Cuentas de correo (por ejemplo reservas@espartanos.cl) y en cPanel → Setup Node.js App → Environment variables agrega: <code>SMTP_ENABLED=true</code>, <code>SMTP_HOST=mail.espartanos.cl</code>, <code>SMTP_PORT=465</code>, <code>SMTP_SECURE=true</code>, <code>SMTP_USER</code> y <code>SMTP_FROM</code> con esa casilla, y <code>SMTP_PASSWORD</code> con su contraseña. Luego reinicia la aplicación.{estadoQuery.data?.faltan?.length ? ` Falta: ${estadoQuery.data.faltan.join(', ')}.` : ''}</small>}
