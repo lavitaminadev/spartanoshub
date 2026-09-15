@@ -701,3 +701,10 @@
 .local-hub-cabecera .page-subtitle { margin: 0; }
 .local-hub-cabecera .estado-sucursal { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #e7f5ec; color: #1d5b35; font-size: 11px; font-weight: 700; letter-spacing: .04em; vertical-align: middle; }
 .local-hub-cabecera .estado-sucursal.is-borrador { background: #fff4d6; color: #6b4d00; }
+/* Accesibilidad táctil (WCAG 2.5.5): objetivos de al menos 44 px en pantallas táctiles. */
+@media (pointer: coarse) {
+  .public-booking .btn-sm, .public-evento-cta .btn, .booking-ocasion-ampliar, .pie-legal a, .consent-detalle > summary { min-height: 44px; display: inline-flex; align-items: center; }
+  .pie-legal { gap: 0 14px; }
+}
+/* Textos mínimos legibles: nada por debajo de 11 px en la página pública. */
+.public-booking-facts span, .public-booking-intro > span { font-size: max(11px, 1em); }
