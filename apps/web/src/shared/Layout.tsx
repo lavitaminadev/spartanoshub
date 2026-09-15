@@ -49,6 +49,12 @@ export function Layout(): JSX.Element {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  /** Menú reducido a íconos en computador. Se recuerda en este navegador. */
+  const [menuCompacto, setMenuCompacto] = useState(() => { try { return localStorage.getItem('vh.menu.compacto') === '1'; } catch { return false; } });
+  const alternarMenuCompacto = useCallback(() => setMenuCompacto((actual) => {
+    try { localStorage.setItem('vh.menu.compacto', actual ? '0' : '1'); } catch { /* sin almacenamiento */ }
+    return !actual;
+  }), []);
   const [helpOpen, setHelpOpen] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT_QUERY).matches);
@@ -117,7 +123,7 @@ export function Layout(): JSX.Element {
   const currentItem = navItems.find((item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`));
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout${menuCompacto && !isMobile ? ' menu-compacto' : ''}`}>
       <ToastContainer />
       <ReauthPrompt />
       <AvisoVersionNueva />
@@ -131,6 +137,7 @@ export function Layout(): JSX.Element {
         <div className="sidebar-header">
           <BrandMark decorative />
           <div><span className="brand-name">Espartanos</span><span>{roleLabel(user?.role)}</span></div>
+          {!isMobile && <button type="button" className="menu-compacto-boton" onClick={alternarMenuCompacto} aria-pressed={menuCompacto} aria-label={menuCompacto ? 'Expandir menú' : 'Contraer menú a íconos'} title={menuCompacto ? 'Expandir menú' : 'Contraer menú'}>{menuCompacto ? '»' : '«'}</button>}
         </div>
 
         <nav className="sidebar-nav">
@@ -150,6 +157,7 @@ export function Layout(): JSX.Element {
                     className={`nav-item ${active ? 'active' : ''}`}
                     onClick={cerrarSiEsCajon}
                     aria-label={item.label}
+                    title={menuCompacto && !isMobile ? item.label : undefined}
                     aria-current={active ? 'page' : undefined}
                   >
                     <NavGlyph label={item.label} />

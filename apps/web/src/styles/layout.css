@@ -89,3 +89,25 @@
 }
 
 
+
+/*
+ * Menú compacto (sólo computador): la barra lateral queda en íconos y deja más espacio al
+ * contenido. Cada ícono muestra su nombre al pasar el cursor y lo anuncia el lector de pantalla.
+ */
+.menu-compacto-boton { margin-left: auto; display: grid; place-items: center; width: 30px; height: 30px; flex: none; padding: 0; border: 1px solid rgba(255, 255, 255, .18); border-radius: 8px; background: transparent; color: #fff; font-size: 16px; line-height: 1; cursor: pointer; }
+.menu-compacto-boton:hover, .menu-compacto-boton:focus-visible { background: rgba(255, 255, 255, .1); }
+.app-layout.menu-compacto { --sidebar-width: 76px; }
+.app-layout.menu-compacto .sidebar { width: 76px; }
+.app-layout.menu-compacto .app-workspace { margin-left: 76px; }
+.app-layout.menu-compacto .sidebar-header { flex-direction: column; gap: 10px; padding-left: 0; padding-right: 0; align-items: center; }
+.app-layout.menu-compacto .sidebar-header > div,
+.app-layout.menu-compacto .nav-label,
+.app-layout.menu-compacto .sidebar-nav-section-title,
+.app-layout.menu-compacto .user-info,
+.app-layout.menu-compacto .sidebar-account-link,
+.app-layout.menu-compacto .sidebar-footer .btn,
+.app-layout.menu-compacto .sidebar-footer .pwa-install-button { display: none; }
+.app-layout.menu-compacto .menu-compacto-boton { margin-left: 0; }
+.app-layout.menu-compacto .sidebar-nav-section { padding-top: 6px; margin-top: 6px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.app-layout.menu-compacto .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+.app-layout.menu-compacto .sidebar-footer { align-items: center; padding-left: 0; padding-right: 0; }
