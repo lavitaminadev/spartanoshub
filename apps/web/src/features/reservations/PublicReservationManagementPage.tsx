@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { PieLegal } from '../../shared/PieLegal';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -114,5 +115,5 @@ export function PublicReservationManagementPage() {
     </div> : <p>Esta reserva ya no admite cambios en línea.</p>}
     {reschedule.isSuccess && !cambiando && <p className="success-text" role="status">Cambio guardado. El local ya fue avisado.</p>}
     {motivoDelError && <p className="error-text">{motivoDelError}</p>}
-  </section></main>;
+  </section><PieLegal /></main>;
 }

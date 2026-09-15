@@ -707,4 +707,4 @@
   .pie-legal { gap: 0 14px; }
 }
 /* Textos mínimos legibles: nada por debajo de 11 px en la página pública. */
-.public-booking-facts span, .public-booking-intro > span { font-size: max(11px, 1em); }
+.public-booking-facts span, .public-booking-intro > span { font-size: 11px; }

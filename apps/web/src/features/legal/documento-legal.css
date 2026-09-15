@@ -3,9 +3,9 @@
 .documento-legal-nav a { padding: 8px 14px; border-radius: 999px; background: #fff; color: #3a3430; font-size: 14px; text-decoration: none; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
 .documento-legal-nav a[aria-current="page"] { background: #151317; color: #fff; }
 .documento-legal-pagina article { max-width: 760px; margin: 0 auto; padding: clamp(20px, 5vw, 48px); border-radius: 16px; background: #fff; box-shadow: 0 2px 14px rgba(0, 0, 0, .06); overflow-wrap: anywhere; }
-.documento-legal-marca { margin: 0; color: #8a7f78; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.documento-legal-marca { margin: 0; color: #6e645d; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .documento-legal-pagina h1 { margin: 4px 0 6px; font-size: clamp(26px, 5vw, 34px); line-height: 1.2; }
-.documento-legal-version { margin: 0 0 18px; color: #6f6772; font-size: 13px; }
+.documento-legal-version { margin: 0 0 18px; color: #625a65; font-size: 13px; }
 .documento-legal-resumen { padding: 14px 16px; border-left: 4px solid #151317; border-radius: 8px; background: #f6f5f2; }
 .documento-legal-pagina h2 { margin: 28px 0 8px; font-size: 19px; }
 .documento-legal-pagina section p { margin: 0 0 10px; }
@@ -32,5 +32,5 @@
   .documento-legal-tabla thead { display: none; }
   .documento-legal-tabla tr { display: block; margin-bottom: 12px; border: 1px solid #eee8e2; border-radius: 10px; }
   .documento-legal-tabla td { display: block; border-bottom: 0; padding: 6px 12px; }
-  .documento-legal-tabla td::before { content: attr(data-columna); display: block; color: #8a7f78; font-size: 12px; font-weight: 700; }
+  .documento-legal-tabla td::before { content: attr(data-columna); display: block; color: #6e645d; font-size: 12px; font-weight: 700; }
 }

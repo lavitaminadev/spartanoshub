@@ -375,3 +375,39 @@
 
 /* Respuestas del formulario en la fila de lista de espera. */
 .waitlist-dato { display: block; color: var(--txt-secondary); font-size: 11px; }
+
+/*
+ * Filtros que se acomodan al ancho real del contenido y no al de la ventana: con el menú lateral
+ * abierto el área útil es mucho más angosta que la pantalla y las columnas fijas se salían.
+ */
+.reservation-module .reservation-filters {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+}
+.reservation-module .reservation-filters > .input:first-child,
+.reservation-module .reservation-filters > label:first-child { grid-column: 1 / -1; }
+@media (min-width: 1280px) {
+  .reservation-module .reservation-filters > .input:first-child,
+  .reservation-module .reservation-filters > label:first-child { grid-column: auto; }
+}
+.reservation-module .reservation-filters .filter-result-count { white-space: normal; }
+
+/* Textos mínimos legibles en el panel (etiquetas, estados y ayudas): nada bajo 11 px. */
+.reservation-module .page-eyebrow,
+.reservation-local-hub .page-eyebrow,
+.reservation-module .status-tile-label,
+.reservation-module .form-status-pill,
+.reservation-module .form-mode,
+.reservation-module .meta-readiness,
+.reservation-module .filter-result-count,
+.reservation-module .status-tile small,
+.reservation-module .booking-row small,
+.reservation-module .reservation-status-tabs span,
+.reservation-metric-grid span,
+.agenda-page .page-eyebrow { font-size: 11px; }
+.reservation-module .reservation-form-card p,
+.reservation-module .form-card-facts span,
+.reservation-module .booking-date span,
+.reservation-module .booking-guest span,
+.reservation-module [role="tablist"] button span,
+.reservation-module .form-filter-tabs span { font-size: 11px; }
+.reservation-module .reservation-status-summary button span { font-size: 11px; }

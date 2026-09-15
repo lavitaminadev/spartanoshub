@@ -6,6 +6,7 @@ import { optimizedUrl } from '../../shared/imagen-optimizada';
 import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { PieLegal } from '../../shared/PieLegal';
+import { DialogoModal } from '../../shared/DialogoModal';
 import { VERSION_BENEFICIOS, formatearRut, rutValido, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, documentoATexto, faltantesDeIdentidadLegal, nombreLegalDelLocal, politicaDePrivacidadDelLocal, rutaDocumentoLegal, textosDeAceptacionDeReserva, type IdentidadLegal } from '@espartanos/shared';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -90,8 +91,6 @@ export function PublicReservationPage() {
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [guest, setGuest] = useState({ guestName: '', guestEmail: '', guestPhone: '', partySize: 1 });
   const [fotoAmpliada, setFotoAmpliada] = useState<{ src: string; titulo: string } | null>(null);
-  /** Si el toque empezó sobre la foto: arrastrar desde la foto hacia afuera no la cierra. */
-  const toqueEnFoto = useRef(false);
   const [reservationConsent, setReservationConsent] = useState(false);
   /** Consentimiento expreso para salud o alimentación; sólo se pide si la persona escribió algo así. */
   const [sensitiveConsent, setSensitiveConsent] = useState(false);
@@ -247,28 +246,6 @@ export function PublicReservationPage() {
   useEffect(() => {
     if (form?.designConfig?.welcomePopupEnabled === 'false') setWelcomeOpen(false);
   }, [form?.designConfig?.welcomePopupEnabled]);
-  useEffect(() => {
-    if (!welcomeOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setWelcomeOpen(false); };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [welcomeOpen]);
-  // La foto ampliada se cierra con Escape y, mientras está abierta, la página de fondo no se desplaza.
-  useEffect(() => {
-    if (!fotoAmpliada) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setFotoAmpliada(null); };
-    const desbordeAnterior = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKeyDown);
-    return () => { window.removeEventListener('keydown', onKeyDown); document.body.style.overflow = desbordeAnterior; };
-  }, [fotoAmpliada]);
-  // Un documento legal abierto también se cierra con Escape (la foto ampliada tiene prioridad).
-  useEffect(() => {
-    if (!documentoLegal || fotoAmpliada) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setDocumentoLegal(null); };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [documentoLegal, fotoAmpliada]);
 
   const from = form ? plainDateInZone(new Date(), form.timezone) : new Date().toISOString().slice(0, 10);
   const fromDate = useMemo(() => {
@@ -931,17 +908,17 @@ export function PublicReservationPage() {
     <Ga4Tag measurementId={form.ga4MeasurementId} enabled={measurementConsent} />
     {(form.pixelId || form.ga4MeasurementId) && eleccionMedicion !== '' && !avisoMedicionAbierto && <div className="preferencias-medicion-pie"><EnlacePreferenciasDeMedicion aceptada={measurementConsent} onAbrir={() => setAvisoMedicionAbierto(true)} /></div>}
     {/* La bienvenida va primero: los dos avisos se abrían a la vez, uno tapando al otro. */}
-    {fotoAmpliada && <div role="dialog" aria-modal="true" aria-label={`Foto de ${fotoAmpliada.titulo}`} className="booking-foto-ampliada" onPointerDown={(event) => { toqueEnFoto.current = event.target instanceof HTMLImageElement; }} onClick={() => { if (!toqueEnFoto.current) setFotoAmpliada(null); toqueEnFoto.current = false; }}>
+    {fotoAmpliada && <DialogoModal etiqueta={`Foto de ${fotoAmpliada.titulo}`} className="booking-foto-ampliada" onCerrar={() => setFotoAmpliada(null)}>
       <button type="button" className="booking-foto-cerrar" aria-label="Cerrar foto" onClick={() => setFotoAmpliada(null)}>×</button>
       {/* Sólo la foto retiene el toque: cualquier otro punto de la pantalla, incluso junto a la foto, la cierra. */}
       <figure>
-        <img onClick={(event) => event.stopPropagation()} src={optimizedUrl(fotoAmpliada.src, 1600)} alt={fotoAmpliada.titulo} decoding="async" onError={(event) => { if (event.currentTarget.src !== fotoAmpliada.src) event.currentTarget.src = fotoAmpliada.src; }} />
+        <img data-retiene-toque src={optimizedUrl(fotoAmpliada.src, 1600)} alt={fotoAmpliada.titulo} decoding="async" onError={(event) => { if (event.currentTarget.src !== fotoAmpliada.src) event.currentTarget.src = fotoAmpliada.src; }} />
         <figcaption>{fotoAmpliada.titulo}</figcaption>
         <button type="button" className="btn btn-primary" autoFocus onClick={() => setFotoAmpliada(null)}>Cerrar</button>
       </figure>
-    </div>}
-    {ocasionesComoAviso && !avisoCerrado && vecesMostrado < limiteDeAvisos && !isSurvey && !bienvenidaPendiente && <div role="dialog" aria-modal="true" aria-label={design.ocasionesTitulo || 'Ocasiones'} className="booking-ocasiones-aviso" onClick={cerrarOcasiones}>
-      <section onClick={(event) => event.stopPropagation()}>
+    </DialogoModal>}
+    {ocasionesComoAviso && !avisoCerrado && vecesMostrado < limiteDeAvisos && !isSurvey && !bienvenidaPendiente && <DialogoModal etiqueta={design.ocasionesTitulo || 'Ocasiones'} className="booking-ocasiones-aviso" onCerrar={cerrarOcasiones} activo={!fotoAmpliada}>
+      <section data-retiene-toque>
         <h2>{design.ocasionesTitulo || 'Para cada ocasión'}</h2>
         {design.ocasionesTexto && <p>{design.ocasionesTexto}</p>}
         <div className={`booking-ocasiones-grilla foto-${safeDesignChoice(design.ocasionesFoto, ['completa', 'horizontal', 'cuadrada', 'vertical'], 'completa')}`}>
@@ -949,14 +926,14 @@ export function PublicReservationPage() {
         </div>
         <div className="booking-ocasiones-cierre"><button type="button" className="btn btn-primary" autoFocus onClick={cerrarOcasiones}>{design.ocasionesBoton || 'Reservar ahora'}</button></div>
       </section>
-    </div>}
+    </DialogoModal>}
     {/*
       * El cuadro se dimensionaba con estilos fijos y sin alto máximo: con un texto largo o una
       * pantalla baja crecía más que la ventana, se salía por abajo y no se podía desplazar, así
       * que el botón para cerrarlo quedaba fuera de alcance. Ahora se limita al alto visible y
       * desplaza su contenido, igual que el aviso de ocasiones.
       */}
-    {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <div role="dialog" aria-modal="true" aria-label="Bienvenida a reservas" className="booking-aviso"><section>{form.designConfig?.logoUrl && <img src={optimizedUrl(form.designConfig.logoUrl, 480)} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>{form.designConfig?.welcomePopupBoton || 'Continuar'}</button></section></div>}
+    {welcomeOpen && !isSurvey && form.designConfig?.welcomePopupEnabled === 'true' && <DialogoModal etiqueta="Bienvenida a reservas" className="booking-aviso" onCerrar={() => setWelcomeOpen(false)}><section data-retiene-toque>{form.designConfig?.logoUrl && <img src={optimizedUrl(form.designConfig.logoUrl, 480)} alt={`Logo ${form.name}`} style={{ maxWidth: 120, maxHeight: 56, objectFit: 'contain' }} />}<h2 style={{ margin: '12px 0 8px' }}>{form.designConfig?.welcomePopupTitle || `Reserva en ${form.name}`}</h2><p style={{ margin: '0 0 18px' }}>{form.designConfig?.welcomePopupText || 'Revisa los horarios disponibles y completa tus datos para continuar.'}</p><button type="button" className="btn btn-primary" autoFocus onClick={() => setWelcomeOpen(false)}>{form.designConfig?.welcomePopupBoton || 'Continuar'}</button></section></DialogoModal>}
     {(visible(design.showPoweredBy) || visible(design.showSecureBadge)) && <header>{visible(design.showPoweredBy) ? <div className="public-brand"><BrandMark decorative /><small>{poweredByText.split('\n').map((line) => <Fragment key={line}>{line}<br /></Fragment>)}</small></div> : <span />}{visible(design.showSecureBadge) && <em>{badgeText}</em>}</header>}
     {reservaRecordada && !isSurvey && <aside className="booking-recordatorio">
       <div>
@@ -1160,13 +1137,13 @@ export function PublicReservationPage() {
                   <details className="consent-detalle"><summary>Ver detalle</summary><p>{TEXTO_MEDICION}</p><p className="consent-enlaces"><a href={rutaDocumentoLegal('medicion')} target="_blank" rel="noopener">Medición y cookies</a></p></details>
                 </div>)}
             </section>
-            {documentoLegal && <div className="documento-legal" role="dialog" aria-modal="true" aria-label={documentoLegal.titulo} onClick={() => setDocumentoLegal(null)}>
-              <section onClick={(evento) => evento.stopPropagation()}>
+            {documentoLegal && <DialogoModal etiqueta={documentoLegal.titulo} className="documento-legal" onCerrar={() => setDocumentoLegal(null)}>
+              <section data-retiene-toque>
                 <header><h2>{documentoLegal.titulo}</h2><button type="button" className="btn btn-outline btn-sm" onClick={() => setDocumentoLegal(null)} autoFocus>Cerrar</button></header>
                 <div className="documento-legal-texto">{documentoLegal.texto}</div>
                 <small>{responsableLegal}</small>
               </section>
-            </div>}
+            </DialogoModal>}
           </div>
           <button className="public-submit" type="submit" disabled={submit.isPending}><span>{isSurvey ? (submit.isPending ? 'Enviando...' : 'Enviar') : 'Continuar →'}</span></button>
           {!isSurvey && <button type="button" className="btn btn-outline btn-sm btn-back" onClick={() => { if (requestMode) { volverAReservar(); } else goBackToSlots(); }}>← {requestMode ? 'Volver a reservar' : 'Personas y fecha'}</button>}

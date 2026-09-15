@@ -644,3 +644,6 @@
 .survey-historial ol { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
 .survey-historial ol > li { padding-left: 12px; border-left: 3px solid #e7e1e5; }
 .survey-historial ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: #4f4852; }
+/* Accesibilidad (WCAG 1.4.11): las estrellas sin elegir se distinguen del fondo (3:1 como mínimo). */
+.flujo-estrellas button:not(.activa) { color: #8f8790; }
+.public-survey-eyebrow { font-size: 11px; }
