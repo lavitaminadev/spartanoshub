@@ -40,4 +40,17 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
 
     expect(settings.update).toHaveBeenCalledWith('org-1', 'dev-1', { 'modules.lifecycle.production': 'active' }, null);
   });
+
+  it('Correos sólo lee y guarda plantillas de correo, nunca el resto de la configuración', async () => {
+    const request = { organizationId: 'org-1', user: { id: 'cd-1', role: UserRole.COMMERCIAL_DIRECTOR } } as any;
+    settings.list.mockResolvedValue([{ key: 'email.reservation_confirmation_enabled' }, { key: 'security.password.expiryDays' }]);
+    await expect(controller.correos(request)).resolves.toEqual([{ key: 'email.reservation_confirmation_enabled' }]);
+
+    await expect(controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola', 'modules.lifecycle.production': 'active' } })).rejects.toThrow(ForbiddenException);
+    expect(settings.update).not.toHaveBeenCalled();
+
+    await controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } }, 'c-1');
+    expect(accountAccess.assertClient).toHaveBeenCalledWith('org-1', request.user, 'c-1');
+    expect(settings.update).toHaveBeenCalledWith('org-1', 'cd-1', { 'email.reservation_confirmation_subject': 'Hola' }, 'c-1');
+  });
 });
