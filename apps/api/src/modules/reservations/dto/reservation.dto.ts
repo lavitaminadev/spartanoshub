@@ -375,6 +375,8 @@ export class ListReservationsDto {
   @IsOptional() @IsString() @MaxLength(180) search?: string;
   @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsString() @MaxLength(80) couponCode?: string;
+  /** Zona de la sucursal: es donde se separa fumadores de no fumadores. */
+  @IsOptional() @IsString() @MaxLength(120) resourceId?: string;
 }
 export class UpdateCouponDto {
   @IsOptional() @IsBoolean() active?: boolean;

@@ -79,6 +79,12 @@ const STATUS_TRANSITIONS = {
     waitlist: ['confirmed', 'cancelled_client', 'cancelled_business'],
     attended: [], no_show: [], cancelled_client: [], cancelled_business: [],
 };
+const TIPOS_DE_EVENTO_LEGIBLES = {
+    cumpleanos: 'Cumpleaños',
+    aniversario: 'Aniversario',
+    empresa: 'Evento de empresa',
+    otro: 'Otro',
+};
 let ReservationsService = ReservationsService_1 = class ReservationsService {
     constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds) {
         this.forms = forms;
@@ -1174,7 +1180,16 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         };
     }
     async avisarSolicitudSinCupo(form, tipo, datos) {
-        const variables = { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize };
+        const variables = {
+            nombre: datos.guestName,
+            local: form.name,
+            fecha: datos.cuando,
+            personas: datos.partySize,
+            ocasion: datos.ocasion ?? '',
+            telefono: datos.telefono ?? '',
+            correo: datos.guestEmail ?? '',
+            notas: datos.notas ?? '',
+        };
         try {
             const equipo = await this.equipoDelLocal(form);
             if (equipo.userIds.length) {
@@ -1477,7 +1492,16 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }));
         if (dto.measurementConsent)
             void this.enqueueMetaGroupLead(request, form, dto, ipAddress, userAgent);
-        void this.avisarSolicitudSinCupo(form, 'grupo', { id: request.id, guestName: request.guestName, guestEmail: request.guestEmail, partySize: request.partySize, cuando: [request.preferredDate || 'fecha por acordar', request.preferredTime].filter(Boolean).join(' ') });
+        void this.avisarSolicitudSinCupo(form, 'grupo', {
+            id: request.id,
+            guestName: request.guestName,
+            guestEmail: request.guestEmail,
+            partySize: request.partySize,
+            cuando: [request.preferredDate || 'fecha por acordar', request.preferredTime].filter(Boolean).join(' '),
+            ocasion: TIPOS_DE_EVENTO_LEGIBLES[request.eventType] ?? request.eventType,
+            telefono: request.guestPhone,
+            notas: request.notes,
+        });
         return { id: request.id, status: request.status, kind: 'group_request' };
     }
     async joinPublicWaitlist(slug, dto, ipAddress, userAgent) {
@@ -1985,6 +2009,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` });
         if (query.couponCode)
             qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode });
+        if (query.resourceId)
+            qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId });
         const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount();
         const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
         const conversions = await this.metaConversionStatus(organizationId, items);
