@@ -15,6 +15,7 @@ var ReservationsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReservationsService = void 0;
 const identificadores_meta_1 = require("../../integrations/meta/identificadores-meta");
+const fecha_de_nacimiento_1 = require("./fecha-de-nacimiento");
 const vista_previa_de_enlace_1 = require("../../../shared/vista-previa-de-enlace");
 const shared_1 = require("@espartanos/shared");
 const shared_2 = require("@espartanos/shared");
@@ -251,7 +252,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 throw new common_1.BadRequestException(`La respuesta de ${field.label} debe ser una aceptación`);
             if (field.type === 'rut' && typeof value === 'string' && value.trim() && !(0, shared_1.rutValido)(value))
                 throw new common_1.BadRequestException(`El RUT de ${field.label} no es válido`);
+            if (field.type === 'birthdate' && typeof value === 'string' && value.trim() && !(0, fecha_de_nacimiento_1.fechaDeNacimientoValida)(value)) {
+                throw new common_1.BadRequestException(`La fecha de ${field.label} no es válida`);
+            }
         }
+    }
+    fechaDeNacimientoDe(form, answers) {
+        const campo = form.fieldSchema.find((field) => field.type === 'birthdate');
+        if (!campo)
+            return null;
+        const valor = answers?.[campo.id];
+        return typeof valor === 'string' && (0, fecha_de_nacimiento_1.fechaDeNacimientoValida)(valor) ? valor.slice(0, 10) : null;
     }
     validateSubmission(form, answers, guest) {
         this.validateAnswers(form, answers);
@@ -589,6 +600,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 status: 'confirmed', startsAt, endsAt, partySize,
                 guestName, guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone),
                 serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers || {}, internalNotes: dto.internalNotes,
+                birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
             }));
             await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId, clientId: form.clientId, reservationId: booking.id, type: 'created', toStatus: 'confirmed', actorId: userId, actorType: 'team', metadata: { startsAt: startsAt.toISOString(), serviceId: dto.serviceId, resourceId: dto.resourceId, manual: true, skipAvailability: dto.skipAvailability } }));
             return { booking, form };
@@ -1493,6 +1505,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 status: 'waitlist', startsAt, endsAt: new Date(startsAt.getTime() + rules.duration * 60_000), partySize: dto.partySize || 1,
                 guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone),
                 serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers,
+                birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
                 consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
                 marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
                 marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
@@ -2066,6 +2079,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             }
             if (dto.internalNotes !== undefined)
                 item.internalNotes = dto.internalNotes;
+            if (dto.partySize !== undefined)
+                item.partySize = dto.partySize;
+            if (dto.tableLabel !== undefined)
+                item.tableLabel = dto.tableLabel.trim() || null;
             const result = await repo.save(item);
             const changedStart = previousStart.getTime() !== result.startsAt.getTime();
             if (changedStart)

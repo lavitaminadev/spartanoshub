@@ -212,9 +212,27 @@ function visualSlug(value: string) {
     .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'nuevo-local';
 }
 
+/*
+ * Dos reservas con lo que de verdad llega: respuestas del formulario, zona, cupón y mesa.
+ *
+ * Con reservas sin respuestas no se puede revisar la parte del detalle que más se mira al recibir
+ * a alguien, que es justamente lo que esa persona pidió al reservar.
+ */
 const VISUAL_RESERVATIONS = [
-  { id: 'visual-booking-1', formId: 'visual-form', referenceCode: 'CC-1042', status: 'confirmed', startsAt: new Date(new Date().setHours(20, 0, 0, 0)).toISOString(), partySize: 2, guestName: 'Camila Rojas', guestPhone: '+56 9 8123 4567', guestEmail: 'camila@example.test' },
-  { id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended', startsAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(), partySize: 4, guestName: 'Sebastián Vera', guestPhone: '+56 9 7456 1234', guestEmail: 'sebastian@example.test' },
+  {
+    id: 'visual-booking-1', formId: 'visual-form', referenceCode: 'CC-1042', status: 'confirmed',
+    startsAt: new Date(new Date().setHours(20, 0, 0, 0)).toISOString(), partySize: 2,
+    guestName: 'Camila Rojas', guestPhone: '+56 9 8123 4567', guestEmail: 'camila@example.test',
+    resourceId: 'terrace', couponCode: 'VERANO20', tableLabel: '12',
+    answers: { ocasion: 'Cumpleaños', childrenCount: 1, dietaryNotes: 'Sin gluten', notes: 'Llegamos 10 minutos tarde.' },
+  },
+  {
+    id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended',
+    startsAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(), partySize: 4,
+    guestName: 'Sebastián Vera', guestPhone: '+56 9 7456 1234', guestEmail: 'sebastian@example.test',
+    resourceId: 'salon',
+    answers: { ocasion: 'Empresa', accessibilityNeed: 'Acceso sin escalón', birthDate: '1990-05-14' },
+  },
 ];
 
 /** Reserva pública demostrativa: permite revisar el resultado, el enlace de gestión y cancelar sin API. */

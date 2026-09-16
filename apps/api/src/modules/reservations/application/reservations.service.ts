@@ -1,4 +1,5 @@
 import { normalizarCorreo, normalizarTelefono } from '../../integrations/meta/identificadores-meta';
+import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, type ReglaDeCampo } from '@espartanos/shared';
@@ -282,7 +283,24 @@ export class ReservationsService {
       if (field.type === 'rating' && (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 5)) throw new BadRequestException(`La respuesta de ${field.label} debe estar entre 1 y 5`);
       if (field.type === 'consent' && typeof value !== 'boolean') throw new BadRequestException(`La respuesta de ${field.label} debe ser una aceptación`);
       if (field.type === 'rut' && typeof value === 'string' && value.trim() && !rutValido(value)) throw new BadRequestException(`El RUT de ${field.label} no es válido`);
+      if (field.type === 'birthdate' && typeof value === 'string' && value.trim() && !fechaDeNacimientoValida(value)) {
+        throw new BadRequestException(`La fecha de ${field.label} no es válida`);
+      }
     }
+  }
+
+  /**
+   * La fecha de nacimiento que trae el formulario, si la pide.
+   *
+   * Se saca de las respuestas para guardarla en su columna: preguntar «quién cumple este mes» no
+   * puede obligar a recorrer un JSON reserva por reserva. Si el formulario no la pide, o viene
+   * vacía, la reserva simplemente no la tiene.
+   */
+  private fechaDeNacimientoDe(form: ReservationForm, answers: Record<string, unknown>): string | null {
+    const campo = (form.fieldSchema as FieldConfig[]).find((field) => field.type === 'birthdate');
+    if (!campo) return null;
+    const valor = answers?.[campo.id];
+    return typeof valor === 'string' && fechaDeNacimientoValida(valor) ? valor.slice(0, 10) : null;
   }
 
   private validateSubmission(form: ReservationForm, answers: Record<string, unknown>, guest: GuestSubmission): void {
@@ -688,6 +706,7 @@ export class ReservationsService {
         status: 'confirmed', startsAt, endsAt, partySize,
         guestName, guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: normalizePhone(dto.guestPhone),
         serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers || {}, internalNotes: dto.internalNotes,
+        birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
       }));
       await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: form.clientId, reservationId: booking.id, type: 'created', toStatus: 'confirmed', actorId: userId, actorType: 'team', metadata: { startsAt: startsAt.toISOString(), serviceId: dto.serviceId, resourceId: dto.resourceId, manual: true, skipAvailability: dto.skipAvailability } }));
       return { booking, form };
@@ -1786,6 +1805,7 @@ export class ReservationsService {
         status: 'waitlist', startsAt, endsAt: new Date(startsAt.getTime() + rules.duration * 60_000), partySize: dto.partySize || 1,
         guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: normalizePhone(dto.guestPhone),
         serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers,
+        birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
         consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
         marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
@@ -2512,7 +2532,18 @@ export class ReservationsService {
         if (dto.status === 'cancelled_business') calendarNotification = 'CANCELLED';
         if (dto.status.startsWith('cancelled')) { await this.devolverCupon(manager, item); liberoCupo = true; }
       }
-      if (dto.internalNotes !== undefined) item.internalNotes = dto.internalNotes; const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) calendarNotification = 'PUBLISH'; if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
+      if (dto.internalNotes !== undefined) item.internalNotes = dto.internalNotes;
+      /*
+       * Personas y mesa se corrigen al recibir, y no cambian el horario.
+       *
+       * Venir cuatro cuando se reservó para dos es rutina, y la mesa se decide en la puerta. Un
+       * cambio de personas puede dejar el horario por sobre su cupo: se permite igual, porque el
+       * anfitrión sabe si caben y prohibirlo sólo conseguiría que el dato quedara mal escrito.
+       * La mesa vacía la quita.
+       */
+      if (dto.partySize !== undefined) item.partySize = dto.partySize;
+      if (dto.tableLabel !== undefined) item.tableLabel = dto.tableLabel.trim() || null;
+      const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) calendarNotification = 'PUBLISH'; if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
     const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
     // Intencionalmente no se envía evento de Meta CAPI para 'no_show': la Conversions API no tiene
     // concepto de conversión negativa/revertida, así que no hay nada correcto que enviarle a Meta

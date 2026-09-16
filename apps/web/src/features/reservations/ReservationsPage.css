@@ -411,3 +411,14 @@
 .reservation-module [role="tablist"] button span,
 .reservation-module .form-filter-tabs span { font-size: 11px; }
 .reservation-module .reservation-status-summary button span { font-size: 11px; }
+
+/* Personas y mesa se corrigen al recibir, sin salir del detalle. */
+.booking-editable { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.booking-editable .input { min-height: 34px; padding: 6px 8px; font-size: 13px; }
+.booking-editable .input[type="number"] { width: 80px; }
+
+/* La mesa encabeza la línea del código: es lo que se busca con la vista en la mano. */
+.booking-mesa {
+  margin-right: 6px; padding: 1px 7px; border-radius: 999px;
+  background: var(--ink); color: var(--white); font-size: 11px; font-style: normal; font-weight: 800;
+}
