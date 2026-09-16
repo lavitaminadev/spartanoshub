@@ -100,7 +100,15 @@
 .menu-compacto-boton:hover, .menu-compacto-boton:focus-visible { background: rgba(255, 255, 255, .1); }
 .app-layout.menu-compacto { --sidebar-width: 76px; }
 .app-layout.menu-compacto .app-workspace { margin-left: 76px; }
-.app-layout.menu-compacto .sidebar { width: 240px; overflow-x: hidden; transition: width .18s ease .12s, box-shadow .18s ease .12s; }
+/*
+ * El recorte va en el cuerpo del menú, no en la barra entera.
+ *
+ * Puesto en la barra, recortaba también lo que tiene que salirse de ella: el panel de
+ * notificaciones mide 370px y en modo íconos quedaba cortado a 76, ilegible. El cuerpo y la
+ * cabecera son los que necesitan el recorte mientras el ancho cambia.
+ */
+.app-layout.menu-compacto .sidebar { width: 240px; transition: width .18s ease .12s, box-shadow .18s ease .12s; }
+.app-layout.menu-compacto .sidebar-header { overflow-x: hidden; }
 .app-layout.menu-compacto .sidebar:hover, .app-layout.menu-compacto .sidebar:has(:focus-visible) { box-shadow: 12px 0 40px rgba(21, 19, 23, .35); }
 .app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) { width: 76px; }
 .app-layout.menu-compacto .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-header { flex-direction: column; gap: 10px; padding-left: 0; padding-right: 0; align-items: center; }

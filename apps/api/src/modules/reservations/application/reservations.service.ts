@@ -156,6 +156,14 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   attended: [], no_show: [], cancelled_client: [], cancelled_business: [],
 };
 
+/** Cómo se nombra cada tipo de evento en un correo: la clave interna no se le escribe a nadie. */
+const TIPOS_DE_EVENTO_LEGIBLES: Record<string, string> = {
+  cumpleanos: 'Cumpleaños',
+  aniversario: 'Aniversario',
+  empresa: 'Evento de empresa',
+  otro: 'Otro',
+};
+
 @Injectable()
 export class ReservationsService {
   constructor(
@@ -1433,8 +1441,28 @@ export class ReservationsService {
    * a nadie. La persona no sabia si su pedido habia llegado y el equipo solo lo veia si abria la
    * pantalla justa. El acuse respeta el mismo interruptor que el comprobante de reserva.
    */
-  private async avisarSolicitudSinCupo(form: ReservationForm, tipo: 'grupo' | 'espera', datos: { id: string; guestName: string; guestEmail?: string | null; partySize: number; cuando: string }): Promise<void> {
-    const variables = { nombre: datos.guestName, local: form.name, fecha: datos.cuando, personas: datos.partySize };
+  private async avisarSolicitudSinCupo(
+    form: ReservationForm,
+    tipo: 'grupo' | 'espera',
+    datos: { id: string; guestName: string; guestEmail?: string | null; partySize: number; cuando: string; ocasion?: string; telefono?: string | null; notas?: string | null },
+  ): Promise<void> {
+    /*
+     * El aviso al equipo lleva con qué decidir sin abrir la aplicación.
+     *
+     * Con el nombre y la cantidad no se puede responder nada: para acordar un evento hacen falta
+     * la ocasión, cuándo lo quiere, por dónde llamarle y lo que haya contado. El equipo tenía que
+     * entrar a buscarlo, y mientras tanto la solicitud esperaba.
+     */
+    const variables = {
+      nombre: datos.guestName,
+      local: form.name,
+      fecha: datos.cuando,
+      personas: datos.partySize,
+      ocasion: datos.ocasion ?? '',
+      telefono: datos.telefono ?? '',
+      correo: datos.guestEmail ?? '',
+      notas: datos.notas ?? '',
+    };
     try {
       const equipo = await this.equipoDelLocal(form);
       if (equipo.userIds.length) {
@@ -1779,7 +1807,16 @@ export class ReservationsService {
     // Es una solicitud, no una conversión de reserva: no toma cupo ni dispara Schedule. Sí es un
     // lead —y de los que más valen—, así que con medición aceptada viaja a Meta como `Lead`.
     if (dto.measurementConsent) void this.enqueueMetaGroupLead(request, form, dto, ipAddress, userAgent);
-    void this.avisarSolicitudSinCupo(form, 'grupo', { id: request.id, guestName: request.guestName, guestEmail: request.guestEmail, partySize: request.partySize, cuando: [request.preferredDate || 'fecha por acordar', request.preferredTime].filter(Boolean).join(' ') });
+    void this.avisarSolicitudSinCupo(form, 'grupo', {
+      id: request.id,
+      guestName: request.guestName,
+      guestEmail: request.guestEmail,
+      partySize: request.partySize,
+      cuando: [request.preferredDate || 'fecha por acordar', request.preferredTime].filter(Boolean).join(' '),
+      ocasion: TIPOS_DE_EVENTO_LEGIBLES[request.eventType] ?? request.eventType,
+      telefono: request.guestPhone,
+      notas: request.notes,
+    });
     return { id: request.id, status: request.status, kind: 'group_request' };
   }
 
@@ -2445,7 +2482,7 @@ export class ReservationsService {
   }
 
   async listReservations(organizationId: string, query: ListReservationsDto, clientId?: string, clientIds?: string[], includeInternalNotes = true) {
-    const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
+    const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); if (query.resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId }); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
     const conversions = await this.metaConversionStatus(organizationId, items);
     const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id) }));
     // `data` es el nombre con que responden todas las listas del sistema. Convivió un tiempo con
