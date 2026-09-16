@@ -144,6 +144,16 @@ let OrganizationSettingsService = class OrganizationSettingsService {
         const existing = await this.definitionRepo.find({ where: { key: (0, typeorm_2.In)(keys) } });
         const existingKeys = new Set(existing.map((definition) => definition.key));
         const missing = organization_settings_catalog_1.ORGANIZATION_SETTINGS.filter((setting) => !existingKeys.has(setting.key));
+        const porClave = new Map(organization_settings_catalog_1.ORGANIZATION_SETTINGS.map((setting) => [setting.key, setting]));
+        const desactualizadas = existing.filter((definition) => {
+            const setting = porClave.get(definition.key);
+            return setting !== undefined && definition.defaultValue?.value !== setting.defaultValue;
+        });
+        for (const definition of desactualizadas) {
+            await this.definitionRepo.update(definition.id, {
+                defaultValue: { value: porClave.get(definition.key).defaultValue },
+            });
+        }
         if (missing.length > 0) {
             await this.definitionRepo.createQueryBuilder()
                 .insert()

@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
 import { triggerToast } from '../../shared/toast-events';
+import { ROLE_LABELS } from '../../core/role-labels';
 import './permisos-de-usuario.css';
 
 type Nivel = 'none' | 'view' | 'edit' | 'manage';
@@ -121,7 +122,18 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
               return <div key={modulo.clave} className={`permisos-usuario-fila ${efectivo.source === 'override' ? 'es-ajuste' : ''}`}>
                 <div>
                   <strong>{modulo.nombre}</strong>
-                  <small>{bloqueado ? 'Módulo no disponible en esta organización o etapa.' : modulo.ayuda}</small>
+                  {/*
+                    * Los dos bloqueos se dicen por separado: se resuelven en pantallas distintas.
+                    *
+                    * Apagado para la organización se corrige en Accesos y seguridad → Módulos, y lo
+                    * cambia cualquiera que administre. Que el producto no entregue el módulo a ese
+                    * cargo no se corrige desde ninguna pantalla, y decirlo ahorra buscarla.
+                    */}
+                  <small>{efectivo.moduleDisabled
+                    ? 'Apagado para toda la organización. Se enciende en Accesos y seguridad → Módulos.'
+                    : efectivo.productHidden
+                      ? `El producto todavía no entrega este módulo al cargo ${ROLE_LABELS[usuario.role] ?? usuario.role}. No se abre desde esta pantalla.`
+                      : modulo.ayuda}</small>
                 </div>
                 {puedeEditar && !bloqueado && !soloAdministracion ? (
                   <select

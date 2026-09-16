@@ -256,7 +256,16 @@
 /* Grilla de ocasiones: en la página y en el aviso de la primera visita. */
 .booking-ocasiones { margin-top:32px; }
 .booking-ocasiones h2 { margin:0 0 12px; font-size:18px; }
-.booking-ocasiones-grilla { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+/*
+ * La pista nunca exige más ancho del que hay.
+ *
+ * Con `minmax(150px,1fr)` a secas, el ancho mínimo de cada tarjeta manda sobre la pista: cuatro
+ * ocasiones pedían 910px, la columna de la página crecía con ellas y el resto de la tarjeta
+ * —incluido el botón «Solicitar evento»— quedaba fuera de la pantalla entre 770 y 950px.
+ */
+.booking-ocasiones-grilla { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr)); gap:12px; }
+.booking-ocasiones-grilla > * { min-width:0; }
+.public-booking-layout > * { min-width:0; }
 .booking-ocasiones-grilla article { display:grid; gap:4px; padding:10px; border:1px solid rgba(255,255,255,.5); border-radius:14px; background:rgba(255,255,255,.85); }
 .booking-ocasiones-grilla img { display:block; width:100%; height:auto; border-radius:10px; }
 .booking-ocasiones-grilla strong { font-size:14px; }

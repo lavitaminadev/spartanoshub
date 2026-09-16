@@ -19,7 +19,14 @@ export function AvisoDeMedicion({ abierto, aceptada, onElegir, onCerrar }: {
   if (!abierto) return null;
   return (
     <div className="booking-medicion-aviso aviso-medicion" role="region" aria-label="Preferencias de medición">
-      <p><strong>¿Nos ayudas a medir esta página?</strong> {AVISO_MEDICION}</p>
+      {/*
+        * El rótulo nombra de qué se trata; la pregunta la hace el texto legal.
+        *
+        * Antes el componente abría con una pregunta propia y el aviso con otra, así que se leían
+        * dos preguntas seguidas para una sola decisión. El texto compartido no se toca: es el que
+        * se guarda con su versión junto a la reserva.
+        */}
+      <p><strong>Medición publicitaria.</strong> {AVISO_MEDICION}</p>
       <button type="button" className="enlace aviso-medicion-detalle" aria-expanded={detalle} onClick={() => setDetalle(!detalle)}>{detalle ? 'Ocultar detalle' : 'Ver detalle'}</button>
       {detalle && <p className="aviso-medicion-texto">{TEXTO_MEDICION}</p>}
       <div>
