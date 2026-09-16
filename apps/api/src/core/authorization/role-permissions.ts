@@ -58,7 +58,11 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
    * rentabilidad por cliente, así que necesita lectura sobre operación, producción y
    * presupuesto aunque no los administre.
    *
-   * Reservas queda fuera: contratar y administrar empresas no equivale a operar su agenda.
+   * Reservas en 'edit' y no en 'manage': ajusta lo de una sucursal que ya existe —textos, diseño,
+   * medición y los correos automáticos, que son comunicación comercial y le pertenecen— pero no
+   * crea ni elimina sucursales, que es una decisión de operaciones. Sin este permiso tampoco
+   * alcanzaba la pantalla de Correos, que se gobierna con el de Reservas.
+   *
    * Encuestas sí pertenece a este cargo para medir y revisar la experiencia comercial.
    */
   [UserRole.COMMERCIAL_DIRECTOR]: {
@@ -67,6 +71,7 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
     users: 'manage',
     clients: 'manage',
     crm: 'manage',
+    reservations: 'edit',
     commercialPipeline: 'manage',
     catalog: 'manage',
     contracts: 'manage',

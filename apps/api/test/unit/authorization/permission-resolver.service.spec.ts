@@ -42,7 +42,8 @@ describe('roleLevel', () => {
     }
     expect(roleLevel(UserRole.ADMIN, 'users')).toBe('manage');
     expect(roleLevel(UserRole.COMMUNITY_MANAGER, 'reservations')).toBe('edit');
-    expect(roleLevel(UserRole.COMMERCIAL_DIRECTOR, 'reservations')).toBe('none');
+    // Ajusta sucursales existentes y sus correos, pero crear o eliminar una es de operaciones.
+    expect(roleLevel(UserRole.COMMERCIAL_DIRECTOR, 'reservations')).toBe('edit');
     expect(roleLevel(UserRole.COMMERCIAL_DIRECTOR, 'surveys')).toBe('manage');
     expect(roleLevel(UserRole.DESIGNER, 'crm')).toBe('none');
   });
