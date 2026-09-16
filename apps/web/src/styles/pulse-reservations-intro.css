@@ -725,3 +725,8 @@
 .booking-reglas strong { color: var(--booking-text, #3f4e49); font-size: 13px; font-weight: 500; line-height: 1.45; }
 .booking-reglas a { color: inherit; font-weight: 700; }
 @media (max-width: 520px) { .booking-reglas li { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Aviso libre del local, antes del formulario: se lee como una nota, no como una alerta. */
+.booking-notas-local { margin: 18px 0 0; padding: 12px 14px; border-left: 3px solid var(--booking-accent, #c4553a); border-radius: 0 10px 10px 0; background: rgba(255,255,255,.55); color: var(--booking-text, #3f4e49); font-size: 13px; line-height: 1.5; white-space: pre-line; }
+/* La ayuda de un campo va bajo su título, no pegada a la pregunta. */
+.booking-bloque label .ayuda-del-campo { display: block; margin: 2px 0 6px; font-weight: 400; opacity: .75; }

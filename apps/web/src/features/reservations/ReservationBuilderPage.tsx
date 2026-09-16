@@ -479,7 +479,7 @@ export function ReservationBuilderPage() {
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askChildren === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askChildren: String(event.target.checked) } })} /> Preguntar por niños o silla infantil</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAccessibility === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAccessibility: String(event.target.checked) } })} /> Preguntar por accesibilidad <small className="toggle-nota">· dato de salud: se pide autorización expresa</small></label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askAllergies === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askAllergies: String(event.target.checked) } })} /> Preguntar por restricciones alimentarias <small className="toggle-nota">· dato de salud: se pide autorización expresa</small></label>
-          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askSmoking === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askSmoking: String(event.target.checked) } })} /> Preguntar si prefiere zona de fumadores{zones.length > 0 && <small className="toggle-nota"> · con zonas, se indica en el sector</small>}</label>
+          <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askSmoking === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askSmoking: String(event.target.checked) } })} /> Preguntar si prefiere zona de fumadores{zones.length > 0 && <small className="toggle-nota"> · el local lo usa para elegir el sector</small>}</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askSeating === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askSeating: String(event.target.checked) } })} /> Preguntar preferencia de mesa (tranquila, ventana, barra)</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askFirstVisit === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askFirstVisit: String(event.target.checked) } })} /> Preguntar si es su primera visita</label>
           <label className="toggle-row wide"><input type="checkbox" checked={draft.designConfig?.askHowFound === 'true'} onChange={(event) => change({ designConfig: { ...draft.designConfig, askHowFound: String(event.target.checked) } })} /> Preguntar cómo nos conoció</label>
@@ -871,6 +871,19 @@ export function ReservationBuilderPage() {
             />
           </label>
         </div>
+        <div className="form-row">
+          <label>Aviso antes de reservar
+            <small>Se muestra en la página, antes de elegir la hora. Estacionamiento, vestimenta, avisos del día. Vacío no muestra nada.</small>
+            <textarea
+              className="input"
+              rows={3}
+              maxLength={400}
+              placeholder="Ej. Estacionamiento con convenio en Calle 123. Los sábados pedimos vestimenta formal."
+              value={String(draft.designConfig?.notasDelLocal || '')}
+              onChange={(e) => cambiarAjuste('notasDelLocal', e.target.value)}
+            />
+          </label>
+        </div>
         <label className="toggle-row"><input type="checkbox" checked={usaDatosPropios ?? Boolean(draft.designConfig?.legalCompanyName || draft.designConfig?.legalCompanyId || draft.designConfig?.privacyUrl || draft.designConfig?.termsUrl)} onChange={(e) => {
           setUsaDatosPropios(e.target.checked);
           // Volver a los de la empresa borra los propios: si no, seguirían mandando sin verse.
@@ -1163,17 +1176,16 @@ function ReservationLivePreview({
    */
   const camposEnOrden = camposVisibles(fields.filter((field) => field.id !== 'partySize' && field.type !== 'coupon' && field.id !== 'consent'), {});
   const ocultas = fields.filter((field) => field.mostrarSi?.campo).length - camposEnOrden.filter((field) => field.mostrarSi?.campo).length;
-  const zonasActivas = (draft.resourcesConfig ?? []).filter((zona) => zona.active !== false);
   // Las mismas preguntas y condiciones que muestra la página pública.
   const preguntasDeVisita = ([
     ['askChildren', '¿Vienen niños o necesitas silla infantil?'],
     ['askAccessibility', '¿Alguien necesita accesibilidad?'],
     ['askAllergies', '¿Restricciones alimentarias?'],
-    ['askSmoking', '¿Zona de fumadores?'],
+    ['askSmoking', '¿Fumas?'],
     ['askSeating', '¿Qué mesa prefieres?'],
     ['askFirstVisit', '¿Es tu primera visita?'],
     ['askHowFound', '¿Cómo nos conociste?'],
-  ] as const).filter(([clave]) => (design as Record<string, unknown>)[clave] === 'true' && !(clave === 'askSmoking' && zonasActivas.length > 0)).map(([, texto]) => texto);
+  ] as const).filter(([clave]) => (design as Record<string, unknown>)[clave] === 'true').map(([, texto]) => texto);
   const ventana = draft.scheduleConfig?.windows?.[0];
   const ritmo = Number(design.slotCadenceMinutes || '15') || 15;
   const sampleSlots: string[] = [];
