@@ -1,12 +1,24 @@
 # Tareas programadas (cron)
 
-Hay trabajos que el sistema no hace solo: alguien tiene que llamarlos cada cierto tiempo. La
-aplicación no lleva reloj propio a propósito —en Passenger el proceso se duerme cuando no hay
-visitas, y un temporizador interno se perdería sin aviso—, así que **los dispara el cron de
-cPanel**.
+Hay trabajos que el sistema no hace solo: alguien tiene que llamarlos cada cierto tiempo. Los
+dispara el **cron de cPanel**.
 
 **Mientras una tarea no esté creada, lo que hace no ocurre nunca.** No aparece ningún error: los
 recordatorios simplemente no salen y las conversiones se quedan en la cola.
+
+## La alternativa interna, y por qué no basta
+
+La aplicación trae un planificador propio que corre casi las mismas tareas por intervalos. Está
+**apagado de fábrica** y se enciende con `ENABLE_INTERNAL_SCHEDULER=true`.
+
+No reemplaza al cron de cPanel por tres razones: mide intervalos desde que arrancó el proceso, así
+que nada puede ocurrir «a las 8 de la mañana»; en Passenger el proceso se duerme sin visitas y se
+reinicia en cada despliegue, con lo que la cuenta vuelve a empezar; y si algún día hay más de un
+proceso, cada uno ejecutaría lo mismo por su cuenta.
+
+Sirve como red de seguridad —que algo salga una vez al día aunque el cron falle—, no como el
+mecanismo principal. `data-retention`, `resumen-diario` y `cumpleanos`, que dependen de la hora,
+necesitan el cron sí o sí.
 
 ## Cómo se llaman
 
