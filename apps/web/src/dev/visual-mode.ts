@@ -285,32 +285,42 @@ const visualCrmFields: Array<Record<string, any>> = [
  * panel dibuja un aviso sólo si existe su clave `_enabled`. Con una lista corta la pantalla se
  * veía casi vacía y parecía que faltaban correos que en el servidor sí están.
  */
-const PLANTILLAS_DE_CORREO: Array<{ prefijo: string; titulo: string }> = [
-  { prefijo: 'email.reservation_confirmation', titulo: 'Confirmación de reserva' },
-  { prefijo: 'email.reservation_reminder', titulo: 'Recordatorio de reserva' },
-  { prefijo: 'email.reservation_change', titulo: 'Cambio de hora' },
-  { prefijo: 'email.post_visit_survey', titulo: 'Encuesta después de la visita' },
-  { prefijo: 'email.reservation_cancellation', titulo: 'Cancelación' },
-  { prefijo: 'email.group_request_ack', titulo: 'Acuse de solicitud de grupo' },
-  { prefijo: 'email.waitlist_ack', titulo: 'Acuse de lista de espera' },
-  { prefijo: 'email.waitlist_spot', titulo: 'Cupo liberado' },
-  { prefijo: 'email.reservation_recovery', titulo: 'Enlace para recuperar la reserva' },
-  { prefijo: 'email.collection_overdue', titulo: 'Aviso de pago vencido' },
-  { prefijo: 'email.birthday', titulo: 'Saludo de cumpleaños' },
-  { prefijo: 'email.daily_digest', titulo: 'Resumen diario del CRM' },
-  { prefijo: 'email.task_reminder', titulo: 'Recordatorio de tareas' },
-  { prefijo: 'email.new_lead', titulo: 'Aviso de lead nuevo' },
-  { prefijo: 'email.team_new_reservation', titulo: 'Aviso al equipo: reserva nueva' },
-  { prefijo: 'email.team_group_request', titulo: 'Aviso al equipo: solicitud de grupo' },
-  { prefijo: 'email.team_waitlist', titulo: 'Aviso al equipo: lista de espera' },
+/**
+ * Las plantillas con su asunto, su cuerpo y las variables que admite cada una.
+ *
+ * Con un texto genérico repetido diecisiete veces no se puede revisar nada: ni si el cuerpo cabe,
+ * ni si las fichas de variables corresponden al aviso, ni cómo queda en la vista previa. Son los
+ * mismos textos y las mismas variables que el catálogo del servidor.
+ */
+const PLANTILLAS_DE_CORREO: Array<{ prefijo: string; titulo: string; variables: string[]; asunto: string; cuerpo: string }> = [
+  { prefijo: 'email.reservation_confirmation', titulo: 'Confirmación de reserva', variables: ['nombre', 'local', 'fecha', 'personas', 'codigo', 'gestion'], asunto: 'Tu reserva en {{local}} está confirmada', cuerpo: 'Hola {{nombre}}:\n\nTu mesa en {{local}} quedó confirmada para el {{fecha}}, para {{personas}} personas.\n\nTu código es {{codigo}}.' },
+  { prefijo: 'email.reservation_reminder', titulo: 'Recordatorio de reserva', variables: ['nombre', 'local', 'fecha', 'personas', 'codigo'], asunto: 'Mañana te esperamos en {{local}}', cuerpo: 'Hola {{nombre}}:\n\nTe recordamos tu reserva del {{fecha}} en {{local}}, para {{personas}} personas.' },
+  { prefijo: 'email.reservation_change', titulo: 'Cambio de hora', variables: ['nombre', 'local', 'fecha', 'personas', 'codigo'], asunto: 'Tu reserva en {{local}} cambió', cuerpo: 'Hola {{nombre}}:\n\nTu reserva {{codigo}} quedó para el {{fecha}}.' },
+  { prefijo: 'email.post_visit_survey', titulo: 'Encuesta después de la visita', variables: ['nombre', 'local', 'fecha'], asunto: '¿Cómo te fue en {{local}}?', cuerpo: 'Hola {{nombre}}:\n\nGracias por venir a {{local}}. ¿Nos cuentas cómo te fue? Es un minuto.' },
+  { prefijo: 'email.reservation_cancellation', titulo: 'Cancelación', variables: ['nombre', 'local', 'fecha', 'personas', 'codigo', 'motivo'], asunto: 'Tu reserva en {{local}} quedó cancelada', cuerpo: 'Hola {{nombre}}:\n\nTu reserva del {{fecha}} quedó cancelada. {{motivo}}' },
+  { prefijo: 'email.group_request_ack', titulo: 'Acuse de solicitud de grupo', variables: ['nombre', 'local', 'fecha', 'personas'], asunto: 'Recibimos tu solicitud para {{local}}', cuerpo: 'Hola {{nombre}}:\n\nRecibimos tu solicitud para {{personas}} personas. Todavía no hay nada reservado: te contactamos para coordinar.' },
+  { prefijo: 'email.waitlist_ack', titulo: 'Acuse de lista de espera', variables: ['nombre', 'local', 'fecha', 'personas'], asunto: 'Quedaste en la lista de espera de {{local}}', cuerpo: 'Hola {{nombre}}:\n\nTe anotamos para el {{fecha}}. No es una reserva: te avisamos si se libera un cupo.' },
+  { prefijo: 'email.waitlist_spot', titulo: 'Cupo liberado', variables: ['nombre', 'local', 'fecha'], asunto: 'Se liberó un cupo en {{local}}', cuerpo: 'Hola {{nombre}}:\n\nSe liberó un cupo para el {{fecha}}. Queda para quien confirme primero.' },
+  { prefijo: 'email.reservation_recovery', titulo: 'Enlace para recuperar la reserva', variables: ['nombre', 'local', 'fecha', 'personas', 'codigo'], asunto: 'Tu reserva en {{local}}', cuerpo: 'Hola {{nombre}}:\n\nAcá está tu reserva {{codigo}} del {{fecha}}.' },
+  { prefijo: 'email.collection_overdue', titulo: 'Aviso de pago vencido', variables: ['empresa', 'factura', 'monto', 'vencimiento'], asunto: 'Factura {{factura}} vencida', cuerpo: 'Hola:\n\nLa factura {{factura}} de {{empresa}}, por {{monto}}, venció el {{vencimiento}}.' },
+  { prefijo: 'email.birthday', titulo: 'Saludo de cumpleaños', variables: ['nombre'], asunto: '¡Feliz cumpleaños, {{nombre}}!', cuerpo: 'Hola {{nombre}}:\n\nQue lo pases muy bien. Te esperamos cuando quieras celebrarlo.' },
+  { prefijo: 'email.daily_digest', titulo: 'Resumen diario del CRM', variables: ['fecha', 'pendientes', 'parados'], asunto: 'Tu resumen del {{fecha}}', cuerpo: 'Tienes {{pendientes}} pendientes y {{parados}} sin movimiento.' },
+  { prefijo: 'email.task_reminder', titulo: 'Recordatorio de tareas', variables: ['tarea', 'horas', 'lead'], asunto: '{{tarea}} vence en {{horas}} horas', cuerpo: 'La tarea «{{tarea}}» de {{lead}} vence en {{horas}} horas.' },
+  { prefijo: 'email.new_lead', titulo: 'Aviso de lead nuevo', variables: ['lead', 'origen', 'campana'], asunto: 'Lead nuevo: {{lead}}', cuerpo: '{{lead}} llegó por {{origen}} ({{campana}}).' },
+  { prefijo: 'email.team_new_reservation', titulo: 'Aviso al equipo: reserva nueva', variables: ['nombre', 'local', 'fecha', 'personas', 'codigo'], asunto: 'Reserva nueva en {{local}}', cuerpo: '{{nombre}} reservó para el {{fecha}}, {{personas}} personas. Código {{codigo}}.' },
+  { prefijo: 'email.team_group_request', titulo: 'Aviso al equipo: solicitud de grupo', variables: ['nombre', 'local', 'fecha', 'personas'], asunto: 'Solicitud de evento en {{local}}', cuerpo: '{{nombre}} pidió un evento para {{personas}} personas.' },
+  { prefijo: 'email.team_waitlist', titulo: 'Aviso al equipo: lista de espera', variables: ['nombre', 'local', 'fecha', 'personas'], asunto: 'Alguien se anotó en la lista de espera', cuerpo: '{{nombre}} se anotó para el {{fecha}}, {{personas}} personas.' },
 ];
 
 function ajustesDeCorreo(source: 'client' | 'master_default') {
-  return PLANTILLAS_DE_CORREO.flatMap(({ prefijo, titulo }) => [
-    { key: `${prefijo}_enabled`, label: titulo, description: 'Enciende o apaga este aviso.', valueType: 'boolean' as const, value: true, source },
-    { key: `${prefijo}_subject`, label: `${titulo} · asunto`, description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text' as const, value: `${titulo} en {{local}}`, source: 'master_default' as const },
-    { key: `${prefijo}_body`, label: `${titulo} · cuerpo`, description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text' as const, value: 'Hola {{nombre}}:\n\nEsto es el texto de ejemplo de {{local}}.', source: 'master_default' as const },
-  ]);
+  return PLANTILLAS_DE_CORREO.flatMap(({ prefijo, titulo, variables, asunto, cuerpo }) => {
+    const declaradas = `Variables: ${variables.map((variable) => `{{${variable}}}`).join(', ')}.`;
+    return [
+      { key: `${prefijo}_enabled`, label: titulo, description: 'Enciende o apaga este aviso.', valueType: 'boolean' as const, value: true, source },
+      { key: `${prefijo}_subject`, label: `${titulo} · asunto`, description: declaradas, valueType: 'text' as const, value: asunto, source: 'master_default' as const },
+      { key: `${prefijo}_body`, label: `${titulo} · cuerpo`, description: declaradas, valueType: 'text' as const, value: cuerpo, source: 'master_default' as const },
+    ];
+  });
 }
 
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [

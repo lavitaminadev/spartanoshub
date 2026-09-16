@@ -22,7 +22,9 @@
 .panel-correo-campos { display: grid; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--soft); }
 .panel-correo-campos label { display: grid; gap: 5px; }
 .panel-correo-campos label > span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.panel-correo-campos textarea { font-family: inherit; line-height: 1.5; resize: vertical; }
+/* El cuerpo es lo que más se lee y se edita: más aire, más alto y foco claro. */
+.panel-correo-campos textarea { min-height: 190px; padding: 14px 16px; font-family: inherit; font-size: 15px; line-height: 1.65; resize: vertical; }
+.panel-correo-campos textarea:focus-visible, .panel-correo-campos input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Las variables se pulsan para insertarlas: escribirlas a mano es donde aparecen las erratas. */
 .panel-correo-variables { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -32,7 +34,19 @@
 }
 .panel-correo-variables button:hover { border-color: var(--accent); color: var(--accent); }
 
-.panel-correo-acciones { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/*
+ * Guardar queda siempre a la vista.
+ *
+ * Con diecisiete avisos, el botón vivía al final de una página larguísima: cambiar una palabra
+ * del primero obligaba a recorrerla entera para guardarla, y era fácil salir sin hacerlo.
+ */
+.panel-correo-acciones {
+  position: sticky; bottom: 0; z-index: 3;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 18px; padding: 12px 14px;
+  border: 1px solid var(--border-light); border-radius: 12px;
+  background: var(--white); box-shadow: 0 -6px 22px rgba(34, 22, 29, .08);
+}
 .panel-correo-acciones small { color: var(--muted); font-size: 12px; }
 
 @media (max-width: 640px) {
@@ -135,3 +149,10 @@
   background: transparent; color: var(--text-light); font-size: 11px; cursor: pointer;
 }
 .panel-correo-heredar:hover { border-color: var(--accent); border-style: solid; color: var(--accent); }
+
+
+/* La ficha dice qué es la variable; el código queda al lado para quien ya lo sabe. */
+.panel-correo-variables button { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; }
+.panel-correo-variables button b { font-family: inherit; font-size: 12px; font-weight: 600; }
+.panel-correo-variables button code { font-family: ui-monospace, monospace; font-size: 10px; opacity: .6; }
+.panel-correo-variables button:hover code { opacity: 1; }

@@ -14,6 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -160,6 +161,35 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: 
     explica: 'Cuando alguien se anota en la lista de espera de un horario lleno.',
   },
 ];
+
+/**
+ * Qué es cada variable, en palabras.
+ *
+ * La ficha mostraba sólo `{{codigo}}`, que no dice de qué código habla ni si es el de la reserva
+ * o el de la factura. Cada aviso ofrece las suyas, así que el mismo nombre no siempre significa lo
+ * mismo: el rótulo se resuelve por variable y el texto entre llaves queda al lado para quien ya
+ * sabe cuál quiere.
+ */
+const ETIQUETAS_DE_VARIABLE: Record<string, string> = {
+  nombre: 'Nombre de quien recibe',
+  local: 'Nombre del local',
+  fecha: 'Fecha y hora',
+  personas: 'Cuántas personas',
+  codigo: 'Código de la reserva',
+  gestion: 'Enlace para cambiarla o cancelarla',
+  motivo: 'Motivo de la cancelación',
+  empresa: 'Nombre de la empresa',
+  factura: 'Número de la factura',
+  monto: 'Monto',
+  vencimiento: 'Fecha de vencimiento',
+  tarea: 'Título de la tarea',
+  horas: 'Horas que faltan',
+  lead: 'Nombre del prospecto',
+  origen: 'De dónde llegó',
+  campana: 'Campaña',
+  pendientes: 'Cuántos pendientes',
+  parados: 'Cuántos sin movimiento',
+};
 
 /** Las variables que admite una plantilla, sacadas de su propia descripción. */
 function variablesDe(descripcion: string): string[] {
@@ -324,32 +354,43 @@ export function PanelDeCorreo(): JSX.Element {
    * `cumple` en falso significa comprobado y fallando; `null`, que no se puede comprobar desde
    * acá y sólo cabe advertirlo.
    */
-  const requisitosDe = (prefijo: string): Array<{ texto: string; cumple: boolean | null }> => {
+  const requisitosDe = (prefijo: string): Array<{ texto: string; cumple: boolean | null; enlace?: string }> => {
     const datos = requisitosQuery.data;
     if (!datos) return [];
     const lista = datos.avisos?.[prefijo] ?? [];
-    const requisitos = lista.map((requisito) => {
+    const requisitos = lista.map((requisito): { texto: string; cumple: boolean | null; enlace?: string } | null => {
+      /*
+       * Las tareas programadas sólo se le nombran a quien puede crearlas.
+       *
+       * A los demás les decía que algo no se está enviando sin darles nada que hacer al respecto,
+       * y aparecía en varias tarjetas a la vez: ruido en la pantalla donde se escriben los textos.
+       */
       if (requisito.clave === 'cron') {
+        if (!esDev) return null;
         const tarea = datos.tareas?.[requisito.tarea ?? ''];
         return {
           // El nombre de la tarea sólo le sirve a quien puede crearla; a los demás les dice a
           // quién pedirla, que es lo único que pueden hacer.
           texto: tarea?.corriendo
             ? 'Se está enviando: la tarea programada corre con normalidad'
-            : esDev
-              ? `No corre la tarea programada «${requisito.tarea}»: créala en cPanel → Cron Jobs`
-              : 'Todavía no se está enviando. Lo activa el equipo de Espartanos.',
+            : `No corre la tarea programada «${requisito.tarea}»: créala en cPanel → Cron Jobs`,
           cumple: Boolean(tarea?.corriendo),
         };
       }
-      if (requisito.clave === 'asistencia') return { texto: 'Sólo sale si la reserva quedó marcada como asistida', cumple: null };
-      if (requisito.clave === 'equipo') return { texto: 'Sólo sale a las sucursales con correos del equipo anotados', cumple: null };
+      // Asistencia y correos del equipo ya los explica la descripción del aviso, arriba: repetirlos
+      // como advertencia llenaba la tarjeta de líneas que no piden hacer nada.
+      if (requisito.clave === 'asistencia' || requisito.clave === 'equipo') return null;
       if (requisito.clave === 'encuesta') {
         const elegida = String(valorDe('email.post_visit_survey_id') ?? '');
-        return { texto: elegida ? 'Encuesta elegida' : 'Falta elegir qué encuesta se envía', cumple: Boolean(elegida) };
+        return {
+          texto: elegida ? 'Encuesta elegida' : 'Falta elegir qué encuesta se envía',
+          cumple: Boolean(elegida),
+          // Se elige por sucursal; acá abajo está la de toda la empresa.
+          enlace: elegida ? undefined : '/reservations',
+        };
       }
-      return { texto: requisito.clave, cumple: null };
-    });
+      return null;
+    }).filter((requisito): requisito is { texto: string; cumple: boolean | null; enlace?: string } => requisito !== null);
     // La casilla es común a todos: se nombra una sola vez y sólo cuando falta.
     if (datos.casilla === false) requisitos.unshift({ texto: 'La casilla que envía no está configurada', cumple: false });
     return requisitos;
@@ -538,9 +579,10 @@ export function PanelDeCorreo(): JSX.Element {
             </header>
             <p>{grupo.explica}</p>
             {/* Sólo cuando está encendido: apagado, lo que le falte no cambia nada. */}
-            {activo && requisitos.length > 0 && <ul className="panel-correo-requisitos">
-              {requisitos.map((requisito) => <li key={requisito.texto} className={requisito.cumple === false ? 'falta' : requisito.cumple ? 'cumple' : 'avisa'}>
-                <span aria-hidden="true">{requisito.cumple === false ? '✕' : requisito.cumple ? '✓' : '!'}</span>{requisito.texto}
+            {activo && requisitos.some((requisito) => requisito.cumple === false) && <ul className="panel-correo-requisitos">
+              {requisitos.filter((requisito) => requisito.cumple === false).map((requisito) => <li key={requisito.texto} className="falta">
+                <span aria-hidden="true">✕</span>{requisito.texto}
+                {requisito.enlace && <Link to={requisito.enlace}>Elegirla en la sucursal</Link>}
               </li>)}
             </ul>}
 
@@ -640,7 +682,8 @@ export function PanelDeCorreo(): JSX.Element {
                               onMouseDown={(evento) => evento.preventDefault()}
                               onClick={() => insertarVariable(ajuste.key, variable)}
                             >
-                              {`{{${variable}}}`}
+                              <b>{ETIQUETAS_DE_VARIABLE[variable] ?? variable}</b>
+                              <code>{`{{${variable}}}`}</code>
                             </button>
                           ))}
                         </small>
