@@ -25,6 +25,8 @@ const client_entity_1 = require("./client.entity");
 const create_client_dto_1 = require("./dto/create-client.dto");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
+const client_capabilities_1 = require("./client-capabilities");
+const paquetes_de_correo_1 = require("../../core/parameters/paquetes-de-correo");
 const update_client_dto_1 = require("./dto/update-client.dto");
 const user_entity_1 = require("../users/user.entity");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
@@ -33,7 +35,7 @@ const pagination_dto_1 = require("../../shared/dto/pagination.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requires_recent_auth_decorator_1 = require("../../core/auth/requires-recent-auth.decorator");
 let ClientsController = class ClientsController {
-    constructor(repo, users, accountAccess, overviewService, createClient, listClients, getClient) {
+    constructor(repo, users, accountAccess, overviewService, createClient, listClients, getClient, paquetes) {
         this.repo = repo;
         this.users = users;
         this.accountAccess = accountAccess;
@@ -41,6 +43,7 @@ let ClientsController = class ClientsController {
         this.createClient = createClient;
         this.listClients = listClients;
         this.getClient = getClient;
+        this.paquetes = paquetes;
     }
     create(dto, req) {
         return this.createClient.execute({ ...dto, organizationId: req.organizationId });
@@ -80,11 +83,17 @@ let ClientsController = class ClientsController {
                 throw new common_1.BadRequestException('El responsable debe ser una CM o dirección de operaciones activa');
             }
         }
+        const antes = (0, client_capabilities_1.normalizeClientCapabilities)(client.capabilities);
         Object.assign(client, dto, {
             startedAt: dto.startedAt ? new Date(dto.startedAt) : client.startedAt,
             renewalAt: dto.renewalAt ? new Date(dto.renewalAt) : client.renewalAt,
         });
-        return this.repo.save(client);
+        const guardado = await this.repo.save(client);
+        const despues = (0, client_capabilities_1.normalizeClientCapabilities)(guardado.capabilities);
+        const reciencontratados = ['reservations', 'crm', 'surveys'].filter((servicio) => despues[servicio] && !antes[servicio]);
+        if (reciencontratados.length)
+            await this.paquetes.encenderPara(guardado.id, [...reciencontratados]);
+        return guardado;
     }
     async remove(id, req) {
         const client = await this.repo.findOne({ where: { id, organizationId: req.organizationId } });
@@ -182,5 +191,6 @@ exports.ClientsController = ClientsController = __decorate([
         client_overview_service_1.ClientOverviewService,
         create_client_use_case_1.CreateClientUseCase,
         list_clients_use_case_1.ListClientsUseCase,
-        get_client_use_case_1.GetClientUseCase])
+        get_client_use_case_1.GetClientUseCase,
+        paquetes_de_correo_1.PaquetesDeCorreo])
 ], ClientsController);

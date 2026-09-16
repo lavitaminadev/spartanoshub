@@ -17,12 +17,13 @@ const get_client_use_case_1 = require("./get-client.use-case");
 const client_overview_service_1 = require("./client-overview.service");
 const user_entity_1 = require("../users/user.entity");
 const lead_entity_1 = require("../crm/leads/lead.entity");
+const parameters_module_1 = require("../../core/parameters/parameters.module");
 let ClientsModule = class ClientsModule {
 };
 exports.ClientsModule = ClientsModule;
 exports.ClientsModule = ClientsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([client_entity_1.Client, user_entity_1.User, lead_entity_1.Lead])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([client_entity_1.Client, user_entity_1.User, lead_entity_1.Lead]), parameters_module_1.ParametersModule],
         controllers: [clients_controller_1.ClientsController],
         providers: [create_client_use_case_1.CreateClientUseCase, list_clients_use_case_1.ListClientsUseCase, get_client_use_case_1.GetClientUseCase, client_overview_service_1.ClientOverviewService],
     })

@@ -8,9 +8,10 @@ import { GetClientUseCase } from './get-client.use-case';
 import { ClientOverviewService } from './client-overview.service';
 import { User } from '../users/user.entity';
 import { Lead } from '../crm/leads/lead.entity';
+import { ParametersModule } from '../../core/parameters/parameters.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Client, User, Lead])],
+  imports: [TypeOrmModule.forFeature([Client, User, Lead]), ParametersModule],
   controllers: [ClientsController],
   providers: [CreateClientUseCase, ListClientsUseCase, GetClientUseCase, ClientOverviewService],
 })

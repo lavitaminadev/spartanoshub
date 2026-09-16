@@ -466,7 +466,7 @@ export function ClientsPage() {
                 <span>CAPACIDADES DE LA EMPRESA</span>
                 <h3 id="client-capabilities-title">Activa sólo lo que utilizará esta cuenta</h3>
               </div>
-              <small>Este catálogo permite incorporar futuras funciones sin cambiar el alta de clientes.</small>
+              <small>Este catálogo permite incorporar futuras funciones sin cambiar el alta de clientes. Al contratar Reservas, Encuestas o CRM se encienden sus correos automáticos; lo que hayas apagado a mano se respeta.</small>
             </div>
             <div className="client-capability-grid">
               {CAPABILITY_OPTIONS.map((option) => {
