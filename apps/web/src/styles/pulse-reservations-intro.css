@@ -717,3 +717,11 @@
 }
 /* Textos mínimos legibles: nada por debajo de 11 px en la página pública. */
 .public-booking-facts span, .public-booking-intro > span { font-size: 11px; }
+
+/* Horario, anticipación y tolerancia: las tres preguntas que terminan en una llamada al local. */
+.booking-reglas { display: grid; gap: 8px; margin: 18px 0 0; padding: 14px 16px; list-style: none; border: 1px solid rgba(255,255,255,.7); border-radius: 14px; background: rgba(255,255,255,.72); }
+.booking-reglas li { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: baseline; }
+.booking-reglas span { color: var(--booking-accent-text, #9f3e26); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.booking-reglas strong { color: var(--booking-text, #3f4e49); font-size: 13px; font-weight: 500; line-height: 1.45; }
+.booking-reglas a { color: inherit; font-weight: 700; }
+@media (max-width: 520px) { .booking-reglas li { grid-template-columns: 1fr; gap: 2px; } }

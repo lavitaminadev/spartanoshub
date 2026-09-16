@@ -7,6 +7,7 @@ import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { PieLegal } from '../../shared/PieLegal';
 import { DialogoModal } from '../../shared/DialogoModal';
+import { resumenDeHorarios } from './resumen-de-horarios';
 import { VERSION_BENEFICIOS, formatearRut, rutValido, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, documentoATexto, faltantesDeIdentidadLegal, nombreLegalDelLocal, politicaDePrivacidadDelLocal, rutaDocumentoLegal, textosDeAceptacionDeReserva, type IdentidadLegal } from '@espartanos/shared';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -769,6 +770,10 @@ export function PublicReservationPage() {
       </div>
     );
   };
+  const horarioDeAtencion = resumenDeHorarios((form?.scheduleConfig as { windows?: Array<{ day: number; start: string; end: string }> } | undefined)?.windows);
+  /** Cuánto espera el local a quien se atrasa. Cero o vacío significa que prefiere no decirlo. */
+  const toleranciaEnMinutos = Math.max(0, Math.min(120, Number(design.toleranciaMinutos || '0') || 0));
+  const consultasPorWhatsapp = businessWhatsAppUrl(design.whatsappBusinessNumber, String(design.whatsappConsultas || 'Hola, tengo una duda sobre una reserva.'));
   const limiteDeAvisos = design.ocasionesVeces === 'siempre' ? Number.POSITIVE_INFINITY : Math.max(1, Number(design.ocasionesVeces || '1') || 1);
   const primary = normalizeHexColor(design.primaryColor, '#0ec6b8');
   const accent = normalizeHexColor(design.accentColor, '#ea0f63');
@@ -979,6 +984,21 @@ export function PublicReservationPage() {
     </details>}
     <div className="public-booking-layout">
       <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={optimizedUrl(design.logoUrl, 480)} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{requestMode ? 'SOLICITUD DE EVENTO' : eyebrowText}</span>}<h1>{requestMode ? 'Solicita tu evento' : design.title || form.name}</h1>{visible(design.showWelcome) && <p>{requestMode ? 'Cuéntanos tu evento y el local te contactará para coordinar fecha y detalles.' : design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{!requestMode && visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div></div>}
+        {/*
+          * Lo que hay que saber antes de elegir una hora.
+          *
+          * El horario, cuánta anticipación pide el local y cuánto espera si alguien se atrasa.
+          * Nada de eso estaba: quien entraba un día cerrado veía una grilla vacía, y quien llegaba
+          * tarde no sabía si su mesa seguía guardada. Son las tres preguntas que terminan en una
+          * llamada al local, y la única forma de no contestarlas es no decirlas.
+          */}
+        {!requestMode && step === 1 && (horarioDeAtencion || form.minimumNoticeHours > 0 || toleranciaEnMinutos > 0) && <ul className="booking-reglas">
+          {horarioDeAtencion && <li><span>Horario</span><strong>{horarioDeAtencion}</strong></li>}
+          {form.minimumNoticeHours > 0 && <li><span>Anticipación</span><strong>Se reserva con {form.minimumNoticeHours} {form.minimumNoticeHours === 1 ? 'hora' : 'horas'} de anticipación</strong></li>}
+          {toleranciaEnMinutos > 0 && <li><span>Tolerancia</span><strong>Te esperamos {toleranciaEnMinutos} minutos; después la mesa queda disponible</strong></li>}
+          {consultasPorWhatsapp && <li><span>Dudas</span><strong><a href={consultasPorWhatsapp} target="_blank" rel="noopener noreferrer">Escríbenos por WhatsApp</a></strong></li>}
+        </ul>}
+
         {/* Sólo mientras se elige: en datos y confirmación empujaba el formulario hacia abajo. */}
         {ocasionesEncendidas && step === 1 && <div className="booking-ocasiones">
           {design.ocasionesTitulo && <h2>{design.ocasionesTitulo}</h2>}

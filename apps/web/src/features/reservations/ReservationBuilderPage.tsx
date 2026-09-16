@@ -850,6 +850,27 @@ export function ReservationBuilderPage() {
         </div>
         {(!draft.datosLegalesEmpresa?.legalName || !draft.datosLegalesEmpresa?.taxId || !draft.datosLegalesEmpresa?.privacyEmail) && <p className="datos-heredados-nota">Faltan datos de la empresa. Los completa la empresa en su portal («Datos legales») o el equipo desde Clientes → Editar cliente.</p>}
         <div className="form-row"><label>WhatsApp del local<small>Para grupos, eventos y cuando no hay horarios.</small><input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label></div>
+        {/*
+          * Cuánto espera el local a quien se atrasa.
+          *
+          * Sin decirlo, quien llega tarde no sabe si su mesa sigue guardada y llama; y el local
+          * no tiene en qué apoyarse para darla por perdida. Cero lo deja fuera de la página.
+          */}
+        <div className="form-row">
+          <label>Tolerancia de llegada
+            <small>Minutos que se espera antes de liberar la mesa. Cero no lo muestra.</small>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              max="120"
+              step="5"
+              placeholder="15"
+              value={String(draft.designConfig?.toleranciaMinutos || '')}
+              onChange={(e) => cambiarAjuste('toleranciaMinutos', e.target.value)}
+            />
+          </label>
+        </div>
         <label className="toggle-row"><input type="checkbox" checked={usaDatosPropios ?? Boolean(draft.designConfig?.legalCompanyName || draft.designConfig?.legalCompanyId || draft.designConfig?.privacyUrl || draft.designConfig?.termsUrl)} onChange={(e) => {
           setUsaDatosPropios(e.target.checked);
           // Volver a los de la empresa borra los propios: si no, seguirían mandando sin verse.
