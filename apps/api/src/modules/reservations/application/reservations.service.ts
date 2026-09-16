@@ -33,6 +33,7 @@ import { ORGANIZATION_SETTINGS } from '../../../core/parameters/organization-set
 import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { MetaClientPixelService } from '../../integrations/meta/meta-client-pixel.service';
+import { AltaDeSuscriptorDesdeReserva } from '../../marketing/alta-desde-reserva';
 import { inferLocationFromPhone } from '../../../shared/geo-inference';
 import { GoogleConversionOutboxService } from '../../integrations/google/google-conversion-outbox.service';
 import { normalizeClientCapabilities } from '../../clients/client-capabilities';
@@ -191,6 +192,8 @@ export class ReservationsService {
     private readonly parametros: ParameterResolver,
     @InjectRepository(ReservationManagementToken) private readonly managementTokens: Repository<ReservationManagementToken>,
     @InjectRepository(ReservationHold) private readonly holds: Repository<ReservationHold>,
+    // Al final por el mismo motivo: las pruebas construyen este servicio por posición.
+    private readonly altaEnLaLista: AltaDeSuscriptorDesdeReserva,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -2166,6 +2169,27 @@ export class ReservationsService {
       })
         .then((event) => this.reservations.update(booking.id, { calendarEventId: event.externalId, calendarUrl: event.calendarUrl }))
         .catch((err) => this.logger.warn(`Evento de calendario pendiente para la reserva ${booking.id}: ${err instanceof Error ? err.message : err}`));
+    }
+
+    /*
+     * Quien pidió beneficios entra a la lista de correo.
+     *
+     * Aceptar «quiero beneficios y novedades» no tenía ninguna consecuencia: la lista sólo se
+     * llenaba importando un archivo a mano, así que el saludo de cumpleaños —que la lee— no le
+     * llegaba a nadie que hubiera reservado. Va sin esperar: la reserva ya está confirmada y no
+     * puede depender de esto.
+     */
+    if (result.created && result.booking.marketingConsentAt) {
+      void this.altaEnLaLista.registrar({
+        organizationId: result.booking.organizationId,
+        clientId: result.booking.clientId,
+        email: result.booking.guestEmail,
+        name: result.booking.guestName,
+        birthDate: result.booking.birthDate ?? null,
+        origen: result.form.name,
+        consentText: result.booking.marketingConsentText ?? null,
+        consentAt: result.booking.marketingConsentAt,
+      });
     }
 
     if (result.created && result.booking.measurementConsentAt && result.form.metaCapiEnabled && capabilities.metaConversions) {

@@ -40,6 +40,15 @@ export const PLANTILLAS: PlantillaDeEncuesta[] = [
       { clave: 'mejor', type: 'multiple-choice', question: '¿Qué fue lo mejor?', required: false, options: ['La atención', 'La comida', 'El ambiente', 'El precio'], mostrarSi: { clave: 'nota', valores: NOTAS_ALTAS } },
       { clave: 'fallo', type: 'multiple-choice', question: '¿Qué falló?', required: true, options: ['La atención', 'El tiempo de espera', 'La comida', 'El precio', 'La limpieza'], mostrarSi: { clave: 'nota', valores: NOTAS_BAJAS } },
       { clave: 'volveria', type: 'multiple-choice', question: '¿Volverías?', required: false, options: ['Sí', 'Tal vez', 'No'] },
+      /*
+       * Quién atendió, y si un anuncio pesó en la decisión.
+       *
+       * La nota dice cómo estuvo el local; no dice de qué turno ni de quién. Y el Pixel sabe de
+       * dónde vino el clic, pero no si el anuncio influyó: eso sólo lo puede decir la persona.
+       * Las dos van opcionales: obligarlas cuesta respuestas completas, que valen más.
+       */
+      { clave: 'atendio', type: 'text', question: '¿Quién te atendió?', required: false },
+      { clave: 'anuncio', type: 'multiple-choice', question: '¿Viste algún anuncio nuestro antes de venir?', required: false, options: ['Sí, y me animó a venir', 'Sí, pero ya pensaba venir', 'No vi ninguno'] },
       { clave: 'comentario', type: 'text', question: '¿Algo más que quieras contarnos?', required: false },
     ],
     datos: [{ dato: 'nombre', obligatorio: false }, { dato: 'correo', obligatorio: false }],

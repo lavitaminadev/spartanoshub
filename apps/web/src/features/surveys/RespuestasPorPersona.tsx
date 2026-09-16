@@ -26,11 +26,20 @@ function requiereAtencion(respuesta: RespuestaIndividual): boolean {
 }
 
 /** Enlace de WhatsApp para un teléfono chileno escrito de cualquier forma. */
-function enlaceWhatsapp(telefono: string): string | null {
+/**
+ * Enlace de WhatsApp con el mensaje ya escrito.
+ *
+ * Quien atiende una nota baja tiene que escribir el saludo, explicar quién es y recordar qué pasó,
+ * y eso se hace entre mesas: sin el mensaje listo, la respuesta se posterga y se pierde. El texto
+ * queda editable en WhatsApp antes de enviarlo, que es lo que hay que poder hacer.
+ */
+function enlaceWhatsapp(telefono: string, nombre?: string | null): string | null {
   const digitos = telefono.replace(/\D/g, '');
   if (digitos.length < 8) return null;
   const completo = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
-  return `https://wa.me/${completo}`;
+  const saludo = nombre?.trim() ? `Hola ${nombre.trim().split(/\s+/)[0]}` : 'Hola';
+  const mensaje = `${saludo}, gracias por contarnos cómo te fue. Queremos ayudarte con lo que nos comentaste.`;
+  return `https://wa.me/${completo}?text=${encodeURIComponent(mensaje)}`;
 }
 
 export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surveyId: string; respuestas: RespuestaIndividual[]; preguntas: SurveyQuestion[] }): JSX.Element {
@@ -95,7 +104,7 @@ export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surv
               .filter(([clave]) => porId.get(clave)?.type !== 'rating' && !porId.get(clave)?.dato)
               .map(([clave, valor]) => ({ pregunta: porId.get(clave)?.question ?? clave, valor }));
             const estaAbierta = abierta === respuesta.id;
-            const whatsapp = c.telefono ? enlaceWhatsapp(c.telefono) : null;
+            const whatsapp = c.telefono ? enlaceWhatsapp(c.telefono, c.nombre) : null;
             return (
               <li key={respuesta.id} className={`${respuesta.teamMessage ? 'con-mensaje' : ''} ${respuesta.rating !== null && respuesta.rating <= 3 ? 'nota-baja' : ''} ${respuesta.attendedAt ? 'atendida' : ''}`}>
                 <button type="button" className="respuestas-persona-fila" aria-expanded={estaAbierta} onClick={() => setAbierta(estaAbierta ? null : respuesta.id)}>
@@ -112,8 +121,8 @@ export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surv
                 {respuesta.teamMessage && <blockquote>«{respuesta.teamMessage}»</blockquote>}
                 {(c.correo || whatsapp || requiereAtencion(respuesta)) && (
                   <div className="respuestas-persona-contactar">
-                    {c.correo && <a className="btn btn-outline btn-sm" href={`mailto:${c.correo}`}>Responder por correo</a>}
-                    {whatsapp && <a className="btn btn-outline btn-sm" href={whatsapp} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+                    {whatsapp && <a className="btn btn-primary btn-sm" href={whatsapp} target="_blank" rel="noopener noreferrer">Responder por WhatsApp</a>}
+                    {c.correo && <a className="btn btn-outline btn-sm" href={`mailto:${c.correo}`}>{whatsapp ? 'Por correo' : 'Responder por correo'}</a>}
                     {requiereAtencion(respuesta) && (respuesta.attendedAt ? (
                       <span className="respuestas-persona-atendida">
                         ✓ Atendida{respuesta.attendedByName ? ` por ${respuesta.attendedByName}` : ''} · {new Date(respuesta.attendedAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
