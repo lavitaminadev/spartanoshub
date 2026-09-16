@@ -105,6 +105,32 @@ export function PanelCompartir({ abierto, titulo, nombre, urlBase, onCerrar, pie
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abierto, urlBase, qrFuente, utmCampana]);
 
+  /**
+   * Canales propios de esta página, recordados en este navegador.
+   *
+   * Antes el campo sólo servía para copiar un enlace y se perdía al cerrar: el mismo influencer o
+   * la misma radio había que volver a escribirlos cada vez, y bastaba una letra distinta para que
+   * los resultados los contaran como dos canales diferentes.
+   */
+  const claveDeCanales = `vh.compartir.canales.${urlBase}`;
+  const [propios, setPropios] = useState<string[]>([]);
+  useEffect(() => {
+    if (!abierto || !urlBase) return;
+    try { setPropios(JSON.parse(localStorage.getItem(claveDeCanales) ?? '[]')); } catch { setPropios([]); }
+  }, [abierto, urlBase, claveDeCanales]);
+
+  const guardarPropios = (lista: string[]) => {
+    setPropios(lista);
+    try { localStorage.setItem(claveDeCanales, JSON.stringify(lista)); } catch { /* sin almacenamiento */ }
+  };
+
+  const agregarPropio = () => {
+    if (!utmPropio || propios.includes(utmPropio)) { setPropio(''); return; }
+    guardarPropios([...propios, utmPropio].slice(-12));
+    setPropio('');
+    triggerToast(`Canal «${utmPropio}» agregado`);
+  };
+
   const copiar = async (texto: string, aviso = 'Enlace copiado') => {
     try { await navigator.clipboard.writeText(texto); triggerToast(aviso); } catch { triggerToast('No se pudo copiar; selecciona el enlace y cópialo a mano', 'error'); }
   };
@@ -149,11 +175,34 @@ export function PanelCompartir({ abierto, titulo, nombre, urlBase, onCerrar, pie
                 </div>
               </li>
             ))}
+            {propios.map((canal) => (
+              <li key={canal}>
+                <div><strong>{canal}</strong><small>Canal tuyo.</small></div>
+                <div>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => copiar(enlace(canal), `Enlace «${canal}» copiado`)}>Copiar</button>
+                  <a className="btn btn-outline btn-sm" href={enlace(canal)} target="_blank" rel="noopener noreferrer" aria-label={`Abrir enlace de ${canal}`}>↗</a>
+                  <button type="button" className="btn btn-outline btn-sm" aria-label={`Quitar ${canal}`} onClick={() => guardarPropios(propios.filter((otro) => otro !== canal))}>×</button>
+                </div>
+              </li>
+            ))}
             <li className="compartir-propio">
-              <label>Otro canal<input className="input" value={propio} maxLength={40} onChange={(e) => setPropio(e.target.value)} placeholder="Ej. influencer-camila" /></label>
-              <button type="button" className="btn btn-outline btn-sm" disabled={!utmPropio} onClick={() => copiar(enlace(utmPropio), `Enlace «${utmPropio}» copiado`)}>Copiar</button>
+              <label>Agregar otro canal<input className="input" value={propio} maxLength={40} onChange={(e) => setPropio(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); agregarPropio(); } }} placeholder="Ej. influencer-camila" /></label>
+              <button type="button" className="btn btn-outline btn-sm" disabled={!utmPropio} onClick={agregarPropio}>Agregar</button>
             </li>
           </ul>
+        </section>
+
+        {/*
+          * Lo que ocurre sin enlace marcado.
+          *
+          * Sin decirlo, «directo» se lee como «no sabemos nada», y no es así: una visita que llega
+          * desde Instagram o desde Google se reconoce sola. Lo que de verdad no deja rastro es
+          * WhatsApp, el QR, el correo y el SMS, y ahí el enlace por canal es la única forma.
+          */}
+        <section className="compartir-deteccion">
+          <h3>Si compartes el enlace sin marcar</h3>
+          <p>Las visitas que llegan desde Instagram, Facebook, TikTok, Google, Maps o un sitio que enlace la página <strong>se reconocen solas</strong> y aparecen en los resultados marcadas como detección automática.</p>
+          <p>WhatsApp, los QR, el correo y los SMS <strong>no dejan rastro</strong>: sin enlace por canal quedan como «directo». Para esos cuatro, usa los de arriba.</p>
         </section>
 
         <section className="compartir-qr">

@@ -37,3 +37,9 @@
 .modal-overlay .compartir-panel .btn-outline { border: 1px solid var(--primary, #cc0a55); background: #fff; color: var(--primary, #cc0a55); }
 .modal-overlay .compartir-panel .btn-primary { border: 1px solid var(--primary, #cc0a55); background: var(--primary, #cc0a55); color: #fff; }
 .modal-overlay .compartir-panel .btn:disabled, .modal-overlay .compartir-panel .btn.disabled { opacity: .55; cursor: not-allowed; }
+
+/* Lo que ocurre con quien llega sin enlace marcado: «directo» no significa «no sabemos nada». */
+.compartir-deteccion { margin-top: 4px; padding: 12px 14px; border: 1px solid var(--border-light); border-radius: 12px; background: var(--soft); }
+.compartir-deteccion h3 { margin: 0 0 6px; font-size: 14px; }
+.compartir-deteccion p { margin: 0 0 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.compartir-deteccion p:last-child { margin-bottom: 0; }
