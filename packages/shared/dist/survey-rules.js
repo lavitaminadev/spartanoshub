@@ -15,6 +15,7 @@ exports.rutValido = rutValido;
 exports.formatearRut = formatearRut;
 exports.errorDeDato = errorDeDato;
 exports.problemasDeRespuesta = problemasDeRespuesta;
+exports.problemasPorPregunta = problemasPorPregunta;
 exports.pideDatosPersonales = pideDatosPersonales;
 exports.pideDatosSensibles = pideDatosSensibles;
 exports.traeDatosPersonales = traeDatosPersonales;
@@ -124,18 +125,28 @@ function errorDeDato(dato, valor) {
  * @returns Una lista de textos listos para mostrar; vacía si se puede enviar.
  */
 function problemasDeRespuesta(preguntas, respuestas, omitir = []) {
+    return problemasPorPregunta(preguntas, respuestas, omitir).map((problema) => problema.texto);
+}
+/**
+ * Lo mismo, diciendo **de qué pregunta** es cada problema.
+ *
+ * Una lista de textos al pie sirve para saber que algo falta, no para encontrarlo: en una encuesta
+ * larga hay que recorrerla entera comparando. Con la pregunta identificada, la página puede
+ * marcarla y llevar hasta ella.
+ */
+function problemasPorPregunta(preguntas, respuestas, omitir = []) {
     const problemas = [];
     for (const pregunta of preguntasVisibles(preguntas, respuestas)) {
         if (omitir.includes(pregunta.id))
             continue;
         const valor = respuestas[pregunta.id];
         if (pregunta.required && vacia(valor)) {
-            problemas.push(`Falta: ${pregunta.question}`);
+            problemas.push({ id: pregunta.id, texto: `Falta: ${pregunta.question}` });
             continue;
         }
         const error = errorDeDato(pregunta.dato, valor);
         if (error)
-            problemas.push(error);
+            problemas.push({ id: pregunta.id, texto: error });
     }
     return problemas;
 }
