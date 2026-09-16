@@ -22,7 +22,7 @@ import { camposVisibles } from '@espartanos/shared';
 const FIELD_LIBRARY = [
   ['text', 'Texto corto'], ['textarea', 'Texto largo'], ['email', 'Correo'],
   ['phone', 'Teléfono'], ['rut', 'RUT'], ['select', 'Elegir una opción'], ['multi_select', 'Elegir varias opciones'],
-  ['number', 'Número'], ['date', 'Fecha'], ['consent', 'Casilla para confirmar'],
+  ['number', 'Número'], ['date', 'Fecha'], ['birthdate', 'Fecha de nacimiento'], ['consent', 'Casilla para confirmar'],
   ['rating', 'Calificación'], ['coupon', 'Cupón promocional'],
 ] as const;
 

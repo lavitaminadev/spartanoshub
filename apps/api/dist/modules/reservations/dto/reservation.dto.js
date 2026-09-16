@@ -13,7 +13,7 @@ exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.Reservatio
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const vacioComoAusente = ({ value }) => (value === '' ? undefined : value);
-exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'];
+exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'select', 'multi_select', 'number', 'date', 'birthdate', 'consent', 'coupon', 'rating', 'nps'];
 exports.CHILEAN_MOBILE_PHONE = /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/;
 exports.CHILEAN_MOBILE_PHONE_MESSAGE = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
 class FormFieldDto {
@@ -784,6 +784,19 @@ __decorate([
     (0, class_validator_1.IsIn)(['pending', 'confirmed', 'rescheduled', 'cancelled_client', 'cancelled_business', 'attended', 'no_show', 'waitlist']),
     __metadata("design:type", String)
 ], UpdateReservationDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(500),
+    __metadata("design:type", Number)
+], UpdateReservationDto.prototype, "partySize", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], UpdateReservationDto.prototype, "tableLabel", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

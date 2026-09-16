@@ -9,7 +9,12 @@ import { Transform, Type } from 'class-transformer';
 const vacioComoAusente = ({ value }: { value: unknown }) => (value === '' ? undefined : value);
 
 /** Tipos de pregunta que acepta el esquema de un formulario o encuesta. */
-export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps'] as const;
+/**
+ * `birthdate` es una fecha con destino: se guarda en su propia columna de la reserva, no entre las
+ * respuestas. Lo que se quiere preguntar después es «quién cumple este mes», y eso no se contesta
+ * recorriendo un JSON reserva por reserva.
+ */
+export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'select', 'multi_select', 'number', 'date', 'birthdate', 'consent', 'coupon', 'rating', 'nps'] as const;
 
 /**
  * Número móvil chileno, con o sin prefijo de país y con espacios o guiones
@@ -220,6 +225,16 @@ export class CloseReservationDayDto {
 }
 export class UpdateReservationDto {
   @IsOptional() @IsIn(['pending','confirmed','rescheduled','cancelled_client','cancelled_business','attended','no_show','waitlist']) status?: string;
+  /**
+   * Cuántas personas vienen de verdad.
+   *
+   * Cambia al recibir más veces de las que nadie quisiera. Se permite siempre, incluso si el
+   * horario queda por sobre su cupo: el anfitrión sabe si caben, y bloquearlo sólo conseguiría que
+   * el dato quedara mal escrito en el sistema y bien en la libreta de alguien.
+   */
+  @IsOptional() @IsInt() @Min(1) @Max(500) partySize?: number;
+  /** Mesa asignada al recibir. Vacío la quita. */
+  @IsOptional() @IsString() @MaxLength(40) tableLabel?: string;
   @IsOptional() @IsString() @MaxLength(10000) internalNotes?: string;
   @IsOptional() @IsDateString() startsAt?: string;
   @IsOptional() @IsString() @MaxLength(500) cancellationReason?: string;

@@ -87,6 +87,14 @@ __decorate([
     __metadata("design:type", Object)
 ], Reservation.prototype, "answers", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'table_label', type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "tableLabel", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'birth_date', type: 'date', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "birthDate", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'consent_version', type: 'varchar', length: 30, nullable: true }),
     __metadata("design:type", String)
 ], Reservation.prototype, "consentVersion", void 0);

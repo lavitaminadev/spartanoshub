@@ -40,6 +40,15 @@ export class Reservation {
   @Column({ name: 'guest_email', type: 'varchar', length: 190, nullable: true }) guestEmail?: string | null;
   @Column({ name: 'guest_phone', type: 'varchar', length: 50, nullable: true }) guestPhone?: string | null;
   @Column({ name: 'answers', type: 'json' }) answers: Record<string, unknown>;
+
+  /**
+   * Mesa asignada por el anfitrión. Texto libre: cada local numera a su manera y la mesa se decide
+   * al recibir, no al reservar. Nunca se le muestra a quien reserva.
+   */
+  @Column({ name: 'table_label', type: 'varchar', length: 40, nullable: true }) tableLabel?: string | null;
+
+  /** Fecha de nacimiento, cuando el formulario la pide. En columna propia para poder consultarla. */
+  @Column({ name: 'birth_date', type: 'date', nullable: true }) birthDate?: string | null;
   @Column({ name: 'consent_version', type: 'varchar', length: 30, nullable: true }) consentVersion?: string;
   /** Evidencia separada: necesaria para operar la reserva, no autoriza campañas. */
   @Column({ name: 'reservation_consent_at', type: 'timestamp', nullable: true }) reservationConsentAt?: Date | null;
