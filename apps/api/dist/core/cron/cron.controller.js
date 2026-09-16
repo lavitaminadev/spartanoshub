@@ -17,6 +17,9 @@ const common_1 = require("@nestjs/common");
 const throttler_1 = require("@nestjs/throttler");
 const crypto_1 = require("crypto");
 const public_decorator_1 = require("../auth/decorators/public.decorator");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
+const cron_run_entity_1 = require("./cron-run.entity");
 const meta_conversion_outbox_service_1 = require("../../modules/integrations/meta/meta-conversion-outbox.service");
 const google_conversion_outbox_service_1 = require("../../modules/integrations/google/google-conversion-outbox.service");
 const detect_stale_pieces_job_1 = require("../jobs/cron/detect-stale-pieces.job");
@@ -38,7 +41,7 @@ const automation_runner_service_1 = require("../../modules/automations/automatio
 const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 let CronController = class CronController {
-    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks) {
+    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks, corridas) {
         this.capiOutbox = capiOutbox;
         this.googleOutbox = googleOutbox;
         this.stale = stale;
@@ -59,6 +62,7 @@ let CronController = class CronController {
         this.automations = automations;
         this.automationScheduleJob = automationScheduleJob;
         this.webhooks = webhooks;
+        this.corridas = corridas;
         this.running = new Set();
     }
     verifySecret(secret) {
@@ -138,10 +142,22 @@ let CronController = class CronController {
         this.running.add(lockKey);
         try {
             const result = await task();
+            await this.anotar(lockKey, true, result ? JSON.stringify(result).slice(0, 500) : null);
             return { ok: true, ...(result ?? {}), timestamp: new Date().toISOString() };
+        }
+        catch (error) {
+            await this.anotar(lockKey, false, error instanceof Error ? error.message.slice(0, 500) : 'falló');
+            throw error;
         }
         finally {
             this.running.delete(lockKey);
+        }
+    }
+    async anotar(task, ok, detail) {
+        try {
+            await this.corridas.save({ task, lastRunAt: new Date(), ok, detail });
+        }
+        catch {
         }
     }
     async leadsParadosPost(secret) {
@@ -616,6 +632,7 @@ __decorate([
 exports.CronController = CronController = __decorate([
     (0, common_1.Controller)('cron'),
     (0, public_decorator_1.Public)(),
+    __param(20, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
     __metadata("design:paramtypes", [meta_conversion_outbox_service_1.MetaConversionOutboxService,
         google_conversion_outbox_service_1.GoogleConversionOutboxService,
         detect_stale_pieces_job_1.DetectStalePiecesJob,
@@ -635,5 +652,6 @@ exports.CronController = CronController = __decorate([
         meta_lead_recovery_job_1.MetaLeadRecoveryJob,
         automation_runner_service_1.AutomationRunnerService,
         automation_schedule_job_1.AutomationScheduleJob,
-        webhook_delivery_service_1.WebhookDeliveryService])
+        webhook_delivery_service_1.WebhookDeliveryService,
+        typeorm_2.Repository])
 ], CronController);

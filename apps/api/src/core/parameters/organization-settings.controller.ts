@@ -15,6 +15,8 @@ import { UpdateOrganizationSettingsDto } from './dto/update-organization-setting
 import { OrganizationSettingsService } from './organization-settings.service';
 import { ModuleScope } from '../authorization/module-scope.decorator';
 import { RequiresPermission } from '../authorization/requires-permission.decorator';
+import { CronRun } from '../cron/cron-run.entity';
+import { HORAS_SIN_CORRER_PARA_ALARMA, REQUISITOS_POR_AVISO } from './requisitos-de-correo';
 
 /** Claves que maneja la pantalla de Correos. */
 const ES_CLAVE_DE_CORREO = (clave: string) => clave.startsWith('email.');
@@ -37,6 +39,7 @@ export class OrganizationSettingsController {
     private readonly accountAccess: AccountAccessService,
     private readonly correo: EmailService,
     @InjectRepository(User) private readonly usuarios: Repository<User>,
+    @InjectRepository(CronRun) private readonly corridas: Repository<CronRun>,
   ) {}
 
   /**
@@ -153,6 +156,35 @@ export class OrganizationSettingsController {
   estadoDelCorreo(@Req() request: AuthenticatedRequest) {
     const estado = this.correo.estado();
     return request.user.role === UserRole.DEV ? estado : { ...estado, faltan: [] };
+  }
+
+  /**
+   * Qué le falta a cada aviso para salir de verdad.
+   *
+   * El interruptor es sólo una de las condiciones. Devolver esto junto a las plantillas es lo que
+   * permite que la pantalla distinga «encendido» de «encendido y saliendo», que es la diferencia
+   * que hasta ahora no se veía en ninguna parte.
+   */
+  @Get('correos/requisitos')
+  @RequiresPermission('reservations', 'edit')
+  @ApiOperation({ summary: 'Condiciones que necesita cada aviso además de su interruptor' })
+  async requisitosDeCorreo() {
+    const corridas = new Map((await this.corridas.find()).map((fila) => [fila.task, fila]));
+    const limite = Date.now() - HORAS_SIN_CORRER_PARA_ALARMA * 3_600_000;
+    const casilla = this.correo.estado().habilitado;
+
+    const tareas = Object.fromEntries([...new Set(
+      Object.values(REQUISITOS_POR_AVISO).flatMap((lista) => lista.map((requisito) => requisito.tarea).filter(Boolean) as string[]),
+    )].map((tarea) => {
+      const corrida = corridas.get(tarea);
+      return [tarea, {
+        ultima: corrida?.lastRunAt ?? null,
+        // Sin rastro y con rastro viejo son el mismo problema para quien mira: no está corriendo.
+        corriendo: Boolean(corrida && corrida.ok && corrida.lastRunAt.getTime() > limite),
+      }];
+    }));
+
+    return { casilla, tareas, avisos: REQUISITOS_POR_AVISO };
   }
 
   @Get('destinatarios-de-prueba')

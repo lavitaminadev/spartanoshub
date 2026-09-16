@@ -12,7 +12,7 @@
  * plantilla que se está editando, no quién la edita.
  */
 
-import { useMemo, useState, type JSX } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
@@ -44,89 +44,117 @@ interface Destinatario { id: string; name: string; email: string }
  * muestra. Va escrito acá y no derivado de las claves porque el orden es una decisión editorial:
  * primero lo que le llega a un cliente, después lo interno.
  */
-const AVISOS: Array<{ prefijo: string; titulo: string; explica: string }> = [
+type ModuloDeAviso = 'reservas' | 'encuestas' | 'crm' | 'equipo' | 'cobranza';
+
+/** Rótulo y orden de cada grupo. Reservas primero: es lo que más se edita. */
+const MODULOS: Array<{ clave: ModuloDeAviso; titulo: string; explica: string }> = [
+  { clave: 'reservas', titulo: 'Reservas', explica: 'Lo que recibe quien reserva.' },
+  { clave: 'encuestas', titulo: 'Encuestas', explica: 'Después de la visita.' },
+  { clave: 'equipo', titulo: 'Avisos al equipo del local', explica: 'Internos: no los ve quien reserva.' },
+  { clave: 'crm', titulo: 'CRM', explica: 'Para el equipo que atiende prospectos.' },
+  { clave: 'cobranza', titulo: 'Cobranza', explica: 'A la empresa cliente.' },
+];
+
+const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: ModuloDeAviso }> = [
   {
     prefijo: 'email.reservation_confirmation',
+    modulo: 'reservas',
     titulo: 'Confirmación de reserva',
     explica: 'Se envía al instante a quien reserva. Es su comprobante: sin él no tiene fecha ni código.',
   },
   {
     prefijo: 'email.reservation_reminder',
+    modulo: 'reservas',
     titulo: 'Recordatorio de reserva',
     explica: 'La víspera, o con la anticipación que elijas. Es la medida que más reduce las ausencias.',
   },
   {
     prefijo: 'email.reservation_change',
+    modulo: 'reservas',
     titulo: 'Cambio de hora',
     explica: 'Cuando la reserva cambia de horario, desde el local o desde su enlace. Lleva la cita nueva para el calendario.',
   },
   {
     prefijo: 'email.post_visit_survey',
+    modulo: 'encuestas',
     titulo: 'Encuesta después de la visita',
     explica: 'Unas horas después de una reserva marcada como asistida. Primero pide estrellas; con nota baja ofrece escribirle al equipo, con nota alta ofrece contestar la encuesta.',
   },
   {
     prefijo: 'email.reservation_cancellation',
+    modulo: 'reservas',
     titulo: 'Cancelación',
     explica: 'Cuando se cancela, desde el local o por la propia persona. Si la canceló el local, {{motivo}} trae la razón.',
   },
   {
     prefijo: 'email.group_request_ack',
+    modulo: 'reservas',
     titulo: 'Acuse de solicitud de grupo',
     explica: 'Confirma que la solicitud llegó y deja claro que todavía no hay nada reservado.',
   },
   {
     prefijo: 'email.waitlist_ack',
+    modulo: 'reservas',
     titulo: 'Acuse de lista de espera',
     explica: 'Confirma a quien se anotó y deja claro que no es una reserva.',
   },
   {
     prefijo: 'email.waitlist_spot',
+    modulo: 'reservas',
     titulo: 'Cupo liberado',
     explica: 'A quienes esperaban ese horario cuando alguien cancela. El cupo queda para quien confirme primero.',
   },
   {
     prefijo: 'email.reservation_recovery',
+    modulo: 'reservas',
     titulo: 'Enlace para recuperar la reserva',
     explica: 'Cuando alguien sin su código lo pide desde la página del local. Solo llega al correo con que reservó.',
   },
   {
     prefijo: 'email.collection_overdue',
+    modulo: 'cobranza',
     titulo: 'Aviso de pago vencido',
     explica: 'Se envía al contacto principal de la empresa cuando una factura queda vencida.',
   },
   {
     prefijo: 'email.birthday',
+    modulo: 'crm',
     titulo: 'Saludo de cumpleaños',
     explica: 'Solo a quien dio su fecha y está suscrito. Lleva enlace de baja como todo correo comercial.',
   },
   {
     prefijo: 'email.daily_digest',
+    modulo: 'crm',
     titulo: 'Resumen diario del CRM',
     explica: 'Un correo por la mañana a cada responsable. Solo se envía si tiene algo que leer.',
   },
   {
     prefijo: 'email.task_reminder',
+    modulo: 'crm',
     titulo: 'Recordatorio de tareas',
     explica: 'Doce y tres horas antes. El de doce se omite si la tarea nació con menos margen.',
   },
   {
     prefijo: 'email.new_lead',
+    modulo: 'crm',
     titulo: 'Aviso de lead nuevo',
     explica: 'Al responsable, indicando de dónde viene.',
   },
   {
     prefijo: 'email.team_new_reservation',
+    modulo: 'equipo',
     titulo: 'Aviso al equipo: reserva nueva',
     explica: 'A los correos del equipo anotados en cada local. Si un local no tiene ninguno, no sale.',
   },
   {
     prefijo: 'email.team_group_request',
+    modulo: 'equipo',
     titulo: 'Aviso al equipo: solicitud de grupo',
     explica: 'Cuando alguien pide un evento. No toma cupo hasta que el equipo lo resuelva.',
   },
   {
     prefijo: 'email.team_waitlist',
+    modulo: 'equipo',
     titulo: 'Aviso al equipo: lista de espera',
     explica: 'Cuando alguien se anota en la lista de espera de un horario lleno.',
   },
@@ -176,6 +204,11 @@ export function PanelDeCorreo(): JSX.Element {
   const [probando, setProbando] = useState<string | null>(null);
   /** Vacío significa «a mí», que es el caso normal. */
   const [destinatario, setDestinatario] = useState('');
+  /** Qué avisos se listan. «pendientes» es el que importa: encendidos que no van a salir. */
+  const [filtro, setFiltro] = useState<'todos' | 'activos' | 'apagados' | 'pendientes'>('todos');
+  /** Vacío es «todos los módulos». */
+  const [moduloElegido, setModuloElegido] = useState<'' | ModuloDeAviso>('');
+  const [busqueda, setBusqueda] = useState('');
 
   const ajustesQuery = useQuery<Ajuste[]>({
     // La empresa forma parte de la clave: cambiarla trae otros valores, no los mismos filtrados.
@@ -229,16 +262,110 @@ export function PanelDeCorreo(): JSX.Element {
     [ajustesQuery.data],
   );
 
+  /** Dónde dejar el cursor en cuanto React termine de pintar el valor nuevo. */
+  const cursorPendiente = useRef<{ clave: string; posicion: number } | null>(null);
+  useEffect(() => {
+    const pendiente = cursorPendiente.current;
+    if (!pendiente) return;
+    cursorPendiente.current = null;
+    const campo = document.getElementById(pendiente.clave) as HTMLInputElement | HTMLTextAreaElement | null;
+    campo?.focus();
+    campo?.setSelectionRange(pendiente.posicion, pendiente.posicion);
+  });
+
   const valorDe = (clave: string) => borrador?.[clave] ?? porClave.get(clave)?.value ?? '';
+
+  /**
+   * Inserta una variable **donde está el cursor**.
+   *
+   * Pegarla al final obligaba a cortar y pegar para ponerla en medio de la frase, que es donde
+   * casi siempre va. El campo conserva el foco —el botón cancela el `mousedown`— así que se puede
+   * seguir escribiendo sin volver a hacer clic.
+   */
+  const insertarVariable = (clave: string, variable: string) => {
+    const campo = document.getElementById(clave) as HTMLInputElement | HTMLTextAreaElement | null;
+    const texto = String(valorDe(clave));
+    const marca = `{{${variable}}}`;
+    if (!campo || campo.selectionStart === null) { editar(clave, texto + marca); return; }
+    const desde = campo.selectionStart;
+    const hasta = campo.selectionEnd ?? desde;
+    editar(clave, texto.slice(0, desde) + marca + texto.slice(hasta));
+    // El cursor se coloca después de repintar: hacerlo aquí lo pisaría React al escribir el
+    // valor nuevo, y el punto de edición saltaría al final del texto.
+    cursorPendiente.current = { clave, posicion: desde + marca.length };
+  };
+
+  /**
+   * Requisitos de un aviso, ya resueltos a algo que se pueda leer de un vistazo.
+   *
+   * `cumple` en falso significa comprobado y fallando; `null`, que no se puede comprobar desde
+   * acá y sólo cabe advertirlo.
+   */
+  const requisitosDe = (prefijo: string): Array<{ texto: string; cumple: boolean | null }> => {
+    const datos = requisitosQuery.data;
+    if (!datos) return [];
+    const lista = datos.avisos?.[prefijo] ?? [];
+    const requisitos = lista.map((requisito) => {
+      if (requisito.clave === 'cron') {
+        const tarea = datos.tareas?.[requisito.tarea ?? ''];
+        return {
+          texto: tarea?.corriendo ? 'La tarea programada está corriendo' : `Falta la tarea programada «${requisito.tarea}» en el servidor`,
+          cumple: Boolean(tarea?.corriendo),
+        };
+      }
+      if (requisito.clave === 'asistencia') return { texto: 'Sólo sale si la reserva quedó marcada como asistida', cumple: null };
+      if (requisito.clave === 'equipo') return { texto: 'Sólo sale a las sucursales con correos del equipo anotados', cumple: null };
+      if (requisito.clave === 'encuesta') {
+        const elegida = String(valorDe('email.post_visit_survey_id') ?? '');
+        return { texto: elegida ? 'Encuesta elegida' : 'Falta elegir qué encuesta se envía', cumple: Boolean(elegida) };
+      }
+      return { texto: requisito.clave, cumple: null };
+    });
+    // La casilla es común a todos: se nombra una sola vez y sólo cuando falta.
+    if (datos.casilla === false) requisitos.unshift({ texto: 'La casilla que envía no está configurada', cumple: false });
+    return requisitos;
+  };
   const editar = (clave: string, valor: string | number | boolean) => {
     setBorrador({ ...(borrador ?? {}), [clave]: valor });
     setAviso(null);
   };
 
+  /*
+   * Lo que le falta a cada aviso además de su interruptor.
+   *
+   * El servidor sabe si la casilla envía y si cada tarea programada corrió hace poco; lo demás
+   * —la asistencia de una reserva— sólo se puede advertir. Un aviso encendido que depende de una
+   * tarea inexistente no sale nunca y hasta ahora se veía igual que uno funcionando.
+   */
+  const requisitosQuery = useQuery<{ casilla: boolean; tareas: Record<string, { ultima: string | null; corriendo: boolean }>; avisos: Record<string, Array<{ clave: string; tarea?: string }>> }>({
+    queryKey: ['requisitos-de-correo'],
+    queryFn: () => api.get('/settings/correos/requisitos'),
+  });
+
   const estadoQuery = useQuery({
     queryKey: ['estado-del-correo'],
     queryFn: () => api.get<{ habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[] }>('/settings/estado-del-correo'),
   });
+
+  /** Un aviso encendido al que le falta algo comprobable: está prendido y no sale. */
+  const tieneAlgoPendiente = (prefijo: string) => Boolean(valorDe(`${prefijo}_enabled`))
+    && requisitosDe(prefijo).some((requisito) => requisito.cumple === false);
+
+  const visibles = AVISOS.filter((grupo) => {
+    if (!porClave.get(`${grupo.prefijo}_enabled`)) return false;
+    const activo = Boolean(valorDe(`${grupo.prefijo}_enabled`));
+    if (filtro === 'activos' && !activo) return false;
+    if (filtro === 'apagados' && activo) return false;
+    if (filtro === 'pendientes' && !tieneAlgoPendiente(grupo.prefijo)) return false;
+    if (moduloElegido && grupo.modulo !== moduloElegido) return false;
+    const texto = busqueda.trim().toLowerCase();
+    if (texto && !`${grupo.titulo} ${grupo.explica}`.toLowerCase().includes(texto)) return false;
+    return true;
+  });
+
+  const conInterruptor = AVISOS.filter((grupo) => porClave.get(`${grupo.prefijo}_enabled`));
+  const activos = conInterruptor.filter((grupo) => Boolean(valorDe(`${grupo.prefijo}_enabled`))).length;
+  const pendientes = conInterruptor.filter((grupo) => tieneAlgoPendiente(grupo.prefijo)).length;
 
   if (ajustesQuery.isLoading) return <LoadingSpinner />;
 
@@ -309,10 +436,43 @@ export function PanelDeCorreo(): JSX.Element {
 
       {aviso ? <div className="alert alert-success" role="status">{aviso}</div> : null}
 
-      {AVISOS.map((grupo) => {
-        const encendido = porClave.get(`${grupo.prefijo}_enabled`);
-        if (!encendido) return null;
+      {/*
+        * Cuántos están encendidos y cuántos no van a salir.
+        *
+        * Recorrer diecisiete tarjetas para saberlo era el trabajo que nadie hacía, así que un
+        * aviso apagado de hecho podía quedarse así durante meses.
+        */}
+      <div className="panel-correo-resumen">
+        <span><strong>{activos}</strong> de {conInterruptor.length} encendidos</span>
+        {pendientes > 0 && <button type="button" className={`panel-correo-pendientes${filtro === 'pendientes' ? ' es-activo' : ''}`} onClick={() => setFiltro(filtro === 'pendientes' ? 'todos' : 'pendientes')}>
+          <strong>{pendientes}</strong> encendido{pendientes === 1 ? '' : 's'} que no {pendientes === 1 ? 'sale' : 'salen'}
+        </button>}
+        <div className="panel-correo-filtros">
+          <input className="input" value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} placeholder="Buscar aviso…" aria-label="Buscar aviso" />
+          <select className="input" value={moduloElegido} onChange={(evento) => setModuloElegido(evento.target.value as '' | ModuloDeAviso)} aria-label="Filtrar por módulo">
+            <option value="">Todos los módulos</option>
+            {MODULOS.map((modulo) => <option key={modulo.clave} value={modulo.clave}>{modulo.titulo}</option>)}
+          </select>
+          <select className="input" value={filtro} onChange={(evento) => setFiltro(evento.target.value as typeof filtro)} aria-label="Filtrar avisos">
+            <option value="todos">Todos</option>
+            <option value="activos">Encendidos</option>
+            <option value="apagados">Apagados</option>
+            <option value="pendientes">Con algo pendiente</option>
+          </select>
+        </div>
+      </div>
+
+      {visibles.length === 0 && <p className="panel-correo-nota">Ningún aviso coincide con el filtro.</p>}
+
+      {MODULOS.map((modulo) => {
+        const delModulo = visibles.filter((grupo) => grupo.modulo === modulo.clave);
+        if (delModulo.length === 0) return null;
+        return <section key={modulo.clave} className="panel-correo-modulo">
+          <h3>{modulo.titulo} <small>{modulo.explica}</small></h3>
+          {delModulo.map((grupo) => {
+        const encendido = porClave.get(`${grupo.prefijo}_enabled`)!;
         const activo = Boolean(valorDe(encendido.key));
+        const requisitos = requisitosDe(grupo.prefijo);
 
         return (
           <article key={grupo.prefijo} className={`panel-correo-aviso${activo ? ' esta-activo' : ''}`}>
@@ -330,6 +490,12 @@ export function PanelDeCorreo(): JSX.Element {
               ) : null}
             </header>
             <p>{grupo.explica}</p>
+            {/* Sólo cuando está encendido: apagado, lo que le falte no cambia nada. */}
+            {activo && requisitos.length > 0 && <ul className="panel-correo-requisitos">
+              {requisitos.map((requisito) => <li key={requisito.texto} className={requisito.cumple === false ? 'falta' : requisito.cumple ? 'cumple' : 'avisa'}>
+                <span aria-hidden="true">{requisito.cumple === false ? '✕' : requisito.cumple ? '✓' : '!'}</span>{requisito.texto}
+              </li>)}
+            </ul>}
 
             {/*
               Los textos solo se muestran cuando el aviso está encendido. Apagado, son campos que
@@ -379,6 +545,7 @@ export function PanelDeCorreo(): JSX.Element {
                       ) : sufijo === 'body' ? (
                         <textarea
                           className="input"
+                          id={ajuste.key}
                           rows={6}
                           value={String(valorDe(ajuste.key))}
                           onChange={(evento) => editar(ajuste.key, evento.target.value)}
@@ -386,6 +553,7 @@ export function PanelDeCorreo(): JSX.Element {
                       ) : (
                         <input
                           className="input"
+                          id={ajuste.key}
                           value={String(valorDe(ajuste.key))}
                           onChange={(evento) => editar(ajuste.key, evento.target.value)}
                         />
@@ -397,11 +565,15 @@ export function PanelDeCorreo(): JSX.Element {
                       */}
                       {variables.length > 0 ? (
                         <small className="panel-correo-variables">
+                          <span>Insertar:</span>
                           {variables.map((variable) => (
                             <button
                               key={variable}
                               type="button"
-                              onClick={() => editar(ajuste.key, `${String(valorDe(ajuste.key))}{{${variable}}}`)}
+                              title={`Insertar {{${variable}}} donde está el cursor`}
+                              // Sin esto el campo pierde el foco al pulsar y se pierde la posición del cursor.
+                              onMouseDown={(evento) => evento.preventDefault()}
+                              onClick={() => insertarVariable(ajuste.key, variable)}
                             >
                               {`{{${variable}}}`}
                             </button>
@@ -454,6 +626,8 @@ export function PanelDeCorreo(): JSX.Element {
             ) : null}
           </article>
         );
+          })}
+        </section>;
       })}
 
       <footer className="panel-correo-acciones">

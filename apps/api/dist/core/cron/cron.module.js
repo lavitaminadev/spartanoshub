@@ -8,7 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CronModule = void 0;
 const common_1 = require("@nestjs/common");
+const typeorm_1 = require("@nestjs/typeorm");
 const cron_controller_1 = require("./cron.controller");
+const cron_run_entity_1 = require("./cron-run.entity");
 const meta_module_1 = require("../../modules/integrations/meta/meta.module");
 const google_module_1 = require("../../modules/integrations/google/google.module");
 const jobs_module_1 = require("../jobs/jobs.module");
@@ -18,7 +20,7 @@ let CronModule = class CronModule {
 exports.CronModule = CronModule;
 exports.CronModule = CronModule = __decorate([
     (0, common_1.Module)({
-        imports: [meta_module_1.MetaModule, google_module_1.GoogleModule, jobs_module_1.JobsModule, automations_module_1.AutomationsModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([cron_run_entity_1.CronRun]), meta_module_1.MetaModule, google_module_1.GoogleModule, jobs_module_1.JobsModule, automations_module_1.AutomationsModule],
         controllers: [cron_controller_1.CronController],
     })
 ], CronModule);

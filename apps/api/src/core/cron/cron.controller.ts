@@ -2,6 +2,9 @@ import { Controller, Get, Post, Headers, ForbiddenException, Body } from '@nestj
 import { Throttle } from '@nestjs/throttler';
 import { timingSafeEqual } from 'crypto';
 import { Public } from '../auth/decorators/public.decorator';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CronRun } from './cron-run.entity';
 import { MetaConversionOutboxService } from '../../modules/integrations/meta/meta-conversion-outbox.service';
 import { GoogleConversionOutboxService } from '../../modules/integrations/google/google-conversion-outbox.service';
 import { DetectStalePiecesJob } from '../jobs/cron/detect-stale-pieces.job';
@@ -49,6 +52,8 @@ export class CronController {
     private readonly automations: AutomationRunnerService,
     private readonly automationScheduleJob: AutomationScheduleJob,
     private readonly webhooks: WebhookDeliveryService,
+    // Último del constructor: las pruebas de este controlador lo construyen por posición.
+    @InjectRepository(CronRun) private readonly corridas: Repository<CronRun>,
   ) {}
 
   /**
@@ -170,9 +175,28 @@ export class CronController {
     this.running.add(lockKey);
     try {
       const result = await task();
+      await this.anotar(lockKey, true, result ? JSON.stringify(result).slice(0, 500) : null);
       return { ok: true, ...(result ?? {}), timestamp: new Date().toISOString() };
+    } catch (error) {
+      await this.anotar(lockKey, false, error instanceof Error ? error.message.slice(0, 500) : 'falló');
+      throw error;
     } finally {
       this.running.delete(lockKey);
+    }
+  }
+
+  /**
+   * Deja constancia de la corrida.
+   *
+   * Nunca hace fallar la tarea: si el rastro no se puede escribir, el trabajo ya se hizo y perderlo
+   * sería peor. La aplicación lo lee para decir si un aviso que depende de una tarea está saliendo
+   * de verdad o sólo está encendido en pantalla.
+   */
+  private async anotar(task: string, ok: boolean, detail: string | null): Promise<void> {
+    try {
+      await this.corridas.save({ task, lastRunAt: new Date(), ok, detail });
+    } catch {
+      /* el rastro es diagnóstico, no parte del trabajo */
     }
   }
 

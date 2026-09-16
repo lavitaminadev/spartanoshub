@@ -29,15 +29,18 @@ const update_organization_settings_dto_1 = require("./dto/update-organization-se
 const organization_settings_service_1 = require("./organization-settings.service");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
 const requires_permission_decorator_1 = require("../authorization/requires-permission.decorator");
+const cron_run_entity_1 = require("../cron/cron-run.entity");
+const requisitos_de_correo_1 = require("./requisitos-de-correo");
 const ES_CLAVE_DE_CORREO = (clave) => clave.startsWith('email.');
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const shared_1 = require("@espartanos/shared");
 let OrganizationSettingsController = class OrganizationSettingsController {
-    constructor(settings, accountAccess, correo, usuarios) {
+    constructor(settings, accountAccess, correo, usuarios, corridas) {
         this.settings = settings;
         this.accountAccess = accountAccess;
         this.correo = correo;
         this.usuarios = usuarios;
+        this.corridas = corridas;
     }
     async list(request, clientId) {
         const organizationId = request.organizationId || request.user.organizationId;
@@ -81,6 +84,19 @@ let OrganizationSettingsController = class OrganizationSettingsController {
     estadoDelCorreo(request) {
         const estado = this.correo.estado();
         return request.user.role === user_role_enum_1.UserRole.DEV ? estado : { ...estado, faltan: [] };
+    }
+    async requisitosDeCorreo() {
+        const corridas = new Map((await this.corridas.find()).map((fila) => [fila.task, fila]));
+        const limite = Date.now() - requisitos_de_correo_1.HORAS_SIN_CORRER_PARA_ALARMA * 3_600_000;
+        const casilla = this.correo.estado().habilitado;
+        const tareas = Object.fromEntries([...new Set(Object.values(requisitos_de_correo_1.REQUISITOS_POR_AVISO).flatMap((lista) => lista.map((requisito) => requisito.tarea).filter(Boolean)))].map((tarea) => {
+            const corrida = corridas.get(tarea);
+            return [tarea, {
+                    ultima: corrida?.lastRunAt ?? null,
+                    corriendo: Boolean(corrida && corrida.ok && corrida.lastRunAt.getTime() > limite),
+                }];
+        }));
+        return { casilla, tareas, avisos: requisitos_de_correo_1.REQUISITOS_POR_AVISO };
     }
     async destinatariosDePrueba(request) {
         const organizationId = request.organizationId || request.user.organizationId;
@@ -171,6 +187,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OrganizationSettingsController.prototype, "estadoDelCorreo", null);
 __decorate([
+    (0, common_1.Get)('correos/requisitos'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, swagger_1.ApiOperation)({ summary: 'Condiciones que necesita cada aviso además de su interruptor' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], OrganizationSettingsController.prototype, "requisitosDeCorreo", null);
+__decorate([
     (0, common_1.Get)('destinatarios-de-prueba'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
     (0, swagger_1.ApiOperation)({ summary: 'Personas del equipo a las que se puede enviar una prueba' }),
@@ -197,8 +221,10 @@ exports.OrganizationSettingsController = OrganizationSettingsController = __deco
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, module_scope_decorator_1.ModuleScope)('settings'),
     __param(3, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(4, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
     __metadata("design:paramtypes", [organization_settings_service_1.OrganizationSettingsService,
         account_access_service_1.AccountAccessService,
         email_service_1.EmailService,
+        typeorm_2.Repository,
         typeorm_2.Repository])
 ], OrganizationSettingsController);
