@@ -114,6 +114,9 @@ let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJo
     }
     async ajustesDe(form) {
         const leer = (clave) => this.parametros.get(clave, form.clientId, null, form.organizationId);
+        const deLaSucursal = typeof form.designConfig?.encuestaPostVisita === 'string'
+            ? String(form.designConfig.encuestaPostVisita).trim()
+            : '';
         const [encendido, surveyId, horas, asunto, cuerpo] = await Promise.all([
             leer('email.post_visit_survey_enabled'),
             leer('email.post_visit_survey_id'),
@@ -121,11 +124,12 @@ let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJo
             leer('email.post_visit_survey_subject'),
             leer('email.post_visit_survey_body'),
         ]);
-        if (!encendido || typeof surveyId !== 'string' || !surveyId.trim())
+        const elegida = deLaSucursal || (typeof surveyId === 'string' ? surveyId.trim() : '');
+        if (!encendido || !elegida)
             return null;
         const horasValidas = Number(horas);
         return {
-            surveyId: surveyId.trim(),
+            surveyId: elegida,
             horas: Number.isFinite(horasValidas) && horasValidas >= 1 && horasValidas <= 72 ? horasValidas : exports.HORAS_POST_VISITA_POR_DEFECTO,
             asunto: String(asunto ?? '¿Cómo te fue en {{local}}?'),
             cuerpo: String(cuerpo ?? 'Hola {{nombre}}:\n\nGracias por venir a {{local}}. ¿Nos cuentas cómo te fue? Es un minuto.'),

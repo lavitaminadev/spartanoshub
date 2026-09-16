@@ -199,8 +199,10 @@ export function PanelDeCorreo(): JSX.Element {
     enabled: alcanzaEncuestas,
   });
   const encuestasElegibles = (encuestasQuery.data ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer' && (!encuesta.clientId || encuesta.clientId === empresa));
-  const [borrador, setBorrador] = useState<Record<string, string | number | boolean> | null>(null);
+  const [borrador, setBorrador] = useState<Record<string, string | number | boolean | null> | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Aviso cuya vista previa está abierta. Sólo una a la vez: son pesadas y se comparan de a una. */
+  const [previsualizando, setPrevisualizando] = useState<string | null>(null);
   /** Qué aviso tiene una prueba en vuelo, para deshabilitar solo su botón. */
   const [probando, setProbando] = useState<string | null>(null);
   /** Vacío significa «a mí», que es el caso normal. */
@@ -248,6 +250,16 @@ export function PanelDeCorreo(): JSX.Element {
     Manda el borrador, no lo guardado: se prueba para decidir si guardar, y probar lo que ya
     está guardado no responde a esa pregunta.
   */
+  /*
+   * Cómo queda el correo, sin mandarlo.
+   *
+   * Se compone en el servidor con el mismo armazón del envío, así que lo que se ve es lo que
+   * llega. Manda el borrador, no lo guardado: se mira para decidir si guardar.
+   */
+  const vistaPrevia = useMutation({
+    mutationFn: (texto: { asunto: string; cuerpo: string }) => api.post<{ subject: string; html: string }>('/settings/correos/vista-previa', texto),
+  });
+
   const probar = useMutation({
     mutationFn: (texto: { asunto: string; cuerpo: string; destinatarioId?: string }) =>
       api.post<{ enviado: boolean; destino: string; motivo: string | null }>('/settings/probar', texto),
@@ -262,6 +274,16 @@ export function PanelDeCorreo(): JSX.Element {
     () => new Map((ajustesQuery.data ?? []).map((ajuste) => [ajuste.key, ajuste])),
     [ajustesQuery.data],
   );
+
+  /**
+   * Variables escritas que la plantilla no conoce.
+   *
+   * Una variable mal escrita no falla: se borra al enviar y la frase llega incompleta, así que el
+   * error viaja hasta la bandeja de un cliente sin que nadie lo note. Acá se ve al escribirla.
+   */
+  const variablesDesconocidas = (texto: string, admitidas: string[]): string[] => [
+    ...new Set([...texto.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)].map((coincidencia) => coincidencia[1])),
+  ].filter((variable) => !admitidas.includes(variable));
 
   /** Dónde dejar el cursor en cuanto React termine de pintar el valor nuevo. */
   const cursorPendiente = useRef<{ clave: string; posicion: number } | null>(null);
@@ -332,7 +354,8 @@ export function PanelDeCorreo(): JSX.Element {
     if (datos.casilla === false) requisitos.unshift({ texto: 'La casilla que envía no está configurada', cumple: false });
     return requisitos;
   };
-  const editar = (clave: string, valor: string | number | boolean) => {
+  /** Nulo significa «vuelve a heredar el general»; el servidor cierra el valor propio. */
+  const editar = (clave: string, valor: string | number | boolean | null) => {
     setBorrador({ ...(borrador ?? {}), [clave]: valor });
     setAviso(null);
   };
@@ -543,6 +566,7 @@ export function PanelDeCorreo(): JSX.Element {
                             {encuestasElegibles.map((encuesta) => <option key={encuesta.id} value={encuesta.id}>{encuesta.title}</option>)}
                           </select>
                           {elegida && !vigente && !encuestasQuery.isLoading ? <small className="error-text">La encuesta elegida ya no está activa o no es de esta empresa: no se enviará nada hasta elegir otra.</small> : null}
+                          <small>Es la de toda la empresa. Cada sucursal puede elegir otra en Reservas → sucursal → Datos del local y textos legales.</small>
                           {encuestasElegibles.length === 0 && !encuestasQuery.isLoading ? <small>{alcanzaEncuestas ? 'Esta empresa no tiene encuestas activas de clientes. Crea una en Encuestas, con una pregunta de estrellas.' : 'No alcanzas el módulo de Encuestas, así que no se puede elegir cuál se envía. El texto de abajo sí se guarda.'}</small> : null}
                         </>
                       )}
@@ -587,6 +611,23 @@ export function PanelDeCorreo(): JSX.Element {
                         mano es donde aparecen las erratas, y una variable mal escrita no falla
                         —se borra al enviar— así que nadie se entera hasta que falta un dato.
                       */}
+                      {(() => {
+                        const desconocidas = variables.length > 0 ? variablesDesconocidas(String(valorDe(ajuste.key)), variables) : [];
+                        return desconocidas.length > 0 ? (
+                          <small className="panel-correo-desconocidas">
+                            {desconocidas.map((variable) => `{{${variable}}}`).join(', ')} no {desconocidas.length === 1 ? 'existe' : 'existen'} en este correo: al enviar se {desconocidas.length === 1 ? 'borra' : 'borran'} y la frase queda incompleta.
+                          </small>
+                        ) : null;
+                      })()}
+                      {empresa && ajuste.source === 'client' ? (
+                        <button
+                          type="button"
+                          className="panel-correo-heredar"
+                          onClick={() => editar(ajuste.key, null)}
+                        >
+                          Propio de esta empresa · volver al general
+                        </button>
+                      ) : null}
                       {variables.length > 0 ? (
                         <small className="panel-correo-variables">
                           <span>Insertar:</span>
@@ -615,6 +656,17 @@ export function PanelDeCorreo(): JSX.Element {
                   cualquier dirección, desde una cuenta del dominio propio.
                 */}
                 <div className="panel-correo-envio">
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => {
+                      if (previsualizando === grupo.prefijo) { setPrevisualizando(null); return; }
+                      setPrevisualizando(grupo.prefijo);
+                      vistaPrevia.mutate({ asunto: String(valorDe(`${grupo.prefijo}_subject`)), cuerpo: String(valorDe(`${grupo.prefijo}_body`)) });
+                    }}
+                  >
+                    {previsualizando === grupo.prefijo ? 'Ocultar vista previa' : 'Ver cómo queda'}
+                  </button>
                 <label className="panel-correo-destinatario">
                   <span>Enviar la prueba a</span>
                   <select
@@ -646,6 +698,22 @@ export function PanelDeCorreo(): JSX.Element {
                   {probando === grupo.prefijo ? "Enviando..." : "Enviar una prueba"}
                 </button>
                 </div>
+
+                {/*
+                  * El correo tal como llega, con su diseño.
+                  *
+                  * En un marco aislado: el correo trae sus propios estilos y sueltos pisarían los de
+                  * la aplicación. Se compone en el servidor con el mismo armazón del envío.
+                  */}
+                {previsualizando === grupo.prefijo && <div className="panel-correo-vista-previa">
+                  {vistaPrevia.isPending && <p>Componiendo…</p>}
+                  {vistaPrevia.error && <p className="error-text">{(vistaPrevia.error as Error).message}</p>}
+                  {vistaPrevia.data && <>
+                    <p><span>Asunto</span><strong>{vistaPrevia.data.subject}</strong></p>
+                    <iframe title={`Vista previa de ${grupo.titulo}`} srcDoc={vistaPrevia.data.html} sandbox="" />
+                    <small>Las variables van con datos de ejemplo. El correo real usa los de cada reserva.</small>
+                  </>}
+                </div>}
               </div>
             ) : null}
           </article>

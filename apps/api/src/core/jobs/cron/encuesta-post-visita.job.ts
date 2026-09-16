@@ -135,9 +135,19 @@ export class EncuestaPostVisitaJob {
     return { enviados, revisados: candidatas.length };
   }
 
-  /** Si esa empresa encuesta, con qué encuesta y cuándo. `null` si no corresponde enviar. */
+  /**
+   * Si esa sucursal encuesta, con qué encuesta y cuándo. `null` si no corresponde enviar.
+   *
+   * **La encuesta la elige la sucursal**, y si no eligió ninguna hereda la de su empresa. Dos
+   * locales de la misma empresa suelen querer preguntar cosas distintas, y con una sola elección
+   * por empresa eso obligaba a conformarse con la misma para todos. El texto del correo sigue
+   * siendo común: lo que cambia es a qué encuesta lleva.
+   */
   private async ajustesDe(form: ReservationForm): Promise<Ajustes | null> {
     const leer = (clave: string) => this.parametros.get(clave, form.clientId, null, form.organizationId);
+    const deLaSucursal = typeof (form.designConfig as Record<string, unknown>)?.encuestaPostVisita === 'string'
+      ? String((form.designConfig as Record<string, unknown>).encuestaPostVisita).trim()
+      : '';
     const [encendido, surveyId, horas, asunto, cuerpo] = await Promise.all([
       leer('email.post_visit_survey_enabled'),
       leer('email.post_visit_survey_id'),
@@ -145,10 +155,11 @@ export class EncuestaPostVisitaJob {
       leer('email.post_visit_survey_subject'),
       leer('email.post_visit_survey_body'),
     ]);
-    if (!encendido || typeof surveyId !== 'string' || !surveyId.trim()) return null;
+    const elegida = deLaSucursal || (typeof surveyId === 'string' ? surveyId.trim() : '');
+    if (!encendido || !elegida) return null;
     const horasValidas = Number(horas);
     return {
-      surveyId: surveyId.trim(),
+      surveyId: elegida,
       horas: Number.isFinite(horasValidas) && horasValidas >= 1 && horasValidas <= 72 ? horasValidas : HORAS_POST_VISITA_POR_DEFECTO,
       asunto: String(asunto ?? '¿Cómo te fue en {{local}}?'),
       cuerpo: String(cuerpo ?? 'Hola {{nombre}}:\n\nGracias por venir a {{local}}. ¿Nos cuentas cómo te fue? Es un minuto.'),
