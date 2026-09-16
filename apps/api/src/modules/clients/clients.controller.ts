@@ -10,6 +10,8 @@ import { Client } from './client.entity';
 import { CreateClientDto } from './dto/create-client.dto';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { UserRole } from '../organizations/user-role.enum';
+import { normalizeClientCapabilities } from './client-capabilities';
+import { PaquetesDeCorreo } from '../../core/parameters/paquetes-de-correo';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { User } from '../users/user.entity';
@@ -34,6 +36,7 @@ export class ClientsController {
     private createClient: CreateClientUseCase,
     private listClients: ListClientsUseCase,
     private getClient: GetClientUseCase,
+    private readonly paquetes: PaquetesDeCorreo,
   ) {}
 
   @Post()
@@ -96,11 +99,25 @@ export class ClientsController {
         throw new BadRequestException('El responsable debe ser una CM o dirección de operaciones activa');
       }
     }
+    /*
+     * Qué servicios se están contratando ahora.
+     *
+     * Se mira antes de asignar: después ya no se distingue «lo acaba de contratar» de «lo tenía».
+     * Sólo interesa el encendido, porque apagar un servicio no apaga sus correos —se conservan los
+     * textos escritos y la pantalla avisa que ese módulo no está contratado—.
+     */
+    const antes = normalizeClientCapabilities(client.capabilities);
     Object.assign(client, dto, {
       startedAt: dto.startedAt ? new Date(dto.startedAt) : client.startedAt,
       renewalAt: dto.renewalAt ? new Date(dto.renewalAt) : client.renewalAt,
     });
-    return this.repo.save(client);
+    const guardado = await this.repo.save(client);
+
+    const despues = normalizeClientCapabilities(guardado.capabilities);
+    const reciencontratados = (['reservations', 'crm', 'surveys'] as const).filter((servicio) => despues[servicio] && !antes[servicio]);
+    if (reciencontratados.length) await this.paquetes.encenderPara(guardado.id, [...reciencontratados]);
+
+    return guardado;
   }
 
   @Delete(':id')
