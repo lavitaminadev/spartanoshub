@@ -112,13 +112,28 @@ export function errorDeDato(dato: SurveyContactField | undefined, valor: unknown
  * @returns Una lista de textos listos para mostrar; vacía si se puede enviar.
  */
 export function problemasDeRespuesta(preguntas: SurveyQuestion[], respuestas: Respuestas, omitir: string[] = []): string[] {
-  const problemas: string[] = [];
+  return problemasPorPregunta(preguntas, respuestas, omitir).map((problema) => problema.texto);
+}
+
+/**
+ * Lo mismo, diciendo **de qué pregunta** es cada problema.
+ *
+ * Una lista de textos al pie sirve para saber que algo falta, no para encontrarlo: en una encuesta
+ * larga hay que recorrerla entera comparando. Con la pregunta identificada, la página puede
+ * marcarla y llevar hasta ella.
+ */
+export function problemasPorPregunta(
+  preguntas: SurveyQuestion[],
+  respuestas: Respuestas,
+  omitir: string[] = [],
+): Array<{ id: string; texto: string }> {
+  const problemas: Array<{ id: string; texto: string }> = [];
   for (const pregunta of preguntasVisibles(preguntas, respuestas)) {
     if (omitir.includes(pregunta.id)) continue;
     const valor = respuestas[pregunta.id];
-    if (pregunta.required && vacia(valor)) { problemas.push(`Falta: ${pregunta.question}`); continue; }
+    if (pregunta.required && vacia(valor)) { problemas.push({ id: pregunta.id, texto: `Falta: ${pregunta.question}` }); continue; }
     const error = errorDeDato(pregunta.dato, valor);
-    if (error) problemas.push(error);
+    if (error) problemas.push({ id: pregunta.id, texto: error });
   }
   return problemas;
 }

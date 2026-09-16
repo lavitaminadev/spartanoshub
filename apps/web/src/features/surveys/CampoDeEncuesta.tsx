@@ -100,7 +100,15 @@ export function CampoDeEncuesta({
           </button>
         ))}
       </div>
-      {question.type === 'nps' ? <p className="escala-nps-extremos"><span>Nada probable</span><span>Muy probable</span></p> : null}
+      {/*
+        * Qué significan los extremos.
+        *
+        * Un 3 sobre 5 no quiere decir lo mismo para quien responde que para quien lee: sin
+        * rótulos, cada persona inventa su propia escala y las notas dejan de ser comparables.
+        */}
+      {question.type === 'nps'
+        ? <p className="escala-nps-extremos"><span>Nada probable</span><span>Muy probable</span></p>
+        : <p className="escala-nps-extremos"><span>1 · Muy mala</span><span>5 · Excelente</span></p>}
     </fieldset>
   );
 }

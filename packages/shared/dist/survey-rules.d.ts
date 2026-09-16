@@ -46,6 +46,17 @@ export declare function errorDeDato(dato: SurveyContactField | undefined, valor:
  * @returns Una lista de textos listos para mostrar; vacía si se puede enviar.
  */
 export declare function problemasDeRespuesta(preguntas: SurveyQuestion[], respuestas: Respuestas, omitir?: string[]): string[];
+/**
+ * Lo mismo, diciendo **de qué pregunta** es cada problema.
+ *
+ * Una lista de textos al pie sirve para saber que algo falta, no para encontrarlo: en una encuesta
+ * larga hay que recorrerla entera comparando. Con la pregunta identificada, la página puede
+ * marcarla y llevar hasta ella.
+ */
+export declare function problemasPorPregunta(preguntas: SurveyQuestion[], respuestas: Respuestas, omitir?: string[]): Array<{
+    id: string;
+    texto: string;
+}>;
 /** Si la encuesta pide algún dato que identifica a la persona: entonces se necesita su aceptación. */
 export declare function pideDatosPersonales(preguntas: SurveyQuestion[]): boolean;
 /** Si la encuesta tiene preguntas sensibles vigentes (salud, alimentación). */

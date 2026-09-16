@@ -647,3 +647,6 @@
 /* Accesibilidad (WCAG 1.4.11): las estrellas sin elegir se distinguen del fondo (3:1 como mínimo). */
 .flujo-estrellas button:not(.activa) { color: #8f8790; }
 .public-survey-eyebrow { font-size: 11px; }
+
+/* Lo que falta se dice junto a la pregunta, no sólo al pie del formulario. */
+.public-survey-problema { margin: 6px 0 0; color: var(--danger); font-size: 12px; font-weight: 600; line-height: 1.45; }

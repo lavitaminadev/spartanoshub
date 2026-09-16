@@ -19,7 +19,7 @@
 import { useState, type JSX } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import type { Survey, SurveyQuestion } from '@espartanos/shared';
-import { ordenarParaMostrar, preguntasVisibles, problemasDeRespuesta, traeDatosPersonales } from '@espartanos/shared';
+import { ordenarParaMostrar, preguntasVisibles, problemasPorPregunta, traeDatosPersonales } from '@espartanos/shared';
 import { AceptacionDeDatos } from './CampoDeEncuesta';
 import { api } from '../../core/api';
 import { safeUrl } from '../../core/safe-url';
@@ -63,7 +63,8 @@ export function FlujoSimpleDeEncuesta({
   const conNota = { ...respuestas, ...(notaElegida !== null ? { [preguntaNota.id]: notaElegida } : {}) };
   // La nota va sola primero para no perder esa respuesta; en el paso siguiente, los datos encabezan.
   const restantes = ordenarParaMostrar(preguntasVisibles(survey.questions, conNota).filter((pregunta) => pregunta.id !== preguntaNota.id));
-  const problemas = problemasDeRespuesta(survey.questions, conNota, [preguntaNota.id]);
+  const porPregunta = problemasPorPregunta(survey.questions, conNota, [preguntaNota.id]);
+  const problemas = porPregunta.map((problema) => problema.texto);
   const faltaAceptar = Boolean(survey.consentimiento) && traeDatosPersonales(survey.questions, respuestas) && !aceptada;
   const soloVisibles = () => Object.fromEntries(Object.entries(respuestas).filter(([clave]) => restantes.some((pregunta) => pregunta.id === clave)));
 
@@ -164,8 +165,11 @@ export function FlujoSimpleDeEncuesta({
       {paso === 'preguntas' && <>
         <div className="public-survey-questions">
           {restantes.map((pregunta) => (
-            <div key={pregunta.id}>
+            <div key={pregunta.id} id={`pregunta-${pregunta.id}`}>
               {renderPregunta(pregunta, respuestas[pregunta.id], (valor) => setRespuestas((actuales) => ({ ...actuales, [pregunta.id]: valor })), intentoEnviar)}
+              {intentoEnviar && porPregunta.find((problema) => problema.id === pregunta.id)
+                ? <p className="public-survey-problema" role="alert">{porPregunta.find((problema) => problema.id === pregunta.id)!.texto}</p>
+                : null}
             </div>
           ))}
         </div>
@@ -173,7 +177,19 @@ export function FlujoSimpleDeEncuesta({
         {intentoEnviar && (problemas.length > 0 || faltaAceptar) ? <div className="alert alert-error" role="alert">{[...problemas, ...(faltaAceptar ? ['Acepta el uso de tus datos para enviar'] : [])].join(' · ')}</div> : null}
         <button type="button" className="btn btn-primary btn-block public-survey-submit" disabled={completar.isPending} onClick={() => {
           setIntentoEnviar(true);
-          if (problemas.length > 0 || faltaAceptar) return;
+          /*
+           * Llevar hasta lo que falta, no sólo decir que falta.
+           *
+           * En una encuesta larga, una lista de textos al pie obliga a recorrerla entera
+           * comparando pregunta por pregunta, y el botón queda al final: quien responde no ve lo
+           * que tiene que corregir.
+           */
+          if (problemas.length > 0 || faltaAceptar) {
+            const primera = porPregunta[0];
+            const destino = primera ? document.getElementById(`pregunta-${primera.id}`) : null;
+            destino?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
           cerrar({ answers: soloVisibles(), responder: true, ...(aceptada ? { aceptaPrivacidad: true } : {}) });
         }}>
           {completar.isPending ? 'Enviando…' : 'Enviar respuestas'}
