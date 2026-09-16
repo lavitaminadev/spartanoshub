@@ -39,7 +39,7 @@ export class ReservationsController {
   }
 
   private async decorateForm(organizationId: string, clientId: string, form: any) {
-    const context = await this.service.formContext(organizationId, clientId);
+    const context = await this.service.formContext(organizationId, clientId, form);
     const publicOrigin = this.publicOrigin();
     return { ...form, ...context, publicUrl: publicOrigin ? `${publicOrigin}/book/${form.publicSlug}` : undefined };
   }
@@ -105,6 +105,17 @@ export class ReservationsController {
   async metaHealth(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
     return this.service.saludDeMedicion(req.organizationId, id, scope.clientId, scope.clientIds);
+  }
+
+  /** Pixels que este local puede elegir. Antes del `:id`, o la ruta la tomaría el detalle. */
+  @Get('forms/meta-pixels')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  async pixelesDisponibles(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
+    const scope = await this.requestedScope(req, query.clientId);
+    const clientId = scope.clientId ?? query.clientId;
+    if (!clientId) throw new ForbiddenException('Indica la empresa del local');
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    return this.service.pixelesDelFormulario(req.organizationId, clientId);
   }
 
   @Get('forms')

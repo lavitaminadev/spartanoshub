@@ -356,6 +356,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const pausaVigente = form.designConfig?.bookingPausedUntil;
         Object.assign(form, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
         form.crmEnabled = false;
+        if (dto.metaPixelId !== undefined)
+            form.metaPixelId = dto.metaPixelId.trim() || null;
         if (!capabilities.metaConversions)
             form.metaCapiEnabled = false;
         if (dto.designConfig !== undefined) {
@@ -367,6 +369,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             form.designConfig = design;
         }
         this.validateConfiguration(form);
+        if (dto.metaPixelId !== undefined && form.metaPixelId) {
+            const resuelto = await this.clientPixels.resolveForScope(organizationId, form.clientId, form.metaPixelId);
+            if (!resuelto.accessToken)
+                throw new common_1.BadRequestException(`El Pixel ${form.metaPixelId} no tiene token de Conversions API. Regístralo en Integraciones antes de asignarlo a este local.`);
+        }
         if (form.status === 'published' && (form.scheduleConfig.windows?.length || 0) === 0)
             throw new common_1.BadRequestException('No puedes publicar sin disponibilidad');
         if (form.status === 'published' && !estabaPublicado) {
@@ -460,16 +467,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             ? await this.getClientMetaConfig(form.clientId, form.organizationId, form)
             : { pixelId: '', pixelName: null, accessToken: undefined };
         const { services, resources } = this.configs(form);
-        return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, maximumAdvanceDays: form.maximumAdvanceDays, confirmationMode: form.confirmationMode, fieldSchema: form.fieldSchema.filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
+        return { contentId: form.id, name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, maximumAdvanceDays: form.maximumAdvanceDays, confirmationMode: form.confirmationMode, fieldSchema: form.fieldSchema.filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
     }
-    async formContext(organizationId, clientId) {
+    async formContext(organizationId, clientId, form) {
         const capabilities = await this.clientCapabilities(organizationId, clientId);
-        const { pixelId, pixelName, accessToken } = capabilities.metaConversions ? await this.getClientMetaConfig(clientId, organizationId) : { pixelId: '', pixelName: null, accessToken: undefined };
+        const { pixelId, pixelName, accessToken } = capabilities.metaConversions ? await this.getClientMetaConfig(clientId, organizationId, form) : { pixelId: '', pixelName: null, accessToken: undefined };
+        const deLaEmpresa = capabilities.metaConversions && form?.metaPixelId ? await this.getClientMetaConfig(clientId, organizationId) : null;
         const google = await this.dataSource.query('SELECT 1 FROM integrations WHERE organization_id = ? AND provider = ? LIMIT 1', [organizationId, 'google']);
         const legales = await this.dataSource.query('SELECT legal_name, tax_id, privacy_email, privacy_url, terms_url, legal_mode FROM clients WHERE id = ? LIMIT 1', [clientId]).catch(() => []);
         const datosLegalesEmpresa = legales?.[0] ? { legalName: legales[0].legal_name, taxId: legales[0].tax_id, privacyEmail: legales[0].privacy_email, privacyUrl: legales[0].privacy_url, termsUrl: legales[0].terms_url, legalMode: legales[0].legal_mode } : null;
         const companyDailyCap = await this.clientDailyCap(this.dataSource, clientId);
-        return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap, datosLegalesEmpresa };
+        return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), pixelHeredado: !form?.metaPixelId, pixelDeLaEmpresa: deLaEmpresa?.pixelId || null, calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap, datosLegalesEmpresa };
     }
     effectiveRules(form, serviceId, resourceId) {
         const { services, resources } = this.configs(form);
@@ -545,6 +553,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     localDateKey(date, timeZone) {
         const { year, month, day } = (0, timezone_1.zonedParts)(date, timeZone);
         return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    async pixelesDelFormulario(organizationId, clientId) {
+        const capabilities = await this.clientCapabilities(organizationId, clientId);
+        if (!capabilities.metaConversions)
+            return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels: [] };
+        return this.clientPixels.pixelesElegibles(organizationId, clientId);
     }
     async getClientMetaConfig(clientId, organizationId, form) {
         return this.clientPixels.resolveForScope(organizationId, clientId, form?.metaPixelId);

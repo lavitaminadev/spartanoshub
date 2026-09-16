@@ -354,6 +354,18 @@ export function PublicReservationPage() {
     started.current = true;
     enviarInicio();
   };
+  /**
+   * Con qué local y de qué tipo es la conversión.
+   *
+   * Meta separa los resultados por estos dos parámetros, no por el Pixel, así que un mismo Pixel
+   * distingue reservas, eventos y encuestas de cada local. Tienen que ser los mismos que manda el
+   * servidor por Conversions API: al deduplicar, Meta conserva el evento que llega primero, y si
+   * el del navegador llegara sin ellos la conversión quedaría sin la etiqueta que la separa.
+   */
+  const segmento = (tipo: 'reservation' | 'group_request' | 'survey') => (form?.contentId
+    ? { content_type: tipo, content_ids: [form.contentId] }
+    : {});
+
   /** El inicio va siempre al embudo; a Meta sólo con la medición aceptada (lo decide el servidor). */
   const enviarInicio = () => {
     const meta = measurementConsent ? readMetaMatchData() : { fbc: undefined, fbp: undefined };
@@ -363,7 +375,7 @@ export function PublicReservationPage() {
     }).then((evento: { id?: string }) => {
       if (!measurementConsent || !evento?.id || !window.fbq || !form?.pixelId) return;
       const evt = META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT;
-      window.fbq('trackSingle', form.pixelId, evt, {}, { eventID: metaEventId(evt, evento.id) });
+      window.fbq('trackSingle', form.pixelId, evt, segmento('reservation'), { eventID: metaEventId(evt, evento.id) });
     }).catch(() => undefined);
   };
 
@@ -500,8 +512,8 @@ export function PublicReservationPage() {
     const valor = !isSurvey && porPersona > 0
       ? { value: Math.round(porPersona * (personasDelEvento || 1)), currency: String(form?.designConfig?.moneda || 'CLP').toUpperCase() }
       : {};
-    window.fbq('trackSingle', form.pixelId, eventName, valor, { eventID: metaEventId(eventName, submit.data.id) });
-  }, [form?.pixelId, form?.designConfig?.valorPorPersona, form?.designConfig?.moneda, guest.partySize, groupThreshold, isSurvey, measurementConsent, submit.data?.id, submit.data?.kind]);
+    window.fbq('trackSingle', form.pixelId, eventName, { ...segmento(isSurvey ? 'survey' : esSolicitud ? 'group_request' : 'reservation'), ...valor }, { eventID: metaEventId(eventName, submit.data.id) });
+  }, [form?.contentId, form?.pixelId, form?.designConfig?.valorPorPersona, form?.designConfig?.moneda, guest.partySize, groupThreshold, isSurvey, measurementConsent, submit.data?.id, submit.data?.kind]);
 
   useEffect(() => {
     if (!measurementConsent || !submit.data?.id || !form?.ga4MeasurementId) return;

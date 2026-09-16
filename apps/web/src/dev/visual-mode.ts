@@ -567,6 +567,16 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     }
     return actual;
   }],
+  // Pixels entre los que puede elegir el local: uno de la empresa y uno de otra cuenta sin token,
+  // para poder ver en pantalla el aviso de credencial faltante.
+  [/\/reservations\/forms\/meta-pixels/, () => ({
+    porDefecto: { pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', tieneToken: true },
+    pixels: [
+      { pixelId: '123456789012345', nombre: 'Casa Costanera · Reservas', tieneToken: true, esDeLaEmpresa: true },
+      { pixelId: '998877665544332', nombre: 'Terraza · agencia', tieneToken: true, esDeLaEmpresa: false },
+      { pixelId: '555000111222333', nombre: null, tieneToken: false, esDeLaEmpresa: false },
+    ],
+  })],
   [/\/reservations\/forms(?:\?|$)/, (config) => {
     const method = config?.method?.toLowerCase();
     if (method === 'post') {

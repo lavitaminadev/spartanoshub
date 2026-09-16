@@ -222,6 +222,11 @@ __decorate([
 ], UpdateReservationFormDto.prototype, "ga4MeasurementId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^\d{6,20}$|^$/, { message: 'El Pixel debe ser el número que entrega Meta, entre 6 y 20 dígitos' }),
+    __metadata("design:type", String)
+], UpdateReservationFormDto.prototype, "metaPixelId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.IsEmail)({}, { each: true }),
     __metadata("design:type", Array)

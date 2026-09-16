@@ -44,7 +44,7 @@ let ReservationsController = class ReservationsController {
         return (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '') || undefined;
     }
     async decorateForm(organizationId, clientId, form) {
-        const context = await this.service.formContext(organizationId, clientId);
+        const context = await this.service.formContext(organizationId, clientId, form);
         const publicOrigin = this.publicOrigin();
         return { ...form, ...context, publicUrl: publicOrigin ? `${publicOrigin}/book/${form.publicSlug}` : undefined };
     }
@@ -92,6 +92,14 @@ let ReservationsController = class ReservationsController {
     async metaHealth(req, id) {
         const scope = await this.scope(req);
         return this.service.saludDeMedicion(req.organizationId, id, scope.clientId, scope.clientIds);
+    }
+    async pixelesDisponibles(req, query) {
+        const scope = await this.requestedScope(req, query.clientId);
+        const clientId = scope.clientId ?? query.clientId;
+        if (!clientId)
+            throw new common_1.ForbiddenException('Indica la empresa del local');
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        return this.service.pixelesDelFormulario(req.organizationId, clientId);
     }
     async forms(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
@@ -321,6 +329,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "metaHealth", null);
+__decorate([
+    (0, common_1.Get)('forms/meta-pixels'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "pixelesDisponibles", null);
 __decorate([
     (0, common_1.Get)('forms'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),

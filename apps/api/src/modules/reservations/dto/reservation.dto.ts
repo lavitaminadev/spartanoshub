@@ -79,6 +79,13 @@ export class UpdateReservationFormDto {
   @IsOptional() @IsBoolean() calendarEnabled?: boolean;
   @IsOptional() @IsBoolean() metaCapiEnabled?: boolean;
   @IsOptional() @Matches(/^(G-[A-Z0-9]{4,20})?$/i, { message: 'El ID de medición GA4 debe tener el formato G-XXXXXXXXXX' }) ga4MeasurementId?: string;
+  /**
+   * Pixel propio de este local. Vacío hereda el de la empresa.
+   *
+   * Sólo dígitos: un identificador de Pixel se copia desde Meta y un nombre pegado por error
+   * dejaría el local enviando a ninguna parte en silencio.
+   */
+  @IsOptional() @Matches(/^\d{6,20}$|^$/, { message: 'El Pixel debe ser el número que entrega Meta, entre 6 y 20 dígitos' }) metaPixelId?: string;
   @IsOptional() @IsArray() @IsEmail({}, { each: true }) teamNotifications?: string[];
 }
 export class CreateBlockDto { @IsDateString() startsAt: string; @IsDateString() endsAt: string; @IsOptional() @IsString() @MaxLength(180) reason?: string; }
