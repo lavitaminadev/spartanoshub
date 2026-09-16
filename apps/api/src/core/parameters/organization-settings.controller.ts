@@ -219,6 +219,20 @@ export class OrganizationSettingsController {
    * Las variables se rellenan con valores de muestra: la plantilla no sabe de qué lead o de qué
    * reserva se trata, y dejarlas vacías mostraría un texto con huecos que no se parece al real.
    */
+  /**
+   * Cómo queda el correo, sin mandarlo.
+   *
+   * Escribir texto plano y descubrir el resultado sólo al recibir una prueba convertía cada
+   * retoque en un correo más en la bandeja de alguien. Es el mismo armazón y las mismas
+   * variables de muestra que usa el envío, así que lo que se ve es lo que llega.
+   */
+  @Post('correos/vista-previa')
+  @RequiresPermission('reservations', 'edit')
+  @ApiOperation({ summary: 'Componer una plantilla para verla, sin enviarla' })
+  vistaPreviaDeCorreo(@Body() dto: { asunto?: string; cuerpo?: string }) {
+    return componerCorreo(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), MUESTRA);
+  }
+
   @Post('probar')
   @RequiresPermission('reservations', 'edit')
   @Throttle({ default: { limit: 5, ttl: 60000 } })

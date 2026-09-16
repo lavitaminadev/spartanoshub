@@ -107,6 +107,9 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         });
         return equipo.filter((persona) => persona.email?.trim());
     }
+    vistaPreviaDeCorreo(dto) {
+        return (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
+    }
     async probar(request, dto) {
         const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId);
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? 'Prueba'), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
@@ -203,6 +206,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "destinatariosDePrueba", null);
+__decorate([
+    (0, common_1.Post)('correos/vista-previa'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, swagger_1.ApiOperation)({ summary: 'Componer una plantilla para verla, sin enviarla' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], OrganizationSettingsController.prototype, "vistaPreviaDeCorreo", null);
 __decorate([
     (0, common_1.Post)('probar'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),

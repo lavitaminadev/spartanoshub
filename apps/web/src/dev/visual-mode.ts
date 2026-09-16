@@ -1043,6 +1043,30 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   ]],
   // Requisitos de cada aviso: una tarea corriendo, otra detenida y la encuesta sin elegir, para
   // poder revisar en pantalla los tres estados posibles.
+  // Vista previa: un armazón parecido al real, suficiente para revisar el marco, el asunto y
+  // cómo quedan las variables ya rellenadas.
+  [/\/settings\/correos\/vista-previa$/, (config: any) => {
+    // Axios entrega el cuerpo ya serializado: aquí llega como texto, no como objeto.
+    const enviado = typeof config?.data === 'string' ? JSON.parse(config.data) : (config?.data ?? {});
+    const cuerpo = String(enviado?.cuerpo ?? '');
+    const asunto = String(enviado?.asunto ?? '');
+    const rellenar = (texto: string) => texto
+      .replace(/\{\{\s*nombre\s*\}\}/g, 'Camila')
+      .replace(/\{\{\s*local\s*\}\}/g, 'Casa Costanera')
+      .replace(/\{\{\s*fecha\s*\}\}/g, 'viernes 3 de octubre')
+      .replace(/\{\{[^}]*\}\}/g, '');
+    return {
+      subject: rellenar(asunto),
+      html: [
+        '<div style="font-family:system-ui;background:#f6f4f5;padding:24px">',
+        '<div style="max-width:560px;margin:auto;background:#fff;border-radius:14px;padding:28px">',
+        '<p style="color:#ea0f63;font-weight:800;letter-spacing:.12em;font-size:11px;margin:0 0 14px">CASA COSTANERA</p>',
+        '<div style="white-space:pre-wrap;color:#2b2730;line-height:1.6">' + rellenar(cuerpo) + '</div>',
+        '<p style="color:#8b8490;font-size:12px;margin-top:24px">Enviado con Espartanos Reservas</p>',
+        '</div></div>',
+      ].join(''),
+    };
+  }],
   [/\/settings\/correos\/requisitos$/, () => ({
     casilla: true,
     tareas: {

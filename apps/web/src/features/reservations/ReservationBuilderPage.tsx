@@ -224,6 +224,19 @@ export function ReservationBuilderPage() {
    * Se piden sólo cuando la empresa tiene medición y se está en el paso que los muestra: quien
    * solo edita horarios no necesita cargar la lista.
    */
+  /*
+   * Encuestas que este local puede enviar tras la visita.
+   *
+   * Sólo las activas y de clientes de su empresa: ofrecer una cerrada o de otra empresa dejaría
+   * elegir algo que el envío después descarta sin decir nada.
+   */
+  const { data: encuestasDeLaEmpresa } = useQuery<Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }>>({
+    queryKey: ['encuestas-del-local', data?.clientId],
+    queryFn: () => api.get(`/surveys?clientId=${data?.clientId}`),
+    enabled: Boolean(data?.clientId) && !clientMode,
+    staleTime: 60_000,
+  });
+
   const { data: pixelesDelLocal } = useQuery<{ porDefecto: { pixelId: string | null; pixelName: string | null; tieneToken: boolean }; pixels: Array<{ pixelId: string; nombre: string | null; tieneToken: boolean; esDeLaEmpresa: boolean }> }>({
     queryKey: ['reservation-form-pixels', data?.clientId],
     queryFn: () => api.get(`/reservations/forms/meta-pixels?clientId=${data?.clientId}`),
@@ -854,6 +867,19 @@ export function ReservationBuilderPage() {
       <section className="reservation-readiness correos-del-local"><div><span className="page-eyebrow">CORREOS</span><h2>Quién envía, quién responde y a quién se avisa</h2><p className="page-subtitle">Tres casillas con tres funciones distintas.</p></div>
         <div className="correo-rol"><strong>1. Quién envía y qué dice</strong><small>La casilla que envía y el texto de confirmación, recordatorio y encuesta se configuran en {clientMode ? 'Espartanos, por el equipo que lleva tu cuenta' : <Link to="/correos">Correos</Link>}. Aquí sólo se definen las dos casillas del local.</small></div>
         <label className="correo-rol"><strong>2. A dónde llegan las respuestas del cliente</strong><small>Si quien reserva contesta un correo, le llega a esta casilla. También se muestra en la página para cambios y cancelaciones.</small><input className="input" type="email" value={String(draft.designConfig?.supportEmail || '')} onChange={(e) => cambiarAjuste('supportEmail', e.target.value)} placeholder={draft.datosLegalesEmpresa?.privacyEmail || 'contacto@local.cl'} /></label>
+        {/*
+          * Qué encuesta se manda después de la visita.
+          *
+          * La elige el local y no su empresa: dos sucursales de la misma empresa suelen querer
+          * preguntar cosas distintas. Vacío hereda la que su empresa tenga puesta en Correos, que
+          * es como funcionó hasta ahora. El texto del correo sigue siendo común.
+          */}
+        {!clientMode && <label className="correo-rol"><strong>4. Qué encuesta se envía después de la visita</strong><small>Se manda unas horas después de una visita marcada como asistida, si el aviso está encendido en <Link to="/correos">Correos</Link>.</small>
+          <select className="input" value={String(draft.designConfig?.encuestaPostVisita || '')} onChange={(e) => cambiarAjuste('encuestaPostVisita', e.target.value)}>
+            <option value="">La que tenga su empresa</option>
+            {(encuestasDeLaEmpresa ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer').map((encuesta) => <option key={encuesta.id} value={encuesta.id}>{encuesta.title}</option>)}
+          </select>
+        </label>}
         <label className="correo-rol"><strong>3. A quién se avisa de cada reserva nueva</strong><small>Casillas del equipo, separadas por coma. También reciben los comentarios de encuestas con nota baja. No las ve quien reserva.</small><input className="input" value={teamEmails} onChange={(e) => change({ teamNotifications: e.target.value.split(/[,;\s]+/).map((email) => email.trim()).filter(Boolean) })} placeholder="reservas@local.cl, gerente@local.cl" /></label>{draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}</section>
       {/*
         * Tres finalidades distintas, tres casillas separadas.

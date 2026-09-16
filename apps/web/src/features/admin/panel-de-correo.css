@@ -118,3 +118,20 @@
 .panel-correo-variables button:hover { background: var(--white); border-color: var(--accent); color: var(--accent); }
 .panel-correo-variables button:hover::before { opacity: 1; }
 .panel-correo-variables button:active { transform: translateY(1px); }
+
+/* Cómo llega el correo: marco aislado para que sus estilos no toquen los de la aplicación. */
+.panel-correo-vista-previa { grid-column: 1 / -1; display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; background: var(--soft); }
+.panel-correo-vista-previa > p { display: flex; align-items: baseline; gap: 8px; margin: 0; }
+.panel-correo-vista-previa > p > span { color: var(--text-light); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.panel-correo-vista-previa iframe { width: 100%; min-height: 420px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--white); }
+.panel-correo-vista-previa small { color: var(--muted); font-size: 12px; }
+
+/* Una variable inventada no falla al guardar: se borra al enviar y la frase llega a medias. */
+.panel-correo-desconocidas { color: var(--danger); font-size: 12px; line-height: 1.45; }
+
+/* Volver al texto general: sin esto, apartarse una vez era para siempre. */
+.panel-correo-heredar {
+  justify-self: start; padding: 3px 10px; border: 1px dashed var(--border-light); border-radius: 999px;
+  background: transparent; color: var(--text-light); font-size: 11px; cursor: pointer;
+}
+.panel-correo-heredar:hover { border-color: var(--accent); border-style: solid; color: var(--accent); }

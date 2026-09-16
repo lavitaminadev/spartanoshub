@@ -98,6 +98,14 @@ export class OrganizationSettingsService {
     for (const [key, value] of Object.entries(requestedValues)) {
       const setting = catalogByKey.get(key);
       if (!setting) throw new BadRequestException(`La configuración "${key}" no existe`);
+      /*
+       * Nulo significa «vuelve a heredar», no «guarda vacío».
+       *
+       * Sin esta salida, una empresa que se apartó una vez quedaba apartada para siempre: copiar
+       * a mano el texto general encima no es lo mismo, porque deja de seguir sus cambios
+       * posteriores y nadie se entera de que ya no está heredando.
+       */
+      if (value === null) { normalizedValues.set(key, null); continue; }
       try {
         normalizedValues.set(key, validateOrganizationSettingValue(setting, value));
       } catch (error) {
@@ -117,6 +125,26 @@ export class OrganizationSettingsService {
 
       for (const [key, value] of normalizedValues) {
         const definition = definitionByKey.get(key)!;
+        if (value === null) {
+          // Cerrar la fila propia basta: al leer, sin fila propia se devuelve la del nivel de
+          // arriba, que es exactamente «heredar».
+          const propia = await valueRepo.findOne({
+            where: {
+              definitionId: definition.id,
+              scopeType: clientId ? 'client' : 'organization',
+              scopeId: clientId ?? organizationId,
+              validTo: IsNull(),
+            },
+            order: { version: 'DESC' },
+          });
+          if (propia) {
+            propia.validTo = now;
+            await valueRepo.save(propia);
+            before[key] = propia.valueJson?.value ?? null;
+            after[key] = 'hereda';
+          }
+          continue;
+        }
         const active = await valueRepo.findOne({
           where: {
             definitionId: definition.id,

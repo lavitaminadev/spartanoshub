@@ -76,6 +76,10 @@ let OrganizationSettingsService = class OrganizationSettingsService {
             const setting = catalogByKey.get(key);
             if (!setting)
                 throw new common_1.BadRequestException(`La configuración "${key}" no existe`);
+            if (value === null) {
+                normalizedValues.set(key, null);
+                continue;
+            }
             try {
                 normalizedValues.set(key, (0, organization_settings_catalog_1.validateOrganizationSettingValue)(setting, value));
             }
@@ -93,6 +97,24 @@ let OrganizationSettingsService = class OrganizationSettingsService {
             const now = new Date();
             for (const [key, value] of normalizedValues) {
                 const definition = definitionByKey.get(key);
+                if (value === null) {
+                    const propia = await valueRepo.findOne({
+                        where: {
+                            definitionId: definition.id,
+                            scopeType: clientId ? 'client' : 'organization',
+                            scopeId: clientId ?? organizationId,
+                            validTo: (0, typeorm_2.IsNull)(),
+                        },
+                        order: { version: 'DESC' },
+                    });
+                    if (propia) {
+                        propia.validTo = now;
+                        await valueRepo.save(propia);
+                        before[key] = propia.valueJson?.value ?? null;
+                        after[key] = 'hereda';
+                    }
+                    continue;
+                }
                 const active = await valueRepo.findOne({
                     where: {
                         definitionId: definition.id,
