@@ -808,6 +808,20 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     }
     return { matrix };
   }],
+  // Detalle de permisos de una persona, con la procedencia de cada nivel. Trae un caso de cada
+  // motivo posible para poder revisar la pantalla completa.
+  [/\/users\/[^/?]+\/permissions$/, () => ({
+    userId: 'visual-user',
+    role: 'commercial_director',
+    modules: [
+      { module: 'reservations', level: 'edit', source: 'role', roleAdjusted: false, moduleDisabled: false, productHidden: false },
+      { module: 'surveys', level: 'none', source: 'override', roleAdjusted: false, moduleDisabled: false, productHidden: false },
+      { module: 'crm', level: 'manage', source: 'role', roleAdjusted: true, moduleDisabled: false, productHidden: false },
+      { module: 'clients', level: 'manage', source: 'role', roleAdjusted: false, moduleDisabled: false, productHidden: false },
+      { module: 'reports', level: 'none', source: 'role', roleAdjusted: false, moduleDisabled: false, productHidden: true },
+      { module: 'billing', level: 'none', source: 'role', roleAdjusted: false, moduleDisabled: true, productHidden: false },
+    ],
+  })],
   [/\/permission-overrides$/, () => ({
     items: [
       { id:'exc-001', userId:'user-cm', userName:'Valentina Rojas', userRole:'community_manager', module:'production', level:'edit', reason:'Campaña Q1 — necesita ver el tablero de producción por dos semanas', expiresAt: new Date(Date.now() + 14*864e5).toISOString(), status:'active', createdAt: new Date(Date.now() - 2*864e5).toISOString() },

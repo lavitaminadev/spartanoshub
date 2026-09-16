@@ -75,6 +75,27 @@ interface OrganizationSetting { key: string; value: string | number | boolean | 
 type OrganizationFeatures = Partial<Record<OrganizationModuleKey, boolean>>;
 type Feedback = { tone: 'success' | 'error'; text: string } | null;
 
+/** Un módulo tal como lo explica el servidor, con la procedencia de su nivel. */
+interface ModuloExplicado {
+  module: string;
+  level: PermissionLevel;
+  source: 'role' | 'override';
+  /** El nivel viene de una celda guardada en la matriz, no del valor de fábrica del cargo. */
+  roleAdjusted: boolean;
+  moduleDisabled: boolean;
+  /** El producto todavía no entrega este módulo a este cargo. */
+  productHidden: boolean;
+}
+
+/** Por qué esta persona recibe este nivel, en el mismo orden en que el servidor lo decide. */
+function motivoDelNivel(modulo: ModuloExplicado): string {
+  if (modulo.moduleDisabled) return 'El módulo está apagado para la organización';
+  if (modulo.productHidden) return 'El producto todavía no entrega este módulo a este cargo';
+  if (modulo.source === 'override') return 'Excepción puesta a esta persona';
+  if (modulo.roleAdjusted) return 'Ajuste guardado en la matriz para este cargo';
+  return 'Valor de fábrica del cargo';
+}
+
 export function AdminPage() {
   const qc = useQueryClient();
   const user = useAuth((state) => state.user);
@@ -104,6 +125,13 @@ export function AdminPage() {
   const [roleFocus, setRoleFocus] = useState<string>(ROLE_KEYS[0]);
   const [exceptionOpen, setExceptionOpen] = useState(false);
   const [exceptionDraft, setExceptionDraft] = useState({ userId: '', userRole: '', module: '', level: 'view' as PermissionLevel, reason: '', expiresAt: '' });
+  /**
+   * Persona cuyo detalle de permisos se está mirando.
+   *
+   * Responde «por qué esta persona no ve esto», que hasta ahora obligaba a revisar cuatro
+   * pantallas distintas sin saber cuál de las cuatro rejas había cerrado.
+   */
+  const [diagnostico, setDiagnostico] = useState('');
   const [revokeTarget, setRevokeTarget] = useState<{ userId: string; module: string } | null>(null);
   const [exceptionSearch, setExceptionSearch] = useState('');
   const [exceptionClient, setExceptionClient] = useState('');
@@ -113,6 +141,11 @@ export function AdminPage() {
 
   const permsQuery = useQuery<{ matrix?: Record<string, Record<string, string>> }>({ queryKey: ['role-permissions'], queryFn: () => api.get('/roles/permissions'), enabled: canManagePermissions });
   const exceptionsQuery = useQuery<{ items?: AccessException[] }>({ queryKey: ['access-exceptions'], queryFn: () => api.get('/permission-overrides') });
+  const diagnosticoQuery = useQuery<{ role: string; modules: ModuloExplicado[] }>({
+    queryKey: ['permisos-de-persona', diagnostico],
+    queryFn: () => api.get(`/users/${diagnostico}/permissions`),
+    enabled: Boolean(diagnostico),
+  });
   const usersQuery = useQuery<(UserOption[] | { data: UserOption[] })>({ queryKey: ['admin-users'], queryFn: () => api.get('/users?isActive=true') });
   const featuresQuery = useQuery<{ features?: OrganizationFeatures }>({ queryKey: ['organization-features'], queryFn: () => api.get('/organizations/features'), enabled: canManageModules });
   const settingsQuery = useQuery<OrganizationSetting[]>({ queryKey: ['organization-settings'], queryFn: () => api.get('/settings') });
@@ -497,6 +530,19 @@ export function AdminPage() {
       {visibleExceptions.length === 0
         ? <EmptyState icon="lock" title="Sin excepciones" description={exceptions.length === 0 ? 'No hay excepciones de acceso. Crea una para otorgar acceso temporal.' : 'Ninguna excepción coincide con el filtro.'} action={exceptions.length === 0 ? <button className="btn btn-primary" onClick={() => setExceptionOpen(true)}>Crear primera excepción</button> : undefined} />
         : <div className="table-wrapper"><table className="data-table"><thead><tr><th>Persona</th><th>Cargo</th><th>Módulo</th><th>Nivel</th><th>Vencimiento</th><th>Motivo</th><th></th></tr></thead><tbody>{visibleExceptions.map((e) => <tr key={e.id} className={e.status === 'expired' ? 'row-muted' : ''}><td><strong>{e.userName}</strong></td><td>{e.userRole ? (ROLE_LABELS[e.userRole] ?? e.userRole) : '—'}</td><td>{e.module}</td><td><span className={`level-pill level-${e.level}`} style={{ backgroundColor: `${LEVEL_COLORS[e.level as PermissionLevel] ?? '#706a73'}18`, color: LEVEL_COLORS[e.level as PermissionLevel] ?? '#706a73', borderColor: LEVEL_COLORS[e.level as PermissionLevel] ?? '#706a73' }}>{LEVEL_LABELS[e.level as PermissionLevel] ?? e.level}</span></td><td>{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString('es-CL') : 'Sin vencimiento'}<br /><small><StatusBadge status={e.status} /></small></td><td>{e.reason || '—'}</td><td>{e.status === 'active' ? <button className="btn btn-outline btn-sm" onClick={() => setRevokeTarget({ userId: e.userId, module: e.module })}>Revocar</button> : null}</td></tr>)}</tbody></table></div>}
+    </section>}
+
+    {tab === 'excepciones' && <section className="diagnostico-permisos">
+      <div className="section-toolbar"><div><span className="page-eyebrow">DIAGNÓSTICO</span><h2>Por qué una persona ve lo que ve</h2><p className="page-subtitle">El nivel que recibe en cada módulo y cuál de las rejas lo decidió. Es lo mismo que aplica el servidor, no un cálculo aparte.</p></div></div>
+      <div className="filters"><select className="input" value={diagnostico} onChange={(e) => setDiagnostico(e.target.value)}><option value="">Elegir persona…</option>{exceptionUsers.map((u) => <option key={u.id} value={u.id}>{u.name} · {ROLE_LABELS[u.role] ?? u.role}</option>)}</select></div>
+      {diagnostico && diagnosticoQuery.isLoading && <LoadingSpinner />}
+      {diagnostico && diagnosticoQuery.data && <div className="table-wrapper"><table className="data-table"><thead><tr><th>Módulo</th><th>Nivel</th><th>Por qué</th></tr></thead><tbody>
+        {diagnosticoQuery.data.modules.map((m) => <tr key={m.module} className={m.level === 'none' ? 'row-muted' : ''}>
+          <td><strong>{m.module}</strong></td>
+          <td><span className={`level-pill level-${m.level}`} style={{ backgroundColor: `${LEVEL_COLORS[m.level] ?? '#706a73'}18`, color: LEVEL_COLORS[m.level] ?? '#706a73', borderColor: LEVEL_COLORS[m.level] ?? '#706a73' }}>{LEVEL_LABELS[m.level] ?? m.level}</span></td>
+          <td>{motivoDelNivel(m)}</td>
+        </tr>)}
+      </tbody></table></div>}
     </section>}
 
     {tab === 'consentimiento' && <section>
