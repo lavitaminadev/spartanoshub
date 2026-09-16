@@ -1202,10 +1202,14 @@ function ReservationLivePreview({
           <span>AGENDA EN LÍNEA</span>
           <h2>{design.title || draft.name}</h2>
           <p>{design.welcome || 'Elige el horario que mejor te acomode.'}</p>
-          <div className="preview-public-facts">
-            <div><strong>{draft.durationMinutes}</strong><span>minutos</span></div>
-            <div><strong>{draft.confirmationMode === 'automatic' ? 'Directa' : 'Manual'}</strong><span>confirmación</span></div>
-            <div><strong>{draft.timezone?.split('/').pop()?.replaceAll('_', ' ')}</strong><span>zona horaria</span></div>
+          <div className="booking-datos">
+            {String(design.notasDelLocal || '').trim() && <p className="booking-notas-local">{String(design.notasDelLocal).trim()}</p>}
+            <ul className="booking-reglas">
+              <li><span>Duración</span><strong>{draft.durationMinutes} minutos</strong></li>
+              <li><span>Confirmación</span><strong>{draft.confirmationMode === 'automatic' ? 'Directa' : 'Manual'}</strong></li>
+              {Number(design.toleranciaMinutos || 0) > 0 && <li><span>Tolerancia</span><strong>Te esperamos {Number(design.toleranciaMinutos)} minutos; después la mesa queda disponible</strong></li>}
+              <li><span>Zona horaria</span><strong>{draft.timezone?.split('/').pop()?.replaceAll('_', ' ')}</strong></li>
+            </ul>
           </div>
         </section>
         <section className="preview-public-card">

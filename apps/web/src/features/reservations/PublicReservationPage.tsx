@@ -776,6 +776,10 @@ export function PublicReservationPage() {
   /** Cuánto espera el local a quien se atrasa. Cero o vacío significa que prefiere no decirlo. */
   const toleranciaEnMinutos = Math.max(0, Math.min(120, Number(design.toleranciaMinutos || '0') || 0));
   const consultasPorWhatsapp = businessWhatsAppUrl(design.whatsappBusinessNumber, String(design.whatsappConsultas || 'Hola, tengo una duda sobre una reserva.'));
+  /** La tabla se dibuja sólo si tiene al menos una fila que decir. */
+  const muestraLasReglas = !requestMode && Boolean(
+    horarioDeAtencion || form?.minimumNoticeHours || toleranciaEnMinutos > 0 || consultasPorWhatsapp || visible(design.showFacts),
+  );
   const limiteDeAvisos = design.ocasionesVeces === 'siempre' ? Number.POSITIVE_INFINITY : Math.max(1, Number(design.ocasionesVeces || '1') || 1);
   const primary = normalizeHexColor(design.primaryColor, '#0ec6b8');
   const accent = normalizeHexColor(design.accentColor, '#ea0f63');
@@ -985,7 +989,7 @@ export function PublicReservationPage() {
       </div>
     </details>}
     <div className="public-booking-layout">
-      <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={optimizedUrl(design.logoUrl, 480)} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{requestMode ? 'SOLICITUD DE EVENTO' : eyebrowText}</span>}<h1>{requestMode ? 'Solicita tu evento' : design.title || form.name}</h1>{visible(design.showWelcome) && <p>{requestMode ? 'Cuéntanos tu evento y el local te contactará para coordinar fecha y detalles.' : design.welcome || 'Elige el horario que mejor te acomode.'}</p>}{!requestMode && visible(design.showFacts) && <div className="public-booking-facts"><div><strong>{selectedService?.durationMinutes || form.durationMinutes}</strong><span>{durationLabel}</span></div><div><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong><span>{confirmationLabel}</span></div></div>}
+      <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={optimizedUrl(design.logoUrl, 480)} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{requestMode ? 'SOLICITUD DE EVENTO' : eyebrowText}</span>}<h1>{requestMode ? 'Solicita tu evento' : design.title || form.name}</h1>{visible(design.showWelcome) && <p>{requestMode ? 'Cuéntanos tu evento y el local te contactará para coordinar fecha y detalles.' : design.welcome || 'Elige el horario que mejor te acomode.'}</p>}
         {/*
           * Lo que hay que saber antes de elegir una hora.
           *
@@ -994,14 +998,17 @@ export function PublicReservationPage() {
           * tarde no sabía si su mesa seguía guardada. Son las tres preguntas que terminan en una
           * llamada al local, y la única forma de no contestarlas es no decirlas.
           */}
-        {step === 1 && notasDelLocal && <p className="booking-notas-local">{notasDelLocal}</p>}
-
-        {!requestMode && step === 1 && (horarioDeAtencion || form.minimumNoticeHours > 0 || toleranciaEnMinutos > 0) && <ul className="booking-reglas">
-          {horarioDeAtencion && <li><span>Horario</span><strong>{horarioDeAtencion}</strong></li>}
-          {form.minimumNoticeHours > 0 && <li><span>Anticipación</span><strong>Se reserva con {form.minimumNoticeHours} {form.minimumNoticeHours === 1 ? 'hora' : 'horas'} de anticipación</strong></li>}
-          {toleranciaEnMinutos > 0 && <li><span>Tolerancia</span><strong>Te esperamos {toleranciaEnMinutos} minutos; después la mesa queda disponible</strong></li>}
-          {consultasPorWhatsapp && <li><span>Dudas</span><strong><a href={consultasPorWhatsapp} target="_blank" rel="noopener noreferrer">Escríbenos por WhatsApp</a></strong></li>}
-        </ul>}
+        {step === 1 && (notasDelLocal || muestraLasReglas) && <div className="booking-datos">
+          {notasDelLocal && <p className="booking-notas-local">{notasDelLocal}</p>}
+          {muestraLasReglas && <ul className="booking-reglas">
+            {!requestMode && visible(design.showFacts) && <li><span>Duración</span><strong>{selectedService?.durationMinutes || form.durationMinutes} {durationLabel}</strong></li>}
+            {!requestMode && visible(design.showFacts) && <li><span>{confirmationLabel}</span><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong></li>}
+            {horarioDeAtencion && <li><span>Horario</span><strong>{horarioDeAtencion}</strong></li>}
+            {form.minimumNoticeHours > 0 && <li><span>Anticipación</span><strong>Se reserva con {form.minimumNoticeHours} {form.minimumNoticeHours === 1 ? 'hora' : 'horas'} de anticipación</strong></li>}
+            {toleranciaEnMinutos > 0 && <li><span>Tolerancia</span><strong>Te esperamos {toleranciaEnMinutos} minutos; después la mesa queda disponible</strong></li>}
+            {consultasPorWhatsapp && <li><span>Dudas</span><strong><a href={consultasPorWhatsapp} target="_blank" rel="noopener noreferrer">Escríbenos por WhatsApp</a></strong></li>}
+          </ul>}
+        </div>}
 
         {/* Sólo mientras se elige: en datos y confirmación empujaba el formulario hacia abajo. */}
         {ocasionesEncendidas && step === 1 && <div className="booking-ocasiones">
