@@ -746,6 +746,26 @@ export function ReservationBuilderPage() {
                   : 'Este local medirá aparte de su empresa. Su historial de conversiones no se comparte con el resto.'}</small>
             </label>}
 
+            {/*
+              * Qué hay que crear del lado de Meta.
+              *
+              * Los eventos aparecen solos en el Administrador de Eventos: Meta los da de alta al
+              * recibirlos. Lo que no aparece solo son las conversiones personalizadas, que es lo
+              * que separa reservas de eventos y un local de otro. Sin ellas los datos llegan bien
+              * etiquetados y se siguen viendo juntos, así que la pantalla lo dice acá, que es
+              * donde se enciende la medición.
+              */}
+            {draft.metaCapiEnabled && <div className="publish-meta-state">
+              <strong>Qué crear en el Administrador de Eventos</strong>
+              <small>Los eventos (Schedule, Lead, InitiateCheckout) se dan de alta solos al llegar: no hay que agregarlos. Para ver por separado las reservas, los eventos y las encuestas de este local, crea conversiones personalizadas con estos filtros:</small>
+              <ul className="meta-conversiones">
+                <li><b>Reservas</b> · evento <code>Schedule</code> · <code>content_type</code> = <code>reservation</code></li>
+                <li><b>Eventos y grupos</b> · evento <code>Lead</code> · <code>content_type</code> = <code>group_request</code></li>
+                <li><b>Encuestas</b> · evento <code>Lead</code> · <code>content_type</code> = <code>survey</code></li>
+                <li><b>Sólo este local</b> · agrega <code>content_ids</code> contiene <code>{id}</code></li>
+              </ul>
+            </div>}
+
             <label>Nombre de esta campaña
               <input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" />
               <small>Se guarda como atribución predeterminada. El enlace corto no cambia.</small>

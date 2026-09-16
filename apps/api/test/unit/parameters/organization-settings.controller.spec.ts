@@ -14,6 +14,23 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
     controller = new OrganizationSettingsController(settings as any, accountAccess as any);
   });
 
+  /*
+   * Qué le falta al servidor de correo es información de operación: nombra las variables con que
+   * está montado. Quien administra reservas no puede entrar al servidor a resolverlo, así que sólo
+   * necesita saber que aún no está activo.
+   */
+  it('sólo desarrollo ve qué le falta al servidor de correo', () => {
+    const correo = { estado: () => ({ habilitado: false, remitente: null, servidor: null, puerto: null, respuestasA: null, faltan: ['SMTP_ENABLED=true', 'SMTP_HOST'] }) };
+    const conCorreo = new OrganizationSettingsController(settings as any, accountAccess as any, correo as any, {} as any);
+
+    const comoAdmin = conCorreo.estadoDelCorreo({ user: { role: UserRole.ADMIN } } as any);
+    const comoDev = conCorreo.estadoDelCorreo({ user: { role: UserRole.DEV } } as any);
+
+    expect(comoAdmin.faltan).toEqual([]);
+    expect(comoAdmin.habilitado).toBe(false);
+    expect(comoDev.faltan).toEqual(['SMTP_ENABLED=true', 'SMTP_HOST']);
+  });
+
   it('impide que admin cambie el ciclo de vida de módulos', async () => {
     const request = { organizationId: 'org-1', user: { id: 'admin-1', role: UserRole.ADMIN } } as any;
 

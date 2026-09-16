@@ -78,8 +78,9 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);
     }
-    estadoDelCorreo() {
-        return this.correo.estado();
+    estadoDelCorreo(request) {
+        const estado = this.correo.estado();
+        return request.user.role === user_role_enum_1.UserRole.DEV ? estado : { ...estado, faltan: [] };
     }
     async destinatariosDePrueba(request) {
         const organizationId = request.organizationId || request.user.organizationId;
@@ -164,8 +165,9 @@ __decorate([
     (0, common_1.Get)('estado-del-correo'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
     (0, swagger_1.ApiOperation)({ summary: 'Estado del envío de correos' }),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], OrganizationSettingsController.prototype, "estadoDelCorreo", null);
 __decorate([

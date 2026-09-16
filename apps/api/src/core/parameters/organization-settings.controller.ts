@@ -140,12 +140,19 @@ export class OrganizationSettingsController {
     return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);
   }
 
-  /** Si el servidor de correo está listo para enviar, y qué falta si no. */
+  /**
+   * Si el servidor de correo está listo para enviar, y qué falta si no.
+   *
+   * Qué falta lo ve sólo quien puede resolverlo. Los nombres de las variables describen cómo está
+   * montado el servidor, y quien administra reservas no tiene acceso a él: le basta saber que aún
+   * no está activo.
+   */
   @Get('estado-del-correo')
   @RequiresPermission('reservations', 'edit')
   @ApiOperation({ summary: 'Estado del envío de correos' })
-  estadoDelCorreo() {
-    return this.correo.estado();
+  estadoDelCorreo(@Req() request: AuthenticatedRequest) {
+    const estado = this.correo.estado();
+    return request.user.role === UserRole.DEV ? estado : { ...estado, faltan: [] };
   }
 
   @Get('destinatarios-de-prueba')
