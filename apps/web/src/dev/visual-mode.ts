@@ -553,7 +553,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
   [/\/uploads\/images\/status/, () => ({ configured: true })],
   [/\/public\/reservations\/manage\/[^/]+\/beneficios$/, () => ({ aceptado: true })],
-  [/\/settings\/estado-del-correo$/, () => ({ habilitado: false, remitente: null, servidor: null, puerto: null, respuestasA: null, faltan: ['SMTP_ENABLED=true', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM'] })],
+  [/\/settings\/estado-del-correo$/, () => ({ habilitado: true, remitente: 'reservas@espartanos.cl', servidor: 'mail.espartanos.cl', puerto: 465, respuestasA: null, faltan: [] })],
   [/\/(reservations|surveys)\/company-legal/, (config) => {
     const clave = 'vh.visual.companyLegal';
     let actual: Record<string, unknown> = { legalName: 'Casa Costanera SpA', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace', privacyText: '', termsText: '' };

@@ -259,8 +259,16 @@ export function PanelDeCorreo(): JSX.Element {
         </label>
       </header>
 
-      {/* Dónde se configura cada cosa: una sola explicación para no buscar en varias pantallas. */}
-      <section className="panel-correo-guia" aria-label="Cómo se configuran los correos">
+      {/*
+        * Dónde se configura cada cosa.
+        *
+        * Los tres pasos son el montaje del sistema y los da desarrollo. Quien entra a escribir los
+        * textos ya tiene la pantalla delante: repetirle que los escriba aquí es ruido, y las otras
+        * dos cosas no las puede tocar. Lo único que sí necesita saber es si los avisos están
+        * saliendo, porque de eso depende que lo que escriba llegue a alguien; eso se conserva en
+        * una línea, abajo.
+        */}
+      {esDev && <section className="panel-correo-guia" aria-label="Cómo se configuran los correos">
         <div className={`panel-correo-paso ${estadoQuery.isLoading ? '' : estadoQuery.data?.habilitado ? 'is-listo' : 'is-pendiente'}`} aria-busy={estadoQuery.isLoading}>
           <span>1</span>
           <div>
@@ -280,7 +288,8 @@ export function PanelDeCorreo(): JSX.Element {
           <span>3</span>
           <div><strong>Respuestas y avisos de cada sucursal · en la sucursal</strong><small>A qué correo del local llegan las respuestas de los clientes y quién del equipo recibe el aviso de cada reserva nueva: Reservas → sucursal → Datos del local y textos legales → Correos.</small></div>
         </div>
-      </section>
+      </section>}
+
 
       {empresa ? (
         <p className="panel-correo-nota">
