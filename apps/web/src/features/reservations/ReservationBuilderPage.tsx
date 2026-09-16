@@ -740,7 +740,7 @@ export function ReservationBuilderPage() {
                 {draft.metaPixelId && !(pixelesDelLocal?.pixels || []).some((pixel) => pixel.pixelId === draft.metaPixelId) && <option value={draft.metaPixelId}>{draft.metaPixelId} (no registrado)</option>}
               </select>
               <small>{!draft.metaPixelId
-                ? 'Las reservas, los eventos y las encuestas de este local ya se distinguen dentro del Pixel de la empresa. Cámbialo sólo si este local se anuncia desde otra cuenta publicitaria.'
+                ? 'Las reservas, los eventos y las encuestas de este local ya se distinguen dentro del Pixel de la empresa. Cámbialo sólo si este local se anuncia desde otra cuenta publicitaria. No afecta al CRM: cada campaña elige el suyo por separado.'
                 : pixelSinToken
                   ? 'Ese Pixel no tiene token de Conversions API: no se puede guardar hasta registrarlo en Integraciones.'
                   : 'Este local medirá aparte de su empresa. Su historial de conversiones no se comparte con el resto.'}</small>
