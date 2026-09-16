@@ -19,19 +19,16 @@ describe('alcance de fase', () => {
   });
 
   /*
-   * Clientes y Conexiones los decide la matriz, no esta función.
-   *
-   * Escribirlo en los dos sitios dejaba a Dirección de Operaciones administrando las reservas de
-   * todas las empresas sin poder abrir la ficha de ninguna: la matriz le concedía el permiso y
-   * esta reja lo anulaba después, sin que la pantalla dijera por qué.
+   * Dirección de Operaciones administra las reservas de todas las empresas, así que necesita
+   * abrir su ficha. Lo demás de esta lista no se mueve: es la reja de verdad —la matriz concede
+   * el catálogo a todo cargo interno— y ampliarla de más abre la cartera al equipo entero.
    */
-  it('no vuelve a decidir por su cuenta quién entra a Clientes y Conexiones', () => {
-    for (const module of ['clients', 'integrations']) {
-      expect(isModuleInPhaseScope(module, undefined, 'operations_director'), module).toBe(true);
-      expect(isModuleInPhaseScope(module, undefined, 'community_manager'), module).toBe(true);
-      // El portal de una empresa no nombra la cartera de la agencia ni sus credenciales.
-      expect(isModuleInPhaseScope(module, undefined, 'client'), module).toBe(false);
-    }
+  it('deja a Dirección de Operaciones abrir la ficha de una empresa, y a nadie más de más', () => {
+    expect(isModuleInPhaseScope('clients', undefined, 'operations_director')).toBe(true);
+    expect(isModuleInPhaseScope('clients', undefined, 'community_manager')).toBe(false);
+    expect(isModuleInPhaseScope('clients', undefined, 'creative_director')).toBe(false);
+    // Conexiones guarda las credenciales de medición: sigue en administración y dirección comercial.
+    expect(isModuleInPhaseScope('integrations', undefined, 'operations_director')).toBe(false);
   });
 
   /**
