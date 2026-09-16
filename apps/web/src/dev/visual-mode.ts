@@ -1039,6 +1039,31 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     { key: 'email.post_visit_survey_subject', label: 'Encuesta después de la visita · asunto', description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text', value: '¿Cómo te fue en {{local}}?', source: 'master_default' },
     { key: 'email.post_visit_survey_body', label: 'Encuesta después de la visita · cuerpo', description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text', value: 'Hola {{nombre}}:\n\nGracias por venir a {{local}}.', source: 'master_default' },
   ]],
+  // Requisitos de cada aviso: una tarea corriendo, otra detenida y la encuesta sin elegir, para
+  // poder revisar en pantalla los tres estados posibles.
+  [/\/settings\/correos\/requisitos$/, () => ({
+    casilla: true,
+    tareas: {
+      'recordatorio-reservas': { ultima: new Date().toISOString(), corriendo: true },
+      'encuesta-post-visita': { ultima: null, corriendo: false },
+      'cierre-asistencia': { ultima: null, corriendo: false },
+      cumpleanos: { ultima: null, corriendo: false },
+      'resumen-diario': { ultima: new Date().toISOString(), corriendo: true },
+      'recordatorio-tareas': { ultima: null, corriendo: false },
+      'collection-emails': { ultima: null, corriendo: false },
+    },
+    avisos: {
+      'email.reservation_reminder': [{ clave: 'cron', tarea: 'recordatorio-reservas' }],
+      'email.post_visit_survey': [{ clave: 'cron', tarea: 'encuesta-post-visita' }, { clave: 'asistencia' }, { clave: 'encuesta' }],
+      'email.birthday': [{ clave: 'cron', tarea: 'cumpleanos' }],
+      'email.daily_digest': [{ clave: 'cron', tarea: 'resumen-diario' }],
+      'email.task_reminder': [{ clave: 'cron', tarea: 'recordatorio-tareas' }],
+      'email.collection_overdue': [{ clave: 'cron', tarea: 'collection-emails' }],
+      'email.team_new_reservation': [{ clave: 'equipo' }],
+      'email.team_group_request': [{ clave: 'equipo' }],
+      'email.team_waitlist': [{ clave: 'equipo' }],
+    },
+  })],
   [/\/settings\/destinatarios-de-prueba$/, () => [{ id: 'visual-user', name: 'Modo Visual', email: 'visual@espartanos.local' }]],
   [/\/settings\?prefix=security\.password$/, () => ({
     'security.password.minLength': '8',

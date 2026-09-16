@@ -68,3 +68,53 @@
 .panel-correo-paso strong { display: block; margin-bottom: 3px; }
 .panel-correo-paso small { display: block; line-height: 1.5; overflow-wrap: anywhere; }
 .panel-correo-paso code { padding: 1px 4px; border-radius: 4px; background: #f4f1f3; font-size: 12px; }
+
+/* Resumen y filtros: cuántos están encendidos y cuántos no van a salir. */
+.panel-correo-resumen {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 16px 0 10px; padding: 12px 14px;
+  border: 1px solid var(--border-light); border-radius: 12px; background: var(--white);
+}
+.panel-correo-resumen > span { color: var(--muted); font-size: 13px; }
+.panel-correo-resumen strong { color: var(--text-dark); font-size: 15px; }
+/* Filtro rápido: se ve y se comporta como las píldoras del resto de la aplicación. */
+.panel-correo-pendientes {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px;
+  border: 1px solid #f3c6cd; border-radius: 999px; background: #fff1f3;
+  color: var(--danger); font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+.panel-correo-pendientes strong { font-size: 13px; }
+.panel-correo-pendientes:hover { background: #ffe4e8; border-color: var(--danger); }
+.panel-correo-pendientes.es-activo { background: var(--danger); border-color: var(--danger); color: var(--white); }
+.panel-correo-pendientes.es-activo strong { color: inherit; }
+.panel-correo-filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.panel-correo-filtros .input { width: auto; min-width: 150px; }
+
+/* Los avisos se agrupan por módulo: con todo encendido son diecisiete seguidos. */
+.panel-correo-modulo { margin-top: 22px; }
+.panel-correo-modulo > h3 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; font-size: 15px; }
+.panel-correo-modulo > h3 small { color: var(--muted); font-size: 12px; font-weight: 400; }
+
+/* De qué depende cada aviso, además de su interruptor. */
+.panel-correo-requisitos { display: grid; gap: 4px; margin: 6px 0 0; padding: 0; list-style: none; }
+.panel-correo-requisitos li { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; line-height: 1.45; }
+.panel-correo-requisitos li > span { flex: none; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; font-size: 10px; font-weight: 900; }
+.panel-correo-requisitos li.cumple { color: var(--muted); }
+.panel-correo-requisitos li.cumple > span { background: var(--success-bg); color: #0b6b62; }
+.panel-correo-requisitos li.falta { color: var(--danger); font-weight: 600; }
+.panel-correo-requisitos li.falta > span { background: #ffe9ec; color: var(--danger); }
+.panel-correo-requisitos li.avisa { color: var(--muted); }
+.panel-correo-requisitos li.avisa > span { background: var(--soft); color: var(--text-light); }
+
+/* Fichas de variables: se pulsan para insertar, así que se ven pulsables. */
+.panel-correo-variables { align-items: center; margin-top: 6px; }
+.panel-correo-variables > span { color: var(--text-light); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.panel-correo-variables button {
+  min-height: 26px; border-color: var(--border-light); background: var(--soft);
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.panel-correo-variables button::before { content: '+'; margin-right: 4px; font-weight: 900; opacity: .55; }
+.panel-correo-variables button:hover { background: var(--white); border-color: var(--accent); color: var(--accent); }
+.panel-correo-variables button:hover::before { opacity: 1; }
+.panel-correo-variables button:active { transform: translateY(1px); }
