@@ -19,6 +19,7 @@ import { MetaModule } from '../integrations/meta/meta.module';
 import { NotificationsModule } from '../../core/notifications/notifications.module';
 import { AuditModule } from '../../core/audit/audit.module';
 import { ParametersModule } from '../../core/parameters/parameters.module';
+import { MarketingModule } from '../marketing/marketing.module';
 
-@Module({ imports: [TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
+@Module({ imports: [TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
 export class ReservationsModule {}

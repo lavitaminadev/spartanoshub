@@ -48,6 +48,7 @@ const organization_settings_catalog_1 = require("../../../core/parameters/organi
 const parameter_resolver_service_1 = require("../../../core/parameters/parameter-resolver.service");
 const audit_service_1 = require("../../../core/audit/audit.service");
 const meta_client_pixel_service_1 = require("../../integrations/meta/meta-client-pixel.service");
+const alta_desde_reserva_1 = require("../../marketing/alta-desde-reserva");
 const geo_inference_1 = require("../../../shared/geo-inference");
 const google_conversion_outbox_service_1 = require("../../integrations/google/google-conversion-outbox.service");
 const client_capabilities_1 = require("../../clients/client-capabilities");
@@ -86,7 +87,7 @@ const TIPOS_DE_EVENTO_LEGIBLES = {
     otro: 'Otro',
 };
 let ReservationsService = ReservationsService_1 = class ReservationsService {
-    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds) {
+    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds, altaEnLaLista) {
         this.forms = forms;
         this.reservations = reservations;
         this.blocks = blocks;
@@ -106,6 +107,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.parametros = parametros;
         this.managementTokens = managementTokens;
         this.holds = holds;
+        this.altaEnLaLista = altaEnLaLista;
         this.logger = new common_1.Logger(ReservationsService_1.name);
     }
     slug(value) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 140); }
@@ -1786,6 +1788,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 .then((event) => this.reservations.update(booking.id, { calendarEventId: event.externalId, calendarUrl: event.calendarUrl }))
                 .catch((err) => this.logger.warn(`Evento de calendario pendiente para la reserva ${booking.id}: ${err instanceof Error ? err.message : err}`));
         }
+        if (result.created && result.booking.marketingConsentAt) {
+            void this.altaEnLaLista.registrar({
+                organizationId: result.booking.organizationId,
+                clientId: result.booking.clientId,
+                email: result.booking.guestEmail,
+                name: result.booking.guestName,
+                birthDate: result.booking.birthDate ?? null,
+                origen: result.form.name,
+                consentText: result.booking.marketingConsentText ?? null,
+                consentAt: result.booking.marketingConsentAt,
+            });
+        }
         if (result.created && result.booking.measurementConsentAt && result.form.metaCapiEnabled && capabilities.metaConversions) {
             try {
                 await this.enqueueMetaConversion(result.booking, result.form, shared_3.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
@@ -2649,5 +2663,6 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         typeorm_2.Repository,
         parameter_resolver_service_1.ParameterResolver,
         typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva])
 ], ReservationsService);

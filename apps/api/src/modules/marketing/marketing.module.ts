@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Suscriptor } from './suscriptor.entity';
 import { SuscriptoresService } from './suscriptores.service';
 import { SuscriptoresController } from './suscriptores.controller';
+import { AltaDeSuscriptorDesdeReserva } from './alta-desde-reserva';
 
 /**
  * La lista de correo comercial, separada de todo lo demás.
@@ -15,7 +16,7 @@ import { SuscriptoresController } from './suscriptores.controller';
 @Module({
   imports: [TypeOrmModule.forFeature([Suscriptor])],
   controllers: [SuscriptoresController],
-  providers: [SuscriptoresService],
-  exports: [SuscriptoresService],
+  providers: [SuscriptoresService, AltaDeSuscriptorDesdeReserva],
+  exports: [SuscriptoresService, AltaDeSuscriptorDesdeReserva],
 })
 export class MarketingModule {}

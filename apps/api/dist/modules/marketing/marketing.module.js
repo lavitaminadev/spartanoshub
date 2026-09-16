@@ -12,6 +12,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const suscriptor_entity_1 = require("./suscriptor.entity");
 const suscriptores_service_1 = require("./suscriptores.service");
 const suscriptores_controller_1 = require("./suscriptores.controller");
+const alta_desde_reserva_1 = require("./alta-desde-reserva");
 let MarketingModule = class MarketingModule {
 };
 exports.MarketingModule = MarketingModule;
@@ -19,7 +20,7 @@ exports.MarketingModule = MarketingModule = __decorate([
     (0, common_1.Module)({
         imports: [typeorm_1.TypeOrmModule.forFeature([suscriptor_entity_1.Suscriptor])],
         controllers: [suscriptores_controller_1.SuscriptoresController],
-        providers: [suscriptores_service_1.SuscriptoresService],
-        exports: [suscriptores_service_1.SuscriptoresService],
+        providers: [suscriptores_service_1.SuscriptoresService, alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva],
+        exports: [suscriptores_service_1.SuscriptoresService, alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva],
     })
 ], MarketingModule);
