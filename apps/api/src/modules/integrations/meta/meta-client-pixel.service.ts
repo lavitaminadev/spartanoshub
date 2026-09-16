@@ -261,6 +261,48 @@ export class MetaClientPixelService {
     return { bindings, pixels: [...pixels, ...sinAsignar], agencyPixelId };
   }
 
+  /**
+   * Pixels entre los que un ámbito de esta empresa puede elegir.
+   *
+   * Son los mismos que `resolveForScope` sabe resolver: los de la empresa y los del registro sin
+   * dueño. No incluye los de otras empresas —no podría enviarles nada— ni los nombra, porque esta
+   * lista la lee quien administra Reservas, que no tiene por qué ver la cartera completa.
+   *
+   * `tieneToken` se calcula resolviendo cada candidato de verdad, y no mirando si existe la fila:
+   * un Pixel sin credencial se guarda igual y después no envía nada sin avisar.
+   */
+  async pixelesElegibles(organizationId: string, clientId: string) {
+    const filas = await this.pixelesGuardados.find({
+      where: [{ organizationId, clientId }, { organizationId, clientId: IsNull() }],
+      order: { pixelId: 'ASC' },
+    });
+    const integration = await this.organizationIntegration(organizationId);
+    const credenciales = integration ? this.credenciales(integration) : {};
+    const porDefecto = await this.resolve(organizationId, clientId);
+
+    const ids = new Set<string>([...filas.map((fila) => fila.pixelId), ...Object.keys(credenciales)]);
+    if (porDefecto.pixelId) ids.add(porDefecto.pixelId);
+
+    const pixels = [] as Array<{ pixelId: string; nombre: string | null; tieneToken: boolean; esDeLaEmpresa: boolean }>;
+    for (const pixelId of ids) {
+      const resuelto = await this.resolveForScope(organizationId, clientId, pixelId);
+      pixels.push({
+        pixelId,
+        nombre: filas.find((fila) => fila.pixelId === pixelId)?.name ?? credenciales[pixelId]?.name ?? null,
+        tieneToken: Boolean(resuelto.accessToken),
+        esDeLaEmpresa: pixelId === porDefecto.pixelId,
+      });
+    }
+    return {
+      porDefecto: {
+        pixelId: porDefecto.pixelId || null,
+        pixelName: porDefecto.pixelName || null,
+        tieneToken: Boolean(porDefecto.accessToken),
+      },
+      pixels,
+    };
+  }
+
   async configure(id: string, organizationId: string, clientId: string, pixelId: string, accessToken?: string, pixelName?: string) {
     const integration = await this.integration(id, organizationId);
     return this.configureRecord(integration, organizationId, clientId, pixelId, accessToken, pixelName);

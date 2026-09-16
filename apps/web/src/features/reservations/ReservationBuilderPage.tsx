@@ -165,6 +165,8 @@ function updatePayload(form: Partial<ReservationForm>): Partial<ReservationForm>
     // estaban abiertas: gana la ultima en guardar, y esta mandaba su copia vieja.
     metaCapiEnabled: form.metaCapiEnabled,
     ga4MeasurementId: form.ga4MeasurementId,
+    // Vacío es «usar el de la empresa». Se manda siempre para poder volver a heredar.
+    metaPixelId: form.metaPixelId ?? '',
   };
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined && value !== null)) as Partial<ReservationForm>;
 }
@@ -216,6 +218,18 @@ export function ReservationBuilderPage() {
 
   const { data, isLoading } = useQuery<ReservationForm>({ queryKey: ['reservation-form', id], queryFn: () => api.get(`/reservations/forms/${id}`) });
   const { data: blocks = [] } = useQuery<Array<{ id: string; startsAt: string; endsAt: string; reason?: string }>>({ queryKey: ['reservation-blocks', id], queryFn: () => api.get(`/reservations/forms/${id}/blocks`) });
+  /*
+   * Pixels entre los que puede elegir este local.
+   *
+   * Se piden sólo cuando la empresa tiene medición y se está en el paso que los muestra: quien
+   * solo edita horarios no necesita cargar la lista.
+   */
+  const { data: pixelesDelLocal } = useQuery<{ porDefecto: { pixelId: string | null; pixelName: string | null; tieneToken: boolean }; pixels: Array<{ pixelId: string; nombre: string | null; tieneToken: boolean; esDeLaEmpresa: boolean }> }>({
+    queryKey: ['reservation-form-pixels', data?.clientId],
+    queryFn: () => api.get(`/reservations/forms/meta-pixels?clientId=${data?.clientId}`),
+    enabled: Boolean(data?.clientId) && Boolean(data?.capabilities?.metaConversions),
+    staleTime: 60_000,
+  });
   // El servidor manda solo mientras no haya cambios sin guardar. React Query vuelve a pedir el
   // formulario al regresar a la pestana, y pisar el borrador ahi borraba lo que la persona
   // estaba editando sin avisarle.
@@ -234,6 +248,10 @@ export function ReservationBuilderPage() {
   const campaignUrl = useMemo(() => draft ? campaignReservationUrl(draft, publicUrl) : '', [draft, publicUrl]);
   const safeCampaignUrl = safeUrl(campaignUrl);
   const designPreviewStyle = useMemo(() => reservationDesignStyle(draft?.designConfig || {}), [draft?.designConfig]);
+  const pixelDeLaEmpresa = pixelesDelLocal?.porDefecto?.pixelId ? pixelesDelLocal.porDefecto : null;
+  /** Un Pixel elegido sin credencial no envía nada: la pantalla lo dice antes de que el servidor lo rechace. */
+  const pixelSinToken = Boolean(draft?.metaPixelId)
+    && (pixelesDelLocal?.pixels || []).some((pixel) => pixel.pixelId === draft?.metaPixelId && !pixel.tieneToken);
 
   const saveMutation = useMutation({
     mutationFn: (body: Partial<ReservationForm>) => api.patch<ReservationForm>(`/reservations/forms/${id}`, updatePayload(body)),
@@ -700,6 +718,33 @@ export function ReservationBuilderPage() {
               {!draft.metaReady && <Link className="btn btn-outline btn-sm" to="/integrations">Conectar la cuenta de Meta</Link>}
               {draft.metaReady && draft.metaCapiEnabled && <SaludDeMedicion formId={id} />}
             </div>}
+
+            {/*
+              * A qué Pixel mide este local.
+              *
+              * Lo normal es heredar el de la empresa: Meta separa los resultados por local con los
+              * parámetros que ya viajan en cada conversión, y un Pixel aparte parte el aprendizaje
+              * y la atribución. Apartarse sirve cuando el local se anuncia desde otra cuenta
+              * publicitaria, que es la única dueña posible de ese conjunto de datos.
+              */}
+            {draft.capabilities?.metaConversions && <label>Pixel de este local
+              <select
+                className="input"
+                value={draft.metaPixelId || ''}
+                onChange={(event) => change({ metaPixelId: event.target.value })}
+              >
+                <option value="">Usar el de la empresa{pixelDeLaEmpresa ? ` (${pixelDeLaEmpresa.pixelId})` : ''} — recomendado</option>
+                {(pixelesDelLocal?.pixels || [])
+                  .filter((pixel) => !pixel.esDeLaEmpresa)
+                  .map((pixel) => <option key={pixel.pixelId} value={pixel.pixelId}>{pixel.pixelId}{pixel.nombre ? ` — ${pixel.nombre}` : ''}{pixel.tieneToken ? '' : ' (sin token)'}</option>)}
+                {draft.metaPixelId && !(pixelesDelLocal?.pixels || []).some((pixel) => pixel.pixelId === draft.metaPixelId) && <option value={draft.metaPixelId}>{draft.metaPixelId} (no registrado)</option>}
+              </select>
+              <small>{!draft.metaPixelId
+                ? 'Las reservas, los eventos y las encuestas de este local ya se distinguen dentro del Pixel de la empresa. Cámbialo sólo si este local se anuncia desde otra cuenta publicitaria.'
+                : pixelSinToken
+                  ? 'Ese Pixel no tiene token de Conversions API: no se puede guardar hasta registrarlo en Integraciones.'
+                  : 'Este local medirá aparte de su empresa. Su historial de conversiones no se comparte con el resto.'}</small>
+            </label>}
 
             <label>Nombre de esta campaña
               <input className="input" value={draft.campaignId || ''} onChange={(event) => change({ campaignId: event.target.value })} placeholder="Ej.: invierno-reservas-2026" />

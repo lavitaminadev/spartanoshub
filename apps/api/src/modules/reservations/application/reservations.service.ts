@@ -408,6 +408,9 @@ export class ReservationsService {
     const pausaVigente = (form.designConfig as DesignConfig | undefined)?.bookingPausedUntil;
     Object.assign(form, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
     form.crmEnabled = false;
+    // Texto vacío es «heredar el de la empresa»; se guarda como nulo para que la columna tenga un
+    // solo valor con ese significado.
+    if (dto.metaPixelId !== undefined) form.metaPixelId = dto.metaPixelId.trim() || null;
     if (!capabilities.metaConversions) form.metaCapiEnabled = false;
     // La pausa sólo la cambia `pauseForm`: el editor y la agenda guardan copias del diseño que
     // pueden ser anteriores a una pausa puesta desde la otra pantalla.
@@ -417,6 +420,16 @@ export class ReservationsService {
       form.designConfig = design as ReservationForm['designConfig'];
     }
     this.validateConfiguration(form);
+    /*
+     * Un Pixel propio sin token no falla al guardar: falla después, en cada conversión, sin avisar
+     * a nadie —los caminos de CAPI vuelven en silencio cuando no hay credencial—. Mientras el
+     * navegador sí dispara, el local parecería medido y estaría a medias. Por eso se rechaza acá,
+     * que es el único momento en que alguien está mirando.
+     */
+    if (dto.metaPixelId !== undefined && form.metaPixelId) {
+      const resuelto = await this.clientPixels.resolveForScope(organizationId, form.clientId, form.metaPixelId);
+      if (!resuelto.accessToken) throw new BadRequestException(`El Pixel ${form.metaPixelId} no tiene token de Conversions API. Regístralo en Integraciones antes de asignarlo a este local.`);
+    }
     if (form.status === 'published' && ((form.scheduleConfig as { windows?: unknown[] }).windows?.length || 0) === 0) throw new BadRequestException('No puedes publicar sin disponibilidad');
     // Publicar exige saber quién responde por los datos. Lo ya publicado sigue funcionando y el editor avisa.
     if (form.status === 'published' && !estabaPublicado) {
@@ -500,12 +513,20 @@ export class ReservationsService {
     const { services, resources } = this.configs(form);
     // Desactivar una zona o servicio nunca elimina su configuración ni afecta reservas
     // históricas; simplemente deja de ofrecerlo para nuevas reservas públicas.
-    return { name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, maximumAdvanceDays: form.maximumAdvanceDays, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
+    return { contentId: form.id, name: form.name, publicSlug: form.publicSlug, mode: form.mode, timezone: form.timezone, durationMinutes: form.durationMinutes, capacityPerSlot: form.capacityPerSlot, maximumAdvanceDays: form.maximumAdvanceDays, confirmationMode: form.confirmationMode, fieldSchema: (form.fieldSchema as FieldConfig[]).filter((field) => !field.internal), designConfig: form.designConfig, servicesConfig: services.filter((item) => item.active !== false), resourcesConfig: resources.filter((item) => item.active !== false), pixelId: meta.pixelId, pixelName: meta.pixelName || null, metaReady: Boolean(meta.pixelId && meta.accessToken), ga4MeasurementId: form.ga4MeasurementId || null };
   }
 
-  async formContext(organizationId: string, clientId: string) {
+  /**
+   * Estado del formulario para el constructor.
+   *
+   * `pixelId` es el que **realmente** va a usar ese formulario: el suyo si se apartó, y si no el de
+   * su empresa. Sin pasar el formulario, la pantalla mostraba siempre el de la empresa y un local
+   * apartado se veía midiendo contra un Pixel que no era el suyo.
+   */
+  async formContext(organizationId: string, clientId: string, form?: ReservationForm) {
     const capabilities = await this.clientCapabilities(organizationId, clientId);
-    const { pixelId, pixelName, accessToken } = capabilities.metaConversions ? await this.getClientMetaConfig(clientId, organizationId) : { pixelId: '', pixelName: null, accessToken: undefined };
+    const { pixelId, pixelName, accessToken } = capabilities.metaConversions ? await this.getClientMetaConfig(clientId, organizationId, form) : { pixelId: '', pixelName: null, accessToken: undefined };
+    const deLaEmpresa = capabilities.metaConversions && form?.metaPixelId ? await this.getClientMetaConfig(clientId, organizationId) : null;
     /*
      * Si Google no está conectado, el interruptor de calendario no puede hacer nada: activarlo
      * sólo deja reservas con un evento que nunca se crea. La pantalla necesita saberlo para no
@@ -516,7 +537,7 @@ export class ReservationsService {
     const datosLegalesEmpresa = legales?.[0] ? { legalName: legales[0].legal_name, taxId: legales[0].tax_id, privacyEmail: legales[0].privacy_email, privacyUrl: legales[0].privacy_url, termsUrl: legales[0].terms_url, legalMode: legales[0].legal_mode } : null;
     // El tope diario de la empresa (en personas) se muestra junto al del local: manda el más estricto.
     const companyDailyCap = await this.clientDailyCap(this.dataSource, clientId);
-    return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap, datosLegalesEmpresa };
+    return { capabilities, pixelId: pixelId || null, pixelName: pixelName || null, metaReady: Boolean(pixelId && accessToken), pixelHeredado: !form?.metaPixelId, pixelDeLaEmpresa: deLaEmpresa?.pixelId || null, calendarReady: Array.isArray(google) && google.length > 0, companyDailyCap, datosLegalesEmpresa };
   }
 
   private effectiveRules(form: ReservationForm, serviceId?: string, resourceId?: string) {
@@ -620,6 +641,18 @@ export class ReservationsService {
    *
    * Vale para reservas y encuestas: son la misma entidad con distinto `mode`.
    */
+  /**
+   * Pixels entre los que puede elegir un local de esta empresa, para el selector del constructor.
+   *
+   * Vive en Reservas y no en Integraciones porque quien administra un local necesita elegir su
+   * Pixel sin tener acceso a la cartera completa de la organización.
+   */
+  async pixelesDelFormulario(organizationId: string, clientId: string) {
+    const capabilities = await this.clientCapabilities(organizationId, clientId);
+    if (!capabilities.metaConversions) return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels: [] };
+    return this.clientPixels.pixelesElegibles(organizationId, clientId);
+  }
+
   private async getClientMetaConfig(clientId: string, organizationId: string, form?: ReservationForm) {
     return this.clientPixels.resolveForScope(organizationId, clientId, form?.metaPixelId);
   }

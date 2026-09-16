@@ -17,7 +17,11 @@ const coupons = { findOne: vi.fn(), create: vi.fn((value) => value), save: vi.fn
 const dataSource = { transaction: vi.fn(), query: vi.fn() };
 const calendar = { createEvent: vi.fn() };
 const metaOutbox = { enqueue: vi.fn(), processPending: vi.fn() };
-const clientPixels = { resolve: vi.fn().mockResolvedValue({ pixelId: '', accessToken: undefined }) };
+const clientPixels = {
+  resolve: vi.fn().mockResolvedValue({ pixelId: '', accessToken: undefined }),
+  resolveForScope: vi.fn().mockResolvedValue({ pixelId: '', pixelName: null, accessToken: undefined, pixelSource: 'none', tokenSource: 'none' }),
+  pixelesElegibles: vi.fn(),
+};
 const notifications = { notifyMultiple: vi.fn() };
 const emails = { send: vi.fn() };
 const audit = { log: vi.fn() };
@@ -55,6 +59,15 @@ describe('ReservationsService', () => {
     expect(result.fieldSchema).toEqual([{ id: 'name', type: 'text', label: 'Nombre', required: true }, { id: 'consent', type: 'consent', label: 'Acepto', required: true }]);
   });
 
+  // Meta separa los resultados por 'content_ids', no por Pixel. El servidor etiqueta cada
+  // conversión con el id del local; si la página pública no lo recibiera, el evento del navegador
+  // viajaría sin etiqueta y, al deduplicar, Meta conservaría el que llega primero: el local
+  // dejaría de distinguirse dentro del Pixel de la empresa.
+  it('entrega el identificador con que Meta separa los resultados por local', async () => {
+    formQuery.getOne.mockResolvedValue(publishedForm());
+    const result = await service.publicForm('evaluacion');
+    expect(result.contentId).toBe('form-1');
+  });
   it('hides a public form when its company is no longer active', async () => {
     formQuery.getOne.mockResolvedValue(publishedForm());
     dataSource.query.mockResolvedValue([{ status: 'paused' }]);
@@ -352,6 +365,43 @@ describe('ReservationsService', () => {
     forms.findOne.mockResolvedValue({ ...publishedForm(), status: 'draft' });
     await expect(service.updateForm('org-1', 'form-1', { status: 'published', scheduleConfig: { windows: [] } } as never))
       .rejects.toThrow('No puedes publicar sin disponibilidad');
+  });
+
+  /*
+   * El Pixel propio de un local.
+   *
+   * Las tres pruebas cubren el camino completo: que se pueda apartar, que se pueda volver a
+   * heredar, y que no se pueda dejar apuntando a un destino sin credencial —que es el fallo que
+   * no avisa, porque los envíos por Conversions API vuelven en silencio sin token—.
+   */
+  it('un local puede apartarse del Pixel de su empresa', async () => {
+    dataSource.query.mockResolvedValue([{ capabilities: { reservations: true, crm: true, metaConversions: true } }]);
+    forms.findOne.mockResolvedValue(publishedForm());
+    clientPixels.resolveForScope.mockResolvedValueOnce({ pixelId: '998877665544', pixelName: 'Sucursal', accessToken: 'token', pixelSource: 'scope', tokenSource: 'pixel' });
+
+    const guardado = await service.updateForm('org-1', 'form-1', { metaPixelId: '998877665544' } as never);
+
+    expect(guardado.metaPixelId).toBe('998877665544');
+  });
+
+  it('dejar el Pixel vacío devuelve el local al de su empresa', async () => {
+    dataSource.query.mockResolvedValue([{ capabilities: { reservations: true, crm: true, metaConversions: true } }]);
+    forms.findOne.mockResolvedValue({ ...publishedForm(), metaPixelId: '998877665544' });
+
+    const guardado = await service.updateForm('org-1', 'form-1', { metaPixelId: '' } as never);
+
+    expect(guardado.metaPixelId).toBeNull();
+    expect(clientPixels.resolveForScope).not.toHaveBeenCalled();
+  });
+
+  it('rechaza un Pixel sin token de Conversions API', async () => {
+    dataSource.query.mockResolvedValue([{ capabilities: { reservations: true, crm: true, metaConversions: true } }]);
+    forms.findOne.mockResolvedValue(publishedForm());
+    clientPixels.resolveForScope.mockResolvedValueOnce({ pixelId: '998877665544', pixelName: null, accessToken: undefined, pixelSource: 'scope', tokenSource: 'none' });
+
+    await expect(service.updateForm('org-1', 'form-1', { metaPixelId: '998877665544' } as never))
+      .rejects.toThrow('no tiene token de Conversions API');
+    expect(forms.save).not.toHaveBeenCalled();
   });
 
   it('guardar el diseño no borra una pausa puesta desde otra pantalla', async () => {

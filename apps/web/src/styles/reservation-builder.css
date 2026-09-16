@@ -377,7 +377,8 @@
 .publish-tracking > summary::after { content:'+'; float:right; color:var(--muted); }
 .publish-tracking[open] > summary::after { content:'-'; }
 .publish-tracking > summary em { color:var(--muted); font-style:normal; font-weight:600; }
-.publish-tracking-body { display:grid; gap:13px; padding:0 14px 14px; }
+/* Con el selector de la tarjeta: .publish-summary>div la volvia una fila y los controles quedaban en columnas angostas. */
+.publish-summary > .publish-tracking-body { display:grid; gap:13px; padding:0 14px 14px; justify-content:stretch; }
 .publish-tracking-body > .page-subtitle { margin:0; font-size:11px; line-height:1.5; }
 .publish-tracking-body label { margin:0; }
 
@@ -759,3 +760,8 @@
 .slot-time-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .slot-time-btn strong { white-space: nowrap; }
 @media (max-width: 420px) { .slot-time-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .slot-time-btn strong { font-size: 13px; } }
+
+
+/* Legibilidad de la tarjeta de medicion: las etiquetas heredaban 10px y sus ayudas bajaban a 8px. */
+.publish-grid .publish-summary label { font-size:11px; }
+.publish-grid .publish-summary label small { font-size:11px; font-weight:500; line-height:1.5; }

@@ -31,7 +31,7 @@ describe('MetaClientPixelService', () => {
   const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
   // La tabla de credenciales, vacia: estas pruebas describen el camino del JSON, que sigue
   // siendo la red mientras conviven las dos formas.
-  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null) };
+  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null), find: vi.fn().mockResolvedValue([]) };
   let service: MetaClientPixelService;
 
   /** Fija la integración que verán tanto la búsqueda inicial como la relectura con bloqueo. */
@@ -45,6 +45,25 @@ describe('MetaClientPixelService', () => {
     stored = null;
     delete process.env.META_CONVERSIONS_ACCESS_TOKEN;
     service = new MetaClientPixelService(integrations as never, clients as never, pixelesGuardados as never, pixels as never);
+  });
+
+  /*
+   * El selector de Reservas lo abre quien administra un local, no quien administra la
+   * organización: ofrecerle los Pixels de las demás empresas revelaría la cartera completa, y
+   * elegir uno no serviría de nada, porque el token de otra empresa no tiene permiso sobre él.
+   */
+  it('sólo ofrece al local los Pixels que su empresa puede usar', async () => {
+    givenIntegration({
+      config: { clientPixels: {
+        'client-a': { pixelId: '111', pixelName: 'Pixel Principal', accessToken: 'token-a', configuredAt: '2026-07-20' },
+        'client-b': { pixelId: '222', accessToken: 'token-b', configuredAt: '2026-07-20' },
+      } },
+    });
+
+    const elegibles = await service.pixelesElegibles('org-1', 'client-a');
+
+    expect(elegibles.porDefecto).toEqual({ pixelId: '111', pixelName: 'Pixel Principal', tieneToken: true });
+    expect(elegibles.pixels.map((pixel) => pixel.pixelId)).toEqual(['111']);
   });
 
   it('resolves only the Pixel and token explicitly assigned to the requested client', async () => {
@@ -151,7 +170,7 @@ describe('MetaClientPixelService · credencial por Pixel', () => {
   const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
   // La tabla de credenciales, vacia: estas pruebas describen el camino del JSON, que sigue
   // siendo la red mientras conviven las dos formas.
-  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null) };
+  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null), find: vi.fn().mockResolvedValue([]) };
   let service: MetaClientPixelService;
 
   beforeEach(() => {
@@ -239,7 +258,7 @@ describe('MetaClientPixelService · Pixel de la agencia', () => {
   const pixels = { verificarPixel: vi.fn(async () => ({ verificado: true, bloquea: false })) };
   // La tabla de credenciales, vacia: estas pruebas describen el camino del JSON, que sigue
   // siendo la red mientras conviven las dos formas.
-  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null) };
+  const pixelesGuardados = { findOne: vi.fn().mockResolvedValue(null), find: vi.fn().mockResolvedValue([]) };
   let service: MetaClientPixelService;
 
   beforeEach(() => {

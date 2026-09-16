@@ -159,6 +159,36 @@ let MetaClientPixelService = class MetaClientPixelService {
         const agencyPixelId = typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : null;
         return { bindings, pixels: [...pixels, ...sinAsignar], agencyPixelId };
     }
+    async pixelesElegibles(organizationId, clientId) {
+        const filas = await this.pixelesGuardados.find({
+            where: [{ organizationId, clientId }, { organizationId, clientId: (0, typeorm_3.IsNull)() }],
+            order: { pixelId: 'ASC' },
+        });
+        const integration = await this.organizationIntegration(organizationId);
+        const credenciales = integration ? this.credenciales(integration) : {};
+        const porDefecto = await this.resolve(organizationId, clientId);
+        const ids = new Set([...filas.map((fila) => fila.pixelId), ...Object.keys(credenciales)]);
+        if (porDefecto.pixelId)
+            ids.add(porDefecto.pixelId);
+        const pixels = [];
+        for (const pixelId of ids) {
+            const resuelto = await this.resolveForScope(organizationId, clientId, pixelId);
+            pixels.push({
+                pixelId,
+                nombre: filas.find((fila) => fila.pixelId === pixelId)?.name ?? credenciales[pixelId]?.name ?? null,
+                tieneToken: Boolean(resuelto.accessToken),
+                esDeLaEmpresa: pixelId === porDefecto.pixelId,
+            });
+        }
+        return {
+            porDefecto: {
+                pixelId: porDefecto.pixelId || null,
+                pixelName: porDefecto.pixelName || null,
+                tieneToken: Boolean(porDefecto.accessToken),
+            },
+            pixels,
+        };
+    }
     async configure(id, organizationId, clientId, pixelId, accessToken, pixelName) {
         const integration = await this.integration(id, organizationId);
         return this.configureRecord(integration, organizationId, clientId, pixelId, accessToken, pixelName);
