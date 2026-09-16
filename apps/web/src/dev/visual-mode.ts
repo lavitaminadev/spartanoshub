@@ -456,7 +456,9 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/me\/permissions$/, () => ({ permissions: forEveryModule('manage') })],
   [/\/auth\/logout$/, () => ({})],
   [/\/notifications\/unread/, () => ({ unread: 0 })],
-  [/\/clients(?:\?|$)/, () => ({ data: [{ id: 'visual-client', name: 'Casa Costanera' }] })],
+  // Casa Costanera tiene Reservas y Encuestas, no CRM: así se comprueba que Correos oculta los
+  // avisos de un servicio que esa empresa no contrató.
+  [/\/clients(?:\?|$)/, () => ({ data: [{ id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } }] })],
   /*
    * Datos de ejemplo del CRM.
    *

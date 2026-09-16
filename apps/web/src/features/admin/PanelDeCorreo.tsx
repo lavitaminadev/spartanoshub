@@ -32,7 +32,7 @@ interface Ajuste {
   max?: number;
 }
 
-interface Empresa { id: string; name: string }
+interface Empresa { id: string; name: string; capabilities?: { reservations?: boolean; crm?: boolean; surveys?: boolean } }
 
 /** Alguien del equipo que puede recibir una prueba. */
 interface Destinatario { id: string; name: string; email: string }
@@ -47,11 +47,12 @@ interface Destinatario { id: string; name: string; email: string }
 type ModuloDeAviso = 'reservas' | 'encuestas' | 'crm' | 'equipo' | 'cobranza';
 
 /** Rótulo y orden de cada grupo. Reservas primero: es lo que más se edita. */
-const MODULOS: Array<{ clave: ModuloDeAviso; titulo: string; explica: string }> = [
-  { clave: 'reservas', titulo: 'Reservas', explica: 'Lo que recibe quien reserva.' },
-  { clave: 'encuestas', titulo: 'Encuestas', explica: 'Después de la visita.' },
-  { clave: 'equipo', titulo: 'Avisos al equipo del local', explica: 'Internos: no los ve quien reserva.' },
-  { clave: 'crm', titulo: 'CRM', explica: 'Para el equipo que atiende prospectos.' },
+const MODULOS: Array<{ clave: ModuloDeAviso; titulo: string; explica: string; servicio?: 'reservations' | 'crm' | 'surveys' }> = [
+  { clave: 'reservas', titulo: 'Reservas', explica: 'Lo que recibe quien reserva.', servicio: 'reservations' },
+  { clave: 'encuestas', titulo: 'Encuestas', explica: 'Después de la visita.', servicio: 'surveys' },
+  { clave: 'equipo', titulo: 'Avisos al equipo del local', explica: 'Internos: no los ve quien reserva.', servicio: 'reservations' },
+  { clave: 'crm', titulo: 'CRM', explica: 'Para el equipo que atiende prospectos.', servicio: 'crm' },
+  // Cobranza es de Espartanos hacia la empresa: no depende de lo que ella contrató.
   { clave: 'cobranza', titulo: 'Cobranza', explica: 'A la empresa cliente.' },
 ];
 
@@ -309,7 +310,13 @@ export function PanelDeCorreo(): JSX.Element {
       if (requisito.clave === 'cron') {
         const tarea = datos.tareas?.[requisito.tarea ?? ''];
         return {
-          texto: tarea?.corriendo ? 'La tarea programada está corriendo' : `Falta la tarea programada «${requisito.tarea}» en el servidor`,
+          // El nombre de la tarea sólo le sirve a quien puede crearla; a los demás les dice a
+          // quién pedirla, que es lo único que pueden hacer.
+          texto: tarea?.corriendo
+            ? 'Se está enviando: la tarea programada corre con normalidad'
+            : esDev
+              ? `No corre la tarea programada «${requisito.tarea}»: créala en cPanel → Cron Jobs`
+              : 'Todavía no se está enviando. Lo activa el equipo de Espartanos.',
           cumple: Boolean(tarea?.corriendo),
         };
       }
@@ -347,6 +354,22 @@ export function PanelDeCorreo(): JSX.Element {
     queryFn: () => api.get<{ habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[] }>('/settings/estado-del-correo'),
   });
 
+  /*
+   * Con una empresa elegida se listan sólo los módulos que ella tiene contratados.
+   *
+   * Editar la plantilla de CRM de una empresa que no contrató CRM es trabajo que no llega a
+   * nadie, y llena la pantalla de avisos que nunca van a salir para esa cuenta. Lo de Espartanos
+   * —la cobranza— no depende de eso: va de la agencia hacia ella.
+   *
+   * En «General» se muestran todos: esa plantilla la heredan todas las empresas.
+   */
+  const contratados = (empresasQuery.data?.data ?? []).find((cliente) => cliente.id === empresa)?.capabilities;
+  const modulosVisibles = MODULOS.filter((modulo) => {
+    if (!empresa || !modulo.servicio || !contratados) return true;
+    return contratados[modulo.servicio] !== false;
+  });
+  const clavesVisibles = new Set(modulosVisibles.map((modulo) => modulo.clave));
+
   /** Un aviso encendido al que le falta algo comprobable: está prendido y no sale. */
   const tieneAlgoPendiente = (prefijo: string) => Boolean(valorDe(`${prefijo}_enabled`))
     && requisitosDe(prefijo).some((requisito) => requisito.cumple === false);
@@ -357,13 +380,14 @@ export function PanelDeCorreo(): JSX.Element {
     if (filtro === 'activos' && !activo) return false;
     if (filtro === 'apagados' && activo) return false;
     if (filtro === 'pendientes' && !tieneAlgoPendiente(grupo.prefijo)) return false;
+    if (!clavesVisibles.has(grupo.modulo)) return false;
     if (moduloElegido && grupo.modulo !== moduloElegido) return false;
     const texto = busqueda.trim().toLowerCase();
     if (texto && !`${grupo.titulo} ${grupo.explica}`.toLowerCase().includes(texto)) return false;
     return true;
   });
 
-  const conInterruptor = AVISOS.filter((grupo) => porClave.get(`${grupo.prefijo}_enabled`));
+  const conInterruptor = AVISOS.filter((grupo) => porClave.get(`${grupo.prefijo}_enabled`) && clavesVisibles.has(grupo.modulo));
   const activos = conInterruptor.filter((grupo) => Boolean(valorDe(`${grupo.prefijo}_enabled`))).length;
   const pendientes = conInterruptor.filter((grupo) => tieneAlgoPendiente(grupo.prefijo)).length;
 
@@ -451,7 +475,7 @@ export function PanelDeCorreo(): JSX.Element {
           <input className="input" value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} placeholder="Buscar aviso…" aria-label="Buscar aviso" />
           <select className="input" value={moduloElegido} onChange={(evento) => setModuloElegido(evento.target.value as '' | ModuloDeAviso)} aria-label="Filtrar por módulo">
             <option value="">Todos los módulos</option>
-            {MODULOS.map((modulo) => <option key={modulo.clave} value={modulo.clave}>{modulo.titulo}</option>)}
+            {modulosVisibles.map((modulo) => <option key={modulo.clave} value={modulo.clave}>{modulo.titulo}</option>)}
           </select>
           <select className="input" value={filtro} onChange={(evento) => setFiltro(evento.target.value as typeof filtro)} aria-label="Filtrar avisos">
             <option value="todos">Todos</option>
@@ -464,7 +488,7 @@ export function PanelDeCorreo(): JSX.Element {
 
       {visibles.length === 0 && <p className="panel-correo-nota">Ningún aviso coincide con el filtro.</p>}
 
-      {MODULOS.map((modulo) => {
+      {modulosVisibles.map((modulo) => {
         const delModulo = visibles.filter((grupo) => grupo.modulo === modulo.clave);
         if (delModulo.length === 0) return null;
         return <section key={modulo.clave} className="panel-correo-modulo">
