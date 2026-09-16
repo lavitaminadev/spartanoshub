@@ -156,3 +156,32 @@
 .panel-correo-variables button b { font-family: inherit; font-size: 12px; font-weight: 600; }
 .panel-correo-variables button code { font-family: ui-monospace, monospace; font-size: 10px; opacity: .6; }
 .panel-correo-variables button:hover code { opacity: 1; }
+
+/*
+ * El cuerpo con las variables resaltadas.
+ *
+ * La capa de abajo pinta; el textarea de arriba escribe. Tienen que compartir tipografía, espacio
+ * y ajuste de línea al milímetro: cualquier diferencia desalinea el texto que se ve del que se
+ * edita.
+ */
+.panel-correo-cuerpo { position: relative; }
+.panel-correo-cuerpo-capa,
+.panel-correo-cuerpo textarea {
+  min-height: 190px; padding: 14px 16px; border: 1px solid transparent; border-radius: 8px;
+  font-family: inherit; font-size: 15px; line-height: 1.65; letter-spacing: normal;
+  white-space: pre-wrap; overflow-wrap: break-word;
+}
+.panel-correo-cuerpo-capa {
+  position: absolute; inset: 0; overflow: hidden;
+  border-color: var(--border-light); background: var(--white); color: var(--text-dark);
+}
+.panel-correo-cuerpo textarea {
+  position: relative; width: 100%; display: block; resize: vertical;
+  background: transparent; color: transparent; caret-color: var(--text-dark);
+}
+.panel-correo-cuerpo textarea::selection { background: rgba(214, 75, 129, .25); }
+.panel-correo-cuerpo-capa mark {
+  padding: 1px 2px; border-radius: 4px;
+  background: var(--soft); color: var(--accent); font-weight: 600;
+}
+.panel-correo-cuerpo-capa mark.no-existe { background: #ffe4e8; color: var(--danger); text-decoration: underline wavy; }

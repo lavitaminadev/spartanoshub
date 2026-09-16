@@ -196,6 +196,47 @@ function variablesDe(descripcion: string): string[] {
   return [...descripcion.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)].map((m) => m[1]);
 }
 
+/**
+ * Cuerpo del correo con las variables resaltadas.
+ *
+ * Un textarea no sabe pintar parte de su texto, así que debajo va una capa con el mismo texto y la
+ * misma tipografía donde las variables llevan color, y encima el textarea con fondo y letra
+ * transparentes. Se escribe en el de arriba y se ve el de abajo, alineados carácter a carácter.
+ *
+ * Importa porque en un párrafo corrido `{{personas}}` se confunde con el texto, y una variable mal
+ * escrita —que al enviar se borra— pasa desapercibida justo cuando conviene notarla.
+ */
+function CuerpoConVariables({ id, valor, admitidas, onCambio }: {
+  id: string;
+  valor: string;
+  admitidas: string[];
+  onCambio: (valor: string) => void;
+}): JSX.Element {
+  const capa = useRef<HTMLDivElement>(null);
+  const trozos = valor.split(/(\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\})/g);
+  return (
+    <div className="panel-correo-cuerpo">
+      <div className="panel-correo-cuerpo-capa" ref={capa} aria-hidden="true">
+        {trozos.map((trozo, indice) => {
+          const variable = trozo.match(/^\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}$/)?.[1];
+          if (!variable) return <span key={indice}>{trozo}</span>;
+          return <mark key={indice} className={admitidas.includes(variable) ? '' : 'no-existe'}>{trozo}</mark>;
+        })}
+        {/* Una línea final vacía mantiene la capa tan alta como el texto mientras se escribe. */}
+        {'\n'}
+      </div>
+      <textarea
+        className="input"
+        id={id}
+        rows={6}
+        value={valor}
+        onChange={(evento) => onCambio(evento.target.value)}
+        onScroll={(evento) => { if (capa.current) capa.current.scrollTop = evento.currentTarget.scrollTop; }}
+      />
+    </div>
+  );
+}
+
 export function PanelDeCorreo(): JSX.Element {
   const queryClient = useQueryClient();
   /*
@@ -633,12 +674,11 @@ export function PanelDeCorreo(): JSX.Element {
                           onChange={(evento) => editar(ajuste.key, Number(evento.target.value))}
                         />
                       ) : sufijo === 'body' ? (
-                        <textarea
-                          className="input"
+                        <CuerpoConVariables
                           id={ajuste.key}
-                          rows={6}
-                          value={String(valorDe(ajuste.key))}
-                          onChange={(evento) => editar(ajuste.key, evento.target.value)}
+                          valor={String(valorDe(ajuste.key))}
+                          admitidas={variables}
+                          onCambio={(texto) => editar(ajuste.key, texto)}
                         />
                       ) : (
                         <input
