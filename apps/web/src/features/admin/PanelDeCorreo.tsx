@@ -148,6 +148,14 @@ export function PanelDeCorreo(): JSX.Element {
    */
   const { user } = useAuth();
   const esDev = user?.role === 'dev';
+  /*
+   * La lista de encuestas es de otro módulo.
+   *
+   * Quien escribe los correos puede no tener Encuestas, y pedirlas igual devolvía 403: la pantalla
+   * funcionaba pero recibía a la persona con «no tienes acceso a este módulo», que además señala a
+   * un módulo que no es el que está mirando.
+   */
+  const alcanzaEncuestas = user?.permissions?.surveys !== undefined && user.permissions.surveys !== 'none';
   /** Vacío significa «la plantilla general», la que usa quien no tenga la suya. */
   const [empresa, setEmpresa] = useState('');
   /*
@@ -159,6 +167,7 @@ export function PanelDeCorreo(): JSX.Element {
   const encuestasQuery = useQuery<Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }>>({
     queryKey: ['encuestas-para-correo', empresa],
     queryFn: () => api.get(`/surveys${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
+    enabled: alcanzaEncuestas,
   });
   const encuestasElegibles = (encuestasQuery.data ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer' && (!encuesta.clientId || encuesta.clientId === empresa));
   const [borrador, setBorrador] = useState<Record<string, string | number | boolean> | null>(null);
@@ -344,7 +353,7 @@ export function PanelDeCorreo(): JSX.Element {
                             {encuestasElegibles.map((encuesta) => <option key={encuesta.id} value={encuesta.id}>{encuesta.title}</option>)}
                           </select>
                           {elegida && !vigente && !encuestasQuery.isLoading ? <small className="error-text">La encuesta elegida ya no está activa o no es de esta empresa: no se enviará nada hasta elegir otra.</small> : null}
-                          {encuestasElegibles.length === 0 && !encuestasQuery.isLoading ? <small>Esta empresa no tiene encuestas activas de clientes. Crea una en Encuestas, con una pregunta de estrellas.</small> : null}
+                          {encuestasElegibles.length === 0 && !encuestasQuery.isLoading ? <small>{alcanzaEncuestas ? 'Esta empresa no tiene encuestas activas de clientes. Crea una en Encuestas, con una pregunta de estrellas.' : 'No alcanzas el módulo de Encuestas, así que no se puede elegir cuál se envía. El texto de abajo sí se guarda.'}</small> : null}
                         </>
                       )}
                     </label>

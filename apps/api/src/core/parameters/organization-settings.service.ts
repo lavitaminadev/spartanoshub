@@ -167,11 +167,31 @@ export class OrganizationSettingsService {
     return this.list(organizationId);
   }
 
+  /**
+   * Las definiciones del catálogo, creadas si faltan y **puestas al día si cambiaron**.
+   *
+   * El valor de fábrica vive en el código y la fila sólo lo copia. Copiarlo una vez y no volver a
+   * mirarlo dejaba las dos versiones separándose en silencio: la pantalla leía el catálogo y el
+   * resolutor de permisos leía la fila, así que un módulo podía verse «activo» y comportarse como
+   * «en desarrollo» para todo el equipo. Lo elegido por cada organización no se toca: eso vive en
+   * `parameter_values` y sigue mandando sobre este valor.
+   */
   private async ensureDefinitions(): Promise<ParameterDefinition[]> {
     const keys = ORGANIZATION_SETTINGS.map((setting) => setting.key);
     const existing = await this.definitionRepo.find({ where: { key: In(keys) } });
     const existingKeys = new Set(existing.map((definition) => definition.key));
     const missing = ORGANIZATION_SETTINGS.filter((setting) => !existingKeys.has(setting.key));
+
+    const porClave = new Map(ORGANIZATION_SETTINGS.map((setting) => [setting.key, setting]));
+    const desactualizadas = existing.filter((definition) => {
+      const setting = porClave.get(definition.key);
+      return setting !== undefined && definition.defaultValue?.value !== setting.defaultValue;
+    });
+    for (const definition of desactualizadas) {
+      await this.definitionRepo.update(definition.id, {
+        defaultValue: { value: porClave.get(definition.key)!.defaultValue as never },
+      });
+    }
 
     if (missing.length > 0) {
       await this.definitionRepo.createQueryBuilder()
