@@ -1,0 +1,1 @@
+import{on as e}from"./vendor-CpOjS27T.js";import{t}from"./ReservationResults-MULrvE6F.js";var n=e();function r({clientId:e}={}){return(0,n.jsx)(t,{clientId:e,headingLevel:1,detalle:!0})}export{r as ReservationsAnalyticsPage};

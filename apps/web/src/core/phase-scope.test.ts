@@ -18,6 +18,22 @@ describe('alcance de fase', () => {
     }
   });
 
+  /*
+   * Clientes y Conexiones los decide la matriz, no esta función.
+   *
+   * Escribirlo en los dos sitios dejaba a Dirección de Operaciones administrando las reservas de
+   * todas las empresas sin poder abrir la ficha de ninguna: la matriz le concedía el permiso y
+   * esta reja lo anulaba después, sin que la pantalla dijera por qué.
+   */
+  it('no vuelve a decidir por su cuenta quién entra a Clientes y Conexiones', () => {
+    for (const module of ['clients', 'integrations']) {
+      expect(isModuleInPhaseScope(module, undefined, 'operations_director'), module).toBe(true);
+      expect(isModuleInPhaseScope(module, undefined, 'community_manager'), module).toBe(true);
+      // El portal de una empresa no nombra la cartera de la agencia ni sus credenciales.
+      expect(isModuleInPhaseScope(module, undefined, 'client'), module).toBe(false);
+    }
+  });
+
   /**
    * Decisión del 2026-08-18: el catálogo ya no esconde ningún módulo.
    *

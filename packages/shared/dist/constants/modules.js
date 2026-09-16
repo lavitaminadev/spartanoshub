@@ -177,15 +177,24 @@ function isModuleInInitialOperationScope(module, role) {
         return true;
     if (!exports.INITIAL_OPERATION_MODULES.has(module))
         return false;
-    // Administración conserva el control general. Dirección comercial opera el alta de empresas,
-    // sus cuentas y conexiones, sin que eso abra ninguno de los módulos futuros.
-    if (['users', 'clients', 'integrations'].includes(module)) {
+    // Usuarios sigue enumerando cargos: da acceso a las cuentas del equipo, y quién puede tocarlas
+    // no debería depender de una celda de la matriz que se edita en caliente.
+    //
+    // Clientes y Conexiones salieron de esta lista: la matriz ya dice quién entra, y tenerlo
+    // escrito en dos sitios dejaba a Dirección de Operaciones administrando las reservas de todas
+    // las empresas sin poder abrir la ficha de ninguna ni la pantalla donde se configuran sus
+    // Pixels. El permiso concedido no se entregaba y en pantalla no había forma de saber por qué.
+    if (module === 'users') {
         // Dirección de operaciones entra a Usuarios para ajustar los accesos de su equipo; las
         // reglas de a quién y cuánto puede ajustar las aplica el servidor.
-        if (module === 'users' && role === 'operations_director')
+        if (role === 'operations_director')
             return true;
         return role === 'admin' || role === 'commercial_director';
     }
+    // El cargo cliente sí queda fuera de las dos: la cartera de empresas y las credenciales de
+    // medición son de la agencia, y su portal no tiene por qué nombrarlas.
+    if (module === 'clients' || module === 'integrations')
+        return role !== 'client';
     // Encuestas lo decide el permiso de cada persona y la capacidad de cada empresa, como CRM y
     // Reservas. Antes sólo Dirección comercial la veía aunque la matriz se la diera a más cargos.
     if (module === 'surveys')
