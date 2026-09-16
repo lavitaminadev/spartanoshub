@@ -278,6 +278,41 @@ const visualCrmFields: Array<Record<string, any>> = [
   { id: 'f4', entity: 'lead', key: 'rubro_antiguo', label: 'Rubro', type: 'text', options: null, required: false, position: 3, archivedAt: '2026-08-01T00:00:00.000Z' },
 ];
 
+/**
+ * Las plantillas de correo tal como las devuelve el servidor.
+ *
+ * Son las mismas claves del catálogo real —interruptor, asunto y cuerpo por aviso—, porque el
+ * panel dibuja un aviso sólo si existe su clave `_enabled`. Con una lista corta la pantalla se
+ * veía casi vacía y parecía que faltaban correos que en el servidor sí están.
+ */
+const PLANTILLAS_DE_CORREO: Array<{ prefijo: string; titulo: string }> = [
+  { prefijo: 'email.reservation_confirmation', titulo: 'Confirmación de reserva' },
+  { prefijo: 'email.reservation_reminder', titulo: 'Recordatorio de reserva' },
+  { prefijo: 'email.reservation_change', titulo: 'Cambio de hora' },
+  { prefijo: 'email.post_visit_survey', titulo: 'Encuesta después de la visita' },
+  { prefijo: 'email.reservation_cancellation', titulo: 'Cancelación' },
+  { prefijo: 'email.group_request_ack', titulo: 'Acuse de solicitud de grupo' },
+  { prefijo: 'email.waitlist_ack', titulo: 'Acuse de lista de espera' },
+  { prefijo: 'email.waitlist_spot', titulo: 'Cupo liberado' },
+  { prefijo: 'email.reservation_recovery', titulo: 'Enlace para recuperar la reserva' },
+  { prefijo: 'email.collection_overdue', titulo: 'Aviso de pago vencido' },
+  { prefijo: 'email.birthday', titulo: 'Saludo de cumpleaños' },
+  { prefijo: 'email.daily_digest', titulo: 'Resumen diario del CRM' },
+  { prefijo: 'email.task_reminder', titulo: 'Recordatorio de tareas' },
+  { prefijo: 'email.new_lead', titulo: 'Aviso de lead nuevo' },
+  { prefijo: 'email.team_new_reservation', titulo: 'Aviso al equipo: reserva nueva' },
+  { prefijo: 'email.team_group_request', titulo: 'Aviso al equipo: solicitud de grupo' },
+  { prefijo: 'email.team_waitlist', titulo: 'Aviso al equipo: lista de espera' },
+];
+
+function ajustesDeCorreo(source: 'client' | 'master_default') {
+  return PLANTILLAS_DE_CORREO.flatMap(({ prefijo, titulo }) => [
+    { key: `${prefijo}_enabled`, label: titulo, description: 'Enciende o apaga este aviso.', valueType: 'boolean' as const, value: true, source },
+    { key: `${prefijo}_subject`, label: `${titulo} · asunto`, description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text' as const, value: `${titulo} en {{local}}`, source: 'master_default' as const },
+    { key: `${prefijo}_body`, label: `${titulo} · cuerpo`, description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text' as const, value: 'Hola {{nombre}}:\n\nEsto es el texto de ejemplo de {{local}}.', source: 'master_default' as const },
+  ]);
+}
+
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/users(?:\?|$)/, () => ([
     { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z' },
@@ -983,6 +1018,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * tiene que decir que se elige empresa primero.
    */
   [/\/settings(\/correos)?\?clientId=[^&]+$/, () => [
+    ...ajustesDeCorreo('client'),
     { key: 'email.post_visit_survey_enabled', label: 'Encuesta después de la visita', description: 'Unas horas después de una reserva asistida.', valueType: 'boolean', value: true, source: 'client' },
     { key: 'email.post_visit_survey_id', label: 'Encuesta después de la visita · encuesta', description: 'Qué encuesta se envía.', valueType: 'text', value: 'visual-survey', source: 'client' },
     { key: 'email.post_visit_survey_hours', label: 'Encuesta después de la visita · espera', description: 'Horas después del fin de la visita.', valueType: 'number', value: 3, source: 'master_default', min: 1, max: 72, unit: 'horas' },
@@ -1004,7 +1040,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     for (const mod of ORGANIZATION_MODULE_CATALOG) {
       lifecycleSettings.push({ key: `modules.lifecycle.${mod.key}`, value: mod.lifecycle, source: 'organization' });
     }
-    return lifecycleSettings;
+    return [...ajustesDeCorreo('master_default'), ...lifecycleSettings];
   }],
   // Solicitudes (modo visual): simula la bandeja en memoria para probar el flujo completo.
   [/\/service-requests(\?[^/]*)?$/i, (config) => {
