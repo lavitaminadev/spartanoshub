@@ -15,6 +15,7 @@
 import { useMemo, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
+import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import './panel-de-correo.css';
 
@@ -138,6 +139,15 @@ function variablesDe(descripcion: string): string[] {
 
 export function PanelDeCorreo(): JSX.Element {
   const queryClient = useQueryClient();
+  /*
+   * Las instrucciones del servidor son para quien tiene acceso a él.
+   *
+   * Nombrar el panel del hosting, las variables y la contraseña del correo a quien administra
+   * reservas no le sirve —no puede entrar ahí— y además dice en voz alta cómo está montado el
+   * sistema. Ve que aún no está activo y a quién pedírselo, que es lo que necesita saber.
+   */
+  const { user } = useAuth();
+  const esDev = user?.role === 'dev';
   /** Vacío significa «la plantilla general», la que usa quien no tenga la suya. */
   const [empresa, setEmpresa] = useState('');
   /*
@@ -254,10 +264,12 @@ export function PanelDeCorreo(): JSX.Element {
         <div className={`panel-correo-paso ${estadoQuery.isLoading ? '' : estadoQuery.data?.habilitado ? 'is-listo' : 'is-pendiente'}`} aria-busy={estadoQuery.isLoading}>
           <span>1</span>
           <div>
-            <strong>Casilla que envía {estadoQuery.isLoading ? '· revisando…' : estadoQuery.isError ? '· no se pudo revisar' : estadoQuery.data?.habilitado ? '· lista' : '· falta configurar'}</strong>
+            <strong>Casilla que envía {estadoQuery.isLoading ? '· revisando…' : estadoQuery.isError ? '· no se pudo revisar' : estadoQuery.data?.habilitado ? '· lista' : esDev ? '· falta configurar' : '· aún no está activa'}</strong>
             {estadoQuery.data?.habilitado
               ? <small>Los correos salen desde <b>{estadoQuery.data.remitente}</b> ({estadoQuery.data.servidor}:{estadoQuery.data.puerto}). Es la misma para todas las empresas y sucursales.</small>
-              : <small>Crea una casilla en cPanel → Cuentas de correo (por ejemplo reservas@espartanos.cl) y en cPanel → Setup Node.js App → Environment variables agrega: <code>SMTP_ENABLED=true</code>, <code>SMTP_HOST=mail.espartanos.cl</code>, <code>SMTP_PORT=465</code>, <code>SMTP_SECURE=true</code>, <code>SMTP_USER</code> y <code>SMTP_FROM</code> con esa casilla, y <code>SMTP_PASSWORD</code> con su contraseña. Luego reinicia la aplicación.{estadoQuery.data?.faltan?.length ? ` Falta: ${estadoQuery.data.faltan.join(', ')}.` : ''}</small>}
+              : esDev
+                ? <small>Crea una casilla en cPanel → Cuentas de correo (por ejemplo reservas@espartanos.cl) y en cPanel → Setup Node.js App → Environment variables agrega: <code>SMTP_ENABLED=true</code>, <code>SMTP_HOST=mail.espartanos.cl</code>, <code>SMTP_PORT=465</code>, <code>SMTP_SECURE=true</code>, <code>SMTP_USER</code> y <code>SMTP_FROM</code> con esa casilla, y <code>SMTP_PASSWORD</code> con su contraseña. Luego reinicia la aplicación.{estadoQuery.data?.faltan?.length ? ` Falta: ${estadoQuery.data.faltan.join(', ')}.` : ''}</small>
+                : <small>Todavía no está activa, así que los avisos no se envían. La activa el equipo de Espartanos; mientras tanto puedes dejar escritos los textos de abajo.</small>}
           </div>
         </div>
         <div className="panel-correo-paso is-listo">

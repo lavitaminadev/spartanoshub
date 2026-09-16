@@ -765,3 +765,8 @@
 /* Legibilidad de la tarjeta de medicion: las etiquetas heredaban 10px y sus ayudas bajaban a 8px. */
 .publish-grid .publish-summary label { font-size:11px; }
 .publish-grid .publish-summary label small { font-size:11px; font-weight:500; line-height:1.5; }
+
+
+/* Los filtros que hay que copiar en Meta: legibles y seleccionables, no decorativos. */
+.meta-conversiones { margin:8px 0 0; padding-left:16px; display:grid; gap:6px; font-size:11px; line-height:1.5; }
+.meta-conversiones code { font-family:var(--font-mono); font-size:11px; overflow-wrap:anywhere; }

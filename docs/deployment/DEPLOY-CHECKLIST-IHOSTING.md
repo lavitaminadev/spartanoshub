@@ -38,6 +38,12 @@ Esperado:
 - notificaciones de sistema visibles solo para administracion;
 - una reserva de prueba abre, guarda y vuelve a listar correctamente.
 
+## Tareas programadas
+
+Sin el cron de cPanel no salen recordatorios ni encuestas, y las conversiones no llegan a Meta.
+Las 19 tareas, su frecuencia y la linea exacta que se pega en Cron Jobs estan en
+`docs/operacion/TAREAS-PROGRAMADAS.md`. Requieren `CRON_SECRET` en las variables de entorno.
+
 ## Si algo falla
 
 - revisar logs de Passenger y la salida de `.cpanel.yml`;
