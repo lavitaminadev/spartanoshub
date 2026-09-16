@@ -177,12 +177,20 @@ function isModuleInInitialOperationScope(module, role) {
         return true;
     if (!exports.INITIAL_OPERATION_MODULES.has(module))
         return false;
-    // Administración conserva el control general. Dirección comercial opera el alta de empresas,
-    // sus cuentas y conexiones, sin que eso abra ninguno de los módulos futuros.
+    /*
+     * Administración conserva el control general. Dirección comercial opera el alta de empresas,
+     * sus cuentas y conexiones, sin que eso abra ninguno de los módulos futuros.
+     *
+     * Esta lista **no es una segunda reja redundante sobre la matriz: es la reja.** La matriz
+     * efectiva concede el catálogo a todos los cargos internos y se recorta desde la pantalla de
+     * permisos, así que quitar estas listas no amplía una lectura acotada: abre la cartera entera.
+     */
     if (['users', 'clients', 'integrations'].includes(module)) {
-        // Dirección de operaciones entra a Usuarios para ajustar los accesos de su equipo; las
-        // reglas de a quién y cuánto puede ajustar las aplica el servidor.
-        if (module === 'users' && role === 'operations_director')
+        // Dirección de operaciones entra a Usuarios para ajustar los accesos de su equipo, y a
+        // Clientes porque administra las reservas de todas las empresas: sin la ficha no puede
+        // completar sus datos legales ni ver qué tiene contratado. Las reglas de cuánto puede
+        // cambiar en cada una las aplica el servidor.
+        if (['users', 'clients'].includes(module) && role === 'operations_director')
             return true;
         return role === 'admin' || role === 'commercial_director';
     }
