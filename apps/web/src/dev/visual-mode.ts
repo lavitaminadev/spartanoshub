@@ -270,6 +270,19 @@ const VISUAL_GROUP_REQUESTS = [
     notes: 'Cumpleaños sorpresa. Necesitamos espacio para una torta y llegar antes a decorar.',
     status: 'pending', createdAt: haceMinutos(40),
     utmSource: 'instagram', utmMedium: 'social', utmCampaign: 'eventos-primavera', utmContent: null,
+    details: {
+      resourceId: 'salon',
+      childrenCount: 3,
+      dietaryNotes: 'Dos personas celíacas y una vegetariana',
+      accessibilityNeed: 'Una persona en silla de ruedas',
+      answers: {
+        ocasion: 'Cumpleaños',
+        smokingPreference: 'Zona de no fumadores',
+        howFound: 'Redes sociales',
+        presupuestoPorPersona: '25.000 por persona',
+        horaDeLlegada: 'Llegamos media hora antes a decorar',
+      },
+    },
   },
   {
     id: 'visual-grupo-2', clientId: 'visual-client', formId: 'visual-form',
@@ -278,6 +291,16 @@ const VISUAL_GROUP_REQUESTS = [
     preferredDate: new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10), preferredTime: '13:30',
     notes: 'Almuerzo de fin de año. Necesitan boleta a nombre de la empresa y salón privado.',
     status: 'contacted', createdAt: haceMinutos(1500),
+    quoteAmount: '1250000', quoteMessage: 'Menú de tres tiempos, salón privado y proyector.', quoteExpiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString(),
+    details: {
+      resourceId: 'salon',
+      dietaryNotes: 'Cuatro menús sin gluten',
+      answers: {
+        ocasion: 'Empresa',
+        facturacion: 'Necesitan factura a nombre de Comercial Andes SpA',
+        howFound: 'Recomendación',
+      },
+    },
   },
 ];
 

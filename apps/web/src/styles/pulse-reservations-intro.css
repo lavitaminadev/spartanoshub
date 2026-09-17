@@ -819,3 +819,20 @@
 .survey-resenas label small { font-weight: 400; color: var(--txt-muted, #71717a); }
 .survey-resenas-ayuda { margin: 0; color: var(--txt-muted, #71717a); font-size: .85rem; line-height: 1.45; }
 .survey-resenas-falta { margin: 0; color: #92400e; font-size: .85rem; font-weight: 700; }
+
+/*
+ * La lista de espera, cuando no hay ancho para una tabla.
+ *
+ * Con el panel a la mitad las columnas se partían palabra por palabra y las acciones quedaban
+ * cortadas contra el borde, detrás de un desplazamiento horizontal que nadie encuentra. Apilada,
+ * cada fila se lee como una ficha y el botón queda a la vista.
+ */
+@media (max-width: 860px) {
+  .waitlist-table, .waitlist-table tbody, .waitlist-table tr, .waitlist-table td { display: block; width: auto; }
+  .waitlist-table thead { display: none; }
+  .waitlist-table tr { margin: 0 0 12px; padding: 12px 14px; border: 1px solid #e4e4e7; border-radius: 12px; background: #fff; }
+  .waitlist-table td { padding: 4px 0; border: 0; }
+  .waitlist-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--txt-muted, #71717a); }
+  .waitlist-table td[data-label="#"] { display: none; }
+  .waitlist-table .actions-cell { flex-wrap: wrap; gap: 8px; }
+}

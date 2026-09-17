@@ -46,9 +46,20 @@ function comoTexto(valor: unknown): string {
  *
  * El enunciado sale del `fieldSchema` del formulario, que es la unica fuente que sabe como se
  * pregunto. Una respuesta sin campo publicado —porque el formulario cambio despues, o porque la
- * agrega el servidor— cae en la tabla del sistema y, si tampoco esta ahi, conserva su clave:
- * perder el dato seria peor que mostrarlo con un nombre feo.
+ * agrega el servidor— cae en la tabla del sistema y, si tampoco esta ahi, se muestra su clave
+ * escrita como frase: perder el dato seria peor que enseñarlo, y «presupuestoPorPersona» al menos
+ * se puede leer como «Presupuesto por persona».
  */
+/** Convierte una clave suelta en algo leible: `horaDeLlegada` pasa a «Hora de llegada». */
+function comoFrase(clave: string): string {
+  const palabras = clave
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+    .toLowerCase();
+  return palabras ? palabras.charAt(0).toUpperCase() + palabras.slice(1) : clave;
+}
+
 export function respuestasLegibles(
   answers: Record<string, unknown> | undefined,
   fieldSchema: FormField[] | undefined,
@@ -58,7 +69,7 @@ export function respuestasLegibles(
   return Object.entries(answers)
     .map(([clave, valor]) => ({
       clave,
-      etiqueta: porId.get(clave) || ETIQUETAS_DEL_SISTEMA[clave] || clave,
+      etiqueta: porId.get(clave) || ETIQUETAS_DEL_SISTEMA[clave] || comoFrase(clave),
       valor: comoTexto(valor),
       destacada: (DESTACADAS as readonly string[]).includes(clave),
     }))
