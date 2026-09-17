@@ -56,6 +56,10 @@ export interface GuestHistory {
   total: number;
   attended: number;
   noShow: number;
+  /** Hasta dónde mira: sólo esta reserva publicada, o todas las de la empresa con permiso de red. */
+  alcance?: 'local' | 'red';
+  /** Cuántas de esas visitas fueron a otra reserva de la misma empresa. */
+  deOtrasReservas?: number;
   anteriores: Array<{ id: string; referenceCode: string; startsAt: string; status: string; partySize: number }>;
   /** Lo que se deduce de sus reservas anteriores. Ausente en la primera visita. */
   preferencias?: {

@@ -23,11 +23,11 @@ const SECCIONES: Array<{ to: string; label: string }> = [
   // mientras que configurar un local ocurre una vez. Todas traen su propio selector de local,
   // asi que no dependen de haber entrado antes por la ficha del local.
   { to: '/reservations/agenda', label: 'Hoy' },
-  // Antes vivían como pestañas dentro de Sucursales: quien buscaba una persona o un cupón no
+  // Antes vivían como pestañas dentro del listado: quien buscaba una persona o un cupón no
   // tenía cómo saber que estaban ahí dentro.
   { to: '/reservations?tab=bookings', label: 'Reservas' },
   { to: '/reservations?tab=groups', label: 'Grupos' },
-  { to: '/reservations', label: 'Sucursales' },
+  { to: '/reservations', label: 'Páginas de reserva' },
   { to: '/reservations/calendar', label: 'Disponibilidad' },
   { to: '/reservations/waitlist', label: 'Lista de espera' },
   { to: '/reservations?tab=coupons', label: 'Cupones' },
@@ -94,7 +94,7 @@ export function ReservationsLayout(): JSX.Element {
           })}
         </div>
         {/* Anotar la reserva de una persona —una llamada, el mostrador— va a mano en todas las
-            pantallas. La sucursal se elige dentro del formulario, sin tener que entrar antes a ella. */}
+            pantallas. La reserva se elige dentro del formulario, sin tener que entrar antes a ella. */}
         {visibles.some((seccion) => seccion.to === '/reservations') && <Link className="btn btn-primary btn-sm section-nav-cta" to="/reservations?tab=bookings&nueva=1">Anotar reserva</Link>}
       </nav>
       <Outlet />

@@ -91,6 +91,18 @@ export function AvailabilityCalendarPage() {
 
   const weeks = useMemo(() => buildMonthGrid(cursor), [cursor]);
   const hasCapacity = (occupancy?.capacity ?? 0) > 0;
+  /*
+   * Los días que el local no abre.
+   *
+   * Sin esto, un domingo cerrado y un domingo vacío se ven igual: la celda sin número podía
+   * significar «nadie reservó» o «no abrimos», y son decisiones distintas. Sólo se sabe cuando hay
+   * una página elegida —o una sola posible—, porque el horario es de cada una.
+   */
+  const localDelCalendario = forms.find((form) => form.id === formId) ?? (forms.length === 1 ? forms[0] : undefined);
+  const diasQueAbre = useMemo(() => {
+    const ventanas = (localDelCalendario?.scheduleConfig as { windows?: Array<{ day: number }> } | undefined)?.windows ?? [];
+    return new Set(ventanas.map((ventana) => ventana.day));
+  }, [localDelCalendario]);
   const todayKey = monthKey(new Date()) === month ? new Date().getDate() : null;
 
   const dateKeyFor = (day: number) => `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -105,8 +117,8 @@ export function AvailabilityCalendarPage() {
         <option value="">Selecciona un cliente</option>
         {clients.map((client: Client) => <option key={client.id} value={client.id}>{client.name}</option>)}
       </select>}
-      <select className="input" aria-label="Selecciona una sucursal" value={formId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
-        <option value="">Todas las sucursales de la empresa</option>
+      <select className="input" aria-label="Selecciona una página de reserva" value={formId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
+        <option value="">Todas las páginas de reserva</option>
         {forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}
       </select>
       <div className="availability-month-nav">
@@ -118,7 +130,7 @@ export function AvailabilityCalendarPage() {
     </div>
 
     {!clientId ? (
-      <EmptyState icon="calendar" title="Elige una empresa" description="Después puedes elegir un local para evitar mezclar su ocupación con otras sucursales." />
+      <EmptyState icon="calendar" title="Elige una empresa" description="Después puedes elegir una de sus reservas para no mezclar su ocupación con las demás." />
     ) : isLoading ? (
       <LoadingSpinner text="Calculando ocupación..." />
     ) : error ? (
@@ -134,6 +146,9 @@ export function AvailabilityCalendarPage() {
             const info = dayByDate.get(dateKeyFor(day));
             const pct = info?.pct ?? null;
             const isToday = todayKey === day;
+            const cerrado = diasQueAbre.size > 0 && !diasQueAbre.has(new Date(cursor.getFullYear(), cursor.getMonth(), day).getDay());
+            // Cuánto queda por vender, que es lo que se mira para decidir si abrir un cupo más.
+            const libres = hasCapacity && info ? Math.max(0, (occupancy?.capacity ?? 0) - info.count) : null;
             /*
              * Cada día abre su agenda.
              *
@@ -143,18 +158,21 @@ export function AvailabilityCalendarPage() {
             const fecha = dateKeyFor(day);
             return <button
               type="button"
-              className={`availability-cell ${isToday ? 'is-today' : ''}`}
+              className={`availability-cell ${isToday ? 'is-today' : ''} ${cerrado ? 'is-cerrado' : ''}`}
               key={dayIndex}
-              aria-label={`Ver la agenda del ${fecha}`}
+              aria-label={cerrado ? `${fecha}: el local no abre` : `Ver la agenda del ${fecha}`}
               onClick={() => navegar(`${clientMode ? '/portal' : ''}/reservations/agenda?${new URLSearchParams({ date: fecha, ...(clientId ? { clientId } : {}), ...(formId ? { formId } : {}) })}`)}
             >
               <span className="availability-day-number">{day}</span>
-              {info ? (
-                hasCapacity && pct !== null ? (
-                  <span className={`availability-badge tone-${occupancyTone(pct)}`} title={`${info.count} reserva(s) · ${pct}% de ocupación`}>{pct}%</span>
-                ) : (
-                  <span className="availability-badge tone-neutral" title={`${info.count} reserva(s), sin tope diario configurado`}>{info.count}</span>
-                )
+              {cerrado ? <span className="availability-cerrado">Cerrado</span> : info ? (
+                <>
+                  {hasCapacity && pct !== null ? (
+                    <span className={`availability-badge tone-${occupancyTone(pct)}`} title={`${info.count} reserva(s) · ${pct}% de ocupación`}>{pct}%</span>
+                  ) : (
+                    <span className="availability-badge tone-neutral" title={`${info.count} reserva(s), sin tope diario configurado`}>{info.count}</span>
+                  )}
+                  <span className="availability-detalle">{info.count} {info.count === 1 ? 'persona' : 'personas'}{libres !== null ? ` · ${libres} ${libres === 1 ? 'libre' : 'libres'}` : ''}</span>
+                </>
               ) : null}
             </button>;
           })}
@@ -166,6 +184,7 @@ export function AvailabilityCalendarPage() {
         <span className="legend-item"><i className="legend-dot tone-mid" /> Media (70-90%)</span>
         <span className="legend-item"><i className="legend-dot tone-high" /> Alta (&gt;90%)</span>
         {!hasCapacity && <span className="legend-item"><i className="legend-dot tone-neutral" /> Sin tope diario configurado (se muestra el número de reservas)</span>}
+        {diasQueAbre.size > 0 && <span className="legend-item"><i className="legend-dot tone-cerrado" /> El local no abre</span>}
       </div>
     </>}
   </div>;

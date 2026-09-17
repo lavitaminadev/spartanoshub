@@ -1,5 +1,6 @@
 import { useDeferredValue } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { triggerToast } from '../../shared/toast-events';
 import { Link } from 'react-router-dom';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -56,9 +57,39 @@ export function WaitlistPage() {
   const setSearchInput = filtros.setSearch;
   const search = useDeferredValue(searchInput.trim());
 
+  const queryClient = useQueryClient();
+  /*
+   * Pasar a alguien de la lista a una reserva de verdad.
+   *
+   * La lista servía para anotar y nada más: cuando se liberaba una mesa había que escribirle por
+   * fuera y volver a anotar sus datos a mano en «Anotar reserva», así que la lista se llenaba y no
+   * se usaba. Confirmar y abrir el mensaje en el mismo gesto es lo que la vuelve útil.
+   *
+   * El mensaje va con el texto escrito pero sin enviar: se revisa antes, como cualquier aviso.
+   */
+  const pasarAReserva = useMutation({
+    mutationFn: (item: Reservation) => api.patch(`/reservations/${item.id}`, { status: 'confirmed' }),
+    onSuccess: (_resultado, item) => {
+      void queryClient.invalidateQueries({ queryKey: ['reservations-waitlist'] });
+      triggerToast(`${item.guestName} pasó a reserva confirmada.`);
+      const digitos = (item.guestPhone ?? '').replace(/\D/g, '');
+      if (!digitos) return;
+      const numero = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
+      const cuando = new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' });
+      const mensaje = `Hola ${item.guestName.trim().split(/\s+/)[0]}, se liberó una mesa para ${item.partySize} ${item.partySize === 1 ? 'persona' : 'personas'} el ${cuando}. Te la dejamos reservada, ¿la confirmas?`;
+      window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank', 'noopener');
+    },
+  });
+
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = (Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [];
-  const { data: forms = [] } = useQuery<ReservationForm[]>({ queryKey: ['reservation-forms', clientFilter], queryFn: () => api.get(`/reservations/forms?clientId=${encodeURIComponent(clientFilter)}`), enabled: Boolean(clientFilter) });
+  /*
+   * Los locales se cargan siempre, no sólo con una empresa elegida.
+   *
+   * Sin ellos la tabla no sabe de qué local es cada persona —decía «Reserva no disponible»— ni
+   * puede traducir lo que completó: mostraba «ocasion» en vez de «¿Celebras algo?».
+   */
+  const { data: forms = [] } = useQuery<ReservationForm[]>({ queryKey: ['reservation-forms', clientFilter], queryFn: () => api.get(`/reservations/forms${clientFilter ? `?clientId=${encodeURIComponent(clientFilter)}` : ''}`) });
 
   const dateRange: Record<string, string> = dateFilter ? { from: browserDateBoundaryUtc(dateFilter), to: browserDateBoundaryUtc(dateFilter, true) } : {};
   const query = new URLSearchParams({
@@ -91,8 +122,8 @@ export function WaitlistPage() {
         <option value="">Todos los clientes</option>
         {clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}
       </select>
-      <select className="input" aria-label="Filtrar por sucursal" value={formFilter} disabled={!clientFilter || forms.length === 0} onChange={(event) => setFormFilter(event.target.value)}>
-        <option value="">Todas las sucursales de la empresa</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}
+      <select className="input" aria-label="Filtrar por página de reserva" value={formFilter} disabled={!clientFilter || forms.length === 0} onChange={(event) => setFormFilter(event.target.value)}>
+        <option value="">Todas las páginas de reserva</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}
       </select>
       <label className="filter-date">Fecha<input className="input" type="date" aria-label="Filtrar por fecha" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></label>
       <button type="button" className="btn btn-outline btn-sm" disabled={!filtros.hasAny} onClick={filtros.clear}>Limpiar</button>
@@ -106,32 +137,39 @@ export function WaitlistPage() {
           <thead>
             <tr>
               <th>#</th>
-              <th>Cliente</th>
-              <th>Sucursal</th>
+              <th>Quién espera</th>
               <th>Personas</th>
               <th>Hora solicitada</th>
-              <th>Tiempo de espera</th>
-              <th>Notas</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => <tr key={item.id}>
               <td>{index + 1}</td>
-              <td><strong>{item.guestName}</strong><br /><small>{item.guestPhone || item.guestEmail || 'Sin contacto'}</small></td>
-              <td>{forms.find((form) => form.id === item.formId)?.name || "Sucursal no disponible"}</td>
+              <td><strong>{item.guestName}</strong><br /><small>{item.guestPhone || item.guestEmail || 'Sin contacto'}</small>
+                <br /><small className="waitlist-local">{forms.find((form) => form.id === item.formId)?.name || 'Reserva no disponible'}</small>
+                {/* Quien devuelve la llamada necesita la alergia y la ocasión, no sólo la nota interna. */}
+                {(() => {
+                  const respuestas = respuestasLegibles(item.answers, forms.find((form) => form.id === item.formId)?.fieldSchema);
+                  if (!item.internalNotes && respuestas.length === 0) return null;
+                  return <div className="waitlist-notas">
+                    {item.internalNotes && <small>{item.internalNotes}</small>}
+                    {respuestas.map((dato) => <small key={dato.clave} className="waitlist-dato">{dato.etiqueta}: {dato.valor}</small>)}
+                  </div>;
+                })()}
+              </td>
               <td>{item.partySize}</td>
-              <td>{new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</td>
-              <td>{waitingTimeLabel(item.createdAt)}</td>
-              {/* Quien devuelve la llamada necesita la alergia y la ocasion, no solo la nota interna. */}
-              <td>{(() => {
-                const respuestas = respuestasLegibles(item.answers, forms.find((form) => form.id === item.formId)?.fieldSchema);
-                if (!item.internalNotes && respuestas.length === 0) return '—';
-                return <>{item.internalNotes && <span>{item.internalNotes}</span>}{respuestas.map((dato) => <small key={dato.clave} className="waitlist-dato">{dato.etiqueta}: {dato.valor}</small>)}</>;
-              })()}</td>
+              <td>{new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
+                <br /><small>Espera {waitingTimeLabel(item.createdAt)}</small>
+              </td>
               <td>
                 <div className="actions-cell">
-                  {item.guestPhone && <a className="btn btn-outline btn-sm" href={`https://wa.me/${item.guestPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp</a>}
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={pasarAReserva.isPending}
+                    onClick={() => pasarAReserva.mutate(item)}
+                  >{pasarAReserva.isPending && pasarAReserva.variables?.id === item.id ? 'Pasando...' : 'Pasar a reserva'}</button>
                   {item.guestPhone && <a className="btn btn-outline btn-sm" href={`tel:${item.guestPhone}`}>Llamar</a>}
                   <Link className="btn btn-outline btn-sm" to={detailLink(item)}>Ver detalle</Link>
                 </div>

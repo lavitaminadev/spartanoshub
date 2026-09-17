@@ -218,20 +218,62 @@ function visualSlug(value: string) {
  * Con reservas sin respuestas no se puede revisar la parte del detalle que más se mira al recibir
  * a alguien, que es justamente lo que esa persona pidió al reservar.
  */
+const haceMinutos = (minutos: number) => new Date(Date.now() - minutos * 60_000).toISOString();
+
 const VISUAL_RESERVATIONS = [
   {
-    id: 'visual-booking-1', formId: 'visual-form', referenceCode: 'CC-1042', status: 'confirmed',
+    id: 'visual-booking-1', formId: 'visual-form', referenceCode: 'CC-1042', status: 'confirmed', createdAt: haceMinutos(180),
     startsAt: new Date(new Date().setHours(20, 0, 0, 0)).toISOString(), partySize: 2,
     guestName: 'Camila Rojas', guestPhone: '+56 9 8123 4567', guestEmail: 'camila@example.test',
     resourceId: 'terrace', couponCode: 'VERANO20', tableLabel: '12',
     answers: { ocasion: 'Cumpleaños', childrenCount: 1, dietaryNotes: 'Sin gluten', notes: 'Llegamos 10 minutos tarde.' },
   },
   {
-    id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended',
+    id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended', createdAt: haceMinutos(2400),
     startsAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(), partySize: 4,
     guestName: 'Sebastián Vera', guestPhone: '+56 9 7456 1234', guestEmail: 'sebastian@example.test',
     resourceId: 'salon',
     answers: { ocasion: 'Empresa', accessibilityNeed: 'Acceso sin escalón', birthDate: '1990-05-14' },
+  },
+  {
+    id: 'visual-booking-3', formId: 'visual-form', referenceCode: 'CC-1044', status: 'waitlist', createdAt: haceMinutos(25),
+    startsAt: new Date(new Date().setHours(21, 30, 0, 0)).toISOString(), partySize: 6,
+    guestName: 'Paula Herrera', guestPhone: '+56 9 6677 8899', guestEmail: 'paula@example.test',
+    internalNotes: 'Pidió terraza si se libera.',
+    answers: { ocasion: 'Aniversario', dietaryNotes: 'Una persona celíaca' },
+  },
+  {
+    id: 'visual-booking-4', formId: 'visual-form', referenceCode: 'CC-1045', status: 'waitlist', createdAt: haceMinutos(95),
+    startsAt: new Date(new Date().setHours(20, 30, 0, 0)).toISOString(), partySize: 3,
+    guestName: 'Ignacio Lagos', guestPhone: '+56 9 5544 3322',
+    answers: { childrenCount: 2 },
+  },
+  {
+    id: 'visual-booking-5', formId: 'visual-form', referenceCode: 'CC-1046', status: 'cancelled', createdAt: haceMinutos(5000),
+    startsAt: new Date(new Date().setHours(13, 0, 0, 0)).toISOString(), partySize: 2,
+    guestName: 'Rocío Díaz', guestPhone: '+56 9 2211 3344', cancelReason: 'Avisó que no podía llegar',
+    answers: {},
+  },
+];
+
+/** Solicitudes de grupo y evento: no toman cupo, las resuelve el equipo a mano. */
+const VISUAL_GROUP_REQUESTS = [
+  {
+    id: 'visual-grupo-1', clientId: 'visual-client', formId: 'visual-form',
+    guestName: 'Daniela Fuentes', guestEmail: 'daniela@example.test', guestPhone: '+56 9 9988 7766',
+    partySize: 18, eventType: 'cumpleanos',
+    preferredDate: new Date(Date.now() + 9 * 86_400_000).toISOString().slice(0, 10), preferredTime: '21:00',
+    notes: 'Cumpleaños sorpresa. Necesitamos espacio para una torta y llegar antes a decorar.',
+    status: 'pending', createdAt: haceMinutos(40),
+    utmSource: 'instagram', utmMedium: 'social', utmCampaign: 'eventos-primavera', utmContent: null,
+  },
+  {
+    id: 'visual-grupo-2', clientId: 'visual-client', formId: 'visual-form',
+    guestName: 'Comercial Andes SpA', guestEmail: 'eventos@andes.test', guestPhone: '+56 2 2345 6789',
+    partySize: 40, eventType: 'empresa',
+    preferredDate: new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10), preferredTime: '13:30',
+    notes: 'Almuerzo de fin de año. Necesitan boleta a nombre de la empresa y salón privado.',
+    status: 'contacted', createdAt: haceMinutos(1500),
   },
 ];
 
@@ -603,9 +645,43 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   })],
   // Datos demostrativos únicamente: permiten revisar el estado de integración sin exponer
   // credenciales ni intentar enviar eventos a Meta desde el modo visual.
+  /*
+   * Ocupación del mes, con la misma forma que manda el servidor.
+   *
+   * Se construye a partir del local visual: días sin ventana de atención no traen fila —igual que
+   * en el servidor, que sólo cuenta lo que existe—, y los demás llevan un número estable para que
+   * la pantalla no cambie de color en cada recarga.
+   */
+  [/\/reservations\/analytics\/occupancy/, (config) => {
+    const url = new URL(`http://x${config?.url ?? ''}`);
+    const mes = url.searchParams.get('month') || new Date().toISOString().slice(0, 7);
+    const formId = url.searchParams.get('formId');
+    const local = visualReservationForms.find((item) => item.id === formId) ?? VISUAL_RESERVATION_LOCAL;
+    const capacity = Number(local.dailyCapacity || 0);
+    const [anio, numeroDeMes] = mes.split('-').map(Number);
+    const diasDelMes = new Date(anio, numeroDeMes, 0).getDate();
+    const abiertos = new Set((local.scheduleConfig?.windows ?? []).map((ventana: { day: number }) => ventana.day));
+    const days: Array<{ date: string; count: number; pct: number | null }> = [];
+    for (let dia = 1; dia <= diasDelMes; dia += 1) {
+      const fecha = new Date(anio, numeroDeMes - 1, dia);
+      if (abiertos.size > 0 && !abiertos.has(fecha.getDay())) continue;
+      // Serie estable y variada: más lleno los fines de semana, sin azar entre recargas.
+      const base = [38, 44, 52, 61, 73, 96, 88][fecha.getDay()];
+      const count = Math.max(0, Math.round((base * (0.6 + ((dia % 7) / 10))) / 100 * (capacity || 60)));
+      days.push({ date: `${mes}-${String(dia).padStart(2, '0')}`, count, pct: capacity > 0 ? Math.min(100, Math.round((count / capacity) * 100)) : null });
+    }
+    return { month: mes, capacity, days };
+  }],
+  [/\/reservations\/forms\/[^/?]+\/group-requests/, () => VISUAL_GROUP_REQUESTS],
+  [/\/reservations\/group-requests\/[^/?]+$/, (config) => {
+    const id = (config?.url?.match(/\/reservations\/group-requests\/([^/?]+)$/) ?? [])[1];
+    const solicitud = VISUAL_GROUP_REQUESTS.find((item) => item.id === id) ?? VISUAL_GROUP_REQUESTS[0];
+    return { ...solicitud, ...visualRequestBody(config) };
+  }],
   [/\/integrations\/meta\/client-pixels\/catalog/, () => ({
-    bindings: [{ clientId: 'visual-client', pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', tokenConfigured: true }],
-    pixels: [{ pixelId: '123456789012345', pixelNames: ['Casa Costanera · Reservas'], usageCount: 1, tokenConfigured: true }],
+    bindings: [{ clientId: 'visual-client', clientName: 'Casa Costanera', pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', tokenConfigured: true, configuredAt: new Date(Date.now() - 86_400_000).toISOString() }],
+    // Mismos campos que manda el servidor: sin `clientNames` la pantalla se caía entera.
+    pixels: [{ pixelId: '123456789012345', clientNames: ['Casa Costanera'], pixelNames: ['Casa Costanera · Reservas'], usageCount: 1, tokenConfigured: true }],
   })],
   // El listado se pide tanto con filtros (`?clientId=`) como sin query. Si sólo se
   // simulaba la primera variante, Administración aparecía vacía y no se podía revisar
@@ -672,7 +748,24 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     const clientId = new URL(config?.url || '/', window.location.origin).searchParams.get('clientId');
     return visualReservationForms.filter((form) => !clientId || form.clientId === clientId);
   }],
-  [/\/reservations\?(?!.*analytics)/, () => ({ data: VISUAL_RESERVATIONS, total: VISUAL_RESERVATIONS.length, page: 1, pageSize: 100, pages: 1 })],
+  [/\/reservations\?(?!.*analytics)/, (config) => {
+    const url = new URL(`http://x${config?.url ?? ''}`);
+    const estado = url.searchParams.get('status');
+    const formId = url.searchParams.get('formId');
+    const desde = url.searchParams.get('from');
+    const hasta = url.searchParams.get('to');
+    const busqueda = (url.searchParams.get('search') || '').trim().toLowerCase();
+    const data = VISUAL_RESERVATIONS.filter((reserva) => {
+      if (estado && reserva.status !== estado) return false;
+      if (formId && reserva.formId !== formId) return false;
+      if (desde && reserva.startsAt < desde) return false;
+      if (hasta && reserva.startsAt > hasta) return false;
+      if (busqueda && ![reserva.guestName, reserva.guestPhone, reserva.guestEmail, reserva.referenceCode]
+        .some((campo) => String(campo ?? '').toLowerCase().includes(busqueda))) return false;
+      return true;
+    });
+    return { data, total: data.length, page: 1, pageSize: 100, pages: 1 };
+  }],
   /*
    * Horarios calculados con la configuración del local, como el servidor: semana habitual,
    * duración, una llegada cada N minutos, anticipación mínima y ventana máxima. Usa la hora del
@@ -810,6 +903,35 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * segundo nivel, de modo que un formulario sin esos objetos la tumba. Se responde con un
    * formulario completo para poder revisar los cuatro pasos, incluido el entorno visual.
    */
+  /*
+   * Los ajustes del día, con la misma lista cerrada que el servidor.
+   *
+   * Acepta sólo lo que acepta la ruta real: si el modo visual dejara pasar cualquier campo, la
+   * pantalla parecería guardar cosas que en producción se descartan.
+   */
+  [/\/reservations\/forms\/[^/?]+\/operacion$/, (config) => {
+    const id = (config?.url?.match(/\/reservations\/forms\/([^/?]+)\/operacion$/) ?? [])[1];
+    const form = visualReservationForms.find((item) => item.id === id) || VISUAL_RESERVATION_LOCAL;
+    const body = visualRequestBody(config) as Record<string, unknown>;
+    const design = { ...form.designConfig } as Record<string, unknown>;
+    if (body.toleranciaMinutos !== undefined) design.toleranciaMinutos = String(body.toleranciaMinutos);
+    if (body.notasDelLocal !== undefined) design.notasDelLocal = String(body.notasDelLocal);
+    if (body.whatsappBusinessNumber !== undefined) design.whatsappBusinessNumber = String(body.whatsappBusinessNumber);
+    if (body.capacityPerSlot !== undefined) form.capacityPerSlot = Number(body.capacityPerSlot);
+    if (body.dailyCapacity !== undefined) form.dailyCapacity = Number(body.dailyCapacity);
+    if (Array.isArray(body.zonasActivas)) {
+      const encendidas = new Set(body.zonasActivas as string[]);
+      form.resourcesConfig = (form.resourcesConfig ?? []).map((zona: { id: string }) => ({ ...zona, active: encendidas.has(zona.id) }));
+    }
+    form.designConfig = design as typeof form.designConfig;
+    form.updatedAt = new Date().toISOString();
+    guardarFormulariosVisuales();
+    return form;
+  }],
+  [/\/reservations\/forms\/[^/?]+\/blocks$/, (config) => {
+    if (config?.method?.toLowerCase() !== 'post') return [];
+    return { id: `bloqueo-${Date.now()}`, ...visualRequestBody(config) };
+  }],
   [/\/reservations\/forms\/[^/?]+\/pause$/, (config) => {
     const id = (config?.url?.match(/\/reservations\/forms\/([^/?]+)\/pause$/) ?? [])[1];
     const form = visualReservationForms.find((item) => item.id === id) || VISUAL_RESERVATION_LOCAL;

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Tipos de evento que ofrece cada sucursal en la solicitud de grupo.
+ * @fileoverview Tipos de evento que ofrece cada local en la solicitud de grupo.
  *
  * El local los nombra como quiera («Despedida de soltera», «After office»). Cada uno pertenece a
  * una categoría fija, que es lo que guarda el servidor y usan los reportes: así un nombre nuevo no

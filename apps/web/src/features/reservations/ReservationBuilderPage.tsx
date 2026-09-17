@@ -268,7 +268,7 @@ export function ReservationBuilderPage() {
 
   const saveMutation = useMutation({
     mutationFn: (body: Partial<ReservationForm>) => api.patch<ReservationForm>(`/reservations/forms/${id}`, updatePayload(body)),
-    onSuccess: (next) => { setDraft(next); setSaved(true); qc.setQueryData(['reservation-form', id], next); qc.setQueryData(['reservation-local', id], next); void qc.invalidateQueries({ queryKey: ['reservation-forms'] }); void qc.invalidateQueries({ queryKey: ['reservation-locals'] }); triggerToast(isSurveyMode(next.mode) ? 'Encuesta guardada' : 'Configuración de la sucursal guardada'); },
+    onSuccess: (next) => { setDraft(next); setSaved(true); qc.setQueryData(['reservation-form', id], next); qc.setQueryData(['reservation-local', id], next); void qc.invalidateQueries({ queryKey: ['reservation-forms'] }); void qc.invalidateQueries({ queryKey: ['reservation-locals'] }); triggerToast(isSurveyMode(next.mode) ? 'Encuesta guardada' : 'Configuración de la reserva guardada'); },
   });
   const saveDesignAsset = useCallback((key: 'logoUrl' | 'backgroundImage', url: string) => {
     if (!draft) return;
@@ -368,14 +368,14 @@ export function ReservationBuilderPage() {
   /*
    * Los ajustes que antes vivían en una pantalla aparte.
    *
-   * Eran la misma configuración de la misma sucursal en dos direcciones distintas, cada una con
+   * Eran la misma configuración de la misma reserva en dos direcciones distintas, cada una con
    * su propio borrador y su propio botón de guardar: se podía editar en las dos y perder una.
    * Ahora son un paso más del recorrido y comparten el borrador, así que solo hay un «Guardar».
    */
   const cambiarAjuste = (clave: string, valor: string) => change({ designConfig: { ...draft?.designConfig, [clave]: valor } });
   /** Desde cuántas personas es grupo: el mismo cálculo que usa la página pública. */
   const umbralDeGrupo = Math.max(2, Math.min(100, Number(draft?.designConfig?.groupThreshold) || 8));
-  /** Datos legales propios de la sucursal: si alguno está escrito, se muestran para editar. */
+  /** Datos legales propios del local: si alguno está escrito, se muestran para editar. */
   const [usaDatosPropios, setUsaDatosPropios] = useState<boolean | null>(null);
   const zones = draft?.resourcesConfig ?? [];
   const setZones = (next: NonNullable<ReservationForm['resourcesConfig']>) => change({ resourcesConfig: next });
@@ -402,7 +402,7 @@ export function ReservationBuilderPage() {
   const setBookingPause = (valor: string) => {
     if (!valor) { pausaMutation.mutate(''); return; }
     try { pausaMutation.mutate(localInputToUtc(valor, draft?.timezone || 'America/Santiago')); }
-    catch { triggerToast('Selecciona una hora válida para la zona de la sucursal.', 'error'); }
+    catch { triggerToast('Selecciona una hora válida para la zona del local.', 'error'); }
   };
 
   const deleteBlock = useMutation({ mutationFn: (blockId: string) => api.delete(`/reservations/blocks/${blockId}`), onError: (error: Error) => triggerToast(error.message || 'No se pudo quitar el bloqueo', 'error'), onSuccess: () => { qc.invalidateQueries({ queryKey: ['reservation-blocks', id] }); triggerToast('Bloqueo eliminado'); } });
@@ -463,7 +463,7 @@ export function ReservationBuilderPage() {
 
   return <div className="reservation-builder">
     <header className="builder-top">
-      <div><Link to={clientMode ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`}>← Volver a la sucursal</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
+      <div><Link to={clientMode ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`}>← Volver a la reserva</Link><div><input type="text" autoComplete="off" aria-label={`Nombre del ${flowLabel}`} value={draft.name} disabled={clientMode} onChange={(event) => change({ name: event.target.value })} /><span className={saveMutation.isPending ? 'saving' : saved ? 'saved' : 'unsaved'}>{saveMutation.isPending ? 'Guardando...' : saved ? 'Todos los cambios guardados' : 'Cambios sin guardar'}</span></div></div>
       <div className="builder-top-actions">
         {draft.metaCapiEnabled && <span className="meta-conversion" title="La conversión se enviará cuando exista consentimiento de medición.">CAPI activada</span>}
         <button type="button" className="btn btn-outline btn-sm" onClick={openPreview}>{previewLabel}</button></div>
@@ -574,9 +574,9 @@ export function ReservationBuilderPage() {
           <label className="toggle-row"><input type="checkbox" checked={draft.designConfig?.enforceCompanyDailyCap !== 'false'} onChange={(event) => cambiarAjuste('enforceCompanyDailyCap', String(event.target.checked))} /> Respetar también el tope diario de la empresa</label>
           <small className="schedule-nota">{(draft.companyDailyCap ?? 0) > 0
             ? draft.designConfig?.enforceCompanyDailyCap !== 'false'
-              ? `La empresa tiene un tope de ${draft.companyDailyCap} personas al día sumando todas sus sucursales. Manda el que se llene primero${draft.dailyCapacity > 0 && draft.dailyCapacity > (draft.companyDailyCap ?? 0) ? ': aquí el de la empresa es más bajo que el de esta sucursal' : ''}.`
-              : `La empresa tiene un tope de ${draft.companyDailyCap} personas al día, pero esta sucursal no lo aplica.`
-            : 'La empresa no tiene tope diario propio: sólo cuenta el de esta sucursal.'}</small>
+              ? `La empresa tiene un tope de ${draft.companyDailyCap} personas al día sumando todas sus reservas. Manda el que se llene primero${draft.dailyCapacity > 0 && draft.dailyCapacity > (draft.companyDailyCap ?? 0) ? ': aquí el de la empresa es más bajo que el de esta reserva' : ''}.`
+              : `La empresa tiene un tope de ${draft.companyDailyCap} personas al día, pero esta reserva no lo aplica.`
+            : 'La empresa no tiene tope diario propio: sólo cuenta el de esta reserva.'}</small>
           <label>Personas por horario<small>Cuántas personas pueden llegar en un mismo horario (no mesas).</small><input className="input" type="number" min="1" max="500" value={draft.capacityPerSlot} onChange={(event) => change({ capacityPerSlot: Number(event.target.value) })} /></label>
           {draft.capacityPerSlot < umbralDeGrupo && <div className="alert alert-warning cupo-aviso">Con {draft.capacityPerSlot} persona{draft.capacityPerSlot === 1 ? '' : 's'} por horario, una reserva de {draft.capacityPerSlot + 1} a {umbralDeGrupo} personas nunca verá horarios. Si pensabas en mesas, escribe cuántas personas caben en total.</div>}
           <label>Duración de cada reserva<select className="input" value={draft.durationMinutes} onChange={(event) => change({ durationMinutes: Number(event.target.value) })}>{[...new Set([...DURACIONES, draft.durationMinutes])].sort((a, b) => a - b).map((value) => <option key={value} value={value}>{value} minutos</option>)}</select></label>
@@ -808,7 +808,7 @@ export function ReservationBuilderPage() {
               <small>Es lo que la persona completa al reservar. Puedes cambiarlo en el paso «Campos».</small>
             </li>
             <li className={design.logoUrl || design.backgroundImage ? 'is-ok' : 'is-warning'}>
-              <strong>{design.logoUrl || design.backgroundImage ? 'Identidad personalizada' : 'Usando la plantilla de la sucursal'}</strong>
+              <strong>{design.logoUrl || design.backgroundImage ? 'Identidad personalizada' : 'Usando la plantilla del local'}</strong>
               <small>{design.logoUrl || design.backgroundImage ? 'El logo o la portada ya se mostrarán a quien reserva.' : 'Puedes publicar así o agregar logo y portada en «Diseño público». '}</small>
             </li>
           </ul>
@@ -831,8 +831,8 @@ export function ReservationBuilderPage() {
           </button>
           {draft.status === 'published' && !saved && <small>Ya está publicado. Guarda para que los cambios se vean.</small>}
           {draft.status === 'published' && saved && <>
-            <small>Todo listo y publicado. Esta sucursal ya recibe reservas.</small>
-            <button type="button" className="btn btn-outline" onClick={() => navegar(`${clientMode ? '/portal/reservations' : '/reservations'}/forms/${id}`)}>Terminar y volver a la sucursal</button>
+            <small>Todo listo y publicado. Esta reserva ya recibe gente.</small>
+            <button type="button" className="btn btn-outline" onClick={() => navegar(`${clientMode ? '/portal/reservations' : '/reservations'}/forms/${id}`)}>Terminar y volver a la reserva</button>
           </>}
           {windows.length === 0 && <small className="publish-blocker">Marca al menos un día de atención para poder publicar.</small>}
         </div>
@@ -840,8 +840,8 @@ export function ReservationBuilderPage() {
     </div>}
 
     {step === 4 && <div className="builder-stage builder-stage-ajustes">
-      <div className="stage-heading"><span className="page-eyebrow">DATOS DEL LOCAL</span><h2>Quién responde, a quién se avisa y qué se acepta</h2><p>Contacto, correos y consentimientos de esta sucursal.</p></div>
-      <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2><p className="page-subtitle">Los datos legales los mantiene la empresa en su portal y valen para todas sus sucursales.</p></div>
+      <div className="stage-heading"><span className="page-eyebrow">DATOS DEL LOCAL</span><h2>Quién responde, a quién se avisa y qué se acepta</h2><p>Contacto, correos y consentimientos de este local.</p></div>
+      <section className="reservation-readiness"><div><span className="page-eyebrow">RESPONSABLE Y CONTACTO</span><h2>Información visible para quien reserva</h2><p className="page-subtitle">Los datos legales los mantiene la empresa en su portal y valen para todas sus reservas.</p></div>
         <div className="datos-heredados">
           <div><span>Razón social</span><strong>{draft.datosLegalesEmpresa?.legalName || 'Sin completar'}</strong></div>
           <div><span>RUT</span><strong>{draft.datosLegalesEmpresa?.taxId || 'Sin completar'}</strong></div>
@@ -888,7 +888,7 @@ export function ReservationBuilderPage() {
           setUsaDatosPropios(e.target.checked);
           // Volver a los de la empresa borra los propios: si no, seguirían mandando sin verse.
           if (!e.target.checked) change({ designConfig: { ...draft.designConfig, legalCompanyName: '', legalCompanyId: '', privacyUrl: '', termsUrl: '' } });
-        }} /> Esta sucursal usa otra razón social o política</label>
+        }} /> Este local usa otra razón social o política</label>
         {(usaDatosPropios ?? Boolean(draft.designConfig?.legalCompanyName || draft.designConfig?.legalCompanyId || draft.designConfig?.privacyUrl || draft.designConfig?.termsUrl)) && <><div className="form-row"><label>Razón social o responsable<input className="input" placeholder={draft.datosLegalesEmpresa?.legalName || 'Completa la ficha de la empresa'} value={String(draft.designConfig?.legalCompanyName || '')} onChange={(e) => cambiarAjuste('legalCompanyName', e.target.value)} /></label><label>RUT / identificador<input className="input" placeholder={draft.datosLegalesEmpresa?.taxId || 'Completa la ficha de la empresa'} value={String(draft.designConfig?.legalCompanyId || '')} onChange={(e) => cambiarAjuste('legalCompanyId', e.target.value)} /></label></div><div className="form-row"><label>URL de privacidad<input className="input" type="url" value={String(draft.designConfig?.privacyUrl || '')} onChange={(e) => cambiarAjuste('privacyUrl', e.target.value)} placeholder={draft.datosLegalesEmpresa?.privacyUrl || 'https://...'} /></label><label>URL de condiciones<input className="input" type="url" value={String(draft.designConfig?.termsUrl || '')} onChange={(e) => cambiarAjuste('termsUrl', e.target.value)} placeholder={draft.datosLegalesEmpresa?.termsUrl || 'https://...'} /></label></div></>}</section>
       {/*
         * Los correos salen siempre desde el servidor de Espartanos. Esta casilla no cambia el
@@ -904,7 +904,7 @@ export function ReservationBuilderPage() {
         {/*
           * Qué encuesta se manda después de la visita.
           *
-          * La elige el local y no su empresa: dos sucursales de la misma empresa suelen querer
+          * La elige el local y no su empresa: dos reservas de la misma empresa suelen querer
           * preguntar cosas distintas. Vacío hereda la que su empresa tenga puesta en Correos, que
           * es como funcionó hasta ahora. El texto del correo sigue siendo común.
           */}

@@ -22,7 +22,7 @@ import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLo
 import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
-import { CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
+import { ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
@@ -107,6 +107,8 @@ type DesignConfig = {
   campaignAlias?: string; welcomePopupEnabled?: string; welcomePopupTitle?: string; welcomePopupText?: string;
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   askSmoking?: string; askSeating?: string; askFirstVisit?: string; askHowFound?: string;
+  /** Minutos que el local espera a quien se atrasa, y aviso libre antes del formulario. */
+  toleranciaMinutos?: string; notasDelLocal?: string;
   eventoCtaTitulo?: string; eventoCtaTexto?: string; eventoCtaBoton?: string; beneficiosDelGrupo?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
@@ -413,11 +415,18 @@ export class ReservationsService {
         { id: 'rating', type: 'rating', label: 'De 1 a 5 ¿Cómo calificarías la experiencia?', required: true },
       ]
       : [{ id: 'name', type: 'text', label: 'Nombre completo', required: true, system: true }, { id: 'email', type: 'email', label: 'Correo', required: false, system: true }, { id: 'phone', type: 'phone', label: 'Teléfono', required: true, system: true }, { id: 'consent', type: 'consent', label: 'Acepto el tratamiento de mis datos para gestionar esta reserva.', required: true }];
+    /*
+     * Una reserva nueva nace con su propio cupo, no compartiendo el de la empresa.
+     *
+     * El tope de la empresa suma todas sus reservas publicadas: heredarlo hacía que abrir la
+     * segunda le quitara día a la primera sin que nadie lo pidiera. Las que ya existen conservan
+     * lo que tenían, y quien de verdad quiera un tope común lo enciende en Disponibilidad.
+     */
     const form = this.forms.create({
       organizationId, clientId: dto.clientId, createdBy: userId, name: dto.name.trim(), publicSlug: await this.uniqueSlug(dto.publicSlug || dto.name), mode: dto.mode || 'appointment',
       fieldSchema,
       designConfig: isSurvey
-        ? { primaryColor: '#1f5b2d', accentColor: '#d79b3a', backgroundColor: '#f5eedf', textColor: '#263241', title: dto.name, welcome: 'Gracias por ser parte de nuestra experiencia. Tu opinión es fundamental para seguir mejorando.', confirmationMessage: 'Gracias por tu tiempo. Tu respuesta fue registrada.', backgroundMode: 'image', backgroundOpacity: '82', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'center', buttonRadius: '6', fieldRadius: '6', fontFamily: 'Inter, sans-serif', showFacts: 'false', showSecureBadge: 'false', showPoweredBy: 'false', googleReviewUrl: '', googleReviewMinRating: '4' }
+        ? { primaryColor: '#1f5b2d', accentColor: '#d79b3a', backgroundColor: '#f5eedf', textColor: '#263241', title: dto.name, welcome: 'Gracias por ser parte de nuestra experiencia. Tu opinión es fundamental para seguir mejorando.', confirmationMessage: 'Gracias por tu tiempo. Tu respuesta fue registrada.', backgroundMode: 'image', backgroundOpacity: '82', backgroundPosition: 'center', backgroundSize: 'cover', layoutPosition: 'center', buttonRadius: '6', fieldRadius: '6', fontFamily: 'Inter, sans-serif', showFacts: 'false', showSecureBadge: 'false', showPoweredBy: 'false', googleReviewUrl: '', googleReviewMinRating: '4', enforceCompanyDailyCap: 'false' }
         : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
       scheduleConfig: { windows: [1,2,3,4,5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: false, calendarEnabled: false, metaCapiEnabled: false,
     });
@@ -426,6 +435,41 @@ export class ReservationsService {
 
   listForms(organizationId: string, clientId?: string, clientIds?: string[]) { return this.forms.find({ where: this.scope(organizationId, clientId, clientIds), order: { updatedAt: 'DESC' } }); }
   async getForm(organizationId: string, id: string, clientId?: string, clientIds?: string[]) { const form = await this.forms.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } }); if (!form) throw new NotFoundException('Formulario no encontrado'); return form; }
+  /**
+   * Los ajustes del día a día, por una puerta que no puede tocar nada más.
+   *
+   * Cambiar un cupo obligaba a abrir el constructor, y quien puede abrirlo puede cambiar también
+   * los campos, los textos legales, la medición y la publicación: no había forma de entregar lo
+   * chico sin entregar lo grande. Aquí la lista es cerrada, así que el permiso se puede dar a
+   * quien opera el local.
+   *
+   * Se manda sólo lo tocado y el resto del diseño se relee al momento: el constructor guarda su
+   * borrador entero, y mandar una copia vieja desde aquí revertiría lo que se hubiera guardado
+   * allí mientras tanto.
+   */
+  async actualizarOperacion(organizationId: string, id: string, dto: ActualizarOperacionDto, clientId?: string, clientIds?: string[]) {
+    const form = await this.getForm(organizationId, id, clientId, clientIds);
+    const patch: UpdateReservationFormDto = {};
+    if (dto.capacityPerSlot !== undefined) patch.capacityPerSlot = dto.capacityPerSlot;
+    if (dto.dailyCapacity !== undefined) patch.dailyCapacity = dto.dailyCapacity;
+
+    const design = { ...(form.designConfig as DesignConfig) };
+    let tocaDiseno = false;
+    if (dto.toleranciaMinutos !== undefined) { design.toleranciaMinutos = String(dto.toleranciaMinutos); tocaDiseno = true; }
+    if (dto.notasDelLocal !== undefined) { design.notasDelLocal = dto.notasDelLocal.trim(); tocaDiseno = true; }
+    if (dto.whatsappBusinessNumber !== undefined) { design.whatsappBusinessNumber = dto.whatsappBusinessNumber.trim(); tocaDiseno = true; }
+    if (tocaDiseno) patch.designConfig = design as Record<string, unknown>;
+
+    if (dto.zonasActivas !== undefined) {
+      const encendidas = new Set(dto.zonasActivas);
+      // Sólo cambia el interruptor: nombre, cupo y descripción son los que ya estaban guardados.
+      const zonas = (form.resourcesConfig ?? []) as Array<{ id: string } & Record<string, unknown>>;
+      patch.resourcesConfig = zonas.map((zona) => ({ ...zona, active: encendidas.has(zona.id) }));
+    }
+
+    return this.updateForm(organizationId, id, patch, clientId, clientIds);
+  }
+
   async updateForm(organizationId: string, id: string, dto: UpdateReservationFormDto, clientId?: string, clientIds?: string[]) {
     const form = await this.getForm(organizationId, id, clientId, clientIds);
     const estabaPublicado = form.status === 'published';
@@ -645,15 +689,33 @@ export class ReservationsService {
    * otra petición —de ahí el `IGNORE`—, pero entonces la fila ya existe y ambas terminan
    * bloqueando la misma. El bloqueo se libera al cerrar la transacción.
    */
-  private async lockClientDay(manager: EntityManager, clientId: string, day: string): Promise<void> {
+  private async lockClientDay(manager: EntityManager, form: ReservationForm, day: string): Promise<void> {
+    const scopeId = await this.alcanceDelCandado(manager, form);
     await manager.query(
-      'INSERT IGNORE INTO reservation_day_locks (id, client_id, day, created_at) VALUES (?, ?, ?, NOW())',
-      [randomUUID(), clientId, day],
+      'INSERT IGNORE INTO reservation_day_locks (id, scope_id, day, created_at) VALUES (?, ?, ?, NOW())',
+      [randomUUID(), scopeId, day],
     );
     await manager.query(
-      'SELECT id FROM reservation_day_locks WHERE client_id = ? AND day = ? FOR UPDATE',
-      [clientId, day],
+      'SELECT id FROM reservation_day_locks WHERE scope_id = ? AND day = ? FOR UPDATE',
+      [scopeId, day],
     );
+  }
+
+  /**
+   * Qué tiene que esperar a qué para crear una reserva.
+   *
+   * Con un tope de empresa, el alcance es el cliente: es la única cuenta que dos formularios
+   * pueden pasarse entre ellos, y bloquear menos la dejaría exceder. Sin tope de empresa no hay
+   * ninguna cuenta compartida, y entonces el alcance es el formulario: dos reservas publicadas
+   * por la misma empresa no compiten por nada y no tienen por qué hacer fila.
+   *
+   * Se consulta el tope y no el interruptor de cada formulario a propósito: mientras la empresa
+   * tenga tope, todos entran al mismo turno, incluso los que declararon no respetarlo, porque
+   * igual suman en el conteo de quienes sí lo respetan.
+   */
+  private async alcanceDelCandado(manager: EntityManager, form: ReservationForm): Promise<string> {
+    const topeDeLaEmpresa = await this.clientDailyCap(manager, form.clientId);
+    return topeDeLaEmpresa > 0 ? form.clientId : form.id;
   }
 
   private localDateKey(date: Date, timeZone: string) {
@@ -703,7 +765,7 @@ export class ReservationsService {
       // El alta manual compite por el mismo cupo que la publica, asi que toma el mismo turno:
       // el tope diario del cliente suma todos sus formularios y bloquear solo este dejaba que
       // dos altas de la misma cuenta contaran cero a la vez.
-      await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+      await this.lockClientDay(manager, form, this.localDateKey(startsAt, form.timezone));
       let endsAt: Date;
       if (dto.skipAvailability) {
         const rules = this.effectiveRules(form, dto.serviceId, dto.resourceId);
@@ -1663,7 +1725,7 @@ export class ReservationsService {
       const form = await manager.getRepository(ReservationForm).findOne({ where: { id: booking.formId } });
       if (!form || form.status !== 'published') throw new ConflictException('La agenda ya no está disponible');
       this.assertPublicBookingOpen(form);
-      await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+      await this.lockClientDay(manager, form, this.localDateKey(startsAt, form.timezone));
       // Cambiar cuantos vienen se valida igual que la hora: contra el cupo, excluyendo la propia
       // reserva. Un grupo grande pasa por el equipo, asi que desde el enlace no se puede cruzar.
       const personas = requestedPartySize ?? booking.partySize;
@@ -1761,7 +1823,7 @@ export class ReservationsService {
     return this.transaction('retener cupo público', async (manager) => {
       const form = await this.publishedForm(slug, manager);
       this.assertPublicBookingOpen(form);
-      await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+      await this.lockClientDay(manager, form, this.localDateKey(startsAt, form.timezone));
       const partySize = dto.partySize || 1;
       const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
       const repo = manager.getRepository(ReservationHold);
@@ -2021,7 +2083,7 @@ export class ReservationsService {
       if (!Number.isNaN(startsAt.getTime())) {
         // Desde acá y hasta cerrar la transacción, ninguna otra reserva de este cliente para
         // este día avanza. Las de otros días y las de otros clientes no se ven afectadas.
-        await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone));
+        await this.lockClientDay(manager, form, this.localDateKey(startsAt, form.timezone));
       }
       if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
       const partySize = dto.partySize || 1;
@@ -2569,7 +2631,7 @@ export class ReservationsService {
     const saved = await this.transaction('actualizar reserva', async (manager) => { const repo = manager.getRepository(Reservation); const qb = repo.createQueryBuilder('r').setLock('pessimistic_write').where('r.id = :id AND r.organization_id = :organizationId', { id, organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); const item = await qb.getOne(); if (!item) throw new NotFoundException('Reserva no encontrada'); const previousStatus = item.status; const previousStart = item.startsAt;
       if (dto.startsAt) {
         if (!['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(item.status)) throw new ConflictException(`No se puede reagendar una reserva en estado ${item.status}`);
-        const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId }); const startsAt = new Date(dto.startsAt); await this.lockClientDay(manager, form.clientId, this.localDateKey(startsAt, form.timezone)); const available = await this.availability(manager, form, startsAt, item.partySize, item.serviceId, item.resourceId, item.id); item.startsAt = startsAt; item.endsAt = available.endsAt; item.status = 'rescheduled';
+        const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId }); const startsAt = new Date(dto.startsAt); await this.lockClientDay(manager, form, this.localDateKey(startsAt, form.timezone)); const available = await this.availability(manager, form, startsAt, item.partySize, item.serviceId, item.resourceId, item.id); item.startsAt = startsAt; item.endsAt = available.endsAt; item.status = 'rescheduled';
       }
       if (dto.status && dto.status !== item.status) {
         if (!STATUS_TRANSITIONS[item.status]?.includes(dto.status)) throw new ConflictException(`No se puede pasar de ${item.status} a ${dto.status}`);
@@ -2652,7 +2714,7 @@ export class ReservationsService {
     const end = startOfLocalDayUtc(addPlainDays(dto.date, 1), form.timezone);
     if (end > new Date()) throw new BadRequestException('Solo puedes cerrar un turno que ya terminó');
     return this.transaction('cerrar turno por excepción', async (manager) => {
-      await this.lockClientDay(manager, form.clientId, dto.date);
+      await this.lockClientDay(manager, form, dto.date);
       const bookings = await manager.getRepository(Reservation).createQueryBuilder('r').setLock('pessimistic_write')
         .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start, end, statuses: ACTIVE_STATUSES }).getMany();
       for (const booking of bookings) {
@@ -2676,10 +2738,21 @@ export class ReservationsService {
     if (!actual) throw new NotFoundException('Reserva no encontrada');
     const correo = actual.guestEmail?.trim().toLowerCase();
     const telefono = actual.guestPhone?.trim();
-    const vacio = { total: 0, attended: 0, noShow: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
+    const vacio = { total: 0, attended: 0, noShow: 0, alcance: 'local' as 'local' | 'red', deOtrasReservas: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
     if (!correo && !telefono) return vacio;
+
+    /*
+     * Hasta dónde llega el historial: sólo esta reserva publicada, o todas las de la empresa.
+     *
+     * Cuando una empresa tenía un solo enlace, las dos cosas eran la misma y mirar por empresa no
+     * cruzaba nada. Con varias, mirar por empresa le muestra a quien atiende un local lo que esa
+     * persona hizo en otro, que es exactamente lo que el permiso de red le pide autorizar. El
+     * permiso se guardaba en cada reserva y no decidía nada; ahora es lo que abre o cierra esto.
+     */
+    const formActual = await this.forms.findOne({ where: { id: actual.formId }, select: { id: true, designConfig: true } });
+    const red = (formActual?.designConfig as DesignConfig | undefined)?.networkConsentEnabled === 'true' && Boolean(actual.networkConsentAt);
     const qb = this.reservations.createQueryBuilder('r')
-      .where('r.organization_id = :organizationId AND r.client_id = :clientIdActual AND r.id != :id', { organizationId, clientIdActual: actual.clientId, id: actual.id });
+      .where(`r.organization_id = :organizationId AND ${red ? 'r.client_id = :alcance' : 'r.form_id = :alcance'} AND r.id != :id`, { organizationId, alcance: red ? actual.clientId : actual.formId, id: actual.id });
     if (correo && telefono) qb.andWhere('(LOWER(r.guest_email) = :correo OR r.guest_phone = :telefono)', { correo, telefono });
     else if (correo) qb.andWhere('LOWER(r.guest_email) = :correo', { correo });
     else qb.andWhere('r.guest_phone = :telefono', { telefono });
@@ -2689,6 +2762,10 @@ export class ReservationsService {
       total: previas.length,
       attended: previas.filter((item) => item.status === 'attended').length,
       noShow: previas.filter((item) => item.status === 'no_show').length,
+      alcance: red ? 'red' as const : 'local' as const,
+      // Cuántas de esas visitas fueron a otra reserva de la misma empresa: sin decirlo, «ya vino
+      // 3 veces» hace pensar que fue aquí.
+      deOtrasReservas: previas.filter((item) => item.formId !== actual.formId).length,
       preferencias: this.preferenciasDeLaPersona(previas, actual),
       anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize })),
     };
