@@ -285,7 +285,8 @@ function PasoInicio({ state, setState, clients, conRespuestas, isEdit }: {
 }
 
 /** Paso 2: datos de quien responde y preguntas con reglas. */
-function PasoPreguntas({ questions, onChange, conRespuestas, idsGuardados }: { questions: SurveyQuestion[]; onChange: (next: SurveyQuestion[]) => void; conRespuestas: boolean; idsGuardados: Set<string> }) {
+function PasoPreguntas({ questions, onChange, conRespuestas, idsGuardados, state, setState }: { state: WizardState; setState: SetState; questions: SurveyQuestion[]; onChange: (next: SurveyQuestion[]) => void; conRespuestas: boolean; idsGuardados: Set<string> }) {
+  const set = (patch: Partial<WizardState>) => setState((c) => ({ ...c, ...patch }));
   const preguntas = questions.filter((q) => !q.dato);
   const datos = questions.filter((q) => q.dato);
   /** Si una pregunta pudo recibir respuestas: entonces se archiva en vez de quitarse. */
@@ -437,6 +438,33 @@ function PasoPreguntas({ questions, onChange, conRespuestas, idsGuardados }: { q
         </div>
         <button type="button" className="btn btn-outline" onClick={() => onChange(conDatos([...preguntas, blankQuestion()]))}>+ Agregar pregunta</button>
       </fieldset>
+
+      <fieldset className="survey-resenas">
+        <legend>Al terminar la encuesta</legend>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={state.googleReviewUrl.trim().length > 0 || state.pideResena}
+            onChange={(e) => set(e.target.checked ? { pideResena: true } : { pideResena: false, googleReviewUrl: '' })}
+          /> Invitar a dejar una reseña en Google
+        </label>
+        {(state.pideResena || state.googleReviewUrl.trim()) ? <>
+          <p className="survey-resenas-ayuda">A quien califique {state.googleReviewMinRating} o más se le ofrece el enlace de Google. A quien califique menos se le muestra tu mensaje, y su respuesta queda para el equipo.</p>
+          <label>Enlace para dejar la reseña
+            <small>Sale del perfil del local en Google: «Pedir reseñas» copia un enlace corto.</small>
+            <input className="input" value={state.googleReviewUrl} onChange={(e) => set({ googleReviewUrl: e.target.value })} placeholder="https://g.page/r/..." />
+          </label>
+          <div className="form-row">
+            <label>Nota desde la que se pide la reseña
+              <input className="input" type="number" min={1} max={5} value={state.googleReviewMinRating} onChange={(e) => set({ googleReviewMinRating: Number(e.target.value) })} />
+            </label>
+          </div>
+          <label>Mensaje si la calificación es baja
+            <textarea className="input" rows={2} value={state.googleReviewLowMsg} onChange={(e) => set({ googleReviewLowMsg: e.target.value })} placeholder="Gracias por avisarnos. Revisaremos tu caso." />
+          </label>
+          {state.pideResena && !state.googleReviewUrl.trim() && <p className="survey-resenas-falta">Falta el enlace: sin él no se le ofrece la reseña a nadie.</p>}
+        </> : <p className="survey-resenas-ayuda">Apagado: al terminar sólo se agradece la respuesta.</p>}
+      </fieldset>
     </div>
   );
 }
@@ -487,32 +515,6 @@ function PasoDiseno({ state, setState }: { state: WizardState; setState: SetStat
       </fieldset>
 
       <ImageUpload label="Logo de la encuesta" value={state.logoUrl} onChange={(url) => set({ logoUrl: url })} placeholder="https://..." maxSizeMB={3} maxWidth={480} clientId={state.clientId || undefined} />
-      <fieldset className="survey-resenas">
-        <legend>Al terminar la encuesta</legend>
-        <label className="toggle-row">
-          <input
-            type="checkbox"
-            checked={state.googleReviewUrl.trim().length > 0 || state.pideResena}
-            onChange={(e) => set(e.target.checked ? { pideResena: true } : { pideResena: false, googleReviewUrl: '' })}
-          /> Invitar a dejar una reseña en Google
-        </label>
-        {(state.pideResena || state.googleReviewUrl.trim()) ? <>
-          <p className="survey-resenas-ayuda">A quien califique {state.googleReviewMinRating} o más se le ofrece el enlace de Google. A quien califique menos se le muestra tu mensaje, y su respuesta queda para el equipo.</p>
-          <label>Enlace para dejar la reseña
-            <small>Sale del perfil del local en Google: «Pedir reseñas» copia un enlace corto.</small>
-            <input className="input" value={state.googleReviewUrl} onChange={(e) => set({ googleReviewUrl: e.target.value })} placeholder="https://g.page/r/..." />
-          </label>
-          <div className="form-row">
-            <label>Nota desde la que se pide la reseña
-              <input className="input" type="number" min={1} max={5} value={state.googleReviewMinRating} onChange={(e) => set({ googleReviewMinRating: Number(e.target.value) })} />
-            </label>
-          </div>
-          <label>Mensaje si la calificación es baja
-            <textarea className="input" rows={2} value={state.googleReviewLowMsg} onChange={(e) => set({ googleReviewLowMsg: e.target.value })} placeholder="Gracias por avisarnos. Revisaremos tu caso." />
-          </label>
-          {state.pideResena && !state.googleReviewUrl.trim() && <p className="survey-resenas-falta">Falta el enlace: sin él no se le ofrece la reseña a nadie.</p>}
-        </> : <p className="survey-resenas-ayuda">Apagado: al terminar sólo se agradece la respuesta.</p>}
-      </fieldset>
     </div>
   );
 }
@@ -702,7 +704,7 @@ export function CreateSurveyWizard(): JSX.Element {
           />
 
           {step === 0 && <PasoInicio state={state} setState={setState} clients={clients} conRespuestas={conRespuestas} isEdit={Boolean(editId)} />}
-          {step === 1 && <PasoPreguntas questions={state.questions} conRespuestas={conRespuestas} idsGuardados={idsGuardados} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
+          {step === 1 && <PasoPreguntas state={state} setState={setState} questions={state.questions} conRespuestas={conRespuestas} idsGuardados={idsGuardados} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
           {step === 2 && <PasoDiseno state={state} setState={setState} />}
           {step === 3 && (
             <DistributionSelector
