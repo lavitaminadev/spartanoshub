@@ -32,6 +32,7 @@ export declare const ALLOWED_FILE_TYPES: readonly ["image/jpeg", "image/png", "i
 export * from './industries';
 export * from './lead-sources';
 export * from './meta-events';
+export * from './motivos-de-cierre';
 export * from './modules';
 export * from './role-tiers';
 //# sourceMappingURL=index.d.ts.map

@@ -23,6 +23,9 @@ export class ReservationGroupRequest {
   @Column({ name: 'quote_amount', type: 'decimal', precision: 12, scale: 2, nullable: true }) quoteAmount?: string | null;
   @Column({ name: 'quote_message', type: 'text', nullable: true }) quoteMessage?: string | null;
   @Column({ name: 'quote_expires_at', type: 'timestamp', nullable: true }) quoteExpiresAt?: Date | null;
+  /** Por qué se cerró sin reserva: una categoría del catálogo, y lo que no entre en ella. */
+  @Column({ name: 'close_reason', type: 'varchar', length: 40, nullable: true }) closeReason?: string | null;
+  @Column({ name: 'close_notes', type: 'text', nullable: true }) closeNotes?: string | null;
   @Column({ name: 'reservation_consent_at', type: 'timestamp', nullable: true }) reservationConsentAt?: Date | null;
   @Column({ name: 'reservation_consent_text', type: 'text', nullable: true }) reservationConsentText?: string | null;
   @Column({ name: 'marketing_consent_at', type: 'timestamp', nullable: true }) marketingConsentAt?: Date | null;

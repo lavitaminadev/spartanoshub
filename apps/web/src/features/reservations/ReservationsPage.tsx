@@ -29,6 +29,7 @@ import { safeUrl } from '../../core/safe-url';
 import './ReservationsPage.css';
 import { puedeAccion } from '../../core/acciones';
 import { empresaOfrece } from './servicios-contratados';
+import { MOTIVOS_DE_CIERRE, nombreDelMotivo } from '@espartanos/shared';
 
 interface Client { id: string; name: string; capabilities?: Record<string, boolean> }
 interface PixelBinding { clientId: string; pixelId: string | null; pixelName: string | null; tokenConfigured: boolean }
@@ -130,6 +131,15 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   /** La reserva cuyos ajustes del día están abiertos, o nula si la ventana está cerrada. */
   const [ajustesDe, setAjustesDe] = useState<ReservationForm | null>(null);
+  /*
+   * Cerrar una solicitud exige decir por qué.
+   *
+   * Antes era una confirmación de navegador y la solicitud salía de la bandeja sin dejar dicho si
+   * faltó fecha, si el precio no les cuadró o si nunca contestaron: tres cosas que se arreglan de
+   * formas distintas y que, sin registrar, no se pueden ni contar.
+   */
+  const [cerrando, setCerrando] = useState<GroupRequest | null>(null);
+  const [motivoDeCierre, setMotivoDeCierre] = useState<{ motivo: string; nota: string }>({ motivo: '', nota: '' });
   const [createStep, setCreateStep] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState<Reservation | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState('');
@@ -392,7 +402,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     },
   });
   const marcarGrupo = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => api.patch(`/reservations/group-requests/${id}`, { status }),
+    mutationFn: ({ id, status, closeReason, closeNotes }: { id: string; status: string; closeReason?: string; closeNotes?: string }) => api.patch(`/reservations/group-requests/${id}`, { status, closeReason, closeNotes }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['group-requests'] }); triggerToast('Solicitud actualizada'); },
     onError: (error: Error) => triggerToast(error.message || 'No se pudo actualizar la solicitud', 'error'),
   });
@@ -614,7 +624,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
                 {respuestasLegibles(details.answers as Record<string, unknown> | undefined, local?.fieldSchema).map((item) => <Fragment key={item.clave}><dt>{item.etiqueta}</dt><dd>{item.valor}</dd></Fragment>)}
                 {origen && <><dt>Origen</dt><dd>{origen}</dd></>}
               </dl></details>
-              {request.quoteAmount && <small>Cotización interna: ${Number(request.quoteAmount).toLocaleString('es-CL')}{request.quoteExpiresAt ? ` · vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}
+              {request.closeReason && <small className="solicitud-motivo">Cerrada: {nombreDelMotivo(request.closeReason)}{request.closeNotes ? ` · ${request.closeNotes}` : ''}</small>}
+              {request.quoteAmount && <small>Precio anotado: ${Number(request.quoteAmount).toLocaleString('es-CL')}{request.quoteExpiresAt ? ` · vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}
             </div>
             <div>
               <span className="reservation-channel-status">{({ pending: 'Pendiente', contacted: 'Contactada', quoted: 'Cotizada', closed: 'Cerrada', converted: 'Convertida en reserva' } as Record<string, string>)[request.status] || request.status}</span>
@@ -629,7 +640,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
                 <div className="portal-item-actions"><button className="btn btn-primary btn-sm" disabled={convertirGrupo.isPending}>{convertirGrupo.isPending ? 'Creando...' : 'Confirmar reserva'}</button><button className="btn btn-outline btn-sm" type="button" onClick={() => setConvirtiendo(null)}>Cancelar</button></div>
               </form>}
               {request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => marcarGrupo.mutate({ id: request.id, status: 'contacted' })}>Marcar contactada</button>}
-              {!['converted', 'closed'].includes(request.status) && convirtiendo?.id !== request.id && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => { if (window.confirm('¿Cerrar esta solicitud sin crear reserva? Queda en el historial.')) marcarGrupo.mutate({ id: request.id, status: 'closed' }); }}>Cerrar sin reserva</button>}
+              {!['converted', 'closed'].includes(request.status) && convirtiendo?.id !== request.id && <button className="btn btn-outline btn-sm" type="button" disabled={marcarGrupo.isPending} onClick={() => { setCerrando(request); setMotivoDeCierre({ motivo: '', nota: '' }); }}>Cerrar sin reserva</button>}
               <Link className="btn btn-outline btn-sm" to={`${base}/agenda?clientId=${encodeURIComponent(request.clientId)}&formId=${encodeURIComponent(request.formId)}`}>Abrir agenda de esta reserva</Link>
             </div>
           </article>;
@@ -645,6 +656,33 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     </section>}
 
     {ajustesDe && <AjustesDelDia abierto onCerrar={() => setAjustesDe(null)} local={ajustesDe} base={clientView ? '/portal/reservations' : '/reservations'} />}
+
+    <Modal open={Boolean(cerrando)} onClose={() => setCerrando(null)} title="Cerrar sin reserva">
+      <form
+        className="modal-form"
+        onSubmit={(evento) => {
+          evento.preventDefault();
+          if (!cerrando || !motivoDeCierre.motivo) return;
+          marcarGrupo.mutate({ id: cerrando.id, status: 'closed', closeReason: motivoDeCierre.motivo, closeNotes: motivoDeCierre.nota.trim() || undefined });
+          setCerrando(null);
+        }}
+      >
+        <p className="page-subtitle">{cerrando?.guestName} · {cerrando?.partySize} personas. Queda en el historial con el motivo, para saber qué eventos se pierden y por qué.</p>
+        <label>¿Por qué se cierra?
+          <select className="input" required value={motivoDeCierre.motivo} onChange={(evento) => setMotivoDeCierre((actual) => ({ ...actual, motivo: evento.target.value }))}>
+            <option value="">Elige un motivo</option>
+            {MOTIVOS_DE_CIERRE.map((motivo) => <option key={motivo.clave} value={motivo.clave}>{motivo.nombre}</option>)}
+          </select>
+        </label>
+        <label>Detalle <small>(opcional)</small>
+          <textarea className="input" rows={2} maxLength={1000} value={motivoDeCierre.nota} onChange={(evento) => setMotivoDeCierre((actual) => ({ ...actual, nota: evento.target.value }))} placeholder="Lo que no entre en el motivo de arriba." />
+        </label>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-outline" onClick={() => setCerrando(null)}>Volver</button>
+          <button type="submit" className="btn btn-primary" disabled={!motivoDeCierre.motivo || marcarGrupo.isPending}>Cerrar la solicitud</button>
+        </div>
+      </form>
+    </Modal>
 
     <Modal open={createOpen} onClose={closeCreateFlow} title="Agregar una reserva">
       <form className="modal-form reservation-create-wizard" onSubmit={(event) => { event.preventDefault(); if (createStep < 2) { if (createStepReady[createStep]) setCreateStep((current) => Math.min(2, current + 1)); return; } createMutation.mutate(); }}>

@@ -800,6 +800,12 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], UpdateReservationDto.prototype, "resourceId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(10000),
     __metadata("design:type", String)
 ], UpdateReservationDto.prototype, "internalNotes", void 0);
@@ -850,6 +856,18 @@ __decorate([
     (0, class_validator_1.IsIn)(['pending', 'contacted', 'quoted', 'closed']),
     __metadata("design:type", String)
 ], UpdateGroupRequestDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], UpdateGroupRequestDto.prototype, "closeReason", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(1000),
+    __metadata("design:type", String)
+], UpdateGroupRequestDto.prototype, "closeNotes", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),

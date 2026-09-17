@@ -2,7 +2,7 @@ import { normalizarCorreo, normalizarTelefono } from '../../integrations/meta/id
 import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
-import { camposVisibles, type ReglaDeCampo } from '@espartanos/shared';
+import { camposVisibles, esMotivoDeCierre, type ReglaDeCampo } from '@espartanos/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
@@ -22,6 +22,7 @@ import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLo
 import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
+import { evaluarCambioDeZona, type ZonaDelLocal } from './cambio-de-zona';
 import { ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
@@ -860,6 +861,23 @@ export class ReservationsService {
   private async clientDailyCap(runner: { query(sql: string, params?: unknown[]): Promise<any> }, clientId: string): Promise<number> {
     const rows = await runner.query('SELECT daily_reservation_cap FROM clients WHERE id = ?', [clientId]);
     return Number(rows?.[0]?.daily_reservation_cap ?? 0) || 0;
+  }
+
+  private async assertCupoDeZona(manager: EntityManager, form: ReservationForm, booking: Reservation, resourceId: string): Promise<void> {
+    const solapadas = await manager.getRepository(Reservation).createQueryBuilder('r')
+      .where('r.form_id = :formId AND r.resource_id = :resourceId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses) AND r.id != :id', {
+        formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, statuses: ACTIVE_STATUSES, id: booking.id,
+      })
+      .getMany();
+    const rechazo = evaluarCambioDeZona({
+      zonas: (form.resourcesConfig || []) as ZonaDelLocal[],
+      destino: resourceId,
+      ocupado: solapadas.reduce((total, item) => total + Math.max(1, item.partySize), 0),
+      personas: booking.partySize,
+      capacidadDelLocal: form.capacityPerSlot,
+    });
+    if (!rechazo) return;
+    throw rechazo.motivo === 'sin-espacio' ? new ConflictException(rechazo.mensaje) : new BadRequestException(rechazo.mensaje);
   }
 
   private async availability(manager: EntityManager, form: ReservationForm, startsAt: Date, partySize: number, serviceId?: string, resourceId?: string, excludeId?: string, excludeHoldKey?: string) {
@@ -1984,12 +2002,28 @@ export class ReservationsService {
       resourceId: dto.resourceId || texto(details.resourceId),
       serviceId: dto.serviceId || texto(details.serviceId),
       answers,
-      internalNotes: 'Creada desde una solicitud de grupo.',
+      internalNotes: [
+        'Creada desde una solicitud de grupo.',
+        request.quoteAmount ? `Precio acordado: $${Number(request.quoteAmount).toLocaleString('es-CL')}.` : '',
+        request.quoteMessage?.trim() ? `Detalle: ${request.quoteMessage.trim()}` : '',
+      ].filter(Boolean).join(' '),
       // Un evento se acuerda por teléfono y puede quedar fuera del horario publicado; el equipo
       // decide, pero tiene que decirlo explícitamente en vez de que la regla se salte sola.
       skipAvailability: dto.skipAvailability === true,
     }, clientId, clientIds);
     const reservationId = (booking as { id?: string; booking?: { id?: string } }).id ?? (booking as { booking?: { id?: string } }).booking?.id;
+    if (reservationId) {
+      const heredado: Record<string, unknown> = {};
+      if (request.utmSource) heredado.utmSource = request.utmSource;
+      if (request.utmMedium) heredado.utmMedium = request.utmMedium;
+      if (request.utmCampaign) heredado.utmCampaign = request.utmCampaign;
+      if (request.utmContent) heredado.utmContent = request.utmContent;
+      if (request.originDetected) heredado.originDetected = request.originDetected;
+      if (request.reservationConsentAt) { heredado.reservationConsentAt = request.reservationConsentAt; heredado.reservationConsentText = request.reservationConsentText ?? null; }
+      if (request.marketingConsentAt) { heredado.marketingConsentAt = request.marketingConsentAt; heredado.marketingConsentText = request.marketingConsentText ?? null; }
+      if (request.networkConsentAt) { heredado.networkConsentAt = request.networkConsentAt; heredado.networkConsentText = request.networkConsentText ?? null; }
+      if (Object.keys(heredado).length > 0) await this.reservations.update(reservationId, heredado);
+    }
     const medicion = (details.medicion || null) as { aceptadaEn?: string; fbc?: string; fbp?: string; ip?: string; userAgent?: string } | null;
     if (reservationId && medicion?.aceptadaEn) {
       // Sin esto la asistencia de un evento —la conversión más valiosa— nunca llegaba a Meta:
@@ -2046,16 +2080,28 @@ export class ReservationsService {
     }
   }
 
-  async updateGroupRequest(organizationId: string, id: string, dto: { status: string; quoteAmount?: number; quoteMessage?: string; quoteExpiresAt?: string }, actorId: string, clientId?: string, clientIds?: string[]) {
+  async updateGroupRequest(organizationId: string, id: string, dto: { status: string; quoteAmount?: number; quoteMessage?: string; quoteExpiresAt?: string; closeReason?: string; closeNotes?: string }, actorId: string, clientId?: string, clientIds?: string[]) {
     const item = await this.groupRequests.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
     if (!item) throw new NotFoundException('Solicitud no encontrada');
     if (dto.status === 'quoted' && (dto.quoteAmount === undefined || !dto.quoteMessage?.trim())) throw new BadRequestException('Una cotización necesita monto y mensaje para el cliente');
+    /*
+     * Cerrar exige decir por qué.
+     *
+     * Sin motivo, una solicitud cerrada sólo dice que se perdió; con él se puede saber si lo que
+     * cuesta eventos es la falta de cupo, el precio o demorar la respuesta, que se arreglan de
+     * formas distintas.
+     */
+    if (dto.status === 'closed') {
+      if (!dto.closeReason || !esMotivoDeCierre(dto.closeReason)) throw new BadRequestException('Elige por qué se cierra esta solicitud');
+      item.closeReason = dto.closeReason;
+      item.closeNotes = dto.closeNotes?.trim() || null;
+    }
     item.status = dto.status;
     if (dto.quoteAmount !== undefined) item.quoteAmount = String(dto.quoteAmount);
     if (dto.quoteMessage !== undefined) item.quoteMessage = dto.quoteMessage.trim() || null;
     if (dto.quoteExpiresAt !== undefined) item.quoteExpiresAt = new Date(dto.quoteExpiresAt);
     const saved = await this.groupRequests.save(item);
-    await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'status_changed', after: { status: dto.status, quoteAmount: dto.quoteAmount, quoteExpiresAt: dto.quoteExpiresAt } });
+    await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'status_changed', after: { status: dto.status, closeReason: dto.closeReason, quoteAmount: dto.quoteAmount, quoteExpiresAt: dto.quoteExpiresAt } });
     return saved;
   }
 
@@ -2666,6 +2712,15 @@ export class ReservationsService {
        */
       if (dto.partySize !== undefined) item.partySize = dto.partySize;
       if (dto.tableLabel !== undefined) item.tableLabel = dto.tableLabel.trim() || null;
+      // Vacío es «sin zona asignada»: el local la ubica donde pueda.
+      if (dto.resourceId !== undefined && (dto.resourceId || null) !== (item.resourceId || null)) {
+        const destino = dto.resourceId.trim();
+        if (destino) {
+          const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
+          await this.assertCupoDeZona(manager, form, item, destino);
+        }
+        item.resourceId = destino || undefined;
+      }
       const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) calendarNotification = 'PUBLISH'; if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
     const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
     // Intencionalmente no se envía evento de Meta CAPI para 'no_show': la Conversions API no tiene
@@ -2738,7 +2793,7 @@ export class ReservationsService {
     if (!actual) throw new NotFoundException('Reserva no encontrada');
     const correo = actual.guestEmail?.trim().toLowerCase();
     const telefono = actual.guestPhone?.trim();
-    const vacio = { total: 0, attended: 0, noShow: 0, alcance: 'local' as 'local' | 'red', deOtrasReservas: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
+    const vacio = { total: 0, attended: 0, noShow: 0, enEsteLocal: 0, alcance: 'local' as 'local' | 'red', deOtrasReservas: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
     if (!correo && !telefono) return vacio;
 
     /*
@@ -2763,11 +2818,12 @@ export class ReservationsService {
       attended: previas.filter((item) => item.status === 'attended').length,
       noShow: previas.filter((item) => item.status === 'no_show').length,
       alcance: red ? 'red' as const : 'local' as const,
-      // Cuántas de esas visitas fueron a otra reserva de la misma empresa: sin decirlo, «ya vino
-      // 3 veces» hace pensar que fue aquí.
+      // Cuántas de esas visitas fueron aquí y cuántas en otra reserva de la misma empresa: sin
+      // separarlas, «ya vino 3 veces» hace pensar que fueron todas en este local.
+      enEsteLocal: previas.filter((item) => item.formId === actual.formId).length,
       deOtrasReservas: previas.filter((item) => item.formId !== actual.formId).length,
       preferencias: this.preferenciasDeLaPersona(previas, actual),
-      anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize })),
+      anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
     };
   }
 
