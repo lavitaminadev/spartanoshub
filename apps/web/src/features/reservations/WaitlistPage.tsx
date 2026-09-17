@@ -133,7 +133,7 @@ export function WaitlistPage() {
       : isFetching && !waitlistPage ? <LoadingSpinner text="Buscando reservas en espera..." />
       : items.length === 0 ? <EmptyState icon="clock" title="Sin reservas en espera" description="Las solicitudes que queden en lista de espera aparecerán aquí." />
       : <div className="crm-table-container">
-        <table className="data-table">
+        <table className="data-table waitlist-table">
           <thead>
             <tr>
               <th>#</th>
@@ -145,8 +145,8 @@ export function WaitlistPage() {
           </thead>
           <tbody>
             {items.map((item, index) => <tr key={item.id}>
-              <td>{index + 1}</td>
-              <td><strong>{item.guestName}</strong><br /><small>{item.guestPhone || item.guestEmail || 'Sin contacto'}</small>
+              <td data-label="#">{index + 1}</td>
+              <td data-label="Quién espera"><strong>{item.guestName}</strong><br /><small>{item.guestPhone || item.guestEmail || 'Sin contacto'}</small>
                 <br /><small className="waitlist-local">{forms.find((form) => form.id === item.formId)?.name || 'Reserva no disponible'}</small>
                 {/* Quien devuelve la llamada necesita la alergia y la ocasión, no sólo la nota interna. */}
                 {(() => {
@@ -158,11 +158,11 @@ export function WaitlistPage() {
                   </div>;
                 })()}
               </td>
-              <td>{item.partySize}</td>
-              <td>{new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
+              <td data-label="Personas">{item.partySize}</td>
+              <td data-label="Hora solicitada">{new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
                 <br /><small>Espera {waitingTimeLabel(item.createdAt)}</small>
               </td>
-              <td>
+              <td data-label="Acciones">
                 <div className="actions-cell">
                   <button
                     type="button"
