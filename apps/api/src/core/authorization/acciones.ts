@@ -23,6 +23,7 @@ export interface DefinicionDeAccion {
 export const ACCIONES: readonly DefinicionDeAccion[] = [
   { clave: 'crm.importar', modulo: 'crm', nombre: 'Importar leads', ayuda: 'Subir contactos desde un archivo.', nivelPorDefecto: 'edit' },
   { clave: 'crm.borrar', modulo: 'crm', nombre: 'Borrar oportunidades', ayuda: 'Eliminar una oportunidad del embudo.', nivelPorDefecto: 'manage' },
+  { clave: 'reservations.configurar', modulo: 'reservations', nombre: 'Configurar la reserva', ayuda: 'Horario semanal, campos, textos legales, medición y publicación. Cerrarlo deja los ajustes del día a día, que se cambian desde la propia pantalla.', nivelPorDefecto: 'edit' },
   { clave: 'reservations.exportar', modulo: 'reservations', nombre: 'Exportar reservas', ayuda: 'Descargar reservas con datos de contacto.', nivelPorDefecto: 'edit' },
   { clave: 'reservations.importar', modulo: 'reservations', nombre: 'Importar reservas', ayuda: 'Cargar reservas desde un archivo.', nivelPorDefecto: 'edit' },
   { clave: 'surveys.enviar', modulo: 'surveys', nombre: 'Enviar encuestas por correo', ayuda: 'Mandar la encuesta a sus destinatarios.', nivelPorDefecto: 'edit' },

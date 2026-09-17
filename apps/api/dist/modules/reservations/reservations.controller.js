@@ -150,6 +150,11 @@ let ReservationsController = class ReservationsController {
         const form = await this.service.updateForm(req.organizationId, id, dto, scope.clientId, scope.clientIds);
         return this.decorateForm(req.organizationId, form.clientId, form);
     }
+    async actualizarOperacion(req, id, dto) {
+        const scope = await this.scope(req);
+        const form = await this.service.actualizarOperacion(req.organizationId, id, dto, scope.clientId, scope.clientIds);
+        return this.decorateForm(req.organizationId, form.clientId, form);
+    }
     async duplicate(req, id) {
         const scope = await this.scope(req);
         const form = await this.service.duplicateForm(req.organizationId, id, req.user.id, scope.clientIds);
@@ -377,6 +382,7 @@ __decorate([
 ], ReservationsController.prototype, "pause", null);
 __decorate([
     (0, common_1.Patch)('forms/:id'),
+    (0, requiere_accion_1.RequiereAccion)('reservations.configurar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -385,6 +391,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, reservation_dto_1.UpdateReservationFormDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "update", null);
+__decorate([
+    (0, common_1.Patch)('forms/:id/operacion'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.ActualizarOperacionDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "actualizarOperacion", null);
 __decorate([
     (0, common_1.Post)('forms/:id/duplicate'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),

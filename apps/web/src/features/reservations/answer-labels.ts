@@ -17,6 +17,10 @@ const ETIQUETAS_DEL_SISTEMA: Record<string, string> = {
   seatingPreference: 'Preferencia de mesa',
   firstVisit: 'Primera visita',
   howFound: 'Cómo nos conoció',
+  // La escribe quien reserva, en sus palabras: salía con la clave cruda del formulario.
+  notes: 'Nota de quien reserva',
+  ocasion: '¿Celebras algo?',
+  birthDate: 'Fecha de nacimiento',
 };
 
 /** Respuestas que conviene destacar en el tablero del dia, en el orden en que se atienden. */

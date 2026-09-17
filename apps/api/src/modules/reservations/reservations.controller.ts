@@ -15,7 +15,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { ActualizarOperacionDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
@@ -152,6 +152,7 @@ export class ReservationsController {
   }
 
   @Patch('forms/:id')
+  @RequiereAccion('reservations.configurar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReservationFormDto) {
     const scope = await this.scope(req);
@@ -185,6 +186,22 @@ export class ReservationsController {
       return this.decorateForm(req.organizationId, form.clientId, form);
     }
     const form = await this.service.updateForm(req.organizationId, id, dto, scope.clientId, scope.clientIds);
+    return this.decorateForm(req.organizationId, form.clientId, form);
+  }
+
+  /**
+   * Los ajustes del día a día, sin pasar por el constructor.
+   *
+   * No lleva `reservations.configurar`: es justamente la puerta que queda abierta para quien
+   * opera el local y no debe tocar campos, textos legales, medición ni publicación. La lista de
+   * lo que acepta la fija el DTO, y lo que no esté en ella se descarta aquí, no en la pantalla.
+   */
+  @Patch('forms/:id/operacion')
+  @RequiresPermission('reservations', 'edit')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async actualizarOperacion(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ActualizarOperacionDto) {
+    const scope = await this.scope(req);
+    const form = await this.service.actualizarOperacion(req.organizationId, id, dto, scope.clientId, scope.clientIds);
     return this.decorateForm(req.organizationId, form.clientId, form);
   }
 

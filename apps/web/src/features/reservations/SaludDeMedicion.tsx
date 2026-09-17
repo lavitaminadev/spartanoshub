@@ -1,5 +1,5 @@
 /**
- * @fileoverview Si las conversiones de una sucursal realmente llegan a Meta.
+ * @fileoverview Si las conversiones de una reserva realmente llegan a Meta.
  *
  * «Meta está listo» sólo dice que hay credenciales. Esto muestra lo que salió en los últimos 30
  * días, lo que espera reintento y lo que falló, con el último error: suele bastar para saber si

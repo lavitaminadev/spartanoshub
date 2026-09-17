@@ -26,6 +26,34 @@ function ahoraEnInputLocal(): string {
   return new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 import { Modal } from '../../shared/Modal';
+import { AjustesDelDia } from './AjustesDelDia';
+import { FichaDeReserva } from './FichaDeReserva';
+import { CATEGORIAS_DE_EVENTO } from './tipos-de-evento';
+
+/** El servidor guarda la categoría; quien atiende lee el nombre. */
+const NOMBRE_DE_CATEGORIA = Object.fromEntries(CATEGORIAS_DE_EVENTO.map((categoria) => [categoria.valor, categoria.nombre]));
+
+/** Desde cuándo espera respuesta: una solicitud de ayer no se atiende igual que una de recién. */
+function esperandoDesde(creada?: string): string {
+  if (!creada) return '';
+  const minutos = Math.floor((Date.now() - new Date(creada).getTime()) / 60_000);
+  if (Number.isNaN(minutos) || minutos < 0) return '';
+  if (minutos < 60) return `hace ${Math.max(1, minutos)} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+}
+
+/** Mensaje ya escrito para responder por WhatsApp, editable antes de enviarlo. */
+function whatsappDeSolicitud(telefono: string | undefined, nombre: string, personas: number): string | null {
+  const digitos = (telefono ?? '').replace(/\D/g, '');
+  if (digitos.length < 8) return null;
+  const numero = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
+  const saludo = nombre.trim().split(/\s+/)[0] || 'Hola';
+  const mensaje = `Hola ${saludo}, recibimos tu solicitud para ${personas} personas. Te contamos qué podemos ofrecerte.`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
+}
 import { CYCLE_COLORS, RESERVATION_STATUS_OPTIONS, findStatusOption } from '../../shared/status-palette';
 import type { Reservation, ReservationForm, GroupRequest } from './types';
 import { localDateBoundsUtc } from './local-time';
@@ -68,6 +96,7 @@ export function AgendaPage() {
   const [clientId, setClientId] = useState(() => clientMode ? user?.clientId || '' : searchParams.get('clientId') ?? '');
   // La entrada desde el centro del local debe abrir ese local, no el primero de otra lista.
   const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
+  const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [mobileZone, setMobileZone] = useState<string>('');
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockReason, setBlockReason] = useState('Evento privado');
@@ -199,16 +228,20 @@ export function AgendaPage() {
         <h1>Agenda del servicio</h1>
         <p className="page-subtitle">Vista del día agrupada por zona, tal como cada cliente configura su local.</p>
       </div>
+      {/* Bajar el cupo o apagar una zona se decide mirando la agenda, no dentro del constructor. */}
+      {activeForm && <button type="button" className="btn btn-outline btn-sm" onClick={() => setAjustesAbiertos(true)}>Ajustes del día</button>}
     </div>
+
+    {activeForm && <AjustesDelDia abierto={ajustesAbiertos} onCerrar={() => setAjustesAbiertos(false)} local={activeForm} base={clientMode ? '/portal/reservations' : '/reservations'} />}
 
     <div className="agenda-controls">
       {!clientMode && <select className="input" aria-label="Cliente" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
         <option value="">Selecciona un cliente</option>
         {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
       </select>}
-      <select className="input" aria-label="Sucursal" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
+      <select className="input" aria-label="Página de reserva" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
         {forms.length === 0
-          ? <option value="">Sin sucursales configuradas</option>
+          ? <option value="">Sin páginas de reserva configuradas</option>
           : forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}
       </select>
       <div className="agenda-date-nav">
@@ -224,16 +257,16 @@ export function AgendaPage() {
     </div>
 
     {!clientId
-      ? <EmptyState icon="calendar" title="Elige una cuenta" description="Selecciona una empresa y su sucursal para ver la agenda del día." />
+      ? <EmptyState icon="calendar" title="Elige una cuenta" description="Selecciona una empresa y su página de reserva para ver la agenda del día." />
       : forms.length === 0 && !loadingForms
-        ? <EmptyState icon="calendar" title="Sin sucursales configuradas" description="Activa Reservas para una empresa antes de abrir la agenda." />
+        ? <EmptyState icon="calendar" title="Sin páginas de reserva configuradas" description="Activa Reservas para una empresa antes de abrir la agenda." />
         : <>
           <div className="agenda-summary" aria-label="Resumen del día">
             <div className="agenda-summary-badge"><strong>{fetchingReservations ? '—' : summary.total}</strong><span>Reservas hoy</span></div>
             <div className="agenda-summary-badge"><strong>{summary.occupancyPct === null ? '—' : `${summary.occupancyPct}%`}</strong><span>Ocupación</span></div>
             <div className="agenda-summary-badge is-warn"><strong>{fetchingReservations ? '—' : summary.noShows}</strong><span>No-shows</span></div>
           </div>
-          <section className="reservation-readiness"><div><span className="page-eyebrow">SOLICITUDES SIN CUPO</span><h2>Grupos y eventos</h2><p className="page-subtitle">No ocupan agenda hasta que el equipo acuerde una fecha y cree la reserva definitiva.</p></div>{groupRequests.length === 0 ? <p className="page-subtitle">No hay solicitudes pendientes para este local.</p> : <div className="reservation-request-list">{groupRequests.map((request) => { const details = request.details || {}; return <article key={request.id} className="reservation-request-card"><div><strong>{request.guestName} · {request.partySize} personas</strong><span>{request.eventType} {request.preferredDate ? `· ${request.preferredDate}` : ''} {request.preferredTime ? `· ${request.preferredTime}` : ''}</span><small>{request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>{request.notes && <p className="page-subtitle">{request.notes}</p>}<details><summary>Ver detalles ingresados</summary><dl className="success-summary"><dt>Fecha solicitada</dt><dd>{request.preferredDate || 'Por acordar'} {request.preferredTime || ''}</dd>{Boolean(details.serviceId) && <><dt>Servicio</dt><dd>{(activeForm?.servicesConfig || []).find((sv) => sv.id === details.serviceId)?.name || String(details.serviceId)}</dd></>}{Boolean(details.resourceId) && <><dt>Zona</dt><dd>{(activeForm?.resourcesConfig || []).find((zn) => zn.id === details.resourceId)?.name || String(details.resourceId)}</dd></>}{Boolean(details.childrenCount) && <><dt>Niños</dt><dd>{String(details.childrenCount)}</dd></>}{Boolean(details.accessibilityNeed) && <><dt>Accesibilidad</dt><dd>{String(details.accessibilityNeed)}</dd></>}{Boolean(details.dietaryNotes) && <><dt>Restricciones alimentarias</dt><dd>{String(details.dietaryNotes)}</dd></>}{respuestasLegibles(details.answers as Record<string, unknown> | undefined, activeForm?.fieldSchema).map((item) => <Fragment key={item.clave}><dt>{item.etiqueta}</dt><dd>{item.valor}</dd></Fragment>)}{origenDeSolicitud(request) && <><dt>Origen</dt><dd>{origenDeSolicitud(request)}</dd></>}</dl></details>{request.quoteAmount && <small>Cotización interna: ${Number(request.quoteAmount).toLocaleString('es-CL')} {request.quoteExpiresAt ? `· vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}</div><div><span className="reservation-channel-status">{request.status}</span>{request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={updateGroupRequest.isPending} onClick={() => updateGroupRequest.mutate({ id: request.id, body: { status: 'contacted' } })}>Marcar contactada</button>}{['pending', 'contacted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setQuoteRequest(request); setQuote({ amount: '', message: '', expiresAt: '' }); }}>Registrar cotización</button>}</div></article>; })}</div>}</section>
+          <section className="reservation-readiness"><div><span className="page-eyebrow">SOLICITUDES SIN CUPO</span><h2>Grupos y eventos</h2><p className="page-subtitle">No ocupan agenda hasta que el equipo acuerde una fecha y cree la reserva definitiva.</p></div>{groupRequests.length === 0 ? <p className="page-subtitle">No hay solicitudes pendientes para este local.</p> : <div className="reservation-request-list">{groupRequests.map((request) => { const details = request.details || {}; return <article key={request.id} className="reservation-request-card"><div><strong>{request.guestName} · {request.partySize} personas</strong><span>{NOMBRE_DE_CATEGORIA[request.eventType] ?? request.eventType} {request.preferredDate ? `· ${request.preferredDate}` : ''} {request.preferredTime ? `· ${request.preferredTime}` : ''}{esperandoDesde(request.createdAt) ? ` · esperando ${esperandoDesde(request.createdAt)}` : ''}</span><small>{request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>{request.notes && <p className="page-subtitle">{request.notes}</p>}<details><summary>Ver detalles ingresados</summary><dl className="success-summary"><dt>Fecha solicitada</dt><dd>{request.preferredDate || 'Por acordar'} {request.preferredTime || ''}</dd>{Boolean(details.serviceId) && <><dt>Servicio</dt><dd>{(activeForm?.servicesConfig || []).find((sv) => sv.id === details.serviceId)?.name || String(details.serviceId)}</dd></>}{Boolean(details.resourceId) && <><dt>Zona</dt><dd>{(activeForm?.resourcesConfig || []).find((zn) => zn.id === details.resourceId)?.name || String(details.resourceId)}</dd></>}{Boolean(details.childrenCount) && <><dt>Niños</dt><dd>{String(details.childrenCount)}</dd></>}{Boolean(details.accessibilityNeed) && <><dt>Accesibilidad</dt><dd>{String(details.accessibilityNeed)}</dd></>}{Boolean(details.dietaryNotes) && <><dt>Restricciones alimentarias</dt><dd>{String(details.dietaryNotes)}</dd></>}{respuestasLegibles(details.answers as Record<string, unknown> | undefined, activeForm?.fieldSchema).map((item) => <Fragment key={item.clave}><dt>{item.etiqueta}</dt><dd>{item.valor}</dd></Fragment>)}{origenDeSolicitud(request) && <><dt>Origen</dt><dd>{origenDeSolicitud(request)}</dd></>}</dl></details>{request.quoteAmount && <small>Cotización interna: ${Number(request.quoteAmount).toLocaleString('es-CL')} {request.quoteExpiresAt ? `· vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}</div><div><span className="reservation-channel-status">{({ pending: 'Sin responder', contacted: 'Contactada', quoted: 'Cotizada', converted: 'Convertida', closed: 'Cerrada' } as Record<string, string>)[request.status] ?? request.status}</span>{(() => { const wsp = whatsappDeSolicitud(request.guestPhone, request.guestName, request.partySize); return wsp ? <a className="btn btn-primary btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Responder por WhatsApp</a> : null; })()}{request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={updateGroupRequest.isPending} onClick={() => updateGroupRequest.mutate({ id: request.id, body: { status: 'contacted' } })}>Marcar contactada</button>}{['pending', 'contacted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setQuoteRequest(request); setQuote({ amount: '', message: '', expiresAt: '' }); }}>Registrar cotización</button>}</div></article>; })}</div>}</section>
           {closeDay.error && <p className="error-text">No se pudo cerrar el turno. Verifica que la fecha ya haya terminado.</p>}
 
           {reservationsError
@@ -297,13 +330,8 @@ export function AgendaPage() {
         </>}
     <Modal open={Boolean(detalle)} onClose={() => { setDetalle(null); setMotivoCancelacion(''); }} title={detalle ? `${detalle.guestName} · ${new Date(detalle.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: activeForm?.timezone })}` : 'Reserva'}>
       {detalle && <div className="modal-form">
-        <div className="agenda-detalle-cabecera">
-          <div><span>Personas</span><strong>{detalle.partySize}</strong></div>
-          <div><span>Contacto</span><strong>{detalle.guestPhone || detalle.guestEmail || 'Sin contacto'}</strong></div>
-          <div><span>Código</span><strong>#{detalle.referenceCode}</strong></div>
-          {(() => { const zona = (activeForm?.resourcesConfig || []).find((r) => r.id === detalle.resourceId); return zona ? <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ' · no fumadores'}</strong></div> : null; })()}
-        </div>
-        {(() => { const datos = respuestasLegibles(detalle.answers, activeForm?.fieldSchema); return datos.length > 0 && <div className="agenda-detalle-datos">{datos.map((item) => <p key={item.clave}><span>{item.etiqueta}</span><strong>{item.valor}</strong></p>)}</div>; })()}
+        {/* La misma ficha que en la lista: quien recibe necesita la mesa, el cupón y si ya vino antes. */}
+        <FichaDeReserva reserva={detalle} local={activeForm} onGuardada={() => { void refetchReservations(); }} />
         {detalle.internalNotes && <p className="page-subtitle">Notas internas: {detalle.internalNotes}</p>}
         {actualizarReserva.error && <p className="error-text">{actualizarReserva.error instanceof Error && actualizarReserva.error.message ? actualizarReserva.error.message : 'No se pudo actualizar la reserva. Revisa el estado e inténtalo otra vez.'}</p>}
         {['pending', 'confirmed', 'rescheduled'].includes(detalle.status) ? <>

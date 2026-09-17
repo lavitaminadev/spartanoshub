@@ -104,7 +104,7 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
    */
   const imprimirMutation = useMutation({
     mutationFn: async () => {
-      if (!formId) throw new Error('Selecciona una sucursal antes de exportar');
+      if (!formId) throw new Error('Selecciona una página de reserva antes de exportar');
       const { dateFrom, dateTo, fields } = options;
       return api.post<Array<Record<string, unknown>>>(`/reservations/forms/${formId}/export`, {
         format: 'json',
@@ -233,7 +233,7 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
             className="btn btn-primary"
             onClick={() => (options.format === 'imprimir' ? imprimirMutation.mutate() : exportMutation.mutate())}
             disabled={exportMutation.isPending || imprimirMutation.isPending || !formId || options.fields.length === 0}
-            title={!formId ? 'Elige una sucursal para poder exportar' : undefined}
+            title={!formId ? 'Elige una página de reserva para poder exportar' : undefined}
           >
             {options.format === 'imprimir'
               ? (imprimirMutation.isPending ? 'Preparando...' : 'Abrir hoja imprimible')

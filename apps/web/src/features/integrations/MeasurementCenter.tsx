@@ -96,11 +96,11 @@ export function MeasurementCenter() {
             {configuredPixels.length === 0 ? <div className="alert alert-warning">Aún no hay Pixels guardados.</div> : configuredPixels.map((pixel) => {
               const formsUsingPixel = pixelUsage.get(pixel.pixelId) ?? [];
               return <article key={pixel.pixelId} className="measurement-row">
-                <div><strong>{pixel.pixelNames[0] || 'Pixel Meta'}</strong><span>{pixel.pixelId}</span></div>
-                <div><b>{pixel.usageCount}</b><small>empresa(s)</small></div>
+                <div><strong>{pixel.pixelNames?.[0] || 'Pixel Meta'}</strong><span>{pixel.pixelId}</span></div>
+                <div><b>{pixel.usageCount ?? pixel.clientNames?.length ?? 0}</b><small>empresa(s)</small></div>
                 <div><b>{formsUsingPixel.length}</b><small>flujo(s)</small></div>
                 <span className={`meta-readiness is-${pixel.tokenConfigured ? 'ok' : 'warn'}`}>{pixel.tokenConfigured ? 'Token CAPI listo' : 'Falta token'}</span>
-                <small>{pixel.clientNames.join(', ') || 'Sin empresas asociadas'}</small>
+                <small>{pixel.clientNames?.join(', ') || 'Sin empresas asociadas'}</small>
                 {formsUsingPixel.length > 0 && <small>Flujos: {formsUsingPixel.slice(0, 4).map((form) => `${form.name} (${clientName(form.clientId)})`).join(', ')}{formsUsingPixel.length > 4 ? '...' : ''}</small>}
               </article>;
             })}

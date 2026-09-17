@@ -427,3 +427,28 @@ export class PauseReservationFormDto {
   @MaxLength(40)
   until?: string;
 }
+
+/**
+ * Los ajustes del día a día de una reserva, y sólo esos.
+ *
+ * Existe para que cambiar un cupo no obligue a entrar al constructor ni a tener permiso sobre lo
+ * que sí se define una vez: campos, textos legales, medición y publicación. La lista es cerrada a
+ * propósito —lo que no está aquí no se puede tocar por esta puerta, aunque llegue en el cuerpo—,
+ * porque es lo que permite abrirla a quien opera el local sin abrirle su configuración.
+ */
+export class ActualizarOperacionDto {
+  @IsOptional() @IsInt() @Min(1) @Max(500) capacityPerSlot?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(5000) dailyCapacity?: number;
+  /** Minutos que se espera a quien se atrasa. Cero no lo muestra en la página. */
+  @IsOptional() @IsInt() @Min(0) @Max(120) toleranciaMinutos?: number;
+  /** Aviso libre del local, antes del formulario. Vacío no muestra nada. */
+  @IsOptional() @IsString() @MaxLength(400) notasDelLocal?: string;
+  @IsOptional() @IsString() @MaxLength(40) whatsappBusinessNumber?: string;
+  /**
+   * Zonas que hoy reciben gente, por id. Las que no estén en la lista quedan inactivas.
+   *
+   * Sólo se enciende y se apaga: crear una zona, renombrarla o cambiarle el cupo sigue siendo
+   * configuración, porque cambia lo que la página ofrece y no sólo lo que el local usa hoy.
+   */
+  @IsOptional() @IsArray() @ArrayMaxSize(80) @IsString({ each: true }) @MaxLength(80, { each: true }) zonasActivas?: string[];
+}

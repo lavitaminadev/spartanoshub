@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.ConvertGroupRequestDto = exports.UpdateReservationDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.PublicLookupReservationDto = exports.PublicRecoverReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
+exports.ActualizarOperacionDto = exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.ConvertGroupRequestDto = exports.UpdateReservationDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.PublicLookupReservationDto = exports.PublicRecoverReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const vacioComoAusente = ({ value }) => (value === '' ? undefined : value);
@@ -1464,3 +1464,47 @@ __decorate([
     (0, class_validator_1.MaxLength)(40),
     __metadata("design:type", String)
 ], PauseReservationFormDto.prototype, "until", void 0);
+class ActualizarOperacionDto {
+}
+exports.ActualizarOperacionDto = ActualizarOperacionDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(500),
+    __metadata("design:type", Number)
+], ActualizarOperacionDto.prototype, "capacityPerSlot", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(5000),
+    __metadata("design:type", Number)
+], ActualizarOperacionDto.prototype, "dailyCapacity", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(120),
+    __metadata("design:type", Number)
+], ActualizarOperacionDto.prototype, "toleranciaMinutos", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(400),
+    __metadata("design:type", String)
+], ActualizarOperacionDto.prototype, "notasDelLocal", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], ActualizarOperacionDto.prototype, "whatsappBusinessNumber", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMaxSize)(80),
+    (0, class_validator_1.IsString)({ each: true }),
+    (0, class_validator_1.MaxLength)(80, { each: true }),
+    __metadata("design:type", Array)
+], ActualizarOperacionDto.prototype, "zonasActivas", void 0);
