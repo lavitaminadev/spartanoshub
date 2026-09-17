@@ -49,6 +49,7 @@ exports.ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'applicat
 __exportStar(require("./industries"), exports);
 __exportStar(require("./lead-sources"), exports);
 __exportStar(require("./meta-events"), exports);
+__exportStar(require("./motivos-de-cierre"), exports);
 __exportStar(require("./modules"), exports);
 __exportStar(require("./role-tiers"), exports);
 //# sourceMappingURL=index.js.map

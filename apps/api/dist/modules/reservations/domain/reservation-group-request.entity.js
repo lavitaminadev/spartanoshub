@@ -83,6 +83,14 @@ __decorate([
     __metadata("design:type", Object)
 ], ReservationGroupRequest.prototype, "quoteExpiresAt", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'close_reason', type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], ReservationGroupRequest.prototype, "closeReason", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'close_notes', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], ReservationGroupRequest.prototype, "closeNotes", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'reservation_consent_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], ReservationGroupRequest.prototype, "reservationConsentAt", void 0);

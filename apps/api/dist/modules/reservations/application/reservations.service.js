@@ -38,6 +38,7 @@ const timezone_1 = require("../domain/timezone");
 const phone_1 = require("../../../shared/phone");
 const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
+const cambio_de_zona_1 = require("./cambio-de-zona");
 const shared_3 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
@@ -683,6 +684,23 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async clientDailyCap(runner, clientId) {
         const rows = await runner.query('SELECT daily_reservation_cap FROM clients WHERE id = ?', [clientId]);
         return Number(rows?.[0]?.daily_reservation_cap ?? 0) || 0;
+    }
+    async assertCupoDeZona(manager, form, booking, resourceId) {
+        const solapadas = await manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r')
+            .where('r.form_id = :formId AND r.resource_id = :resourceId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses) AND r.id != :id', {
+            formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, statuses: ACTIVE_STATUSES, id: booking.id,
+        })
+            .getMany();
+        const rechazo = (0, cambio_de_zona_1.evaluarCambioDeZona)({
+            zonas: (form.resourcesConfig || []),
+            destino: resourceId,
+            ocupado: solapadas.reduce((total, item) => total + Math.max(1, item.partySize), 0),
+            personas: booking.partySize,
+            capacidadDelLocal: form.capacityPerSlot,
+        });
+        if (!rechazo)
+            return;
+        throw rechazo.motivo === 'sin-espacio' ? new common_1.ConflictException(rechazo.mensaje) : new common_1.BadRequestException(rechazo.mensaje);
     }
     async availability(manager, form, startsAt, partySize, serviceId, resourceId, excludeId, excludeHoldKey) {
         const rules = this.assertScheduled(form, startsAt, serviceId, resourceId);
@@ -1629,10 +1647,41 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             resourceId: dto.resourceId || texto(details.resourceId),
             serviceId: dto.serviceId || texto(details.serviceId),
             answers,
-            internalNotes: 'Creada desde una solicitud de grupo.',
+            internalNotes: [
+                'Creada desde una solicitud de grupo.',
+                request.quoteAmount ? `Precio acordado: $${Number(request.quoteAmount).toLocaleString('es-CL')}.` : '',
+                request.quoteMessage?.trim() ? `Detalle: ${request.quoteMessage.trim()}` : '',
+            ].filter(Boolean).join(' '),
             skipAvailability: dto.skipAvailability === true,
         }, clientId, clientIds);
         const reservationId = booking.id ?? booking.booking?.id;
+        if (reservationId) {
+            const heredado = {};
+            if (request.utmSource)
+                heredado.utmSource = request.utmSource;
+            if (request.utmMedium)
+                heredado.utmMedium = request.utmMedium;
+            if (request.utmCampaign)
+                heredado.utmCampaign = request.utmCampaign;
+            if (request.utmContent)
+                heredado.utmContent = request.utmContent;
+            if (request.originDetected)
+                heredado.originDetected = request.originDetected;
+            if (request.reservationConsentAt) {
+                heredado.reservationConsentAt = request.reservationConsentAt;
+                heredado.reservationConsentText = request.reservationConsentText ?? null;
+            }
+            if (request.marketingConsentAt) {
+                heredado.marketingConsentAt = request.marketingConsentAt;
+                heredado.marketingConsentText = request.marketingConsentText ?? null;
+            }
+            if (request.networkConsentAt) {
+                heredado.networkConsentAt = request.networkConsentAt;
+                heredado.networkConsentText = request.networkConsentText ?? null;
+            }
+            if (Object.keys(heredado).length > 0)
+                await this.reservations.update(reservationId, heredado);
+        }
         const medicion = (details.medicion || null);
         if (reservationId && medicion?.aceptadaEn) {
             await this.reservations.update(reservationId, { measurementConsentAt: new Date(medicion.aceptadaEn), measurementConsentVersion: medicion.version ?? shared_1.VERSION_MEDICION, measurementConsentText: medicion.texto ?? shared_1.TEXTO_MEDICION, fbc: medicion.fbc ?? null, fbp: medicion.fbp ?? null, clientIpAddress: medicion.ip ?? null, clientUserAgent: medicion.userAgent ?? null });
@@ -1690,6 +1739,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.NotFoundException('Solicitud no encontrada');
         if (dto.status === 'quoted' && (dto.quoteAmount === undefined || !dto.quoteMessage?.trim()))
             throw new common_1.BadRequestException('Una cotización necesita monto y mensaje para el cliente');
+        if (dto.status === 'closed') {
+            if (!dto.closeReason || !(0, shared_2.esMotivoDeCierre)(dto.closeReason))
+                throw new common_1.BadRequestException('Elige por qué se cierra esta solicitud');
+            item.closeReason = dto.closeReason;
+            item.closeNotes = dto.closeNotes?.trim() || null;
+        }
         item.status = dto.status;
         if (dto.quoteAmount !== undefined)
             item.quoteAmount = String(dto.quoteAmount);
@@ -1698,7 +1753,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (dto.quoteExpiresAt !== undefined)
             item.quoteExpiresAt = new Date(dto.quoteExpiresAt);
         const saved = await this.groupRequests.save(item);
-        await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'status_changed', after: { status: dto.status, quoteAmount: dto.quoteAmount, quoteExpiresAt: dto.quoteExpiresAt } });
+        await this.audit.log({ organizationId, actorId, entityType: 'ReservationGroupRequest', entityId: id, action: 'status_changed', after: { status: dto.status, closeReason: dto.closeReason, quoteAmount: dto.quoteAmount, quoteExpiresAt: dto.quoteExpiresAt } });
         return saved;
     }
     async createPublic(slug, dto, ipAddress, userAgent, eventSourceUrl) {
@@ -2158,6 +2213,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 item.partySize = dto.partySize;
             if (dto.tableLabel !== undefined)
                 item.tableLabel = dto.tableLabel.trim() || null;
+            if (dto.resourceId !== undefined && (dto.resourceId || null) !== (item.resourceId || null)) {
+                const destino = dto.resourceId.trim();
+                if (destino) {
+                    const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOneByOrFail({ id: item.formId, organizationId });
+                    await this.assertCupoDeZona(manager, form, item, destino);
+                }
+                item.resourceId = destino || undefined;
+            }
             const result = await repo.save(item);
             const changedStart = previousStart.getTime() !== result.startsAt.getTime();
             if (changedStart)
@@ -2239,7 +2302,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.NotFoundException('Reserva no encontrada');
         const correo = actual.guestEmail?.trim().toLowerCase();
         const telefono = actual.guestPhone?.trim();
-        const vacio = { total: 0, attended: 0, noShow: 0, alcance: 'local', deOtrasReservas: 0, anteriores: [], preferencias: undefined };
+        const vacio = { total: 0, attended: 0, noShow: 0, enEsteLocal: 0, alcance: 'local', deOtrasReservas: 0, anteriores: [], preferencias: undefined };
         if (!correo && !telefono)
             return vacio;
         const formActual = await this.forms.findOne({ where: { id: actual.formId }, select: { id: true, designConfig: true } });
@@ -2258,9 +2321,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             attended: previas.filter((item) => item.status === 'attended').length,
             noShow: previas.filter((item) => item.status === 'no_show').length,
             alcance: red ? 'red' : 'local',
+            enEsteLocal: previas.filter((item) => item.formId === actual.formId).length,
             deOtrasReservas: previas.filter((item) => item.formId !== actual.formId).length,
             preferencias: this.preferenciasDeLaPersona(previas, actual),
-            anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize })),
+            anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
         };
     }
     preferenciasDeLaPersona(previas, actual) {

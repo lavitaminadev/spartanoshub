@@ -60,7 +60,9 @@ export interface GuestHistory {
   alcance?: 'local' | 'red';
   /** Cuántas de esas visitas fueron a otra reserva de la misma empresa. */
   deOtrasReservas?: number;
-  anteriores: Array<{ id: string; referenceCode: string; startsAt: string; status: string; partySize: number }>;
+  /** Cuántas fueron en este mismo local. */
+  enEsteLocal?: number;
+  anteriores: Array<{ id: string; referenceCode: string; startsAt: string; status: string; partySize: number; internalNotes?: string | null; mismoLocal?: boolean }>;
   /** Lo que se deduce de sus reservas anteriores. Ausente en la primera visita. */
   preferencias?: {
     zonaHabitual?: string;
@@ -102,5 +104,7 @@ export interface GroupRequest {
   details?: Record<string, unknown>;
   utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; utmContent?: string | null;
   status: string; quoteAmount?: string; quoteMessage?: string; quoteExpiresAt?: string;
+  /** Por qué se cerró sin reserva, cuando se cerró. */
+  closeReason?: string | null; closeNotes?: string | null;
   createdAt: string;
 }

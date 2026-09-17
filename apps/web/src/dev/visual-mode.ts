@@ -232,6 +232,7 @@ const VISUAL_RESERVATIONS = [
     id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended', createdAt: haceMinutos(2400),
     startsAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(), partySize: 4,
     guestName: 'Sebastián Vera', guestPhone: '+56 9 7456 1234', guestEmail: 'sebastian@example.test',
+    internalNotes: 'Pidió mesa en el fondo, viene con su papá en silla de ruedas.',
     resourceId: 'salon',
     answers: { ocasion: 'Empresa', accessibilityNeed: 'Acceso sin escalón', birthDate: '1990-05-14' },
   },
@@ -257,6 +258,9 @@ const VISUAL_RESERVATIONS = [
 ];
 
 /** Solicitudes de grupo y evento: no toman cupo, las resuelve el equipo a mano. */
+/** Cierres puntuales del local, en memoria: se crean y se quitan desde los ajustes del día. */
+const visualBlocks: Array<{ id: string; startsAt: string; endsAt: string; reason?: string }> = [];
+
 const VISUAL_GROUP_REQUESTS = [
   {
     id: 'visual-grupo-1', clientId: 'visual-client', formId: 'visual-form',
@@ -673,10 +677,16 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return { month: mes, capacity, days };
   }],
   [/\/reservations\/forms\/[^/?]+\/group-requests/, () => VISUAL_GROUP_REQUESTS],
+  // La lista también se pide sin local, desde la pestaña Grupos.
+  [/\/reservations\/group-requests(?:\?|$)/, () => VISUAL_GROUP_REQUESTS],
   [/\/reservations\/group-requests\/[^/?]+$/, (config) => {
     const id = (config?.url?.match(/\/reservations\/group-requests\/([^/?]+)$/) ?? [])[1];
     const solicitud = VISUAL_GROUP_REQUESTS.find((item) => item.id === id) ?? VISUAL_GROUP_REQUESTS[0];
-    return { ...solicitud, ...visualRequestBody(config) };
+    const cambios = visualRequestBody(config) as Record<string, unknown>;
+    // Como el servidor: cerrar sin decir por qué se rechaza.
+    if (cambios.status === 'closed' && !cambios.closeReason) throw new Error('Elige por qué se cierra esta solicitud');
+    Object.assign(solicitud, cambios);
+    return { ...solicitud };
   }],
   [/\/integrations\/meta\/client-pixels\/catalog/, () => ({
     bindings: [{ clientId: 'visual-client', clientName: 'Casa Costanera', pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', tokenConfigured: true, configuredAt: new Date(Date.now() - 86_400_000).toISOString() }],
@@ -828,14 +838,45 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * Sin datos previos la ficha decía siempre «primera vez» y no había forma de ver en pantalla
    * lo que se deduce de visitas anteriores.
    */
+  /*
+   * Editar una reserva, con el mismo cupo por zona que aplica el servidor.
+   *
+   * Si el ejemplo aceptara cualquier cambio de zona, la pantalla parecería permitir mover gente a
+   * una terraza llena y en producción fallaría recién al guardar.
+   */
+  [/\/reservations\/[^/?]+$/, (config) => {
+    const id = (config?.url?.match(/\/reservations\/([^/?]+)$/) ?? [])[1];
+    const reserva = VISUAL_RESERVATIONS.find((item) => item.id === id);
+    if (!reserva || config?.method?.toLowerCase() !== 'patch') return reserva ?? {};
+    const cambios = visualRequestBody(config) as Record<string, unknown>;
+    if (cambios.resourceId !== undefined && String(cambios.resourceId) !== (reserva.resourceId ?? '')) {
+      const destino = String(cambios.resourceId);
+      if (destino) {
+        const local = visualReservationForms.find((item) => item.id === reserva.formId) ?? VISUAL_RESERVATION_LOCAL;
+        const zona = (local.resourcesConfig ?? []).find((item: { id: string }) => item.id === destino);
+        if (!zona) throw new Error('Esa zona no existe en esta reserva');
+        if (zona.active === false) throw new Error(`${zona.name} está apagada: enciéndela en los ajustes del día antes de asignarla`);
+        const cupo = Math.max(1, Number(zona.capacity) || local.capacityPerSlot);
+        const ocupado = VISUAL_RESERVATIONS
+          .filter((item) => item.id !== reserva.id && item.resourceId === destino && item.startsAt === reserva.startsAt && ['pending', 'confirmed', 'rescheduled'].includes(item.status))
+          .reduce((total, item) => total + Math.max(1, item.partySize), 0);
+        if (ocupado + reserva.partySize > cupo) throw new Error(`${zona.name} no tiene espacio a esa hora: ${ocupado} de ${cupo} ocupados`);
+      }
+    }
+    Object.assign(reserva, cambios, cambios.resourceId !== undefined ? { resourceId: String(cambios.resourceId) || undefined } : {});
+    return { ...reserva };
+  }],
   [/\/reservations\/[^/?]+\/guest-history$/, () => ({
     total: 4,
     attended: 3,
     noShow: 1,
+    alcance: 'red',
+    enEsteLocal: 3,
+    deOtrasReservas: 1,
     anteriores: [
-      { id: 'h1', referenceCode: 'CC-0931', startsAt: new Date(Date.now() - 21 * 86400000).toISOString(), status: 'attended', partySize: 2 },
+      { id: 'h1', referenceCode: 'CC-0931', startsAt: new Date(Date.now() - 21 * 86400000).toISOString(), status: 'attended', partySize: 2, mismoLocal: true, internalNotes: 'Llegó 20 minutos tarde, avisó por WhatsApp.' },
       { id: 'h2', referenceCode: 'CC-0844', startsAt: new Date(Date.now() - 58 * 86400000).toISOString(), status: 'attended', partySize: 2 },
-      { id: 'h3', referenceCode: 'CC-0777', startsAt: new Date(Date.now() - 96 * 86400000).toISOString(), status: 'no_show', partySize: 4 },
+      { id: 'h3', referenceCode: 'CC-0777', startsAt: new Date(Date.now() - 96 * 86400000).toISOString(), status: 'no_show', partySize: 4, mismoLocal: false, internalNotes: 'Reservó y no llegó; no contestó el teléfono.' },
       { id: 'h4', referenceCode: 'CC-0612', startsAt: new Date(Date.now() - 150 * 86400000).toISOString(), status: 'attended', partySize: 2 },
     ],
     preferencias: {
@@ -928,9 +969,19 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     guardarFormulariosVisuales();
     return form;
   }],
+  /* Los cierres del local viven mientras dura la sesión: alcanzan para revisar crearlos y quitarlos. */
   [/\/reservations\/forms\/[^/?]+\/blocks$/, (config) => {
-    if (config?.method?.toLowerCase() !== 'post') return [];
-    return { id: `bloqueo-${Date.now()}`, ...visualRequestBody(config) };
+    if (config?.method?.toLowerCase() !== 'post') return visualBlocks;
+    const cuerpo = visualRequestBody(config) as Record<string, string>;
+    const bloqueo = { id: `bloqueo-${Date.now()}`, startsAt: new Date(cuerpo.startsAt).toISOString(), endsAt: new Date(cuerpo.endsAt).toISOString(), reason: cuerpo.reason };
+    visualBlocks.push(bloqueo);
+    return bloqueo;
+  }],
+  [/\/reservations\/blocks\/[^/?]+$/, (config) => {
+    const id = (config?.url?.match(/\/reservations\/blocks\/([^/?]+)$/) ?? [])[1];
+    const indice = visualBlocks.findIndex((item) => item.id === id);
+    if (indice >= 0) visualBlocks.splice(indice, 1);
+    return { eliminado: true };
   }],
   [/\/reservations\/forms\/[^/?]+\/pause$/, (config) => {
     const id = (config?.url?.match(/\/reservations\/forms\/([^/?]+)\/pause$/) ?? [])[1];

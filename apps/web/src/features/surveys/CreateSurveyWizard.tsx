@@ -82,6 +82,8 @@ interface WizardState {
   welcome: string;
   ga4MeasurementId: string;
   googleReviewUrl: string;
+  /** Interruptor de la invitación a reseñar, para poder encenderla antes de tener el enlace. */
+  pideResena: boolean;
   googleReviewMinRating: number;
   googleReviewLowMsg: string;
 }
@@ -110,6 +112,7 @@ function blankState(): WizardState {
     welcome: '',
     ga4MeasurementId: '',
     googleReviewUrl: '',
+    pideResena: false,
     googleReviewMinRating: 4,
     googleReviewLowMsg: '',
   };
@@ -142,6 +145,7 @@ function stateFromSurvey(survey: Survey): WizardState {
     welcome: design.welcome ?? '',
     ga4MeasurementId: survey.ga4MeasurementId ?? '',
     googleReviewUrl: survey.googleReview?.url ?? '',
+    pideResena: Boolean(survey.googleReview?.url),
     googleReviewMinRating: survey.googleReview?.minRating ?? 4,
     googleReviewLowMsg: survey.googleReview?.lowRatingMessage ?? '',
   };
@@ -483,12 +487,32 @@ function PasoDiseno({ state, setState }: { state: WizardState; setState: SetStat
       </fieldset>
 
       <ImageUpload label="Logo de la encuesta" value={state.logoUrl} onChange={(url) => set({ logoUrl: url })} placeholder="https://..." maxSizeMB={3} maxWidth={480} clientId={state.clientId || undefined} />
-      <details className="survey-optional-box">
-        <summary>Reseñas en Google</summary>
-        <label>URL de Google Reviews<input className="input" value={state.googleReviewUrl} onChange={(e) => set({ googleReviewUrl: e.target.value })} placeholder="https://g.page/r/..." /></label>
-        <div className="form-row"><label>Nota desde la que se considera buena<input className="input" type="number" min={1} max={5} value={state.googleReviewMinRating} onChange={(e) => set({ googleReviewMinRating: Number(e.target.value) })} /></label></div>
-        <label>Mensaje si la calificación es baja<textarea className="input" rows={2} value={state.googleReviewLowMsg} onChange={(e) => set({ googleReviewLowMsg: e.target.value })} placeholder="Gracias por avisarnos. Revisaremos tu caso." /></label>
-      </details>
+      <fieldset className="survey-resenas">
+        <legend>Al terminar la encuesta</legend>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={state.googleReviewUrl.trim().length > 0 || state.pideResena}
+            onChange={(e) => set(e.target.checked ? { pideResena: true } : { pideResena: false, googleReviewUrl: '' })}
+          /> Invitar a dejar una reseña en Google
+        </label>
+        {(state.pideResena || state.googleReviewUrl.trim()) ? <>
+          <p className="survey-resenas-ayuda">A quien califique {state.googleReviewMinRating} o más se le ofrece el enlace de Google. A quien califique menos se le muestra tu mensaje, y su respuesta queda para el equipo.</p>
+          <label>Enlace para dejar la reseña
+            <small>Sale del perfil del local en Google: «Pedir reseñas» copia un enlace corto.</small>
+            <input className="input" value={state.googleReviewUrl} onChange={(e) => set({ googleReviewUrl: e.target.value })} placeholder="https://g.page/r/..." />
+          </label>
+          <div className="form-row">
+            <label>Nota desde la que se pide la reseña
+              <input className="input" type="number" min={1} max={5} value={state.googleReviewMinRating} onChange={(e) => set({ googleReviewMinRating: Number(e.target.value) })} />
+            </label>
+          </div>
+          <label>Mensaje si la calificación es baja
+            <textarea className="input" rows={2} value={state.googleReviewLowMsg} onChange={(e) => set({ googleReviewLowMsg: e.target.value })} placeholder="Gracias por avisarnos. Revisaremos tu caso." />
+          </label>
+          {state.pideResena && !state.googleReviewUrl.trim() && <p className="survey-resenas-falta">Falta el enlace: sin él no se le ofrece la reseña a nadie.</p>}
+        </> : <p className="survey-resenas-ayuda">Apagado: al terminar sólo se agradece la respuesta.</p>}
+      </fieldset>
     </div>
   );
 }

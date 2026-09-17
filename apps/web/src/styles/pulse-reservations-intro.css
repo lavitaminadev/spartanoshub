@@ -764,3 +764,58 @@
 .waitlist-notas { display: grid; gap: 2px; margin-top: 4px; }
 .waitlist-notas small { color: var(--txt-muted, #71717a); line-height: 1.35; }
 .waitlist-local { color: var(--txt-muted, #71717a); font-weight: 600; }
+
+/* Lo que el equipo anotó en visitas anteriores: memoria del local, no ruido. */
+.ficha-notas-previas { display: grid; gap: 6px; margin: 8px 0 0; padding: 10px 12px; list-style: none; border-left: 3px solid #e4e4e7; background: #fafafa; border-radius: 0 10px 10px 0; }
+.ficha-notas-previas li { display: grid; gap: 2px; }
+.ficha-notas-previas span { color: var(--txt-muted, #71717a); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.ficha-notas-previas strong { color: var(--booking-text, #3f4e49); font-size: 13px; font-weight: 500; line-height: 1.4; }
+.ficha-de-reserva textarea.input { resize: vertical; }
+
+/* Los cierres ya puestos: se ven y se quitan desde el mismo lugar donde se crean. */
+.ajustes-grid-cierre { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ajustes-cierres { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.ajustes-cierres li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 10px; background: #fff; font-size: .86rem; }
+@media (max-width: 560px) { .ajustes-grid-cierre { grid-template-columns: 1fr 1fr; } }
+
+/*
+ * Tarjetas que comparten Agenda, el constructor y el hub.
+ *
+ * Vivían en la hoja del hub, que sólo se carga al abrirlo: entrar directo a la agenda mostraba
+ * las solicitudes de grupo sin caja y con las líneas pegadas, y pasar antes por el hub las
+ * arreglaba. Un estilo que depende de por dónde entraste no es un estilo.
+ */
+.reservation-channel-status { padding: 8px 12px; border-radius: 999px; font-size: .85rem; font-weight: 700; background: #fff3cd; color: #745b00; }
+.reservation-readiness { padding: 22px; border-radius: 14px; background: #fff7ed; border: 1px solid #fed7aa; display: grid; gap: 12px; }.reservation-readiness h2 { margin: 3px 0 0; font-size: 1.2rem; }.reservation-readiness ul { margin: 0; padding-left: 20px; display: grid; gap: 7px; }.reservation-readiness li strong { display: inline-block; min-width: 72px; color: #9a3412; }
+.reservation-readiness label { display: grid; gap: 6px; font-weight: 700; flex: 1; }.reservation-schedule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }.reservation-schedule-day { padding: 10px; background: rgba(255,255,255,.65); border-radius: 10px; }.reservation-schedule-day .toggle-row { display: flex; align-items: center; }.reservation-schedule-day .form-row { margin: 8px 0 0; }.reservation-schedule-day input { min-width: 0; }
+.reservation-zone-row { display: flex; gap: 10px; align-items: end; padding: 12px; border: 1px solid #fed7aa; border-radius: 10px; background: rgba(255,255,255,.64); }.reservation-zone-row label { min-width: 0; }.reservation-request-list { display: grid; gap: 8px; }.reservation-request-card { justify-content: space-between; align-items: center; }.reservation-request-card > div { display: grid; gap: 4px; }.reservation-request-card span, .reservation-request-card small { color: var(--txt-muted, #666); font-size: .86rem; }.reservation-request-card > div:last-child { justify-items: end; }
+@media (max-width: 760px) { .reservation-zone-row, .reservation-request-card { align-items: stretch; flex-direction: column; }.reservation-request-card > div:last-child { justify-items: start; }.local-hub-grid { grid-template-columns: 1fr; }.local-hub-section, .local-hub-status { padding: 18px; } }
+.reservation-request-card { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 14px 16px; border: 1px solid #e4e4e7; border-radius: 12px; background: #fff; }
+.reservation-request-card > div:first-child { flex: 1 1 260px; }
+.reservation-request-card strong, .reservation-request-card > div > span, .reservation-request-card > div > small { display: block; }
+.reservation-request-card strong { font-size: 1rem; line-height: 1.3; }
+.reservation-request-card > div > span { margin-top: 2px; }
+.reservation-request-card > div:last-child { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-items: initial; }
+.solicitud-precio { color: #166534; font-weight: 700; }
+.solicitud-estado { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; background: #dcfce7; color: #166534; }
+.solicitud-estado.es-demorada { background: #fef3c7; color: #92400e; }
+.solicitud-estado.es-urgente { background: #fee2e2; color: #991b1b; }
+.solicitud-estado.es-resuelta { background: #f4f4f5; color: #52525b; }
+/*
+ * Las solicitudes de grupo no son una advertencia.
+ *
+ * La sección usaba el naranja que el resto de la app reserva para lo que está mal, cuando es la
+ * bandeja de trabajo que más ingresos deja: pintada así, el ojo la lee como problema y termina
+ * evitándola. El color vuelve a significar algo cuando no está siempre encendido.
+ */
+.reservation-readiness.solicitudes-del-dia { background: #fff; border-color: #e4e4e7; }
+.solicitud-motivo { color: #991b1b; font-weight: 700; }
+
+/* Pedir la reseña es a lo que va la encuesta: se ve como una decisión, no como un detalle. */
+.survey-resenas { display: grid; gap: 10px; margin: 4px 0 0; padding: 14px 16px; border: 1px solid #e4e4e7; border-radius: 14px; background: #fafafa; }
+.survey-resenas legend { padding: 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--txt-muted, #71717a); }
+.survey-resenas .toggle-row { display: flex; gap: 8px; align-items: center; font-weight: 700; }
+.survey-resenas label { display: grid; gap: 5px; font-size: .86rem; font-weight: 700; }
+.survey-resenas label small { font-weight: 400; color: var(--txt-muted, #71717a); }
+.survey-resenas-ayuda { margin: 0; color: var(--txt-muted, #71717a); font-size: .85rem; line-height: 1.45; }
+.survey-resenas-falta { margin: 0; color: #92400e; font-size: .85rem; font-weight: 700; }

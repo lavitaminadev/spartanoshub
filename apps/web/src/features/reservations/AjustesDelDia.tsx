@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { puedeAccion } from '../../core/acciones';
@@ -29,6 +29,32 @@ interface Props {
 }
 
 interface Zona { id: string; name?: string; active?: boolean }
+interface Cierre { id: string; startsAt: string; endsAt: string; reason?: string }
+
+/**
+ * El momento en que vuelve a abrir mañana, en la hora del navegador.
+ *
+ * Pausar «hasta mañana» es lo que de verdad se pide cuando se corta el agua o el local se llenó,
+ * y obligar a entender un selector de fecha y hora para eso convertía un gesto en un trámite.
+ */
+function hastaManana(): string {
+  const manana = new Date();
+  manana.setDate(manana.getDate() + 1);
+  manana.setHours(6, 0, 0, 0);
+  const dosDigitos = (valor: number) => String(valor).padStart(2, '0');
+  return `${manana.getFullYear()}-${dosDigitos(manana.getMonth() + 1)}-${dosDigitos(manana.getDate())}T06:00`;
+}
+
+/** Un cierre de día entero se escribió como 00:00–23:59; decirlo así se lee mejor que dos horas. */
+function comoSeLee(cierre: Cierre): string {
+  const desde = new Date(cierre.startsAt);
+  const hasta = new Date(cierre.endsAt);
+  const dia = desde.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short' });
+  const todoElDia = desde.getHours() === 0 && desde.getMinutes() === 0 && hasta.getHours() === 23;
+  if (todoElDia) return `${dia} · todo el día`;
+  const hora = (fecha: Date) => fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  return `${dia} · ${hora(desde)} a ${hora(hasta)}`;
+}
 
 export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations' }: Props) {
   const queryClient = useQueryClient();
@@ -42,6 +68,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
   const [whatsapp, setWhatsapp] = useState('');
   const [zonasActivas, setZonasActivas] = useState<string[]>([]);
   const [diaCerrado, setDiaCerrado] = useState('');
+  const [desdeLaHora, setDesdeLaHora] = useState('');
+  const [hastaLaHora, setHastaLaHora] = useState('');
   const [guardado, setGuardado] = useState(false);
 
   // Al abrir se parte de lo que hay guardado: la ventana puede quedar montada entre aperturas y
@@ -55,6 +83,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
     setWhatsapp(String(design.whatsappBusinessNumber || ''));
     setZonasActivas(zonas.filter((zona) => zona.active !== false).map((zona) => zona.id));
     setDiaCerrado('');
+    setDesdeLaHora('');
+    setHastaLaHora('');
     setGuardado(false);
     // `local` cambia de identidad en cada refetch; basta con reaccionar a abrir y a cambiar de local.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -76,11 +106,31 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
     onSuccess: refrescar,
   });
 
+  /*
+   * Lo que hoy no se atiende, y cómo deshacerlo.
+   *
+   * Cerrar el día entero era lo único posible, cuando lo habitual es un tramo —«hoy después de
+   * las 22:00 no» o «de 15 a 17 por mantención»—. Y una vez cerrado no había forma de volver
+   * atrás desde aquí: quien opera el turno es justamente quien más necesita poder equivocarse.
+   */
+  const { data: cierres = [], refetch: recargarCierres } = useQuery<Cierre[]>({
+    queryKey: ['reservation-blocks', local.id],
+    queryFn: () => api.get(`/reservations/forms/${local.id}/blocks`),
+    enabled: abierto,
+  });
+
   const cerrarDia = useMutation({
-    mutationFn: (dia: string) => api.post(`/reservations/forms/${local.id}/blocks`, {
-      startsAt: `${dia}T00:00`, endsAt: `${dia}T23:59`, reason: 'Cierre de día completo',
+    mutationFn: ({ dia, desde, hasta }: { dia: string; desde: string; hasta: string }) => api.post(`/reservations/forms/${local.id}/blocks`, {
+      startsAt: `${dia}T${desde || '00:00'}`,
+      endsAt: `${dia}T${hasta || '23:59'}`,
+      reason: desde || hasta ? 'Cierre por tramo' : 'Cierre de día completo',
     }),
-    onSuccess: () => { refrescar(); setDiaCerrado(''); },
+    onSuccess: () => { refrescar(); void recargarCierres(); setDiaCerrado(''); setDesdeLaHora(''); setHastaLaHora(''); },
+  });
+
+  const quitarCierre = useMutation({
+    mutationFn: (id: string) => api.delete(`/reservations/blocks/${id}`),
+    onSuccess: () => { refrescar(); void recargarCierres(); },
   });
 
   const pausadaHasta = design.bookingPausedUntil && new Date(design.bookingPausedUntil) > new Date() ? design.bookingPausedUntil : '';
@@ -113,8 +163,10 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
           ? <p className="ajustes-pausa is-pausada">Pausadas hasta {new Date(pausadaHasta).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
             <button type="button" className="btn btn-outline btn-sm" disabled={pausa.isPending} onClick={() => pausa.mutate('')}>Reanudar</button></p>
           : <p className="ajustes-pausa">Recibiendo reservas
+            {/* El caso real es «no más por hoy»: entenderlo no debería costar un calendario. */}
+            <button type="button" className="btn btn-outline btn-sm" disabled={pausa.isPending} onClick={() => pausa.mutate(hastaManana())}>No más por hoy</button>
             <input className="input" type="datetime-local" aria-label="Pausar hasta" onChange={(evento) => evento.target.value && pausa.mutate(evento.target.value)} />
-            <small>Elige hasta cuándo para pausar.</small></p>}
+            <small>O elige hasta cuándo.</small></p>}
         {pausa.error && <p className="error-text">{pausa.error.message}</p>}
       </section>
 
@@ -162,17 +214,31 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
       </section>
 
       <section className="ajustes-bloque">
-        <h3>Cerrar un día</h3>
-        <div className="ajustes-grid">
+        <h3>Cerrar un día o un tramo</h3>
+        <div className="ajustes-grid ajustes-grid-cierre">
           <label>Fecha
             <input className="input" type="date" value={diaCerrado} onChange={(evento) => setDiaCerrado(evento.target.value)} />
           </label>
-          <button type="button" className="btn btn-outline" disabled={!diaCerrado || cerrarDia.isPending} onClick={() => cerrarDia.mutate(diaCerrado)}>
-            {cerrarDia.isPending ? 'Cerrando...' : 'Cerrar ese día'}
-          </button>
+          <label>Desde <small>(opcional)</small>
+            <input className="input" type="time" value={desdeLaHora} onChange={(evento) => setDesdeLaHora(evento.target.value)} />
+          </label>
+          <label>Hasta <small>(opcional)</small>
+            <input className="input" type="time" value={hastaLaHora} onChange={(evento) => setHastaLaHora(evento.target.value)} />
+          </label>
         </div>
-        <small>Se deja de ofrecer horarios ese día. Las reservas ya tomadas no se cancelan solas.</small>
+        <button type="button" className="btn btn-outline" disabled={!diaCerrado || cerrarDia.isPending} onClick={() => cerrarDia.mutate({ dia: diaCerrado, desde: desdeLaHora, hasta: hastaLaHora })}>
+          {cerrarDia.isPending ? 'Cerrando...' : desdeLaHora || hastaLaHora ? 'Cerrar ese tramo' : 'Cerrar el día completo'}
+        </button>
+        <small>Se deja de ofrecer horarios en ese rato. Las reservas ya tomadas no se cancelan solas.</small>
         {cerrarDia.error && <p className="error-text">{cerrarDia.error.message}</p>}
+
+        {cierres.length > 0 && <ul className="ajustes-cierres">
+          {cierres.map((cierre) => <li key={cierre.id}>
+            <span>{comoSeLee(cierre)}{cierre.reason ? ` · ${cierre.reason}` : ''}</span>
+            <button type="button" className="btn btn-outline btn-sm" disabled={quitarCierre.isPending} onClick={() => quitarCierre.mutate(cierre.id)}>Quitar</button>
+          </li>)}
+        </ul>}
+        {quitarCierre.error && <p className="error-text">{quitarCierre.error.message}</p>}
       </section>
 
       {guardar.error && <p className="error-text">{guardar.error.message}</p>}

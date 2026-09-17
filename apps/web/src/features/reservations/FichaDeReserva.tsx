@@ -33,11 +33,13 @@ export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
   const queryClient = useQueryClient();
   const [personas, setPersonas] = useState(String(reserva.partySize));
   const [mesa, setMesa] = useState(reserva.tableLabel ?? '');
+  const [nota, setNota] = useState(reserva.internalNotes ?? '');
 
   useEffect(() => {
     setPersonas(String(reserva.partySize));
     setMesa(reserva.tableLabel ?? '');
-  }, [reserva.id, reserva.partySize, reserva.tableLabel]);
+    setNota(reserva.internalNotes ?? '');
+  }, [reserva.id, reserva.partySize, reserva.tableLabel, reserva.internalNotes]);
 
   const guardar = useMutation({
     mutationFn: (cambios: Record<string, unknown>) => api.patch(`/reservations/${reserva.id}`, cambios),
@@ -55,7 +57,16 @@ export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
     staleTime: 60_000,
   });
 
-  const zona = (local?.resourcesConfig ?? []).find((recurso) => recurso.id === reserva.resourceId);
+  const zonas = local?.resourcesConfig ?? [];
+  const zona = zonas.find((recurso) => recurso.id === reserva.resourceId);
+  /*
+   * Zonas a las que se puede mover.
+   *
+   * Las apagadas no se ofrecen porque hoy no reciben gente, pero la que ya tiene asignada se
+   * muestra igual: si el local apagó su zona después de reservar, esconderla dejaría la ficha
+   * diciendo que no tiene ninguna.
+   */
+  const zonasElegibles = zonas.filter((recurso) => recurso.active !== false || recurso.id === reserva.resourceId);
   /*
    * Todo lo que quedó guardado, no sólo los campos del formulario.
    *
@@ -64,6 +75,7 @@ export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
    * se la recibe. Los rótulos salen del formulario cuando existen, y del catálogo cuando no.
    */
   const campos = respuestasLegibles(reserva.answers, local?.fieldSchema);
+  const notasAnteriores = (historial?.anteriores ?? []).filter((anterior) => anterior.internalNotes?.trim());
 
   return <div className="ficha-de-reserva">
     <div className="booking-detail-grid">
@@ -102,7 +114,28 @@ export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
           />
         </div>
       </div>
-      {zona && <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ' · no fumadores'}</strong></div>}
+      {/*
+        * La zona se corrige al recibir: quien reserva la elige sin conocer el local.
+        *
+        * Mover la reserva libera sola la zona de origen —el cupo se cuenta, no se guarda— y el
+        * servidor rechaza el cambio si en la de destino no cabe.
+        */}
+      {zonasElegibles.length > 0 ? <div><span>Zona</span>
+        <div className="booking-editable">
+          <select
+            className="input"
+            aria-label="Zona asignada"
+            value={reserva.resourceId ?? ''}
+            disabled={guardar.isPending}
+            onChange={(evento) => guardar.mutate({ resourceId: evento.target.value })}
+          >
+            <option value="">Sin zona asignada</option>
+            {zonasElegibles.map((recurso) => <option key={recurso.id} value={recurso.id}>
+              {recurso.name}{recurso.smokingAllowed ? ' · fumadores' : ' · no fumadores'}{recurso.active === false ? ' (apagada)' : ''}
+            </option>)}
+          </select>
+        </div>
+      </div> : zona ? <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ' · no fumadores'}</strong></div> : null}
       {reserva.couponCode && <div><span>Cupón aplicado</span><strong>{reserva.couponCode}</strong></div>}
     </div>
     {guardar.error && <p className="error-text">{guardar.error.message}</p>}
@@ -124,9 +157,48 @@ export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
       {!historial ? <p className="page-subtitle">Revisando si ya reservó antes...</p>
         : historial.total === 0 ? <p className="page-subtitle">{historial.alcance === 'red' ? 'Primera vez que reserva en la empresa.' : 'Primera vez que reserva en este local.'}</p>
           : <>
-            <p className="page-subtitle">Ya reservó {historial.total} {historial.total === 1 ? 'vez' : 'veces'} antes · {historial.attended} asistió{historial.noShow > 0 ? ` · ${historial.noShow} no llegó` : ''}</p>
-            {(historial.deOtrasReservas ?? 0) > 0 && <p className="page-subtitle">{historial.deOtrasReservas} {historial.deOtrasReservas === 1 ? 'fue' : 'fueron'} en otra reserva de la misma empresa.</p>}
+            {/* Cuántas veces vino aquí y cuántas en otra reserva: son cosas distintas al recibirla. */}
+            <p className="page-subtitle">
+              Ya reservó {historial.total} {historial.total === 1 ? 'vez' : 'veces'} antes · {historial.attended} asistió{historial.noShow > 0 ? ` · ${historial.noShow} no llegó` : ''}
+            </p>
+            <p className="page-subtitle">
+              {historial.enEsteLocal ?? historial.total} en este local
+              {(historial.deOtrasReservas ?? 0) > 0 ? ` · ${historial.deOtrasReservas} en otra reserva de la misma empresa` : ''}
+            </p>
+            {/*
+              * Lo que el equipo anotó las veces anteriores.
+              *
+              * «Llegó 40 minutos tarde» o «pidió mesa en el fondo» quedaba guardado en la reserva
+              * de ese día y no se veía nunca más: la memoria del local se perdía en cada visita.
+              */}
+            {notasAnteriores.length > 0 && <ul className="ficha-notas-previas">
+              {notasAnteriores.map((anterior) => <li key={anterior.id}>
+                <span>{new Date(anterior.startsAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}{anterior.mismoLocal === false ? ' · otra reserva' : ''}</span>
+                <strong>{anterior.internalNotes}</strong>
+              </li>)}
+            </ul>}
           </>}
+    </div>
+
+    {/*
+      * La nota del equipo sobre esta visita.
+      *
+      * Se guardaba al anotar una reserva a mano y después no había dónde escribirla: quien recibe
+      * es quien se entera de algo que hay que recordar, y no tenía dónde dejarlo.
+      */}
+    <div className="booking-detail-extra">
+      <span className="page-eyebrow">NOTA DEL EQUIPO</span>
+      <textarea
+        className="input"
+        rows={2}
+        maxLength={2000}
+        aria-label="Nota interna de esta reserva"
+        placeholder="Lo que haya que recordar de esta visita. No se la mostramos a quien reservó."
+        value={nota}
+        onChange={(evento) => setNota(evento.target.value)}
+        onBlur={() => { if (nota.trim() !== (reserva.internalNotes ?? '').trim()) guardar.mutate({ internalNotes: nota.trim() }); }}
+      />
+      <small>Sólo la ve el equipo. Se guarda al salir del campo y aparece la próxima vez que reserve.</small>
     </div>
   </div>;
 }

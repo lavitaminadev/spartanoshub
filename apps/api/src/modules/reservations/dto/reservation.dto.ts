@@ -235,6 +235,8 @@ export class UpdateReservationDto {
   @IsOptional() @IsInt() @Min(1) @Max(500) partySize?: number;
   /** Mesa asignada al recibir. Vacío la quita. */
   @IsOptional() @IsString() @MaxLength(40) tableLabel?: string;
+  /** Zona asignada por el local. Cadena vacía la deja sin zona. */
+  @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
   @IsOptional() @IsString() @MaxLength(10000) internalNotes?: string;
   @IsOptional() @IsDateString() startsAt?: string;
   @IsOptional() @IsString() @MaxLength(500) cancellationReason?: string;
@@ -254,7 +256,7 @@ export class ConvertGroupRequestDto {
   @IsOptional() @IsString() @MaxLength(80) resourceId?: string;
   @IsOptional() @IsString() @MaxLength(80) serviceId?: string;
 }
-export class UpdateGroupRequestDto { @IsIn(['pending', 'contacted', 'quoted', 'closed']) status: string; @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(999999999) quoteAmount?: number; @IsOptional() @IsString() @MaxLength(5000) quoteMessage?: string; @IsOptional() @IsDateString() quoteExpiresAt?: string; }
+export class UpdateGroupRequestDto { @IsIn(['pending', 'contacted', 'quoted', 'closed']) status: string; @IsOptional() @IsString() @MaxLength(40) closeReason?: string; @IsOptional() @IsString() @MaxLength(1000) closeNotes?: string; @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(999999999) quoteAmount?: number; @IsOptional() @IsString() @MaxLength(5000) quoteMessage?: string; @IsOptional() @IsDateString() quoteExpiresAt?: string; }
 /**
  * Evento de uso del formulario público.
  *
