@@ -9,7 +9,7 @@
 
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -28,44 +28,7 @@ function ahoraEnInputLocal(): string {
 import { Modal } from '../../shared/Modal';
 import { AjustesDelDia } from './AjustesDelDia';
 import { FichaDeReserva } from './FichaDeReserva';
-import { CATEGORIAS_DE_EVENTO } from './tipos-de-evento';
-
-/** El servidor guarda la categoría; quien atiende lee el nombre. */
-const NOMBRE_DE_CATEGORIA = Object.fromEntries(CATEGORIAS_DE_EVENTO.map((categoria) => [categoria.valor, categoria.nombre]));
-
-/** A partir de cuántas horas sin responder una solicitud pasa a leerse como atrasada. */
-const HORAS_PARA_URGIR = 12;
-
-/** Tono de la espera: verde recién llegada, ámbar la que lleva rato, rojo la que ya urge. */
-function tonoDeEspera(creada?: string): 'reciente' | 'demorada' | 'urgente' {
-  if (!creada) return 'reciente';
-  const horas = (Date.now() - new Date(creada).getTime()) / 3_600_000;
-  if (horas >= 24) return 'urgente';
-  if (horas >= HORAS_PARA_URGIR) return 'demorada';
-  return 'reciente';
-}
-
-/** Desde cuándo espera respuesta: una solicitud de ayer no se atiende igual que una de recién. */
-function esperandoDesde(creada?: string): string {
-  if (!creada) return '';
-  const minutos = Math.floor((Date.now() - new Date(creada).getTime()) / 60_000);
-  if (Number.isNaN(minutos) || minutos < 0) return '';
-  if (minutos < 60) return `hace ${Math.max(1, minutos)} min`;
-  const horas = Math.floor(minutos / 60);
-  if (horas < 24) return `hace ${horas} h`;
-  const dias = Math.floor(horas / 24);
-  return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
-}
-
-/** Mensaje ya escrito para responder por WhatsApp, editable antes de enviarlo. */
-function whatsappDeSolicitud(telefono: string | undefined, nombre: string, personas: number): string | null {
-  const digitos = (telefono ?? '').replace(/\D/g, '');
-  if (digitos.length < 8) return null;
-  const numero = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
-  const saludo = nombre.trim().split(/\s+/)[0] || 'Hola';
-  const mensaje = `Hola ${saludo}, recibimos tu solicitud para ${personas} personas. Te contamos qué podemos ofrecerte.`;
-  return `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
-}
+import { NOMBRE_DE_CATEGORIA, esperandoDesde, tonoDeEspera, whatsappDeSolicitud } from './solicitudes-de-grupo';
 import { CYCLE_COLORS, RESERVATION_STATUS_OPTIONS, findStatusOption } from '../../shared/status-palette';
 import type { Reservation, ReservationForm, GroupRequest } from './types';
 import { localDateBoundsUtc } from './local-time';
@@ -281,7 +244,7 @@ export function AgendaPage() {
           <section className="reservation-readiness solicitudes-del-dia"><div><span className="page-eyebrow">SOLICITUDES DE GRUPO</span><h2>Grupos y eventos</h2><p className="page-subtitle">No ocupan agenda hasta que el equipo acuerde una fecha y cree la reserva definitiva.</p></div>{groupRequests.length === 0 ? <p className="page-subtitle">No hay solicitudes pendientes para este local.</p> : <div className="reservation-request-list">{groupRequests.map((request) => { const details = request.details || {}; return <article key={request.id} className="reservation-request-card"><div><strong>{request.guestName} · {request.partySize} personas</strong><span>{NOMBRE_DE_CATEGORIA[request.eventType] ?? request.eventType}{request.preferredDate ? ` · ${request.preferredDate}` : ''}{request.preferredTime ? ` · ${request.preferredTime}` : ''}</span><small>{request.guestPhone || 'Sin teléfono'}{request.guestEmail ? ` · ${request.guestEmail}` : ''}</small>{request.quoteAmount && <small className="solicitud-precio">Precio anotado: ${Number(request.quoteAmount).toLocaleString('es-CL')}{request.quoteExpiresAt ? ` · vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}{request.notes && <p className="page-subtitle">{request.notes}</p>}<details><summary>Ver detalles ingresados</summary><dl className="success-summary"><dt>Fecha solicitada</dt><dd>{request.preferredDate || 'Por acordar'} {request.preferredTime || ''}</dd>{Boolean(details.serviceId) && <><dt>Servicio</dt><dd>{(activeForm?.servicesConfig || []).find((sv) => sv.id === details.serviceId)?.name || String(details.serviceId)}</dd></>}{Boolean(details.resourceId) && <><dt>Zona</dt><dd>{(activeForm?.resourcesConfig || []).find((zn) => zn.id === details.resourceId)?.name || String(details.resourceId)}</dd></>}{Boolean(details.childrenCount) && <><dt>Niños</dt><dd>{String(details.childrenCount)}</dd></>}{Boolean(details.accessibilityNeed) && <><dt>Accesibilidad</dt><dd>{String(details.accessibilityNeed)}</dd></>}{Boolean(details.dietaryNotes) && <><dt>Restricciones alimentarias</dt><dd>{String(details.dietaryNotes)}</dd></>}{respuestasLegibles(details.answers as Record<string, unknown> | undefined, activeForm?.fieldSchema).map((item) => <Fragment key={item.clave}><dt>{item.etiqueta}</dt><dd>{item.valor}</dd></Fragment>)}{origenDeSolicitud(request) && <><dt>Origen</dt><dd>{origenDeSolicitud(request)}</dd></>}</dl></details>{request.quoteAmount && <small>Cotización interna: ${Number(request.quoteAmount).toLocaleString('es-CL')} {request.quoteExpiresAt ? `· vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}</div><div><span className={`solicitud-estado es-${request.status === 'pending' ? tonoDeEspera(request.createdAt) : 'resuelta'}`}>
                 {({ pending: 'Sin responder', contacted: 'Contactada', quoted: 'Cotizada', converted: 'Convertida', closed: 'Cerrada' } as Record<string, string>)[request.status] ?? request.status}
                 {request.status === 'pending' && esperandoDesde(request.createdAt) ? ` · ${esperandoDesde(request.createdAt)}` : ''}
-              </span>{(() => { const wsp = whatsappDeSolicitud(request.guestPhone, request.guestName, request.partySize); return wsp ? <a className="btn btn-primary btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Responder por WhatsApp</a> : null; })()}{request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={updateGroupRequest.isPending} onClick={() => updateGroupRequest.mutate({ id: request.id, body: { status: 'contacted' } })}>Marcar contactada</button>}{['pending', 'contacted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setQuoteRequest(request); setQuote({ amount: '', message: '', expiresAt: '' }); }}>{request.quoteAmount ? 'Editar precio' : 'Anotar precio'}</button>}</div></article>; })}</div>}</section>
+              </span>{(() => { const wsp = whatsappDeSolicitud(request.guestPhone, request.guestName, request.partySize); return wsp ? <a className="btn btn-primary btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Responder por WhatsApp</a> : null; })()}{request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={updateGroupRequest.isPending} onClick={() => updateGroupRequest.mutate({ id: request.id, body: { status: 'contacted' } })}>Marcar contactada</button>}{['pending', 'contacted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setQuoteRequest(request); setQuote({ amount: '', message: '', expiresAt: '' }); }}>{request.quoteAmount ? 'Editar precio' : 'Anotar precio'}</button>}{!['converted', 'closed'].includes(request.status) && <><Link className="btn btn-outline btn-sm" to={`${clientMode ? '/portal/reservations' : '/reservations'}?tab=groups&convertir=${encodeURIComponent(request.id)}`}>Crear reserva</Link><Link className="btn btn-outline btn-sm" to={`${clientMode ? '/portal/reservations' : '/reservations'}?tab=groups&cerrar=${encodeURIComponent(request.id)}`}>Cerrar sin reserva</Link></>}</div></article>; })}</div>}</section>
           {closeDay.error && <p className="error-text">No se pudo cerrar el turno. Verifica que la fecha ya haya terminado.</p>}
 
           {reservationsError

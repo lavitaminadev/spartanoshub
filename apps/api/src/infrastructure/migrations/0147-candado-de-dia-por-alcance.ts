@@ -16,8 +16,8 @@ import { MigrationInterface, QueryRunner, TableIndex } from 'typeorm';
  * cambia de nombre y de significado, no de contenido. La tabla no guarda cuentas —sólo existe
  * para tener algo concreto que bloquear—, así que ninguna fila queda mal.
  */
-export class CandadoDeDiaPorAlcance1727000000000 implements MigrationInterface {
-  name = 'CandadoDeDiaPorAlcance1727000000000';
+export class CandadoDeDiaPorAlcance1790000000147 implements MigrationInterface {
+  name = 'CandadoDeDiaPorAlcance1790000000147';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (!(await queryRunner.hasTable('reservation_day_locks'))) return;

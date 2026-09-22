@@ -373,8 +373,11 @@ export class ReservationsController {
   }
 
   @Post('coupons')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  @RequiresPermission('reservations', 'edit')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async createCoupon(@Req() req: AuthenticatedRequest, @Body() dto: CreateCouponDto) {
+    // Una cuenta de empresa crea cupones sólo para sí misma, diga lo que diga el cuerpo.
+    if (req.user.role === UserRole.CLIENT) dto.clientId = this.client(req)!;
     // El cupón modifica la oferta pública de una empresa: no basta con el permiso del
     // módulo; quien lo crea debe alcanzar esa empresa y tener Reservas contratado.
     await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
@@ -383,7 +386,8 @@ export class ReservationsController {
   }
 
   @Patch('coupons/:id')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
+  @RequiresPermission('reservations', 'edit')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateCoupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateCouponDto) {
     const scope = await this.scope(req);
     return this.service.updateCoupon(req.organizationId, id, dto, scope.clientIds);

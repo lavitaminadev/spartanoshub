@@ -10,8 +10,8 @@ import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
  * La categoría es corta a propósito —se cuenta— y la nota queda para lo que no entre en ninguna.
  * Las solicitudes ya cerradas se quedan sin motivo: inventarles uno sería peor que no tenerlo.
  */
-export class MotivoDeCierreDeSolicitud1727100000000 implements MigrationInterface {
-  name = 'MotivoDeCierreDeSolicitud1727100000000';
+export class MotivoDeCierreDeSolicitud1790000000148 implements MigrationInterface {
+  name = 'MotivoDeCierreDeSolicitud1790000000148';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (!(await queryRunner.hasTable('reservation_group_requests'))) return;

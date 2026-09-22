@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MotivoDeCierreDeSolicitud1727100000000 = void 0;
+exports.MotivoDeCierreDeSolicitud1790000000148 = void 0;
 const typeorm_1 = require("typeorm");
-class MotivoDeCierreDeSolicitud1727100000000 {
+class MotivoDeCierreDeSolicitud1790000000148 {
     constructor() {
-        this.name = 'MotivoDeCierreDeSolicitud1727100000000';
+        this.name = 'MotivoDeCierreDeSolicitud1790000000148';
     }
     async up(queryRunner) {
         if (!(await queryRunner.hasTable('reservation_group_requests')))
@@ -31,4 +31,4 @@ class MotivoDeCierreDeSolicitud1727100000000 {
             await queryRunner.dropColumn('reservation_group_requests', 'close_reason');
     }
 }
-exports.MotivoDeCierreDeSolicitud1727100000000 = MotivoDeCierreDeSolicitud1727100000000;
+exports.MotivoDeCierreDeSolicitud1790000000148 = MotivoDeCierreDeSolicitud1790000000148;
