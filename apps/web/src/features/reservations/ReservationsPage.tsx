@@ -294,7 +294,9 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         const result = await api.get(`/reservations?${params}`) as ReservationPage;
         return result?.total ?? 0;
       }));
-      return Object.fromEntries(BOOKING_TILE_STATUSES.map((status, index) => [status, totals[index]]));
+      // Las asistencias que nadie marcó se cuentan aparte: forman parte del total, pero no son un hecho visto.
+      const supuestas = await api.get(`/reservations?${new URLSearchParams({ page: '1', pageSize: '1', status: 'attended', asistenciaSupuesta: 'true', ...(clientFilter ? { clientId: clientFilter } : {}), ...(search ? { search } : {}), ...(filters.formId ? { formId: filters.formId } : {}), ...dateRange })}`).then((r) => (r as ReservationPage)?.total ?? 0).catch(() => 0);
+      return { ...Object.fromEntries(BOOKING_TILE_STATUSES.map((status, index) => [status, totals[index]])), attended_supuestas: supuestas };
     },
   });
   const attendanceRate = attendanceRateOf(statusCounts.attended, statusCounts.no_show);
@@ -328,6 +330,12 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       return created;
     },
     onSuccess: (created) => { qc.invalidateQueries({ queryKey: ['reservation-forms'] }); qc.invalidateQueries({ queryKey: ['meta-client-pixels'] }); closeCreateFlow(); triggerToast(`${flowName(created.mode)} creado`); navigate(`/reservations/locals/${created.id}`); },
+  });
+  /* Liberar la mesa desde la lista, sin abrir la ficha: es lo que se hace con la gente saliendo. */
+  const liberarMesa = useMutation({
+    mutationFn: (id: string) => api.post(`/reservations/${id}/salida`, { accion: 'se_fue' }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['reservations'] }); triggerToast('Mesa liberada: el cupo vuelve a ofrecerse'); },
+    onError: (error) => triggerToast(error instanceof Error ? error.message : 'No se pudo liberar la mesa', 'error'),
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: { status?: string; startsAt?: string; internalNotes?: string; cancellationReason?: string; partySize?: number; tableLabel?: string } }) => api.patch<Reservation>(`/reservations/${id}`, body),
@@ -543,7 +551,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <span className="status-tile-label">{option?.label ?? status}</span>
           <strong>{loadingCounts ? '—' : statusCounts[status] ?? 0}</strong>
           {status === 'attended' && attendanceRate !== null
-            ? <small>{attendanceRate}% de asistencia</small>
+            ? <small>{attendanceRate}% de asistencia{(statusCounts.attended_supuestas ?? 0) > 0 ? ` · ${statusCounts.attended_supuestas} supuesta${statusCounts.attended_supuestas === 1 ? '' : 's'} por el sistema` : ''}</small>
             : <small>{filters.status === status ? 'Filtro activo' : 'Ver solo estos'}</small>}
         </button>; })}
       </div>
@@ -606,6 +614,15 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
                 aria-label={`Marcar que ${item.guestName} no asistió`}
                 onClick={() => updateMutation.mutate({ id: item.id, body: { status: 'no_show' } })}
               >✕ No</button>
+            </div>}
+            {item.status === 'attended' && !item.leftAt && item.endsAt && Date.now() < new Date(item.endsAt).getTime() + 12 * 3_600_000 && <div className="attendance-quick">
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={liberarMesa.isPending}
+                aria-label={`Marcar que ${item.guestName} se retiró y liberar su mesa`}
+                onClick={() => liberarMesa.mutate(item.id)}
+              >Liberar mesa</button>
             </div>}
             <StatusTrafficLight
               status={item.status}

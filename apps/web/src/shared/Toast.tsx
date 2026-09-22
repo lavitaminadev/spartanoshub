@@ -43,9 +43,13 @@ export function ToastContainer() {
       if (mounted.current) setToasts((prev) => prev.filter((t) => t.id !== id));
     };
 
+    /*
+     * Un aviso igual al que ya está en pantalla no se apila: tocar dos veces «Copiar enlace» dejaba
+     * dos «Enlace copiado» uno sobre otro. Se reemplaza y su tiempo vuelve a empezar.
+     */
     const push = (detail: ToastDetail) => {
       const id = nextId.current++;
-      setToasts((prev) => [...prev, { id, ...detail }]);
+      setToasts((prev) => [...prev.filter((t) => t.message !== detail.message || t.kind !== detail.kind), { id, ...detail }]);
       timers.current.push(window.setTimeout(() => dismiss(id), durationFor(detail.kind)));
     };
 

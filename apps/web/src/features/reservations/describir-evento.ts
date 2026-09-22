@@ -85,7 +85,7 @@ export function describirEvento(evento: EventoDeReserva, zonaHoraria?: string): 
         return base('Cerrada automáticamente por el sistema', `Nadie marcó la salida. Se tomó ${cual}${salida ? ` (${salida})` : ''} como hora máxima: no es la hora real en que se fue, y no cuenta en la duración promedio de las visitas.`, true);
       }
       const prevista = hora(datos.plannedEndsAt, zonaHoraria);
-      return base('Se fue', `${salida ? `Salió a las ${salida}` : 'Salió'}${prevista ? `; estaba prevista hasta las ${prevista}` : ''}. El lugar quedó libre.`);
+      return base('Se retiró · mesa liberada', `${salida ? `Se retiró a las ${salida}` : 'Se retiró'}${prevista ? `; estaba prevista hasta las ${prevista}` : ''}. El cupo volvió a ofrecerse.`);
     }
     case 'status_changed': {
       if (datos.via === 'automatic_day_close') {

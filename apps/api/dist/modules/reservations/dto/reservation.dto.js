@@ -1353,6 +1353,11 @@ __decorate([
     (0, class_validator_1.MaxLength)(120),
     __metadata("design:type", String)
 ], ListReservationsDto.prototype, "resourceId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['true']),
+    __metadata("design:type", String)
+], ListReservationsDto.prototype, "asistenciaSupuesta", void 0);
 class UpdateCouponDto {
 }
 exports.UpdateCouponDto = UpdateCouponDto;

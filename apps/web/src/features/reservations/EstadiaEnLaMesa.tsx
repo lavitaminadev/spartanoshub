@@ -44,7 +44,7 @@ export function EstadiaEnLaMesa({ reserva, zonaHoraria, onCambio }: Props) {
       <span className="page-eyebrow">ESTADÍA</span>
       {reserva.departureSource === 'local_closed'
         ? <p><strong>Cerrada por el sistema a las {hora(reserva.leftAt, zonaHoraria)}.</strong> Nadie marcó la salida y se tomó esa hora como máximo: no es la hora real en que se fue.</p>
-        : <p><strong>Se fue a las {hora(reserva.leftAt, zonaHoraria)}.</strong> El lugar quedó libre desde entonces.</p>}
+        : <p><strong>Se retiró a las {hora(reserva.leftAt, zonaHoraria)}.</strong> La mesa quedó libre desde entonces.</p>}
     </div>;
   }
 
@@ -55,13 +55,13 @@ export function EstadiaEnLaMesa({ reserva, zonaHoraria, onCambio }: Props) {
   return <div className="estadia-en-la-mesa">
     <span className="page-eyebrow">ESTADÍA</span>
     <p>
-      <strong>En la mesa.</strong>{' '}
+      <strong>Mesa ocupada.</strong>{' '}
       {yaPaso
-        ? <>Su lugar se liberó a las {hora(fin, zonaHoraria)}. Si siguen sentados, alárgala para que no se vuelva a ofrecer.</>
-        : <>El lugar se libera a las {hora(fin, zonaHoraria)}.</>}
+        ? <>Se liberó sola a las {hora(fin, zonaHoraria)}. Si siguen sentados, alárgala para que no se vuelva a ofrecer.</>
+        : <>Cuando se retiren, libérala para volver a ofrecer el cupo. Si nadie lo marca, se libera sola a las {hora(fin, zonaHoraria)}.</>}
     </p>
     <div className="estadia-acciones">
-      <button type="button" className="btn btn-primary btn-sm" disabled={marcar.isPending} onClick={() => marcar.mutate('se_fue')}>Se fue</button>
+      <button type="button" className="btn btn-primary btn-sm" disabled={marcar.isPending} onClick={() => marcar.mutate('se_fue')}>Se retiró · liberar mesa</button>
       <button type="button" className="btn btn-outline btn-sm" disabled={marcar.isPending} onClick={() => marcar.mutate('sigue')}>Sigue en la mesa · +30 min</button>
     </div>
     {sobreCupo && <p className="estadia-aviso">Alargarla puede dejar esa franja sobre el cupo: revisa las reservas que vienen.</p>}

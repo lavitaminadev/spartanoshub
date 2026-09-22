@@ -897,3 +897,6 @@
 .ajustes-bloque .ajustes-estacionamiento label.toggle-row { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 .ajustes-bloque .ajustes-estacionamiento label.toggle-row input { width: 16px; height: 16px; margin: 0; }
 .ajustes-estacionamiento small { color: var(--txt-muted, #666); font-weight: 400; }
+
+/* Asistencia que el sistema supuso: se distingue sin tapar el estado. */
+.asistencia-supuesta { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #fff4e5; color: #7a4b00; font-size: 10px; font-weight: 600; }

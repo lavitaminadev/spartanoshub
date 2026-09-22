@@ -64,6 +64,7 @@ const DEFAULT_VENUE_TIPS = [
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 const OCCUPYING_STATUSES = [...ACTIVE_STATUSES, 'attended'];
+const ASISTENCIA_SUPUESTA_SQL = `EXISTS (SELECT 1 FROM reservation_events e WHERE e.reservation_id = r.id AND e.type = 'status_changed' AND e.to_status = 'attended' AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.via')) = 'automatic_day_close')`;
 const MAX_SLOT_RANGE_DAYS = 62;
 const RESPUESTAS_DEL_SISTEMA = {
     groupEventType: 'Tipo de celebración',
@@ -489,7 +490,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const filas = await this.dataSource.query(`SELECT a.action, a.reason, a.after, a.occurred_at AS cuando, u.name AS quien
          FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id
         WHERE a.organization_id = ? AND a.entity_id = ?
-        ORDER BY a.occurred_at DESC LIMIT 5`, [organizationId, id]);
+        ORDER BY a.occurred_at DESC LIMIT 20`, [organizationId, id]);
         return filas.map((fila) => ({ quien: fila.quien || 'Alguien del equipo', cuando: fila.cuando, que: (0, describir_cambio_1.describirCambio)(fila.reason ?? '', fila.after) }));
     }
     async duplicateForm(organizationId, id, userId, clientIds) { const source = await this.getForm(organizationId, id, undefined, clientIds); const copy = this.forms.create({ ...source, id: undefined, name: `${source.name} (copia)`, publicSlug: await this.uniqueSlug(source.publicSlug), status: 'draft', createdBy: userId, createdAt: undefined, updatedAt: undefined }); return this.forms.save(copy); }
@@ -2177,6 +2178,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             this.logger.warn(`Notification failed for booking ${booking.id}: ${err instanceof Error ? err.message : err}`);
         }
     }
+    async asistenciasSupuestas(ids) {
+        if (ids.length === 0)
+            return new Set();
+        const filas = await this.dataSource.query(`SELECT DISTINCT reservation_id AS id FROM reservation_events WHERE reservation_id IN (${ids.map(() => '?').join(',')}) AND type = 'status_changed' AND to_status = 'attended' AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.via')) = 'automatic_day_close'`, ids).catch(() => []);
+        return new Set(filas.map((fila) => fila.id));
+    }
     async listReservations(organizationId, query, clientId, clientIds, includeInternalNotes = true) {
         const page = query.page ?? 1;
         const pageSize = query.pageSize ?? 50;
@@ -2189,6 +2196,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             qb.andWhere('r.form_id = :formId', { formId: query.formId });
         if (query.status)
             qb.andWhere('r.status = :status', { status: query.status });
+        if (query.asistenciaSupuesta === 'true')
+            qb.andWhere(ASISTENCIA_SUPUESTA_SQL);
         if (query.from)
             qb.andWhere('r.starts_at >= :from', { from: query.from });
         if (query.to)
@@ -2202,7 +2211,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount();
         const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
         const conversions = await this.metaConversionStatus(organizationId, items);
-        const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id) }));
+        const supuestas = await this.asistenciasSupuestas(safeItems.filter((item) => item.status === 'attended').map((item) => item.id));
+        const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id), ...(supuestas.has(item.id) ? { asistenciaSupuesta: true } : {}) }));
         return { data: withConversion, total, page, pageSize, pages: Math.ceil(total / pageSize) };
     }
     async metaConversionStatus(organizationId, items) {
@@ -2406,15 +2416,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         else
             qb.andWhere('r.guest_phone = :telefono', { telefono });
         const previas = await qb.orderBy('r.starts_at', 'DESC').take(100).getMany();
+        const supuestasPrevias = await this.asistenciasSupuestas(previas.filter((item) => item.status === 'attended').map((item) => item.id));
         return {
             total: previas.length,
             attended: previas.filter((item) => item.status === 'attended').length,
+            asistenciasSupuestas: previas.filter((item) => supuestasPrevias.has(item.id)).length,
             noShow: previas.filter((item) => item.status === 'no_show').length,
             alcance: red ? 'red' : 'local',
             enEsteLocal: previas.filter((item) => item.formId === actual.formId).length,
             deOtrasReservas: previas.filter((item) => item.formId !== actual.formId).length,
             preferencias: this.preferenciasDeLaPersona(previas, actual),
-            anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
+            anteriores: previas.slice(0, 5).map((item) => ({ asistenciaSupuesta: supuestasPrevias.has(item.id), id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
         };
     }
     preferenciasDeLaPersona(previas, actual) {

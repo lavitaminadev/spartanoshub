@@ -33,8 +33,8 @@ describe('describirEvento', () => {
 
   it('la salida marcada por el equipo muestra la hora real y la prevista', () => {
     const descrito = describirEvento(evento({ type: 'departed', metadata: { source: 'team', leftAt: '2026-09-23T00:15:00.000Z', plannedEndsAt: '2026-09-23T01:00:00.000Z' } }), ZONA);
-    expect(descrito.titulo).toBe('Se fue');
-    expect(descrito.detalle).toBe('Salió a las 21:15; estaba prevista hasta las 22:00. El lugar quedó libre.');
+    expect(descrito.titulo).toBe('Se retiró · mesa liberada');
+    expect(descrito.detalle).toBe('Se retiró a las 21:15; estaba prevista hasta las 22:00. El cupo volvió a ofrecerse.');
   });
 
   it('alargar la estadía avisa si puede dejar la franja sobre el cupo', () => {

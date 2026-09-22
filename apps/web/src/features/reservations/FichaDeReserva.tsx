@@ -103,7 +103,7 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
       <div><span>Código</span><strong>#{reserva.referenceCode}</strong></div>
       {/* En la zona del local: quien mira desde otra ciudad no debe ver la hora corrida. */}
       <div><span>Fecha</span><strong>{new Date(reserva.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: local?.timezone })}</strong></div>
-      <div><span>Estado</span><StatusBadge status={reserva.status} /></div>
+      <div><span>Estado</span><StatusBadge status={reserva.status} />{reserva.asistenciaSupuesta && <small className="asistencia-supuesta" title="Nadie marcó si llegó: el sistema la dio por asistida al pasar el margen.">Supuesta por el sistema</small>}</div>
       <div><span>Personas</span>
         <div className="booking-editable">
           <input
@@ -184,7 +184,7 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
           : <>
             {/* Cuántas veces vino aquí y cuántas en otra reserva: son cosas distintas al recibirla. */}
             <p className="page-subtitle">
-              Ya reservó {historial.total} {historial.total === 1 ? 'vez' : 'veces'} antes · {historial.attended} asistió{historial.noShow > 0 ? ` · ${historial.noShow} no llegó` : ''}
+              Ya reservó {historial.total} {historial.total === 1 ? 'vez' : 'veces'} antes · {historial.attended} asistió{(historial.asistenciasSupuestas ?? 0) > 0 ? ` (${historial.asistenciasSupuestas} supuesta${historial.asistenciasSupuestas === 1 ? '' : 's'} por el sistema)` : ''}{historial.noShow > 0 ? ` · ${historial.noShow} no llegó` : ''}
               {(historial.deOtrasReservas ?? 0) > 0 ? ` · ${historial.deOtrasReservas} en otro local de la empresa` : ''}
             </p>
             {/*
@@ -208,10 +208,10 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
               {otrasVeces && <li><span>Otras veces</span><strong>{otrasVeces}</strong></li>}
             </ul>}
             <ul className="booking-historial">
-              {visitasVisibles.map((previa) => <li key={previa.id}>{new Date(previa.startsAt).toLocaleDateString('es-CL', { dateStyle: 'medium' })} · {previa.partySize} persona{previa.partySize === 1 ? '' : 's'}{previa.mismoLocal === false ? ' · otro local' : ''} <StatusBadge status={previa.status} /></li>)}
+              {visitasVisibles.map((previa) => <li key={previa.id}>{new Date(previa.startsAt).toLocaleDateString('es-CL', { dateStyle: 'medium' })} · {previa.partySize} persona{previa.partySize === 1 ? '' : 's'}{previa.mismoLocal === false ? ' · otro local' : ''} <StatusBadge status={previa.status} />{previa.asistenciaSupuesta && <small className="asistencia-supuesta">supuesta</small>}</li>)}
             </ul>
             {anteriores.length > VISITAS_A_LA_VISTA && <button type="button" className="link-button ficha-ver-mas" onClick={() => setVerTodas((valor) => !valor)}>
-              {verTodas ? 'Ver menos' : `Ver las ${anteriores.length} visitas`}
+              {verTodas ? 'Ver menos' : `Ver ${anteriores.length - VISITAS_A_LA_VISTA} visita${anteriores.length - VISITAS_A_LA_VISTA === 1 ? '' : 's'} más`}
             </button>}
             {notasAnteriores.length > 0 && <ul className="ficha-notas-previas">
               {notasAnteriores.map((anterior) => <li key={anterior.id}>
