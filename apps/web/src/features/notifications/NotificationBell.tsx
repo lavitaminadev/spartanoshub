@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { refetchWhenIdle } from '../../core/refetch-policy';
+import { useAvisosDelNavegador } from './avisos-del-navegador';
 
 interface NotificationRecord {
   id: string;
@@ -25,6 +26,7 @@ function notificationRoute(notification: NotificationRecord, clientView: boolean
   if (notification.type.startsWith('lead.')) return '/crm/leads';
   if (notification.type.startsWith('reservation_')) return '/reservations';
   if (notification.type.startsWith('approval.')) return '/approvals';
+  if (notification.type.startsWith('survey_')) return '/surveys';
   return null;
 }
 
@@ -108,6 +110,7 @@ export function NotificationBell({ enCabecera = false }: { enCabecera?: boolean 
 
   const notifications = notificationsQuery.data ?? [];
   const unread = countQuery.data?.unread ?? 0;
+  const avisos = useAvisosDelNavegador(unread, () => api.get<NotificationRecord[]>('/notifications').then((lista) => (Array.isArray(lista) ? lista : []).filter((item) => !item.read)));
 
   return (
     <div className={`notification-center${enCabecera ? ' en-cabecera' : ''}`} ref={rootRef}>
@@ -143,6 +146,15 @@ export function NotificationBell({ enCabecera = false }: { enCabecera?: boolean 
               </button>
             )}
           </header>
+
+          {/* Pedir el aviso del sistema es decisión de cada persona en cada navegador, nunca sola. */}
+          {avisos.permiso !== 'no-disponible' && <div className="notification-permiso">
+            {avisos.activo
+              ? <><span>Te avisamos aunque la pestaña esté de fondo.</span><button type="button" onClick={avisos.desactivar}>Dejar de avisar</button></>
+              : avisos.permiso === 'denied'
+                ? <span>Este navegador bloqueó los avisos. Se activan desde el candado de la barra de direcciones.</span>
+                : <><span>¿Avisarte cuando llegue algo, aunque estés en otra pestaña?</span><button type="button" onClick={() => { void avisos.activar(); }}>Activar avisos</button></>}
+          </div>}
 
           <div className="notification-list">
             {notificationsQuery.isLoading && <p className="notification-state">Cargando actividad...</p>}

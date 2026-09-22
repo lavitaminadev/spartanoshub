@@ -43,6 +43,16 @@ export function ReservationLocalHubPage() {
       navegar(`${base}/forms/${copia.id}`);
     },
   });
+  /*
+   * Quién cambió qué, a la vista de quien delega.
+   *
+   * La auditoría guardaba cada cambio con su autor, pero ninguna pantalla lo mostraba: el dueño no
+   * sabía que alguien bajó el cupo anoche hasta que faltaban reservas. Sin eso, dar la ventana del
+   * día a otra persona era hacerlo a ciegas.
+   */
+  const { data: cambios = [] } = useQuery<Array<{ quien: string; cuando: string; que: string }>>({
+    queryKey: ['reservation-ultimos-cambios', id], queryFn: () => api.get(`/reservations/forms/${id}/ultimos-cambios`), enabled: Boolean(id),
+  });
   const { data: local, isLoading, error, refetch } = useQuery<ReservationForm>({
     queryKey: ['reservation-local', id], queryFn: () => api.get(`/reservations/forms/${id}`), enabled: Boolean(id),
   });
@@ -95,6 +105,16 @@ export function ReservationLocalHubPage() {
       </ul>}
       {duplicar.error && <p className="error-text">{duplicar.error.message}</p>}
     </section>
+
+    {cambios.length > 0 && <section className="local-hub-section local-hub-cambios">
+      <div><span className="page-eyebrow">ÚLTIMOS CAMBIOS</span><h2>Quién tocó esta reserva</h2></div>
+      <ul>
+        {cambios.map((cambio, indice) => <li key={indice}>
+          <strong>{cambio.quien}</strong> {cambio.que}
+          <small>{new Date(cambio.cuando).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</small>
+        </li>)}
+      </ul>
+    </section>}
 
     <section className="local-hub-status">
       <div><span className="page-eyebrow">PUBLICACIÓN</span><h2>Identidad y enlace</h2><p className="page-subtitle">Logo y portada son opcionales, pero la portada es la imagen que aparece al compartir el enlace por WhatsApp o redes.</p></div>

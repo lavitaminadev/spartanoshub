@@ -261,6 +261,14 @@ const VISUAL_RESERVATIONS = [
 /** Cierres puntuales del local, en memoria: se crean y se quitan desde los ajustes del día. */
 const visualBlocks: Array<{ id: string; startsAt: string; endsAt: string; reason?: string }> = [];
 
+/** Avisos de ejemplo, como los que crea el servidor: sin ellos la campana se veía siempre vacía. */
+const visualNotifications = [
+  { id: 'aviso-1', type: 'reservation_created', title: 'Nueva reserva recibida', message: 'Camila Rojas reservó Casa Costanera - Providencia para hoy a las 20:00 (2 personas).', read: false, createdAt: haceMinutos(6) },
+  { id: 'aviso-2', type: 'reservation_group_request', title: 'Nueva solicitud de grupo', message: 'Daniela Fuentes pidió un cumpleaños para 18 personas.', read: false, createdAt: haceMinutos(40) },
+  { id: 'aviso-3', type: 'reservation_paused', title: 'Reservas pausadas', message: 'Casa Costanera - Providencia dejó de ofrecer horarios hasta mañana a las 06:00. Lo hizo Juan Pérez.', read: false, createdAt: haceMinutos(90) },
+  { id: 'aviso-4', type: 'survey_low_rating', title: 'Encuesta con calificación baja', message: 'Sebastián Vera calificó con 2/5. Revisa la respuesta y contacta a la persona.', read: true, createdAt: haceMinutos(1440) },
+];
+
 const VISUAL_GROUP_REQUESTS = [
   {
     id: 'visual-grupo-1', clientId: 'visual-client', formId: 'visual-form',
@@ -302,6 +310,10 @@ const VISUAL_GROUP_REQUESTS = [
       },
     },
   },
+  // Ya resueltas, para que Resultados tenga qué contar.
+  { id: 'visual-grupo-3', clientId: 'visual-client', formId: 'visual-form', guestName: 'Valentina Ríos', guestPhone: '+56 9 1111 2222', partySize: 25, eventType: 'cumpleanos', status: 'closed', closeReason: 'precio', closeNotes: 'Buscaban menos de 15.000 por persona', createdAt: haceMinutos(9000) },
+  { id: 'visual-grupo-4', clientId: 'visual-client', formId: 'visual-form', guestName: 'Martín Lagos', guestPhone: '+56 9 3333 4444', partySize: 12, eventType: 'otro', status: 'closed', closeReason: 'sin_respuesta', createdAt: haceMinutos(12000) },
+  { id: 'visual-grupo-5', clientId: 'visual-client', formId: 'visual-form', guestName: 'Estudio Norte', guestPhone: '+56 2 5555 6666', partySize: 30, eventType: 'empresa', status: 'converted', createdAt: haceMinutos(15000) },
 ];
 
 /** Reserva pública demostrativa: permite revisar el resultado, el enlace de gestión y cancelar sin API. */
@@ -552,7 +564,14 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/auth\/me$/, () => VISUAL_USER],
   [/\/me\/permissions$/, () => ({ permissions: forEveryModule('manage') })],
   [/\/auth\/logout$/, () => ({})],
-  [/\/notifications\/unread/, () => ({ unread: 0 })],
+  [/\/notifications\/unread/, () => ({ unread: visualNotifications.filter((item) => !item.read).length })],
+  [/\/notifications\/[^/?]+\/read$/, (config) => {
+    const id = (config?.url?.match(/\/notifications\/([^/?]+)\/read$/) ?? [])[1];
+    const aviso = visualNotifications.find((item) => item.id === id); if (aviso) aviso.read = true;
+    return aviso ?? {};
+  }],
+  [/\/notifications\/read-all$/, () => { visualNotifications.forEach((item) => { item.read = true; }); return { updated: visualNotifications.length }; }],
+  [/\/notifications(?:\?|$)/, () => visualNotifications],
   // Casa Costanera tiene Reservas y Encuestas, no CRM: así se comprueba que Correos oculta los
   // avisos de un servicio que esa empresa no contrató.
   [/\/clients(?:\?|$)/, () => ({ data: [{ id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } }] })],
@@ -973,6 +992,11 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * Acepta sólo lo que acepta la ruta real: si el modo visual dejara pasar cualquier campo, la
    * pantalla parecería guardar cosas que en producción se descartan.
    */
+  [/\/reservations\/forms\/[^/?]+\/ultimos-cambios$/, () => [
+    { quien: 'Juan Pérez', cuando: haceMinutos(35), que: 'dejó el cupo por franja en 18, cambió las zonas que reciben hoy' },
+    { quien: 'Juan Pérez', cuando: haceMinutos(90), que: 'pausó las reservas' },
+    { quien: 'Ana Soto', cuando: haceMinutos(2900), que: 'editó la configuración' },
+  ]],
   [/\/reservations\/forms\/[^/?]+\/operacion$/, (config) => {
     const id = (config?.url?.match(/\/reservations\/forms\/([^/?]+)\/operacion$/) ?? [])[1];
     const form = visualReservationForms.find((item) => item.id === id) || VISUAL_RESERVATION_LOCAL;

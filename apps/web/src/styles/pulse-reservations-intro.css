@@ -836,3 +836,27 @@
   .waitlist-table td[data-label="#"] { display: none; }
   .waitlist-table .actions-cell { flex-wrap: wrap; gap: 8px; }
 }
+
+/* Cuánta gente ya viene hoy, y a quién afecta un cierre antes de hacerlo. */
+.ajustes-hoy { margin: 4px 0 0; font-size: .85rem; color: var(--txt-muted, #71717a); }
+.ajustes-alerta { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fef3c7; color: #92400e; font-size: .82rem; font-weight: 600; }
+.ajustes-afectadas { display: grid; gap: 8px; margin-top: 8px; padding: 12px; border: 1px solid #fecaca; border-radius: 12px; background: #fff7f7; }
+.ajustes-afectadas > strong { color: #991b1b; }
+.ajustes-afectadas ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ajustes-afectadas li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid #f4f4f5; font-size: .85rem; }
+.ajustes-afectadas-acciones { display: flex; gap: 6px; }
+
+/* Por qué se pierden los eventos: la causa que más pesa se ve primero. */
+.motivos-de-perdida { display: grid; gap: 12px; margin-top: 24px; padding: 20px; border: 1px solid #e4e4e7; border-radius: 16px; background: #fff; }
+.motivos-de-perdida h2 { margin: 4px 0; font-size: 1.1rem; }
+.motivos-de-perdida ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.motivos-de-perdida li { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr 36px; gap: 10px; align-items: center; font-size: .88rem; }
+.motivos-barra { height: 8px; border-radius: 99px; background: #f4f4f5; overflow: hidden; }
+.motivos-barra i { display: block; height: 100%; border-radius: 99px; background: var(--primary, #e11d48); }
+.motivos-de-perdida li strong { text-align: right; }
+.motivos-de-perdida small { color: var(--txt-muted, #71717a); }
+
+/* Últimos cambios en el hub. */
+.local-hub-cambios ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.local-hub-cambios li { display: grid; gap: 2px; font-size: .9rem; }
+.local-hub-cambios small { color: var(--txt-muted, #71717a); }

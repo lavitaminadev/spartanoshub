@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import { ReservationResults } from '../dashboard/ReservationResults';
+import { MotivosDePerdida } from './MotivosDePerdida';
 
 /**
  * Resultados de reservas, la pantalla del menú.
@@ -12,5 +13,8 @@ import { ReservationResults } from '../dashboard/ReservationResults';
  * @param clientId - Acota a una empresa. Sin él, el servidor responde según el alcance de quien mira.
  */
 export function ReservationsAnalyticsPage({ clientId }: { clientId?: string } = {}): JSX.Element {
-  return <ReservationResults clientId={clientId} headingLevel={1} detalle />;
+  return <>
+    <ReservationResults clientId={clientId} headingLevel={1} detalle />
+    <MotivosDePerdida clientId={clientId} />
+  </>;
 }

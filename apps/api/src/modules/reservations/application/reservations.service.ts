@@ -23,6 +23,7 @@ import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { evaluarCambioDeZona, type ZonaDelLocal } from './cambio-de-zona';
+import { describirCambio } from './describir-cambio';
 import { ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
@@ -517,14 +518,60 @@ export class ReservationsService {
    *
    * Es la única vía que toca `bookingPausedUntil`: así ninguna otra pantalla la borra al guardar.
    */
-  async pauseForm(organizationId: string, id: string, until: string, clientId?: string, clientIds?: string[]) {
+  async pauseForm(organizationId: string, id: string, until: string, clientId?: string, clientIds?: string[], actorId?: string) {
     const form = await this.getForm(organizationId, id, clientId, clientIds);
     const design = { ...(form.designConfig as DesignConfig) };
     if (until && !(new Date(until).getTime() > Date.now())) throw new BadRequestException('La pausa debe terminar en una fecha futura');
     if (until) design.bookingPausedUntil = until; else delete design.bookingPausedUntil;
     form.designConfig = design as ReservationForm['designConfig'];
     this.validateConfiguration(form);
-    return this.forms.save(form);
+    const guardado = await this.forms.save(form);
+    const cuando = until ? new Date(until).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: form.timezone }) : '';
+    await this.avisarAlEquipo(form, actorId, until ? 'reservation_paused' : 'reservation_resumed',
+      until ? 'Reservas pausadas' : 'Reservas reanudadas',
+      until ? `${form.name} dejó de ofrecer horarios hasta el ${cuando}.` : `${form.name} vuelve a ofrecer horarios.`);
+    return guardado;
+  }
+
+  /*
+   * Aviso al equipo de un cambio que cuesta reservas.
+   *
+   * Pausar o cerrar un día lo puede hacer ahora alguien con menos acceso que el dueño, desde la
+   * ventana del día: si nadie más se entera, el local puede pasar una noche sin recibir a nadie y
+   * descubrirlo al día siguiente. Quien lo hizo no se avisa a sí mismo. Nunca interrumpe la acción:
+   * un aviso que falla no puede deshacer la pausa.
+   */
+  private async avisarAlEquipo(form: ReservationForm, actorId: string | undefined, tipo: string, titulo: string, texto: string): Promise<void> {
+    try {
+      const equipo = await this.equipoDelLocal(form);
+      const destinatarios = equipo.userIds.filter((id) => id !== actorId);
+      if (!destinatarios.length) return;
+      const quien = actorId
+        ? ((await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [actorId])) as Array<{ name?: string }>)[0]?.name
+        : undefined;
+      await this.notifications.notifyMultiple(form.organizationId, destinatarios, tipo, titulo, quien ? `${texto} Lo hizo ${quien}.` : texto, { formId: form.id, clientId: form.clientId });
+    } catch (err) {
+      this.logger.warn(`No se pudo avisar al equipo de ${form.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /**
+   * Los últimos cambios de una reserva publicada, con quién los hizo.
+   *
+   * La auditoría ya guardaba cada cambio con su autor, pero no se veía en ninguna parte: el dueño
+   * no tenía cómo saber que alguien bajó el cupo anoche, y sin eso delegar es a ciegas. Se describe
+   * en palabras lo que se hizo, no la ruta técnica por la que entró.
+   */
+  async ultimosCambios(organizationId: string, id: string, clientId?: string, clientIds?: string[]) {
+    await this.getForm(organizationId, id, clientId, clientIds);
+    const filas = await this.dataSource.query(
+      `SELECT a.action, a.reason, a.after, a.occurred_at AS cuando, u.name AS quien
+         FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id
+        WHERE a.organization_id = ? AND a.entity_id = ?
+        ORDER BY a.occurred_at DESC LIMIT 5`,
+      [organizationId, id],
+    ) as Array<{ action: string; reason?: string | null; after?: unknown; cuando: Date; quien?: string | null }>;
+    return filas.map((fila) => ({ quien: fila.quien || 'Alguien del equipo', cuando: fila.cuando, que: describirCambio(fila.reason ?? '', fila.after) }));
   }
   async duplicateForm(organizationId: string, id: string, userId: string, clientIds?: string[]) { const source = await this.getForm(organizationId, id, undefined, clientIds); const copy = this.forms.create({ ...source, id: undefined, name: `${source.name} (copia)`, publicSlug: await this.uniqueSlug(source.publicSlug), status: 'draft', createdBy: userId, createdAt: undefined, updatedAt: undefined }); return this.forms.save(copy); }
 
@@ -538,7 +585,12 @@ export class ReservationsService {
     // resuelven con el cliente y luego se cierra la franja.
     const affected = await this.reservations.createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId, startsAt, endsAt, statuses: ACTIVE_STATUSES }).getCount();
     if (affected > 0) throw new ConflictException(`Hay ${affected} reserva(s) en este horario. Reagenda o contacta a esas personas antes de bloquearlo.`);
-    return this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason?.trim() || undefined }));
+    const bloqueo = await this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason?.trim() || undefined }));
+    const zona = { timeZone: form.timezone };
+    const desde = startsAt.toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', ...zona });
+    const hasta = endsAt.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', ...zona });
+    await this.avisarAlEquipo(form, userId, 'reservation_blocked', 'Horario cerrado', `${form.name} no recibe reservas desde el ${desde} hasta las ${hasta}${dto.reason?.trim() ? ` (${dto.reason.trim()})` : ''}.`);
+    return bloqueo;
   }
   async listBlocks(organizationId: string, formId: string, clientId?: string, clientIds?: string[]) { await this.getForm(organizationId, formId, clientId, clientIds); return this.blocks.find({ where: { organizationId, formId }, order: { startsAt: 'ASC' } }); }
   async removeBlock(organizationId: string, id: string, clientId?: string, clientIds?: string[], actorId?: string) { const block = await this.blocks.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } }); if (!block) throw new NotFoundException('Bloqueo no encontrado'); await this.blocks.remove(block); await this.audit.log({ organizationId, actorId, entityType: 'AvailabilityBlock', entityId: id, action: 'deleted', before: { startsAt: block.startsAt, endsAt: block.endsAt, reason: block.reason, formId: block.formId } }); return { deleted: true }; }
@@ -847,13 +899,17 @@ export class ReservationsService {
   /**
    * Zona horaria del cliente, tomada de sus formularios.
    *
-   * Todos los formularios de un cliente describen el mismo local, así que basta con el
-   * primero. Sin formularios se usa la zona por defecto, que es la misma que traen ellos.
+   * Sirve para lo que no tiene un local elegido. Una empresa con locales en distintas zonas
+   * horarias debería elegir uno para ver la hora exacta; sin elegir, manda el más antiguo. Sin
+   * formularios se usa la zona por defecto, que es la misma que traen ellos.
    */
   private async clientTimezone(clientId: string, organizationId: string): Promise<string> {
+    // El más antiguo, para que la respuesta no cambie entre consultas: sin orden, «el primero»
+    // podía ser cualquiera, y dos reportes seguidos podían correr la hora de forma distinta.
     const form = await this.forms.findOne({
       where: { clientId, organizationId },
       select: { id: true, timezone: true },
+      order: { createdAt: 'ASC' },
     });
     return form?.timezone || 'America/Santiago';
   }

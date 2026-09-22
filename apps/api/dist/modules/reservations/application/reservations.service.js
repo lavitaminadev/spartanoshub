@@ -39,6 +39,7 @@ const phone_1 = require("../../../shared/phone");
 const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
 const cambio_de_zona_1 = require("./cambio-de-zona");
+const describir_cambio_1 = require("./describir-cambio");
 const shared_3 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
@@ -433,7 +434,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         return this.forms.save(form);
     }
-    async pauseForm(organizationId, id, until, clientId, clientIds) {
+    async pauseForm(organizationId, id, until, clientId, clientIds, actorId) {
         const form = await this.getForm(organizationId, id, clientId, clientIds);
         const design = { ...form.designConfig };
         if (until && !(new Date(until).getTime() > Date.now()))
@@ -444,7 +445,33 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             delete design.bookingPausedUntil;
         form.designConfig = design;
         this.validateConfiguration(form);
-        return this.forms.save(form);
+        const guardado = await this.forms.save(form);
+        const cuando = until ? new Date(until).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: form.timezone }) : '';
+        await this.avisarAlEquipo(form, actorId, until ? 'reservation_paused' : 'reservation_resumed', until ? 'Reservas pausadas' : 'Reservas reanudadas', until ? `${form.name} dejó de ofrecer horarios hasta el ${cuando}.` : `${form.name} vuelve a ofrecer horarios.`);
+        return guardado;
+    }
+    async avisarAlEquipo(form, actorId, tipo, titulo, texto) {
+        try {
+            const equipo = await this.equipoDelLocal(form);
+            const destinatarios = equipo.userIds.filter((id) => id !== actorId);
+            if (!destinatarios.length)
+                return;
+            const quien = actorId
+                ? (await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [actorId]))[0]?.name
+                : undefined;
+            await this.notifications.notifyMultiple(form.organizationId, destinatarios, tipo, titulo, quien ? `${texto} Lo hizo ${quien}.` : texto, { formId: form.id, clientId: form.clientId });
+        }
+        catch (err) {
+            this.logger.warn(`No se pudo avisar al equipo de ${form.id}: ${err instanceof Error ? err.message : err}`);
+        }
+    }
+    async ultimosCambios(organizationId, id, clientId, clientIds) {
+        await this.getForm(organizationId, id, clientId, clientIds);
+        const filas = await this.dataSource.query(`SELECT a.action, a.reason, a.after, a.occurred_at AS cuando, u.name AS quien
+         FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id
+        WHERE a.organization_id = ? AND a.entity_id = ?
+        ORDER BY a.occurred_at DESC LIMIT 5`, [organizationId, id]);
+        return filas.map((fila) => ({ quien: fila.quien || 'Alguien del equipo', cuando: fila.cuando, que: (0, describir_cambio_1.describirCambio)(fila.reason ?? '', fila.after) }));
     }
     async duplicateForm(organizationId, id, userId, clientIds) { const source = await this.getForm(organizationId, id, undefined, clientIds); const copy = this.forms.create({ ...source, id: undefined, name: `${source.name} (copia)`, publicSlug: await this.uniqueSlug(source.publicSlug), status: 'draft', createdBy: userId, createdAt: undefined, updatedAt: undefined }); return this.forms.save(copy); }
     async addBlock(organizationId, formId, userId, dto, clientId, clientIds) {
@@ -460,7 +487,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const affected = await this.reservations.createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId, startsAt, endsAt, statuses: ACTIVE_STATUSES }).getCount();
         if (affected > 0)
             throw new common_1.ConflictException(`Hay ${affected} reserva(s) en este horario. Reagenda o contacta a esas personas antes de bloquearlo.`);
-        return this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason?.trim() || undefined }));
+        const bloqueo = await this.blocks.save(this.blocks.create({ organizationId, clientId: form.clientId, formId, createdBy: userId, startsAt, endsAt, reason: dto.reason?.trim() || undefined }));
+        const zona = { timeZone: form.timezone };
+        const desde = startsAt.toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', ...zona });
+        const hasta = endsAt.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', ...zona });
+        await this.avisarAlEquipo(form, userId, 'reservation_blocked', 'Horario cerrado', `${form.name} no recibe reservas desde el ${desde} hasta las ${hasta}${dto.reason?.trim() ? ` (${dto.reason.trim()})` : ''}.`);
+        return bloqueo;
     }
     async listBlocks(organizationId, formId, clientId, clientIds) { await this.getForm(organizationId, formId, clientId, clientIds); return this.blocks.find({ where: { organizationId, formId }, order: { startsAt: 'ASC' } }); }
     async removeBlock(organizationId, id, clientId, clientIds, actorId) { const block = await this.blocks.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } }); if (!block)
@@ -678,6 +710,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const form = await this.forms.findOne({
             where: { clientId, organizationId },
             select: { id: true, timezone: true },
+            order: { createdAt: 'ASC' },
         });
         return form?.timezone || 'America/Santiago';
     }
