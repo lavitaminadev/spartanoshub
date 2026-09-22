@@ -446,7 +446,7 @@ export function PublicReservationPage() {
       if (isSurvey) return api.post<Created>(`/public/reservations/${slug}/survey`, baseBody);
       if (requestMode) return api.post<Created>(`/public/reservations/${slug}/group-request`, {
         guestName: guest.guestName, guestEmail: guest.guestEmail || undefined, guestPhone: guest.guestPhone || undefined,
-        partySize: pedidoPorFaltaDeCupo.current ? guest.partySize : Math.max(groupThreshold + 1, guest.partySize), eventType: tipoDeEvento, notes: groupEventNotes.trim() || undefined,
+        partySize: pedidoPorFaltaDeCupo.current ? guest.partySize : Math.max(groupThreshold + 1, guest.partySize), eventType: tipoDeEvento || (pedidoPorFaltaDeCupo.current ? 'otro' : tipoDeEvento), notes: groupEventNotes.trim() || undefined,
         preferredDate: requestPreference.date || undefined, preferredTime: requestPreference.time || undefined,
         reservationConsent, sensitiveConsent: hayDatosSensibles && sensitiveConsent, marketingConsent, networkConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent, origenDetectado,
         measurementConsent, ...(measurementConsent ? { fbc: meta.fbc, fbp: meta.fbp, fbclid: meta.fbclid, eventSourceUrl: window.location.href, measurementConsentVersion: VERSION_MEDICION } : {}),
@@ -548,7 +548,8 @@ export function PublicReservationPage() {
     if (!guest.guestName.trim()) errs.name = 'El nombre es obligatorio';
     if (hayDatosSensibles && !sensitiveConsent) errs.sensitiveConsent = 'Autoriza el uso de la información de salud o alimentación, o bórrala para continuar';
     if (!isSurvey && !reservationConsent) errs.reservationConsent = requestMode ? 'Debes aceptar las condiciones para enviar la solicitud' : 'Debes aceptar las condiciones para gestionar la reserva';
-    if (!isSurvey && (guest.partySize > groupThreshold || requestMode) && (!tipoDeEvento || (preguntaDeOcasiones && !ocasionElegida))) errs.groupEvent = 'Cuéntanos qué tipo de grupo o celebración es';
+    // Pedir la mesa porque no quedaba lugar no es una celebración: no se le exige elegir ocasión.
+    if (!isSurvey && !pedidoPorFaltaDeCupo.current && (guest.partySize > groupThreshold || requestMode) && (!tipoDeEvento || (preguntaDeOcasiones && !ocasionElegida))) errs.groupEvent = 'Cuéntanos qué tipo de grupo o celebración es';
     if (requestMode && requestPreference.date && requestPreference.date < hoyEnElLocal) errs.groupEvent = 'La fecha preferida ya pasó: elige hoy o una fecha futura';
     if (systemFields.phone?.required && !guest.guestPhone.trim()) errs.phone = 'El teléfono es obligatorio';
     else if (guest.guestPhone.trim() && !isValidChileanMobilePhone(guest.guestPhone)) errs.phone = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';

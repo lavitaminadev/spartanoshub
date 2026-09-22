@@ -32,7 +32,8 @@ interface Zona { id: string; name?: string; active?: boolean; capacity?: number 
 interface Cierre { id: string; startsAt: string; endsAt: string; reason?: string }
 
 /** Estados que ocupan cupo: las que todavía van a llegar. */
-const ACTIVAS = ['pending', 'confirmed', 'rescheduled'];
+/** Lo que cuenta contra el tope del día, igual que en el servidor: las activas y quienes ya llegaron. */
+const ACTIVAS = ['pending', 'confirmed', 'rescheduled', 'attended'];
 
 /** Un día local, en los límites que entiende el listado: de 00:00 a 23:59 en la hora del navegador. */
 function rangoDelDia(dia: string, desde = '00:00', hasta = '23:59'): { from: string; to: string } {

@@ -44,7 +44,7 @@ export interface DesignConfig {
   [key: string]: string | undefined;
 }
 export interface ReservationForm { id: string; clientId: string; name: string; publicSlug: string; publicUrl?: string; status: string; mode: string; timezone: string; durationMinutes: number; bufferMinutes: number; capacityPerSlot: number; dailyCapacity: number; minimumNoticeHours: number; maximumAdvanceDays: number; confirmationMode: string; fieldSchema: FormField[]; designConfig: DesignConfig; scheduleConfig: { windows?: Array<{ day: number; start: string; end: string }> }; servicesConfig?: Array<{ id: string; name: string; durationMinutes?: number; capacity?: number; active?: boolean }>; resourcesConfig?: Array<{ id: string; name: string; capacity?: number; description?: string; smokingAllowed?: boolean; active?: boolean }>; campaignId?: string; crmEnabled?: boolean; calendarEnabled?: boolean; metaCapiEnabled?: boolean; teamNotifications?: string[]; pixelId?: string | null; pixelName?: string | null; metaReady?: boolean; /** Pixel propio de este local; vacío hereda el de la empresa. */ metaPixelId?: string | null; pixelHeredado?: boolean; pixelDeLaEmpresa?: string | null; calendarReady?: boolean; companyDailyCap?: number; datosLegalesEmpresa?: { legalName?: string | null; taxId?: string | null; privacyEmail?: string | null; privacyUrl?: string | null; termsUrl?: string | null; legalMode?: string | null } | null; ga4MeasurementId?: string | null; /** Identificador del local con que Meta separa los resultados; sólo lo trae la página pública. */ contentId?: string; capabilities?: { reservations: boolean; crm: boolean; metaConversions?: boolean; googleConversions?: boolean }; updatedAt: string }
-export interface Reservation { id: string; formId: string; referenceCode: string; status: string; startsAt: string; partySize: number; guestName: string; guestEmail?: string; guestPhone?: string; answers?: Record<string, unknown>; serviceId?: string; resourceId?: string; /** Mesa asignada por el anfitrión; sólo interna. */ tableLabel?: string | null; /** Cuándo se fue quien ya llegó; `departureSource` dice si lo marcó el equipo (`team`) o el sistema al cierre (`local_closed`). */ leftAt?: string | null; departureSource?: string | null; birthDate?: string | null; endsAt?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; utmContent?: string; internalNotes?: string; couponCode?: string; createdAt?: string; metaConversion?: MetaConversionStatus; contactId?: string; workflowState?: ReservationState;
+export interface Reservation { id: string; formId: string; referenceCode: string; status: string; startsAt: string; partySize: number; guestName: string; guestEmail?: string; guestPhone?: string; answers?: Record<string, unknown>; serviceId?: string; resourceId?: string; /** Mesa asignada por el anfitrión; sólo interna. */ tableLabel?: string | null; /** Asistida por el cierre automático, sin que nadie la marcara. */ asistenciaSupuesta?: boolean; /** Cuándo se fue quien ya llegó; `departureSource` dice si lo marcó el equipo (`team`) o el sistema al cierre (`local_closed`). */ leftAt?: string | null; departureSource?: string | null; birthDate?: string | null; endsAt?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; utmContent?: string; internalNotes?: string; couponCode?: string; createdAt?: string; metaConversion?: MetaConversionStatus; contactId?: string; workflowState?: ReservationState;
   /** Consentimientos, con el instante en que se aceptaron y el texto exacto que se mostró. */
   reservationConsentAt?: string | null; reservationConsentText?: string | null;
   marketingConsentAt?: string | null; marketingConsentText?: string | null; marketingConsentVersion?: string | null;
@@ -56,13 +56,15 @@ export interface GuestHistory {
   total: number;
   attended: number;
   noShow: number;
+  /** De las asistidas, cuántas las dio por hechas el cierre automático sin que nadie las marcara. */
+  asistenciasSupuestas?: number;
   /** Hasta dónde mira: sólo esta reserva publicada, o todas las de la empresa con permiso de red. */
   alcance?: 'local' | 'red';
   /** Cuántas de esas visitas fueron a otra reserva de la misma empresa. */
   deOtrasReservas?: number;
   /** Cuántas fueron en este mismo local. */
   enEsteLocal?: number;
-  anteriores: Array<{ id: string; referenceCode: string; startsAt: string; status: string; partySize: number; internalNotes?: string | null; mismoLocal?: boolean }>;
+  anteriores: Array<{ id: string; referenceCode: string; startsAt: string; status: string; partySize: number; internalNotes?: string | null; mismoLocal?: boolean; asistenciaSupuesta?: boolean }>;
   /** Lo que se deduce de sus reservas anteriores. Ausente en la primera visita. */
   preferencias?: {
     zonaHabitual?: string;

@@ -230,7 +230,8 @@ const VISUAL_RESERVATIONS = [
   },
   {
     id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended', createdAt: haceMinutos(2400),
-    startsAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(), partySize: 4,
+    // Ya llegó y sigue en la mesa: para ver «Se fue» y «Sigue en la mesa».
+    startsAt: new Date(Date.now() - 45 * 60_000).toISOString(), endsAt: new Date(Date.now() + 45 * 60_000).toISOString(), partySize: 4,
     guestName: 'Sebastián Vera', guestPhone: '+56 9 7456 1234', guestEmail: 'sebastian@example.test',
     internalNotes: 'Pidió mesa en el fondo, viene con su papá en silla de ruedas.',
     resourceId: 'salon',
@@ -762,6 +763,15 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   // Pixels entre los que puede elegir el local: uno de la empresa y uno de otra cuenta sin token,
   // para poder ver en pantalla el aviso de credencial faltante.
+  // Salida de quien ya llegó: mueve el fin en memoria, como lo haría el servidor.
+  [/\/reservations\/[^/?]+\/salida$/, (config) => {
+    const id = String(config?.url ?? '').split('/').slice(-2)[0];
+    const reserva = VISUAL_RESERVATIONS.find((item) => item.id === id) as Record<string, unknown> | undefined;
+    const accion = visualRequestBody(config).accion;
+    if (reserva && accion === 'se_fue') Object.assign(reserva, { leftAt: new Date().toISOString(), departureSource: 'team', endsAt: new Date().toISOString() });
+    if (reserva && accion === 'sigue') reserva.endsAt = new Date(Math.max(new Date(String(reserva.endsAt)).getTime(), Date.now()) + 30 * 60_000).toISOString();
+    return { reserva, sobreCupo: false };
+  }],
   [/\/reservations\/forms\/meta-pixels/, () => ({
     porDefecto: { pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', tieneToken: true },
     pixels: [
@@ -912,12 +922,13 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     total: 4,
     attended: 3,
     noShow: 1,
+    asistenciasSupuestas: 1,
     alcance: 'red',
     enEsteLocal: 3,
     deOtrasReservas: 1,
     anteriores: [
       { id: 'h1', referenceCode: 'CC-0931', startsAt: new Date(Date.now() - 21 * 86400000).toISOString(), status: 'attended', partySize: 2, mismoLocal: true, internalNotes: 'Llegó 20 minutos tarde, avisó por WhatsApp.' },
-      { id: 'h2', referenceCode: 'CC-0844', startsAt: new Date(Date.now() - 58 * 86400000).toISOString(), status: 'attended', partySize: 2 },
+      { id: 'h2', referenceCode: 'CC-0844', startsAt: new Date(Date.now() - 58 * 86400000).toISOString(), status: 'attended', partySize: 2, asistenciaSupuesta: true },
       { id: 'h3', referenceCode: 'CC-0777', startsAt: new Date(Date.now() - 96 * 86400000).toISOString(), status: 'no_show', partySize: 4, mismoLocal: false, internalNotes: 'Reservó y no llegó; no contestó el teléfono.' },
       { id: 'h4', referenceCode: 'CC-0612', startsAt: new Date(Date.now() - 150 * 86400000).toISOString(), status: 'attended', partySize: 2 },
     ],

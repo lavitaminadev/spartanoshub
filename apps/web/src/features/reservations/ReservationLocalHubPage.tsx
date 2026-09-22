@@ -12,6 +12,9 @@ import { AjustesDelDia } from './AjustesDelDia';
 import { estadoDelCanal, loQueFaltaParaAbrir } from './preparacion-del-local';
 import './reservation-local-hub.css';
 
+/** Cambios que se ven de entrada; el resto, hasta 20, tras «Ver más». */
+const CAMBIOS_A_LA_VISTA = 3;
+
 /**
  * Puerta de entrada de un local. "Formulario" es un detalle técnico: para una empresa esto es
  * un local con su propia agenda, enlace y reglas. Tener esta pantalla evita que el usuario tenga
@@ -50,6 +53,7 @@ export function ReservationLocalHubPage() {
    * sabía que alguien bajó el cupo anoche hasta que faltaban reservas. Sin eso, dar la ventana del
    * día a otra persona era hacerlo a ciegas.
    */
+  const [todosLosCambios, setTodosLosCambios] = useState(false);
   const { data: cambios = [] } = useQuery<Array<{ quien: string; cuando: string; que: string }>>({
     queryKey: ['reservation-ultimos-cambios', id], queryFn: () => api.get(`/reservations/forms/${id}/ultimos-cambios`), enabled: Boolean(id),
   });
@@ -109,11 +113,14 @@ export function ReservationLocalHubPage() {
     {cambios.length > 0 && <section className="local-hub-section local-hub-cambios">
       <div><span className="page-eyebrow">ÚLTIMOS CAMBIOS</span><h2>Quién tocó esta reserva</h2></div>
       <ul>
-        {cambios.map((cambio, indice) => <li key={indice}>
+        {(todosLosCambios ? cambios : cambios.slice(0, CAMBIOS_A_LA_VISTA)).map((cambio, indice) => <li key={indice}>
           <strong>{cambio.quien}</strong> {cambio.que}
           <small>{new Date(cambio.cuando).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</small>
         </li>)}
       </ul>
+      {cambios.length > CAMBIOS_A_LA_VISTA && <button type="button" className="link-button" onClick={() => setTodosLosCambios((valor) => !valor)}>
+        {todosLosCambios ? 'Ver menos' : `Ver ${cambios.length - CAMBIOS_A_LA_VISTA} cambio${cambios.length - CAMBIOS_A_LA_VISTA === 1 ? '' : 's'} más`}
+      </button>}
     </section>}
 
     <section className="local-hub-status">

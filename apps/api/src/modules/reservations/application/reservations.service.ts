@@ -136,6 +136,11 @@ const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
  */
 const OCCUPYING_STATUSES = [...ACTIVE_STATUSES, 'attended'];
 /**
+ * Una asistencia que nadie marcó: el cierre automático la dio por hecha al pasar el margen.
+ * Se muestra aparte porque no confirma que la persona haya venido.
+ */
+const ASISTENCIA_SUPUESTA_SQL = `EXISTS (SELECT 1 FROM reservation_events e WHERE e.reservation_id = r.id AND e.type = 'status_changed' AND e.to_status = 'attended' AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.via')) = 'automatic_day_close')`;
+/**
  * Techo del horizonte que la disponibilidad publica puede recorrer de una vez. Acota el
  * tamano de la respuesta y las filas leidas; el limite real de cada formulario sale de su
  * `maximumAdvanceDays` cuando este es menor.
@@ -587,7 +592,7 @@ export class ReservationsService {
       `SELECT a.action, a.reason, a.after, a.occurred_at AS cuando, u.name AS quien
          FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id
         WHERE a.organization_id = ? AND a.entity_id = ?
-        ORDER BY a.occurred_at DESC LIMIT 5`,
+        ORDER BY a.occurred_at DESC LIMIT 20`,
       [organizationId, id],
     ) as Array<{ action: string; reason?: string | null; after?: unknown; cuando: Date; quien?: string | null }>;
     return filas.map((fila) => ({ quien: fila.quien || 'Alguien del equipo', cuando: fila.cuando, que: describirCambio(fila.reason ?? '', fila.after) }));
@@ -2731,10 +2736,21 @@ export class ReservationsService {
     }
   }
 
+  /** De estas reservas, cuáles quedaron asistidas por el cierre automático y no porque alguien lo marcó. */
+  private async asistenciasSupuestas(ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const filas = await this.dataSource.query(
+      `SELECT DISTINCT reservation_id AS id FROM reservation_events WHERE reservation_id IN (${ids.map(() => '?').join(',')}) AND type = 'status_changed' AND to_status = 'attended' AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.via')) = 'automatic_day_close'`,
+      ids,
+    ).catch(() => []) as Array<{ id: string }>;
+    return new Set(filas.map((fila) => fila.id));
+  }
+
   async listReservations(organizationId: string, query: ListReservationsDto, clientId?: string, clientIds?: string[], includeInternalNotes = true) {
-    const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); if (query.resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId }); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
+    const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.asistenciaSupuesta === 'true') qb.andWhere(ASISTENCIA_SUPUESTA_SQL); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); if (query.resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId }); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
     const conversions = await this.metaConversionStatus(organizationId, items);
-    const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id) }));
+    const supuestas = await this.asistenciasSupuestas(safeItems.filter((item) => item.status === 'attended').map((item) => item.id));
+    const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id), ...(supuestas.has(item.id) ? { asistenciaSupuesta: true } : {}) }));
     // `data` es el nombre con que responden todas las listas del sistema. Convivió un tiempo con
     // `items`, que era el nombre anterior de este módulo; se retiró al migrar las pantallas.
     return { data: withConversion, total, page, pageSize, pages: Math.ceil(total / pageSize) };
@@ -2938,9 +2954,11 @@ export class ReservationsService {
     else qb.andWhere('r.guest_phone = :telefono', { telefono });
     // Un tope alto para contar bien sin traer el historial completo de un cliente frecuente.
     const previas = await qb.orderBy('r.starts_at', 'DESC').take(100).getMany();
+    const supuestasPrevias = await this.asistenciasSupuestas(previas.filter((item) => item.status === 'attended').map((item) => item.id));
     return {
       total: previas.length,
       attended: previas.filter((item) => item.status === 'attended').length,
+      asistenciasSupuestas: previas.filter((item) => supuestasPrevias.has(item.id)).length,
       noShow: previas.filter((item) => item.status === 'no_show').length,
       alcance: red ? 'red' as const : 'local' as const,
       // Cuántas de esas visitas fueron aquí y cuántas en otra reserva de la misma empresa: sin
@@ -2948,7 +2966,7 @@ export class ReservationsService {
       enEsteLocal: previas.filter((item) => item.formId === actual.formId).length,
       deOtrasReservas: previas.filter((item) => item.formId !== actual.formId).length,
       preferencias: this.preferenciasDeLaPersona(previas, actual),
-      anteriores: previas.slice(0, 5).map((item) => ({ id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
+      anteriores: previas.slice(0, 5).map((item) => ({ asistenciaSupuesta: supuestasPrevias.has(item.id), id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
     };
   }
 
