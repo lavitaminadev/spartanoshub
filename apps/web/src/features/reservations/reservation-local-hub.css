@@ -27,3 +27,11 @@
  * de advertencia, cuando es la bandeja de trabajo que más ingresos deja: mirarla no debería
  * sentirse como atender un problema.
  */
+
+/*
+ * Las tarjetas se reparten según el ancho del contenido, no el de la ventana: con la barra lateral
+ * abierta, tres columnas fijas dejaban cada tarjeta tan angosta que el texto se salía del borde.
+ */
+.local-hub-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.local-hub-card { grid-template-columns: auto minmax(0, 1fr); }
+.local-hub-card strong, .local-hub-card small { overflow-wrap: anywhere; }

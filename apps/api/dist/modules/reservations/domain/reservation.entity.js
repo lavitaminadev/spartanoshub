@@ -91,6 +91,14 @@ __decorate([
     __metadata("design:type", Object)
 ], Reservation.prototype, "tableLabel", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'left_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "leftAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'departure_source', type: 'varchar', length: 20, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "departureSource", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'birth_date', type: 'date', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "birthDate", void 0);

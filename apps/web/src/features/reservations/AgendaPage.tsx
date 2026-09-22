@@ -310,7 +310,6 @@ export function AgendaPage() {
       {detalle && <div className="modal-form">
         {/* La misma ficha que en la lista: quien recibe necesita la mesa, el cupón y si ya vino antes. */}
         <FichaDeReserva reserva={detalle} local={activeForm} onGuardada={() => { void refetchReservations(); }} />
-        {detalle.internalNotes && <p className="page-subtitle">Notas internas: {detalle.internalNotes}</p>}
         {actualizarReserva.error && <p className="error-text">{actualizarReserva.error instanceof Error && actualizarReserva.error.message ? actualizarReserva.error.message : 'No se pudo actualizar la reserva. Revisa el estado e inténtalo otra vez.'}</p>}
         {['pending', 'confirmed', 'rescheduled'].includes(detalle.status) ? <>
           <div className="modal-actions">

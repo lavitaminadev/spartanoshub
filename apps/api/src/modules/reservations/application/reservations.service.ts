@@ -19,6 +19,7 @@ import { ReservationManagementToken } from '../domain/reservation-management-tok
 import { ReservationHold } from '../domain/reservation-hold.entity';
 import { ReservationGroupRequest } from '../domain/reservation-group-request.entity';
 import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLocalToUtc, zonedParts } from '../domain/timezone';
+import { finExtendido, MINUTOS_POR_EXTENSION } from '../domain/cierre-del-local';
 import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
@@ -126,6 +127,14 @@ const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'mu
 /** Estados que puede tomar una solicitud de contacto post-encuesta. */
 // Solo las reservas que aún tienen un turno futuro consumen capacidad.
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
+/**
+ * Los estados que ocupan lugar al calcular cupos: los activos y quien ya llegó.
+ *
+ * Una reserva asistida sigue ocupando su mesa hasta que se va —`endsAt`, que el equipo adelanta
+ * al marcar la salida o alarga si sigue en la mesa—. Contar sólo las activas liberaba el lugar en
+ * cuanto se marcaba la llegada, con la gente todavía sentada.
+ */
+const OCCUPYING_STATUSES = [...ACTIVE_STATUSES, 'attended'];
 /**
  * Techo del horizonte que la disponibilidad publica puede recorrer de una vez. Acota el
  * tamano de la respuesta y las filas leidas; el limite real de cada formulario sale de su
@@ -462,11 +471,19 @@ export class ReservationsService {
     if (dto.whatsappBusinessNumber !== undefined) { design.whatsappBusinessNumber = dto.whatsappBusinessNumber.trim(); tocaDiseno = true; }
     if (tocaDiseno) patch.designConfig = design as Record<string, unknown>;
 
-    if (dto.zonasActivas !== undefined) {
-      const encendidas = new Set(dto.zonasActivas);
-      // Sólo cambia el interruptor: nombre, cupo y descripción son los que ya estaban guardados.
+    if (dto.zonasActivas !== undefined || dto.cuposPorZona !== undefined) {
+      const encendidas = dto.zonasActivas !== undefined ? new Set(dto.zonasActivas) : null;
+      const cupos = dto.cuposPorZona ?? {};
+      for (const valor of Object.values(cupos)) {
+        if (!Number.isInteger(valor) || valor < 1 || valor > 500) throw new BadRequestException('El cupo de cada zona va de 1 a 500 personas');
+      }
+      // Sólo cambian el interruptor y el cupo: nombre, horario y descripción son los que ya estaban guardados.
       const zonas = (form.resourcesConfig ?? []) as Array<{ id: string } & Record<string, unknown>>;
-      patch.resourcesConfig = zonas.map((zona) => ({ ...zona, active: encendidas.has(zona.id) }));
+      patch.resourcesConfig = zonas.map((zona) => ({
+        ...zona,
+        ...(encendidas ? { active: encendidas.has(zona.id) } : {}),
+        ...(cupos[zona.id] !== undefined ? { capacity: cupos[zona.id] } : {}),
+      }));
     }
 
     return this.updateForm(organizationId, id, patch, clientId, clientIds);
@@ -869,8 +886,8 @@ export class ReservationsService {
     end: Date,
     excludeId?: string,
   ): Promise<number> {
-    const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
-    const params: unknown[] = [id, start, end, ...ACTIVE_STATUSES];
+    const placeholders = OCCUPYING_STATUSES.map(() => '?').join(',');
+    const params: unknown[] = [id, start, end, ...OCCUPYING_STATUSES];
     let sql = `SELECT id, party_size FROM reservations WHERE ${column} = ? AND starts_at >= ? AND starts_at < ? AND status IN (${placeholders})`;
     if (excludeId) { sql += ' AND id != ?'; params.push(excludeId); }
     const rows = await manager.query(`${sql} FOR UPDATE`, params);
@@ -922,7 +939,7 @@ export class ReservationsService {
   private async assertCupoDeZona(manager: EntityManager, form: ReservationForm, booking: Reservation, resourceId: string): Promise<void> {
     const solapadas = await manager.getRepository(Reservation).createQueryBuilder('r')
       .where('r.form_id = :formId AND r.resource_id = :resourceId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses) AND r.id != :id', {
-        formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, statuses: ACTIVE_STATUSES, id: booking.id,
+        formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, statuses: OCCUPYING_STATUSES, id: booking.id,
       })
       .getMany();
     const rechazo = evaluarCambioDeZona({
@@ -950,7 +967,7 @@ export class ReservationsService {
       const clientCount = await this.clientDailyReservationsCount(manager, form.clientId, dateKey, form.timezone, excludeId);
       if (clientCount + partySize > clientCap) throw new ConflictException('Este día no tiene cupo para ese grupo');
     }
-    const qb = manager.getRepository(Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: ACTIVE_STATUSES }).setLock('pessimistic_write');
+    const qb = manager.getRepository(Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
     if (resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId }); if (excludeId) qb.andWhere('r.id != :excludeId', { excludeId });
     const existing = await qb.getMany();
     const holdsQb = manager.getRepository(ReservationHold).createQueryBuilder('h')
@@ -961,6 +978,16 @@ export class ReservationsService {
     const activeHolds = await holdsQb.getMany();
     const used = existing.reduce((sum, item) => sum + item.partySize, 0) + activeHolds.reduce((sum, item) => sum + item.partySize, 0);
     if (used + partySize > rules.capacity) throw new ConflictException('Ese horario acaba de ocuparse. Selecciona una alternativa.');
+    /*
+     * Con una zona elegida, el cupo de la zona no basta: todas las zonas juntas no pueden pasar el
+     * cupo del local. Sin este control, dos zonas de 20 en un local de 24 recibían 40 personas.
+     */
+    if (resourceId) {
+      const totalQb = manager.getRepository(Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
+      if (excludeId) totalQb.andWhere('r.id != :excludeId', { excludeId });
+      const enElLocal = (await totalQb.getMany()).reduce((sum, item) => sum + item.partySize, 0);
+      if (enElLocal + partySize > form.capacityPerSlot) throw new ConflictException('El local ya no tiene cupo en ese horario. Selecciona una alternativa.');
+    }
     return { ...rules, endsAt, available: rules.capacity - used };
   }
 
@@ -1052,7 +1079,7 @@ export class ReservationsService {
     const rangeEnd = startOfLocalDayUtc(addPlainDays(from, count), form.timezone);
     const existingQb = this.reservations.createQueryBuilder('r')
       .select(['r.id', 'r.startsAt', 'r.endsAt', 'r.partySize'])
-      .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: ACTIVE_STATUSES });
+      .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: OCCUPYING_STATUSES });
     if (resourceId) existingQb.andWhere('r.resource_id = :resourceId', { resourceId });
     const blocksQb = this.blocks.createQueryBuilder('b')
       .select(['b.id', 'b.startsAt', 'b.endsAt'])
@@ -1060,13 +1087,25 @@ export class ReservationsService {
     const holdsQb = this.holds?.createQueryBuilder('h').where('h.form_id = :formId AND h.expires_at > :now AND h.starts_at < :end AND h.ends_at > :start', { formId: form.id, now: new Date(), start: rangeStart, end: rangeEnd });
     if (resourceId) holdsQb?.andWhere('h.resource_id = :resourceId', { resourceId });
     const [existing, blocks, holds] = await Promise.all([existingQb.getMany(), blocksQb.getMany(), holdsQb ? holdsQb.getMany() : Promise.resolve([] as ReservationHold[])]);
+    // Con zona elegida, lo que ocupa todo el local: el cupo del local limita a todas las zonas juntas.
+    const todoElLocal = resourceId
+      ? await this.reservations.createQueryBuilder('r')
+        .select(['r.id', 'r.startsAt', 'r.endsAt', 'r.partySize'])
+        .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: OCCUPYING_STATUSES })
+        .getMany()
+      : null;
+    const localPorDia = new Map<string, Reservation[]>();
+    for (const item of todoElLocal ?? []) {
+      const key = this.localDateKey(item.startsAt, form.timezone);
+      localPorDia.set(key, [...(localPorDia.get(key) ?? []), item]);
+    }
     // El tope efectivo del dia es el mas estricto entre el del formulario y el del cliente.
     // El del cliente cuenta las reservas de todos sus formularios, no solo las de este.
     const clientCap = this.usesCompanyDailyCap(form) ? await this.clientDailyCap(this.dataSource, form.clientId) : 0;
     const clientCounts = new Map<string, number>();
     if (clientCap > 0) {
       const clientRows = await this.reservations.createQueryBuilder('r')
-        .where('r.client_id = :clientId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { clientId: form.clientId, start: rangeStart, end: rangeEnd, statuses: ACTIVE_STATUSES })
+        .where('r.client_id = :clientId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { clientId: form.clientId, start: rangeStart, end: rangeEnd, statuses: OCCUPYING_STATUSES })
         .getMany();
       for (const item of clientRows) {
         const key = this.localDateKey(item.startsAt, form.timezone);
@@ -1083,7 +1122,7 @@ export class ReservationsService {
       const delDia = resourceId
         ? await this.reservations.createQueryBuilder('r')
           .select(['r.id', 'r.startsAt', 'r.partySize'])
-          .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: ACTIVE_STATUSES })
+          .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: OCCUPYING_STATUSES })
           .getMany()
         : existing;
       for (const item of delDia) {
@@ -1150,7 +1189,9 @@ export class ReservationsService {
           if (startsAt.getTime() < minStart || startsAt.getTime() > maxStart) continue;
           if (dayBlocks.some((block) => this.overlaps(startsAt, endsAt, block.startsAt, block.endsAt))) continue;
           const used = dayReservations.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0) + dayHolds.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0);
-          if (used + partySize <= rules.capacity) result.push({ startsAt: startsAt.toISOString(), available: rules.capacity - used });
+          const usadoEnElLocal = todoElLocal ? (localPorDia.get(date) ?? []).reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0) : 0;
+          const libre = todoElLocal ? Math.min(rules.capacity - used, form.capacityPerSlot - usadoEnElLocal) : rules.capacity - used;
+          if (partySize <= libre) result.push({ startsAt: startsAt.toISOString(), available: libre });
         }
       }
     }
@@ -2931,7 +2972,63 @@ export class ReservationsService {
     };
   }
 
-  async history(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) { const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } }); if (!reservation) throw new NotFoundException('Reserva no encontrada'); return this.events.find({ where: { reservationId, organizationId }, order: { createdAt: 'DESC' } }); }
+/** El historial de una reserva, con el nombre de quien hizo cada cambio cuando fue una persona del equipo o de la empresa. */
+  async history(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) {
+    const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+    if (!reservation) throw new NotFoundException('Reserva no encontrada');
+    const eventos = await this.events.find({ where: { reservationId, organizationId }, order: { createdAt: 'DESC' } });
+    const ids = [...new Set(eventos.map((evento) => evento.actorId).filter((id): id is string => Boolean(id)))];
+    const filas = ids.length
+      ? await this.dataSource.query(`SELECT id, name FROM users WHERE organization_id = ? AND id IN (${ids.map(() => '?').join(',')})`, [organizationId, ...ids]) as Array<{ id: string; name?: string }>
+      : [];
+    const nombres = new Map(filas.map((fila) => [fila.id, fila.name ?? null]));
+    return eventos.map((evento) => ({ ...evento, actorName: evento.actorId ? nombres.get(evento.actorId) ?? null : null }));
+  }
+
+  /**
+   * La salida de quien ya llegó: se fue, o sigue en la mesa.
+   *
+   * «Se fue» termina la reserva ahora y libera su lugar en ese momento. «Sigue» la alarga media
+   * hora desde su fin o desde ahora, lo que sea más tarde. Alargar nunca se rechaza —la gente ya
+   * está sentada—; si puede dejar la franja sobre el cupo, `sobreCupo` lo dice para que el equipo
+   * vea qué hacer con las reservas que vienen.
+   */
+  async registrarSalida(organizationId: string, id: string, accion: 'se_fue' | 'sigue', actorId: string, actorType: string, clientId?: string, clientIds?: string[]) {
+    return this.transaction('registrar salida', async (manager) => {
+      const repo = manager.getRepository(Reservation);
+      const reserva = await repo.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) }, lock: { mode: 'pessimistic_write' } });
+      if (!reserva) throw new NotFoundException('Reserva no encontrada');
+      if (reserva.status !== 'attended') throw new ConflictException('La salida se marca en reservas que ya llegaron');
+      if (reserva.leftAt) throw new ConflictException('Esta reserva ya tiene la salida registrada');
+      const ahora = new Date();
+      const finPrevisto = new Date(reserva.endsAt);
+      const base = { organizationId, clientId: reserva.clientId, reservationId: reserva.id, actorId, actorType };
+
+      if (accion === 'se_fue') {
+        reserva.leftAt = ahora;
+        reserva.departureSource = 'team';
+        reserva.endsAt = new Date(Math.max(ahora.getTime(), new Date(reserva.startsAt).getTime()));
+        const guardada = await repo.save(reserva);
+        await manager.save(ReservationEvent, manager.create(ReservationEvent, { ...base, type: 'departed', metadata: { source: 'team', leftAt: ahora.toISOString(), plannedEndsAt: finPrevisto.toISOString() } }));
+        return { reserva: guardada, sobreCupo: false };
+      }
+
+      const nuevoFin = finExtendido(finPrevisto, ahora);
+      const desde = new Date(Math.max(finPrevisto.getTime(), ahora.getTime()));
+      const form = await manager.getRepository(ReservationForm).findOneByOrFail({ id: reserva.formId, organizationId });
+      let capacidad = form.capacityPerSlot;
+      try { capacidad = this.effectiveRules(form, reserva.serviceId, reserva.resourceId).capacity; } catch { /* servicio o zona que ya no existen: se usa el cupo del local */ }
+      const otrasQb = repo.createQueryBuilder('r')
+        .where('r.form_id = :formId AND r.starts_at < :fin AND r.ends_at > :desde AND r.status IN (:...statuses) AND r.id != :id', { formId: form.id, desde, fin: nuevoFin, statuses: OCCUPYING_STATUSES, id: reserva.id });
+      if (reserva.resourceId) otrasQb.andWhere('r.resource_id = :resourceId', { resourceId: reserva.resourceId });
+      const otras = await otrasQb.getMany();
+      const sobreCupo = otras.reduce((total, item) => total + item.partySize, 0) + reserva.partySize > capacidad;
+      reserva.endsAt = nuevoFin;
+      const guardada = await repo.save(reserva);
+      await manager.save(ReservationEvent, manager.create(ReservationEvent, { ...base, type: 'extended', metadata: { from: finPrevisto.toISOString(), to: nuevoFin.toISOString(), minutes: MINUTOS_POR_EXTENSION, overCapacity: sobreCupo } }));
+      return { reserva: guardada, sobreCupo };
+    });
+  }
   /**
    * Resumen del día para la portada operativa: cómo viene la jornada y si la señal a Meta
    * está llegando.

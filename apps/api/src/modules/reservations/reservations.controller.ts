@@ -15,7 +15,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { ActualizarOperacionDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { ActualizarOperacionDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
@@ -364,6 +364,14 @@ export class ReservationsController {
   async guestHistory(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
     return this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+  }
+
+  /** Quien ya llegó se fue, o sigue en la mesa: mueve el fin de la reserva y con él su cupo. */
+  @Post(':id/salida')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async registrarSalida(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: RegistrarSalidaDto) {
+    const scope = await this.scope(req);
+    return this.service.registrarSalida(req.organizationId, id, dto.accion, req.user.id, req.user.role === UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds);
   }
 
   @Get(':id/history')

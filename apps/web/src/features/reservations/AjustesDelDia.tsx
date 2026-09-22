@@ -28,7 +28,7 @@ interface Props {
   base?: string;
 }
 
-interface Zona { id: string; name?: string; active?: boolean }
+interface Zona { id: string; name?: string; active?: boolean; capacity?: number }
 interface Cierre { id: string; startsAt: string; endsAt: string; reason?: string }
 
 /** Estados que ocupan cupo: las que todavía van a llegar. */
@@ -91,6 +91,7 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
   const [aviso, setAviso] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [zonasActivas, setZonasActivas] = useState<string[]>([]);
+  const [cuposZona, setCuposZona] = useState<Record<string, string>>({});
   const [diaCerrado, setDiaCerrado] = useState('');
   const [desdeLaHora, setDesdeLaHora] = useState('');
   const [hastaLaHora, setHastaLaHora] = useState('');
@@ -107,6 +108,7 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
     setAviso(String(design.notasDelLocal || ''));
     setWhatsapp(String(design.whatsappBusinessNumber || ''));
     setZonasActivas(zonas.filter((zona) => zona.active !== false).map((zona) => zona.id));
+    setCuposZona(Object.fromEntries(zonas.map((zona) => [zona.id, zona.capacity ? String(zona.capacity) : ''])));
     setDiaCerrado('');
     setDesdeLaHora('');
     setHastaLaHora('');
@@ -206,6 +208,10 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
     if (whatsapp.trim() !== String(design.whatsappBusinessNumber || '').trim()) cambios.whatsappBusinessNumber = whatsapp.trim();
     const activasAhora = zonas.filter((zona) => zona.active !== false).map((zona) => zona.id);
     if (zonas.length > 0 && (activasAhora.length !== zonasActivas.length || activasAhora.some((id) => !zonasActivas.includes(id)))) cambios.zonasActivas = zonasActivas;
+    const cuposCambiados = Object.fromEntries(zonas
+      .map((zona) => [zona.id, Number(cuposZona[zona.id])] as const)
+      .filter(([id, valor]) => Number.isInteger(valor) && valor > 0 && valor !== zonas.find((zona) => zona.id === id)?.capacity));
+    if (Object.keys(cuposCambiados).length > 0) cambios.cuposPorZona = cuposCambiados;
     if (Object.keys(cambios).length === 0) { onCerrar(); return; }
     guardar.mutate(cambios);
   };
@@ -247,15 +253,36 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
       {zonas.length > 0 && <section className="ajustes-bloque">
         <h3>Zonas que reciben hoy</h3>
         <div className="ajustes-zonas">
-          {zonas.map((zona) => <label key={zona.id} className="toggle-row">
+          {zonas.map((zona) => <div key={zona.id} className="ajustes-zona"><label className="toggle-row">
             <input
               type="checkbox"
               checked={zonasActivas.includes(zona.id)}
               onChange={(evento) => setZonasActivas((actuales) => (evento.target.checked ? [...actuales, zona.id] : actuales.filter((id) => id !== zona.id)))}
-            /> {zona.name || zona.id}
-          </label>)}
+            /> {zona.name || zona.id}</label>
+            <label className="ajustes-zona-cupo">
+              <input
+                className="input"
+                type="number"
+                min={1}
+                max={500}
+                aria-label={`Personas por franja en ${zona.name || zona.id}`}
+                placeholder={String(local.capacityPerSlot ?? '')}
+                value={cuposZona[zona.id] ?? ''}
+                disabled={!zonasActivas.includes(zona.id)}
+                onChange={(evento) => setCuposZona((actuales) => ({ ...actuales, [zona.id]: evento.target.value }))}
+              />
+              <span>por franja</span>
+            </label>
+          </div>)}
         </div>
-        <small>Apagar una zona no la borra: deja de ofrecerse mientras esté apagada.</small>
+        {(() => {
+          const suma = zonas.filter((zona) => zonasActivas.includes(zona.id)).reduce((total, zona) => total + (Number(cuposZona[zona.id]) || Number(cupoPorFranja) || 0), 0);
+          const general = Number(cupoPorFranja) || 0;
+          return suma > 0 && general > 0 && suma !== general
+            ? <p className="ajustes-hoy">Las zonas encendidas suman <strong>{suma}</strong> por franja; el local recibe como máximo <strong>{general}</strong> en total{suma > general ? ', así que no se llenarán todas a la vez' : ', así que el cupo general nunca se completa'}.</p>
+            : null;
+        })()}
+        <small>Cada zona se llena hasta su cupo, y todas juntas hasta el del local. Vacío usa el del local. Apagar una zona no la borra: deja de ofrecerse mientras esté apagada.</small>
       </section>}
 
       <section className="ajustes-bloque">

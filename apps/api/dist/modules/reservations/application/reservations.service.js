@@ -35,6 +35,7 @@ const reservation_management_token_entity_1 = require("../domain/reservation-man
 const reservation_hold_entity_1 = require("../domain/reservation-hold.entity");
 const reservation_group_request_entity_1 = require("../domain/reservation-group-request.entity");
 const timezone_1 = require("../domain/timezone");
+const cierre_del_local_1 = require("../domain/cierre-del-local");
 const phone_1 = require("../../../shared/phone");
 const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
@@ -62,6 +63,7 @@ const DEFAULT_VENUE_TIPS = [
 ].join('\n');
 const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
+const OCCUPYING_STATUSES = [...ACTIVE_STATUSES, 'attended'];
 const MAX_SLOT_RANGE_DAYS = 62;
 const RESPUESTAS_DEL_SISTEMA = {
     groupEventType: 'Tipo de celebración',
@@ -389,10 +391,19 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         if (tocaDiseno)
             patch.designConfig = design;
-        if (dto.zonasActivas !== undefined) {
-            const encendidas = new Set(dto.zonasActivas);
+        if (dto.zonasActivas !== undefined || dto.cuposPorZona !== undefined) {
+            const encendidas = dto.zonasActivas !== undefined ? new Set(dto.zonasActivas) : null;
+            const cupos = dto.cuposPorZona ?? {};
+            for (const valor of Object.values(cupos)) {
+                if (!Number.isInteger(valor) || valor < 1 || valor > 500)
+                    throw new common_1.BadRequestException('El cupo de cada zona va de 1 a 500 personas');
+            }
             const zonas = (form.resourcesConfig ?? []);
-            patch.resourcesConfig = zonas.map((zona) => ({ ...zona, active: encendidas.has(zona.id) }));
+            patch.resourcesConfig = zonas.map((zona) => ({
+                ...zona,
+                ...(encendidas ? { active: encendidas.has(zona.id) } : {}),
+                ...(cupos[zona.id] !== undefined ? { capacity: cupos[zona.id] } : {}),
+            }));
         }
         return this.updateForm(organizationId, id, patch, clientId, clientIds);
     }
@@ -691,8 +702,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         return this.currentReservationCount(manager, 'form_id', formId, start, end, excludeId);
     }
     async currentReservationCount(manager, column, id, start, end, excludeId) {
-        const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
-        const params = [id, start, end, ...ACTIVE_STATUSES];
+        const placeholders = OCCUPYING_STATUSES.map(() => '?').join(',');
+        const params = [id, start, end, ...OCCUPYING_STATUSES];
         let sql = `SELECT id, party_size FROM reservations WHERE ${column} = ? AND starts_at >= ? AND starts_at < ? AND status IN (${placeholders})`;
         if (excludeId) {
             sql += ' AND id != ?';
@@ -721,7 +732,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async assertCupoDeZona(manager, form, booking, resourceId) {
         const solapadas = await manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r')
             .where('r.form_id = :formId AND r.resource_id = :resourceId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses) AND r.id != :id', {
-            formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, statuses: ACTIVE_STATUSES, id: booking.id,
+            formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, statuses: OCCUPYING_STATUSES, id: booking.id,
         })
             .getMany();
         const rechazo = (0, cambio_de_zona_1.evaluarCambioDeZona)({
@@ -753,7 +764,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             if (clientCount + partySize > clientCap)
                 throw new common_1.ConflictException('Este día no tiene cupo para ese grupo');
         }
-        const qb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: ACTIVE_STATUSES }).setLock('pessimistic_write');
+        const qb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
         if (resourceId)
             qb.andWhere('r.resource_id = :resourceId', { resourceId });
         if (excludeId)
@@ -770,6 +781,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const used = existing.reduce((sum, item) => sum + item.partySize, 0) + activeHolds.reduce((sum, item) => sum + item.partySize, 0);
         if (used + partySize > rules.capacity)
             throw new common_1.ConflictException('Ese horario acaba de ocuparse. Selecciona una alternativa.');
+        if (resourceId) {
+            const totalQb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
+            if (excludeId)
+                totalQb.andWhere('r.id != :excludeId', { excludeId });
+            const enElLocal = (await totalQb.getMany()).reduce((sum, item) => sum + item.partySize, 0);
+            if (enElLocal + partySize > form.capacityPerSlot)
+                throw new common_1.ConflictException('El local ya no tiene cupo en ese horario. Selecciona una alternativa.');
+        }
         return { ...rules, endsAt, available: rules.capacity - used };
     }
     async completarDatosLegales(form, queryFn) {
@@ -842,7 +861,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const rangeEnd = (0, timezone_1.startOfLocalDayUtc)((0, timezone_1.addPlainDays)(from, count), form.timezone);
         const existingQb = this.reservations.createQueryBuilder('r')
             .select(['r.id', 'r.startsAt', 'r.endsAt', 'r.partySize'])
-            .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: ACTIVE_STATUSES });
+            .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: OCCUPYING_STATUSES });
         if (resourceId)
             existingQb.andWhere('r.resource_id = :resourceId', { resourceId });
         const blocksQb = this.blocks.createQueryBuilder('b')
@@ -852,11 +871,22 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (resourceId)
             holdsQb?.andWhere('h.resource_id = :resourceId', { resourceId });
         const [existing, blocks, holds] = await Promise.all([existingQb.getMany(), blocksQb.getMany(), holdsQb ? holdsQb.getMany() : Promise.resolve([])]);
+        const todoElLocal = resourceId
+            ? await this.reservations.createQueryBuilder('r')
+                .select(['r.id', 'r.startsAt', 'r.endsAt', 'r.partySize'])
+                .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: OCCUPYING_STATUSES })
+                .getMany()
+            : null;
+        const localPorDia = new Map();
+        for (const item of todoElLocal ?? []) {
+            const key = this.localDateKey(item.startsAt, form.timezone);
+            localPorDia.set(key, [...(localPorDia.get(key) ?? []), item]);
+        }
         const clientCap = this.usesCompanyDailyCap(form) ? await this.clientDailyCap(this.dataSource, form.clientId) : 0;
         const clientCounts = new Map();
         if (clientCap > 0) {
             const clientRows = await this.reservations.createQueryBuilder('r')
-                .where('r.client_id = :clientId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { clientId: form.clientId, start: rangeStart, end: rangeEnd, statuses: ACTIVE_STATUSES })
+                .where('r.client_id = :clientId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { clientId: form.clientId, start: rangeStart, end: rangeEnd, statuses: OCCUPYING_STATUSES })
                 .getMany();
             for (const item of clientRows) {
                 const key = this.localDateKey(item.startsAt, form.timezone);
@@ -871,7 +901,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const delDia = resourceId
                 ? await this.reservations.createQueryBuilder('r')
                     .select(['r.id', 'r.startsAt', 'r.partySize'])
-                    .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: ACTIVE_STATUSES })
+                    .where('r.form_id = :formId AND r.starts_at >= :start AND r.starts_at < :end AND r.status IN (:...statuses)', { formId: form.id, start: rangeStart, end: rangeEnd, statuses: OCCUPYING_STATUSES })
                     .getMany()
                 : existing;
             for (const item of delDia) {
@@ -938,8 +968,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     if (dayBlocks.some((block) => this.overlaps(startsAt, endsAt, block.startsAt, block.endsAt)))
                         continue;
                     const used = dayReservations.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0) + dayHolds.reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0);
-                    if (used + partySize <= rules.capacity)
-                        result.push({ startsAt: startsAt.toISOString(), available: rules.capacity - used });
+                    const usadoEnElLocal = todoElLocal ? (localPorDia.get(date) ?? []).reduce((sum, item) => this.overlaps(startsAt, endsAt, item.startsAt, item.endsAt) ? sum + item.partySize : sum, 0) : 0;
+                    const libre = todoElLocal ? Math.min(rules.capacity - used, form.capacityPerSlot - usadoEnElLocal) : rules.capacity - used;
+                    if (partySize <= libre)
+                        result.push({ startsAt: startsAt.toISOString(), available: libre });
                 }
             }
         }
@@ -2401,8 +2433,59 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             usoCupon: previas.some((item) => Boolean(item.couponCode)),
         };
     }
-    async history(organizationId, reservationId, clientId, clientIds) { const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } }); if (!reservation)
-        throw new common_1.NotFoundException('Reserva no encontrada'); return this.events.find({ where: { reservationId, organizationId }, order: { createdAt: 'DESC' } }); }
+    async history(organizationId, reservationId, clientId, clientIds) {
+        const reservation = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+        if (!reservation)
+            throw new common_1.NotFoundException('Reserva no encontrada');
+        const eventos = await this.events.find({ where: { reservationId, organizationId }, order: { createdAt: 'DESC' } });
+        const ids = [...new Set(eventos.map((evento) => evento.actorId).filter((id) => Boolean(id)))];
+        const filas = ids.length
+            ? await this.dataSource.query(`SELECT id, name FROM users WHERE organization_id = ? AND id IN (${ids.map(() => '?').join(',')})`, [organizationId, ...ids])
+            : [];
+        const nombres = new Map(filas.map((fila) => [fila.id, fila.name ?? null]));
+        return eventos.map((evento) => ({ ...evento, actorName: evento.actorId ? nombres.get(evento.actorId) ?? null : null }));
+    }
+    async registrarSalida(organizationId, id, accion, actorId, actorType, clientId, clientIds) {
+        return this.transaction('registrar salida', async (manager) => {
+            const repo = manager.getRepository(reservation_entity_1.Reservation);
+            const reserva = await repo.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) }, lock: { mode: 'pessimistic_write' } });
+            if (!reserva)
+                throw new common_1.NotFoundException('Reserva no encontrada');
+            if (reserva.status !== 'attended')
+                throw new common_1.ConflictException('La salida se marca en reservas que ya llegaron');
+            if (reserva.leftAt)
+                throw new common_1.ConflictException('Esta reserva ya tiene la salida registrada');
+            const ahora = new Date();
+            const finPrevisto = new Date(reserva.endsAt);
+            const base = { organizationId, clientId: reserva.clientId, reservationId: reserva.id, actorId, actorType };
+            if (accion === 'se_fue') {
+                reserva.leftAt = ahora;
+                reserva.departureSource = 'team';
+                reserva.endsAt = new Date(Math.max(ahora.getTime(), new Date(reserva.startsAt).getTime()));
+                const guardada = await repo.save(reserva);
+                await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { ...base, type: 'departed', metadata: { source: 'team', leftAt: ahora.toISOString(), plannedEndsAt: finPrevisto.toISOString() } }));
+                return { reserva: guardada, sobreCupo: false };
+            }
+            const nuevoFin = (0, cierre_del_local_1.finExtendido)(finPrevisto, ahora);
+            const desde = new Date(Math.max(finPrevisto.getTime(), ahora.getTime()));
+            const form = await manager.getRepository(reservation_form_entity_1.ReservationForm).findOneByOrFail({ id: reserva.formId, organizationId });
+            let capacidad = form.capacityPerSlot;
+            try {
+                capacidad = this.effectiveRules(form, reserva.serviceId, reserva.resourceId).capacity;
+            }
+            catch { }
+            const otrasQb = repo.createQueryBuilder('r')
+                .where('r.form_id = :formId AND r.starts_at < :fin AND r.ends_at > :desde AND r.status IN (:...statuses) AND r.id != :id', { formId: form.id, desde, fin: nuevoFin, statuses: OCCUPYING_STATUSES, id: reserva.id });
+            if (reserva.resourceId)
+                otrasQb.andWhere('r.resource_id = :resourceId', { resourceId: reserva.resourceId });
+            const otras = await otrasQb.getMany();
+            const sobreCupo = otras.reduce((total, item) => total + item.partySize, 0) + reserva.partySize > capacidad;
+            reserva.endsAt = nuevoFin;
+            const guardada = await repo.save(reserva);
+            await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { ...base, type: 'extended', metadata: { from: finPrevisto.toISOString(), to: nuevoFin.toISOString(), minutes: cierre_del_local_1.MINUTOS_POR_EXTENSION, overCapacity: sobreCupo } }));
+            return { reserva: guardada, sobreCupo };
+        });
+    }
     async operationalHome(organizationId, clientId, clientIds) {
         const timezone = clientId ? await this.clientTimezone(clientId, organizationId) : 'America/Santiago';
         const today = this.localDateKey(new Date(), timezone);

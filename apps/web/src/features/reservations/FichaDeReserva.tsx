@@ -4,6 +4,10 @@ import { api } from '../../core/api';
 import type { GuestHistory, Reservation, ReservationForm } from './types';
 import { respuestasLegibles } from './answer-labels';
 import { StatusBadge } from '../../shared/StatusBadge';
+import { EstadiaEnLaMesa } from './EstadiaEnLaMesa';
+
+/** Visitas anteriores que se muestran de entrada; el resto queda tras «Ver las N visitas». */
+const VISITAS_A_LA_VISTA = 2;
 
 /**
  * @fileoverview Los datos de una reserva, iguales se abra donde se abra.
@@ -25,8 +29,12 @@ interface Props {
   onVerCupon?: (codigo: string) => void;
 }
 
-export function FichaDeReserva({ reserva, local, onGuardada, onVerCupon }: Props) {
+export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupon }: Props) {
   const queryClient = useQueryClient();
+  /* Marcar la salida devuelve la reserva al día; la pantalla que abrió la ficha puede tardar en refrescarla. */
+  const [alDia, setAlDia] = useState<Reservation | null>(null);
+  const reserva = alDia?.id === recibida.id ? alDia : recibida;
+  const [verTodas, setVerTodas] = useState(false);
   const [personas, setPersonas] = useState(String(reserva.partySize));
   const [mesa, setMesa] = useState(reserva.tableLabel ?? '');
   const [nota, setNota] = useState(reserva.internalNotes ?? '');
@@ -72,6 +80,21 @@ export function FichaDeReserva({ reserva, local, onGuardada, onVerCupon }: Props
    */
   const campos = respuestasLegibles(reserva.answers, local?.fieldSchema);
   const notasAnteriores = (historial?.anteriores ?? []).filter((anterior) => anterior.internalNotes?.trim());
+  /*
+   * Lo que ya dice esta reserva no se repite como costumbre.
+   *
+   * «Declaró antes: sin gluten» junto a «Restricciones: sin gluten», o «Suele venir 2 personas»
+   * en una reserva de 2, ocupaban la ficha sin decir nada nuevo. Se muestra sólo lo que difiere.
+   */
+  const yaDicho = new Set(campos.map((dato) => String(dato.valor).trim().toLowerCase()));
+  const preferencias = historial?.preferencias;
+  const alergiasNuevas = (preferencias?.alergias ?? []).filter((texto) => !yaDicho.has(texto.trim().toLowerCase()));
+  const accesibilidadNueva = (preferencias?.accesibilidad ?? []).filter((texto) => !yaDicho.has(texto.trim().toLowerCase()));
+  const zonaHabitualDistinta = preferencias?.zonaHabitual && preferencias.zonaHabitual !== reserva.resourceId ? preferencias.zonaHabitual : undefined;
+  const personasDistintas = preferencias?.personasHabitual !== undefined && preferencias.personasHabitual !== reserva.partySize ? preferencias.personasHabitual : undefined;
+  const otrasVeces = [preferencias?.vinoConNinos && 'vino con niños', preferencias?.usoCupon && !reserva.couponCode && 'usó cupón'].filter(Boolean).join(' · ');
+  const anteriores = historial?.anteriores ?? [];
+  const visitasVisibles = verTodas ? anteriores : anteriores.slice(0, VISITAS_A_LA_VISTA);
 
   return <div className="ficha-de-reserva">
     <div className="booking-detail-grid">
@@ -140,6 +163,7 @@ export function FichaDeReserva({ reserva, local, onGuardada, onVerCupon }: Props
         : reserva.couponCode}</strong></div>}
     </div>
     {guardar.error && <p className="error-text">{guardar.error.message}</p>}
+    <EstadiaEnLaMesa reserva={reserva} zonaHoraria={local?.timezone} onCambio={(nueva) => { setAlDia(nueva); onGuardada?.(); }} />
 
     {campos.length > 0 && <div className="booking-detail-extra">
       <span className="page-eyebrow">LO QUE COMPLETÓ AL RESERVAR</span>
@@ -161,10 +185,7 @@ export function FichaDeReserva({ reserva, local, onGuardada, onVerCupon }: Props
             {/* Cuántas veces vino aquí y cuántas en otra reserva: son cosas distintas al recibirla. */}
             <p className="page-subtitle">
               Ya reservó {historial.total} {historial.total === 1 ? 'vez' : 'veces'} antes · {historial.attended} asistió{historial.noShow > 0 ? ` · ${historial.noShow} no llegó` : ''}
-            </p>
-            <p className="page-subtitle">
-              {historial.enEsteLocal ?? historial.total} en este local
-              {(historial.deOtrasReservas ?? 0) > 0 ? ` · ${historial.deOtrasReservas} en otra reserva de la misma empresa` : ''}
+              {(historial.deOtrasReservas ?? 0) > 0 ? ` · ${historial.deOtrasReservas} en otro local de la empresa` : ''}
             </p>
             {/*
               * Lo que el equipo anotó las veces anteriores.
@@ -178,18 +199,20 @@ export function FichaDeReserva({ reserva, local, onGuardada, onVerCupon }: Props
               * Sale de lo que ella misma completó en reservas anteriores, así que puede estar
               * desactualizado: ayuda a quien recibe, no reemplaza preguntar.
               */}
-            {historial.preferencias && <ul className="booking-preferencias">
-              {historial.preferencias.diasDesdeLaUltima !== undefined && <li><span>Última visita</span><strong>{historial.preferencias.diasDesdeLaUltima === 0 ? 'Hoy' : `Hace ${historial.preferencias.diasDesdeLaUltima} día${historial.preferencias.diasDesdeLaUltima === 1 ? '' : 's'}`}</strong></li>}
-              {historial.preferencias.zonaHabitual && <li><span>Suele sentarse en</span><strong>{zonas.find((item) => item.id === historial.preferencias?.zonaHabitual)?.name || historial.preferencias.zonaHabitual}</strong></li>}
-              {historial.preferencias.personasHabitual !== undefined && <li><span>Suele venir</span><strong>{historial.preferencias.personasHabitual} persona{historial.preferencias.personasHabitual === 1 ? '' : 's'}</strong></li>}
-              {historial.preferencias.alergias.map((texto) => <li key={texto} className="es-aviso"><span>Declaró antes</span><strong>{texto}</strong></li>)}
-              {historial.preferencias.accesibilidad.map((texto) => <li key={texto} className="es-aviso"><span>Accesibilidad</span><strong>{texto}</strong></li>)}
-              {historial.preferencias.vinoConNinos && <li><span>Otras veces</span><strong>vino con niños</strong></li>}
-              {historial.preferencias.usoCupon && <li><span>Otras veces</span><strong>usó cupón</strong></li>}
+            {preferencias && <ul className="booking-preferencias">
+              {preferencias.diasDesdeLaUltima !== undefined && <li><span>Última visita</span><strong>{preferencias.diasDesdeLaUltima === 0 ? 'Hoy' : `Hace ${preferencias.diasDesdeLaUltima} día${preferencias.diasDesdeLaUltima === 1 ? '' : 's'}`}</strong></li>}
+              {zonaHabitualDistinta && <li><span>Suele sentarse en</span><strong>{zonas.find((item) => item.id === zonaHabitualDistinta)?.name || zonaHabitualDistinta}</strong></li>}
+              {personasDistintas !== undefined && <li><span>Suele venir</span><strong>{personasDistintas} persona{personasDistintas === 1 ? '' : 's'}</strong></li>}
+              {alergiasNuevas.map((texto) => <li key={texto} className="es-aviso"><span>Declaró antes</span><strong>{texto}</strong></li>)}
+              {accesibilidadNueva.map((texto) => <li key={texto} className="es-aviso"><span>Accesibilidad</span><strong>{texto}</strong></li>)}
+              {otrasVeces && <li><span>Otras veces</span><strong>{otrasVeces}</strong></li>}
             </ul>}
             <ul className="booking-historial">
-              {historial.anteriores.map((previa) => <li key={previa.id}>{new Date(previa.startsAt).toLocaleDateString('es-CL', { dateStyle: 'medium' })} · {previa.partySize} persona{previa.partySize === 1 ? '' : 's'}{previa.mismoLocal === false ? ' · otra reserva' : ''} <StatusBadge status={previa.status} /></li>)}
+              {visitasVisibles.map((previa) => <li key={previa.id}>{new Date(previa.startsAt).toLocaleDateString('es-CL', { dateStyle: 'medium' })} · {previa.partySize} persona{previa.partySize === 1 ? '' : 's'}{previa.mismoLocal === false ? ' · otro local' : ''} <StatusBadge status={previa.status} /></li>)}
             </ul>
+            {anteriores.length > VISITAS_A_LA_VISTA && <button type="button" className="link-button ficha-ver-mas" onClick={() => setVerTodas((valor) => !valor)}>
+              {verTodas ? 'Ver menos' : `Ver las ${anteriores.length} visitas`}
+            </button>}
             {notasAnteriores.length > 0 && <ul className="ficha-notas-previas">
               {notasAnteriores.map((anterior) => <li key={anterior.id}>
                 <span>{new Date(anterior.startsAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}{anterior.mismoLocal === false ? ' · otra reserva' : ''}</span>

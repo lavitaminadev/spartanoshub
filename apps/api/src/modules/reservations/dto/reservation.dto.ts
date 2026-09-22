@@ -223,6 +223,11 @@ export class CloseReservationDayDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/) date: string;
   @IsOptional() @IsString() @MaxLength(500) reason?: string;
 }
+/** Quien ya llegó: se fue, o sigue en la mesa media hora más. */
+export class RegistrarSalidaDto {
+  @IsIn(['se_fue', 'sigue']) accion: 'se_fue' | 'sigue';
+}
+
 export class UpdateReservationDto {
   @IsOptional() @IsIn(['pending','confirmed','rescheduled','cancelled_client','cancelled_business','attended','no_show','waitlist']) status?: string;
   /**
@@ -449,8 +454,12 @@ export class ActualizarOperacionDto {
   /**
    * Zonas que hoy reciben gente, por id. Las que no estén en la lista quedan inactivas.
    *
-   * Sólo se enciende y se apaga: crear una zona, renombrarla o cambiarle el cupo sigue siendo
-   * configuración, porque cambia lo que la página ofrece y no sólo lo que el local usa hoy.
+   * Sólo se enciende y se apaga: crear una zona o renombrarla sigue siendo configuración.
    */
   @IsOptional() @IsArray() @ArrayMaxSize(80) @IsString({ each: true }) @MaxLength(80, { each: true }) zonasActivas?: string[];
+  /**
+   * Personas por franja de cada zona, por id. Quien elige una zona reserva contra el menor entre
+   * este cupo y el del local; el del local sigue limitando el total de todas las zonas juntas.
+   */
+  @IsOptional() @IsObject() cuposPorZona?: Record<string, number>;
 }
