@@ -1,10 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, Repository } from 'typeorm';
+import { In, IsNull, LessThan, MoreThan, Repository } from 'typeorm';
 import { Reservation } from '../../../modules/reservations/domain/reservation.entity';
 import { ReservationForm } from '../../../modules/reservations/domain/reservation-form.entity';
 import { ReservationEvent } from '../../../modules/reservations/domain/reservation-event.entity';
 import { ReservationHold } from '../../../modules/reservations/domain/reservation-hold.entity';
+import { horaDeCierre, type TramoDeHorario } from '../../../modules/reservations/domain/cierre-del-local';
+
+/**
+ * Hasta cuánto atrás se buscan estadías sin salida. Las asistidas de antes de registrar salidas
+ * no tienen una, y cerrarlas ahora con una hora inventada ensuciaría su historial.
+ */
+const VENTANA_DE_ESTADIAS_MS = 36 * 3_600_000;
 
 /** Sólo lo confirmado se da por asistido: una pendiente nunca la aprobó el local. */
 const ACTIVE = ['confirmed', 'rescheduled'];
@@ -55,7 +62,56 @@ export class AutoCloseReservationsJob {
       }
     }
     if (closed) this.logger.log(`Reservas cerradas automáticamente: ${closed}`);
+    await this.cerrarEstadiasAlCierre();
     await this.purgarCuposVencidos();
+  }
+
+  /**
+   * Da por terminada la estadía de quien llegó y nadie marcó cuándo se fue, cuando cierra el local.
+   *
+   * La hora que se registra es la de cierre —o el fin alargado, si el equipo dijo que seguían en la
+   * mesa más allá—: es un tope, no la hora real, y por eso queda con origen `local_closed`, que
+   * el promedio de duración de las visitas no cuenta. Sin horario para ese día, el tope es el
+   * fin previsto de la reserva.
+   */
+  private async cerrarEstadiasAlCierre(): Promise<void> {
+    const ahora = Date.now();
+    let cerradas = 0;
+    try {
+      const abiertas = await this.reservations.find({
+        where: { status: 'attended', leftAt: IsNull(), startsAt: MoreThan(new Date(ahora - VENTANA_DE_ESTADIAS_MS)) },
+        take: 500, order: { startsAt: 'ASC' },
+      });
+      const locales = new Map<string, ReservationForm | null>();
+      for (const item of abiertas) {
+        if (item.status !== 'attended' || item.leftAt) continue;
+        if (!locales.has(item.formId)) locales.set(item.formId, await this.forms.findOne({ where: { id: item.formId } }));
+        const form = locales.get(item.formId);
+        if (!form) continue;
+        const zonas = (form.resourcesConfig || []) as Array<{ id?: string; windows?: TramoDeHorario[] }>;
+        const tramos = zonas.find((zona) => zona.id === item.resourceId)?.windows
+          ?? ((form.scheduleConfig as { windows?: TramoDeHorario[] } | null)?.windows ?? []);
+        const cierre = horaDeCierre(new Date(item.startsAt), form.timezone, tramos);
+        const fin = new Date(item.endsAt);
+        const tope = cierre && cierre.getTime() >= fin.getTime() ? cierre : fin;
+        if (tope.getTime() > ahora) continue;
+        const motivo = !cierre ? 'fin_previsto' : tope === cierre ? 'cierre' : 'fin_alargado';
+
+        const affected = await this.reservations.createQueryBuilder().update(Reservation)
+          .set({ leftAt: tope, departureSource: 'local_closed' })
+          .where('id = :id AND status = :status AND left_at IS NULL', { id: item.id, status: 'attended' }).execute();
+        if (!affected.affected) continue;
+        await this.events.save(this.events.create({
+          organizationId: item.organizationId, clientId: item.clientId, reservationId: item.id,
+          type: 'departed', actorType: 'system',
+          metadata: { source: 'local_closed', tope: motivo, leftAt: tope.toISOString() },
+        }));
+        cerradas += 1;
+      }
+    } catch (error) {
+      this.logger.error(`No se pudieron cerrar las estadías al cierre: ${error instanceof Error ? error.message : error}`);
+    }
+    if (cerradas) this.logger.log(`Estadías cerradas al cierre del local: ${cerradas}`);
   }
 
   /**

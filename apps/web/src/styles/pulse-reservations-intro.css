@@ -862,3 +862,23 @@
 .local-hub-cambios small { color: var(--txt-muted, #71717a); }
 /* La solicitud a la que llevó un aviso se distingue de las demás. */
 .reservation-request-card.is-resaltada { border-color: var(--primary, #e11d48); box-shadow: 0 0 0 3px rgba(225, 29, 72, .12); }
+
+/* Historial: el detalle explica el cambio y tiene que poder leerse. Lo que el sistema supuso sin que nadie lo viera va en otro tono. */
+.reservation-history em { font-size: 11px; line-height: 1.45; }
+.reservation-history > div.es-supuesto { border-left-color: #b7791f; background: #fff8eb; }
+.reservation-history > div.es-supuesto span { color: #7a4b00; }
+
+/* Estadía de quien ya llegó: cuándo se libera su lugar y los dos botones para corregirlo. */
+.estadia-en-la-mesa { display: grid; gap: 8px; margin-top: 12px; padding: 12px 14px; border: 1px solid #99f6e4; border-radius: var(--radius-md, 12px); background: #edfdfa; }
+.estadia-en-la-mesa p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-dark, #151317); }
+.estadia-en-la-mesa.is-cerrada { border-color: var(--border, #e4e4e7); background: var(--soft, #f7f7f8); }
+.estadia-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.estadia-aviso { color: #7a4b00 !important; }
+.ficha-ver-mas { margin-top: 6px; font-size: 12px; }
+
+/* Cada zona en una fila: el interruptor con su nombre a la izquierda, su cupo a la derecha. */
+.ajustes-zonas .ajustes-zona { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--border, #e4e4e7); border-radius: 10px; background: #fff; }
+.ajustes-bloque .ajustes-zonas label.toggle-row { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; margin: 0; text-align: left; font-weight: 600; }
+.ajustes-bloque .ajustes-zonas label.toggle-row input { width: 16px; height: 16px; margin: 0; flex: none; }
+.ajustes-bloque .ajustes-zonas label.ajustes-zona-cupo { display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: .8rem; color: var(--txt-muted, #666); }
+.ajustes-zona-cupo .input { width: 76px; padding: 6px 8px; }

@@ -47,6 +47,14 @@ export class Reservation {
    */
   @Column({ name: 'table_label', type: 'varchar', length: 40, nullable: true }) tableLabel?: string | null;
 
+  /**
+   * Cuándo se fue quien reservó. Mientras está vacío y la reserva figura como asistida, la mesa
+   * sigue ocupada hasta `endsAt`. `departureSource` dice quién lo registró: `team` es la hora
+   * real; `local_closed` es la hora de cierre que puso el sistema porque nadie la marcó.
+   */
+  @Column({ name: 'left_at', type: 'timestamp', nullable: true }) leftAt?: Date | null;
+  @Column({ name: 'departure_source', type: 'varchar', length: 20, nullable: true }) departureSource?: string | null;
+
   /** Fecha de nacimiento, cuando el formulario la pide. En columna propia para poder consultarla. */
   @Column({ name: 'birth_date', type: 'date', nullable: true }) birthDate?: string | null;
   @Column({ name: 'consent_version', type: 'varchar', length: 30, nullable: true }) consentVersion?: string;
