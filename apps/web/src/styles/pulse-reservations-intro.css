@@ -882,3 +882,18 @@
 .ajustes-bloque .ajustes-zonas label.toggle-row input { width: 16px; height: 16px; margin: 0; flex: none; }
 .ajustes-bloque .ajustes-zonas label.ajustes-zona-cupo { display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: .8rem; color: var(--txt-muted, #666); }
 .ajustes-zona-cupo .input { width: 76px; padding: 6px 8px; }
+
+/* Cuando no hay lugar: otras zonas con horarios, y las salidas para pedir la mesa. */
+.otras-zonas { display: grid; gap: 10px; text-align: left; }
+.otra-zona { display: grid; gap: 6px; }
+.otra-zona > span { font-weight: 700; }
+.otra-zona-horarios { display: flex; flex-wrap: wrap; gap: 6px; }
+.otra-zona-horarios .slot-time-btn { min-width: 78px; }
+.sin-cupo-salidas { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+
+/* Estacionamiento: su propia línea en la página y su propio interruptor en Ajustes del día. */
+.booking-estacionamiento { display: flex; gap: 8px; align-items: baseline; margin: 0 0 12px; color: var(--booking-text, #3f4e49); font-size: .9rem; line-height: 1.45; }
+.ajustes-estacionamiento { display: grid; gap: 6px; }
+.ajustes-bloque .ajustes-estacionamiento label.toggle-row { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.ajustes-bloque .ajustes-estacionamiento label.toggle-row input { width: 16px; height: 16px; margin: 0; }
+.ajustes-estacionamiento small { color: var(--txt-muted, #666); font-weight: 400; }

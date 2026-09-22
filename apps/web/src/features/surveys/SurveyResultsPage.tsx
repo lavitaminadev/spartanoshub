@@ -25,6 +25,8 @@ import type {
   TextQuestionResult,
 } from '@espartanos/shared';
 import './surveys.css';
+import { abrirInformeDeEncuesta } from './informe-pdf';
+import { triggerToast } from '../../shared/toast-events';
 
 const RATING_SCALE = ['1', '2', '3', '4', '5'];
 
@@ -346,8 +348,13 @@ export function SurveyResultsPage(): JSX.Element {
         title={survey.title}
         subtitle={`${summary.totalResponses} respuesta${summary.totalResponses === 1 ? '' : 's'}${summary.completionRate !== null ? ` · ${summary.completionRate}% de finalización` : ''}`}
         actions={<div className="results-acciones">
-          {hayDetalle && <button type="button" className="btn btn-primary" disabled={!filtradas.length} onClick={() => exportarRespuestasCsv(survey, filtradas)}>Exportar respuestas</button>}
-          <button type="button" className="btn btn-outline" onClick={() => exportResultsCsv(survey.title, resumen)}>Exportar resumen</button>
+          {/* El informe es lo que se manda al local; los CSV quedan para abrir en una planilla. */}
+          <button type="button" className="btn btn-primary" disabled={!resumen.totalResponses} onClick={() => {
+            const periodoLegible = periodo === 'todo' ? 'Todas las respuestas' : `Últimos ${periodo} días`;
+            if (!abrirInformeDeEncuesta({ survey, resumen, periodo: periodoLegible, promedio, completaron })) triggerToast('El navegador bloqueó la ventana del informe: permite las ventanas emergentes e inténtalo otra vez.', 'error');
+          }}>Descargar informe PDF</button>
+          {hayDetalle && <button type="button" className="btn btn-outline" disabled={!filtradas.length} onClick={() => exportarRespuestasCsv(survey, filtradas)}>Respuestas (CSV)</button>}
+          <button type="button" className="btn btn-outline" onClick={() => exportResultsCsv(survey.title, resumen)}>Resumen (CSV)</button>
         </div>}
       />
 

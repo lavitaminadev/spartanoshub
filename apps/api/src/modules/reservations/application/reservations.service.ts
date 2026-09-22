@@ -111,7 +111,7 @@ type DesignConfig = {
   askChildren?: string; askAccessibility?: string; askAllergies?: string;
   askSmoking?: string; askSeating?: string; askFirstVisit?: string; askHowFound?: string;
   /** Minutos que el local espera a quien se atrasa, y aviso libre antes del formulario. */
-  toleranciaMinutos?: string; notasDelLocal?: string;
+  toleranciaMinutos?: string; notasDelLocal?: string; estacionamiento?: string; estacionamientoVisible?: string;
   eventoCtaTitulo?: string; eventoCtaTexto?: string; eventoCtaBoton?: string; beneficiosDelGrupo?: string;
   whatsappBusinessNumber?: string; whatsappGroupMessage?: string;
   groupThreshold?: string; holdMinutes?: string; slotCadenceMinutes?: string; lastReservableMinutesBeforeClose?: string;
@@ -468,6 +468,8 @@ export class ReservationsService {
     let tocaDiseno = false;
     if (dto.toleranciaMinutos !== undefined) { design.toleranciaMinutos = String(dto.toleranciaMinutos); tocaDiseno = true; }
     if (dto.notasDelLocal !== undefined) { design.notasDelLocal = dto.notasDelLocal.trim(); tocaDiseno = true; }
+    if (dto.estacionamiento !== undefined) { design.estacionamiento = dto.estacionamiento.trim(); tocaDiseno = true; }
+    if (dto.estacionamientoVisible !== undefined) { design.estacionamientoVisible = String(dto.estacionamientoVisible); tocaDiseno = true; }
     if (dto.whatsappBusinessNumber !== undefined) { design.whatsappBusinessNumber = dto.whatsappBusinessNumber.trim(); tocaDiseno = true; }
     if (tocaDiseno) patch.designConfig = design as Record<string, unknown>;
 
@@ -1061,6 +1063,24 @@ export class ReservationsService {
   private evidenciaSensible(form: ReservationForm, answers: Record<string, unknown>, guest: GuestSubmission, texto: string) {
     if (!guest.sensitiveConsent || !traeDatosSensibles(form.fieldSchema as FieldConfig[], answers, guest)) return {};
     return { sensitiveConsentAt: new Date(), sensitiveConsentText: `[${VERSION_DATOS_SENSIBLES}] ${texto}` };
+  }
+
+  /**
+   * Las otras zonas que sí tienen lugar para ese grupo: lo que se ofrece cuando la elegida está llena.
+   *
+   * Consulta cada zona encendida con la misma regla que la disponibilidad —cupo de la zona y total
+   * del local—, así que lo que ofrece se puede reservar. Devuelve los primeros horarios de cada
+   * una, no todos: sirve para decidir de un vistazo, no para reemplazar el calendario.
+   */
+  async zoneAlternatives(slug: string, from: string, days: number, partySize: number, serviceId?: string, excludeResourceId?: string) {
+    const form = await this.publishedForm(slug);
+    const zonas = ((form.resourcesConfig || []) as ResourceConfig[]).filter((zona) => zona.active !== false && zona.id && zona.id !== excludeResourceId).slice(0, 12);
+    const alternativas: Array<{ resourceId: string; name: string; slots: string[] }> = [];
+    for (const zona of zonas) {
+      const { slots } = await this.slots(slug, from, days, serviceId, zona.id, partySize);
+      if (slots.length > 0) alternativas.push({ resourceId: zona.id, name: zona.name, slots: slots.slice(0, 6).map((slot) => slot.startsAt) });
+    }
+    return alternativas;
   }
 
   async slots(slug: string, from: string, days = 14, serviceId?: string, resourceId?: string, partySize = 1) {

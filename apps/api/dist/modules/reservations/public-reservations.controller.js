@@ -53,6 +53,9 @@ let PublicReservationsController = class PublicReservationsController {
     form(slug) {
         return this.service.publicForm(slug);
     }
+    zoneAlternatives(slug, from, days, partySize, serviceId, excludeResourceId) {
+        return this.service.zoneAlternatives(slug, from, Number(days || 7), Number(partySize || 1), serviceId, excludeResourceId);
+    }
     slots(slug, from, days, partySize, serviceId, resourceId) {
         return this.service.slots(slug, from, Number(days || 14), serviceId, resourceId, Number(partySize || 1));
     }
@@ -165,6 +168,19 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "form", null);
+__decorate([
+    (0, common_1.Get)(':slug/zone-alternatives'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('slug')),
+    __param(1, (0, common_1.Query)('from')),
+    __param(2, (0, common_1.Query)('days')),
+    __param(3, (0, common_1.Query)('partySize')),
+    __param(4, (0, common_1.Query)('serviceId')),
+    __param(5, (0, common_1.Query)('excludeResourceId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String, String, String]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "zoneAlternatives", null);
 __decorate([
     (0, common_1.Get)(':slug/slots'),
     (0, throttler_1.Throttle)({ default: { limit: 120, ttl: 60000 } }),

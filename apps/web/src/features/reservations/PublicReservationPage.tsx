@@ -276,6 +276,23 @@ export function PublicReservationPage() {
   const { data: disponibilidadUnaPersona } = useQuery<{ slots: Slot[] }>({ queryKey: ['public-slots', slug, fromDate, rangoDias, 1, serviceId, resourceId], queryFn: () => api.get(`/public/reservations/${slug}/slots?${paramsUnaPersona}`), enabled: sinHorariosParaGrupo && !isSurvey, staleTime: 30_000 });
   const cupoMaximoVisto = Math.max(0, ...(disponibilidadUnaPersona?.slots ?? []).map((slot) => slot.available));
   const faltaCupoParaElGrupo = sinHorariosParaGrupo && (disponibilidadUnaPersona?.slots.length ?? 0) > 0;
+  /*
+   * La zona elegida no tiene lugar: se buscan las otras que sí.
+   *
+   * Decir sólo «prueba sin preferencia» obligaba a adivinar si otra zona serviría. Así se ofrece
+   * la zona concreta con sus primeros horarios, y reservarla es un toque.
+   */
+  const zonaElegidaSinLugar = Boolean(availability) && !availability?.pausedUntil && (availability?.slots.length ?? 0) === 0 && Boolean(resourceId);
+  const { data: otrasZonas = [], isFetching: buscandoOtrasZonas } = useQuery<Array<{ resourceId: string; name: string; slots: string[] }>>({
+    queryKey: ['public-zone-alternatives', slug, fromDate, rangoDias, guest.partySize, serviceId, resourceId],
+    queryFn: () => api.get(`/public/reservations/${slug}/zone-alternatives?${new URLSearchParams({ from: fromDate, days: String(rangoDias), partySize: String(guest.partySize), excludeResourceId: resourceId, ...(serviceId ? { serviceId } : {}) })}`),
+    enabled: zonaElegidaSinLugar && !isSurvey,
+    staleTime: 30_000,
+  });
+  /* Sin lugar en ninguna zona: se ofrece pedir la mesa al local o escribirle. */
+  const sinLugarParaElGrupo = (sinHorariosParaGrupo || zonaElegidaSinLugar) && otrasZonas.length === 0 && !buscandoOtrasZonas;
+  /* La solicitud nació de un horario sin cupo, no de un grupo grande: conserva las personas que eligió. */
+  const pedidoPorFaltaDeCupo = useRef(false);
 
   const hold = useMutation({
     mutationFn: () => api.post<{ expiresAt?: string }>(`/public/reservations/${slug}/hold`, {
@@ -429,7 +446,7 @@ export function PublicReservationPage() {
       if (isSurvey) return api.post<Created>(`/public/reservations/${slug}/survey`, baseBody);
       if (requestMode) return api.post<Created>(`/public/reservations/${slug}/group-request`, {
         guestName: guest.guestName, guestEmail: guest.guestEmail || undefined, guestPhone: guest.guestPhone || undefined,
-        partySize: Math.max(groupThreshold + 1, guest.partySize), eventType: tipoDeEvento, notes: groupEventNotes.trim() || undefined,
+        partySize: pedidoPorFaltaDeCupo.current ? guest.partySize : Math.max(groupThreshold + 1, guest.partySize), eventType: tipoDeEvento, notes: groupEventNotes.trim() || undefined,
         preferredDate: requestPreference.date || undefined, preferredTime: requestPreference.time || undefined,
         reservationConsent, sensitiveConsent: hayDatosSensibles && sensitiveConsent, marketingConsent, networkConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent, origenDetectado,
         measurementConsent, ...(measurementConsent ? { fbc: meta.fbc, fbp: meta.fbp, fbclid: meta.fbclid, eventSourceUrl: window.location.href, measurementConsentVersion: VERSION_MEDICION } : {}),
@@ -585,16 +602,22 @@ export function PublicReservationPage() {
    * preferida cargadas. Al volver, esos datos seguían ahí y se enviaban con una reserva normal.
    */
   /** Pasa a la solicitud de grupo o evento, que no toma horario y confirma el local. */
-  const entrarASolicitud = (personas: number) => {
+  const entrarASolicitud = (personas: number, porFaltaDeCupo = false) => {
     personasAntesDeSolicitar.current = Math.min(guest.partySize, groupThreshold);
+    pedidoPorFaltaDeCupo.current = porFaltaDeCupo;
     setRequestMode(true);
-    setGuest((actual) => ({ ...actual, partySize: Math.max(groupThreshold + 1, personas) }));
+    setGuest((actual) => ({ ...actual, partySize: porFaltaDeCupo ? personas : Math.max(groupThreshold + 1, personas) }));
+    if (porFaltaDeCupo) {
+      const zona = (form?.resourcesConfig ?? []).find((item) => item.id === resourceId)?.name;
+      setGroupEventNotes(`Buscaba mesa para ${personas} persona${personas === 1 ? '' : 's'}${zona ? ` en ${zona}` : ''} y no quedaba lugar en la página.`);
+    }
     setSelected(''); setSelectedDate('');
     setStep(2);
   };
 
   const volverAReservar = () => {
     setRequestMode(false);
+    pedidoPorFaltaDeCupo.current = false;
     setGuest((actual) => ({ ...actual, partySize: Math.min(personasAntesDeSolicitar.current, groupThreshold) }));
     setGroupEventType('');
     setGroupEventNotes('');
@@ -773,6 +796,8 @@ export function PublicReservationPage() {
   const horarioDeAtencion = resumenDeHorarios((form?.scheduleConfig as { windows?: Array<{ day: number; start: string; end: string }> } | undefined)?.windows);
   /** Aviso libre del local, en la página antes del formulario. Vacío no muestra nada. */
   const notasDelLocal = String(design.notasDelLocal || '').trim();
+  /* Apagado a mano, no se muestra aunque tenga texto. */
+  const estacionamiento = design.estacionamientoVisible === 'false' ? '' : String(design.estacionamiento || '').trim();
   /** Cuánto espera el local a quien se atrasa. Cero o vacío significa que prefiere no decirlo. */
   const toleranciaEnMinutos = Math.max(0, Math.min(120, Number(design.toleranciaMinutos || '0') || 0));
   const consultasPorWhatsapp = businessWhatsAppUrl(design.whatsappBusinessNumber, String(design.whatsappConsultas || 'Hola, tengo una duda sobre una reserva.'));
@@ -998,7 +1023,8 @@ export function PublicReservationPage() {
           * tarde no sabía si su mesa seguía guardada. Son las tres preguntas que terminan en una
           * llamada al local, y la única forma de no contestarlas es no decirlas.
           */}
-        {step === 1 && (notasDelLocal || muestraLasReglas) && <div className="booking-datos">
+        {step === 1 && (notasDelLocal || estacionamiento || muestraLasReglas) && <div className="booking-datos">
+          {estacionamiento && <p className="booking-estacionamiento"><span aria-hidden="true">🅿️</span><span><strong>Estacionamiento</strong> {estacionamiento}</span></p>}
           {notasDelLocal && <p className="booking-notas-local">{notasDelLocal}</p>}
           {muestraLasReglas && <ul className="booking-reglas">
             {!requestMode && visible(design.showFacts) && <li><span>Duración</span><strong>{selectedService?.durationMinutes || form.durationMinutes} {durationLabel}</strong></li>}
@@ -1076,10 +1102,35 @@ export function PublicReservationPage() {
             * en medio de la elección de fecha, así que interrumpía a quien sólo quería reservar.
             * Va al final, separada, y el local puede no ofrecerla.
             */}
-          {faltaCupoParaElGrupo && <div className="no-slots sin-cupo-grupo">
-            <strong>Para {guest.partySize} personas no quedan horarios en estas fechas</strong>
-            <p>{cupoMaximoVisto > 0 ? `Hay horarios con espacio para hasta ${cupoMaximoVisto} persona${cupoMaximoVisto === 1 ? '' : 's'}. ` : ''}{resourceId ? 'Prueba sin preferencia de sector, otras fechas o escríbenos.' : 'Prueba otras fechas o escríbenos.'}</p>
-            {resourceId && <button type="button" className="btn btn-outline btn-sm" onClick={() => { setResourceId(''); setSelected(''); }}>Ver sin preferencia de sector</button>}
+          {zonaElegidaSinLugar && otrasZonas.length > 0 && <div className="no-slots otras-zonas">
+            <strong>En {resources.find((item) => item.id === resourceId)?.name || 'esta zona'} no queda lugar para {guest.partySize} persona{guest.partySize === 1 ? '' : 's'} en estas fechas</strong>
+            <p>En {otrasZonas.length === 1 ? 'esta zona' : 'estas zonas'} sí hay. Toca un horario para reservarlo ahí:</p>
+            {otrasZonas.map((zona) => <div key={zona.resourceId} className="otra-zona">
+              <span>{zona.name}</span>
+              <div className="otra-zona-horarios">{zona.slots.map((inicio) => <button type="button" key={inicio} className="slot-time-btn" onClick={() => {
+                setResourceId(zona.resourceId); setSlotIssue(''); setSelectedDate(slotDateKey(inicio, form.timezone)); setSelected(inicio); goToForm();
+              }}>
+                <strong>{new Date(inicio).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>
+                <small>{new Date(inicio).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', timeZone: form.timezone })}</small>
+              </button>)}</div>
+            </div>)}
+          </div>}
+          {sinLugarParaElGrupo && <div className="no-slots sin-cupo-grupo">
+            <strong>Para {guest.partySize} persona{guest.partySize === 1 ? '' : 's'} no quedan horarios en estas fechas</strong>
+            <p>{faltaCupoParaElGrupo && cupoMaximoVisto > 0 ? `Hay horarios con espacio para hasta ${cupoMaximoVisto} persona${cupoMaximoVisto === 1 ? '' : 's'}. ` : ''}Puedes pedirle la mesa al local y te responde{design.whatsappBusinessNumber ? ', o escribirle directo' : ''}.</p>
+            {/*
+              * La solicitud va primero: queda en la bandeja del equipo, avisa y se puede seguir.
+              * WhatsApp es más rápido para quien reserva, pero la conversación queda en un teléfono.
+              */}
+            <div className="sin-cupo-salidas">
+              {design.groupRequestEnabled !== 'false' && <button type="button" className="btn btn-primary btn-sm" onClick={() => entrarASolicitud(guest.partySize, true)}>Pedir mesa para {guest.partySize}</button>}
+              {(() => {
+                const zona = resources.find((item) => item.id === resourceId)?.name;
+                const url = businessWhatsAppUrl(design.whatsappBusinessNumber, `Hola, quiero reservar para ${guest.partySize} persona${guest.partySize === 1 ? '' : 's'}${zona ? ` en ${zona}` : ''}. En la página no quedaba lugar. ¿Tienen disponibilidad?`);
+                return url ? <a className="btn btn-outline btn-sm" href={url} target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a> : null;
+              })()}
+              {resourceId && <button type="button" className="btn btn-outline btn-sm" onClick={() => { setResourceId(''); setSelected(''); }}>Ver sin preferencia de sector</button>}
+            </div>
           </div>}
 
           {selectedDate && <div className="slot-time-picker" ref={slotPickerRef}>

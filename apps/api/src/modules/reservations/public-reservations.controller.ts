@@ -88,6 +88,20 @@ export class PublicReservationsController {
     return this.service.publicForm(slug);
   }
 
+  /** Otras zonas con lugar para ese grupo, cuando la elegida está llena. */
+  @Get(':slug/zone-alternatives')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  zoneAlternatives(
+    @Param('slug') slug: string,
+    @Query('from') from: string,
+    @Query('days') days?: string,
+    @Query('partySize') partySize?: string,
+    @Query('serviceId') serviceId?: string,
+    @Query('excludeResourceId') excludeResourceId?: string,
+  ) {
+    return this.service.zoneAlternatives(slug, from, Number(days || 7), Number(partySize || 1), serviceId, excludeResourceId);
+  }
+
   @Get(':slug/slots')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
   slots(

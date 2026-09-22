@@ -385,6 +385,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             design.notasDelLocal = dto.notasDelLocal.trim();
             tocaDiseno = true;
         }
+        if (dto.estacionamiento !== undefined) {
+            design.estacionamiento = dto.estacionamiento.trim();
+            tocaDiseno = true;
+        }
+        if (dto.estacionamientoVisible !== undefined) {
+            design.estacionamientoVisible = String(dto.estacionamientoVisible);
+            tocaDiseno = true;
+        }
         if (dto.whatsappBusinessNumber !== undefined) {
             design.whatsappBusinessNumber = dto.whatsappBusinessNumber.trim();
             tocaDiseno = true;
@@ -842,6 +850,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (!guest.sensitiveConsent || !(0, shared_1.traeDatosSensibles)(form.fieldSchema, answers, guest))
             return {};
         return { sensitiveConsentAt: new Date(), sensitiveConsentText: `[${shared_1.VERSION_DATOS_SENSIBLES}] ${texto}` };
+    }
+    async zoneAlternatives(slug, from, days, partySize, serviceId, excludeResourceId) {
+        const form = await this.publishedForm(slug);
+        const zonas = (form.resourcesConfig || []).filter((zona) => zona.active !== false && zona.id && zona.id !== excludeResourceId).slice(0, 12);
+        const alternativas = [];
+        for (const zona of zonas) {
+            const { slots } = await this.slots(slug, from, days, serviceId, zona.id, partySize);
+            if (slots.length > 0)
+                alternativas.push({ resourceId: zona.id, name: zona.name, slots: slots.slice(0, 6).map((slot) => slot.startsAt) });
+        }
+        return alternativas;
     }
     async slots(slug, from, days = 14, serviceId, resourceId, partySize = 1) {
         const form = await this.publishedForm(slug);

@@ -1522,6 +1522,17 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], ActualizarOperacionDto.prototype, "estacionamiento", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ActualizarOperacionDto.prototype, "estacionamientoVisible", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(40),
     __metadata("design:type", String)
 ], ActualizarOperacionDto.prototype, "whatsappBusinessNumber", void 0);
