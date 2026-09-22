@@ -147,7 +147,7 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async pause(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PauseReservationFormDto) {
     const scope = await this.scope(req);
-    const form = await this.service.pauseForm(req.organizationId, id, dto.until ?? '', scope.clientId, scope.clientIds);
+    const form = await this.service.pauseForm(req.organizationId, id, dto.until ?? '', scope.clientId, scope.clientIds, req.user.id);
     return this.decorateForm(req.organizationId, form.clientId, form);
   }
 
@@ -211,6 +211,14 @@ export class ReservationsController {
     const scope = await this.scope(req);
     const form = await this.service.duplicateForm(req.organizationId, id, req.user.id, scope.clientIds);
     return this.decorateForm(req.organizationId, form.clientId, form);
+  }
+
+  /** Quién cambió qué en esta reserva, para el hub: la auditoría completa sigue en Gobernanza. */
+  @Get('forms/:id/ultimos-cambios')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async ultimosCambios(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const scope = await this.scope(req);
+    return this.service.ultimosCambios(req.organizationId, id, scope.clientId, scope.clientIds);
   }
 
   @Get('forms/:id/blocks')

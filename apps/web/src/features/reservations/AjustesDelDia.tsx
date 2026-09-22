@@ -5,7 +5,7 @@ import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { puedeAccion } from '../../core/acciones';
 import { Modal } from '../../shared/Modal';
-import type { ReservationForm } from './types';
+import type { Reservation, ReservationForm } from './types';
 
 /**
  * @fileoverview Lo que se cambia el mismo día, sin entrar al constructor.
@@ -30,6 +30,30 @@ interface Props {
 
 interface Zona { id: string; name?: string; active?: boolean }
 interface Cierre { id: string; startsAt: string; endsAt: string; reason?: string }
+
+/** Estados que ocupan cupo: las que todavía van a llegar. */
+const ACTIVAS = ['pending', 'confirmed', 'rescheduled'];
+
+/** Un día local, en los límites que entiende el listado: de 00:00 a 23:59 en la hora del navegador. */
+function rangoDelDia(dia: string, desde = '00:00', hasta = '23:59'): { from: string; to: string } {
+  return { from: new Date(`${dia}T${desde}`).toISOString(), to: new Date(`${dia}T${hasta}`).toISOString() };
+}
+
+function hoyLocal(): string {
+  const ahora = new Date();
+  const dos = (n: number) => String(n).padStart(2, '0');
+  return `${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}`;
+}
+
+/** WhatsApp con el aviso ya escrito, editable antes de enviarlo. */
+function whatsappDeAviso(reserva: Reservation): string | null {
+  const digitos = (reserva.guestPhone ?? '').replace(/\D/g, '');
+  if (digitos.length < 8) return null;
+  const numero = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
+  const cuando = new Date(reserva.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' });
+  const mensaje = `Hola ${reserva.guestName.trim().split(/\s+/)[0]}, te escribimos por tu reserva del ${cuando}: tuvimos que cerrar ese horario. ¿Te podemos ofrecer otra hora?`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
+}
 
 /**
  * El momento en que vuelve a abrir mañana, en la hora del navegador.
@@ -71,6 +95,7 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
   const [desdeLaHora, setDesdeLaHora] = useState('');
   const [hastaLaHora, setHastaLaHora] = useState('');
   const [guardado, setGuardado] = useState(false);
+  const [motivoDelCierre, setMotivoDelCierre] = useState('');
 
   // Al abrir se parte de lo que hay guardado: la ventana puede quedar montada entre aperturas y
   // conservar lo que alguien escribió y no confirmó.
@@ -133,6 +158,40 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
     onSuccess: () => { refrescar(); void recargarCierres(); },
   });
 
+  /*
+   * Cuántas personas ya vienen hoy.
+   *
+   * Bajar el cupo a 18 cuando ya hay 22 confirmadas no las echa, pero quien opera el turno no tiene
+   * ese número en la cabeza como el dueño. Decirlo junto al campo evita decidir a ciegas.
+   */
+  const hoy = hoyLocal();
+  const { data: reservasDeHoy } = useQuery<{ data: Reservation[] }>({
+    queryKey: ['reservas-del-dia', local.id, hoy],
+    queryFn: () => api.get(`/reservations?${new URLSearchParams({ formId: local.id, ...rangoDelDia(hoy), pageSize: '200' })}`),
+    enabled: abierto,
+  });
+  const personasHoy = (reservasDeHoy?.data ?? []).filter((item) => ACTIVAS.includes(item.status)).reduce((total, item) => total + item.partySize, 0);
+  const topeNuevo = Number(topeDelDia);
+
+  /*
+   * A quién afecta el cierre que se está por hacer.
+   *
+   * El servidor no deja cerrar un rato con reservas dentro —con razón: esa gente llegaría a la
+   * puerta—, pero la ventana sólo mostraba el error después de intentarlo, sin decir quiénes eran
+   * ni cómo resolverlo. Ahora se ven antes, con cómo avisarles y cómo cancelarlas.
+   */
+  const { data: reservasDelCierre, refetch: recargarAfectadas } = useQuery<{ data: Reservation[] }>({
+    queryKey: ['reservas-del-cierre', local.id, diaCerrado, desdeLaHora, hastaLaHora],
+    queryFn: () => api.get(`/reservations?${new URLSearchParams({ formId: local.id, ...rangoDelDia(diaCerrado, desdeLaHora || '00:00', hastaLaHora || '23:59'), pageSize: '200' })}`),
+    enabled: abierto && Boolean(diaCerrado),
+  });
+  const afectadas = (reservasDelCierre?.data ?? []).filter((item) => ACTIVAS.includes(item.status));
+
+  const cancelarReserva = useMutation({
+    mutationFn: (reserva: Reservation) => api.patch(`/reservations/${reserva.id}`, { status: 'cancelled_business', cancellationReason: motivoDelCierre.trim() }),
+    onSuccess: () => { void recargarAfectadas(); void queryClient.invalidateQueries({ queryKey: ['reservations'] }); },
+  });
+
   const pausadaHasta = design.bookingPausedUntil && new Date(design.bookingPausedUntil) > new Date() ? design.bookingPausedUntil : '';
 
   const enviar = () => {
@@ -181,6 +240,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
             <input className="input" type="number" min="0" max="5000" value={topeDelDia} onChange={(evento) => setTopeDelDia(evento.target.value)} />
           </label>
         </div>
+        <p className="ajustes-hoy">Hoy vienen <strong>{personasHoy}</strong> {personasHoy === 1 ? 'persona' : 'personas'}{topeNuevo > 0 ? ` de un tope de ${topeNuevo}` : ''}.</p>
+        {topeNuevo > 0 && personasHoy > topeNuevo && <p className="ajustes-alerta">El tope queda por debajo de lo que ya está reservado hoy: no se cancela a nadie, pero no entran reservas nuevas.</p>}
       </section>
 
       {zonas.length > 0 && <section className="ajustes-bloque">
@@ -226,10 +287,27 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
             <input className="input" type="time" value={hastaLaHora} onChange={(evento) => setHastaLaHora(evento.target.value)} />
           </label>
         </div>
-        <button type="button" className="btn btn-outline" disabled={!diaCerrado || cerrarDia.isPending} onClick={() => cerrarDia.mutate({ dia: diaCerrado, desde: desdeLaHora, hasta: hastaLaHora })}>
+        <button type="button" className="btn btn-outline" disabled={!diaCerrado || cerrarDia.isPending || afectadas.length > 0} onClick={() => cerrarDia.mutate({ dia: diaCerrado, desde: desdeLaHora, hasta: hastaLaHora })}>
           {cerrarDia.isPending ? 'Cerrando...' : desdeLaHora || hastaLaHora ? 'Cerrar ese tramo' : 'Cerrar el día completo'}
         </button>
-        <small>Se deja de ofrecer horarios en ese rato. Las reservas ya tomadas no se cancelan solas.</small>
+        {diaCerrado && afectadas.length === 0 && <small>No hay reservas en ese rato: se puede cerrar.</small>}
+        {afectadas.length > 0 && <div className="ajustes-afectadas">
+          <strong>{afectadas.length} {afectadas.length === 1 ? 'reserva tiene' : 'reservas tienen'} hora en ese rato</strong>
+          <small>Para cerrarlo, primero avísales y cancélalas —o reagéndalas desde su ficha—. Si no, llegarían a la puerta.</small>
+          <label>Motivo que se les enviará
+            <input className="input" maxLength={300} value={motivoDelCierre} onChange={(evento) => setMotivoDelCierre(evento.target.value)} placeholder="Ej. el local cierra por un evento privado" />
+          </label>
+          <ul>
+            {afectadas.map((reserva) => <li key={reserva.id}>
+              <span>{new Date(reserva.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} · {reserva.guestName} · {reserva.partySize} {reserva.partySize === 1 ? 'persona' : 'personas'}</span>
+              <span className="ajustes-afectadas-acciones">
+                {(() => { const wsp = whatsappDeAviso(reserva); return wsp ? <a className="btn btn-outline btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Avisar</a> : null; })()}
+                <button type="button" className="btn btn-outline btn-sm" disabled={!motivoDelCierre.trim() || cancelarReserva.isPending} onClick={() => cancelarReserva.mutate(reserva)}>Cancelar</button>
+              </span>
+            </li>)}
+          </ul>
+          {cancelarReserva.error && <p className="error-text">{cancelarReserva.error.message}</p>}
+        </div>}
         {cerrarDia.error && <p className="error-text">{cerrarDia.error.message}</p>}
 
         {cierres.length > 0 && <ul className="ajustes-cierres">

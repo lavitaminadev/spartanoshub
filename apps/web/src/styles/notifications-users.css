@@ -297,3 +297,7 @@
   /* El ancho fijo de 370 px se salía del cajón y del propio teléfono. */
   .notification-popover { width: min(370px, calc(100vw - 24px)); }
 }
+
+/* Pedir el aviso del sistema: una línea discreta bajo el título, nunca un cartel que interrumpa. */
+.notification-permiso { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 0 16px 8px; padding: 8px 10px; border-radius: 10px; background: #f4f4f5; font-size: .8rem; color: var(--txt-muted, #52525b); }
+.notification-permiso button { border: 0; background: none; color: var(--primary, #cc0a55); font-weight: 700; cursor: pointer; padding: 2px 4px; }

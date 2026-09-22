@@ -35,12 +35,20 @@ export function esperandoDesde(creada?: string): string {
   return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
 }
 
-/** Mensaje ya escrito para responder por WhatsApp, editable antes de enviarlo. */
-export function whatsappDeSolicitud(telefono: string | undefined, nombre: string, personas: number): string | null {
+/**
+ * Mensaje ya escrito para responder por WhatsApp, editable antes de enviarlo.
+ *
+ * Con un precio anotado, el mensaje lo lleva: anotarlo y después volver a escribirlo a mano en el
+ * chat era hacer dos veces lo mismo, y la segunda con más riesgo de equivocarse en una cifra.
+ */
+export function whatsappDeSolicitud(telefono: string | undefined, nombre: string, personas: number, precio?: { monto?: string | null; detalle?: string | null }): string | null {
   const digitos = (telefono ?? '').replace(/\D/g, '');
   if (digitos.length < 8) return null;
   const numero = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
   const saludo = nombre.trim().split(/\s+/)[0] || 'Hola';
-  const mensaje = `Hola ${saludo}, recibimos tu solicitud para ${personas} personas. Te contamos qué podemos ofrecerte.`;
+  const monto = Number(precio?.monto ?? 0);
+  const mensaje = monto > 0
+    ? `Hola ${saludo}, para tu evento de ${personas} personas el valor es $${monto.toLocaleString('es-CL')}${precio?.detalle?.trim() ? `, e incluye: ${precio.detalle.trim()}` : ''}. ¿Te lo reservamos?`
+    : `Hola ${saludo}, recibimos tu solicitud para ${personas} personas. Te contamos qué podemos ofrecerte.`;
   return `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
 }
