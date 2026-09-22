@@ -16,15 +16,32 @@ interface NotificationRecord {
   data?: Record<string, unknown>;
 }
 
+/**
+ * A dónde lleva un aviso de Reservas: a lo que avisa, no a la portada del módulo.
+ *
+ * Tocar «Nueva reserva recibida» dejaba en la lista general, y había que buscar a la persona a
+ * mano. El servidor manda en cada aviso el id de la reserva, la solicitud o el local.
+ */
+function destinoDeReservas(notification: NotificationRecord, base: string): string {
+  const datos = notification.data ?? {};
+  const texto = (clave: string) => (typeof datos[clave] === 'string' ? String(datos[clave]) : '');
+  const reserva = texto('reservationId'); const solicitud = texto('requestId'); const local = texto('formId');
+  if (reserva) return `${base}?tab=bookings&reserva=${encodeURIComponent(reserva)}`;
+  if (notification.type === 'reservation_group_request') return `${base}?tab=groups${solicitud ? `&solicitud=${encodeURIComponent(solicitud)}` : ''}`;
+  if (notification.type === 'reservation_waitlist') return `${base}/waitlist`;
+  if (local) return `${base}/locals/${encodeURIComponent(local)}`;
+  return base;
+}
+
 function notificationRoute(notification: NotificationRecord, clientView: boolean): string | null {
   if (clientView) {
-    if (notification.type.startsWith('reservation_')) return '/portal/reservations';
+    if (notification.type.startsWith('reservation_')) return destinoDeReservas(notification, '/portal/reservations');
     if (notification.type.startsWith('approval.') || notification.type.startsWith('piece.')) return '/portal/approvals';
     return null;
   }
   if (notification.type.startsWith('piece.')) return '/production';
   if (notification.type.startsWith('lead.')) return '/crm/leads';
-  if (notification.type.startsWith('reservation_')) return '/reservations';
+  if (notification.type.startsWith('reservation_')) return destinoDeReservas(notification, '/reservations');
   if (notification.type.startsWith('approval.')) return '/approvals';
   if (notification.type.startsWith('survey_')) return '/surveys';
   return null;

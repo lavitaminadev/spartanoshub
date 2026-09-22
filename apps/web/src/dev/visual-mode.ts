@@ -263,9 +263,9 @@ const visualBlocks: Array<{ id: string; startsAt: string; endsAt: string; reason
 
 /** Avisos de ejemplo, como los que crea el servidor: sin ellos la campana se veía siempre vacía. */
 const visualNotifications = [
-  { id: 'aviso-1', type: 'reservation_created', title: 'Nueva reserva recibida', message: 'Camila Rojas reservó Casa Costanera - Providencia para hoy a las 20:00 (2 personas).', read: false, createdAt: haceMinutos(6) },
-  { id: 'aviso-2', type: 'reservation_group_request', title: 'Nueva solicitud de grupo', message: 'Daniela Fuentes pidió un cumpleaños para 18 personas.', read: false, createdAt: haceMinutos(40) },
-  { id: 'aviso-3', type: 'reservation_paused', title: 'Reservas pausadas', message: 'Casa Costanera - Providencia dejó de ofrecer horarios hasta mañana a las 06:00. Lo hizo Juan Pérez.', read: false, createdAt: haceMinutos(90) },
+  { id: 'aviso-1', type: 'reservation_created', title: 'Nueva reserva recibida', message: 'Camila Rojas reservó Casa Costanera - Providencia para hoy a las 20:00 (2 personas).', read: false, createdAt: haceMinutos(6), data: { reservationId: 'visual-booking-1', formId: 'visual-form', clientId: 'visual-client' } },
+  { id: 'aviso-2', type: 'reservation_group_request', title: 'Nueva solicitud de grupo', message: 'Daniela Fuentes pidió un cumpleaños para 18 personas.', read: false, createdAt: haceMinutos(40), data: { requestId: 'visual-grupo-1', formId: 'visual-form', clientId: 'visual-client' } },
+  { id: 'aviso-3', type: 'reservation_paused', title: 'Reservas pausadas', message: 'Casa Costanera - Providencia dejó de ofrecer horarios hasta mañana a las 06:00. Lo hizo Juan Pérez.', read: false, createdAt: haceMinutos(90), data: { formId: 'visual-form', clientId: 'visual-client' } },
   { id: 'aviso-4', type: 'survey_low_rating', title: 'Encuesta con calificación baja', message: 'Sebastián Vera calificó con 2/5. Revisa la respuesta y contacta a la persona.', read: true, createdAt: haceMinutos(1440) },
 ];
 
