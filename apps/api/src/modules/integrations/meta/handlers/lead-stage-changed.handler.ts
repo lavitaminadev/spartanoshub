@@ -8,7 +8,8 @@ import { ClientCapabilityService } from '../../../../core/client-scope/client-ca
 import { Lead } from '../../../crm/leads/lead.entity';
 import { Campaign } from '../../../crm/campaigns/campaign.entity';
 import { atribucionDelLead } from '../atribucion-del-lead';
-import { regionDelLead } from '../region-del-lead';
+import { ubicacionDelLead } from '../ubicacion-del-lead';
+import { fechaDeNacimientoParaMeta } from '../identificadores-meta';
 
 /** Lo que acompaña a cualquier señal de un lead. La empresa decide Pixel y permiso. */
 type SenalDeLead = { organizationId: string; leadId: string; clientId: string | null };
@@ -188,7 +189,7 @@ export class LeadStageChangedHandler {
        * inventado produce un hash que no empareja con nadie y le enseña algo falso a Meta—.
        */
       const atribucion = atribucionDelLead(lead);
-      const region = regionDelLead(lead.metadata);
+      const ubicacion = ubicacionDelLead(lead.metadata, lead.phone);
 
       /*
        * El `lead_id` de Meta cuando lo hay, y los contactos siempre.
@@ -245,12 +246,21 @@ export class LeadStageChangedHandler {
            */
           country: ['cl'],
           /*
-           * La región que la persona declaró en el formulario.
+           * Dónde vive, cada dato en su parámetro.
            *
-           * Ya se la pedimos y está guardada: mandarla no cuesta ningún dato nuevo y suma un
-           * parámetro más de emparejamiento. Lo que no esté no se inventa.
+           * Meta compara la región contra su lista de regiones y la ciudad contra la de
+           * ciudades: una comuna mandada como región no empareja con nadie. Lo que la persona
+           * no declaró sólo se completa si su teléfono fijo lo dice. Lo que no, se omite.
            */
-          st: region ? [region] : undefined,
+          st: ubicacion.region ? [ubicacion.region] : undefined,
+          ct: ubicacion.ciudad ? [ubicacion.ciudad] : undefined,
+          /*
+           * La fecha de nacimiento, cuando el formulario la pidió.
+           *
+           * Es uno de los parámetros que Meta puntúa y ya está guardada: enviarla no pide
+           * ningún dato nuevo. Viaja como `AAAAMMDD`, que es el formato que exige.
+           */
+          db: fechaDeNacimientoParaMeta(lead.birthDate),
           externalId: [lead.id],
           fbp: atribucion.fbp,
           fbc: atribucion.fbc,

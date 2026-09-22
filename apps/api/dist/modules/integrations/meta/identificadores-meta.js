@@ -6,6 +6,7 @@ exports.normalizarTelefono = normalizarTelefono;
 exports.normalizarNombre = normalizarNombre;
 exports.normalizarGeografia = normalizarGeografia;
 exports.hashearTodos = hashearTodos;
+exports.fechaDeNacimientoParaMeta = fechaDeNacimientoParaMeta;
 exports.prepararIdentificadores = prepararIdentificadores;
 exports.parametroSinHashear = parametroSinHashear;
 const node_crypto_1 = require("node:crypto");
@@ -37,6 +38,12 @@ function hashearTodos(valores, normalizar) {
         .map((valor) => (SHA256_HEX.test(valor) ? valor : (0, node_crypto_1.createHash)('sha256').update(valor).digest('hex')));
     return digests.length > 0 ? digests : undefined;
 }
+function fechaDeNacimientoParaMeta(valor) {
+    if (!valor)
+        return undefined;
+    const texto = valor instanceof Date ? valor.toISOString().slice(0, 10) : String(valor).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(texto) ? [texto.replace(/-/g, '')] : undefined;
+}
 function prepararIdentificadores(userData) {
     const datos = userData;
     return {
@@ -47,12 +54,13 @@ function prepararIdentificadores(userData) {
         ln: hashearTodos(datos.ln, normalizarNombre),
         externalId: hashearTodos(datos.externalId, (valor) => valor.trim()),
         ct: hashearTodos(datos.ct, normalizarGeografia),
+        db: hashearTodos(datos.db, (valor) => valor.replace(/\D/g, '')),
         st: hashearTodos(datos.st, normalizarGeografia),
         country: hashearTodos(datos.country, normalizarGeografia),
     };
 }
 function parametroSinHashear(userData) {
-    for (const parametro of ['em', 'ph', 'fn', 'ln', 'ct', 'st', 'country', 'externalId']) {
+    for (const parametro of ['em', 'ph', 'fn', 'ln', 'ct', 'st', 'country', 'externalId', 'db']) {
         const valores = userData[parametro];
         if (!valores?.length)
             continue;

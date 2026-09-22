@@ -20,6 +20,8 @@ export interface ConversionEvent {
     ct?: string[];
     /** Región o estado, normalizado igual que la ciudad. */
     st?: string[];
+    /** Fecha de nacimiento como `AAAAMMDD`, hasheada igual que el resto. */
+    db?: string[];
     /** ISO 3166-1 alpha-2 en minúsculas, ej. `cl`. */
     country?: string[];
     client_ip_address?: string;
@@ -69,6 +71,7 @@ export class MetaConversionsService {
           ln: event.userData.ln,
           ct: event.userData.ct,
           st: event.userData.st,
+          db: event.userData.db,
           country: event.userData.country,
           external_id: event.userData.externalId,
           lead_id: event.userData.lead_id,

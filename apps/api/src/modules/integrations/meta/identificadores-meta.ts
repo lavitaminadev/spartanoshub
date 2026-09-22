@@ -88,6 +88,18 @@ export function hashearTodos(
  * `lead_id`, `fbc`, `fbp`, la dirección y el navegador **no llevan hash**: son identificadores
  * que generó Meta o señales técnicas, y hashearlos los vuelve irreconocibles para ellos.
  */
+/**
+ * La fecha de nacimiento como `AAAAMMDD`, que es el formato que Meta exige.
+ *
+ * Devuelve `undefined` para lo que no sea una fecha completa: un valor a medias produce un hash
+ * que no empareja con nadie y resta en vez de sumar.
+ */
+export function fechaDeNacimientoParaMeta(valor?: string | Date | null): string[] | undefined {
+  if (!valor) return undefined;
+  const texto = valor instanceof Date ? valor.toISOString().slice(0, 10) : String(valor).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(texto) ? [texto.replace(/-/g, '')] : undefined;
+}
+
 export function prepararIdentificadores<T extends Record<string, unknown>>(userData: T): T {
   const datos = userData as Record<string, unknown>;
   return {
@@ -98,6 +110,7 @@ export function prepararIdentificadores<T extends Record<string, unknown>>(userD
     ln: hashearTodos(datos.ln as string[] | undefined, normalizarNombre),
     externalId: hashearTodos(datos.externalId as string[] | undefined, (valor) => valor.trim()),
     ct: hashearTodos(datos.ct as string[] | undefined, normalizarGeografia),
+    db: hashearTodos(datos.db as string[] | undefined, (valor) => valor.replace(/\D/g, '')),
     st: hashearTodos(datos.st as string[] | undefined, normalizarGeografia),
     country: hashearTodos(datos.country as string[] | undefined, normalizarGeografia),
   } as T;
@@ -112,7 +125,7 @@ export function prepararIdentificadores<T extends Record<string, unknown>>(userD
  * @returns El nombre del parámetro en falta, o `null` si todo va hasheado.
  */
 export function parametroSinHashear(userData: Record<string, unknown>): string | null {
-  for (const parametro of ['em', 'ph', 'fn', 'ln', 'ct', 'st', 'country', 'externalId']) {
+  for (const parametro of ['em', 'ph', 'fn', 'ln', 'ct', 'st', 'country', 'externalId', 'db']) {
     const valores = userData[parametro] as string[] | undefined;
     if (!valores?.length) continue;
     if (valores.some((valor) => !SHA256_HEX.test(String(valor ?? '')))) return parametro;
