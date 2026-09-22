@@ -6,6 +6,7 @@ import { api } from '../../core/api';
 import { VistasGuardadas } from '../../shared/VistasGuardadas';
 import { Modal } from '../../shared/Modal';
 import { AjustesDelDia } from './AjustesDelDia';
+import { FichaDeReserva } from './FichaDeReserva';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { StatusTrafficLight } from '../../shared/StatusTrafficLight';
 import { RESERVATION_STATUS_OPTIONS, findStatusOption } from '../../shared/status-palette';
@@ -18,7 +19,7 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
 import { triggerToast } from '../../shared/toast-events';
 import { attendanceRateOf } from '../../shared/attendance';
-import type { GroupRequest, GuestHistory, MetaConversionStatus, Reservation, ReservationForm } from './types';
+import type { GroupRequest, MetaConversionStatus, Reservation, ReservationForm } from './types';
 import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc, plainDateInZone } from './local-time';
 import { publicReservationUrl } from '../../core/public-url';
 import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
@@ -30,6 +31,7 @@ import './ReservationsPage.css';
 import { puedeAccion } from '../../core/acciones';
 import { empresaOfrece } from './servicios-contratados';
 import { MOTIVOS_DE_CIERRE, nombreDelMotivo } from '@espartanos/shared';
+import { esperandoDesde, tonoDeEspera, whatsappDeSolicitud } from './solicitudes-de-grupo';
 
 interface Client { id: string; name: string; capabilities?: Record<string, boolean> }
 interface PixelBinding { clientId: string; pixelId: string | null; pixelName: string | null; tokenConfigured: boolean }
@@ -143,10 +145,6 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const [createStep, setCreateStep] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState<Reservation | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState('');
-  const [bookingNotes, setBookingNotes] = useState('');
-  /** Mesa y personas se corrigen al recibir; se editan sin salir del detalle. */
-  const [mesa, setMesa] = useState('');
-  const [personas, setPersonas] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   // Se abre desde «+ Nueva reserva» en cualquier pantalla: `?nueva=1`, con `formId` si ya se sabe el local.
   const [manualOpen, setManualOpen] = useState(searchParams.get('nueva') === '1');
@@ -386,9 +384,35 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     enabled: tab === 'groups',
   });
   const grupos = Array.isArray(gruposData) ? gruposData : [];
+  const solicitudPedida = searchParams.get('convertir') || searchParams.get('cerrar');
+  const [solicitudAtendida, setSolicitudAtendida] = useState('');
+  useEffect(() => {
+    if (!solicitudPedida || solicitudAtendida === solicitudPedida) return;
+    const pedida = grupos.find((item) => item.id === solicitudPedida);
+    if (!pedida) return;
+    setSolicitudAtendida(solicitudPedida);
+    const detalle = (pedida.details || {}) as Record<string, unknown>;
+    if (searchParams.get('convertir')) setConvirtiendo({ id: pedida.id, fecha: pedida.preferredDate ? `${pedida.preferredDate}T${(pedida.preferredTime || '20:00').slice(0, 5)}` : '', zona: String(detalle.resourceId || '') });
+    else { setCerrando(pedida); setMotivoDeCierre({ motivo: '', nota: '' }); }
+  }, [grupos, solicitudPedida, solicitudAtendida, searchParams]);
   const gruposPendientes = grupos.filter((item) => item.status === 'pending').length;
   /** Solicitud que se está convirtiendo en reserva, con la fecha y zona que se van eligiendo. */
   const [convirtiendo, setConvirtiendo] = useState<{ id: string; fecha: string; zona: string } | null>(null);
+  /** Solicitud cuyo precio se está anotando: la misma acción que en la agenda, sin ir a buscarla. */
+  const [precioDe, setPrecioDe] = useState<GroupRequest | null>(null);
+  const [precio, setPrecio] = useState({ monto: '', detalle: '', vence: '' });
+  const guardarPrecio = useMutation({
+    mutationFn: (solicitud: GroupRequest) => api.patch(`/reservations/group-requests/${solicitud.id}`, {
+      status: 'quoted', quoteAmount: Number(precio.monto), quoteMessage: precio.detalle, quoteExpiresAt: precio.vence || undefined,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['group-requests'] }); setPrecioDe(null); triggerToast('Precio anotado'); },
+  });
+  /*
+   * Llegar desde la agenda con una solicitud ya elegida.
+   *
+   * La agenda no repite el formulario de conversión ni el de cierre: lleva hasta aquí con la
+   * solicitud abierta, así esas dos acciones tienen una sola implementación y no divergen.
+   */
   /** Se ofrece recién cuando el horario acordado no cabe en la agenda publicada. */
   const [forzarHorario, setForzarHorario] = useState(false);
   const convertirGrupo = useMutation({
@@ -405,16 +429,6 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     mutationFn: ({ id, status, closeReason, closeNotes }: { id: string; status: string; closeReason?: string; closeNotes?: string }) => api.patch(`/reservations/group-requests/${id}`, { status, closeReason, closeNotes }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['group-requests'] }); triggerToast('Solicitud actualizada'); },
     onError: (error: Error) => triggerToast(error.message || 'No se pudo actualizar la solicitud', 'error'),
-  });
-  /*
-   * Si quien reserva ya estuvo antes. Se pide solo con la ficha abierta: es una consulta por
-   * reserva y no tiene sentido pagarla por cada fila de la lista.
-   */
-  const { data: historialPersona } = useQuery<GuestHistory>({
-    queryKey: ['guest-history', selectedBooking?.id],
-    queryFn: () => api.get(`/reservations/${selectedBooking!.id}/guest-history`),
-    enabled: Boolean(selectedBooking?.id),
-    staleTime: 60_000,
   });
 
   const { data: couponsData = [] } = useQuery<Array<{ id: string; code: string; discountType: string; value: number; maxUses: number; usageCount: number; validFrom?: string; validUntil?: string; formIds?: string[]; active: boolean; createdAt: string }>>({ queryKey: ['coupons', clientFilter], queryFn: () => api.get(`/reservations/coupons${clientQuery}`), enabled: tab === 'coupons' });
@@ -554,7 +568,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           const preparar = respuestasDestacadas(item.answers, forms.find((form) => form.id === item.formId)?.fieldSchema);
           return <article className="booking-row" key={item.id}>
           <div className="booking-date"><strong>{new Date(item.startsAt).getDate()}</strong><span>{new Date(item.startsAt).toLocaleDateString('es-CL', { month: 'short' })}</span><small>{new Date(item.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</small></div>
-          <button className="booking-guest booking-guest-button" onClick={() => { setSelectedBooking(item); setBookingNotes(item.internalNotes || ''); setMesa(item.tableLabel || ''); setPersonas(String(item.partySize)); }} aria-label={`Ver detalle de la reserva de ${item.guestName}`}><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || 'Sin contacto'}</span><small>{item.tableLabel ? <em className="booking-mesa">Mesa {item.tableLabel}</em> : null}#{item.referenceCode} · {item.utmCampaign || item.utmSource || 'Origen directo'}{item.couponCode ? <em className="booking-coupon"><VitaIcons.ticket /> {item.couponCode}</em> : null}</small>{(preparar.length > 0 || item.internalNotes) && <span className="booking-flags">{preparar.map((dato) => <em key={dato.clave} title={`${dato.etiqueta}: ${dato.valor}`}>{dato.etiqueta}</em>)}{item.internalNotes ? <em className="es-nota" title={item.internalNotes}>Nota del equipo</em> : null}</span>}</button>
+          <button className="booking-guest booking-guest-button" onClick={() => { setSelectedBooking(item); }} aria-label={`Ver detalle de la reserva de ${item.guestName}`}><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || 'Sin contacto'}</span><small>{item.tableLabel ? <em className="booking-mesa">Mesa {item.tableLabel}</em> : null}#{item.referenceCode} · {item.utmCampaign || item.utmSource || 'Origen directo'}{item.couponCode ? <em className="booking-coupon"><VitaIcons.ticket /> {item.couponCode}</em> : null}</small>{(preparar.length > 0 || item.internalNotes) && <span className="booking-flags">{preparar.map((dato) => <em key={dato.clave} title={`${dato.etiqueta}: ${dato.valor}`}>{dato.etiqueta}</em>)}{item.internalNotes ? <em className="es-nota" title={item.internalNotes}>Nota del equipo</em> : null}</span>}</button>
           <div className="booking-status-cell">
             {/* El gesto del dia es marcar asistencia: dos botones directos, sin desplegable.
                 El resto del ciclo queda en el semaforo, que se usa mucho menos. */}
@@ -628,7 +642,12 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
               {request.quoteAmount && <small>Precio anotado: ${Number(request.quoteAmount).toLocaleString('es-CL')}{request.quoteExpiresAt ? ` · vence ${new Date(request.quoteExpiresAt).toLocaleDateString('es-CL')}` : ''}</small>}
             </div>
             <div>
-              <span className="reservation-channel-status">{({ pending: 'Pendiente', contacted: 'Contactada', quoted: 'Cotizada', closed: 'Cerrada', converted: 'Convertida en reserva' } as Record<string, string>)[request.status] || request.status}</span>
+              <span className={`solicitud-estado es-${request.status === 'pending' ? tonoDeEspera(request.createdAt) : 'resuelta'}`}>
+                {({ pending: 'Sin responder', contacted: 'Contactada', quoted: 'Cotizada', closed: 'Cerrada', converted: 'Convertida en reserva' } as Record<string, string>)[request.status] || request.status}
+                {request.status === 'pending' && esperandoDesde(request.createdAt) ? ` · ${esperandoDesde(request.createdAt)}` : ''}
+              </span>
+              {(() => { const wsp = whatsappDeSolicitud(request.guestPhone, request.guestName, request.partySize); return wsp && !['converted', 'closed'].includes(request.status) ? <a className="btn btn-outline btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Responder por WhatsApp</a> : null; })()}
+              {['pending', 'contacted', 'quoted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setPrecioDe(request); setPrecio({ monto: request.quoteAmount ? String(Number(request.quoteAmount)) : '', detalle: request.quoteMessage ?? '', vence: request.quoteExpiresAt ? request.quoteExpiresAt.slice(0, 16) : '' }); }}>{request.quoteAmount ? 'Editar precio' : 'Anotar precio'}</button>}
               {!['converted', 'closed'].includes(request.status) && convirtiendo?.id !== request.id && <button className="btn btn-primary btn-sm" type="button" onClick={() => { convertirGrupo.reset(); setConvirtiendo({ id: request.id, fecha: request.preferredDate ? `${request.preferredDate}T${(request.preferredTime || '20:00').slice(0, 5)}` : '', zona: String(details.resourceId || '') }); }}>Crear reserva</button>}
               {convirtiendo?.id === request.id && <form className="grupo-a-reserva" onSubmit={(event) => { event.preventDefault(); if (!local) return; convertirGrupo.mutate({ id: request.id, startsAt: localInputToUtc(convirtiendo.fecha, local.timezone), resourceId: convirtiendo.zona || undefined }); }}>
                 <label>Fecha y hora acordadas<input className="input" type="datetime-local" required min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} value={convirtiendo.fecha} onChange={(event) => setConvirtiendo({ ...convirtiendo, fecha: event.target.value })} /></label>
@@ -656,6 +675,20 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     </section>}
 
     {ajustesDe && <AjustesDelDia abierto onCerrar={() => setAjustesDe(null)} local={ajustesDe} base={clientView ? '/portal/reservations' : '/reservations'} />}
+
+    <Modal open={Boolean(precioDe)} onClose={() => setPrecioDe(null)} title="Anotar el precio que le pasaste">
+      <form className="modal-form" onSubmit={(evento) => { evento.preventDefault(); if (precioDe) guardarPrecio.mutate(precioDe); }}>
+        <p className="page-subtitle">Queda para el equipo: no se le envía a la persona. Quien reciba al grupo lo verá en su reserva.</p>
+        <label>Monto total<input className="input" type="number" min="0" required value={precio.monto} onChange={(evento) => setPrecio({ ...precio, monto: evento.target.value })} /></label>
+        <label>Qué incluye<textarea className="input" rows={3} required maxLength={5000} value={precio.detalle} onChange={(evento) => setPrecio({ ...precio, detalle: evento.target.value })} placeholder="Menú, extras, anticipo y condiciones." /></label>
+        <label>Vigencia <small>(opcional)</small><input className="input" type="datetime-local" value={precio.vence} onChange={(evento) => setPrecio({ ...precio, vence: evento.target.value })} /></label>
+        {guardarPrecio.error && <p className="error-text">{guardarPrecio.error.message}</p>}
+        <div className="modal-actions">
+          <button type="button" className="btn btn-outline" onClick={() => setPrecioDe(null)}>Cancelar</button>
+          <button type="submit" className="btn btn-primary" disabled={guardarPrecio.isPending}>{guardarPrecio.isPending ? 'Guardando...' : 'Guardar el precio'}</button>
+        </div>
+      </form>
+    </Modal>
 
     <Modal open={Boolean(cerrando)} onClose={() => setCerrando(null)} title="Cerrar sin reserva">
       <form
@@ -746,65 +779,14 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
 
     <Modal open={manualOpen} onClose={() => setManualOpen(false)} title="Anotar reserva"><form className="modal-form" onSubmit={(event) => { event.preventDefault(); manualMutation.mutate(reservationClientForms.length === 1 ? reservationClientForms[0].id : undefined); }}><p className="page-subtitle">Para una llamada o alguien que pasa por el local. Se valida contra el cupo igual que una reserva web.</p>{reservationClientForms.length === 1 ? <p className="page-subtitle"><strong>Reserva:</strong> {reservationClientForms[0].name}</p> : <label>Página de reserva<select className="input" required value={manualForm.formId} onChange={(event) => setManualForm({ ...manualForm, formId: event.target.value })}><option value="">Elige la página de reserva</option>{reservationClientForms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}</select></label>}<label>Fecha y hora<input className="input" type="datetime-local" required value={manualForm.startsAt} onChange={(event) => setManualForm({ ...manualForm, startsAt: event.target.value })} /></label><label>Nombre del visitante<input className="input" required value={manualForm.guestName} onChange={(event) => setManualForm({ ...manualForm, guestName: event.target.value })} /></label><div className="form-row"><label>Teléfono<input className="input" value={manualForm.guestPhone} onChange={(event) => setManualForm({ ...manualForm, guestPhone: event.target.value })} /></label><label>Correo<input className="input" type="email" value={manualForm.guestEmail} onChange={(event) => setManualForm({ ...manualForm, guestEmail: event.target.value })} /></label></div><label>Número de personas<input className="input" type="number" min="1" value={manualForm.partySize} onChange={(event) => setManualForm({ ...manualForm, partySize: Number(event.target.value) })} /></label><label>Notas internas<textarea className="input" rows={3} value={manualForm.internalNotes} onChange={(event) => setManualForm({ ...manualForm, internalNotes: event.target.value })} /></label>{!clientView && <label className="toggle-row"><input type="checkbox" checked={manualForm.skipAvailability} onChange={(event) => setManualForm({ ...manualForm, skipAvailability: event.target.checked })} /> Aceptarla aunque el horario esté lleno</label>}{manualMutation.error && <div className="alert alert-error">{manualMutation.error.message}</div>}<div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setManualOpen(false)}>Cancelar</button><button className="btn btn-primary" disabled={manualMutation.isPending}>{manualMutation.isPending ? 'Guardando...' : 'Crear reserva'}</button></div></form></Modal>
 
-    <Modal open={Boolean(selectedBooking)} onClose={() => { setSelectedBooking(null); setRescheduleAt(''); setCancellationReason(''); }} title={selectedBooking ? `Reserva #${selectedBooking.referenceCode}` : 'Reserva'}>{selectedBooking && <div className="booking-detail"><div className="booking-detail-grid"><div><span>Visitante</span><strong>{selectedBooking.guestName}</strong></div><div><span>Contacto</span><strong>{selectedBooking.guestPhone || selectedBooking.guestEmail || 'Sin contacto'}</strong></div><div><span>Fecha actual</span><strong>{new Date(selectedBooking.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: forms.find((form) => form.id === selectedBooking.formId)?.timezone })}</strong></div><div><span>Estado</span><StatusBadge status={selectedBooking.status} /></div><div><span>Personas</span><div className="booking-editable"><input className="input" type="number" min={1} max={500} value={personas} onChange={(e) => setPersonas(e.target.value)} aria-label="Cantidad de personas" />{Number(personas) !== selectedBooking.partySize && Number(personas) >= 1 && <button type="button" className="btn btn-outline btn-sm" onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { partySize: Number(personas) } })}>Guardar</button>}</div></div>
-      <div><span>Mesa</span><div className="booking-editable"><input className="input" value={mesa} maxLength={40} placeholder="Sin asignar" onChange={(e) => setMesa(e.target.value)} aria-label="Mesa asignada" />{mesa.trim() !== (selectedBooking.tableLabel || '') && <button type="button" className="btn btn-outline btn-sm" onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { tableLabel: mesa.trim() } })}>Guardar</button>}</div></div>{(() => { const form = forms.find((f) => f.id === selectedBooking.formId); const zona = (form?.resourcesConfig || []).find((r) => r.id === selectedBooking.resourceId); const servicio = (form?.servicesConfig || []).find((sv) => sv.id === selectedBooking.serviceId); return <>{zona && <div><span>Zona</span><strong>{zona.name} · {zona.smokingAllowed ? 'fumadores' : 'no fumadores'}</strong></div>}{servicio && <div><span>Servicio</span><strong>{servicio.name}</strong></div>}</>; })()}<div><span>Cupón aplicado</span><strong>{selectedBooking.couponCode ? <button type="button" className="link-button" onClick={() => { setTab('coupons'); setViewingCouponCode(selectedBooking.couponCode!); setSelectedBooking(null); }}><VitaIcons.ticket /> {selectedBooking.couponCode}</button> : 'Sin cupón'}</strong></div></div>
-      {/*
-        * Lo que completó hoy, que es lo que hay que leer antes de recibirla.
-        *
-        * Estaba guardado y no se mostraba en ninguna parte: la ocasión, si viene con niños, una
-        * alergia o una nota se quedaban en la base mientras quien atiende preguntaba de nuevo.
-        * Los rótulos salen del formulario, así que un campo agregado ayer aparece sin tocar esto.
-        */}
-      {(() => {
-        const esquema = forms.find((f) => f.id === selectedBooking.formId)?.fieldSchema ?? [];
-        const respuestas = esquema
-          .filter((campo) => campo.type !== 'consent' && campo.type !== 'coupon')
-          .map((campo) => ({ campo, valor: selectedBooking.answers?.[campo.id] }))
-          .filter(({ valor }) => valor !== undefined && valor !== null && valor !== '' && !(Array.isArray(valor) && valor.length === 0));
-        if (respuestas.length === 0) return null;
-        return <div className="booking-detail-extra">
-          <span className="page-eyebrow">LO QUE COMPLETÓ AL RESERVAR</span>
-          <ul className="booking-preferencias">
-            {respuestas.map(({ campo, valor }) => (
-              <li key={campo.id} className={campo.sensible ? 'es-aviso' : ''}>
-                <span>{campo.label}</span>
-                <strong>{Array.isArray(valor) ? valor.join(', ') : typeof valor === 'boolean' ? (valor ? 'Sí' : 'No') : String(valor)}</strong>
-              </li>
-            ))}
-          </ul>
-        </div>;
-      })()}
-
-      {/* Quién reserva: si ya vino antes, para reconocerla al atender. */}
-      <div className="booking-detail-extra">
-        <span className="page-eyebrow">QUIÉN RESERVA</span>
-        {!historialPersona ? <p className="page-subtitle">Revisando si ya reservó antes...</p>
-          : historialPersona.total === 0 ? <p className="page-subtitle">{historialPersona.alcance === 'red' ? 'Primera vez que reserva en la empresa.' : 'Primera vez que reserva en este local.'}</p>
-          : <>
-            <p className="page-subtitle">Ya reservó {historialPersona.total} {historialPersona.total === 1 ? 'vez' : 'veces'} antes · {historialPersona.attended} asistió{historialPersona.noShow > 0 ? ` · ${historialPersona.noShow} no llegó` : ''}</p>
-            {/* Sin decirlo, «ya vino 3 veces» hace pensar que fue aquí. */}
-            {(historialPersona.deOtrasReservas ?? 0) > 0 && <p className="page-subtitle">{historialPersona.deOtrasReservas} {historialPersona.deOtrasReservas === 1 ? 'fue' : 'fueron'} en otra reserva de la misma empresa.</p>}
-            {/*
-              * Lo que hay que saber antes de que llegue.
-              *
-              * Contar visitas dice que vuelve; no dice qué hacer al recibirla. Esto sale de lo
-              * que ella misma completó en reservas anteriores, así que puede estar desactualizado:
-              * ayuda a quien recibe, no reemplaza preguntar.
-              */}
-            {historialPersona.preferencias && <ul className="booking-preferencias">
-              {historialPersona.preferencias.diasDesdeLaUltima !== undefined && <li><span>Última visita</span><strong>{historialPersona.preferencias.diasDesdeLaUltima === 0 ? 'Hoy' : `Hace ${historialPersona.preferencias.diasDesdeLaUltima} día${historialPersona.preferencias.diasDesdeLaUltima === 1 ? '' : 's'}`}</strong></li>}
-              {historialPersona.preferencias.zonaHabitual && <li><span>Suele sentarse en</span><strong>{(forms.find((form) => form.id === selectedBooking.formId)?.resourcesConfig || []).find((zona) => zona.id === historialPersona.preferencias?.zonaHabitual)?.name || historialPersona.preferencias.zonaHabitual}</strong></li>}
-              {historialPersona.preferencias.personasHabitual !== undefined && <li><span>Suele venir</span><strong>{historialPersona.preferencias.personasHabitual} persona{historialPersona.preferencias.personasHabitual === 1 ? '' : 's'}</strong></li>}
-              {historialPersona.preferencias.alergias.map((texto) => <li key={texto} className="es-aviso"><span>Declaró antes</span><strong>{texto}</strong></li>)}
-              {historialPersona.preferencias.accesibilidad.map((texto) => <li key={texto} className="es-aviso"><span>Accesibilidad</span><strong>{texto}</strong></li>)}
-              {historialPersona.preferencias.vinoConNinos && <li><span>Otras veces</span><strong>vino con niños</strong></li>}
-              {historialPersona.preferencias.usoCupon && <li><span>Otras veces</span><strong>usó cupón</strong></li>}
-            </ul>}
-            <ul className="booking-historial">
-              {historialPersona.anteriores.map((previa) => <li key={previa.id}>{new Date(previa.startsAt).toLocaleDateString('es-CL', { dateStyle: 'medium' })} · {previa.partySize} persona{previa.partySize === 1 ? '' : 's'} <StatusBadge status={previa.status} /></li>)}
-            </ul>
-          </>}
-      </div>
+    <Modal open={Boolean(selectedBooking)} onClose={() => { setSelectedBooking(null); setRescheduleAt(''); setCancellationReason(''); }} title={selectedBooking ? `Reserva #${selectedBooking.referenceCode}` : 'Reserva'}>{selectedBooking && <div className="booking-detail">
+      {/* La misma ficha que en la agenda: una sola forma de mostrar y editar una reserva. */}
+      <FichaDeReserva
+        reserva={selectedBooking}
+        local={forms.find((form) => form.id === selectedBooking.formId)}
+        onGuardada={() => { void refetchBookings(); }}
+        onVerCupon={(codigo) => { setTab('coupons'); setViewingCouponCode(codigo); setSelectedBooking(null); }}
+      />
 
       {/* Lo que aceptó, con la fecha exacta: es lo que respalda tratar sus datos. */}
       <div className="booking-detail-extra">
@@ -838,7 +820,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         <div><span>Identificadores de coincidencia</span><strong>{(selectedBooking.metaConversion?.matchFields ?? 0)} identificadores de coincidencia</strong>{(selectedBooking.metaConversion?.matchFields ?? 0) === 0 && <small className="page-subtitle">Meta no puede atribuir esta reserva a la campaña</small>}</div>
       </div>
     </section>
-    {(() => { const legibles = respuestasLegibles(selectedBooking.answers, forms.find((form) => form.id === selectedBooking.formId)?.fieldSchema); return legibles.length > 0 && <section className="booking-answers"><h4>Datos recopilados</h4><div>{legibles.map((item) => <article key={item.clave}><span>{item.etiqueta}</span><strong>{item.valor}</strong></article>)}</div></section>; })()}{!clientView && ['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(selectedBooking.status) && <div className="booking-quick-actions"><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { startsAt: localInputToUtc(rescheduleAt, forms.find((form) => form.id === selectedBooking.formId)?.timezone || 'America/Santiago') } }); }}><label>Reagendar a una nueva fecha y hora<input className="input" type="datetime-local" required value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} /></label><button className="btn btn-outline btn-sm" disabled={updateMutation.isPending}>Validar y reagendar</button></form><div className="attendance-actions"><strong>Marcar asistencia</strong><button type="button" className="btn btn-primary btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'attended' } })}>Asistió</button><button type="button" className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'no_show' } })}>No asistió</button></div><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { status: 'cancelled_business', cancellationReason: cancellationReason.trim() } }); }}><label>Motivo de cancelación del local<input className="input" required maxLength={500} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} placeholder="Ej.: cierre excepcional del local" /></label><button className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending || !cancellationReason.trim()}>Cancelar y avisar al cliente</button></form></div>}<h4>Historial trazable</h4>{historyLoading ? <p className="page-subtitle">Cargando historial...</p> : <div className="reservation-history">{history.map((event) => <div key={event.id}><span>{event.type === 'created' ? 'Reserva creada' : event.type === 'rescheduled' ? 'Reserva reagendada' : event.type === 'integration_failed' ? 'Integración pendiente' : 'Estado actualizado'}</span><small>{new Date(event.createdAt).toLocaleString('es-CL')} · {event.actorType}</small>{event.fromStatus || event.toStatus ? <em>{event.fromStatus ? STATUS_LABELS[event.fromStatus] || event.fromStatus : 'Inicio'} → {event.toStatus ? STATUS_LABELS[event.toStatus] || event.toStatus : ''}</em> : null}</div>)}</div>}{!clientView && <><h4>Notas internas</h4><div className="booking-notes"><textarea className="input" rows={3} value={bookingNotes} onChange={(event) => setBookingNotes(event.target.value)} placeholder="Comentarios solo para el equipo..." /><button type="button" className="btn btn-outline btn-sm" disabled={bookingNotes === (selectedBooking.internalNotes || '') || updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { internalNotes: bookingNotes.trim() } })}>{updateMutation.isPending ? 'Guardando...' : 'Guardar notas'}</button></div></>}{updateMutation.error && <div className="alert alert-error">{updateMutation.error.message}</div>}</div>}</Modal>
+    {!clientView && ['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(selectedBooking.status) && <div className="booking-quick-actions"><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { startsAt: localInputToUtc(rescheduleAt, forms.find((form) => form.id === selectedBooking.formId)?.timezone || 'America/Santiago') } }); }}><label>Reagendar a una nueva fecha y hora<input className="input" type="datetime-local" required value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} /></label><button className="btn btn-outline btn-sm" disabled={updateMutation.isPending}>Validar y reagendar</button></form><div className="attendance-actions"><strong>Marcar asistencia</strong><button type="button" className="btn btn-primary btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'attended' } })}>Asistió</button><button type="button" className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'no_show' } })}>No asistió</button></div><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { status: 'cancelled_business', cancellationReason: cancellationReason.trim() } }); }}><label>Motivo de cancelación del local<input className="input" required maxLength={500} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} placeholder="Ej.: cierre excepcional del local" /></label><button className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending || !cancellationReason.trim()}>Cancelar y avisar al cliente</button></form></div>}<h4>Historial trazable</h4>{historyLoading ? <p className="page-subtitle">Cargando historial...</p> : <div className="reservation-history">{history.map((event) => <div key={event.id}><span>{event.type === 'created' ? 'Reserva creada' : event.type === 'rescheduled' ? 'Reserva reagendada' : event.type === 'integration_failed' ? 'Integración pendiente' : 'Estado actualizado'}</span><small>{new Date(event.createdAt).toLocaleString('es-CL')} · {event.actorType}</small>{event.fromStatus || event.toStatus ? <em>{event.fromStatus ? STATUS_LABELS[event.fromStatus] || event.fromStatus : 'Inicio'} → {event.toStatus ? STATUS_LABELS[event.toStatus] || event.toStatus : ''}</em> : null}</div>)}</div>}{updateMutation.error && <div className="alert alert-error">{updateMutation.error.message}</div>}</div>}</Modal>
     <ConfirmDialog open={Boolean(confirmCoupon)} title="Desactivar cupón" description="¿Desactivar este cupón? Las reservas existentes no se verán afectadas." confirmLabel="Desactivar" pending={couponToggle.isPending} onClose={() => setConfirmCoupon(null)} onConfirm={() => { if (confirmCoupon) couponToggle.mutate(confirmCoupon); setConfirmCoupon(null); }} />
     <ConfirmDialog open={Boolean(confirmFormAction)} title="Pausar esta reserva" description="Mientras esté pausada, quien abra su página verá un aviso y no podrá reservar. Las reservas ya hechas no se tocan." confirmLabel="Pausar" pending={updateFormMutation.isPending} onClose={() => setConfirmFormAction(null)} onConfirm={() => { if (!confirmFormAction) return; updateFormMutation.mutate({ id: confirmFormAction.id, status: 'paused' }); setConfirmFormAction(null); }} />
 

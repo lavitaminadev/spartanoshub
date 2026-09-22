@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import type { GuestHistory, Reservation, ReservationForm } from './types';
 import { respuestasLegibles } from './answer-labels';
+import { StatusBadge } from '../../shared/StatusBadge';
 
 /**
  * @fileoverview Los datos de una reserva, iguales se abra donde se abra.
@@ -11,9 +12,8 @@ import { respuestasLegibles } from './answer-labels';
  * asignada, ni el cupón, ni si la persona ya había venido antes, y esa es justamente la pantalla
  * donde se recibe a la gente. Quien atendía tenía la mitad peor de las dos.
  *
- * La lista de reservas todavía arma su propia ficha, con los consentimientos y la atribución de
- * Meta, que no hacen falta en el turno. Cuando esa pantalla migre a este componente, esos bloques
- * entran como secciones opcionales.
+ * La lista de reservas y la agenda la comparten. Lo que sólo tiene sentido en la lista —lo que
+ * aceptó, la atribución de Meta, reagendar— queda en esa pantalla, debajo de esta ficha.
  */
 
 interface Props {
@@ -21,15 +21,11 @@ interface Props {
   local?: ReservationForm;
   /** Llamado después de guardar personas o mesa, para que la pantalla refresque su lista. */
   onGuardada?: () => void;
+  /** Si se pasa, el cupón se vuelve un enlace a su detalle; sin él, sólo se muestra. */
+  onVerCupon?: (codigo: string) => void;
 }
 
-const ETIQUETAS_DE_ESTADO: Record<string, string> = {
-  pending: 'Pendiente', confirmed: 'Confirmada', rescheduled: 'Reagendada', attended: 'Asistió',
-  no_show: 'No llegó', waitlist: 'En lista de espera',
-  cancelled_client: 'Cancelada por quien reservó', cancelled_business: 'Cancelada por el local',
-};
-
-export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
+export function FichaDeReserva({ reserva, local, onGuardada, onVerCupon }: Props) {
   const queryClient = useQueryClient();
   const [personas, setPersonas] = useState(String(reserva.partySize));
   const [mesa, setMesa] = useState(reserva.tableLabel ?? '');
@@ -82,7 +78,9 @@ export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
       <div><span>Visitante</span><strong>{reserva.guestName}</strong></div>
       <div><span>Contacto</span><strong>{reserva.guestPhone || reserva.guestEmail || 'Sin contacto'}</strong></div>
       <div><span>Código</span><strong>#{reserva.referenceCode}</strong></div>
-      <div><span>Estado</span><strong>{ETIQUETAS_DE_ESTADO[reserva.status] ?? reserva.status}</strong></div>
+      {/* En la zona del local: quien mira desde otra ciudad no debe ver la hora corrida. */}
+      <div><span>Fecha</span><strong>{new Date(reserva.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: local?.timezone })}</strong></div>
+      <div><span>Estado</span><StatusBadge status={reserva.status} /></div>
       <div><span>Personas</span>
         <div className="booking-editable">
           <input
@@ -136,7 +134,10 @@ export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
           </select>
         </div>
       </div> : zona ? <div><span>Zona</span><strong>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ' · no fumadores'}</strong></div> : null}
-      {reserva.couponCode && <div><span>Cupón aplicado</span><strong>{reserva.couponCode}</strong></div>}
+      {(() => { const servicio = (local?.servicesConfig ?? []).find((item) => item.id === reserva.serviceId); return servicio ? <div><span>Servicio</span><strong>{servicio.name}</strong></div> : null; })()}
+      {reserva.couponCode && <div><span>Cupón aplicado</span><strong>{onVerCupon
+        ? <button type="button" className="link-button" onClick={() => onVerCupon(reserva.couponCode!)}>{reserva.couponCode}</button>
+        : reserva.couponCode}</strong></div>}
     </div>
     {guardar.error && <p className="error-text">{guardar.error.message}</p>}
 
@@ -171,6 +172,24 @@ export function FichaDeReserva({ reserva, local, onGuardada }: Props) {
               * «Llegó 40 minutos tarde» o «pidió mesa en el fondo» quedaba guardado en la reserva
               * de ese día y no se veía nunca más: la memoria del local se perdía en cada visita.
               */}
+            {/*
+              * Lo que hay que saber antes de que llegue.
+              *
+              * Sale de lo que ella misma completó en reservas anteriores, así que puede estar
+              * desactualizado: ayuda a quien recibe, no reemplaza preguntar.
+              */}
+            {historial.preferencias && <ul className="booking-preferencias">
+              {historial.preferencias.diasDesdeLaUltima !== undefined && <li><span>Última visita</span><strong>{historial.preferencias.diasDesdeLaUltima === 0 ? 'Hoy' : `Hace ${historial.preferencias.diasDesdeLaUltima} día${historial.preferencias.diasDesdeLaUltima === 1 ? '' : 's'}`}</strong></li>}
+              {historial.preferencias.zonaHabitual && <li><span>Suele sentarse en</span><strong>{zonas.find((item) => item.id === historial.preferencias?.zonaHabitual)?.name || historial.preferencias.zonaHabitual}</strong></li>}
+              {historial.preferencias.personasHabitual !== undefined && <li><span>Suele venir</span><strong>{historial.preferencias.personasHabitual} persona{historial.preferencias.personasHabitual === 1 ? '' : 's'}</strong></li>}
+              {historial.preferencias.alergias.map((texto) => <li key={texto} className="es-aviso"><span>Declaró antes</span><strong>{texto}</strong></li>)}
+              {historial.preferencias.accesibilidad.map((texto) => <li key={texto} className="es-aviso"><span>Accesibilidad</span><strong>{texto}</strong></li>)}
+              {historial.preferencias.vinoConNinos && <li><span>Otras veces</span><strong>vino con niños</strong></li>}
+              {historial.preferencias.usoCupon && <li><span>Otras veces</span><strong>usó cupón</strong></li>}
+            </ul>}
+            <ul className="booking-historial">
+              {historial.anteriores.map((previa) => <li key={previa.id}>{new Date(previa.startsAt).toLocaleDateString('es-CL', { dateStyle: 'medium' })} · {previa.partySize} persona{previa.partySize === 1 ? '' : 's'}{previa.mismoLocal === false ? ' · otra reserva' : ''} <StatusBadge status={previa.status} /></li>)}
+            </ul>
             {notasAnteriores.length > 0 && <ul className="ficha-notas-previas">
               {notasAnteriores.map((anterior) => <li key={anterior.id}>
                 <span>{new Date(anterior.startsAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}{anterior.mismoLocal === false ? ' · otra reserva' : ''}</span>

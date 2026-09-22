@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CandadoDeDiaPorAlcance1727000000000 = void 0;
+exports.CandadoDeDiaPorAlcance1790000000147 = void 0;
 const typeorm_1 = require("typeorm");
-class CandadoDeDiaPorAlcance1727000000000 {
+class CandadoDeDiaPorAlcance1790000000147 {
     constructor() {
-        this.name = 'CandadoDeDiaPorAlcance1727000000000';
+        this.name = 'CandadoDeDiaPorAlcance1790000000147';
     }
     async up(queryRunner) {
         if (!(await queryRunner.hasTable('reservation_day_locks')))
@@ -35,4 +35,4 @@ class CandadoDeDiaPorAlcance1727000000000 {
         }));
     }
 }
-exports.CandadoDeDiaPorAlcance1727000000000 = CandadoDeDiaPorAlcance1727000000000;
+exports.CandadoDeDiaPorAlcance1790000000147 = CandadoDeDiaPorAlcance1790000000147;

@@ -244,6 +244,8 @@ let ReservationsController = class ReservationsController {
         return this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds);
     }
     async createCoupon(req, dto) {
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT)
+            dto.clientId = this.client(req);
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
         await this.capabilities.assert(req.organizationId, dto.clientId, 'reservations');
         return this.service.createCoupon(req.organizationId, req.user.id, dto, dto.clientId);
@@ -565,7 +567,8 @@ __decorate([
 ], ReservationsController.prototype, "listCoupons", null);
 __decorate([
     (0, common_1.Post)('coupons'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -574,7 +577,8 @@ __decorate([
 ], ReservationsController.prototype, "createCoupon", null);
 __decorate([
     (0, common_1.Patch)('coupons/:id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)()),
