@@ -5,6 +5,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { BadGatewayException } from '@nestjs/common';
 import { sinCredenciales } from './sin-credenciales';
+import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
 export interface ConversionEvent {
   eventName: string;
@@ -57,7 +58,7 @@ export class MetaConversionsService {
   constructor(private readonly http: HttpService) {}
 
   async sendEvent(pixelId: string, accessToken: string, event: ConversionEvent): Promise<any> {
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     const payload = {
       data: [{
         event_name: event.eventName,

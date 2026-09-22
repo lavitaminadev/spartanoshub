@@ -6,6 +6,7 @@ import { IntegrationAccount } from '../integration-account.entity';
 import { IntegrationAccountType } from '../integration-account-type.enum';
 import { IntegrationMetric } from '../integration-metric.entity';
 import { revealSecret } from '../../../shared/security/integration-secrets';
+import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
 @Injectable()
 export class MetaInsightsService {
@@ -28,7 +29,7 @@ export class MetaInsightsService {
       try {
         const token = revealSecret(typeof account.integration.config?.accessToken === 'string' ? account.integration.config.accessToken : undefined);
         if (!token) throw new BadRequestException('Meta access token unavailable');
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
         const params = new URLSearchParams({ fields: 'date_start,spend,impressions,reach,clicks,actions', date_preset: 'last_30d', time_increment: '1', limit: '100' });
         const response = await fetch(`https://graph.facebook.com/${version}/${account.externalId}/insights?${params}`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) });
         const payload = await response.json() as { data?: MetaInsight[]; error?: { message?: string } };

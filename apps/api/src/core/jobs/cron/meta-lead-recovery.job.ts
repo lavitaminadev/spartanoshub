@@ -5,6 +5,7 @@ import { MetaLeadAdsService } from '../../../modules/integrations/meta/meta-lead
 import { IntegrationAccount } from '../../../modules/integrations/integration-account.entity';
 import { IntegrationAccountType } from '../../../modules/integrations/integration-account-type.enum';
 import { revealSecret } from '../../../shared/security/integration-secrets';
+import { VERSION_GRAPH_POR_DEFECTO } from '../../../modules/integrations/meta/version-de-graph';
 
 @Injectable()
 export class MetaLeadRecoveryJob {
@@ -37,7 +38,7 @@ export class MetaLeadRecoveryJob {
         this.logger.log(`Fetching last leads for Page ${page.externalId}...`);
         
         // Fetch leads from Graph API created in the last 4 hours (or since last check)
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
         const since = Math.floor(Date.now() / 1000) - (4 * 3600); // 4 hours ago
 
         const response = await fetch(`https://graph.facebook.com/${version}/${page.externalId}/leadgen_forms`, {

@@ -18,13 +18,14 @@ const axios_1 = require("@nestjs/axios");
 const rxjs_1 = require("rxjs");
 const common_2 = require("@nestjs/common");
 const sin_credenciales_1 = require("./sin-credenciales");
+const version_de_graph_1 = require("./version-de-graph");
 let MetaConversionsService = MetaConversionsService_1 = class MetaConversionsService {
     constructor(http) {
         this.http = http;
         this.logger = new common_1.Logger(MetaConversionsService_1.name);
     }
     async sendEvent(pixelId, accessToken, event) {
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         const payload = {
             data: [{
                     event_name: event.eventName,

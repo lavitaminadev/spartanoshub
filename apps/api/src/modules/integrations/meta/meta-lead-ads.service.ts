@@ -7,6 +7,7 @@ import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
 import { MetaLeadWebhookEvent } from './meta-lead-webhook-event.entity';
 import { Campaign } from '../../crm/campaigns/campaign.entity';
 import { revealSecret } from '../../../shared/security/integration-secrets';
+import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
 interface MetaLeadgenPayload {
   object?: string;
@@ -285,7 +286,7 @@ export class MetaLeadAdsService {
   }
 
   private async retrieveLead(leadgenId: string, accessToken: string): Promise<MetaLeadDetailResponse> {
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     const params = new URLSearchParams({
       fields: [
         'id',

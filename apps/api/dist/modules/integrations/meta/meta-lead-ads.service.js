@@ -23,6 +23,7 @@ const lead_intake_service_1 = require("../../crm/leads/lead-intake.service");
 const meta_lead_webhook_event_entity_1 = require("./meta-lead-webhook-event.entity");
 const campaign_entity_1 = require("../../crm/campaigns/campaign.entity");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
+const version_de_graph_1 = require("./version-de-graph");
 let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
     constructor(accountsRepo, eventsRepo, campaignsRepo, leadIntake) {
         this.accountsRepo = accountsRepo;
@@ -198,7 +199,7 @@ let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
         return changes;
     }
     async retrieveLead(leadgenId, accessToken) {
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         const params = new URLSearchParams({
             fields: [
                 'id',

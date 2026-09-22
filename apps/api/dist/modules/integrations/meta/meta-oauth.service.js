@@ -26,6 +26,7 @@ const meta_conversion_outbox_entity_1 = require("./meta-conversion-outbox.entity
 const meta_lead_webhook_event_entity_1 = require("./meta-lead-webhook-event.entity");
 const meta_integration_accessor_service_1 = require("./meta-integration-accessor.service");
 const meta_asset_discovery_service_1 = require("./meta-asset-discovery.service");
+const version_de_graph_1 = require("./version-de-graph");
 let MetaOAuthService = class MetaOAuthService {
     constructor(integrations, accounts, conversionOutbox, leadEvents, accessor, assets) {
         this.integrations = integrations;
@@ -41,7 +42,7 @@ let MetaOAuthService = class MetaOAuthService {
             throw new common_1.ServiceUnavailableException('Meta aún no está configurado en el entorno del servidor');
         }
         const scopes = this.getAuthorizationScopes().join(',');
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         return `https://www.facebook.com/${version}/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${encodeURIComponent(state)}`;
     }
     getAppId() {
@@ -62,7 +63,7 @@ let MetaOAuthService = class MetaOAuthService {
             await this.assets.unsubscribePages(pages);
             const token = this.accessor.getAccessToken(integration);
             if (token) {
-                const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+                const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
                 await fetch(`https://graph.facebook.com/${version}/me/permissions`, {
                     method: 'DELETE',
                     headers: { authorization: `Bearer ${token}` },
@@ -87,7 +88,7 @@ let MetaOAuthService = class MetaOAuthService {
     async connectWithCode(organizationId, code, redirectUri) {
         const shortLived = await this.exchangeCode(code, redirectUri);
         const longLived = await this.exchangeForLongLivedToken(shortLived.access_token);
-        const profile = await this.fetchGraph(process.env.META_GRAPH_API_VERSION ?? 'v23.0', '/me', longLived.access_token, { fields: 'id' });
+        const profile = await this.fetchGraph(process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO, '/me', longLived.access_token, { fields: 'id' });
         return this.upsertIntegration(organizationId, {
             config: {
                 accessToken: (0, integration_secrets_1.protectSecret)(longLived.access_token),
@@ -215,7 +216,7 @@ let MetaOAuthService = class MetaOAuthService {
     async exchangeCode(code, redirectUri) {
         const appId = process.env.META_APP_ID;
         const appSecret = process.env.META_APP_SECRET;
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         if (!appId || !appSecret)
             throw new common_1.BadRequestException('Meta OAuth is not configured');
         const params = new URLSearchParams({
@@ -234,7 +235,7 @@ let MetaOAuthService = class MetaOAuthService {
     async exchangeForLongLivedToken(accessToken) {
         const appId = process.env.META_APP_ID;
         const appSecret = process.env.META_APP_SECRET;
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         if (!appId || !appSecret)
             throw new common_1.BadRequestException('Meta OAuth is not configured');
         const params = new URLSearchParams({

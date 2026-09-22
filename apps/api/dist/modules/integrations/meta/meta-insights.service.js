@@ -21,6 +21,7 @@ const integration_account_entity_1 = require("../integration-account.entity");
 const integration_account_type_enum_1 = require("../integration-account-type.enum");
 const integration_metric_entity_1 = require("../integration-metric.entity");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
+const version_de_graph_1 = require("./version-de-graph");
 let MetaInsightsService = MetaInsightsService_1 = class MetaInsightsService {
     constructor(accounts, metrics) {
         this.accounts = accounts;
@@ -44,7 +45,7 @@ let MetaInsightsService = MetaInsightsService_1 = class MetaInsightsService {
                 const token = (0, integration_secrets_1.revealSecret)(typeof account.integration.config?.accessToken === 'string' ? account.integration.config.accessToken : undefined);
                 if (!token)
                     throw new common_1.BadRequestException('Meta access token unavailable');
-                const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+                const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
                 const params = new URLSearchParams({ fields: 'date_start,spend,impressions,reach,clicks,actions', date_preset: 'last_30d', time_increment: '1', limit: '100' });
                 const response = await fetch(`https://graph.facebook.com/${version}/${account.externalId}/insights?${params}`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) });
                 const payload = await response.json();

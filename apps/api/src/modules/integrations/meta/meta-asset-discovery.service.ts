@@ -7,6 +7,7 @@ import { IntegrationAccountType } from '../integration-account-type.enum';
 import { protectSecret, revealSecret } from '../../../shared/security/integration-secrets';
 import type { MetaAssetSelectionDto } from './dto/meta-integration.dto';
 import { MetaIntegrationAccessor } from './meta-integration-accessor.service';
+import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
 /**
  * Descubre, persiste y gestiona la selección de páginas de Meta, perfiles de
@@ -23,7 +24,7 @@ export class MetaAssetDiscoveryService {
   async discoverAssets(integrationId: string, organizationId: string): Promise<MetaAssetsResponse> {
     const integration = await this.accessor.requireIntegration(integrationId, organizationId);
     const accessToken = this.accessor.getAccessToken(integration);
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
 
     const [pagesResponse, adAccountsResponse] = await Promise.all([
       this.fetchGraph<MetaPagesResponse>(version, '/me/accounts', accessToken, {
@@ -167,7 +168,7 @@ export class MetaAssetDiscoveryService {
   }
 
   async subscribeSelectedPages(pages: IntegrationAccount[]) {
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     const subscribedFields = [
       'leadgen',
       'messages',
@@ -195,7 +196,7 @@ export class MetaAssetDiscoveryService {
   }
 
   async unsubscribePages(pages: IntegrationAccount[]) {
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     await Promise.all(pages.map(async (page) => {
       const accessToken = revealSecret(page.accessToken);
       if (!accessToken) return;

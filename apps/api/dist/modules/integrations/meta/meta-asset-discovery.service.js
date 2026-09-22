@@ -21,6 +21,7 @@ const integration_account_entity_1 = require("../integration-account.entity");
 const integration_account_type_enum_1 = require("../integration-account-type.enum");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
 const meta_integration_accessor_service_1 = require("./meta-integration-accessor.service");
+const version_de_graph_1 = require("./version-de-graph");
 let MetaAssetDiscoveryService = class MetaAssetDiscoveryService {
     constructor(integrations, accounts, accessor) {
         this.integrations = integrations;
@@ -30,7 +31,7 @@ let MetaAssetDiscoveryService = class MetaAssetDiscoveryService {
     async discoverAssets(integrationId, organizationId) {
         const integration = await this.accessor.requireIntegration(integrationId, organizationId);
         const accessToken = this.accessor.getAccessToken(integration);
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         const [pagesResponse, adAccountsResponse] = await Promise.all([
             this.fetchGraph(version, '/me/accounts', accessToken, {
                 fields: 'id,name,access_token,category,connected_instagram_account{id,username}',
@@ -146,7 +147,7 @@ let MetaAssetDiscoveryService = class MetaAssetDiscoveryService {
         return { saved: true, assets: await this.getAssets(integrationId, organizationId) };
     }
     async subscribeSelectedPages(pages) {
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         const subscribedFields = [
             'leadgen',
             'messages',
@@ -173,7 +174,7 @@ let MetaAssetDiscoveryService = class MetaAssetDiscoveryService {
         }));
     }
     async unsubscribePages(pages) {
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         await Promise.all(pages.map(async (page) => {
             const accessToken = (0, integration_secrets_1.revealSecret)(page.accessToken);
             if (!accessToken)

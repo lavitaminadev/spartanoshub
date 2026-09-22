@@ -11,6 +11,7 @@ import { MetaConversionOutbox } from './meta-conversion-outbox.entity';
 import { MetaLeadWebhookEvent } from './meta-lead-webhook-event.entity';
 import { MetaIntegrationAccessor } from './meta-integration-accessor.service';
 import { MetaAssetDiscoveryService } from './meta-asset-discovery.service';
+import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
 /**
  * Ciclo de vida de la conexión OAuth para Meta: autorizar, intercambiar tokens,
@@ -35,7 +36,7 @@ export class MetaOAuthService {
       throw new ServiceUnavailableException('Meta aún no está configurado en el entorno del servidor');
     }
     const scopes = this.getAuthorizationScopes().join(',');
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     return `https://www.facebook.com/${version}/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${encodeURIComponent(state)}`;
   }
 
@@ -58,7 +59,7 @@ export class MetaOAuthService {
       await this.assets.unsubscribePages(pages);
       const token = this.accessor.getAccessToken(integration);
       if (token) {
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
         await fetch(`https://graph.facebook.com/${version}/me/permissions`, {
           method: 'DELETE',
           headers: { authorization: `Bearer ${token}` },
@@ -90,7 +91,7 @@ export class MetaOAuthService {
     const shortLived = await this.exchangeCode(code, redirectUri);
     const longLived = await this.exchangeForLongLivedToken(shortLived.access_token);
     const profile = await this.fetchGraph<{ id: string }>(
-      process.env.META_GRAPH_API_VERSION ?? 'v23.0',
+      process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO,
       '/me',
       longLived.access_token,
       { fields: 'id' },
@@ -237,7 +238,7 @@ export class MetaOAuthService {
   private async exchangeCode(code: string, redirectUri: string): Promise<MetaTokenResponse> {
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     if (!appId || !appSecret) throw new BadRequestException('Meta OAuth is not configured');
 
     const params = new URLSearchParams({
@@ -263,7 +264,7 @@ export class MetaOAuthService {
   private async exchangeForLongLivedToken(accessToken: string): Promise<MetaTokenResponse> {
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     if (!appId || !appSecret) throw new BadRequestException('Meta OAuth is not configured');
 
     const params = new URLSearchParams({
