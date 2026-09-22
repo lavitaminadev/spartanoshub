@@ -450,6 +450,10 @@ export class ActualizarOperacionDto {
   @IsOptional() @IsInt() @Min(0) @Max(120) toleranciaMinutos?: number;
   /** Aviso libre del local, antes del formulario. Vacío no muestra nada. */
   @IsOptional() @IsString() @MaxLength(400) notasDelLocal?: string;
+  /** Cómo se estaciona: convenio, dirección, horario. Se muestra en su propia línea, antes de elegir hora. */
+  @IsOptional() @IsString() @MaxLength(200) estacionamiento?: string;
+  /** Mostrar o no el estacionamiento sin borrar lo escrito: un día con el estacionamiento cerrado. */
+  @IsOptional() @IsBoolean() estacionamientoVisible?: boolean;
   @IsOptional() @IsString() @MaxLength(40) whatsappBusinessNumber?: string;
   /**
    * Zonas que hoy reciben gente, por id. Las que no estén en la lista quedan inactivas.

@@ -89,6 +89,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
   const [topeDelDia, setTopeDelDia] = useState('');
   const [tolerancia, setTolerancia] = useState('');
   const [aviso, setAviso] = useState('');
+  const [estacionamiento, setEstacionamiento] = useState('');
+  const [muestraEstacionamiento, setMuestraEstacionamiento] = useState(false);
   const [whatsapp, setWhatsapp] = useState('');
   const [zonasActivas, setZonasActivas] = useState<string[]>([]);
   const [cuposZona, setCuposZona] = useState<Record<string, string>>({});
@@ -106,6 +108,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
     setTopeDelDia(String(local.dailyCapacity ?? 0));
     setTolerancia(String(design.toleranciaMinutos || ''));
     setAviso(String(design.notasDelLocal || ''));
+    setEstacionamiento(String(design.estacionamiento || ''));
+    setMuestraEstacionamiento(Boolean(String(design.estacionamiento || '').trim()) && design.estacionamientoVisible !== 'false');
     setWhatsapp(String(design.whatsappBusinessNumber || ''));
     setZonasActivas(zonas.filter((zona) => zona.active !== false).map((zona) => zona.id));
     setCuposZona(Object.fromEntries(zonas.map((zona) => [zona.id, zona.capacity ? String(zona.capacity) : ''])));
@@ -205,6 +209,9 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
     const espera = Number(tolerancia || 0);
     if (Number.isInteger(espera) && espera >= 0 && String(espera) !== String(design.toleranciaMinutos || '0')) cambios.toleranciaMinutos = espera;
     if (aviso.trim() !== String(design.notasDelLocal || '').trim()) cambios.notasDelLocal = aviso.trim();
+    if (estacionamiento.trim() !== String(design.estacionamiento || '').trim()) cambios.estacionamiento = estacionamiento.trim();
+    const mostrabaEstacionamiento = Boolean(String(design.estacionamiento || '').trim()) && design.estacionamientoVisible !== 'false';
+    if (muestraEstacionamiento !== mostrabaEstacionamiento) cambios.estacionamientoVisible = muestraEstacionamiento;
     if (whatsapp.trim() !== String(design.whatsappBusinessNumber || '').trim()) cambios.whatsappBusinessNumber = whatsapp.trim();
     const activasAhora = zonas.filter((zona) => zona.active !== false).map((zona) => zona.id);
     if (zonas.length > 0 && (activasAhora.length !== zonasActivas.length || activasAhora.some((id) => !zonasActivas.includes(id)))) cambios.zonasActivas = zonasActivas;
@@ -287,8 +294,34 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
 
       <section className="ajustes-bloque">
         <h3>Lo que ve quien reserva</h3>
+        {/*
+          * Estacionamiento, con su propio interruptor.
+          *
+          * Escrito dentro del aviso no se sabía si se mostraba. Escribir lo enciende, borrarlo lo
+          * apaga, y se puede apagar a mano sin perder el texto para el día que vuelva a abrir.
+          */}
+        <div className="ajustes-estacionamiento">
+          <label className="toggle-row">
+            <input type="checkbox" checked={muestraEstacionamiento} disabled={!estacionamiento.trim()} onChange={(evento) => setMuestraEstacionamiento(evento.target.checked)} />
+            Mostrar estacionamiento
+          </label>
+          <input
+            className="input"
+            maxLength={200}
+            aria-label="Estacionamiento"
+            placeholder="Ej.: convenio en Calle 123, 2 horas gratis"
+            value={estacionamiento}
+            onChange={(evento) => {
+              const texto = evento.target.value;
+              if (!estacionamiento.trim() && texto.trim()) setMuestraEstacionamiento(true);
+              if (!texto.trim()) setMuestraEstacionamiento(false);
+              setEstacionamiento(texto);
+            }}
+          />
+          <small>{muestraEstacionamiento ? 'Se muestra en la página, antes de elegir la hora.' : estacionamiento.trim() ? 'Apagado: no se muestra, pero el texto queda guardado.' : 'Sin texto no se muestra nada.'}</small>
+        </div>
         <label>Aviso antes de reservar
-          <small>Estacionamiento, vestimenta, avisos del día. Vacío no muestra nada.</small>
+          <small>Vestimenta, avisos del día. Vacío no muestra nada.</small>
           <textarea className="input" rows={3} maxLength={400} value={aviso} onChange={(evento) => setAviso(evento.target.value)} />
         </label>
         <div className="ajustes-grid">
