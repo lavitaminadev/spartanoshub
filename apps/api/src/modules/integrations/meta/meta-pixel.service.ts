@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { sinCredenciales } from './sin-credenciales';
+import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
 interface MetaPixelInfo { id?: string; name?: string; last_fired_time?: string }
 interface MetaPixelStats { data?: Array<Record<string, unknown>> }
@@ -48,7 +49,7 @@ export class MetaPixelService {
    * verdad. Solo la última impide guardar.
    */
   async verificarPixel(pixelId: string, accessToken: string): Promise<VerificacionDePixel> {
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     try {
       const { data } = await firstValueFrom(
         this.http.get<MetaPixelInfo>(`https://graph.facebook.com/${version}/${pixelId}`, {
@@ -93,7 +94,7 @@ export class MetaPixelService {
   }
 
   async getPixelStats(pixelId: string, accessToken: string): Promise<MetaPixelStats | null> {
-    const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     try {
       const { data } = await firstValueFrom(
         this.http.get<MetaPixelStats>(`https://graph.facebook.com/${version}/${pixelId}/stats`, {

@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { firstValueFrom } from "rxjs";
+import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
 type MetaPayload = {
   object?: string;
@@ -111,7 +112,7 @@ export class MetaService {
   private async sendInstagramText(accountId: string, recipientId: string, text: string) {
     const token = process.env[`META_TOKEN_${accountId}`] ?? process.env.META_PAGE_ACCESS_TOKEN;
     if (!token) return { skipped: true, reason: "missing_page_token" };
-    const version = process.env.META_GRAPH_API_VERSION ?? "v23.0";
+    const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
     const { data } = await firstValueFrom(
       this.http.post<MetaMessageResponse>(
         `https://graph.facebook.com/${version}/${accountId}/messages`,
@@ -128,7 +129,7 @@ export class MetaService {
     const currentToken = process.env[`META_TOKEN_${accountId}`] ?? process.env.META_PAGE_ACCESS_TOKEN;
     if (!appId || !appSecret || !currentToken) return false;
     try {
-      const version = process.env.META_GRAPH_API_VERSION ?? "v23.0";
+      const version = process.env.META_GRAPH_API_VERSION ?? VERSION_GRAPH_POR_DEFECTO;
       const { data } = await firstValueFrom(
         this.http.get<MetaTokenResponse>(`https://graph.facebook.com/${version}/oauth/access_token`, {
           params: {

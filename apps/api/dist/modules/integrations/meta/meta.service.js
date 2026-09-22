@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const axios_1 = require("@nestjs/axios");
 const node_crypto_1 = require("node:crypto");
 const rxjs_1 = require("rxjs");
+const version_de_graph_1 = require("./version-de-graph");
 function verifyMetaSignature(rawBody, signature, secret) {
     if (!signature.startsWith("sha256="))
         return false;
@@ -77,7 +78,7 @@ let MetaService = class MetaService {
         const token = process.env[`META_TOKEN_${accountId}`] ?? process.env.META_PAGE_ACCESS_TOKEN;
         if (!token)
             return { skipped: true, reason: "missing_page_token" };
-        const version = process.env.META_GRAPH_API_VERSION ?? "v23.0";
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         const { data } = await (0, rxjs_1.firstValueFrom)(this.http.post(`https://graph.facebook.com/${version}/${accountId}/messages`, { recipient: { id: recipientId }, message: { text } }, { headers: { authorization: `Bearer ${token}`, "content-type": "application/json" } }));
         return data;
     }
@@ -88,7 +89,7 @@ let MetaService = class MetaService {
         if (!appId || !appSecret || !currentToken)
             return false;
         try {
-            const version = process.env.META_GRAPH_API_VERSION ?? "v23.0";
+            const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
             const { data } = await (0, rxjs_1.firstValueFrom)(this.http.get(`https://graph.facebook.com/${version}/oauth/access_token`, {
                 params: {
                     grant_type: "fb_exchange_token",

@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const axios_1 = require("@nestjs/axios");
 const rxjs_1 = require("rxjs");
 const sin_credenciales_1 = require("./sin-credenciales");
+const version_de_graph_1 = require("./version-de-graph");
 const CREDENCIAL_INVALIDA = [190, 102];
 let MetaPixelService = MetaPixelService_1 = class MetaPixelService {
     constructor(http) {
@@ -22,7 +23,7 @@ let MetaPixelService = MetaPixelService_1 = class MetaPixelService {
         this.logger = new common_1.Logger(MetaPixelService_1.name);
     }
     async verificarPixel(pixelId, accessToken) {
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         try {
             const { data } = await (0, rxjs_1.firstValueFrom)(this.http.get(`https://graph.facebook.com/${version}/${pixelId}`, {
                 params: { fields: 'id,name,last_fired_time' },
@@ -47,7 +48,7 @@ let MetaPixelService = MetaPixelService_1 = class MetaPixelService {
         return (await this.verificarPixel(pixelId, accessToken)).verificado;
     }
     async getPixelStats(pixelId, accessToken) {
-        const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+        const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
         try {
             const { data } = await (0, rxjs_1.firstValueFrom)(this.http.get(`https://graph.facebook.com/${version}/${pixelId}/stats`, {
                 headers: { authorization: `Bearer ${accessToken}` },

@@ -21,6 +21,7 @@ const meta_lead_ads_service_1 = require("../../../modules/integrations/meta/meta
 const integration_account_entity_1 = require("../../../modules/integrations/integration-account.entity");
 const integration_account_type_enum_1 = require("../../../modules/integrations/integration-account-type.enum");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
+const version_de_graph_1 = require("../../../modules/integrations/meta/version-de-graph");
 let MetaLeadRecoveryJob = MetaLeadRecoveryJob_1 = class MetaLeadRecoveryJob {
     constructor(accountsRepo, metaLeadAdsService) {
         this.accountsRepo = accountsRepo;
@@ -43,7 +44,7 @@ let MetaLeadRecoveryJob = MetaLeadRecoveryJob_1 = class MetaLeadRecoveryJob {
             }
             try {
                 this.logger.log(`Fetching last leads for Page ${page.externalId}...`);
-                const version = process.env.META_GRAPH_API_VERSION ?? 'v23.0';
+                const version = process.env.META_GRAPH_API_VERSION ?? version_de_graph_1.VERSION_GRAPH_POR_DEFECTO;
                 const since = Math.floor(Date.now() / 1000) - (4 * 3600);
                 const response = await fetch(`https://graph.facebook.com/${version}/${page.externalId}/leadgen_forms`, {
                     headers: { authorization: `Bearer ${accessToken}` },
