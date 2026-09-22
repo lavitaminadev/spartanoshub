@@ -24,7 +24,8 @@ const client_capability_service_1 = require("../../../../core/client-scope/clien
 const lead_entity_1 = require("../../../crm/leads/lead.entity");
 const campaign_entity_1 = require("../../../crm/campaigns/campaign.entity");
 const atribucion_del_lead_1 = require("../atribucion-del-lead");
-const region_del_lead_1 = require("../region-del-lead");
+const ubicacion_del_lead_1 = require("../ubicacion-del-lead");
+const identificadores_meta_1 = require("../identificadores-meta");
 let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChangedHandler {
     constructor(outbox, clientPixels, capacidades, leads, campaigns) {
         this.outbox = outbox;
@@ -78,7 +79,7 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                     + 'si Meta lo rechaza, configura el token de esa empresa.');
             }
             const atribucion = (0, atribucion_del_lead_1.atribucionDelLead)(lead);
-            const region = (0, region_del_lead_1.regionDelLead)(lead.metadata);
+            const ubicacion = (0, ubicacion_del_lead_1.ubicacionDelLead)(lead.metadata, lead.phone);
             const leadId = lead.source === 'meta_lead_ads' && lead.externalLeadId
                 && LeadStageChangedHandler_1.LEADGEN_ID.test(lead.externalLeadId)
                 ? lead.externalLeadId
@@ -96,7 +97,9 @@ let LeadStageChangedHandler = LeadStageChangedHandler_1 = class LeadStageChanged
                     fn: partirNombre(lead.name).nombre,
                     ln: partirNombre(lead.name).apellido,
                     country: ['cl'],
-                    st: region ? [region] : undefined,
+                    st: ubicacion.region ? [ubicacion.region] : undefined,
+                    ct: ubicacion.ciudad ? [ubicacion.ciudad] : undefined,
+                    db: (0, identificadores_meta_1.fechaDeNacimientoParaMeta)(lead.birthDate),
                     externalId: [lead.id],
                     fbp: atribucion.fbp,
                     fbc: atribucion.fbc,

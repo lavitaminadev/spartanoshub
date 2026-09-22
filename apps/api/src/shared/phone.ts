@@ -2,6 +2,14 @@
 const MAX_DIGITS = 15;
 
 /**
+ * Prefijos de país que se reconocen cuando alguien escribe su número sin el «+».
+ *
+ * Son los de los países desde los que llegan reservas y leads. Uno que no esté acá recibe el
+ * prefijo por defecto, que es lo que hacía antes con todos.
+ */
+const PREFIJOS_CONOCIDOS = ['54', '51', '591', '598', '595', '57', '52', '34'];
+
+/**
  * Prefijo que se antepone cuando el número no trae uno propio.
  *
  * Se lee en cada llamada y no al cargar el módulo: leerlo una sola vez ata el valor al orden
@@ -43,10 +51,17 @@ export function normalizePhone(value?: string | null): string | undefined {
 
   if (hadPlus) return `+${digits.slice(0, MAX_DIGITS)}`;
 
-  // Un número que ya trae su prefijo de país es más largo que uno local. Nueve dígitos o menos
-  // en Chile es un número sin prefijo, así que se le antepone.
+  /*
+   * Un número que ya trae su prefijo de país es más largo que uno local. Nueve dígitos o menos
+   * en Chile es un número sin prefijo, así que se le antepone.
+   *
+   * Se reconocen también los prefijos de los países vecinos: un argentino que escribe su número
+   * sin el «+» recibía el prefijo de Chile por delante, y ese número no existe. Lo que empieza
+   * con un prefijo conocido y es más largo que un número local ya viene con su país.
+   */
   const prefix = defaultCountryPrefix();
-  const alreadyInternational = digits.startsWith(prefix) && digits.length > 9;
+  const alreadyInternational = digits.length > 9
+    && (digits.startsWith(prefix) || PREFIJOS_CONOCIDOS.some((conocido) => digits.startsWith(conocido)));
   const withPrefix = alreadyInternational ? digits : `${prefix}${digits}`;
   return `+${withPrefix.slice(0, MAX_DIGITS)}`;
 }

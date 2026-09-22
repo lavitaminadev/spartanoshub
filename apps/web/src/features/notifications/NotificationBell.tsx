@@ -40,7 +40,16 @@ function notificationRoute(notification: NotificationRecord, clientView: boolean
     return null;
   }
   if (notification.type.startsWith('piece.')) return '/production';
-  if (notification.type.startsWith('lead.')) return '/crm/leads';
+  /*
+   * Los avisos del CRM llevan al lead que avisan.
+   *
+   * El tipo que guarda el servidor es `crm.lead.cerrado`, así que la regla anterior —que sólo
+   * miraba `lead.`— no lo reconocía: tocar el aviso no hacía nada.
+   */
+  if (notification.type.startsWith('lead.') || notification.type.startsWith('crm.lead')) {
+    const lead = typeof notification.data?.leadId === 'string' ? notification.data.leadId : '';
+    return lead ? `/crm/leads?lead=${encodeURIComponent(lead)}` : '/crm/leads';
+  }
   if (notification.type.startsWith('reservation_')) return destinoDeReservas(notification, '/reservations');
   if (notification.type.startsWith('approval.')) return '/approvals';
   if (notification.type.startsWith('survey_')) return '/surveys';

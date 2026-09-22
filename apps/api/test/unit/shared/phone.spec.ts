@@ -47,4 +47,12 @@ describe('normalizePhone', () => {
     expect(normalizePhoneDigits('912345678')).toBe('56912345678');
     expect(normalizePhoneDigits(undefined)).toBeUndefined();
   });
+
+  it('un numero extranjero escrito sin «+» conserva su pais', () => {
+    // Antes recibia el 56 por delante y quedaba un numero que no existe.
+    expect(normalizePhone('5491122334455')).toBe('+5491122334455');
+    expect(normalizePhoneDigits('5491122334455')).toBe('5491122334455');
+    // Un fijo chileno de nueve digitos sigue recibiendo su prefijo.
+    expect(normalizePhone('221234567')).toBe('+56221234567');
+  });
 });

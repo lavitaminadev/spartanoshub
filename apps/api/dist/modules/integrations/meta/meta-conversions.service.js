@@ -38,6 +38,7 @@ let MetaConversionsService = MetaConversionsService_1 = class MetaConversionsSer
                         ln: event.userData.ln,
                         ct: event.userData.ct,
                         st: event.userData.st,
+                        db: event.userData.db,
                         country: event.userData.country,
                         external_id: event.userData.externalId,
                         lead_id: event.userData.lead_id,

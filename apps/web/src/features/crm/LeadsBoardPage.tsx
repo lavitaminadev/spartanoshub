@@ -23,6 +23,7 @@
 import { useEffect, useMemo, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
+import { triggerToast } from '../../shared/toast-events';
 import { KanbanBoard, type KanbanColumn } from '../../shared/KanbanBoard';
 import { FilterBar } from '../../shared/FilterBar';
 import { useDefinicionesDeCampos } from './CamposPropiosEnFicha';
@@ -153,6 +154,21 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const valorFiltro = campoElegido && (opcionesDelCampo.length === 0 || opcionesDelCampo.some((opcion) => opcion.value === filtros.values.valor)) ? filtros.values.valor ?? '' : '';
   const [aviso, setAviso] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
   const [abierto, setAbierto] = useState<Lead | null>(null);
+  /*
+   * Llegar desde un aviso con un lead concreto.
+   *
+   * Se pide por su id porque el tablero muestra una etapa a la vez y filtros propios: el lead
+   * del aviso puede no estar entre los que hay a la vista.
+   */
+  const leadPedido = new URLSearchParams(location.search).get('lead');
+  const [leadAbiertoDesdeAviso, setLeadAbiertoDesdeAviso] = useState('');
+  useEffect(() => {
+    if (!leadPedido || leadAbiertoDesdeAviso === leadPedido) return;
+    setLeadAbiertoDesdeAviso(leadPedido);
+    void api.get<Lead>(`/crm/leads/${encodeURIComponent(leadPedido)}`)
+      .then(setAbierto)
+      .catch(() => triggerToast('Ese lead ya no está disponible', 'error'));
+  }, [leadPedido, leadAbiertoDesdeAviso]);
   /*
    * Columnas visibles, recordadas por embudo.
    *
