@@ -384,6 +384,24 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     enabled: tab === 'groups',
   });
   const grupos = Array.isArray(gruposData) ? gruposData : [];
+  /*
+   * Llegar desde un aviso con una reserva o una solicitud concreta.
+   *
+   * La reserva se pide por su id porque la lista filtrada puede no tenerla —es de otro día o de
+   * otro local—; la solicitud se busca entre las del módulo y se trae a la vista.
+   */
+  const reservaPedida = searchParams.get('reserva');
+  const solicitudResaltada = searchParams.get('solicitud');
+  const [reservaAbierta, setReservaAbierta] = useState('');
+  useEffect(() => {
+    if (!reservaPedida || reservaAbierta === reservaPedida) return;
+    setReservaAbierta(reservaPedida);
+    void api.get<Reservation>(`/reservations/${encodeURIComponent(reservaPedida)}`).then(setSelectedBooking).catch(() => triggerToast('Esa reserva ya no está disponible', 'error'));
+  }, [reservaPedida, reservaAbierta]);
+  useEffect(() => {
+    if (!solicitudResaltada || !grupos.some((item) => item.id === solicitudResaltada)) return;
+    document.getElementById(`solicitud-${solicitudResaltada}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [solicitudResaltada, grupos]);
   const solicitudPedida = searchParams.get('convertir') || searchParams.get('cerrar');
   const [solicitudAtendida, setSolicitudAtendida] = useState('');
   useEffect(() => {
@@ -621,7 +639,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           const details = (request.details || {}) as Record<string, unknown>;
           const local = forms.find((form) => form.id === request.formId);
           const origen = origenDeSolicitud(request);
-          return <article key={request.id} className="reservation-request-card">
+          return <article key={request.id} id={`solicitud-${request.id}`} className={`reservation-request-card${solicitudResaltada === request.id ? ' is-resaltada' : ''}`}>
             <div>
               <strong>{request.guestName} · {request.partySize} personas</strong>
               <span>{TIPO_DE_EVENTO[request.eventType] ?? request.eventType}{request.preferredDate ? ` · ${fechaLegible(request.preferredDate)}` : ''}{request.preferredTime ? ` · ${request.preferredTime}` : ''}</span>

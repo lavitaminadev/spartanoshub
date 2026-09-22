@@ -1842,7 +1842,8 @@ export class ReservationsService {
         ? `${booking.guestName} canceló su reserva ${booking.referenceCode} del ${fecha(booking.startsAt)} (${booking.partySize} personas) en ${form.name}.`
         : `${booking.guestName} cambió su reserva ${booking.referenceCode} en ${form.name}: ahora ${fecha(booking.startsAt)}, ${booking.partySize} personas${horaAnterior ? ` (antes ${fecha(horaAnterior)})` : ''}.`;
       const equipo = await this.equipoDelLocal(form);
-      if (equipo.userIds.length) await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle);
+      // Con el id, tocar el aviso abre esa reserva y no la portada del módulo.
+      if (equipo.userIds.length) await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle, { reservationId: booking.id, formId: form.id, clientId: form.clientId });
       const { subject, html } = componerCorreo(titulo, '{{detalle}}', { detalle });
       void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
         .catch((err) => this.logger.warn(`Aviso de cambio de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
@@ -2844,6 +2845,13 @@ export class ReservationsService {
    * tiene cuenta. Es solo lectura y nunca cruza a otra empresa, así que consultar el historial
    * no puede sobrescribir lo que la persona escribió esta vez.
    */
+/** Una reserva por su id, dentro del alcance de quien la pide: es a donde lleva tocar un aviso. */
+  async getReservation(organizationId: string, id: string, clientId?: string, clientIds?: string[]) {
+    const reserva = await this.reservations.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
+    if (!reserva) throw new NotFoundException('Reserva no encontrada');
+    return reserva;
+  }
+
   async guestHistory(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) {
     const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
     if (!actual) throw new NotFoundException('Reserva no encontrada');

@@ -1481,7 +1481,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 : `${booking.guestName} cambió su reserva ${booking.referenceCode} en ${form.name}: ahora ${fecha(booking.startsAt)}, ${booking.partySize} personas${horaAnterior ? ` (antes ${fecha(horaAnterior)})` : ''}.`;
             const equipo = await this.equipoDelLocal(form);
             if (equipo.userIds.length)
-                await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle);
+                await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle, { reservationId: booking.id, formId: form.id, clientId: form.clientId });
             const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(titulo, '{{detalle}}', { detalle });
             void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
                 .catch((err) => this.logger.warn(`Aviso de cambio de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
@@ -2328,6 +2328,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             }
             return { closed: bookings.length, date: dto.date, formId: form.id };
         });
+    }
+    async getReservation(organizationId, id, clientId, clientIds) {
+        const reserva = await this.reservations.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } });
+        if (!reserva)
+            throw new common_1.NotFoundException('Reserva no encontrada');
+        return reserva;
     }
     async guestHistory(organizationId, reservationId, clientId, clientIds) {
         const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });

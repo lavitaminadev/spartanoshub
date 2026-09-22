@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { DataSource } from 'typeorm';
 import { AuthGuard } from '@nestjs/passport';
@@ -498,5 +498,13 @@ export class ReservationsController {
   ) {
     const scope = await this.scope(req);
     return this.service.updateSurveyContactRequest(req.organizationId, id, body, scope.clientId, scope.clientIds, req.user.id);
+  }
+
+  /** Una reserva concreta: es a donde lleva tocar un aviso de reserva nueva, cancelada o reagendada. */
+  @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async getReservation(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
+    const scope = await this.scope(req);
+    return this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
   }
 }
