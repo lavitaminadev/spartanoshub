@@ -69,6 +69,17 @@ __decorate([
 ], ListLeadsQueryDto.prototype, "incluirDescartados", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(180),
+    __metadata("design:type", String)
+], ListLeadsQueryDto.prototype, "anuncio", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['ig', 'fb']),
+    __metadata("design:type", String)
+], ListLeadsQueryDto.prototype, "plataforma", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.Matches)(/^[a-z][a-z0-9_]{0,39}$/),
     __metadata("design:type", String)
 ], ListLeadsQueryDto.prototype, "campoPropio", void 0);

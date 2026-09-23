@@ -39,6 +39,19 @@ let ListLeadsUseCase = class ListLeadsUseCase {
         const domain = filters.domain ?? 'commercial';
         if (domain !== 'all')
             where.domain = domain;
+        const deLaCaptura = [];
+        const valoresDeLaCaptura = {};
+        if (filters.anuncio) {
+            deLaCaptura.push("JSON_UNQUOTE(JSON_EXTRACT({columna}, '$.adName')) LIKE :anuncio");
+            valoresDeLaCaptura.anuncio = `%${filters.anuncio}%`;
+        }
+        if (filters.plataforma) {
+            deLaCaptura.push("JSON_UNQUOTE(JSON_EXTRACT({columna}, '$.platform')) = :plataforma");
+            valoresDeLaCaptura.plataforma = filters.plataforma;
+        }
+        if (deLaCaptura.length > 0) {
+            where.metadata = (0, typeorm_2.Raw)((columna) => deLaCaptura.map((condicion) => condicion.replace('{columna}', columna)).join(' AND '), valoresDeLaCaptura);
+        }
         if (filters.campoPropio && filters.valorPropio !== undefined && /^[a-z][a-z0-9_]{0,39}$/.test(filters.campoPropio)) {
             const ruta = `$."${filters.campoPropio}"`;
             where.customFields = (0, typeorm_2.Raw)((columna) => `(JSON_UNQUOTE(JSON_EXTRACT(${columna}, :rutaPropia)) = :valorPropio OR JSON_CONTAINS(JSON_EXTRACT(${columna}, :rutaPropia), JSON_QUOTE(:valorPropio)))`, { rutaPropia: ruta, valorPropio: filters.valorPropio });

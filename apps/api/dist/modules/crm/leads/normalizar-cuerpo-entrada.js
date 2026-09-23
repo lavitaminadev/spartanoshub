@@ -90,6 +90,8 @@ function normalizarCuerpoEntrada(cuerpo) {
 function parsearAvisos(valor) {
     if (Array.isArray(valor))
         return valor.slice(0, 20);
+    if (valor && typeof valor === 'object')
+        return [valor];
     if (typeof valor !== 'string' || !valor.trim() || valor.length > 20_000)
         return [];
     try {

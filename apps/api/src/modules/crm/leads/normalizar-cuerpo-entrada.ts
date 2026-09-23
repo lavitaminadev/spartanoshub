@@ -168,6 +168,8 @@ export function normalizarCuerpoEntrada(cuerpo: Record<string, unknown>): Record
  */
 function parsearAvisos(valor: unknown): unknown[] {
   if (Array.isArray(valor)) return valor.slice(0, 20);
+  // Un solo aviso llega a veces como objeto: se guarda igual, no se descarta por su forma.
+  if (valor && typeof valor === 'object') return [valor];
   if (typeof valor !== 'string' || !valor.trim() || valor.length > 20_000) return [];
   try {
     const parsed: unknown = JSON.parse(valor);

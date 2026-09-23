@@ -42,6 +42,15 @@ export class ListLeadsQueryDto extends PaginationDto {
    * La clave sigue la misma regla que al crear el campo, así nunca llega texto arbitrario a la
    * ruta JSON. El valor se compara exacto; en una selección múltiple basta con que lo contenga.
    */
+  /**
+   * Anuncio del que vino el lead, por su nombre. Compara por contenido: los nombres llevan
+   * fecha y versión —«FRANQUICIAS-REEL2-MAY2026»— y casi siempre se busca la familia, no uno.
+   */
+  @IsOptional() @IsString() @MaxLength(180) anuncio?: string;
+
+  /** Dónde vio el anuncio: `ig` o `fb`. Una misma campaña trae por los dos. */
+  @IsOptional() @IsIn(['ig', 'fb']) plataforma?: string;
+
   @IsOptional() @Matches(/^[a-z][a-z0-9_]{0,39}$/) campoPropio?: string;
   @ValidateIf((objeto: { campoPropio?: string }) => Boolean(objeto.campoPropio)) @IsString() @MaxLength(255) valorPropio?: string;
 }

@@ -115,4 +115,8 @@ describe('avisos extra del formulario', () => {
   it('sin avisos no agrega nada', () => {
     expect(avisos({ nombre: 'Ana' })).toBeUndefined();
   });
+
+  it('acepta un solo aviso entregado como objeto', () => {
+    expect(avisos({ nombre: 'Ana', custom_disclaimer_responses: { checkbox_key: 'terminos', is_checked: true } })).toHaveLength(1);
+  });
 });
