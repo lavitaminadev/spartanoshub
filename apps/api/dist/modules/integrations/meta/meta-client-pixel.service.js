@@ -159,6 +159,15 @@ let MetaClientPixelService = class MetaClientPixelService {
         const agencyPixelId = typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : null;
         return { bindings, pixels: [...pixels, ...sinAsignar], agencyPixelId };
     }
+    async assertPixelDeLaEmpresa(organizationId, clientId, pixelId) {
+        const ajeno = await this.pixelesGuardados.findOne({
+            where: { organizationId, pixelId, clientId: (0, typeorm_2.Not)((0, typeorm_3.IsNull)()) },
+            select: { id: true, clientId: true },
+        });
+        if (ajeno && ajeno.clientId !== clientId) {
+            throw new common_1.BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
+        }
+    }
     async pixelesElegibles(organizationId, clientId) {
         const filas = await this.pixelesGuardados.find({
             where: [{ organizationId, clientId }, { organizationId, clientId: (0, typeorm_3.IsNull)() }],

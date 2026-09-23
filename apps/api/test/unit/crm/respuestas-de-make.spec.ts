@@ -90,3 +90,33 @@ describe('respuestas del formulario que llegan por Make', () => {
     expect(answers.length).toBeLessThanOrEqual(60);
   });
 });
+
+/**
+ * Los avisos extra del formulario son evidencia de consentimiento: el webhook firmado de Meta ya
+ * los guardaba y esta entrada los descartaba, así que el mismo lead quedaba con o sin ellos según
+ * por dónde hubiera llegado.
+ */
+describe('avisos extra del formulario', () => {
+  const avisos = (cuerpo: Record<string, unknown>) =>
+    (normalizarCuerpoEntrada(cuerpo).metadata as { customDisclaimerResponses?: unknown[] } | undefined)?.customDisclaimerResponses;
+
+  it('acepta la lista tal cual', () => {
+    expect(avisos({ nombre: 'Ana', custom_disclaimer_responses: [{ checkbox_key: 'terminos', is_checked: true }] })).toHaveLength(1);
+  });
+
+  it('acepta el texto JSON que a veces manda Make', () => {
+    expect(avisos({ nombre: 'Ana', custom_disclaimer_responses: '[{"checkbox_key":"terminos","is_checked":true}]' })).toHaveLength(1);
+  });
+
+  it('un texto que no es JSON se guarda igual: perderlo sería perder la evidencia', () => {
+    expect(avisos({ nombre: 'Ana', custom_disclaimer_responses: 'Acepta recibir novedades' })).toEqual(['Acepta recibir novedades']);
+  });
+
+  it('sin avisos no agrega nada', () => {
+    expect(avisos({ nombre: 'Ana' })).toBeUndefined();
+  });
+
+  it('acepta un solo aviso entregado como objeto', () => {
+    expect(avisos({ nombre: 'Ana', custom_disclaimer_responses: { checkbox_key: 'terminos', is_checked: true } })).toHaveLength(1);
+  });
+});

@@ -19,10 +19,13 @@ const throttler_1 = require("@nestjs/throttler");
 const crypto_1 = require("crypto");
 const public_decorator_1 = require("../../../core/auth/decorators/public.decorator");
 const lead_intake_service_1 = require("./lead-intake.service");
+const crm_fields_service_1 = require("../fields/crm-fields.service");
+const respuestas_de_formularios_1 = require("../fields/respuestas-de-formularios");
 const public_lead_submission_dto_1 = require("./dto/public-lead-submission.dto");
 let PublicAgencyLeadsController = class PublicAgencyLeadsController {
-    constructor(leadIntake) {
+    constructor(leadIntake, campos) {
         this.leadIntake = leadIntake;
+        this.campos = campos;
     }
     agencyOrganizationId() {
         const id = process.env.AGENCY_ORGANIZATION_ID;
@@ -41,8 +44,13 @@ let PublicAgencyLeadsController = class PublicAgencyLeadsController {
             throw new common_1.BadRequestException('Se requiere al menos un correo o un teléfono de contacto');
         }
         const organizationId = this.agencyOrganizationId();
-        const messageParts = [dto.message, dto.serviceInterest ? `Interés: ${dto.serviceInterest}` : undefined, dto.budgetRange ? `Presupuesto: ${dto.budgetRange}` : undefined]
-            .filter(Boolean);
+        const reparto = await this.camposDelFormulario(organizationId, dto.respuestas ?? []);
+        const messageParts = [
+            dto.message,
+            dto.serviceInterest ? `Interés: ${dto.serviceInterest}` : undefined,
+            dto.budgetRange ? `Presupuesto: ${dto.budgetRange}` : undefined,
+            ...reparto.sinCampo.map((item) => `${item.nombre}: ${item.valor}`),
+        ].filter(Boolean);
         await this.leadIntake.captureLead({
             organizationId,
             domain: 'commercial',
@@ -55,6 +63,7 @@ let PublicAgencyLeadsController = class PublicAgencyLeadsController {
             campaignName: dto.tracking?.utmCampaign,
             notes: messageParts.length > 0 ? messageParts.join(' | ') : undefined,
             externalLeadId: `public-form:${dto.idempotencyKey}`,
+            customFields: Object.keys(reparto.camposPropios).length > 0 ? reparto.camposPropios : undefined,
             consentCapturedAt: dto.consent.privacyAccepted ? new Date() : undefined,
             metadata: {
                 website: dto.website,
@@ -82,6 +91,18 @@ let PublicAgencyLeadsController = class PublicAgencyLeadsController {
         }, 'create-only');
         return { success: true, submissionId: (0, crypto_1.randomUUID)(), message: 'Información recibida correctamente' };
     }
+    async camposDelFormulario(organizationId, respuestas) {
+        if (respuestas.length === 0)
+            return { camposPropios: {}, sinCampo: [] };
+        const pares = respuestas.map((item) => ({ nombre: item.pregunta, valor: item.respuesta }));
+        try {
+            const definiciones = await this.campos.listar(organizationId, 'lead', false);
+            return (0, respuestas_de_formularios_1.repartirRespuestas)(definiciones, pares);
+        }
+        catch {
+            return { camposPropios: {}, sinCampo: pares };
+        }
+    }
 };
 exports.PublicAgencyLeadsController = PublicAgencyLeadsController;
 __decorate([
@@ -98,5 +119,6 @@ exports.PublicAgencyLeadsController = PublicAgencyLeadsController = __decorate([
     (0, public_decorator_1.Public)(),
     (0, swagger_1.ApiTags)('CRM Agencia (público)'),
     (0, common_1.Controller)('public/agency-crm/leads'),
-    __metadata("design:paramtypes", [lead_intake_service_1.LeadIntakeService])
+    __metadata("design:paramtypes", [lead_intake_service_1.LeadIntakeService,
+        crm_fields_service_1.CrmFieldsService])
 ], PublicAgencyLeadsController);

@@ -80,9 +80,27 @@ function normalizarCuerpoEntrada(cuerpo) {
     const customFields = parsearCamposPersonalizados(cuerpo.custom_fields_json);
     if (customFields.length)
         metadata.customFields = customFields;
+    const disclaimers = parsearAvisos(cuerpo.custom_disclaimer_responses ?? cuerpo.customDisclaimerResponses);
+    if (disclaimers.length)
+        metadata.customDisclaimerResponses = disclaimers;
     if (Object.keys(metadata).length)
         resultado.metadata = metadata;
     return resultado;
+}
+function parsearAvisos(valor) {
+    if (Array.isArray(valor))
+        return valor.slice(0, 20);
+    if (valor && typeof valor === 'object')
+        return [valor];
+    if (typeof valor !== 'string' || !valor.trim() || valor.length > 20_000)
+        return [];
+    try {
+        const parsed = JSON.parse(valor);
+        return Array.isArray(parsed) ? parsed.slice(0, 20) : [];
+    }
+    catch {
+        return [valor.trim().slice(0, 2000)];
+    }
 }
 function parsearCamposPersonalizados(valor) {
     if (typeof valor !== 'string' || !valor.trim() || valor.length > 20_000)

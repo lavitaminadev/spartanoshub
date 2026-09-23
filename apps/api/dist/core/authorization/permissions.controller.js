@@ -212,12 +212,15 @@ let PermissionsController = class PermissionsController {
             throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user, module, dto.level);
-        const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
+        if (dto.clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+        const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: dto.clientId ?? (0, typeorm_2.IsNull)() } });
         const saved = await this.overrides.save({
             ...(existing ?? {}),
             organizationId: req.organizationId,
             userId: user.id,
             module,
+            clientId: dto.clientId ?? null,
             level: dto.level,
             reason: dto.reason ?? null,
             expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,

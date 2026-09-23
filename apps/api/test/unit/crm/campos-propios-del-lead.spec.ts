@@ -37,7 +37,8 @@ describe('campos propios al editar un lead', () => {
     const validarPara = vi.fn().mockResolvedValue({ canal: 'WhatsApp', personas: 6 });
     const { uso, repo } = armar({ canal: 'WhatsApp' }, validarPara);
     await uso.execute('l1', { customFields: { personas: '6' } }, 'org-1', 'u1', null);
-    expect(validarPara).toHaveBeenCalledWith('org-1', 'lead', { canal: 'WhatsApp' }, { personas: '6' }, true);
+    // La empresa del lead viaja también: sus campos son los de todas más los suyos.
+    expect(validarPara).toHaveBeenCalledWith('org-1', 'lead', { canal: 'WhatsApp' }, { personas: '6' }, true, 'cli-1');
     expect(repo.save.mock.calls[0][0].customFields).toEqual({ canal: 'WhatsApp', personas: 6 });
   });
 

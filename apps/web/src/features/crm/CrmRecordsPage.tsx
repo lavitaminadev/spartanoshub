@@ -297,7 +297,7 @@ export function OpportunitiesPage() {
   const [form, setForm] = useState(EMPTY_OPPORTUNITY);
   /* Los datos que esta agencia agregó a sus oportunidades, definidos en Administración. */
   const [camposPropios, setCamposPropios] = useState<ValoresEnEdicion>({});
-  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('opportunity');
+  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('opportunity', form.clientId || undefined);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [stageFilter, setStageFilter] = useState('');
   const [view, setView] = useState<'board' | 'table'>('board');

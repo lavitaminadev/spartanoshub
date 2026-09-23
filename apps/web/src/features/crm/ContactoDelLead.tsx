@@ -17,17 +17,19 @@ interface Contacto {
   position?: string | null;
   notes?: string | null;
   customFields?: Record<string, unknown> | null;
+  clientId?: string | null;
 }
 
 export function ContactoDelLead({ leadId, puedeEditar }: { leadId: string; puedeEditar: boolean }) {
   const queryClient = useQueryClient();
-  const { data: definiciones = [] } = useDefinicionesDeCampos('contact');
   const { data } = useQuery<{ data: Contacto[] }>({
     queryKey: ['crm-contacto-del-lead', leadId],
     queryFn: () => api.get(`/crm/contacts?leadId=${encodeURIComponent(leadId)}&limit=1`),
     staleTime: 60_000,
   });
   const contacto = data?.data?.[0];
+  // Los campos de la empresa del contacto: los de otra no dicen nada en esta ficha.
+  const { data: definiciones = [] } = useDefinicionesDeCampos('contact', contacto?.clientId ?? undefined);
 
   const [cargo, setCargo] = useState('');
   const [notas, setNotas] = useState('');

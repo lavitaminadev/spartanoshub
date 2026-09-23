@@ -7,6 +7,8 @@ import { RESERVATION_LEAD_SOURCES, isReservationLeadSource } from '@espartanos/s
 /** Filtros aceptados al listar leads. */
 export interface ListLeadsFilters {
   /** Clave de un campo propio (ya validada) y el valor que debe tener. */
+  anuncio?: string;
+  plataforma?: string;
   campoPropio?: string;
   valorPropio?: string;
   status?: string;
@@ -110,6 +112,28 @@ export class ListLeadsUseCase {
     else if (filters.assignedTo) where.assignedTo = filters.assignedTo;
     const domain = filters.domain ?? 'commercial';
     if (domain !== 'all') where.domain = domain;
+    /*
+     * De qué anuncio y de qué plataforma vino.
+     *
+     * Viven en los datos de la captura y no en columnas propias: una campaña trae por Instagram
+     * y por Facebook a la vez, y saber cuál rinde exigía abrir los leads de a uno.
+     */
+    const deLaCaptura: string[] = [];
+    const valoresDeLaCaptura: Record<string, string> = {};
+    if (filters.anuncio) {
+      deLaCaptura.push("JSON_UNQUOTE(JSON_EXTRACT({columna}, '$.adName')) LIKE :anuncio");
+      valoresDeLaCaptura.anuncio = `%${filters.anuncio}%`;
+    }
+    if (filters.plataforma) {
+      deLaCaptura.push("JSON_UNQUOTE(JSON_EXTRACT({columna}, '$.platform')) = :plataforma");
+      valoresDeLaCaptura.plataforma = filters.plataforma;
+    }
+    if (deLaCaptura.length > 0) {
+      (where as Record<string, unknown>).metadata = Raw(
+        (columna) => deLaCaptura.map((condicion) => condicion.replace('{columna}', columna)).join(' AND '),
+        valoresDeLaCaptura,
+      );
+    }
     if (filters.campoPropio && filters.valorPropio !== undefined && /^[a-z][a-z0-9_]{0,39}$/.test(filters.campoPropio)) {
       const ruta = `$."${filters.campoPropio}"`;
       // Igual para texto, número, fecha y sí/no; contenido para una selección múltiple.

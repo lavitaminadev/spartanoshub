@@ -38,8 +38,8 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
         this.cache = new Map();
         this.roleOverrideCache = new Map();
     }
-    async permissionsFor(organizationId, userId, role) {
-        const cacheKey = `${organizationId}:${userId}:${role}`;
+    async permissionsFor(organizationId, userId, role, clientId) {
+        const cacheKey = `${organizationId}:${userId}:${role}:${clientId ?? '*'}`;
         const cached = this.cache.get(cacheKey);
         if (cached && cached.expiresAt > Date.now())
             return cached.permissions;
@@ -49,7 +49,7 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
             this.overrides.find({ where: { organizationId, userId } }),
             this.roleLevelsOf(organizationId),
         ]);
-        const overrideByModule = this.activeOverrides(overrides);
+        const overrideByModule = this.activeOverrides(overrides, clientId);
         const permissions = Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((module) => [
             module,
             this.alcanzaElModulo(role, module, lifecycleMap[module], features[module])
@@ -110,10 +110,10 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
     codeLevel(role, module) {
         return (0, role_permissions_1.roleLevel)(role, module);
     }
-    async can(organizationId, userId, role, module, required) {
+    async can(organizationId, userId, role, module, required, clientId) {
         if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
             return false;
-        const permissions = await this.permissionsFor(organizationId, userId, role);
+        const permissions = await this.permissionsFor(organizationId, userId, role, clientId);
         return (0, permission_level_1.satisfies)(permissions[module], required);
     }
     invalidateUser(userId) {
@@ -129,11 +129,16 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
                 this.cache.delete(key);
         }
     }
-    activeOverrides(overrides) {
+    activeOverrides(overrides, clientId) {
         const now = Date.now();
         const result = new Map();
         for (const item of overrides) {
             if (item.expiresAt && item.expiresAt.getTime() <= now)
+                continue;
+            if (item.clientId && item.clientId !== clientId)
+                continue;
+            const anterior = result.get(item.module);
+            if (anterior?.clientId && !item.clientId)
                 continue;
             result.set(item.module, item);
         }

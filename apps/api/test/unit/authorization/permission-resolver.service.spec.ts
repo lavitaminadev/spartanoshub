@@ -320,3 +320,38 @@ describe('módulos futuros fuera de la operación inicial', () => {
     expect(permisos.production).not.toBe('none');
   });
 });
+
+/**
+ * Una excepción puede valer sólo en una empresa.
+ *
+ * Es lo que permite administrar una empresa y sólo mirar otra sin tocar el cargo de la persona.
+ * Sin empresa a la vista se aplican las generales, que es como funcionó siempre.
+ */
+describe('excepciones por empresa', () => {
+  const general = { module: 'crm', level: 'view', clientId: null };
+  const enCasaCostanera = { module: 'crm', level: 'manage', clientId: 'empresa-1' };
+
+  it('la excepción de la empresa mirada manda sobre la general', async () => {
+    const { resolver } = makeResolver(null, [general, enCasaCostanera]);
+    const enEsa = await resolver.permissionsFor('org-1', 'u-1', UserRole.COMMUNITY_MANAGER, 'empresa-1');
+    expect(enEsa.crm).toBe('manage');
+  });
+
+  it('en otra empresa se aplica la general, no la de la primera', async () => {
+    const { resolver } = makeResolver(null, [general, enCasaCostanera]);
+    const enOtra = await resolver.permissionsFor('org-1', 'u-1', UserRole.COMMUNITY_MANAGER, 'empresa-2');
+    expect(enOtra.crm).toBe('view');
+  });
+
+  it('sin empresa a la vista, la de una empresa concreta no se aplica', async () => {
+    const { resolver } = makeResolver(null, [enCasaCostanera]);
+    const sinEmpresa = await resolver.permissionsFor('org-1', 'u-1', UserRole.COMMUNITY_MANAGER);
+    expect(sinEmpresa.crm).toBe(roleLevel(UserRole.COMMUNITY_MANAGER, 'crm'));
+  });
+
+  it('lo memorizado no se comparte entre empresas', async () => {
+    const { resolver } = makeResolver(null, [general, enCasaCostanera]);
+    expect((await resolver.permissionsFor('org-1', 'u-1', UserRole.COMMUNITY_MANAGER, 'empresa-1')).crm).toBe('manage');
+    expect((await resolver.permissionsFor('org-1', 'u-1', UserRole.COMMUNITY_MANAGER, 'empresa-2')).crm).toBe('view');
+  });
+});

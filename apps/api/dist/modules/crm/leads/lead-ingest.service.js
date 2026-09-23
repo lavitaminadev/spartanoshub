@@ -22,13 +22,16 @@ const ingest_source_entity_1 = require("./ingest-source.entity");
 const lead_intake_service_1 = require("./lead-intake.service");
 const campaign_entity_1 = require("../campaigns/campaign.entity");
 const identificador_externo_1 = require("./identificador-externo");
+const crm_fields_service_1 = require("../fields/crm-fields.service");
+const respuestas_de_formularios_1 = require("../fields/respuestas-de-formularios");
 const TOKEN_PREFIX = 'esp_in_';
 const GRACIA_LLAVE_ANTERIOR_MS = 48 * 60 * 60 * 1000;
 let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
-    constructor(sources, campaigns, intake) {
+    constructor(sources, campaigns, intake, campos) {
         this.sources = sources;
         this.campaigns = campaigns;
         this.intake = intake;
+        this.campos = campos;
         this.logger = new common_1.Logger(LeadIngestService_1.name);
     }
     async issueToken(source) {
@@ -68,6 +71,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 externalCampaignId: dto.campanaId,
                 pageId: dto.paginaId,
                 metadata: this.metadatosDeEntrada(dto),
+                customFields: await this.camposDelFormulario(source.organizationId, dto, source.clientId ?? undefined),
             });
             await this.sources.update(source.id, {
                 receivedCount: () => 'received_count + 1',
@@ -143,6 +147,23 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
         };
         return Object.keys(metadatos).length > 0 ? metadatos : undefined;
     }
+    async camposDelFormulario(organizationId, dto, clientId) {
+        const metadata = (dto.metadata ?? {});
+        const pares = [
+            ...(metadata.answers ?? []).map((item) => ({ nombre: String(item.question ?? ''), valor: String(item.answer ?? '') })),
+            ...(metadata.customFields ?? []).map((item) => ({ nombre: String(item.name ?? ''), valor: String(item.value ?? '') })),
+        ].filter((item) => item.nombre && item.valor);
+        if (pares.length === 0)
+            return undefined;
+        try {
+            const definiciones = await this.campos.listar(organizationId, 'lead', false, clientId);
+            const { camposPropios } = (0, respuestas_de_formularios_1.repartirRespuestas)(definiciones, pares);
+            return Object.keys(camposPropios).length > 0 ? camposPropios : undefined;
+        }
+        catch {
+            return undefined;
+        }
+    }
 };
 exports.LeadIngestService = LeadIngestService;
 exports.LeadIngestService = LeadIngestService = LeadIngestService_1 = __decorate([
@@ -151,5 +172,6 @@ exports.LeadIngestService = LeadIngestService = LeadIngestService_1 = __decorate
     __param(1, (0, typeorm_1.InjectRepository)(campaign_entity_1.Campaign)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
-        lead_intake_service_1.LeadIntakeService])
+        lead_intake_service_1.LeadIntakeService,
+        crm_fields_service_1.CrmFieldsService])
 ], LeadIngestService);

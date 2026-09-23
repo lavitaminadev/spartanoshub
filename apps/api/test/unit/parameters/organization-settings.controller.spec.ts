@@ -9,11 +9,13 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
   const accountAccess = { assertClient: vi.fn().mockResolvedValue(undefined) };
   // Cada plantilla exige el permiso de su módulo: acá se concede todo salvo que la prueba diga otra cosa.
   const permisos = { can: vi.fn().mockResolvedValue(true) };
+  // Servicios contratados por la empresa: sin empresa elegida no se consultan.
+  const capacidades = { tiene: vi.fn().mockResolvedValue(true) };
   let controller: OrganizationSettingsController;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new OrganizationSettingsController(settings as any, permisos as any, accountAccess as any);
+    controller = new OrganizationSettingsController(settings as any, permisos as any, accountAccess as any, capacidades as any);
   });
 
   /*
@@ -23,7 +25,7 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
    */
   it('sólo desarrollo ve qué le falta al servidor de correo', () => {
     const correo = { estado: () => ({ habilitado: false, remitente: null, servidor: null, puerto: null, respuestasA: null, faltan: ['SMTP_ENABLED=true', 'SMTP_HOST'] }) };
-    const conCorreo = new OrganizationSettingsController(settings as any, permisos as any, accountAccess as any, correo as any, {} as any);
+    const conCorreo = new OrganizationSettingsController(settings as any, permisos as any, accountAccess as any, capacidades as any, correo as any, {} as any);
 
     const comoAdmin = conCorreo.estadoDelCorreo({ user: { role: UserRole.ADMIN } } as any);
     const comoDev = conCorreo.estadoDelCorreo({ user: { role: UserRole.DEV } } as any);
@@ -101,5 +103,19 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
     const request = { organizationId: 'org-1', user: { id: 'x', role: UserRole.COMMUNITY_MANAGER } } as any;
     permisos.can.mockResolvedValue(false);
     await expect(controller.correos(request)).rejects.toThrow(ForbiddenException);
+  });
+
+  /*
+   * El permiso dice qué puede hacer una persona; la contratación, si esa empresa usa el servicio.
+   * Escribir la plantilla de la encuesta de una empresa sin Encuestas es un correo para nadie.
+   */
+  it('una empresa sin Encuestas no muestra ni guarda esa plantilla', async () => {
+    const request = { organizationId: 'org-1', user: { id: 'cd-1', role: UserRole.COMMERCIAL_DIRECTOR } } as any;
+    permisos.can.mockResolvedValue(true);
+    capacidades.tiene.mockImplementation(async (_org: string, _cliente: string, capacidad: string) => capacidad !== 'surveys');
+    settings.list.mockResolvedValue([{ key: 'email.post_visit_survey_subject' }, { key: 'email.reservation_confirmation_subject' }]);
+
+    await expect(controller.correos(request, 'c-1')).resolves.toEqual([{ key: 'email.reservation_confirmation_subject' }]);
+    await expect(controller.guardarCorreos(request, { values: { 'email.post_visit_survey_subject': 'Hola' } }, 'c-1')).rejects.toThrow(ForbiddenException);
   });
 });

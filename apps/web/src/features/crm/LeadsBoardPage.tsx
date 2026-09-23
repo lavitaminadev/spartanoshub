@@ -53,6 +53,8 @@ import { puedeAccion } from '../../core/acciones';
 
 interface Lead {
   id: string;
+  /** Datos de la captura: de qué anuncio vino y por dónde lo vio. */
+  metadata?: Record<string, unknown> | null;
   name: string;
   email?: string | null;
   phone?: string | null;
@@ -84,7 +86,18 @@ interface LeadsPage { data: Lead[]; total: number; limit: number; offset: number
 
 const LEADS_PAGE_SIZE = 100;
 
-const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana', 'campo', 'valor'] as const;
+const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana', 'anuncio', 'plataforma', 'campo', 'valor'] as const;
+
+/*
+ * Dónde vio el anuncio quien dejó el lead.
+ *
+ * Una misma campaña entrega por los dos lados, así que el conteo junto no dice cuál rinde. Son
+ * los dos valores que manda Meta; lo orgánico no trae ninguno y queda fuera del filtro.
+ */
+const PLATAFORMAS = [
+  { value: 'ig', label: 'Instagram' },
+  { value: 'fb', label: 'Facebook' },
+];
 
 /** Forma en que se mira el embudo. Se recuerda en la URL, junto con los filtros. */
 type Vista = 'tablero' | 'tabla';
@@ -142,7 +155,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * Filtro por dato propio: primero el campo, después su valor. Los que tienen opciones las
    * ofrecen en lista; los de texto, número o fecha piden el valor exacto.
    */
-  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('lead');
+  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('lead', scope.clientId || undefined);
   const camposFiltrables = definicionesPropias.filter((campo) => !campo.archivedAt && campo.type !== 'long_text');
   const campoElegido = camposFiltrables.find((campo) => campo.key === filtros.values.campo);
   const opcionesDelCampo = campoElegido
@@ -219,13 +232,21 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const [meta, setMeta] = useState({ pageId: '', leadgenId: '' });
 
   const { data, isLoading, error, refetch } = useQuery<LeadsPage>({
+    /*
+     * Mientras llega el resultado nuevo se siguen viendo los de antes.
+     *
+     * Cada letra del buscador cambia la clave, y sin esto la pantalla volvía al «Cargando…»:
+     * el buscador se desmontaba y el foco se perdía, así que escribir «ana» exigía volver a
+     * hacer clic entre letra y letra.
+     */
+    placeholderData: (anterior) => anterior,
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
-    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, campoElegido?.key, valorFiltro, verDescartados],
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados],
     // El servidor limita cada respuesta a 100, pero el tablero no: se navega de página en página.
     // Así una empresa no pierde los contactos más antiguos cuando supera el primer centenar.
     queryFn: () => api.get(
-      `/crm/leads?domain=${scope.domain}${campoElegido && valorFiltro ? `&campoPropio=${encodeURIComponent(campoElegido.key)}&valorPropio=${encodeURIComponent(valorFiltro)}` : ''}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}`,
+      `/crm/leads?domain=${scope.domain}${filtros.values.anuncio ? `&anuncio=${encodeURIComponent(filtros.values.anuncio)}` : ''}${filtros.values.plataforma ? `&plataforma=${encodeURIComponent(filtros.values.plataforma)}` : ''}${campoElegido && valorFiltro ? `&campoPropio=${encodeURIComponent(campoElegido.key)}&valorPropio=${encodeURIComponent(valorFiltro)}` : ''}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}`,
     ),
   });
 
@@ -233,7 +254,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // anterior podía mostrar un tablero vacío aunque la empresa sí tuviera prospectos.
   useEffect(() => {
     setPagina(1);
-  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, campoElegido?.key, valorFiltro, verDescartados]);
+  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados]);
 
   /**
    * Campañas de la empresa que se está mirando.
@@ -449,6 +470,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // La empresa ya es el contexto del CRM, elegido en la barra superior. No vuelve a filtrarse
   // acá: dos selectores de tenant permitían que la barra dijera una empresa y la lista otra.
   const leads = useMemo(() => data?.data ?? [], [data]);
+  /* Los anuncios presentes en lo cargado: se ofrece lo que existe, no una lista que envejece. */
+  const anunciosALaVista = useMemo(() => [...new Set(leads.map((lead) => String((lead.metadata as { adName?: string } | undefined)?.adName ?? '').trim()).filter(Boolean))].sort(), [leads]);
 
   const seleccionVisible = useMemo(() => leads.filter((lead) => seleccion.has(lead.id)).map((lead) => lead.id), [leads, seleccion]);
   const todosVisiblesSeleccionados = leads.length > 0 && seleccionVisible.length === leads.length;
@@ -565,7 +588,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     [scope.domain, rotulos, etapasDelEmbudo],
   );
 
-  if (isLoading) return <LoadingSpinner text="Cargando el embudo..." />;
+  // Sólo la primera vez: con datos a la vista, cambiar un filtro no debe desmontar la pantalla.
+  if (isLoading && !data) return <LoadingSpinner text="Cargando el embudo..." />;
   if (error) {
     return <QueryErrorState title="No pudimos cargar el embudo" message={(error as Error).message} onRetry={() => void refetch()} />;
   }
@@ -665,6 +689,15 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             elegir una que no devuelve nada.
           */
           { key: 'campana', label: termino('campana'), allLabel: 'Todas', options: campanas.map((campana) => ({ value: campana.name, label: campana.name })) },
+          /*
+            El anuncio y la plataforma vienen de la captura, no de una tabla propia.
+
+            Los anuncios que se ofrecen son los que aparecen en los leads a la vista: una lista
+            fija envejecería con cada campaña nueva, y una consulta aparte para llenarla costaría
+            más de lo que aporta.
+          */
+          ...(anunciosALaVista.length > 0 ? [{ key: 'anuncio', label: 'Anuncio', allLabel: 'Todos los anuncios', options: anunciosALaVista.map((anuncio) => ({ value: anuncio, label: anuncio })) }] : []),
+          { key: 'plataforma', label: 'Dónde lo vio', allLabel: 'Instagram y Facebook', options: PLATAFORMAS },
           ...(camposFiltrables.length > 0 ? [{ key: 'campo', label: 'Dato propio', allLabel: 'Sin filtrar por dato propio', options: camposFiltrables.map((campo) => ({ value: campo.key, label: campo.label })) }] : []),
           ...(campoElegido && opcionesDelCampo.length > 0 ? [{ key: 'valor', label: campoElegido.label, allLabel: 'Elige un valor', options: opcionesDelCampo }] : []),
         ]}

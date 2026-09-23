@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, IsUUID } from 'class-validator';
 import { TIPOS_DE_CAMPO } from '@espartanos/shared';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
@@ -13,6 +13,8 @@ import { CrmFieldsService } from './crm-fields.service';
 const TIPOS = TIPOS_DE_CAMPO.map((tipo) => tipo.value);
 
 class CrearCampoDto {
+  /** Empresa dueña del campo. Sin ella, el campo es de todas: es como funcionó siempre. */
+  @IsOptional() @IsUUID() clientId?: string;
   @IsIn(['lead', 'contact', 'opportunity']) entity: string;
   @IsString() @MinLength(1) @MaxLength(80) label: string;
   @IsOptional() @IsString() @MaxLength(40) key?: string;
@@ -54,8 +56,9 @@ export class CrmFieldsController {
 
   @Get()
   @ApiOperation({ summary: 'Campos propios de un tipo de registro' })
-  listar(@Req() req: AuthenticatedRequest, @Query('entity') entity: string, @Query('archivados') archivados?: string) {
-    return this.campos.listar(req.organizationId!, entity, archivados === 'true');
+  /** @param clientId - Empresa que se está mirando: devuelve los campos de todas más los suyos. */
+  listar(@Req() req: AuthenticatedRequest, @Query('entity') entity: string, @Query('archivados') archivados?: string, @Query('clientId') clientId?: string) {
+    return this.campos.listar(req.organizationId!, entity, archivados === 'true', clientId || undefined);
   }
 
   @Post()

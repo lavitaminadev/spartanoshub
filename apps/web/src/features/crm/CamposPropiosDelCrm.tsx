@@ -30,12 +30,25 @@ function opcionesDesdeTexto(texto: string): string[] {
   return texto.split('\n').map((linea) => linea.trim()).filter(Boolean);
 }
 
-interface Borrador { label: string; key: string; claveTocada: boolean; type: CustomFieldType; options: string; required: boolean }
-const VACIO: Borrador = { label: '', key: '', claveTocada: false, type: 'text', options: '', required: false };
+interface Borrador { label: string; key: string; claveTocada: boolean; type: CustomFieldType; options: string; required: boolean; clientId: string }
+const VACIO: Borrador = { label: '', key: '', claveTocada: false, type: 'text', options: '', required: false, clientId: '' };
 
 export function CamposPropiosDelCrm(): JSX.Element {
   const queryClient = useQueryClient();
   const [entidad, setEntidad] = useState<CustomFieldEntity>('lead');
+  /*
+   * De qué empresa es el campo.
+   *
+   * Un campo servía para toda la organización, así que el que una empresa necesitaba aparecía en
+   * las fichas de todas y, si era obligatorio, bloqueaba el guardado de registros ajenos.
+   */
+  const { data: empresas } = useQuery<{ data: Array<{ id: string; name: string }> }>({
+    queryKey: ['clients'],
+    queryFn: () => api.get('/clients'),
+    staleTime: 300_000,
+  });
+  const listaDeEmpresas = empresas?.data ?? [];
+  const nombreDeEmpresa = (id?: string | null) => listaDeEmpresas.find((empresa) => empresa.id === id)?.name;
   const [verArchivados, setVerArchivados] = useState(false);
   const [nuevo, setNuevo] = useState<Borrador | null>(null);
   const [editando, setEditando] = useState<{ id: string; label: string; options: string; required: boolean; type: CustomFieldType; metaQuestions: string }  | null>(null);
@@ -54,6 +67,7 @@ export function CamposPropiosDelCrm(): JSX.Element {
     mutationFn: (borrador: Borrador) => api.post<CustomFieldDefinition>('/crm/fields', {
       entity: entidad,
       label: borrador.label.trim(),
+      clientId: borrador.clientId || undefined,
       key: borrador.key.trim(),
       type: borrador.type,
       options: CON_OPCIONES.has(borrador.type) ? opcionesDesdeTexto(borrador.options) : undefined,
@@ -174,6 +188,7 @@ export function CamposPropiosDelCrm(): JSX.Element {
                         {TIPOS_DE_CAMPO.find((tipo) => tipo.value === campo.type)?.label}
                         {campo.options?.length ? ` · ${campo.options.slice(0, 4).join(', ')}${campo.options.length > 4 ? '…' : ''}` : ''}
                         {campo.metaQuestions?.length ? ` · se llena desde Meta con ${campo.metaQuestions.length} ${campo.metaQuestions.length === 1 ? 'pregunta' : 'preguntas'}` : ''}
+                        {campo.clientId ? ` · sólo ${nombreDeEmpresa(campo.clientId) ?? 'una empresa'}` : ''}
                         {' · '}<code>{campo.key}</code>
                         {campo.archivedAt ? ' · archivado' : ''}
                       </small>
@@ -206,6 +221,13 @@ export function CamposPropiosDelCrm(): JSX.Element {
           <label>Tipo<select className="input" value={nuevo.type} onChange={(evento) => setNuevo({ ...nuevo, type: evento.target.value as CustomFieldType })}>{TIPOS_DE_CAMPO.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}</select></label>
           {CON_OPCIONES.has(nuevo.type) ? <label className="campos-propios-opciones">Opciones <small>(una por línea)</small><textarea className="input" rows={4} value={nuevo.options} onChange={(evento) => setNuevo({ ...nuevo, options: evento.target.value })} placeholder={'WhatsApp\nCorreo\nLlamada'} /></label> : null}
           <label>Clave <small>(no se podrá cambiar)</small><input className="input" maxLength={40} value={nuevo.key} onChange={(evento) => setNuevo({ ...nuevo, key: evento.target.value.toLowerCase(), claveTocada: true })} /></label>
+          <label>Empresa <small>(opcional)</small>
+            <select className="input" value={nuevo.clientId} onChange={(evento) => setNuevo({ ...nuevo, clientId: evento.target.value })}>
+              <option value="">Todas las empresas</option>
+              {listaDeEmpresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+            </select>
+            <small>Elegir una empresa hace que el campo aparezca sólo en sus fichas. Vacío: en todas.</small>
+          </label>
           <label className="toggle-row"><input type="checkbox" checked={nuevo.required} onChange={(evento) => setNuevo({ ...nuevo, required: evento.target.checked })} /> Obligatorio al editar la ficha</label>
           <small className="crm-admin-ayuda">Obligatorio se exige sólo cuando alguien edita la ficha. Lo que llega por Meta o por importación nunca rebota por esto.</small>
           {nuevo.label.trim() && problemaNuevo ? <small className="error-text">{problemaNuevo}</small> : null}

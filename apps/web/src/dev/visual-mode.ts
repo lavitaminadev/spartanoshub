@@ -80,6 +80,7 @@ const VISUAL_USER = {
   permissions: forEveryModule('manage'),
   // Con `?rol=client` el portal muestra los servicios de una empresa con todo contratado.
   clientId: 'visual-client',
+  clientName: 'Casa Costanera',
   capabilities: { reservations: true, crm: true, surveys: true },
 };
 

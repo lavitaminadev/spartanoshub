@@ -227,7 +227,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const [semaforo, setSemaforo] = useState(lead.trafficLight ?? '');
   const [etiquetas, setEtiquetas] = useState((lead.tags ?? []).join(', '));
   const [camposPropios, setCamposPropios] = useState<ValoresEnEdicion>(lead.customFields ?? {});
-  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('lead');
+  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('lead', lead.clientId ?? undefined);
   const [fueraDeMeta, setFueraDeMeta] = useState(Boolean(lead.excludedFromMeta));
   const [motivoCatalogo, setMotivoCatalogo] = useState(motivoInicial(lead.discardReason).catalogo);
   const [motivoOtro, setMotivoOtro] = useState(motivoInicial(lead.discardReason).detalle);

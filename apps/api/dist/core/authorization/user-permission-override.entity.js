@@ -31,6 +31,10 @@ __decorate([
     __metadata("design:type", String)
 ], UserPermissionOverride.prototype, "module", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'client_id', type: 'varchar', length: 36, nullable: true }),
+    __metadata("design:type", Object)
+], UserPermissionOverride.prototype, "clientId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 20 }),
     __metadata("design:type", String)
 ], UserPermissionOverride.prototype, "level", void 0);
@@ -56,5 +60,5 @@ __decorate([
 ], UserPermissionOverride.prototype, "updatedAt", void 0);
 exports.UserPermissionOverride = UserPermissionOverride = __decorate([
     (0, typeorm_1.Entity)('user_permission_overrides'),
-    (0, typeorm_1.Index)('UQ_user_permission_override', ['userId', 'module'], { unique: true })
+    (0, typeorm_1.Index)('UQ_user_permission_override_client', ['userId', 'module', 'clientId'], { unique: true })
 ], UserPermissionOverride);

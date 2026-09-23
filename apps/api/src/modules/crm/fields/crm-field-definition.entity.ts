@@ -9,7 +9,7 @@ import type { CustomFieldEntity, CustomFieldType } from '@espartanos/shared';
  * todos los valores—, y por eso borrar no existe: se archiva.
  */
 @Entity('crm_field_definitions')
-@Index('UQ_crm_field_org_entity_key', ['organizationId', 'entity', 'fieldKey'], { unique: true })
+@Index('UQ_crm_field_org_entity_key_client', ['organizationId', 'entity', 'fieldKey', 'clientId'], { unique: true })
 @Index('IDX_crm_field_org_entity', ['organizationId', 'entity', 'archivedAt'])
 export class CrmFieldDefinition {
   @PrimaryGeneratedColumn('uuid') id: string;
@@ -17,6 +17,14 @@ export class CrmFieldDefinition {
   @Column({ name: 'organization_id', type: 'uuid' }) organizationId: string;
 
   @Column({ length: 20 }) entity: CustomFieldEntity;
+
+  /**
+   * Empresa a la que pertenece el campo. Vacío: de todas.
+   *
+   * Un campo que sólo una empresa necesita no tiene por qué aparecer en las fichas de las demás,
+   * y uno obligatorio de una no debe bloquear el guardado de otra.
+   */
+  @Column({ name: 'client_id', type: 'varchar', length: 36, nullable: true }) clientId?: string | null;
 
   @Column({ name: 'field_key', length: 40 }) fieldKey: string;
 

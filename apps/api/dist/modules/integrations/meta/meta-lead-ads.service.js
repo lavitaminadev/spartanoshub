@@ -23,7 +23,7 @@ const lead_intake_service_1 = require("../../crm/leads/lead-intake.service");
 const meta_lead_webhook_event_entity_1 = require("./meta-lead-webhook-event.entity");
 const campaign_entity_1 = require("../../crm/campaigns/campaign.entity");
 const crm_fields_service_1 = require("../../crm/fields/crm-fields.service");
-const respuestas_de_meta_1 = require("../../crm/fields/respuestas-de-meta");
+const respuestas_de_formularios_1 = require("../../crm/fields/respuestas-de-formularios");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
 const version_de_graph_1 = require("./version-de-graph");
 let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
@@ -263,7 +263,7 @@ let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
             return { camposPropios: {}, notas: undefined };
         try {
             const definiciones = await this.campos.listar(organizationId, 'lead', false);
-            const { camposPropios, sinCampo } = (0, respuestas_de_meta_1.repartirRespuestasDeMeta)(definiciones, respuestas);
+            const { camposPropios, sinCampo } = (0, respuestas_de_formularios_1.repartirRespuestas)(definiciones, respuestas);
             return { camposPropios, notas: enNotas(sinCampo) };
         }
         catch (error) {

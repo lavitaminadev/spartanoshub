@@ -141,6 +141,16 @@ export function normalizarCuerpoEntrada(cuerpo: Record<string, unknown>): Record
   if (customFields.length) metadata.customFields = customFields;
 
   /*
+   * Lo que la persona marcó en los avisos extra del formulario.
+   *
+   * Es evidencia de consentimiento: el webhook firmado de Meta ya la guardaba y esta entrada la
+   * descartaba, así que el mismo lead quedaba con o sin ella según por dónde hubiera llegado.
+   * Se guarda tal como viene, sin interpretarla: es un registro, no un dato que se opere.
+   */
+  const disclaimers = parsearAvisos(cuerpo.custom_disclaimer_responses ?? cuerpo.customDisclaimerResponses);
+  if (disclaimers.length) metadata.customDisclaimerResponses = disclaimers;
+
+  /*
    * `raw_lead_json` se ignora intencionalmente: duplica nombre, teléfono, correo y respuestas,
    * aumenta la exposición de datos personales y no aporta información que no esté ya arriba.
    * También se ignoran `api_ok`, `api_lead_id`, `api_source`, `api_campaign` y `error_api`:
@@ -148,6 +158,26 @@ export function normalizarCuerpoEntrada(cuerpo: Record<string, unknown>): Record
    */
   if (Object.keys(metadata).length) resultado.metadata = metadata;
   return resultado;
+}
+
+/**
+ * Los avisos extra del formulario, vengan como lista o como texto JSON.
+ *
+ * Make entrega a veces el arreglo tal cual y a veces su texto, según cómo se haya mapeado el
+ * módulo. Se aceptan los dos para que la evidencia no dependa de ese detalle.
+ */
+function parsearAvisos(valor: unknown): unknown[] {
+  if (Array.isArray(valor)) return valor.slice(0, 20);
+  // Un solo aviso llega a veces como objeto: se guarda igual, no se descarta por su forma.
+  if (valor && typeof valor === 'object') return [valor];
+  if (typeof valor !== 'string' || !valor.trim() || valor.length > 20_000) return [];
+  try {
+    const parsed: unknown = JSON.parse(valor);
+    return Array.isArray(parsed) ? parsed.slice(0, 20) : [];
+  } catch {
+    // Un texto que no es JSON se guarda como una sola marca: perderlo sería perder la evidencia.
+    return [valor.trim().slice(0, 2000)];
+  }
 }
 
 function parsearCamposPersonalizados(valor: unknown): Array<{ name: string; value: string }> {

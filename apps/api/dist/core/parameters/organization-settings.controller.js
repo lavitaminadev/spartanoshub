@@ -29,6 +29,7 @@ const update_organization_settings_dto_1 = require("./dto/update-organization-se
 const organization_settings_service_1 = require("./organization-settings.service");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
 const permission_resolver_service_1 = require("../authorization/permission-resolver.service");
+const client_capability_service_1 = require("../client-scope/client-capability.service");
 const requires_permission_decorator_1 = require("../authorization/requires-permission.decorator");
 const cron_run_entity_1 = require("../cron/cron-run.entity");
 const requisitos_de_correo_1 = require("./requisitos-de-correo");
@@ -45,10 +46,11 @@ function moduloDeCorreo(clave) {
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const shared_1 = require("@espartanos/shared");
 let OrganizationSettingsController = class OrganizationSettingsController {
-    constructor(settings, permisos, accountAccess, correo, usuarios, corridas) {
+    constructor(settings, permisos, accountAccess, capacidades, correo, usuarios, corridas) {
         this.settings = settings;
         this.permisos = permisos;
         this.accountAccess = accountAccess;
+        this.capacidades = capacidades;
         this.correo = correo;
         this.usuarios = usuarios;
         this.corridas = corridas;
@@ -80,16 +82,21 @@ let OrganizationSettingsController = class OrganizationSettingsController {
     async correos(request, clientId) {
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
-        const puede = await this.modulosQuePuedeEditar(request);
+        const puede = await this.modulosQuePuedeEditar(request, clientId);
         if (puede.size === 0)
-            throw new common_1.ForbiddenException('No tienes permiso para editar plantillas de correo');
+            throw new common_1.ForbiddenException('No hay plantillas que puedas editar en esta empresa');
         const ajustes = await this.settings.list(organizationId, clientId ?? null);
         return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key) && puede.has(moduloDeCorreo(ajuste.key)));
     }
-    async modulosQuePuedeEditar(request) {
+    async modulosQuePuedeEditar(request, clientId) {
         const organizationId = request.organizationId || request.user.organizationId;
+        const contratados = clientId
+            ? { reservations: await this.capacidades.tiene(organizationId, clientId, 'reservations'), surveys: await this.capacidades.tiene(organizationId, clientId, 'surveys'), crm: await this.capacidades.tiene(organizationId, clientId, 'crm') }
+            : null;
         const puede = new Set();
         for (const modulo of ['reservations', 'surveys', 'crm']) {
+            if (contratados && contratados[modulo] !== true)
+                continue;
             if (await this.permisos.can(organizationId, request.user.id, request.user.role, modulo, 'edit'))
                 puede.add(modulo);
         }
@@ -100,7 +107,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
         if (ajenas.length)
             throw new common_1.ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
-        const puede = await this.modulosQuePuedeEditar(request);
+        const puede = await this.modulosQuePuedeEditar(request, clientId);
         const sinPermiso = Object.keys(valores).filter((clave) => !puede.has(moduloDeCorreo(clave)));
         if (sinPermiso.length)
             throw new common_1.ForbiddenException(`No puedes editar estas plantillas: ${sinPermiso.join(', ')}`);
@@ -262,11 +269,12 @@ exports.OrganizationSettingsController = OrganizationSettingsController = __deco
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, module_scope_decorator_1.ModuleScope)('settings'),
     __param(1, (0, common_1.Inject)((0, common_1.forwardRef)(() => permission_resolver_service_1.PermissionResolverService))),
-    __param(4, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
-    __param(5, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
+    __param(5, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(6, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
     __metadata("design:paramtypes", [organization_settings_service_1.OrganizationSettingsService,
         permission_resolver_service_1.PermissionResolverService,
         account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService,
         email_service_1.EmailService,
         typeorm_2.Repository,
         typeorm_2.Repository])

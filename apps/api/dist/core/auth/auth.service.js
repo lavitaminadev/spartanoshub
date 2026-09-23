@@ -352,13 +352,14 @@ let AuthService = AuthService_1 = class AuthService {
             return null;
         const organization = await this.orgRepo.findOne({ where: { id: user.organizationId }, select: ['id', 'features'] });
         const client = user.clientId
-            ? await this.clientRepo.findOne({ where: { id: user.clientId, organizationId: user.organizationId }, select: ['id', 'capabilities'] })
+            ? await this.clientRepo.findOne({ where: { id: user.clientId, organizationId: user.organizationId }, select: ['id', 'name', 'capabilities'] })
             : null;
         return Object.assign(user, {
             features: (0, organization_features_1.normalizeOrganizationFeatures)(organization?.features),
             moduleLifecycle: await this.organizationModuleLifecycle(user.organizationId),
             mustAcceptTerms: await this.termsPending(user),
             capabilities: client ? (0, client_capabilities_1.normalizeClientCapabilities)(client.capabilities) : undefined,
+            clientName: client?.name ?? undefined,
         });
     }
     async organizationModuleLifecycle(organizationId) {

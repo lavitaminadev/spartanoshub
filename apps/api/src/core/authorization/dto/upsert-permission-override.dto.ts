@@ -1,4 +1,4 @@
-import { IsIn, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PERMISSION_LEVELS, PermissionLevel } from '../permission-level';
 
 /** Cuerpo para crear o reemplazar la excepción de permiso de un usuario. */
@@ -6,6 +6,13 @@ export class UpsertPermissionOverrideDto {
   /** Nivel a conceder. `none` deniega de forma explícita lo que el cargo otorgaría. */
   @IsIn(PERMISSION_LEVELS as unknown as string[])
   level: PermissionLevel;
+
+  /**
+   * Empresa en la que vale la excepción. Sin ella, vale en todas, que es como funcionó siempre.
+   *
+   * Es lo que deja administrar una empresa y sólo mirar otra sin tocar el cargo de la persona.
+   */
+  @IsOptional() @IsUUID() clientId?: string;
 
   /** Justificación de la excepción, para poder auditarla después. */
   @IsOptional() @IsString() @MaxLength(300)

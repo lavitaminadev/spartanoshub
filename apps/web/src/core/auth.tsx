@@ -45,6 +45,8 @@ export interface User {
   avatarUrl?: string;
   organizationId?: string;
   clientId?: string;
+  /** Nombre de la empresa del portal. Sólo lo trae una cuenta de empresa. */
+  clientName?: string;
   /** Servicios contratados por la empresa de una cuenta portal. */
   capabilities?: Record<string, boolean>;
   mustChangePassword?: boolean;
