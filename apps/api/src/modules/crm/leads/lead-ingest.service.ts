@@ -7,6 +7,9 @@ import { LeadIntakeService, type LeadMetadata } from './lead-intake.service';
 import { Campaign } from '../campaigns/campaign.entity';
 import { IngestLeadDto } from './dto/ingest-lead.dto';
 import { identificadorExterno } from './identificador-externo';
+import { CrmFieldsService } from '../fields/crm-fields.service';
+import { repartirRespuestas, type CampoConPreguntas } from '../fields/respuestas-de-formularios';
+import type { CustomFieldValues } from '@espartanos/shared';
 
 /** Prefijo visible de la llave, para reconocerla si aparece pegada en otro sitio. */
 const TOKEN_PREFIX = 'esp_in_';
@@ -35,6 +38,7 @@ export class LeadIngestService {
     @InjectRepository(LeadIngestSource) private readonly sources: Repository<LeadIngestSource>,
     @InjectRepository(Campaign) private readonly campaigns: Repository<Campaign>,
     private readonly intake: LeadIntakeService,
+    private readonly campos: CrmFieldsService,
   ) {}
 
   /**
@@ -138,6 +142,14 @@ export class LeadIngestService {
         // El anuncio no tiene columna propia y sí la tiene el detalle de Meta: se guarda donde
         // el camino directo ya lo guarda, y no se inventa una columna para un solo dato.
         metadata: this.metadatosDeEntrada(dto),
+        /*
+         * Lo que el formulario preguntó, en los campos propios que lo reclamen.
+         *
+         * Las respuestas ya se guardaban en `metadata` y se leen en la ficha, pero ahí no se
+         * pueden filtrar ni contar. Se siguen guardando ahí —nada se pierde— y además llenan el
+         * campo que las declaró como suyas.
+         */
+        customFields: await this.camposDelFormulario(source.organizationId, dto),
       });
 
       // El contador y la fecha se actualizan aparte del lead: si esto fallara, el lead ya está
@@ -263,5 +275,29 @@ export class LeadIngestService {
       ...atribucion,
     };
     return Object.keys(metadatos).length > 0 ? metadatos : undefined;
+  }
+
+  /**
+   * Los campos propios que llenan las respuestas del formulario.
+   *
+   * Acepta las dos formas en que llegan: las preguntas del formulario y los campos sueltos que
+   * la automatización mande aparte. Si las definiciones no se pueden leer, no se llena ninguno y
+   * las respuestas siguen viéndose en la ficha como hasta ahora: un problema de configuración no
+   * puede impedir que entre un lead.
+   */
+  private async camposDelFormulario(organizationId: string, dto: IngestLeadDto): Promise<CustomFieldValues | undefined> {
+    const metadata = (dto.metadata ?? {}) as { answers?: Array<{ question?: string; answer?: string }>; customFields?: Array<{ name?: string; value?: string }> };
+    const pares = [
+      ...(metadata.answers ?? []).map((item) => ({ nombre: String(item.question ?? ''), valor: String(item.answer ?? '') })),
+      ...(metadata.customFields ?? []).map((item) => ({ nombre: String(item.name ?? ''), valor: String(item.value ?? '') })),
+    ].filter((item) => item.nombre && item.valor);
+    if (pares.length === 0) return undefined;
+    try {
+      const definiciones = await this.campos.listar(organizationId, 'lead', false) as CampoConPreguntas[];
+      const { camposPropios } = repartirRespuestas(definiciones, pares);
+      return Object.keys(camposPropios).length > 0 ? camposPropios : undefined;
+    } catch {
+      return undefined;
+    }
   }
 }
