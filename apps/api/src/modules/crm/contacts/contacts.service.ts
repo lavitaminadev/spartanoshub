@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
 import { Contact } from './contact.entity';
 import { UpdateContactDto } from './dto/update-contact.dto';
+import { CrmFieldsService } from '../fields/crm-fields.service';
 
 /** Marca un alcance que no puede coincidir con ningún registro. */
 const EMPTY_SCOPE = Symbol('empty-client-scope');
@@ -40,6 +41,7 @@ export class ContactsService {
   constructor(
     @InjectRepository(Contact) private readonly repo: Repository<Contact>,
     private readonly dataSource: DataSource,
+    private readonly campos: CrmFieldsService,
   ) {}
 
   /**
@@ -103,6 +105,14 @@ export class ContactsService {
     const contact = await this.findOne(id, organizationId, allowedClientIds);
     if (dto.position !== undefined) contact.position = dto.position.trim() || undefined;
     if (dto.notes !== undefined) contact.notes = dto.notes.trim() || undefined;
+    /*
+     * Los campos propios se validan contra sus definiciones, igual que en un lead: tipo, opciones
+     * y obligatoriedad. Definirlos sin poder completarlos dejaba la pantalla de Administración
+     * ofreciendo algo que no existía en ninguna ficha.
+     */
+    if (dto.customFields !== undefined) {
+      contact.customFields = await this.campos.validarPara(organizationId, 'contact', contact.customFields, dto.customFields, true) ?? undefined;
+    }
     return this.repo.save(contact);
   }
 

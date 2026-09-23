@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsDateString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsObject, IsOptional, IsString, IsNumber, IsDateString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class UpdateOpportunityDto {
   @IsOptional() @IsString() @MaxLength(255) name?: string;
@@ -13,4 +13,6 @@ export class UpdateOpportunityDto {
   @IsOptional() @IsUUID() assignedTo?: string;
   @IsOptional() @IsString() @MaxLength(60) lossReason?: string;
   @IsOptional() @IsString() @MaxLength(2000) lossNote?: string;
+  /** Campos propios de oportunidades, por clave. El caso de uso los valida contra sus definiciones. */
+  @IsOptional() @IsObject() customFields?: Record<string, unknown>;
 }

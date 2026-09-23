@@ -26,3 +26,8 @@ __decorate([
     (0, class_validator_1.MaxLength)(5000),
     __metadata("design:type", String)
 ], UpdateContactDto.prototype, "notes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpdateContactDto.prototype, "customFields", void 0);

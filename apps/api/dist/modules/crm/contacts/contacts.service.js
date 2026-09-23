@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const contact_entity_1 = require("./contact.entity");
+const crm_fields_service_1 = require("../fields/crm-fields.service");
 const EMPTY_SCOPE = Symbol('empty-client-scope');
 function buildSegments(counts) {
     return [
@@ -28,9 +29,10 @@ function buildSegments(counts) {
 }
 const EMPTY_SEGMENTS = buildSegments({ total: 0, frequent: 0, vip: 0, inactive90: 0 });
 let ContactsService = class ContactsService {
-    constructor(repo, dataSource) {
+    constructor(repo, dataSource, campos) {
         this.repo = repo;
         this.dataSource = dataSource;
+        this.campos = campos;
     }
     async findAll(organizationId, limit = 50, offset = 0, clientId, allowedClientIds) {
         const scope = this.clientScope(clientId, allowedClientIds);
@@ -68,6 +70,9 @@ let ContactsService = class ContactsService {
             contact.position = dto.position.trim() || undefined;
         if (dto.notes !== undefined)
             contact.notes = dto.notes.trim() || undefined;
+        if (dto.customFields !== undefined) {
+            contact.customFields = await this.campos.validarPara(organizationId, 'contact', contact.customFields, dto.customFields, true) ?? undefined;
+        }
         return this.repo.save(contact);
     }
     async segments(organizationId, clientId, allowedClientIds) {
@@ -106,5 +111,6 @@ exports.ContactsService = ContactsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(contact_entity_1.Contact)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.DataSource])
+        typeorm_2.DataSource,
+        crm_fields_service_1.CrmFieldsService])
 ], ContactsService);
