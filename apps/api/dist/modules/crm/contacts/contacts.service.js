@@ -34,12 +34,16 @@ let ContactsService = class ContactsService {
         this.dataSource = dataSource;
         this.campos = campos;
     }
-    async findAll(organizationId, limit = 50, offset = 0, clientId, allowedClientIds) {
+    async findAll(organizationId, limit = 50, offset = 0, clientId, allowedClientIds, leadId) {
         const scope = this.clientScope(clientId, allowedClientIds);
         if (scope === EMPTY_SCOPE)
             return { data: [], total: 0, limit, offset };
         const [data, total] = await this.repo.findAndCount({
-            where: scope ? { organizationId, clientId: scope } : { organizationId },
+            where: {
+                organizationId,
+                ...(scope ? { clientId: scope } : {}),
+                ...(leadId ? { leadId } : {}),
+            },
             order: { createdAt: 'DESC' },
             take: limit,
             skip: offset,

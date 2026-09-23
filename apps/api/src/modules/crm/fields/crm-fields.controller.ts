@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { TIPOS_DE_CAMPO } from '@espartanos/shared';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
@@ -22,6 +22,8 @@ class CrearCampoDto {
 }
 
 class EditarCampoDto {
+  /** Preguntas de Meta que llenan el campo. Lista vacía: deja de recibir de los formularios. */
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(120, { each: true }) metaQuestions?: string[];
   @IsOptional() @IsString() @MinLength(1) @MaxLength(80) label?: string;
   @IsOptional() @IsBoolean() required?: boolean;
   @IsOptional() @IsInt() @Min(0) position?: number;

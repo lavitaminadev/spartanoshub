@@ -31,7 +31,9 @@ describe('MetaLeadAdsService', () => {
      * sale a qué empresa pertenece. El doble devuelve la campaña que nombra el payload.
      */
     campaignsRepo.findOne.mockResolvedValue({ id: 'camp-1', clientId: null });
-    service = new MetaLeadAdsService(accountsRepo as any, eventsRepo as any, campaignsRepo as any, leadIntake as any);
+    // Campos propios: sin definiciones, todas las respuestas siguen yendo a las notas.
+    const campos = { listar: async () => [] };
+    service = new MetaLeadAdsService(accountsRepo as any, eventsRepo as any, campaignsRepo as any, campos as any, leadIntake as any);
     accountsRepo.find.mockResolvedValue([]);
     eventsRepo.find.mockResolvedValue([]);
     eventsRepo.create.mockImplementation((data) => data);

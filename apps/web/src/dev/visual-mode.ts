@@ -474,6 +474,14 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     const usuario = (config?.url?.match(/\/users\/([^/]+)\/client-access/) ?? [])[1];
     return { userId: usuario, role: 'community_manager', access: visualEmpresasDeUsuario[usuario] ??= [{ clientId: 'visual-client', source: 'pod' }] };
   }],
+  // El contacto del lead: la misma persona vista desde la empresa, con sus campos propios.
+  [/\/crm\/contacts(\?|$)/, (config) => {
+    const url = new URL(config?.url || '/', window.location.origin);
+    const contacto = { id: 'visual-contacto-1', leadId: 'l1', clientId: 'visual-client', position: 'Encargada de marketing', notes: 'Prefiere que la llamen después de las 16:00.', customFields: {} };
+    if (config?.method?.toLowerCase() === 'patch') return { ...contacto, ...visualRequestBody(config) };
+    const lead = url.searchParams.get('leadId');
+    return { data: !lead || lead === 'l1' ? [contacto] : [], total: 1, limit: 50, offset: 0 };
+  }],
   [/\/crm\/leads\/l1$/, (config) => {
     const cambios = (config?.method ?? 'get').toLowerCase() === 'get' ? {} : visualRequestBody(config);
     if (cambios.customFields) Object.assign(visualLeadConCampos.customFields, cambios.customFields);

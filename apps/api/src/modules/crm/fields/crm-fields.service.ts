@@ -6,6 +6,7 @@ import {
   type CustomFieldDefinition, type CustomFieldEntity, type CustomFieldType, type CustomFieldValues,
 } from '@espartanos/shared';
 import { CrmFieldDefinition } from './crm-field-definition.entity';
+import { comparable } from './respuestas-de-meta';
 
 /** Dónde guarda sus valores cada tipo de registro. Nombres fijos: nunca vienen del pedido. */
 const TABLA_DE: Record<CustomFieldEntity, string> = { lead: 'leads', contact: 'crm_contacts', opportunity: 'crm_opportunities' };
@@ -27,6 +28,7 @@ function aContrato(def: CrmFieldDefinition): CustomFieldDefinition {
     options: def.options ?? null,
     required: def.required,
     position: def.position,
+    metaQuestions: def.metaQuestions ?? null,
     archivedAt: def.archivedAt ? def.archivedAt.toISOString() : null,
   };
 }
@@ -115,7 +117,7 @@ export class CrmFieldsService {
   async actualizar(
     organizationId: string,
     id: string,
-    datos: { label?: string; required?: boolean; position?: number; options?: unknown; type?: string },
+    datos: { label?: string; required?: boolean; position?: number; options?: unknown; type?: string; metaQuestions?: string[] },
   ): Promise<CustomFieldDefinition> {
     const campo = await this.campos.findOne({ where: { id, organizationId } });
     if (!campo) throw new NotFoundException('Campo no encontrado');
@@ -152,6 +154,25 @@ export class CrmFieldsService {
     if (datos.position !== undefined && Number.isInteger(datos.position)) campo.position = Math.max(0, datos.position);
     campo.type = tipoNuevo as CustomFieldType;
     campo.options = opcionesNuevas;
+    /*
+     * Las preguntas de Meta que llenan este campo.
+     *
+     * Se limpian y se desduplican por su forma comparable —sin tildes ni signos—: dos variantes
+     * que ya emparejan igual no aportan nada y ensucian la lista que se le muestra a quien
+     * configura. Una lista vacía deja el campo sólo para llenarse a mano.
+     */
+    if (datos.metaQuestions !== undefined) {
+      const vistas = new Set<string>();
+      const preguntas = datos.metaQuestions
+        .map((pregunta) => pregunta.trim().slice(0, 120))
+        .filter((pregunta) => {
+          const llave = comparable(pregunta);
+          if (!llave || vistas.has(llave)) return false;
+          vistas.add(llave);
+          return true;
+        });
+      campo.metaQuestions = preguntas.length > 0 ? preguntas : null;
+    }
     return aContrato(await this.campos.save(campo));
   }
 

@@ -900,3 +900,8 @@
 
 /* Asistencia que el sistema supuso: se distingue sin tapar el estado. */
 .asistencia-supuesta { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #fff4e5; color: #7a4b00; font-size: 10px; font-weight: 600; }
+
+/* El contacto dentro de la ficha del lead: se distingue del lead sin parecer otra pantalla. */
+.contacto-del-lead { grid-column: 1 / -1; display: grid; gap: 8px; margin: 14px 0; padding: 12px 14px; border: 1px solid var(--border, #e4e4e7); border-radius: 12px; background: var(--soft, #fafafa); }
+.contacto-del-lead h4 { margin: 0; font-size: 13px; }
+.contacto-del-lead .crm-admin-ayuda { margin: 0; }

@@ -40,6 +40,8 @@ export interface CustomFieldDefinition {
   options?: string[] | null;
   required: boolean;
   position: number;
+  /** Preguntas de formularios de Meta que llenan este campo. Vacío: sólo se llena a mano. */
+  metaQuestions?: string[] | null;
   archivedAt?: string | null;
 }
 

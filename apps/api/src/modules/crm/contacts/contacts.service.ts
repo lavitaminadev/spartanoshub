@@ -58,12 +58,18 @@ export class ContactsService {
     offset = 0,
     clientId?: string,
     allowedClientIds?: string[],
+    leadId?: string,
   ): Promise<{ data: Contact[]; total: number; limit: number; offset: number }> {
     const scope = this.clientScope(clientId, allowedClientIds);
     if (scope === EMPTY_SCOPE) return { data: [], total: 0, limit, offset };
 
     const [data, total] = await this.repo.findAndCount({
-      where: scope ? { organizationId, clientId: scope } : { organizationId },
+      where: {
+        organizationId,
+        ...(scope ? { clientId: scope } : {}),
+        // El alcance por empresa se aplica igual: pedir por lead no lo salta.
+        ...(leadId ? { leadId } : {}),
+      },
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,

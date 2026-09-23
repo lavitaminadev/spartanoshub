@@ -20,7 +20,7 @@ import { api } from '../../core/api';
 
 const ENTIDADES: Array<{ value: CustomFieldEntity; label: string }> = [
   { value: 'lead', label: 'Leads' },
-  { value: 'contact', label: 'Contactos (sin ficha)' },
+  { value: 'contact', label: 'Contactos' },
   { value: 'opportunity', label: 'Oportunidades' },
 ];
 
@@ -38,7 +38,7 @@ export function CamposPropiosDelCrm(): JSX.Element {
   const [entidad, setEntidad] = useState<CustomFieldEntity>('lead');
   const [verArchivados, setVerArchivados] = useState(false);
   const [nuevo, setNuevo] = useState<Borrador | null>(null);
-  const [editando, setEditando] = useState<{ id: string; label: string; options: string; required: boolean; type: CustomFieldType } | null>(null);
+  const [editando, setEditando] = useState<{ id: string; label: string; options: string; required: boolean; type: CustomFieldType; metaQuestions: string }  | null>(null);
   const [aviso, setAviso] = useState<{ tono: 'ok' | 'error'; texto: string } | null>(null);
 
   const clave = ['crm-fields', entidad, verArchivados];
@@ -117,7 +117,7 @@ export function CamposPropiosDelCrm(): JSX.Element {
         * dejaba a alguien creando campos que no aparecían en ninguna parte.
         */}
       {entidad === 'contact' ? (
-        <p className="crm-admin-ayuda">Los contactos todavía no tienen ficha propia, así que estos campos no se pueden completar en ninguna pantalla. Lo que definas queda guardado para cuando exista.</p>
+        <p className="crm-admin-ayuda">Estos campos se completan dentro de la ficha del lead, en «En esta empresa»: el contacto es la misma persona vista desde una de sus cuentas.</p>
       ) : null}
 
       {aviso ? <div className={`alert ${aviso.tono === 'ok' ? 'alert-success' : 'alert-error'}`} role="status">{aviso.texto}</div> : null}
@@ -138,6 +138,7 @@ export function CamposPropiosDelCrm(): JSX.Element {
                       label: editando.label,
                       required: editando.required,
                       type: editando.type,
+                      metaQuestions: editando.metaQuestions.split('\n').map((linea) => linea.trim()).filter(Boolean),
                       ...(CON_OPCIONES.has(editando.type) ? { options: opcionesDesdeTexto(editando.options) } : {}),
                     } });
                   }}>
@@ -145,6 +146,20 @@ export function CamposPropiosDelCrm(): JSX.Element {
                     <label>Tipo<select className="input" value={editando.type} onChange={(evento) => setEditando({ ...editando, type: evento.target.value as CustomFieldType })}>{TIPOS_DE_CAMPO.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}</select></label>
                     {CON_OPCIONES.has(editando.type) ? <label className="campos-propios-opciones">Opciones <small>(una por línea)</small><textarea className="input" rows={4} value={editando.options} onChange={(evento) => setEditando({ ...editando, options: evento.target.value })} /></label> : null}
                     <label className="toggle-row"><input type="checkbox" checked={editando.required} onChange={(evento) => setEditando({ ...editando, required: evento.target.checked })} /> Obligatorio al editar la ficha</label>
+                    {/*
+                      * Qué preguntas de Meta llenan este campo.
+                      *
+                      * Las respuestas que no son nombre, correo, teléfono ni empresa se pegaban en
+                      * las notas como texto: se leían, pero no se podían filtrar ni contar. Quien
+                      * arma el anuncio escribe la pregunta a mano y cambia entre campañas, así que
+                      * se aceptan varias redacciones para el mismo dato.
+                      */}
+                    {entidad === 'lead' ? (
+                      <label className="campos-propios-opciones">Preguntas de Meta que llenan este campo <small>(una por línea, opcional)</small>
+                        <textarea className="input" rows={3} placeholder={`${campo.key}\n¿Cuál es tu presupuesto?`} value={editando.metaQuestions} onChange={(evento) => setEditando({ ...editando, metaQuestions: evento.target.value })} />
+                        <small className="crm-admin-ayuda">Da igual tildes, mayúsculas y signos. La clave <code>{campo.key}</code> ya funciona sin escribir nada. Lo que no coincida con ningún campo sigue yendo a las notas del lead.</small>
+                      </label>
+                    ) : null}
                     <small className="crm-admin-ayuda">La clave <code>{campo.key}</code> no cambia. Si el tipo nuevo o las opciones dejan algún valor guardado inválido, no se aplica.</small>
                     <div className="campos-propios-acciones">
                       <button className="btn btn-primary btn-sm" disabled={editar.isPending || !editando.label.trim()}>Guardar</button>
@@ -158,6 +173,7 @@ export function CamposPropiosDelCrm(): JSX.Element {
                       <small>
                         {TIPOS_DE_CAMPO.find((tipo) => tipo.value === campo.type)?.label}
                         {campo.options?.length ? ` · ${campo.options.slice(0, 4).join(', ')}${campo.options.length > 4 ? '…' : ''}` : ''}
+                        {campo.metaQuestions?.length ? ` · se llena desde Meta con ${campo.metaQuestions.length} ${campo.metaQuestions.length === 1 ? 'pregunta' : 'preguntas'}` : ''}
                         {' · '}<code>{campo.key}</code>
                         {campo.archivedAt ? ' · archivado' : ''}
                       </small>
@@ -166,7 +182,7 @@ export function CamposPropiosDelCrm(): JSX.Element {
                       {!campo.archivedAt ? <>
                         <button type="button" className="btn btn-outline btn-xs" aria-label={`Subir ${campo.label}`} disabled={indice <= 0 || editar.isPending} onClick={() => mover(campo, -1)}>↑</button>
                         <button type="button" className="btn btn-outline btn-xs" aria-label={`Bajar ${campo.label}`} disabled={indice >= activos.length - 1 || editar.isPending} onClick={() => mover(campo, 1)}>↓</button>
-                        <button type="button" className="btn btn-outline btn-xs" onClick={() => setEditando({ id: campo.id, label: campo.label, options: (campo.options ?? []).join('\n'), required: campo.required, type: campo.type })}>Editar</button>
+                        <button type="button" className="btn btn-outline btn-xs" onClick={() => setEditando({ id: campo.id, label: campo.label, options: (campo.options ?? []).join('\n'), required: campo.required, type: campo.type, metaQuestions: (campo.metaQuestions ?? []).join('\n') })}>Editar</button>
                       </> : null}
                       <button type="button" className="btn btn-outline btn-xs" disabled={archivar.isPending} onClick={() => archivar.mutate({ id: campo.id, archivado: !campo.archivedAt })}>
                         {campo.archivedAt ? 'Desarchivar' : 'Archivar'}

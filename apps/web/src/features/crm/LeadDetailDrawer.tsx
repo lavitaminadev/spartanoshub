@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
+import { ContactoDelLead } from './ContactoDelLead';
 import { CamposPropiosEnFicha, hayValoresInvalidos, useDefinicionesDeCampos, type ValoresEnEdicion } from './CamposPropiosEnFicha';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
@@ -838,6 +839,9 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             deshabilitado={!scope.puedeEditar}
             onCambiar={(clave, valor) => editar(setCamposPropios, { ...camposPropios, [clave]: valor })}
           />
+
+          {/* La misma persona, vista desde la empresa: cargo, notas y sus campos propios. */}
+          <ContactoDelLead leadId={lead.id} puedeEditar={scope.puedeEditar} />
 
           <label>
             <span>Monto estimado</span>

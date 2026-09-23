@@ -146,6 +146,9 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
                 scoringSignals: qualification.scoringSignals,
                 ...(match.conflict ? { identityConflict: { ...match.conflict, detectedAt: new Date().toISOString() } } : {}),
             },
+            customFields: normalized.customFields || match.lead?.customFields
+                ? { ...(match.lead?.customFields ?? {}), ...(normalized.customFields ?? {}) }
+                : null,
         });
         if (!lead.status)
             lead.status = 'new';

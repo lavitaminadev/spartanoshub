@@ -104,6 +104,14 @@ export interface LeadCaptureInput {
   sourceDetail?: string;
   notes?: string;
   estimatedAmount?: number;
+  /**
+   * Campos propios que el origen ya supo resolver, por clave.
+   *
+   * Los trae quien conoce el formulario de origen —hoy, los formularios instantáneos de Meta—.
+   * Se mezclan con lo que ya tuviera el lead: una segunda captura completa lo que faltaba sin
+   * borrar lo que alguien escribió a mano.
+   */
+  customFields?: Record<string, string | number | boolean | string[]>;
   trafficLight?: 'green' | 'yellow' | 'red';
   /**
    * Cuándo ocurrió en el origen. Vacío cuando no hay origen externo que lo aporte.
@@ -323,6 +331,9 @@ export class LeadIntakeService {
         scoringSignals: qualification.scoringSignals,
         ...(match.conflict ? { identityConflict: { ...match.conflict, detectedAt: new Date().toISOString() } } : {}),
       },
+      customFields: normalized.customFields || match.lead?.customFields
+        ? { ...(match.lead?.customFields ?? {}), ...(normalized.customFields ?? {}) }
+        : null,
     });
 
     if (!lead.status) lead.status = 'new';

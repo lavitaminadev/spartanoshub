@@ -18,6 +18,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const shared_1 = require("@espartanos/shared");
 const crm_field_definition_entity_1 = require("./crm-field-definition.entity");
+const respuestas_de_meta_1 = require("./respuestas-de-meta");
 const TABLA_DE = { lead: 'leads', contact: 'crm_contacts', opportunity: 'crm_opportunities' };
 const ENTIDADES = new Set(['lead', 'contact', 'opportunity']);
 const TIPOS = new Set(shared_1.TIPOS_DE_CAMPO.map((tipo) => tipo.value));
@@ -33,6 +34,7 @@ function aContrato(def) {
         options: def.options ?? null,
         required: def.required,
         position: def.position,
+        metaQuestions: def.metaQuestions ?? null,
         archivedAt: def.archivedAt ? def.archivedAt.toISOString() : null,
     };
 }
@@ -135,6 +137,19 @@ let CrmFieldsService = class CrmFieldsService {
             campo.position = Math.max(0, datos.position);
         campo.type = tipoNuevo;
         campo.options = opcionesNuevas;
+        if (datos.metaQuestions !== undefined) {
+            const vistas = new Set();
+            const preguntas = datos.metaQuestions
+                .map((pregunta) => pregunta.trim().slice(0, 120))
+                .filter((pregunta) => {
+                const llave = (0, respuestas_de_meta_1.comparable)(pregunta);
+                if (!llave || vistas.has(llave))
+                    return false;
+                vistas.add(llave);
+                return true;
+            });
+            campo.metaQuestions = preguntas.length > 0 ? preguntas : null;
+        }
         return aContrato(await this.campos.save(campo));
     }
     async archivar(organizationId, id, archivar) {

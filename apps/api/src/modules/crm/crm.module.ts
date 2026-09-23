@@ -70,6 +70,6 @@ import { CrmFieldsController } from './fields/crm-fields.controller';
     CampaignsService,
     CrmFieldsService,
   ],
-  exports: [LeadIntakeService, CrmLeadAutomationService, CrmHomeService],
+  exports: [LeadIntakeService, CrmLeadAutomationService, CrmHomeService, CrmFieldsService],
 })
 export class CrmModule {}
