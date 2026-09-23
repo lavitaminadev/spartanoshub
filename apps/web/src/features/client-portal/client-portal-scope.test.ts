@@ -19,7 +19,8 @@ describe('portal del cliente en la operación inicial', () => {
   it('solo publica Inicio y los servicios efectivamente contratados', () => {
     const visible = CLIENT_NAV.filter((item) => isClientNavItemVisible(item, client())).map((item) => item.label);
 
-    expect(visible).toEqual(['Inicio', 'CRM']);
+    // Correos entra con CRM: es el servicio el que genera los avisos que salen a su nombre.
+    expect(visible).toEqual(['Inicio', 'CRM', 'Correos']);
     expect(CLIENT_NAV.map((item) => item.label)).not.toContain('Aprobaciones');
     expect(CLIENT_NAV.map((item) => item.label)).not.toContain('Informes');
   });

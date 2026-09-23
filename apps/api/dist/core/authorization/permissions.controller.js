@@ -201,6 +201,7 @@ let PermissionsController = class PermissionsController {
     }
     async ofUser(id, req) {
         const user = await this.findUser(id, req.organizationId);
+        await this.assertCanManageUserPermissionException(req, user);
         return {
             userId: user.id,
             role: user.role,
@@ -344,6 +345,21 @@ let PermissionsController = class PermissionsController {
             return;
         if (target.id === req.user.id)
             throw new common_2.ForbiddenException('No puedes ajustar tus propios accesos');
+        if (actorRole === user_role_enum_1.UserRole.CLIENT) {
+            const suEmpresa = req.user.clientId;
+            const puede = suEmpresa
+                ? await this.permissions.can(req.organizationId, req.user.id, actorRole, 'users', 'manage', suEmpresa)
+                : false;
+            if (!puede)
+                throw new common_2.ForbiddenException('Tu cuenta no administra personas');
+            if (target.clientId !== suEmpresa || target.role !== user_role_enum_1.UserRole.CLIENT) {
+                throw new common_2.ForbiddenException('Esa cuenta es de otra empresa');
+            }
+            if (module && ['users', 'settings', 'integrations', 'clients', 'governance'].includes(module)) {
+                throw new common_2.ForbiddenException('Ese acceso lo entrega Espartanos');
+            }
+            return;
+        }
         if (target.role === user_role_enum_1.UserRole.DEV) {
             throw new common_2.ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
         }
@@ -449,7 +465,7 @@ __decorate([
 ], PermissionsController.prototype, "ofRole", null);
 __decorate([
     (0, common_1.Get)('users/:id/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Detalle de permisos de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -459,7 +475,7 @@ __decorate([
 ], PermissionsController.prototype, "ofUser", null);
 __decorate([
     (0, common_1.Put)('users/:id/permissions/:module'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Definir una excepción de permiso' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),

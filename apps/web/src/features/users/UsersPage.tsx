@@ -154,19 +154,32 @@ export function UsersPage() {
     ? USER_ROLES.filter((role) => !['admin', 'dev', 'operations_director', 'commercial_director'].includes(role))
     : [...USER_ROLES];
 
+  /*
+    Quien administra su propia empresa.
+
+    No es un cargo sino un permiso, porque el cargo es uno solo por persona y hay quien
+    administra una empresa y en otra solo mira. Su pantalla es la misma, recortada: su empresa
+    ya viene fijada y el servidor no le devuelve nada más, así que aquí solo se quita lo que no
+    tiene sentido ofrecerle.
+  */
+  const administraSuEmpresa = currentUser?.role === 'client';
+
   const canManage = (row: UserRow) => currentUser?.role === 'admin'
     || currentUser?.role === 'dev'
     || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role);
   const canResetPassword = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
-  // Administración, Desarrollo y Dirección de operaciones ajustan permisos; esta última sólo a su equipo.
-  const puedeVerPermisos = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
+  // Administración, Desarrollo y Dirección de operaciones ajustan permisos; esta última sólo a su
+  // equipo. Quien administra su empresa los ajusta dentro de ella: es el sentido del permiso.
+  const puedeVerPermisos = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '') || administraSuEmpresa;
   const puedeEditarPermisos = puedeVerPermisos;
   const esOperaciones = currentUser?.role === 'operations_director';
 
   const openCreateModal = () => {
     setFeedback(null);
     setEditing(null);
-    setForm(EMPTY_FORM);
+    setForm(administraSuEmpresa
+      ? { ...EMPTY_FORM, accountType: 'client', role: 'client', clientId: currentUser?.clientId ?? '' }
+      : EMPTY_FORM);
     setModalOpen(true);
   };
 
@@ -279,17 +292,22 @@ export function UsersPage() {
 
       <div className="filters users-filter-bar">
         <input className="input" aria-label="Buscar usuarios" placeholder="Nombre, email, teléfono o rol..." value={search} onChange={(event) => setSearch(event.target.value)} />
-        <select className="input" aria-label="Filtrar por rol" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
-          <option value="">Todos los roles</option>
-          {USER_ROLES.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
-        </select>
+        {/* Filtrar por cargo o por empresa no dice nada cuando solo hay una de cada una. */}
+        {administraSuEmpresa ? null : (
+          <select className="input" aria-label="Filtrar por rol" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+            <option value="">Todos los roles</option>
+            {USER_ROLES.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
+          </select>
+        )}
         <select className="input" aria-label="Filtrar por acceso" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
           <option value="">Activos e inactivos</option><option value="true">Solo activos</option><option value="false">Solo inactivos</option>
         </select>
-        <select className="input" aria-label="Filtrar por empresa" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}>
-          <option value="">Todas las empresas</option>
-          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-        </select>
+        {administraSuEmpresa ? null : (
+          <select className="input" aria-label="Filtrar por empresa" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}>
+            <option value="">Todas las empresas</option>
+            {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+          </select>
+        )}
         <button type="button" className="btn btn-outline btn-sm" onClick={clearFilters} disabled={!search && !roleFilter && !statusFilter && !clientFilter}>Limpiar</button>
         <span className="filter-result-count">{users.length} resultado{users.length === 1 ? '' : 's'}</span>
       </div>
@@ -328,18 +346,27 @@ export function UsersPage() {
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="modal-form">
-          <div className="account-form-intro"><strong>{editing ? 'Identidad y alcance' : 'Nueva identidad de acceso'}</strong><p>Primero define si la persona entra como equipo interno o como usuario de empresa. Los permisos finos se ajustan luego desde Administración.</p></div>
+          <div className="account-form-intro"><strong>{editing ? 'Identidad y alcance' : 'Nueva identidad de acceso'}</strong><p>{administraSuEmpresa
+            ? 'La cuenta queda en tu empresa y entra al portal. Después eliges qué ve cada persona.'
+            : 'Primero define si la persona entra como equipo interno o como usuario de empresa. Los permisos finos se ajustan luego desde Administración.'}</p></div>
           {feedback?.tone === 'error' && <div className="alert alert-error" role="alert">{feedback.text}</div>}
           <label htmlFor="user-name">Nombre completo<input id="user-name" className="input" autoComplete="name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} minLength={2} maxLength={255} required /></label>
           <div className="form-row">
             <label htmlFor="user-email">Email<input id="user-email" className="input" type="email" autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
             <label htmlFor="user-phone">Teléfono<input id="user-phone" className="input" type="tel" autoComplete="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
           </div>
+          {/*
+            Quien administra su empresa no elige nada de esto: su empresa es una sola y el cargo
+            es siempre el de portal. Ofrecerlo sería ofrecer algo que el servidor rechaza.
+          */}
+          {administraSuEmpresa ? null : (
           <fieldset className="form-choice-group">
             <legend>Tipo de cuenta</legend>
             <label className="toggle-row"><input type="radio" name="account-type" checked={form.accountType === 'internal'} disabled={editing?.id === currentUser?.id} onChange={() => setForm({ ...form, accountType: 'internal', role: form.role === 'client' ? 'designer' : form.role, clientId: '', newClientName: '' })} /> Equipo interno</label>
             <label className="toggle-row"><input type="radio" name="account-type" checked={form.accountType === 'client'} disabled={editing?.id === currentUser?.id} onChange={() => setForm({ ...form, accountType: 'client', role: 'client' })} /> Acceso de empresa / cliente</label>
           </fieldset>
+          )}
+          {administraSuEmpresa ? null : (
           <div className="form-row">
             <label htmlFor="user-role">Rol<select id="user-role" className="input" value={clientRequired ? 'client' : form.role} disabled={clientRequired || editing?.id === currentUser?.id} onChange={(event) => setForm({ ...form, role: event.target.value })}>
               {clientRequired
@@ -352,9 +379,12 @@ export function UsersPage() {
               <option value={NEW_CLIENT_VALUE}>+ Crear empresa nueva</option>
             </select></label>
           </div>
+          )}
           {requiresNewClientName && <label htmlFor="user-new-client">Nombre de la empresa nueva<input id="user-new-client" className="input" value={form.newClientName} onChange={(event) => setForm({ ...form, newClientName: event.target.value })} minLength={2} maxLength={255} required /></label>}
           {requiresNewClientName && <fieldset className="form-choice-group"><legend>Servicios contratados</legend><label className="toggle-row"><input type="checkbox" checked={form.capabilities.reservations} onChange={(event) => setForm({ ...form, capabilities: { ...form.capabilities, reservations: event.target.checked } })} /> Reservas</label><label className="toggle-row"><input type="checkbox" checked={form.capabilities.crm} onChange={(event) => setForm({ ...form, capabilities: { ...form.capabilities, crm: event.target.checked } })} /> CRM</label><small>Solo se mostrarán y autorizarán los servicios seleccionados para esta empresa.</small></fieldset>}
-          <div className="alert alert-info">Pods y permisos especiales se configuran después desde Gobernanza o Administración.</div>
+          <div className="alert alert-info">{administraSuEmpresa
+            ? 'Al guardar podrás elegir qué ve esta persona con el botón Permisos de su fila.'
+            : 'Pods y permisos especiales se configuran después desde Gobernanza o Administración.'}</div>
           <label htmlFor="user-password">{editing ? 'Nueva contraseña temporal (opcional)' : 'Contraseña temporal'}<div className="password-generator"><input id="user-password" className="input" type="text" autoComplete="new-password" minLength={8} maxLength={128} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required={!editing} /><button type="button" className="btn btn-outline btn-sm" onClick={generatePassword}>Generar segura</button></div><small>Se solicitará una clave personal en el primer ingreso.</small></label>
           <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={closeModal}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={isSaving || creatingClient || (clientRequired && !form.clientId) || (requiresNewClientName && form.newClientName.trim().length < 2)}>{isSaving || creatingClient ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear usuario'}</button></div>
         </form>
@@ -379,7 +409,7 @@ export function UsersPage() {
         onClose={() => setPendingBulkAccess(null)}
         onConfirm={() => void confirmBulkAccess()}
       />
-      {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id && !(esOperaciones && ['admin', 'operations_director', 'dev'].includes(permisosDe.role))} limitadoAOperaciones={esOperaciones} onCerrar={() => setPermisosDe(null)} />}
+      {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id && !(esOperaciones && ['admin', 'operations_director', 'dev'].includes(permisosDe.role))} limitadoAOperaciones={esOperaciones} limitadoASuEmpresa={administraSuEmpresa} onCerrar={() => setPermisosDe(null)} />}
       <Modal open={Boolean(resetTarget)} onClose={() => { setResetTarget(null); setResetResult(null); }} title={`Resetear clave de ${resetTarget?.name ?? ''}`}>
         <div className="modal-form reset-access-modal">
           {!resetResult ? <><p>Se cerrarán las sesiones activas y se generará una contraseña temporal. La persona deberá cambiarla al ingresar.</p><label className="toggle-row"><input type="checkbox" checked={sendResetEmail} onChange={(event) => setSendResetEmail(event.target.checked)} /> Enviar también al correo {resetTarget?.email}</label>{resetMutation.error && <div className="alert alert-error">{resetMutation.error.message}</div>}<div className="modal-actions"><button className="btn btn-outline" type="button" onClick={() => setResetTarget(null)}>Cancelar</button><button className="btn btn-primary" type="button" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>{resetMutation.isPending ? 'Generando...' : 'Generar acceso temporal'}</button></div></> : <><div className="temporary-password-result"><span>CLAVE TEMPORAL · SE MUESTRA UNA VEZ</span><strong>{resetResult.temporaryPassword}</strong><button className="btn btn-outline btn-sm" type="button" onClick={() => navigator.clipboard.writeText(resetResult.temporaryPassword)}>Copiar clave</button></div><div className={`alert alert-${resetResult.emailSent ? 'success' : 'info'}`}>{resetResult.emailSent ? 'También fue enviada por correo.' : 'El correo no fue enviado. Comparte esta clave por un canal seguro.'}</div><button className="btn btn-primary btn-block" type="button" onClick={() => { setResetTarget(null); setResetResult(null); }}>Cerrar</button></>}

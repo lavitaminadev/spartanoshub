@@ -47,12 +47,14 @@ const ORIGEN_EMPRESA: Record<AccesoEmpresa['source'], string> = {
   assignment: 'asignada a mano',
 };
 
-export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOperaciones = false, onCerrar }: {
+export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOperaciones = false, limitadoASuEmpresa = false, onCerrar }: {
   usuario: { id: string; name: string; role: string };
   empresas: Array<{ id: string; name: string }>;
   puedeEditar: boolean;
   /** Dirección de operaciones no ajusta Usuarios, Ajustes ni Integraciones (lo exige el servidor). */
   limitadoAOperaciones?: boolean;
+  /** Quien administra su propia empresa: reparte los servicios y no los módulos del sistema. */
+  limitadoASuEmpresa?: boolean;
   onCerrar: () => void;
 }) {
   const qc = useQueryClient();
@@ -116,6 +118,12 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
             {MODULOS.map((modulo) => {
               const efectivo = porModulo.get(modulo.clave);
               if (!efectivo) return null;
+              /*
+                Los módulos con los que se administra el sistema no se muestran, no se atenúan.
+                Quien administra su empresa nunca va a poder tocarlos —el servidor los rechaza—,
+                así que enseñarlos solo invita a intentarlo y a leer un error.
+              */
+              if (limitadoASuEmpresa && ['users', 'settings', 'integrations', 'clients', 'governance'].includes(modulo.clave)) return null;
               const bloqueado = efectivo.moduleDisabled || efectivo.productHidden;
               const soloAdministracion = limitadoAOperaciones && ['users', 'settings', 'integrations'].includes(modulo.clave);
               const nivelDelCargo = delCargo.data?.permissions?.[modulo.clave];

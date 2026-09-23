@@ -47,7 +47,11 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   // mantener dos árboles de enlaces y terminaría separando la vista del cliente del mismo dato.
   // La matriz efectiva sigue siendo la puerta: un cliente sin CRM recibe el bloqueo normal.
   const isClientCrmRoute = path === '/crm' || path?.startsWith('/crm/');
-  if (user.role === 'client' && path && !path.startsWith('/portal') && !isPersonalRoute && !isClientCrmRoute) {
+  // El equipo de la propia empresa y los correos que salen a su nombre son del cliente cuando
+  // tiene el permiso, así que esas pantallas también conservan su ruta canónica. Quien no lo
+  // tenga recibe el bloqueo normal unas líneas más abajo: esto abre la puerta, no da la llave.
+  const esRutaDeEmpresa = path === '/users' || path === '/correos';
+  if (user.role === 'client' && path && !path.startsWith('/portal') && !isPersonalRoute && !isClientCrmRoute && !esRutaDeEmpresa) {
     return <Navigate to="/portal" replace />;
   }
   // El dashboard es la superficie base de cualquier cuenta interna. Si una respuesta

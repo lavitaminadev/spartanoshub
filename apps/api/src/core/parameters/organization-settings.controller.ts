@@ -145,10 +145,11 @@ export class OrganizationSettingsController {
    */
   /* El módulo depende de la plantilla, no del endpoint: se comprueba adentro, plantilla por plantilla. */
   @ModuleExempt('Cada plantilla exige el permiso de su propio módulo, comprobado en el método')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @Get('correos')
   @ApiOperation({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' })
   async correos(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    clientId = this.empresaDeLaSesion(request, clientId);
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
     // Sólo las plantillas de los módulos que esta persona puede editar: las demás no se muestran.
@@ -186,10 +187,11 @@ export class OrganizationSettingsController {
 
   /* El módulo depende de la plantilla, no del endpoint: se comprueba adentro, plantilla por plantilla. */
   @ModuleExempt('Cada plantilla exige el permiso de su propio módulo, comprobado en el método')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @Put('correos')
   @ApiOperation({ summary: 'Guardar plantillas de correo' })
   async guardarCorreos(@Req() request: AuthenticatedRequest, @Body() dto: UpdateOrganizationSettingsDto, @Query('clientId') clientId?: string) {
+    clientId = this.empresaDeLaSesion(request, clientId);
     const valores = dto.values ?? {};
     const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
     if (ajenas.length) throw new ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
@@ -345,4 +347,17 @@ export class OrganizationSettingsController {
 
     return persona.email;
   }
+
+  /**
+   * La empresa sobre la que se trabaja.
+   *
+   * Una cuenta de portal trabaja siempre sobre la suya: si la dirección pide otra, o no pide
+   * ninguna, manda la de la sesión. Para el equipo interno se respeta lo que pidió, que es lo
+   * que permite atender a varias empresas desde la misma pantalla.
+   */
+  private empresaDeLaSesion(request: AuthenticatedRequest, pedido?: string): string | undefined {
+    if (request.user.role === UserRole.CLIENT) return request.user.clientId ?? undefined;
+    return pedido;
+  }
+
 }

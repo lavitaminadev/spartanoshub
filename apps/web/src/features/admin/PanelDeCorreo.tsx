@@ -267,7 +267,15 @@ export function PanelDeCorreo(): JSX.Element {
    */
   const alcanzaEncuestas = user?.permissions?.surveys !== undefined && user.permissions.surveys !== 'none';
   /** Vacío significa «la plantilla general», la que usa quien no tenga la suya. */
-  const [empresa, setEmpresa] = useState('');
+  /*
+    Una cuenta de empresa trabaja siempre sobre la suya.
+
+    El selector ofrecía «General (todas las empresas)», que son las plantillas que se aplican a
+    todas y no le pertenecen. El servidor ya impone su empresa; aquí se deja de ofrecer lo que
+    iba a rechazar.
+  */
+  const soloSuEmpresa = user?.role === 'client';
+  const [empresa, setEmpresa] = useState(soloSuEmpresa ? (user?.clientId ?? '') : '');
   /*
    * Encuestas que se pueden enviar después de la visita.
    *
@@ -521,19 +529,23 @@ export function PanelDeCorreo(): JSX.Element {
             nunca se ve <code>{'{{nombre}}'}</code> en la bandeja de nadie.
           </p>
         </div>
-        <label className="panel-correo-empresa">
-          <span>Plantilla de</span>
-          <select
-            className="input"
-            value={empresa}
-            onChange={(evento) => { setEmpresa(evento.target.value); setBorrador(null); setAviso(null); }}
-          >
-            <option value="">General (todas las empresas)</option>
-            {(empresasQuery.data?.data ?? []).map((cliente) => (
-              <option key={cliente.id} value={cliente.id}>{cliente.name}</option>
-            ))}
-          </select>
-        </label>
+        {soloSuEmpresa ? (
+          <p className="panel-correo-empresa"><span>Plantilla de</span> <strong>{user?.clientName ?? 'tu empresa'}</strong></p>
+        ) : (
+          <label className="panel-correo-empresa">
+            <span>Plantilla de</span>
+            <select
+              className="input"
+              value={empresa}
+              onChange={(evento) => { setEmpresa(evento.target.value); setBorrador(null); setAviso(null); }}
+            >
+              <option value="">General (todas las empresas)</option>
+              {(empresasQuery.data?.data ?? []).map((cliente) => (
+                <option key={cliente.id} value={cliente.id}>{cliente.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </header>
 
       {/*

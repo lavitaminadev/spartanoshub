@@ -56,6 +56,8 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
                 ? overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? (0, role_permissions_1.roleLevel)(role, module)
                 : 'none',
         ]));
+        if (role === user_role_enum_1.UserRole.CLIENT && !overrideByModule.has('users'))
+            permissions.users = 'none';
         this.cache.set(cacheKey, { permissions, expiresAt: Date.now() + PermissionResolverService_1.CACHE_TTL_MS });
         return permissions;
     }
