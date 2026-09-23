@@ -232,6 +232,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const [meta, setMeta] = useState({ pageId: '', leadgenId: '' });
 
   const { data, isLoading, error, refetch } = useQuery<LeadsPage>({
+    /*
+     * Mientras llega el resultado nuevo se siguen viendo los de antes.
+     *
+     * Cada letra del buscador cambia la clave, y sin esto la pantalla volvía al «Cargando…»:
+     * el buscador se desmontaba y el foco se perdía, así que escribir «ana» exigía volver a
+     * hacer clic entre letra y letra.
+     */
+    placeholderData: (anterior) => anterior,
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
     queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados],
@@ -580,7 +588,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     [scope.domain, rotulos, etapasDelEmbudo],
   );
 
-  if (isLoading) return <LoadingSpinner text="Cargando el embudo..." />;
+  // Sólo la primera vez: con datos a la vista, cambiar un filtro no debe desmontar la pantalla.
+  if (isLoading && !data) return <LoadingSpinner text="Cargando el embudo..." />;
   if (error) {
     return <QueryErrorState title="No pudimos cargar el embudo" message={(error as Error).message} onRetry={() => void refetch()} />;
   }
