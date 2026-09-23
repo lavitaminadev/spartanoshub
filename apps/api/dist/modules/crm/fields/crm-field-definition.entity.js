@@ -51,6 +51,10 @@ __decorate([
     __metadata("design:type", Number)
 ], CrmFieldDefinition.prototype, "position", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'meta_questions', type: 'json', nullable: true }),
+    __metadata("design:type", Object)
+], CrmFieldDefinition.prototype, "metaQuestions", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'archived_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], CrmFieldDefinition.prototype, "archivedAt", void 0);

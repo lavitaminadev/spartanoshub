@@ -82,6 +82,6 @@ exports.CrmModule = CrmModule = __decorate([
             campaigns_service_1.CampaignsService,
             crm_fields_service_1.CrmFieldsService,
         ],
-        exports: [lead_intake_service_1.LeadIntakeService, crm_lead_automation_service_1.CrmLeadAutomationService, crm_home_service_1.CrmHomeService],
+        exports: [lead_intake_service_1.LeadIntakeService, crm_lead_automation_service_1.CrmLeadAutomationService, crm_home_service_1.CrmHomeService, crm_fields_service_1.CrmFieldsService],
     })
 ], CrmModule);

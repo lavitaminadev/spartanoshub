@@ -41,7 +41,7 @@ export class ContactsController {
     await this.assertPortalCrm(req);
     await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed);
+    return this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed, query.leadId);
   }
 
   @Get('segments')

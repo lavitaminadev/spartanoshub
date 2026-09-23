@@ -6,6 +6,8 @@ import { IntegrationAccountType } from '../integration-account-type.enum';
 import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
 import { MetaLeadWebhookEvent } from './meta-lead-webhook-event.entity';
 import { Campaign } from '../../crm/campaigns/campaign.entity';
+import { CrmFieldsService } from '../../crm/fields/crm-fields.service';
+import { repartirRespuestasDeMeta, type CampoConPreguntas } from '../../crm/fields/respuestas-de-meta';
 import { revealSecret } from '../../../shared/security/integration-secrets';
 import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
@@ -53,6 +55,7 @@ export class MetaLeadAdsService {
     @InjectRepository(IntegrationAccount) private readonly accountsRepo: Repository<IntegrationAccount>,
     @InjectRepository(MetaLeadWebhookEvent) private readonly eventsRepo: Repository<MetaLeadWebhookEvent>,
     @InjectRepository(Campaign) private readonly campaignsRepo: Repository<Campaign>,
+    private readonly campos: CrmFieldsService,
     private readonly leadIntake: LeadIntakeService,
   ) {}
 
@@ -204,6 +207,14 @@ export class MetaLeadAdsService {
           continue;
         }
 
+        /*
+         * Lo que contestó en el formulario, repartido.
+         *
+         * Lo que algún campo propio declaró como suyo se guarda ahí, donde se puede filtrar y
+         * contar; el resto sigue yendo a las notas, como siempre, para no perder nada.
+         */
+        const reparto = await this.camposDelFormulario(pageAccount.integration.organizationId, normalized.respuestas);
+
         await this.leadIntake.captureLead({
           organizationId: pageAccount.integration.organizationId,
           clientId: destino.clientId,
@@ -214,7 +225,8 @@ export class MetaLeadAdsService {
           company: normalized.company,
           source: 'meta_lead_ads',
           sourceDetail: normalized.sourceDetail,
-          notes: normalized.notes,
+          notes: reparto.notas,
+          customFields: Object.keys(reparto.camposPropios).length > 0 ? reparto.camposPropios : undefined,
           externalLeadId: leadDetail.id,
           externalFormId: leadDetail.form_id ?? change.formId,
           externalCampaignId: leadDetail.campaign_id,
@@ -335,10 +347,15 @@ export class MetaLeadAdsService {
       'Lead Meta';
 
     const company = fields.get('company_name') || fields.get('company') || fields.get('negocio');
-    const notes = Array.from(fields.entries())
+    /*
+     * Lo que no es dato de contacto queda aparte, sin decidir todavía dónde va.
+     *
+     * Antes se pegaba entero en las notas como texto. Ahora quien conoce los campos propios
+     * decide cuáles llenan un campo y cuáles siguen siendo una nota.
+     */
+    const respuestas = Array.from(fields.entries())
       .filter(([name]) => !['full_name', 'name', 'first_name', 'last_name', 'email', 'phone_number', 'phone', 'company_name', 'company', 'negocio'].includes(name))
-      .map(([name, value]) => `${name}: ${value}`)
-      .join('\n');
+      .map(([nombre, valor]) => ({ nombre, valor }));
 
     return {
       name: fullName,
@@ -346,7 +363,28 @@ export class MetaLeadAdsService {
       phone: fields.get('phone_number') || fields.get('phone') || fields.get('telefono') || fields.get('teléfono'),
       company,
       sourceDetail: [lead.campaign_name, lead.ad_name, fields.get('service')].filter(Boolean).join(' · '),
-      notes: notes || undefined,
+      respuestas,
     };
+  }
+
+  /**
+   * Reparte las respuestas del formulario entre los campos propios y las notas.
+   *
+   * Las definiciones se leen en cada lote y no por lead: un lote grande consultaría lo mismo
+   * decenas de veces. Si algo falla, todo vuelve a las notas: un error acá no puede impedir que
+   * el lead entre.
+   */
+  private async camposDelFormulario(organizationId: string, respuestas: Array<{ nombre: string; valor: string }>) {
+    const enNotas = (lista: Array<{ nombre: string; valor: string }>) =>
+      lista.map((item) => `${item.nombre}: ${item.valor}`).join('\n') || undefined;
+    if (respuestas.length === 0) return { camposPropios: {}, notas: undefined };
+    try {
+      const definiciones = await this.campos.listar(organizationId, 'lead', false) as CampoConPreguntas[];
+      const { camposPropios, sinCampo } = repartirRespuestasDeMeta(definiciones, respuestas);
+      return { camposPropios, notas: enNotas(sinCampo) };
+    } catch (error) {
+      this.logger.warn(`No se pudieron leer los campos propios: las respuestas quedan en las notas. ${error instanceof Error ? error.message : error}`);
+      return { camposPropios: {}, notas: enNotas(respuestas) };
+    }
   }
 }

@@ -22,13 +22,16 @@ const integration_account_type_enum_1 = require("../integration-account-type.enu
 const lead_intake_service_1 = require("../../crm/leads/lead-intake.service");
 const meta_lead_webhook_event_entity_1 = require("./meta-lead-webhook-event.entity");
 const campaign_entity_1 = require("../../crm/campaigns/campaign.entity");
+const crm_fields_service_1 = require("../../crm/fields/crm-fields.service");
+const respuestas_de_meta_1 = require("../../crm/fields/respuestas-de-meta");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
 const version_de_graph_1 = require("./version-de-graph");
 let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
-    constructor(accountsRepo, eventsRepo, campaignsRepo, leadIntake) {
+    constructor(accountsRepo, eventsRepo, campaignsRepo, campos, leadIntake) {
         this.accountsRepo = accountsRepo;
         this.eventsRepo = eventsRepo;
         this.campaignsRepo = campaignsRepo;
+        this.campos = campos;
         this.leadIntake = leadIntake;
         this.logger = new common_1.Logger(MetaLeadAdsService_1.name);
     }
@@ -126,6 +129,7 @@ let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
                     await this.eventsRepo.save(event);
                     continue;
                 }
+                const reparto = await this.camposDelFormulario(pageAccount.integration.organizationId, normalized.respuestas);
                 await this.leadIntake.captureLead({
                     organizationId: pageAccount.integration.organizationId,
                     clientId: destino.clientId,
@@ -136,7 +140,8 @@ let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
                     company: normalized.company,
                     source: 'meta_lead_ads',
                     sourceDetail: normalized.sourceDetail,
-                    notes: normalized.notes,
+                    notes: reparto.notas,
+                    customFields: Object.keys(reparto.camposPropios).length > 0 ? reparto.camposPropios : undefined,
                     externalLeadId: leadDetail.id,
                     externalFormId: leadDetail.form_id ?? change.formId,
                     externalCampaignId: leadDetail.campaign_id,
@@ -240,18 +245,31 @@ let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
             [fields.get('first_name'), fields.get('last_name')].filter(Boolean).join(' ').trim() ||
             'Lead Meta';
         const company = fields.get('company_name') || fields.get('company') || fields.get('negocio');
-        const notes = Array.from(fields.entries())
+        const respuestas = Array.from(fields.entries())
             .filter(([name]) => !['full_name', 'name', 'first_name', 'last_name', 'email', 'phone_number', 'phone', 'company_name', 'company', 'negocio'].includes(name))
-            .map(([name, value]) => `${name}: ${value}`)
-            .join('\n');
+            .map(([nombre, valor]) => ({ nombre, valor }));
         return {
             name: fullName,
             email: fields.get('email'),
             phone: fields.get('phone_number') || fields.get('phone') || fields.get('telefono') || fields.get('teléfono'),
             company,
             sourceDetail: [lead.campaign_name, lead.ad_name, fields.get('service')].filter(Boolean).join(' · '),
-            notes: notes || undefined,
+            respuestas,
         };
+    }
+    async camposDelFormulario(organizationId, respuestas) {
+        const enNotas = (lista) => lista.map((item) => `${item.nombre}: ${item.valor}`).join('\n') || undefined;
+        if (respuestas.length === 0)
+            return { camposPropios: {}, notas: undefined };
+        try {
+            const definiciones = await this.campos.listar(organizationId, 'lead', false);
+            const { camposPropios, sinCampo } = (0, respuestas_de_meta_1.repartirRespuestasDeMeta)(definiciones, respuestas);
+            return { camposPropios, notas: enNotas(sinCampo) };
+        }
+        catch (error) {
+            this.logger.warn(`No se pudieron leer los campos propios: las respuestas quedan en las notas. ${error instanceof Error ? error.message : error}`);
+            return { camposPropios: {}, notas: enNotas(respuestas) };
+        }
     }
 };
 exports.MetaLeadAdsService = MetaLeadAdsService;
@@ -263,5 +281,6 @@ exports.MetaLeadAdsService = MetaLeadAdsService = MetaLeadAdsService_1 = __decor
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
+        crm_fields_service_1.CrmFieldsService,
         lead_intake_service_1.LeadIntakeService])
 ], MetaLeadAdsService);

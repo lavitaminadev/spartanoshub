@@ -31,6 +31,14 @@ export class CrmFieldDefinition {
   @Column({ type: 'int', default: 0 }) position: number;
 
   /** Archivado: no se muestra ni se edita, pero lo guardado se conserva. */
+  /**
+   * Preguntas de los formularios de Meta que llenan este campo.
+   *
+   * El nombre de la pregunta lo escribe quien arma el anuncio y cambia entre campañas, así que
+   * se guardan todas las variantes que apuntan al mismo dato. Vacío: el campo sólo se llena a mano.
+   */
+  @Column({ name: 'meta_questions', type: 'json', nullable: true }) metaQuestions?: string[] | null;
+
   @Column({ name: 'archived_at', type: 'timestamp', nullable: true }) archivedAt?: Date | null;
 
   @Column({ name: 'created_by', type: 'uuid', nullable: true }) createdBy?: string | null;
