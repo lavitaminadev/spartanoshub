@@ -95,7 +95,13 @@ const CUERPO_DE_EJEMPLO = `{
   "formId":      "{{form_id}}",
   "campanaId":   "{{campaign_id}}",
   "anuncioId":   "{{ad_id}}",
-  "paginaId":    "{{page_id}}"
+  "paginaId":    "{{page_id}}",
+  "ad_name":     "{{ad_name}}",
+  "adset_name":  "{{adset_name}}",
+  "platform":    "{{platform}}",
+  "form_name":   "{{form_name}}",
+  "custom_disclaimer_responses": "{{toJSON(customDisclaimerResponses)}}",
+  "respuestas":  "{{toJSON(mappable_field_data)}}"
 }`;
 
 /**
@@ -325,7 +331,19 @@ export function CrmAdminPage(): JSX.Element {
             <li><code>idExterno</code> — evita que un reintento de la automatización cree el lead dos veces.</li>
             <li><code>fechaOrigen</code> — sin ella todo entra con la fecha de hoy y el gráfico por día muestra un pico que no existió.</li>
             <li><code>formId</code>, <code>campanaId</code>, <code>anuncioId</code>, <code>paginaId</code> — para saber qué anuncio trajo cada contacto.</li>
+            <li><code>ad_name</code>, <code>adset_name</code>, <code>platform</code> — el nombre del anuncio y si lo vio en Instagram o en Facebook. Son los filtros del embudo: sin ellos, una campaña que entrega por los dos lados se cuenta junta y no se sabe cuál rinde.</li>
+            <li><code>respuestas</code> — lo que la persona contestó en el formulario. Cada una llena el campo propio que la declare; el resto queda en las notas del lead.</li>
+            <li><code>custom_disclaimer_responses</code> — lo que marcó en los avisos de consentimiento. Es un registro, no se opera.</li>
           </ul>
+
+          {/*
+            El paso a paso vive en la ayuda y no acá: este aviso se cierra en cuanto se copia la
+            llave, y quien arma el escenario vuelve a consultarlo varias veces.
+          */}
+          <p className="crm-admin-explica">
+            ¿Primera vez? El paso a paso para armar el escenario en Make está en <strong>Ayuda → CRM → Conectar Make</strong>,
+            en el signo de pregunta de arriba.
+          </p>
 
           <div className="crm-admin-llave-acciones">
             <button

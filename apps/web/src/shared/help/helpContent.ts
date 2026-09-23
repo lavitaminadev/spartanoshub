@@ -40,6 +40,29 @@ export const helpRegistry: Record<string, { title: string; description: string; 
       { id: 'opportunities', title: 'Oportunidades', description: 'Pipeline comercial con etapas: nuevo, calificado, propuesta, negociación, ganado, perdido.', items: [
         { id: 'pipeline', label: 'Pipeline', description: 'Valor total de oportunidades en cada etapa. Permite proyectar ingresos futuros.', formula: 'Suma de amounts por etapa' },
       ]},
+      /*
+        Administración y Make.
+        La ayuda cubría las tres pantallas de trabajo y ninguna de las de configuración, que son
+        justo las que se usan una vez y sin nadie al lado.
+      */
+      { id: 'admin', title: 'Administración', description: 'Campañas, campos propios y etapas. Todo lo que se configura acá pertenece a la empresa que esté elegida arriba: otra empresa no lo ve ni lo hereda.', items: [
+        { id: 'campanas', label: 'Campañas e inversión', description: 'El nombre tiene que escribirse igual que el que traen los leads. Si no coincide, la campaña aparece con cero leads y su inversión no se reparte.' },
+        { id: 'llave', label: 'Llave de entrada', description: 'Una por campaña. Es la que decide a qué empresa y a qué campaña entra cada lead, así que no hay que mandarlas en el mensaje. Se muestra una sola vez: si se pierde, se rota y se cambia en Make.' },
+        { id: 'campos', label: 'Campos propios', description: 'Datos que el equipo necesita y el CRM no trae. Se declaran por tipo de registro —leads, contactos, oportunidades— y se llenan en la ficha. Archivar esconde el campo sin borrar lo guardado.' },
+        { id: 'preguntas', label: 'Preguntas de Meta que llenan un campo', description: 'Al crear un campo propio se pega el enunciado tal como está en el anuncio, uno por línea. No importan tildes, mayúsculas ni guiones bajos. Si el formulario cambia de redacción, se agrega la línea nueva sin borrar la anterior: los leads viejos siguen encontrando su campo.' },
+        { id: 'etapas', label: 'Nombres de etapa', description: 'Cambian lo que ve todo el equipo a la vez. Cada etapa puede además reportarse o no a Meta.' },
+      ]},
+      { id: 'make', title: 'Conectar Make', description: 'Paso a paso para que los leads de un formulario instantáneo de Meta lleguen solos al CRM. Se hace una vez por campaña y no requiere programar.', items: [
+        { id: 'p1', label: '1 · Crear la cuenta de Make', description: 'En make.com, con el correo de la agencia y no uno personal: un escenario atado a una cuenta personal se cae cuando esa persona se va. Anotar la región, porque un escenario exportado se importa en la misma.' },
+        { id: 'p2', label: '2 · Sacar la llave del CRM', description: 'En CRM → Administración, elegir arriba la empresa y crear la llave de la campaña. Se muestra una sola vez: copiarla al administrador de contraseñas antes de cerrar el aviso.' },
+        { id: 'p3', label: '3 · Importar el escenario', description: 'En Make: Scenarios → Create a new scenario → los tres puntos → Import Blueprint, y elegir el archivo del escenario. Quedan tres módulos: el disparador de Facebook, el detalle del lead y el envío al CRM.' },
+        { id: 'p4', label: '4 · Conectar Facebook', description: 'En el primer módulo, agregar la conexión y elegir la página y el formulario. En el segundo, la misma página y el mismo formulario. Usar una cuenta con acceso estable: si deja de administrar la página, el escenario se detiene.' },
+        { id: 'p5', label: '5 · Poner la llave en el envío', description: 'En el módulo de envío, Credentials → Add. Key: Authorization. Value: «Bearer » y la llave, con el espacio después de Bearer. Placement: Header.' },
+        { id: 'p6', label: '6 · Probar con un lead de verdad', description: 'Con la herramienta de pruebas de formularios instantáneos de Facebook, enviar un lead y correr el escenario una vez. Los tres módulos quedan en verde y el lead aparece en su campaña.' },
+        { id: 'p7', label: '7 · Dejarlo andando', description: 'Activar Scheduling en Immediately: el disparador es instantáneo y esperar no aporta nada.' },
+        { id: 'errores', label: 'Cuando algo falla', description: '401: la llave está mal, revocada, o le falta «Bearer » adelante. 400 «Falta el nombre»: el módulo no mapeó el nombre. 429: demasiados envíos por minuto, Make reintenta solo. El escenario se detuvo: casi siempre la conexión de Facebook caducó. Un lead reenviado no se duplica: el CRM lo reconoce por su Lead ID.' },
+        { id: 'revisar', label: 'Qué revisar una vez al mes', description: 'Que el escenario siga activo y sin errores acumulados, que las preguntas del formulario no hayan cambiado de redacción, y que los leads del mes calcen con el administrador de anuncios.' },
+      ]},
     ],
   },
   integrations: {
