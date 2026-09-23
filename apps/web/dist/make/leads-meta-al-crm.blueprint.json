@@ -1,0 +1,882 @@
+{
+  "name": "Leads de Meta al CRM",
+  "flow": [
+    {
+      "id": 3,
+      "module": "facebook-lead-ads:NewLeadMultiple",
+      "version": 2,
+      "parameters": {
+        "v": "2",
+        "fields": [
+          "id",
+          "ad_id",
+          "ad_name",
+          "adset_id",
+          "adset_name",
+          "campaign_id",
+          "campaign_name",
+          "created_time",
+          "custom_disclaimer_responses",
+          "field_data",
+          "form_id",
+          "home_listing",
+          "is_organic",
+          "partner_name",
+          "platform",
+          "retailer_item_id",
+          "vehicle"
+        ],
+        "__IMTHOOK__": 3768473
+      },
+      "filter": null,
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": -600,
+          "y": 0,
+          "name": "1 · Llega un lead de Meta"
+        },
+        "restore": {
+          "parameters": {
+            "__IMTHOOK__": {
+              "data": {
+                "editable": "false"
+              },
+              "label": "My New Lead webhook"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "__IMTHOOK__",
+            "type": "hook:facebook-lead-ads-new-event",
+            "label": "Webhook",
+            "required": true
+          },
+          {
+            "name": "v",
+            "type": "hidden"
+          },
+          {
+            "name": "fields",
+            "type": "select",
+            "label": "Fields",
+            "multiple": true,
+            "validate": {
+              "enum": [
+                "id",
+                "ad_id",
+                "ad_name",
+                "adset_id",
+                "adset_name",
+                "campaign_id",
+                "campaign_name",
+                "created_time",
+                "custom_disclaimer_responses",
+                "field_data",
+                "form_id",
+                "home_listing",
+                "is_organic",
+                "partner_name",
+                "platform",
+                "retailer_item_id",
+                "vehicle"
+              ]
+            }
+          }
+        ],
+        "interface": [
+          {
+            "name": "leadgenId",
+            "type": "text",
+            "label": "Lead ID"
+          },
+          {
+            "name": "formId",
+            "type": "text",
+            "label": "Form ID"
+          },
+          {
+            "name": "dateCreated",
+            "type": "date",
+            "label": "Date created"
+          },
+          {
+            "name": "adId",
+            "type": "text",
+            "label": "Ad ID"
+          },
+          {
+            "name": "pageId",
+            "type": "text",
+            "label": "Page ID"
+          },
+          {
+            "name": "adgroupId",
+            "type": "text",
+            "label": "Ad group ID"
+          },
+          {
+            "name": "mappable_field_data",
+            "spec": [
+              {
+                "name": "name",
+                "type": "text",
+                "label": "Name"
+              },
+              {
+                "name": "value",
+                "type": "text",
+                "label": "Value"
+              }
+            ],
+            "type": "array",
+            "label": "Mappable field data"
+          },
+          {
+            "name": "data",
+            "spec": [
+              {
+                "name": "⁠¿cuál_es_tu_experiencia_previa_en_negocios_o_inversiones?",
+                "type": "array",
+                "label": "⁠¿Cuál es tu experiencia previa en negocios o inversiones?"
+              },
+              {
+                "name": "¿cuánto_te_interesaría_invertir_en_este_proyecto?",
+                "type": "array",
+                "label": "¿Cuánto te interesaría invertir en este proyecto?"
+              },
+              {
+                "name": "⁠¿te_interesa_operar_un_local_o_solo_invertir?",
+                "type": "array",
+                "label": "⁠¿Te interesa operar un local o solo invertir?"
+              },
+              {
+                "name": "¿cuál_es_tu_región?",
+                "type": "array",
+                "label": "¿Cuál es tu región?"
+              },
+              {
+                "name": "full name",
+                "type": "text",
+                "label": "Full name"
+              },
+              {
+                "name": "email",
+                "type": "text",
+                "label": "Email"
+              },
+              {
+                "name": "phone_number",
+                "type": "text",
+                "label": "Phone number"
+              }
+            ],
+            "type": "collection",
+            "label": "Field data"
+          },
+          {
+            "name": "isOrganic",
+            "type": "boolean",
+            "label": "Is organic"
+          },
+          {
+            "name": "adName",
+            "type": "text",
+            "label": "Ad name"
+          },
+          {
+            "name": "adsetId",
+            "type": "text",
+            "label": "Ad set ID"
+          },
+          {
+            "name": "adsetName",
+            "type": "text",
+            "label": "Adset name"
+          },
+          {
+            "name": "campaignId",
+            "type": "text",
+            "label": "Campaign ID"
+          },
+          {
+            "name": "campaignName",
+            "type": "text",
+            "label": "Campaign name"
+          },
+          {
+            "name": "customDisclaimerResponses",
+            "type": "collection",
+            "label": "Custom disclaimer responses"
+          },
+          {
+            "name": "homeListing",
+            "type": "collection",
+            "label": "Home listing"
+          },
+          {
+            "name": "partnerName",
+            "type": "text",
+            "label": "Partner name"
+          },
+          {
+            "name": "platform",
+            "type": "text",
+            "label": "Platform"
+          },
+          {
+            "name": "retailerItemId",
+            "type": "text",
+            "label": "Retailer item ID"
+          },
+          {
+            "name": "vehicle",
+            "type": "collection",
+            "label": "Vehicle"
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "module": "facebook-lead-ads:GetLeadDetails",
+      "version": 2,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "filter": null,
+      "mapper": {
+        "v": "2",
+        "id": "{{3.leadgenId}}",
+        "formId": "1658085018646942",
+        "pageId": "109802948754592"
+      },
+      "metadata": {
+        "designer": {
+          "x": -300,
+          "y": 0,
+          "name": "2 · Traer sus respuestas"
+        },
+        "setupValidation": {
+          "result": {
+            "valid": true,
+            "fields": []
+          },
+          "version": 1,
+          "configuration": "58d95dbf73296bea"
+        },
+        "restore": {
+          "expect": {
+            "formId": {
+              "mode": "chose",
+              "label": "FORM-FASTNOJUNK-ABR2026"
+            },
+            "pageId": {
+              "mode": "chose",
+              "label": "fastnotjunk.cl (Viña del Mar)"
+            }
+          },
+          "parameters": {}
+        },
+        "parameters": [
+          {
+            "name": "__IMTCONN__",
+            "type": "account:facebook",
+            "label": "Connection",
+            "required": true
+          }
+        ],
+        "expect": [
+          {
+            "name": "pageId",
+            "type": "select",
+            "label": "Page",
+            "required": true
+          },
+          {
+            "name": "id",
+            "type": "text",
+            "label": "Lead ID",
+            "required": true
+          },
+          {
+            "name": "v",
+            "type": "hidden"
+          },
+          {
+            "name": "formId",
+            "type": "select",
+            "label": "Form",
+            "required": true
+          }
+        ],
+        "interface": [
+          {
+            "name": "leadgenId",
+            "type": "text",
+            "label": "Lead ID"
+          },
+          {
+            "name": "formId",
+            "type": "text",
+            "label": "Form ID"
+          },
+          {
+            "name": "dateCreated",
+            "type": "date",
+            "label": "Date created"
+          },
+          {
+            "name": "adId",
+            "type": "text",
+            "label": "Ad ID"
+          },
+          {
+            "name": "data",
+            "spec": [
+              {
+                "name": "¿cuál_es_tu_experiencia_previa_en_negocios_o_inversiones?",
+                "type": "array",
+                "label": "¿Cuál es tu experiencia previa en negocios o inversiones?"
+              },
+              {
+                "name": "¿cuánto_te_interesa_invertir_en_este_proyecto?",
+                "type": "array",
+                "label": "¿Cuánto te interesa invertir en este proyecto?"
+              },
+              {
+                "name": "¿te_interesa_operar_un_local_o_solo_invertir?",
+                "type": "array",
+                "label": "¿Te interesa operar un local o solo invertir?"
+              },
+              {
+                "name": "full_name",
+                "type": "text",
+                "label": "Full name"
+              },
+              {
+                "name": "email",
+                "type": "text",
+                "label": "Email"
+              },
+              {
+                "name": "phone_number",
+                "type": "text",
+                "label": "Phone number"
+              }
+            ],
+            "type": "collection",
+            "label": "Field data"
+          },
+          {
+            "name": "isOrganic",
+            "type": "boolean",
+            "label": "Is organic"
+          },
+          {
+            "name": "adName",
+            "type": "text",
+            "label": "Ad name"
+          },
+          {
+            "name": "adsetId",
+            "type": "text",
+            "label": "Ad set ID"
+          },
+          {
+            "name": "adsetName",
+            "type": "text",
+            "label": "Adset name"
+          },
+          {
+            "name": "campaignId",
+            "type": "text",
+            "label": "Campaign ID"
+          },
+          {
+            "name": "campaignName",
+            "type": "text",
+            "label": "Campaign name"
+          },
+          {
+            "name": "customDisclaimerResponses",
+            "type": "collection",
+            "label": "Custom disclaimer responses"
+          },
+          {
+            "name": "homeListing",
+            "type": "collection",
+            "label": "Home listing"
+          },
+          {
+            "name": "partnerName",
+            "type": "text",
+            "label": "Partner name"
+          },
+          {
+            "name": "platform",
+            "type": "text",
+            "label": "Platform"
+          },
+          {
+            "name": "retailerItemId",
+            "type": "text",
+            "label": "Retailer item ID"
+          },
+          {
+            "name": "vehicle",
+            "type": "collection",
+            "label": "Vehicle"
+          }
+        ]
+      }
+    },
+    {
+      "id": 25,
+      "module": "http:MakeRequest",
+      "version": 4,
+      "parameters": {
+        "tlsType": "",
+        "apiKeyKeychain": 249515,
+        "authenticationType": "apiKey"
+      },
+      "mapper": {
+        "url": "https://refugio.espartanos.cl/api/public/ingest/leads",
+        "method": "post",
+        "timeout": "40",
+        "contentType": "json",
+        "inputMethod": "jsonString",
+        "shareCookies": false,
+        "parseResponse": true,
+        "allowRedirects": true,
+        "stopOnHttpError": true,
+        "requestCompressedContent": true,
+        "data": "{\n  \"nombre\": \"{{6.data.full_name}}\",\n  \"telefono\": \"{{6.data.phone_number}}\",\n  \"email\": \"{{6.data.email}}\",\n  \"idExterno\": \"{{6.leadgenId}}\",\n  \"fechaOrigen\": \"{{6.dateCreated}}\",\n  \"campana\": \"{{6.campaignName}}\",\n  \"formId\": \"{{6.formId}}\",\n  \"campanaId\": \"{{6.campaignId}}\",\n  \"anuncioId\": \"{{6.adId}}\",\n  \"paginaId\": \"{{3.pageId}}\",\n  \"ad_name\": \"{{6.adName}}\",\n  \"adset_id\": \"{{6.adsetId}}\",\n  \"adset_name\": \"{{6.adsetName}}\",\n  \"platform\": \"{{6.platform}}\",\n  \"is_organic\": \"{{6.isOrganic}}\",\n  \"form_name\": \"{{6.formName}}\",\n  \"custom_disclaimer_responses\": \"{{toJSON(6.customDisclaimerResponses)}}\",\n  \"respuestas\": {{toJSON(6.mappable_field_data)}}\n}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 938,
+          "y": 3,
+          "name": "4 · Enviar al CRM"
+        },
+        "setupValidation": {
+          "result": {
+            "valid": true,
+            "fields": []
+          },
+          "version": 1,
+          "configuration": "51df216fb1a34793"
+        },
+        "restore": {
+          "expect": {
+            "method": {
+              "mode": "chose",
+              "label": "POST"
+            },
+            "headers": {
+              "mode": "chose"
+            },
+            "contentType": {
+              "label": "application/jsonEnter data in the JSON format, as a string or using a data structure."
+            },
+            "inputMethod": {
+              "label": "Raw"
+            },
+            "shareCookies": {
+              "mode": "chose"
+            },
+            "parseResponse": {
+              "mode": "chose"
+            },
+            "allowRedirects": {
+              "mode": "chose"
+            },
+            "paginationType": {
+              "label": "Empty"
+            },
+            "queryParameters": {
+              "mode": "chose"
+            },
+            "stopOnHttpError": {
+              "mode": "chose"
+            },
+            "requestCompressedContent": {
+              "mode": "chose"
+            }
+          },
+          "parameters": {
+            "tlsType": {
+              "label": "Empty"
+            },
+            "apiKeyKeychain": {
+              "label": "FastNotJunkABR2026"
+            },
+            "authenticationType": {
+              "label": "API keyUse when the service requires an API key in the header or query parameters."
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "authenticationType",
+            "type": "select",
+            "label": "Authentication type",
+            "required": true,
+            "validate": {
+              "enum": [
+                "noAuth",
+                "apiKey",
+                "basicAuth",
+                "oAuth"
+              ]
+            }
+          },
+          {
+            "name": "tlsType",
+            "type": "select",
+            "label": "Transport layer security (TLS)",
+            "validate": {
+              "enum": [
+                "mTls",
+                "tls"
+              ]
+            }
+          },
+          {
+            "name": "proxyKeychain",
+            "type": "keychain:proxy",
+            "label": "Proxy"
+          },
+          {
+            "name": "apiKeyKeychain",
+            "type": "keychain:apikeyauth",
+            "label": "Credentials",
+            "required": true
+          }
+        ],
+        "expect": [
+          {
+            "name": "url",
+            "type": "url",
+            "label": "URL",
+            "required": true
+          },
+          {
+            "name": "method",
+            "type": "select",
+            "label": "Method",
+            "required": true,
+            "validate": {
+              "enum": [
+                "get",
+                "head",
+                "post",
+                "put",
+                "patch",
+                "delete",
+                "options"
+              ]
+            }
+          },
+          {
+            "name": "headers",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true,
+                  "validate": {
+                    "pattern": "^[-!#$%&'*+.^_`|~0-9A-Za-z]+$"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": "text",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Header"
+            },
+            "type": "array",
+            "label": "Headers"
+          },
+          {
+            "name": "queryParameters",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true
+                },
+                {
+                  "name": "value",
+                  "type": "text",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Parameter"
+            },
+            "type": "array",
+            "label": "Query parameters"
+          },
+          {
+            "name": "contentType",
+            "type": "select",
+            "label": "Body content type",
+            "validate": {
+              "enum": [
+                "json",
+                "multipart",
+                "urlEncoded",
+                "custom"
+              ]
+            }
+          },
+          {
+            "name": "parseResponse",
+            "type": "boolean",
+            "label": "Parse response",
+            "required": true
+          },
+          {
+            "name": "stopOnHttpError",
+            "type": "boolean",
+            "label": "Return error if HTTP request fails",
+            "required": true
+          },
+          {
+            "name": "timeout",
+            "type": "uinteger",
+            "label": "Timeout",
+            "validate": {
+              "max": 300,
+              "min": 1
+            }
+          },
+          {
+            "name": "allowRedirects",
+            "type": "boolean",
+            "label": "Allow redirects",
+            "required": true
+          },
+          {
+            "name": "shareCookies",
+            "type": "boolean",
+            "label": "Share cookies with other HTTP modules",
+            "required": true
+          },
+          {
+            "name": "requestCompressedContent",
+            "type": "boolean",
+            "label": "Request compressed content",
+            "required": true
+          },
+          {
+            "name": "inputMethod",
+            "type": "select",
+            "label": "Body input method",
+            "required": true,
+            "validate": {
+              "enum": [
+                "dataStructure",
+                "jsonString"
+              ]
+            }
+          },
+          {
+            "name": "bodyDataStructure",
+            "type": "udt",
+            "label": "Body structure",
+            "required": true
+          },
+          {
+            "name": "dataStructureBodyContent",
+            "spec": [
+              {
+                "name": "nombre",
+                "type": "text",
+                "label": "Nombre"
+              },
+              {
+                "name": "telefono",
+                "type": "text",
+                "label": "Telefono"
+              },
+              {
+                "name": "email",
+                "type": "text",
+                "label": "Email"
+              },
+              {
+                "name": "idExterno",
+                "type": "text",
+                "label": "ID externo"
+              },
+              {
+                "name": "fechaOrigen",
+                "type": "date",
+                "label": "Fecha origen"
+              },
+              {
+                "name": "campana",
+                "type": "text",
+                "label": "Campana"
+              },
+              {
+                "name": "formId",
+                "type": "text",
+                "label": "Form ID"
+              },
+              {
+                "name": "campanaId",
+                "type": "text",
+                "label": "Campana ID"
+              },
+              {
+                "name": "anuncioId",
+                "type": "text",
+                "label": "Anuncio ID"
+              },
+              {
+                "name": "paginaId",
+                "type": "text",
+                "label": "Pagina ID"
+              },
+              {
+                "name": "respuestas",
+                "spec": {
+                  "name": "value",
+                  "spec": [
+                    {
+                      "name": "name",
+                      "type": "text",
+                      "label": null
+                    },
+                    {
+                      "name": "value",
+                      "type": "text",
+                      "label": null
+                    }
+                  ],
+                  "type": "collection"
+                },
+                "type": "array",
+                "label": "Respuestas"
+              }
+            ],
+            "type": "collection",
+            "label": "Body content"
+          },
+          {
+            "name": "paginationType",
+            "type": "select",
+            "label": "Pagination type",
+            "validate": {
+              "enum": [
+                "offsetBased",
+                "pageBased",
+                "urlBased",
+                "tokenBased"
+              ]
+            }
+          }
+        ],
+        "interface": [
+          {
+            "name": "data",
+            "type": "any",
+            "label": "Data"
+          },
+          {
+            "name": "statusCode",
+            "type": "number",
+            "label": "Status Code"
+          },
+          {
+            "name": "headers",
+            "spec": [
+              {
+                "name": "content-length",
+                "type": "text",
+                "label": "Content-Length"
+              },
+              {
+                "name": "content-encoding",
+                "type": "text",
+                "label": "Content-Encoding"
+              },
+              {
+                "name": "content-type",
+                "type": "text",
+                "label": "Content-Type"
+              },
+              {
+                "name": "server",
+                "type": "text",
+                "label": "Server"
+              },
+              {
+                "name": "cache-control",
+                "type": "text",
+                "label": "Cache-Control"
+              },
+              {
+                "name": "set-cookie",
+                "spec": {
+                  "type": "text"
+                },
+                "type": "array",
+                "label": "Set-Cookie"
+              }
+            ],
+            "type": "collection",
+            "label": "Headers"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "slots": null,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com",
+    "notes": [
+      {
+        "text": "Los leads entran al CRM por la llave de la campaña: ella decide la empresa, no el cuerpo del mensaje."
+      },
+      {
+        "text": "La llave va en Credentials del módulo «Enviar al CRM», como header Authorization con «Bearer » delante."
+      },
+      {
+        "text": "Las respuestas del formulario llenan los campos propios del CRM que las declaren; el resto queda en las notas del lead."
+      },
+      {
+        "text": "Si un lead se reenvía, el CRM no lo duplica: lo reconoce por su Lead ID."
+      }
+    ]
+  }
+}

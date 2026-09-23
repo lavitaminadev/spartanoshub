@@ -20,6 +20,7 @@ import { ReservationHold } from '../domain/reservation-hold.entity';
 import { ReservationGroupRequest } from '../domain/reservation-group-request.entity';
 import { addPlainDays, assertTimeZone, plainDateParts, startOfLocalDayUtc, tryLocalToUtc, zonedParts } from '../domain/timezone';
 import { finExtendido, MINUTOS_POR_EXTENSION } from '../domain/cierre-del-local';
+import { condicionDeSolape } from '../domain/mesa-ocupada';
 import { normalizePhone } from '../../../shared/phone';
 import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
@@ -947,8 +948,8 @@ export class ReservationsService {
 
   private async assertCupoDeZona(manager: EntityManager, form: ReservationForm, booking: Reservation, resourceId: string): Promise<void> {
     const solapadas = await manager.getRepository(Reservation).createQueryBuilder('r')
-      .where('r.form_id = :formId AND r.resource_id = :resourceId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses) AND r.id != :id', {
-        formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, statuses: OCCUPYING_STATUSES, id: booking.id,
+      .where(`r.form_id = :formId AND r.resource_id = :resourceId AND ${condicionDeSolape('r')} AND r.status IN (:...statuses) AND r.id != :id`, {
+        formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, ahoraOcupacion: new Date(), statuses: OCCUPYING_STATUSES, id: booking.id,
       })
       .getMany();
     const rechazo = evaluarCambioDeZona({
@@ -976,7 +977,7 @@ export class ReservationsService {
       const clientCount = await this.clientDailyReservationsCount(manager, form.clientId, dateKey, form.timezone, excludeId);
       if (clientCount + partySize > clientCap) throw new ConflictException('Este día no tiene cupo para ese grupo');
     }
-    const qb = manager.getRepository(Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
+    const qb = manager.getRepository(Reservation).createQueryBuilder('r').where(`r.form_id = :formId AND ${condicionDeSolape('r')} AND r.status IN (:...statuses)`, { formId: form.id, startsAt, endsAt, ahoraOcupacion: new Date(), statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
     if (resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId }); if (excludeId) qb.andWhere('r.id != :excludeId', { excludeId });
     const existing = await qb.getMany();
     const holdsQb = manager.getRepository(ReservationHold).createQueryBuilder('h')
@@ -992,7 +993,7 @@ export class ReservationsService {
      * cupo del local. Sin este control, dos zonas de 20 en un local de 24 recibían 40 personas.
      */
     if (resourceId) {
-      const totalQb = manager.getRepository(Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
+      const totalQb = manager.getRepository(Reservation).createQueryBuilder('r').where(`r.form_id = :formId AND ${condicionDeSolape('r')} AND r.status IN (:...statuses)`, { formId: form.id, startsAt, endsAt, ahoraOcupacion: new Date(), statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
       if (excludeId) totalQb.andWhere('r.id != :excludeId', { excludeId });
       const enElLocal = (await totalQb.getMany()).reduce((sum, item) => sum + item.partySize, 0);
       if (enElLocal + partySize > form.capacityPerSlot) throw new ConflictException('El local ya no tiene cupo en ese horario. Selecciona una alternativa.');

@@ -706,6 +706,21 @@ export function CrmAdminPage(): JSX.Element {
           si una se filtra, se apaga ese origen y los demás siguen recibiendo.
         </p>
 
+        {/*
+          El escenario armado, para no montarlo módulo por módulo.
+
+          Viene sin conexiones ni llave: Make pide la página y el formulario al abrir cada
+          módulo, y la llave se pega en el paso 5. Un archivo con esos datos dentro sería una
+          credencial repartida en una descarga.
+        */}
+        <p className="crm-admin-explica">
+          <a className="btn btn-outline btn-sm" href="/make/leads-meta-al-crm.blueprint.json" download="leads-meta-al-crm.blueprint.json">
+            Descargar el escenario para Make
+          </a>
+          {' '}Se importa en Make con <strong>Import Blueprint</strong> y queda listo para elegir la
+          página, el formulario y pegar la llave. El paso a paso está en <strong>Ayuda → CRM → Conectar Make</strong>.
+        </p>
+
         {origenes.isError ? (
           <p className="crm-admin-vacio">Solo Desarrollo administra las conexiones de entrada.</p>
         ) : !listaOrigenes.length ? (
