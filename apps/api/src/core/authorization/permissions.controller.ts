@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Put, Req, UseGuards } from '@nest
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { IsNull, In, Repository } from 'typeorm';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PermissionResolverService } from './permission-resolver.service';
 import { UserPermissionOverride } from './user-permission-override.entity';
@@ -338,12 +338,15 @@ export class PermissionsController {
     if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
     const user = await this.findUser(id, req.organizationId);
     await this.assertCanManageUserPermissionException(req, user, module, dto.level);
-    const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
+    // Quien concede tiene que alcanzar esa empresa: sin esto se daría permiso en una cartera ajena.
+    if (dto.clientId) await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+    const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: dto.clientId ?? IsNull() } });
     const saved = await this.overrides.save({
       ...(existing ?? {}),
       organizationId: req.organizationId,
       userId: user.id,
       module,
+      clientId: dto.clientId ?? null,
       level: dto.level,
       reason: dto.reason ?? null,
       // El formulario admite excepciones temporales. Omitir esta asignación hacía que el

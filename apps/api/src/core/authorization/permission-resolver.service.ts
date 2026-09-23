@@ -93,8 +93,12 @@ export class PermissionResolverService {
    * @param userId - Usuario a resolver.
    * @param role - Cargo del usuario.
    */
-  async permissionsFor(organizationId: string, userId: string, role: UserRole): Promise<PermissionMap> {
-    const cacheKey = `${organizationId}:${userId}:${role}`;
+  /**
+   * @param clientId - Empresa que se está mirando. Sin ella se aplican sólo las excepciones
+   *   generales, que es como funcionó siempre.
+   */
+  async permissionsFor(organizationId: string, userId: string, role: UserRole, clientId?: string): Promise<PermissionMap> {
+    const cacheKey = `${organizationId}:${userId}:${role}:${clientId ?? '*'}`;
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.permissions;
 
@@ -104,7 +108,7 @@ export class PermissionResolverService {
       this.overrides.find({ where: { organizationId, userId } }),
       this.roleLevelsOf(organizationId),
     ]);
-    const overrideByModule = this.activeOverrides(overrides);
+    const overrideByModule = this.activeOverrides(overrides, clientId);
 
     const permissions = Object.fromEntries(
       ORGANIZATION_FEATURE_KEYS.map((module) => [
@@ -219,9 +223,10 @@ export class PermissionResolverService {
     role: UserRole,
     module: string,
     required: PermissionLevel,
+    clientId?: string,
   ): Promise<boolean> {
     if (!isOrganizationFeatureKey(module)) return false;
-    const permissions = await this.permissionsFor(organizationId, userId, role);
+    const permissions = await this.permissionsFor(organizationId, userId, role, clientId);
     return satisfies(permissions[module], required);
   }
 
@@ -251,11 +256,22 @@ export class PermissionResolverService {
    * aplicando mientras se muestra como vencida es exactamente el fallo que el vencimiento
    * pretende evitar.
    */
-  private activeOverrides(overrides: UserPermissionOverride[]): Map<string, UserPermissionOverride> {
+  /**
+   * La excepción que manda en cada módulo.
+   *
+   * La de la empresa que se está mirando gana sobre la general: lo particular describe mejor el
+   * caso que la regla de siempre. Las de otras empresas no se miran, y una vencida tampoco.
+   *
+   * @param clientId - Empresa que se está mirando, si hay una.
+   */
+  private activeOverrides(overrides: UserPermissionOverride[], clientId?: string): Map<string, UserPermissionOverride> {
     const now = Date.now();
     const result = new Map<string, UserPermissionOverride>();
     for (const item of overrides) {
       if (item.expiresAt && item.expiresAt.getTime() <= now) continue;
+      if (item.clientId && item.clientId !== clientId) continue;
+      const anterior = result.get(item.module);
+      if (anterior?.clientId && !item.clientId) continue;
       result.set(item.module, item);
     }
     return result;

@@ -11,7 +11,7 @@ import { PermissionLevel } from './permission-level';
  * `level: 'none'` es una denegación explícita y prevalece sobre lo que otorgue el rol.
  */
 @Entity('user_permission_overrides')
-@Index('UQ_user_permission_override', ['userId', 'module'], { unique: true })
+@Index('UQ_user_permission_override_client', ['userId', 'module', 'clientId'], { unique: true })
 export class UserPermissionOverride {
   @PrimaryGeneratedColumn('uuid') id: string;
 
@@ -21,6 +21,14 @@ export class UserPermissionOverride {
 
   /** Clave del módulo, coincidente con `ORGANIZATION_FEATURE_KEYS`. */
   @Column({ type: 'varchar', length: 60 }) module: string;
+
+  /**
+   * Empresa en la que vale esta excepción. Vacío: en todas.
+   *
+   * Es lo que permite administrar una empresa y sólo mirar otra. Cuando hay una excepción de la
+   * empresa que se está mirando, manda sobre la general.
+   */
+  @Column({ name: 'client_id', type: 'varchar', length: 36, nullable: true }) clientId?: string | null;
 
   @Column({ type: 'varchar', length: 20 }) level: PermissionLevel;
 
