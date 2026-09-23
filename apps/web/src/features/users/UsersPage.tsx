@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { roleLabel } from '../../core/role-labels';
+import { EmpresasAdicionales } from './EmpresasAdicionales';
 import { DataTable } from '../../shared/DataTable';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
@@ -379,6 +380,18 @@ export function UsersPage() {
               <option value={NEW_CLIENT_VALUE}>+ Crear empresa nueva</option>
             </select></label>
           </div>
+          )}
+          {/*
+            Solo al editar: una persona que todavía no existe no tiene a quién asignarle nada.
+            Al crearla se elige su empresa arriba y las demás se marcan al volver a abrirla.
+          */}
+          {editing && clientRequired && form.clientId && form.clientId !== NEW_CLIENT_VALUE && !administraSuEmpresa && (
+            <EmpresasAdicionales
+              usuarioId={editing.id}
+              empresaDeLaCuenta={form.clientId}
+              empresas={clients}
+              puedeEditar={puedeEditarPermisos}
+            />
           )}
           {requiresNewClientName && <label htmlFor="user-new-client">Nombre de la empresa nueva<input id="user-new-client" className="input" value={form.newClientName} onChange={(event) => setForm({ ...form, newClientName: event.target.value })} minLength={2} maxLength={255} required /></label>}
           {requiresNewClientName && <fieldset className="form-choice-group"><legend>Servicios contratados</legend><label className="toggle-row"><input type="checkbox" checked={form.capabilities.reservations} onChange={(event) => setForm({ ...form, capabilities: { ...form.capabilities, reservations: event.target.checked } })} /> Reservas</label><label className="toggle-row"><input type="checkbox" checked={form.capabilities.crm} onChange={(event) => setForm({ ...form, capabilities: { ...form.capabilities, crm: event.target.checked } })} /> CRM</label><small>Solo se mostrarán y autorizarán los servicios seleccionados para esta empresa.</small></fieldset>}
