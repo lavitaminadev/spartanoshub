@@ -211,7 +211,7 @@ export function isRoleAllowedForPath(roles: UserRole[] | undefined, userRole?: U
  * más fácil de auditar y las claves deben coincidir con `ORGANIZATION_FEATURE_KEYS` del
  * backend. Una ruta sin entrada se considera siempre habilitada (login, perfil, 404).
  */
-const PATH_FEATURE: Record<string, string> = {
+const PATH_FEATURE: Record<string, string | string[]> = {
   '/dashboard': 'dashboard',
   '/clients': 'clients',
   '/users': 'users',
@@ -244,10 +244,14 @@ const PATH_FEATURE: Record<string, string> = {
   '/crm/dashboard': 'crm',
   '/crm/calendario': 'crm',
   '/crm/administracion': 'crm',
-  // Las plantillas de correo se guardan por el endpoint de ajustes, asi que responden al mismo
-  // modulo: quien no puede tocar la configuracion tampoco debe reescribir lo que le llega a un
-  // cliente.
-  '/correos': 'reservations',
+  /*
+    Correos reúne las plantillas de Reservas, Encuestas y CRM en una pantalla.
+
+    Exigir Reservas la escondía a quien sólo tiene CRM, incluidas las plantillas del CRM, que son
+    suyas. Basta cualquiera de los tres: el servidor devuelve sólo las plantillas de los módulos
+    que esa persona puede editar, y rechaza guardar las demás.
+  */
+  '/correos': ['reservations', 'surveys', 'crm'],
   '/crm/contacts': 'crm',
   '/crm/leads': 'crm',
 
@@ -289,7 +293,16 @@ const PATH_FEATURE: Record<string, string> = {
 
 /** Módulo requerido por una ruta, o `undefined` si la ruta no depende de ninguno. */
 export function getFeatureForPath(path: string): string | undefined {
-  return PATH_FEATURE[path];
+  const declarado = PATH_FEATURE[path];
+  // Una ruta con varios módulos declara el primero: es el que manda cuando hay que nombrar uno.
+  return Array.isArray(declarado) ? declarado[0] : declarado;
+}
+
+/** Todos los módulos que abren una ruta. Con varios, basta cualquiera de ellos. */
+function modulosDeLaRuta(path: string): string[] {
+  const declarado = PATH_FEATURE[path];
+  if (!declarado) return [];
+  return Array.isArray(declarado) ? declarado : [declarado];
 }
 
 /**
@@ -314,10 +327,26 @@ export function isPathEnabled(
   userRole?: string,
   capabilities?: Record<string, boolean>,
 ): boolean {
-  const required = getFeatureForPath(path);
+  const modulos = modulosDeLaRuta(path);
+  if (modulos.length > 1) {
+    return modulos.some((modulo) => evaluarModulo(modulo, features, permissions, moduleLifecycle, userRole, capabilities));
+  }
+  const required = modulos[0];
   // El alcance de fase se evalúa antes que permisos y capacidades: un módulo que el producto
   // todavía no ofrece no debe aparecer para nadie, por más permisos que tenga el usuario.
   // La excepción es el cargo de desarrollo, único por organización, que es quien los levanta.
+  return evaluarModulo(required, features, permissions, moduleLifecycle, userRole, capabilities);
+}
+
+/** La misma reja de siempre, para un módulo concreto: fase, servicio contratado y permiso. */
+function evaluarModulo(
+  required: string | undefined,
+  features?: Record<string, boolean>,
+  permissions?: Record<string, string>,
+  moduleLifecycle?: Record<string, ModuleLifecycleStatus>,
+  userRole?: string,
+  capabilities?: Record<string, boolean>,
+): boolean {
   if (!isModuleInPhaseScope(required, moduleLifecycle, userRole)) return false;
   if (!required) return true;
   /*

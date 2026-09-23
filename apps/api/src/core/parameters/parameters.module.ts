@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ParameterDefinition } from './parameter-definition.entity';
 import { ParameterValue } from './parameter-value.entity';
@@ -10,8 +10,9 @@ import { CronRun } from '../cron/cron-run.entity';
 import { OrganizationSettingsService } from './organization-settings.service';
 import { EmailModule } from '../notifications/email.module';
 import { User } from '../../modules/users/user.entity';
+import { AuthorizationModule } from '../authorization/authorization.module';
 @Module({
-  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue, User, CronRun]), AuditModule, EmailModule],
+  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue, User, CronRun]), AuditModule, EmailModule, forwardRef(() => AuthorizationModule)],
   controllers: [OrganizationSettingsController],
   providers: [ParameterResolver, OrganizationSettingsService, PaquetesDeCorreo],
   exports: [ParameterResolver, OrganizationSettingsService, PaquetesDeCorreo, TypeOrmModule],
