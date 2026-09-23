@@ -18,7 +18,8 @@ import './permisos-de-usuario.css';
 
 type Nivel = 'none' | 'view' | 'edit' | 'manage';
 interface PermisoEfectivo { module: string; level: Nivel; source: 'role' | 'override'; moduleDisabled: boolean; productHidden: boolean }
-interface AccesoEmpresa { clientId: string; source: 'pod' | 'assignment' | 'community-manager' }
+/** `own`: la empresa escrita en la cuenta de portal, que no se quita desde aqui. */
+interface AccesoEmpresa { clientId: string; source: 'pod' | 'assignment' | 'community-manager' | 'own' }
 interface AccionEfectiva { clave: string; modulo: string; nombre: string; ayuda: string; permitida: boolean; porNivel: boolean; origen: 'nivel' | 'ajuste' }
 
 const NIVELES: Array<{ valor: Nivel; texto: string }> = [
@@ -45,6 +46,7 @@ const ORIGEN_EMPRESA: Record<AccesoEmpresa['source'], string> = {
   pod: 'por su equipo (pod)',
   'community-manager': 'como community manager de la cuenta',
   assignment: 'asignada a mano',
+  own: 'la empresa de su cuenta',
 };
 
 export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOperaciones = false, limitadoASuEmpresa = false, onCerrar }: {
@@ -68,7 +70,6 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
   const accesos = useQuery<{ access: AccesoEmpresa[] | 'unrestricted' }>({
     queryKey: ['empresas-de-usuario', usuario.id],
     queryFn: () => api.get(`/users/${usuario.id}/client-access`),
-    enabled: usuario.role !== 'client',
   });
 
   const acciones = useQuery<{ acciones: AccionEfectiva[] }>({ queryKey: ['acciones-de-usuario', usuario.id], queryFn: () => api.get(`/users/${usuario.id}/actions`) });
@@ -180,13 +181,23 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
         )}
       </section>
 
-      {usuario.role !== 'client' && <section>
+      {/*
+        Las cuentas de portal también llegan acá.
+
+        Esta sección las excluía, así que una persona que atiende dos locales de dueños
+        distintos necesitaba dos cuentas y dos contraseñas. La empresa escrita en su cuenta
+        aparece marcada y bloqueada: define a quién pertenece y se cambia editando la persona,
+        no desmarcándola aquí.
+      */}
+      <section>
         <h3>Qué empresas alcanza</h3>
         {accesos.isLoading ? <p>Cargando empresas…</p> : acceso === 'unrestricted' ? (
           <p className="page-subtitle">Su cargo ve todas las empresas de la organización.</p>
         ) : (
           <>
-            <p className="page-subtitle">Ve sólo las empresas marcadas. Las que vienen por su equipo se cambian desde el pod.</p>
+            <p className="page-subtitle">{usuario.role === 'client'
+              ? 'Marca las empresas que además atiende. La de su cuenta va siempre y se cambia editando la persona.'
+              : 'Ve sólo las empresas marcadas. Las que vienen por su equipo se cambian desde el pod.'}</p>
             <div className="permisos-usuario-empresas">
               {empresas.map((empresa) => {
                 const actual = accesoPorEmpresa.get(empresa.id);
@@ -205,7 +216,7 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
             </div>
           </>
         )}
-      </section>}
+      </section>
 
       {!puedeEditar && <p className="page-subtitle">No puedes cambiar los accesos de esta persona: los ajusta Administración.</p>}
       <div className="modal-actions"><button type="button" className="btn btn-primary" onClick={onCerrar}>Listo</button></div>

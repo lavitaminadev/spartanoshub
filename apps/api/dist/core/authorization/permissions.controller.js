@@ -275,8 +275,8 @@ let PermissionsController = class PermissionsController {
     async grantClientAccess(id, clientId, dto, req) {
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user);
-        if (user.role === user_role_enum_1.UserRole.CLIENT) {
-            throw new common_2.BadRequestException('El acceso de un cliente lo define su propia cuenta, no una asignación');
+        if (user.role === user_role_enum_1.UserRole.CLIENT && clientId === user.clientId) {
+            throw new common_2.BadRequestException('Esa es la empresa de su cuenta: ya la alcanza y no se asigna aparte');
         }
         const client = await this.clients.findOne({ where: { id: clientId, organizationId: req.organizationId }, select: { id: true } });
         if (!client)
@@ -305,6 +305,9 @@ let PermissionsController = class PermissionsController {
     async revokeClientAccess(id, clientId, req) {
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user);
+        if (user.role === user_role_enum_1.UserRole.CLIENT && clientId === user.clientId) {
+            throw new common_2.BadRequestException('Esa es la empresa de su cuenta: se cambia editando la persona');
+        }
         const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una asignación directa para esa cuenta');

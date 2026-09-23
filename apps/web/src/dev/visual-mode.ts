@@ -497,7 +497,15 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/users\/[^/]+\/client-access$/, (config) => {
     const usuario = (config?.url?.match(/\/users\/([^/]+)\/client-access/) ?? [])[1];
-    return { userId: usuario, role: 'community_manager', access: visualEmpresasDeUsuario[usuario] ??= [{ clientId: 'visual-client', source: 'pod' }] };
+    /*
+     * Las cuentas de portal parten con la empresa de su cuenta, no con un pod.
+     *
+     * Es la diferencia que hay que poder revisar: esa va marcada y bloqueada, y las demas se
+     * marcan a mano. Devolver siempre un pod mostraba una pantalla que no existe para ellas.
+     */
+    const esDePortal = String(usuario).startsWith('u-cli');
+    const inicial = esDePortal ? [{ clientId: 'visual-client', source: 'own' }] : [{ clientId: 'visual-client', source: 'pod' }];
+    return { userId: usuario, role: esDePortal ? 'client' : 'community_manager', access: visualEmpresasDeUsuario[usuario] ??= inicial };
   }],
   // El contacto del lead: la misma persona vista desde la empresa, con sus campos propios.
   [/\/crm\/contacts(\?|$)/, (config) => {
@@ -608,7 +616,11 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/notifications(?:\?|$)/, () => visualNotifications],
   // Casa Costanera tiene Reservas y Encuestas, no CRM: así se comprueba que Correos oculta los
   // avisos de un servicio que esa empresa no contrató.
-  [/\/clients(?:\?|$)/, () => ({ data: [{ id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } }] })],
+  // Dos empresas: con una sola no se puede revisar que alguien atienda más de una.
+  [/\/clients(?:\?|$)/, () => ({ data: [
+    { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } },
+    { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false } },
+  ] })],
   /*
    * Datos de ejemplo del CRM.
    *
