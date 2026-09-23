@@ -426,8 +426,15 @@ export class PermissionsController {
   ) {
     const user = await this.findUser(id, req.organizationId);
     await this.assertCanManageUserPermissionException(req, user);
-    if (user.role === UserRole.CLIENT) {
-      throw new BadRequestException('El acceso de un cliente lo define su propia cuenta, no una asignación');
+    /*
+     * Una cuenta de portal también puede alcanzar más de una empresa.
+     *
+     * Esto se rechazaba: el acceso de un cliente lo definía su propia cuenta y nada más. Quien
+     * atiende dos locales de dueños distintos necesitaba entonces dos cuentas y dos contraseñas.
+     * Lo que no cambia es la empresa escrita en su cuenta, que sigue siendo a la que pertenece.
+     */
+    if (user.role === UserRole.CLIENT && clientId === user.clientId) {
+      throw new BadRequestException('Esa es la empresa de su cuenta: ya la alcanza y no se asigna aparte');
     }
     const client = await this.clients.findOne({ where: { id: clientId, organizationId: req.organizationId }, select: { id: true } });
     if (!client) throw new NotFoundException('Cuenta no encontrada');
@@ -471,6 +478,11 @@ export class PermissionsController {
   ) {
     const user = await this.findUser(id, req.organizationId);
     await this.assertCanManageUserPermissionException(req, user);
+    // La empresa de la cuenta no es una asignación y no se retira desde aquí: se cambia
+    // editando la persona. Sin esto, el mensaje de «no existe» no explicaba por qué.
+    if (user.role === UserRole.CLIENT && clientId === user.clientId) {
+      throw new BadRequestException('Esa es la empresa de su cuenta: se cambia editando la persona');
+    }
     const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
     if (!existing) throw new NotFoundException('No existe una asignación directa para esa cuenta');
 

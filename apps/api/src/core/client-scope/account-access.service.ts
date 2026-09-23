@@ -31,7 +31,8 @@ const UNRESTRICTED_ROLES = new Set<UserRole>([
 /** Procedencia de una cuenta visible, para poder explicar por qué alguien la ve. */
 export interface ClientAccessReason {
   clientId: string;
-  source: 'pod' | 'assignment' | 'community-manager';
+  /** `own`: la empresa escrita en la propia cuenta de portal, que no se quita. */
+  source: 'pod' | 'assignment' | 'community-manager' | 'own';
 }
 
 /**
@@ -71,7 +72,23 @@ export class AccountAccessService {
    */
   async allowedClientIds(organizationId: string, user: AuthUser): Promise<string[] | undefined> {
     if (UNRESTRICTED_ROLES.has(user.role as UserRole)) return undefined;
-    if ((user.role as UserRole) === UserRole.CLIENT) return user.clientId ? [user.clientId] : [];
+    /*
+     * Una cuenta de portal alcanza su empresa y las que se le hayan asignado además.
+     *
+     * Antes era solo la suya, escrita en la propia cuenta. Con eso, alguien que atiende dos
+     * locales de dueños distintos necesitaba dos cuentas y dos contraseñas, y cada cambio de
+     * empresa era cerrar sesión y volver a entrar.
+     *
+     * La empresa de la cuenta sigue primero y no se puede quitar: es la que define a quién
+     * pertenece esa persona.
+     */
+    if ((user.role as UserRole) === UserRole.CLIENT) {
+      const propias = user.clientId ? [user.clientId] : [];
+      const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
+        .map((fila) => fila.clientId)
+        .filter((id) => id !== user.clientId);
+      return [...propias, ...asignadas];
+    }
 
     const cacheKey = `${organizationId}:${user.id}`;
     const cached = this.cache.get(cacheKey);
@@ -111,7 +128,12 @@ export class AccountAccessService {
   async explain(organizationId: string, user: AuthUser): Promise<ClientAccessReason[] | 'unrestricted'> {
     if (UNRESTRICTED_ROLES.has(user.role as UserRole)) return 'unrestricted';
     if ((user.role as UserRole) === UserRole.CLIENT) {
-      return user.clientId ? [{ clientId: user.clientId, source: 'assignment' }] : [];
+      // La propia se marca como `own` para que la pantalla pueda impedir que se quite.
+      const propia: ClientAccessReason[] = user.clientId ? [{ clientId: user.clientId, source: 'own' }] : [];
+      const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
+        .filter((fila) => fila.clientId !== user.clientId)
+        .map((fila): ClientAccessReason => ({ clientId: fila.clientId, source: 'assignment' }));
+      return [...propia, ...asignadas];
     }
     return this.resolve(organizationId, user.id);
   }
