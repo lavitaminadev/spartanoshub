@@ -60,9 +60,22 @@ function syntheticJwt(): string {
  *
  *   http://localhost:5176/crm?rol=commercial_director
  */
+const CLAVE_ROL_VISUAL = 'espartanos.modo-visual.rol';
+
 function rolDeRevision(): string {
-  const solicitado = new URLSearchParams(window.location.search).get('rol');
-  return solicitado?.trim() || 'admin';
+  const solicitado = new URLSearchParams(window.location.search).get('rol')?.trim();
+  /*
+   * El cargo dura toda la revisión, no sólo la primera pantalla.
+   *
+   * Se leía únicamente de la dirección, así que bastaba recargar, seguir un enlace interno o
+   * volver atrás para caer de nuevo en `admin`: la revisión parecía cerrarse sola y había que
+   * escribir el parámetro otra vez. Queda guardado hasta que se pida otro o se pida `admin`.
+   */
+  if (solicitado) {
+    try { window.sessionStorage.setItem(CLAVE_ROL_VISUAL, solicitado); } catch { /* sin almacenamiento */ }
+    return solicitado;
+  }
+  try { return window.sessionStorage.getItem(CLAVE_ROL_VISUAL) || 'admin'; } catch { return 'admin'; }
 }
 
 /** Perfil con acceso total, usado para responder `/auth/me`. */
