@@ -170,6 +170,16 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: 
  * mismo: el rótulo se resuelve por variable y el texto entre llaves queda al lado para quien ya
  * sabe cuál quiere.
  */
+const EXPLICA_VARIABLE: Record<string, string> = {
+  local: 'La sucursal de la reserva de quien recibe el correo, no una fija: cada persona ve la suya.',
+  nombre: 'El nombre con que reservó quien recibe el correo.',
+  fecha: 'La fecha y hora de esa reserva, en la zona horaria del local.',
+  personas: 'Cuántas personas trae esa reserva.',
+  codigo: 'El código de esa reserva, el que sirve para buscarla.',
+  gestion: 'Un enlace propio de esa reserva para cambiarla o cancelarla.',
+  empresa: 'La empresa dueña del local, no la sucursal.',
+};
+
 const ETIQUETAS_DE_VARIABLE: Record<string, string> = {
   nombre: 'Nombre de quien recibe',
   local: 'Nombre del local',
@@ -719,7 +729,9 @@ export function PanelDeCorreo(): JSX.Element {
                             <button
                               key={variable}
                               type="button"
-                              title={`Insertar {{${variable}}} donde está el cursor`}
+                              title={EXPLICA_VARIABLE[variable]
+                                ? `${EXPLICA_VARIABLE[variable]} · Se inserta donde está el cursor.`
+                                : `Insertar {{${variable}}} donde está el cursor`}
                               // Sin esto el campo pierde el foco al pulsar y se pierde la posición del cursor.
                               onMouseDown={(evento) => evento.preventDefault()}
                               onClick={() => insertarVariable(ajuste.key, variable)}
@@ -728,6 +740,8 @@ export function PanelDeCorreo(): JSX.Element {
                               <code>{`{{${variable}}}`}</code>
                             </button>
                           ))}
+                          {/* De dónde sale cada dato: sin esto, «{{local}}» no dice cuál de las sucursales. */}
+                          <span className="panel-correo-variables-nota">Se llenan con los datos de la reserva de quien recibe: su local, su fecha, su código.</span>
                         </small>
                       ) : ajuste.unit ? <small>{ajuste.unit}</small> : null}
                     </label>
