@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /**
  * Lo único editable de un vínculo: el papel de la persona en la cuenta y las notas.
@@ -13,4 +13,6 @@ import { IsOptional, IsString, MaxLength } from 'class-validator';
 export class UpdateContactDto {
   @IsOptional() @IsString() @MaxLength(255) position?: string;
   @IsOptional() @IsString() @MaxLength(5000) notes?: string;
+  /** Campos propios de contactos, por clave. El servicio los valida contra sus definiciones. */
+  @IsOptional() @IsObject() customFields?: Record<string, unknown>;
 }

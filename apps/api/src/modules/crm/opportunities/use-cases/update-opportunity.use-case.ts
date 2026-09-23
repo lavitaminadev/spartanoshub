@@ -6,6 +6,7 @@ import { UpdateOpportunityDto } from '../dto/update-opportunity.dto';
 import { OpportunityReferenceValidator } from '../opportunity-reference-validator.service';
 import { OpportunityStageHistoryService } from '../opportunity-stage-history.service';
 import { GetOpportunityUseCase } from './get-opportunity.use-case';
+import { CrmFieldsService } from '../../fields/crm-fields.service';
 
 @Injectable()
 export class UpdateOpportunityUseCase {
@@ -14,6 +15,7 @@ export class UpdateOpportunityUseCase {
     private readonly referenceValidator: OpportunityReferenceValidator,
     private readonly getOpportunity: GetOpportunityUseCase,
     private readonly stageHistory: OpportunityStageHistoryService,
+    private readonly campos: CrmFieldsService,
   ) {}
 
   /**
@@ -29,7 +31,16 @@ export class UpdateOpportunityUseCase {
     if (movingToLost && !dto.lossReason && !opportunity.lossReason) {
       throw new BadRequestException('Indica el motivo de pérdida antes de cerrar la oportunidad como perdida');
     }
-    Object.assign(opportunity, dto);
+    const { customFields, ...resto } = dto;
+    Object.assign(opportunity, resto);
+    /*
+     * Los campos propios se validan contra sus definiciones —tipo, opciones y obligatoriedad—,
+     * igual que en un lead. Sin esto se podían definir en Administración y no había ficha donde
+     * completarlos.
+     */
+    if (customFields !== undefined) {
+      opportunity.customFields = await this.campos.validarPara(organizationId, 'opportunity', opportunity.customFields, customFields, true) ?? undefined;
+    }
     if (dto.name !== undefined) opportunity.name = dto.name.trim().replace(/\s+/g, ' ');
     if (dto.stage !== undefined) opportunity.stage = dto.stage.trim().toLowerCase();
     if (dto.lossReason !== undefined) opportunity.lossReason = dto.lossReason.trim();

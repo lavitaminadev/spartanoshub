@@ -20,7 +20,7 @@ import { api } from '../../core/api';
 
 const ENTIDADES: Array<{ value: CustomFieldEntity; label: string }> = [
   { value: 'lead', label: 'Leads' },
-  { value: 'contact', label: 'Contactos' },
+  { value: 'contact', label: 'Contactos (sin ficha)' },
   { value: 'opportunity', label: 'Oportunidades' },
 ];
 
@@ -109,6 +109,16 @@ export function CamposPropiosDelCrm(): JSX.Element {
         </div>
         <label className="toggle-row"><input type="checkbox" checked={verArchivados} onChange={(evento) => setVerArchivados(evento.target.checked)} /> Mostrar archivados</label>
       </div>
+
+      {/*
+        * Un contacto todavía no tiene ficha donde completar nada.
+        *
+        * Los campos se pueden definir y lo guardado se conserva, pero ofrecerlos sin decirlo
+        * dejaba a alguien creando campos que no aparecían en ninguna parte.
+        */}
+      {entidad === 'contact' ? (
+        <p className="crm-admin-ayuda">Los contactos todavía no tienen ficha propia, así que estos campos no se pueden completar en ninguna pantalla. Lo que definas queda guardado para cuando exista.</p>
+      ) : null}
 
       {aviso ? <div className={`alert ${aviso.tono === 'ok' ? 'alert-success' : 'alert-error'}`} role="status">{aviso.texto}</div> : null}
 

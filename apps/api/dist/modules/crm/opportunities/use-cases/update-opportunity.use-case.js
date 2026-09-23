@@ -20,12 +20,14 @@ const opportunity_entity_1 = require("../opportunity.entity");
 const opportunity_reference_validator_service_1 = require("../opportunity-reference-validator.service");
 const opportunity_stage_history_service_1 = require("../opportunity-stage-history.service");
 const get_opportunity_use_case_1 = require("./get-opportunity.use-case");
+const crm_fields_service_1 = require("../../fields/crm-fields.service");
 let UpdateOpportunityUseCase = class UpdateOpportunityUseCase {
-    constructor(repo, referenceValidator, getOpportunity, stageHistory) {
+    constructor(repo, referenceValidator, getOpportunity, stageHistory, campos) {
         this.repo = repo;
         this.referenceValidator = referenceValidator;
         this.getOpportunity = getOpportunity;
         this.stageHistory = stageHistory;
+        this.campos = campos;
     }
     async execute(id, dto, organizationId, actorId) {
         const opportunity = await this.getOpportunity.execute(id, organizationId);
@@ -35,7 +37,11 @@ let UpdateOpportunityUseCase = class UpdateOpportunityUseCase {
         if (movingToLost && !dto.lossReason && !opportunity.lossReason) {
             throw new common_1.BadRequestException('Indica el motivo de pérdida antes de cerrar la oportunidad como perdida');
         }
-        Object.assign(opportunity, dto);
+        const { customFields, ...resto } = dto;
+        Object.assign(opportunity, resto);
+        if (customFields !== undefined) {
+            opportunity.customFields = await this.campos.validarPara(organizationId, 'opportunity', opportunity.customFields, customFields, true) ?? undefined;
+        }
         if (dto.name !== undefined)
             opportunity.name = dto.name.trim().replace(/\s+/g, ' ');
         if (dto.stage !== undefined)
@@ -62,5 +68,6 @@ exports.UpdateOpportunityUseCase = UpdateOpportunityUseCase = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         opportunity_reference_validator_service_1.OpportunityReferenceValidator,
         get_opportunity_use_case_1.GetOpportunityUseCase,
-        opportunity_stage_history_service_1.OpportunityStageHistoryService])
+        opportunity_stage_history_service_1.OpportunityStageHistoryService,
+        crm_fields_service_1.CrmFieldsService])
 ], UpdateOpportunityUseCase);

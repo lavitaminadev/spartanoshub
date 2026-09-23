@@ -82,3 +82,8 @@ __decorate([
     (0, class_validator_1.MaxLength)(2000),
     __metadata("design:type", String)
 ], UpdateOpportunityDto.prototype, "lossNote", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpdateOpportunityDto.prototype, "customFields", void 0);
