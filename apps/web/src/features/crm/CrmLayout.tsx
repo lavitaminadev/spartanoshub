@@ -58,7 +58,7 @@ const SECCIONES: Array<{ to: string; label: string; end?: boolean }> = [
   // estaba mirando, y mezclar kanban y lista bajo un mismo rótulo confunde las dos cosas.
   { to: '/crm/tablero', label: 'Tablero' },
   { to: '/crm/leads', label: 'Leads' },
-  { to: '/crm/dashboard', label: 'Dashboard' },
+  { to: '/crm/dashboard', label: 'Resultados' },
   { to: '/crm/calendario', label: 'Calendario' },
   { to: '/crm/administracion', label: 'Administración' },
 ];
@@ -213,9 +213,16 @@ export function CrmLayout(): JSX.Element {
               maneja, sin una regla aparte que mantener de acuerdo.
             */}
             {esPortalCliente ? (
-              <span className="crm-nav-cuenta" aria-label="Empresa asignada">
+              /*
+               * El nombre de su empresa, no «Empresa asignada».
+               *
+               * En el portal no hay nada que elegir, pero el rótulo genérico obligaba a suponer
+               * de qué empresa son los datos que se están mirando. Con el nombre no hay que
+               * suponerlo, y el día que una persona alcance dos, el cambio se nota.
+               */
+              <span className="crm-nav-cuenta" aria-label="Empresa cuyo CRM se está mirando">
                 <span className="crm-nav-cuenta-label">Empresa</span>
-                <strong>Empresa asignada</strong>
+                <strong>{user?.clientName || 'Tu empresa'}</strong>
               </span>
             ) : (
               <label className="crm-nav-cuenta">

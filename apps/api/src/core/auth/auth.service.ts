@@ -494,7 +494,7 @@ export class AuthService {
     if (!user) return null;
     const organization = await this.orgRepo.findOne({ where: { id: user.organizationId }, select: ['id', 'features'] });
     const client = user.clientId
-      ? await this.clientRepo.findOne({ where: { id: user.clientId, organizationId: user.organizationId }, select: ['id', 'capabilities'] })
+      ? await this.clientRepo.findOne({ where: { id: user.clientId, organizationId: user.organizationId }, select: ['id', 'name', 'capabilities'] })
       : null;
     return Object.assign(user, {
       features: normalizeOrganizationFeatures(organization?.features),
@@ -502,6 +502,13 @@ export class AuthService {
       mustAcceptTerms: await this.termsPending(user),
       // El menú del portal recibe la misma contratación que aplican los controladores.
       capabilities: client ? normalizeClientCapabilities(client.capabilities) : undefined,
+      /*
+       * El nombre de su empresa.
+       *
+       * El portal no puede pedir el listado de empresas —y hace bien—, así que las pantallas
+       * mostraban «Empresa asignada» y había que suponer de quién son los datos a la vista.
+       */
+      clientName: client?.name ?? undefined,
     });
   }
 
