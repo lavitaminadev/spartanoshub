@@ -192,6 +192,15 @@ function isModuleInInitialOperationScope(module, role) {
         // cambiar en cada una las aplica el servidor.
         if (['users', 'clients'].includes(module) && role === 'operations_director')
             return true;
+        /*
+         * Una cuenta de empresa llega a Usuarios para administrar su propio equipo.
+         *
+         * Aquí solo se abre la puerta. Quién pasa lo decide el permiso, y para el cargo cliente ese
+         * permiso no se concede por matriz: solo existe si la agencia lo entregó en esa empresa
+         * —ver `PermissionResolverService`—, así que una cuenta sin él sigue sin ver nada.
+         */
+        if (module === 'users' && role === 'client')
+            return true;
         return role === 'admin' || role === 'commercial_director';
     }
     // Encuestas lo decide el permiso de cada persona y la capacidad de cada empresa, como CRM y

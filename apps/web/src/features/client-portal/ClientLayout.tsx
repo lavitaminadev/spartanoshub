@@ -6,6 +6,7 @@ import { BrandMark } from '../../shared/Brand';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { PwaInstallButton } from '../../shared/PwaInstallButton';
 import { AvisoVersionNueva } from '../../shared/AvisoVersionNueva';
+import { useMenuCompacto } from '../../shared/useMenuCompacto';
 import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
 
 /**
@@ -24,12 +25,18 @@ export function ClientLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const { menuCompacto, alternar, esMovil } = useMenuCompacto();
   return (
-    <div className="app-layout">
+    <div className={`app-layout${menuCompacto && !esMovil ? ' menu-compacto' : ''}`}>
       <AvisoVersionNueva />
       <button className="sidebar-toggle" onClick={() => setOpen(!open)} aria-label="Abrir navegación" aria-expanded={open}>☰</button>
       <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div className="sidebar-header"><BrandMark decorative /><div><h2>Mi cuenta</h2><span>Espartanos</span></div></div>
+        <div className="sidebar-header">
+          <BrandMark decorative />
+          <div><h2>Mi cuenta</h2><span>Espartanos</span></div>
+          {/* El mismo botón que el marco interno: contraer el menú no es cosa de un solo cargo. */}
+          {!esMovil && <button type="button" className="menu-compacto-boton" onClick={alternar} aria-pressed={menuCompacto} aria-label={menuCompacto ? 'Expandir menú' : 'Contraer menú a íconos'} title={menuCompacto ? 'Expandir menú' : 'Contraer menú'}>{menuCompacto ? '»' : '«'}</button>}
+        </div>
         <nav className="sidebar-nav">
           {CLIENT_NAV.filter((item) => isClientNavItemVisible(item, user)).map((item) => {
             const active = location.pathname === item.path || (item.path !== '/portal' && location.pathname.startsWith(`${item.path}/`));

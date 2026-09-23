@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../core/auth';
+import { useMenuCompacto } from './useMenuCompacto';
 import { roleLabel } from '../core/role-labels';
 import { getNavigation, getNavigationSections } from '../core/navigation.registry';
 import { NavGlyph } from './NavGlyph';
@@ -50,11 +51,7 @@ export function Layout(): JSX.Element {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   /** Menú reducido a íconos en computador. Se recuerda en este navegador. */
-  const [menuCompacto, setMenuCompacto] = useState(() => { try { return localStorage.getItem('vh.menu.compacto') === '1'; } catch { return false; } });
-  const alternarMenuCompacto = useCallback(() => setMenuCompacto((actual) => {
-    try { localStorage.setItem('vh.menu.compacto', actual ? '0' : '1'); } catch { /* sin almacenamiento */ }
-    return !actual;
-  }), []);
+  const { menuCompacto, alternar: alternarMenuCompacto } = useMenuCompacto();
   const [helpOpen, setHelpOpen] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT_QUERY).matches);

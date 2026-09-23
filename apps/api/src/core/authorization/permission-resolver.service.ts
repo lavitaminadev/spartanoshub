@@ -119,6 +119,15 @@ export class PermissionResolverService {
       ]),
     ) as PermissionMap;
 
+    /*
+     * Administrar personas es de la agencia salvo que se entregue, empresa por empresa.
+     *
+     * Para el cargo cliente, `users` no se concede por matriz: la matriz vale igual para todas
+     * las empresas, y esto tiene que poder darse en una y no en otra. Sin este recorte, subir
+     * la celda de la matriz le entregaría el equipo a todas las cuentas de empresa a la vez.
+     */
+    if (role === UserRole.CLIENT && !overrideByModule.has('users')) permissions.users = 'none';
+
     this.cache.set(cacheKey, { permissions, expiresAt: Date.now() + PermissionResolverService.CACHE_TTL_MS });
     return permissions;
   }

@@ -1,3 +1,5 @@
+import { AuthorizationModule } from '../../core/authorization/authorization.module';
+import { AdministracionDelEquipoService } from './administracion-del-equipo.service';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './user.entity';
@@ -10,9 +12,9 @@ import { ResetUserPasswordUseCase } from './reset-user-password.use-case';
 import { EmailModule } from '../../core/notifications/email.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Client]), EmailModule],
+  imports: [TypeOrmModule.forFeature([User, Client]), EmailModule, AuthorizationModule],
   controllers: [UsersController],
-  providers: [CreateUserUseCase, ListUsersUseCase, UpdateUserUseCase, ResetUserPasswordUseCase],
+  providers: [CreateUserUseCase, ListUsersUseCase, UpdateUserUseCase, ResetUserPasswordUseCase, AdministracionDelEquipoService],
   exports: [TypeOrmModule],
 })
 export class UsersModule {}

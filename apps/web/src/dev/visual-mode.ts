@@ -438,11 +438,22 @@ function ajustesDeCorreo(source: 'client' | 'master_default') {
 }
 
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
-  [/\/users(?:\?|$)/, () => ([
-    { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z' },
-    { id: 'u-ops', name: 'Rodrigo Pérez', email: 'rodrigo@espartanos.cl', role: 'operations_director', isActive: true, clientId: null, phone: '', createdAt: '2026-05-10T12:00:00.000Z' },
-    { id: 'u-cli', name: 'Casa Costanera (portal)', email: 'reservas@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-07-02T12:00:00.000Z' },
-  ])],
+  [/\/users(?:\?|$)/, () => {
+    const equipo = [
+      { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z' },
+      { id: 'u-ops', name: 'Rodrigo Pérez', email: 'rodrigo@espartanos.cl', role: 'operations_director', isActive: true, clientId: null, phone: '', createdAt: '2026-05-10T12:00:00.000Z' },
+      { id: 'u-cli', name: 'Ana Moya', email: 'ana@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-07-02T12:00:00.000Z' },
+      { id: 'u-cli-2', name: 'Diego Ruiz', email: 'diego@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-08-14T12:00:00.000Z' },
+    ];
+    /*
+     * Revisando como empresa se ve lo que esa empresa ve.
+     *
+     * El servidor acota la lista a su empresa y a las cuentas de empresa. Si aquí apareciera el
+     * equipo de la agencia, la revisión mostraría un alcance que en producción no existe.
+     */
+    if (rolDeRevision() === 'client') return equipo.filter((persona) => persona.clientId === VISUAL_USER.clientId);
+    return equipo;
+  }],
   // Permisos por persona: ajustes y empresas en memoria para revisar el panel de Usuarios.
   [/\/users\/[^/]+\/permissions\/[^/]+$/, (config) => {
     const [, usuario, modulo] = config?.url?.match(/\/users\/([^/]+)\/permissions\/([^/?]+)/) ?? [];

@@ -310,10 +310,11 @@ export class PermissionsController {
    * excepción.
    */
   @Get('users/:id/permissions')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Detalle de permisos de un usuario' })
   async ofUser(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const user = await this.findUser(id, req.organizationId);
+    await this.assertCanManageUserPermissionException(req, user);
     return {
       userId: user.id,
       role: user.role,
@@ -327,7 +328,7 @@ export class PermissionsController {
    * Usar `level: 'none'` deniega de forma explícita un módulo que el cargo sí concede.
    */
   @Put('users/:id/permissions/:module')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Definir una excepción de permiso' })
   async upsert(
     @Param('id') id: string,
@@ -529,6 +530,30 @@ export class PermissionsController {
     const actorRole = req.user.role as UserRole;
     if (actorRole === UserRole.DEV) return;
     if (target.id === req.user.id) throw new ForbiddenException('No puedes ajustar tus propios accesos');
+
+    /*
+     * Quien administra su propia empresa reparte accesos dentro de ella y nada más.
+     *
+     * Las tres restricciones son el encierro entero: solo cuentas de su empresa, y nunca los
+     * módulos con los que se administra el sistema. Sin la última, podría concederse a sí mismo
+     * —a través de otra cuenta— la administración de personas que la agencia le entregó a él.
+     */
+    if (actorRole === UserRole.CLIENT) {
+      // La comprobación va aquí y no en el servicio del equipo: ese vive en el módulo de
+      // usuarios, que ya depende de este, y traerlo cerraría el círculo entre ambos.
+      const suEmpresa = req.user.clientId;
+      const puede = suEmpresa
+        ? await this.permissions.can(req.organizationId, req.user.id, actorRole, 'users', 'manage', suEmpresa)
+        : false;
+      if (!puede) throw new ForbiddenException('Tu cuenta no administra personas');
+      if (target.clientId !== suEmpresa || target.role !== UserRole.CLIENT) {
+        throw new ForbiddenException('Esa cuenta es de otra empresa');
+      }
+      if (module && ['users', 'settings', 'integrations', 'clients', 'governance'].includes(module)) {
+        throw new ForbiddenException('Ese acceso lo entrega Espartanos');
+      }
+      return;
+    }
     if (target.role === UserRole.DEV) {
       throw new ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
     }

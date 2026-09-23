@@ -21,7 +21,13 @@ registerFeature({
     label: 'Correos',
     path: '/correos',
     icon: '✉️',
-    roles: ['admin', 'dev', 'commercial_director'],
+    /*
+      El cargo cliente entra porque los correos que salen son los de su empresa.
+
+      Qué plantillas ve lo deciden después sus servicios contratados y su permiso en cada módulo:
+      una empresa solo con CRM no verá las de reservas. Entrar no es poder.
+    */
+    roles: ['admin', 'dev', 'commercial_director', 'client'],
   }],
   routes: [],
 });
