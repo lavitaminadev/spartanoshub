@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { Organization } from '../../modules/organizations/organization.entity';
@@ -27,7 +27,8 @@ import { ParametersModule } from '../parameters/parameters.module';
   imports: [
     TypeOrmModule.forFeature([Organization, User, Client, UserPermissionOverride, RolePermissionOverride, UserClientAccess, UserActionOverride]),
     AuditModule,
-    ParametersModule,
+    // Los ajustes preguntan permisos y los permisos leen ajustes: la referencia va diferida.
+    forwardRef(() => ParametersModule),
   ],
   controllers: [PermissionsController],
   providers: [

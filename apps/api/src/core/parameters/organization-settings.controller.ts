@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Put, Req, Query, Post } from '@nestjs/common';
+import { Inject, forwardRef, BadRequestException, Body, Controller, ForbiddenException, Get, Put, Req, Query, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../authorization/roles.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -13,13 +13,32 @@ import { UserRole } from '../../modules/organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { UpdateOrganizationSettingsDto } from './dto/update-organization-settings.dto';
 import { OrganizationSettingsService } from './organization-settings.service';
-import { ModuleScope } from '../authorization/module-scope.decorator';
+import { ModuleExempt, ModuleScope } from '../authorization/module-scope.decorator';
+import { PermissionResolverService } from '../authorization/permission-resolver.service';
 import { RequiresPermission } from '../authorization/requires-permission.decorator';
 import { CronRun } from '../cron/cron-run.entity';
 import { HORAS_SIN_CORRER_PARA_ALARMA, REQUISITOS_POR_AVISO } from './requisitos-de-correo';
 
 /** Claves que maneja la pantalla de Correos. */
 const ES_CLAVE_DE_CORREO = (clave: string) => clave.startsWith('email.');
+
+/**
+ * A qué módulo pertenece cada plantilla de correo.
+ *
+ * Todas pedían permiso de Reservas, así que quien tenía sólo CRM no veía la pantalla —ni siquiera
+ * las plantillas del CRM, que son suyas—. Cada correo responde ahora al módulo del que habla: el
+ * de la encuesta a Encuestas, el del lead al CRM, y el resto a Reservas.
+ */
+const MODULO_DE_CORREO: Array<[string, 'reservations' | 'surveys' | 'crm']> = [
+  ['email.post_visit_survey', 'surveys'],
+  ['email.survey', 'surveys'],
+  ['email.lead', 'crm'],
+  ['email.crm', 'crm'],
+];
+
+function moduloDeCorreo(clave: string): 'reservations' | 'surveys' | 'crm' {
+  return MODULO_DE_CORREO.find(([prefijo]) => clave.startsWith(prefijo))?.[1] ?? 'reservations';
+}
 import { REQUIRED_LIFECYCLE_KEYS } from '../../modules/organizations/organization-features';
 import { isModuleLifecycleVisible, moduleLifecycleSettingKey, type ModuleLifecycleStatus } from '@espartanos/shared';
 
@@ -36,6 +55,7 @@ import { isModuleLifecycleVisible, moduleLifecycleSettingKey, type ModuleLifecyc
 export class OrganizationSettingsController {
   constructor(
     private readonly settings: OrganizationSettingsService,
+    @Inject(forwardRef(() => PermissionResolverService)) private readonly permisos: PermissionResolverService,
     private readonly accountAccess: AccountAccessService,
     private readonly correo: EmailService,
     @InjectRepository(User) private readonly usuarios: Repository<User>,
@@ -121,23 +141,49 @@ export class OrganizationSettingsController {
    * los escribe quien administra las reservas. Por eso se gobiernan con el permiso de Reservas y
    * sólo alcanzan las claves `email.*`.
    */
+  /* El módulo depende de la plantilla, no del endpoint: se comprueba adentro, plantilla por plantilla. */
+  @ModuleExempt('Cada plantilla exige el permiso de su propio módulo, comprobado en el método')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV)
   @Get('correos')
-  @RequiresPermission('reservations', 'edit')
   @ApiOperation({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' })
   async correos(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
+    // Sólo las plantillas de los módulos que esta persona puede editar: las demás no se muestran.
+    const puede = await this.modulosQuePuedeEditar(request);
+    if (puede.size === 0) throw new ForbiddenException('No tienes permiso para editar plantillas de correo');
     const ajustes = await this.settings.list(organizationId, clientId ?? null) as Array<{ key: string }>;
-    return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key));
+    return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key) && puede.has(moduloDeCorreo(ajuste.key)));
   }
 
+  /**
+   * Los módulos de correo que esta persona puede editar.
+   *
+   * Se calcula con los permisos efectivos, que es lo mismo que gobierna el menú: así la pantalla
+   * y lo que el servidor acepta no pueden decir cosas distintas.
+   */
+  private async modulosQuePuedeEditar(request: AuthenticatedRequest): Promise<Set<'reservations' | 'surveys' | 'crm'>> {
+    const organizationId = request.organizationId || request.user.organizationId;
+    const puede = new Set<'reservations' | 'surveys' | 'crm'>();
+    for (const modulo of ['reservations', 'surveys', 'crm'] as const) {
+      if (await this.permisos.can(organizationId, request.user.id, request.user.role as UserRole, modulo, 'edit')) puede.add(modulo);
+    }
+    return puede;
+  }
+
+  /* El módulo depende de la plantilla, no del endpoint: se comprueba adentro, plantilla por plantilla. */
+  @ModuleExempt('Cada plantilla exige el permiso de su propio módulo, comprobado en el método')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV)
   @Put('correos')
-  @RequiresPermission('reservations', 'edit')
   @ApiOperation({ summary: 'Guardar plantillas de correo' })
   async guardarCorreos(@Req() request: AuthenticatedRequest, @Body() dto: UpdateOrganizationSettingsDto, @Query('clientId') clientId?: string) {
     const valores = dto.values ?? {};
     const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
     if (ajenas.length) throw new ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
+    // Cada plantilla exige el permiso de su módulo: con CRM no se reescribe lo que recibe quien reserva.
+    const puede = await this.modulosQuePuedeEditar(request);
+    const sinPermiso = Object.keys(valores).filter((clave) => !puede.has(moduloDeCorreo(clave)));
+    if (sinPermiso.length) throw new ForbiddenException(`No puedes editar estas plantillas: ${sinPermiso.join(', ')}`);
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
     return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);

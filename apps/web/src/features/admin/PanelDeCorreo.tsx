@@ -424,10 +424,12 @@ export function PanelDeCorreo(): JSX.Element {
       if (requisito.clave === 'encuesta') {
         const elegida = String(valorDe('email.post_visit_survey_id') ?? '');
         return {
-          texto: elegida ? 'Encuesta elegida' : 'Falta elegir qué encuesta se envía',
+          texto: elegida
+            ? 'Encuesta elegida'
+            : empresa
+              ? 'Falta elegir qué encuesta se envía, en «Encuesta que se envía», más abajo'
+              : 'Elige una empresa arriba para poder elegir su encuesta',
           cumple: Boolean(elegida),
-          // Se elige por sucursal; acá abajo está la de toda la empresa.
-          enlace: elegida ? undefined : '/reservations',
         };
       }
       return null;
@@ -623,7 +625,7 @@ export function PanelDeCorreo(): JSX.Element {
             {activo && requisitos.some((requisito) => requisito.cumple === false) && <ul className="panel-correo-requisitos">
               {requisitos.filter((requisito) => requisito.cumple === false).map((requisito) => <li key={requisito.texto} className="falta">
                 <span aria-hidden="true">✕</span>{requisito.texto}
-                {requisito.enlace && <Link to={requisito.enlace}>Elegirla en la sucursal</Link>}
+                {requisito.enlace && <Link to={requisito.enlace}>Resolverlo</Link>}
               </li>)}
             </ul>}
 

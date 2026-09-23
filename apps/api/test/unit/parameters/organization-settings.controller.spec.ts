@@ -7,11 +7,13 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
   const settings = { list: vi.fn(), update: vi.fn() };
   // Sin empresa elegida no hay nada que comprobar; con ella, esto es la reja de alcance.
   const accountAccess = { assertClient: vi.fn().mockResolvedValue(undefined) };
+  // Cada plantilla exige el permiso de su módulo: acá se concede todo salvo que la prueba diga otra cosa.
+  const permisos = { can: vi.fn().mockResolvedValue(true) };
   let controller: OrganizationSettingsController;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new OrganizationSettingsController(settings as any, accountAccess as any);
+    controller = new OrganizationSettingsController(settings as any, permisos as any, accountAccess as any);
   });
 
   /*
@@ -21,7 +23,7 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
    */
   it('sólo desarrollo ve qué le falta al servidor de correo', () => {
     const correo = { estado: () => ({ habilitado: false, remitente: null, servidor: null, puerto: null, respuestasA: null, faltan: ['SMTP_ENABLED=true', 'SMTP_HOST'] }) };
-    const conCorreo = new OrganizationSettingsController(settings as any, accountAccess as any, correo as any, {} as any);
+    const conCorreo = new OrganizationSettingsController(settings as any, permisos as any, accountAccess as any, correo as any, {} as any);
 
     const comoAdmin = conCorreo.estadoDelCorreo({ user: { role: UserRole.ADMIN } } as any);
     const comoDev = conCorreo.estadoDelCorreo({ user: { role: UserRole.DEV } } as any);
@@ -69,5 +71,35 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
     await controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } }, 'c-1');
     expect(accountAccess.assertClient).toHaveBeenCalledWith('org-1', request.user, 'c-1');
     expect(settings.update).toHaveBeenCalledWith('org-1', 'cd-1', { 'email.reservation_confirmation_subject': 'Hola' }, 'c-1');
+  });
+
+  /*
+   * Cada plantilla responde a su módulo.
+   *
+   * Todas exigían Reservas, así que quien sólo tenía CRM no veía la pantalla —ni sus propias
+   * plantillas—. Ahora ve las suyas, y sigue sin poder reescribir lo que recibe quien reserva.
+   */
+  it('con sólo CRM se ven y se guardan las plantillas del CRM, y ninguna otra', async () => {
+    const request = { organizationId: 'org-1', user: { id: 'cm-1', role: UserRole.COMMUNITY_MANAGER } } as any;
+    permisos.can.mockImplementation(async (_org: string, _user: string, _rol: string, modulo: string) => modulo === 'crm');
+    settings.list.mockResolvedValue([
+      { key: 'email.lead_assigned_subject' },
+      { key: 'email.reservation_confirmation_subject' },
+      { key: 'email.post_visit_survey_subject' },
+    ]);
+
+    await expect(controller.correos(request)).resolves.toEqual([{ key: 'email.lead_assigned_subject' }]);
+
+    await expect(controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } })).rejects.toThrow(ForbiddenException);
+    expect(settings.update).not.toHaveBeenCalled();
+
+    await controller.guardarCorreos(request, { values: { 'email.lead_assigned_subject': 'Hola' } });
+    expect(settings.update).toHaveBeenCalled();
+  });
+
+  it('sin permiso de edición en ningún módulo, Correos no se abre', async () => {
+    const request = { organizationId: 'org-1', user: { id: 'x', role: UserRole.COMMUNITY_MANAGER } } as any;
+    permisos.can.mockResolvedValue(false);
+    await expect(controller.correos(request)).rejects.toThrow(ForbiddenException);
   });
 });

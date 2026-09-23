@@ -32,7 +32,7 @@ exports.AuthorizationModule = AuthorizationModule = __decorate([
         imports: [
             typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization, user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, role_permission_override_entity_1.RolePermissionOverride, user_client_access_entity_1.UserClientAccess, user_action_override_entity_1.UserActionOverride]),
             audit_module_1.AuditModule,
-            parameters_module_1.ParametersModule,
+            (0, common_1.forwardRef)(() => parameters_module_1.ParametersModule),
         ],
         controllers: [permissions_controller_1.PermissionsController],
         providers: [

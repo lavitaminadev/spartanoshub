@@ -19,12 +19,13 @@ const cron_run_entity_1 = require("../cron/cron-run.entity");
 const organization_settings_service_1 = require("./organization-settings.service");
 const email_module_1 = require("../notifications/email.module");
 const user_entity_1 = require("../../modules/users/user.entity");
+const authorization_module_1 = require("../authorization/authorization.module");
 let ParametersModule = class ParametersModule {
 };
 exports.ParametersModule = ParametersModule;
 exports.ParametersModule = ParametersModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue, user_entity_1.User, cron_run_entity_1.CronRun]), audit_module_1.AuditModule, email_module_1.EmailModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue, user_entity_1.User, cron_run_entity_1.CronRun]), audit_module_1.AuditModule, email_module_1.EmailModule, (0, common_1.forwardRef)(() => authorization_module_1.AuthorizationModule)],
         controllers: [organization_settings_controller_1.OrganizationSettingsController],
         providers: [parameter_resolver_service_1.ParameterResolver, organization_settings_service_1.OrganizationSettingsService, paquetes_de_correo_1.PaquetesDeCorreo],
         exports: [parameter_resolver_service_1.ParameterResolver, organization_settings_service_1.OrganizationSettingsService, paquetes_de_correo_1.PaquetesDeCorreo, typeorm_1.TypeOrmModule],
