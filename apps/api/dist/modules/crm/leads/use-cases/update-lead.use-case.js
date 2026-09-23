@@ -90,7 +90,7 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
         if (data.clientId !== undefined)
             lead.clientId = data.clientId;
         if (data.customFields !== undefined) {
-            lead.customFields = await this.campos.validarPara(organizationId, 'lead', lead.customFields, data.customFields, true);
+            lead.customFields = await this.campos.validarPara(organizationId, 'lead', lead.customFields, data.customFields, true, lead.clientId ?? undefined);
         }
         if (data.fitStatus === undefined && lead.domain === 'commercial' && etapaPrevia !== lead.status) {
             const automatica = DESENLACES[lead.status];

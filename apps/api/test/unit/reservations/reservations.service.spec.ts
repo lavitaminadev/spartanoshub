@@ -18,6 +18,8 @@ const dataSource = { transaction: vi.fn(), query: vi.fn() };
 const calendar = { createEvent: vi.fn() };
 const metaOutbox = { enqueue: vi.fn(), processPending: vi.fn() };
 const clientPixels = {
+  // Comprueba que el Pixel sea de esa empresa antes de aceptarlo en un local.
+  assertPixelDeLaEmpresa: vi.fn().mockResolvedValue(undefined),
   resolve: vi.fn().mockResolvedValue({ pixelId: '', accessToken: undefined }),
   resolveForScope: vi.fn().mockResolvedValue({ pixelId: '', pixelName: null, accessToken: undefined, pixelSource: 'none', tokenSource: 'none' }),
   pixelesElegibles: vi.fn(),

@@ -17,11 +17,16 @@ import './campos-propios-ficha.css';
 
 export type ValoresEnEdicion = Record<string, unknown>;
 
-/** Las definiciones de un tipo de registro, archivadas incluidas para mostrar lo guardado. */
-export function useDefinicionesDeCampos(entidad: CustomFieldEntity) {
+/**
+ * Las definiciones de un tipo de registro, archivadas incluidas para mostrar lo guardado.
+ *
+ * @param clientId - Empresa del registro que se está mirando. Trae los campos de todas las
+ *   empresas más los suyos: los de otra empresa llenarían la ficha de datos que ahí no dicen nada.
+ */
+export function useDefinicionesDeCampos(entidad: CustomFieldEntity, clientId?: string) {
   return useQuery<CustomFieldDefinition[]>({
-    queryKey: ['crm-fields', entidad, true],
-    queryFn: () => api.get(`/crm/fields?entity=${entidad}&archivados=true`),
+    queryKey: ['crm-fields', entidad, true, clientId ?? null],
+    queryFn: () => api.get(`/crm/fields?entity=${entidad}&archivados=true${clientId ? `&clientId=${encodeURIComponent(clientId)}` : ''}`),
     staleTime: 60_000,
   });
 }

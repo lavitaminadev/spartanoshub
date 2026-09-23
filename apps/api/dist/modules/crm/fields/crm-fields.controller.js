@@ -27,6 +27,11 @@ const TIPOS = shared_1.TIPOS_DE_CAMPO.map((tipo) => tipo.value);
 class CrearCampoDto {
 }
 __decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CrearCampoDto.prototype, "clientId", void 0);
+__decorate([
     (0, class_validator_1.IsIn)(['lead', 'contact', 'opportunity']),
     __metadata("design:type", String)
 ], CrearCampoDto.prototype, "entity", void 0);
@@ -107,8 +112,8 @@ let CrmFieldsController = class CrmFieldsController {
     constructor(campos) {
         this.campos = campos;
     }
-    listar(req, entity, archivados) {
-        return this.campos.listar(req.organizationId, entity, archivados === 'true');
+    listar(req, entity, archivados, clientId) {
+        return this.campos.listar(req.organizationId, entity, archivados === 'true', clientId || undefined);
     }
     crear(req, dto) {
         return this.campos.crear(req.organizationId, req.user.id, dto);
@@ -127,8 +132,9 @@ __decorate([
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('entity')),
     __param(2, (0, common_1.Query)('archivados')),
+    __param(3, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", void 0)
 ], CrmFieldsController.prototype, "listar", null);
 __decorate([

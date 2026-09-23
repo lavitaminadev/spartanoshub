@@ -271,6 +271,26 @@ export class MetaClientPixelService {
    * `tieneToken` se calcula resolviendo cada candidato de verdad, y no mirando si existe la fila:
    * un Pixel sin credencial se guarda igual y después no envía nada sin avisar.
    */
+  /**
+   * Rechaza un Pixel que pertenece a otra empresa.
+   *
+   * La regla existía al registrarlo en Integraciones, pero no al asignarlo a un local: bastaba
+   * escribir el número a mano para que las reservas de una empresa se contaran en el Events
+   * Manager de otra, mezclando dos negocios en una misma cuenta publicitaria.
+   *
+   * Un Pixel sin dueño registrado es el de la agencia y se permite: es el que heredan los
+   * locales de empresas que todavía no tienen el suyo.
+   */
+  async assertPixelDeLaEmpresa(organizationId: string, clientId: string, pixelId: string): Promise<void> {
+    const ajeno = await this.pixelesGuardados.findOne({
+      where: { organizationId, pixelId, clientId: Not(IsNull()) },
+      select: { id: true, clientId: true },
+    });
+    if (ajeno && ajeno.clientId !== clientId) {
+      throw new BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
+    }
+  }
+
   async pixelesElegibles(organizationId: string, clientId: string) {
     const filas = await this.pixelesGuardados.find({
       where: [{ organizationId, clientId }, { organizationId, clientId: IsNull() }],

@@ -149,7 +149,7 @@ export class LeadIngestService {
          * pueden filtrar ni contar. Se siguen guardando ahí —nada se pierde— y además llenan el
          * campo que las declaró como suyas.
          */
-        customFields: await this.camposDelFormulario(source.organizationId, dto),
+        customFields: await this.camposDelFormulario(source.organizationId, dto, source.clientId ?? undefined),
       });
 
       // El contador y la fecha se actualizan aparte del lead: si esto fallara, el lead ya está
@@ -285,7 +285,7 @@ export class LeadIngestService {
    * las respuestas siguen viéndose en la ficha como hasta ahora: un problema de configuración no
    * puede impedir que entre un lead.
    */
-  private async camposDelFormulario(organizationId: string, dto: IngestLeadDto): Promise<CustomFieldValues | undefined> {
+  private async camposDelFormulario(organizationId: string, dto: IngestLeadDto, clientId?: string): Promise<CustomFieldValues | undefined> {
     const metadata = (dto.metadata ?? {}) as { answers?: Array<{ question?: string; answer?: string }>; customFields?: Array<{ name?: string; value?: string }> };
     const pares = [
       ...(metadata.answers ?? []).map((item) => ({ nombre: String(item.question ?? ''), valor: String(item.answer ?? '') })),
@@ -293,7 +293,7 @@ export class LeadIngestService {
     ].filter((item) => item.nombre && item.valor);
     if (pares.length === 0) return undefined;
     try {
-      const definiciones = await this.campos.listar(organizationId, 'lead', false) as CampoConPreguntas[];
+      const definiciones = await this.campos.listar(organizationId, 'lead', false, clientId) as CampoConPreguntas[];
       const { camposPropios } = repartirRespuestas(definiciones, pares);
       return Object.keys(camposPropios).length > 0 ? camposPropios : undefined;
     } catch {

@@ -128,7 +128,7 @@ export class UpdateLeadUseCase {
      * por campo con lo que ya había.
      */
     if (data.customFields !== undefined) {
-      lead.customFields = await this.campos.validarPara(organizationId, 'lead', lead.customFields, data.customFields, true);
+      lead.customFields = await this.campos.validarPara(organizationId, 'lead', lead.customFields, data.customFields, true, lead.clientId ?? undefined);
     }
 
     /*

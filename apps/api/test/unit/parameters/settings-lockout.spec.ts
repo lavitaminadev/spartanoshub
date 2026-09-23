@@ -20,7 +20,7 @@ function controlador() {
   // Sin empresa elegida no hay nada que comprobar; con ella, esto es la reja de alcance.
   const accountAccess = { assertClient: vi.fn().mockResolvedValue(undefined) };
   return {
-    controller: new OrganizationSettingsController(settings as never, { can: async () => true } as never, accountAccess as never),
+    controller: new OrganizationSettingsController(settings as never, { can: async () => true } as never, accountAccess as never, { tiene: async () => true } as never),
     settings,
   };
 }

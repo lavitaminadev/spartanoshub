@@ -40,7 +40,7 @@ let UpdateOpportunityUseCase = class UpdateOpportunityUseCase {
         const { customFields, ...resto } = dto;
         Object.assign(opportunity, resto);
         if (customFields !== undefined) {
-            opportunity.customFields = await this.campos.validarPara(organizationId, 'opportunity', opportunity.customFields, customFields, true) ?? undefined;
+            opportunity.customFields = await this.campos.validarPara(organizationId, 'opportunity', opportunity.customFields, customFields, true, opportunity.clientId ?? undefined) ?? undefined;
         }
         if (dto.name !== undefined)
             opportunity.name = dto.name.trim().replace(/\s+/g, ' ');

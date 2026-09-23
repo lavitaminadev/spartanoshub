@@ -142,7 +142,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * Filtro por dato propio: primero el campo, después su valor. Los que tienen opciones las
    * ofrecen en lista; los de texto, número o fecha piden el valor exacto.
    */
-  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('lead');
+  const { data: definicionesPropias = [] } = useDefinicionesDeCampos('lead', scope.clientId || undefined);
   const camposFiltrables = definicionesPropias.filter((campo) => !campo.archivedAt && campo.type !== 'long_text');
   const campoElegido = camposFiltrables.find((campo) => campo.key === filtros.values.campo);
   const opcionesDelCampo = campoElegido

@@ -34,6 +34,7 @@ function aContrato(def) {
         options: def.options ?? null,
         required: def.required,
         position: def.position,
+        clientId: def.clientId ?? null,
         metaQuestions: def.metaQuestions ?? null,
         archivedAt: def.archivedAt ? def.archivedAt.toISOString() : null,
     };
@@ -62,10 +63,13 @@ let CrmFieldsService = class CrmFieldsService {
             throw new common_1.BadRequestException('Tipo de registro inválido');
         return entity;
     }
-    async listar(organizationId, entity, incluirArchivados = false) {
+    async listar(organizationId, entity, incluirArchivados = false, clientId) {
         const entidad = this.entidadValida(entity);
         const filas = await this.campos.find({
-            where: { organizationId, entity: entidad, ...(incluirArchivados ? {} : { archivedAt: (0, typeorm_2.IsNull)() }) },
+            where: [
+                { organizationId, entity: entidad, clientId: (0, typeorm_2.IsNull)(), ...(incluirArchivados ? {} : { archivedAt: (0, typeorm_2.IsNull)() }) },
+                ...(clientId ? [{ organizationId, entity: entidad, clientId, ...(incluirArchivados ? {} : { archivedAt: (0, typeorm_2.IsNull)() }) }] : []),
+            ],
             order: { position: 'ASC', createdAt: 'ASC' },
         });
         return filas.map(aContrato);
@@ -85,7 +89,7 @@ let CrmFieldsService = class CrmFieldsService {
         const activos = await this.campos.count({ where: { organizationId, entity: entidad, archivedAt: (0, typeorm_2.IsNull)() } });
         if (activos >= exports.MAXIMO_CAMPOS_POR_ENTIDAD)
             throw new common_1.BadRequestException(`Ya hay ${exports.MAXIMO_CAMPOS_POR_ENTIDAD} campos activos. Archiva alguno antes de agregar otro.`);
-        const repetida = await this.campos.findOne({ where: { organizationId, entity: entidad, fieldKey: clave } });
+        const repetida = await this.campos.findOne({ where: { organizationId, entity: entidad, fieldKey: clave, clientId: datos.clientId ?? (0, typeorm_2.IsNull)() } });
         if (repetida) {
             throw new common_1.ConflictException(repetida.archivedAt
                 ? `Ya existió un campo con la clave «${clave}» y está archivado. Desarchívalo, o usa otra clave.`
@@ -99,6 +103,7 @@ let CrmFieldsService = class CrmFieldsService {
             type: tipo,
             options: CON_OPCIONES.has(tipo) ? limpiarOpciones(datos.options) : null,
             required: Boolean(datos.required),
+            clientId: datos.clientId ?? null,
             position: activos,
             createdBy: actorId,
         }));
@@ -166,10 +171,10 @@ let CrmFieldsService = class CrmFieldsService {
         campo.archivedAt = archivar ? new Date() : null;
         return aContrato(await this.campos.save(campo));
     }
-    async validarPara(organizationId, entity, previos, nuevos, exigirObligatorios) {
+    async validarPara(organizationId, entity, previos, nuevos, exigirObligatorios, clientId) {
         if (!nuevos && !exigirObligatorios)
             return previos ?? null;
-        const definiciones = await this.listar(organizationId, entity, true);
+        const definiciones = await this.listar(organizationId, entity, true, clientId);
         const { valores, errores } = (0, shared_1.validarCamposPersonalizados)(definiciones, previos, nuevos, { exigirObligatorios });
         if (errores.length > 0)
             throw new common_1.BadRequestException(errores.join('. '));

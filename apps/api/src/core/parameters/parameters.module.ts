@@ -11,8 +11,9 @@ import { OrganizationSettingsService } from './organization-settings.service';
 import { EmailModule } from '../notifications/email.module';
 import { User } from '../../modules/users/user.entity';
 import { AuthorizationModule } from '../authorization/authorization.module';
+import { AccountAccessModule } from '../client-scope/account-access.module';
 @Module({
-  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue, User, CronRun]), AuditModule, EmailModule, forwardRef(() => AuthorizationModule)],
+  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue, User, CronRun]), AuditModule, EmailModule, AccountAccessModule, forwardRef(() => AuthorizationModule)],
   controllers: [OrganizationSettingsController],
   providers: [ParameterResolver, OrganizationSettingsService, PaquetesDeCorreo],
   exports: [ParameterResolver, OrganizationSettingsService, PaquetesDeCorreo, TypeOrmModule],

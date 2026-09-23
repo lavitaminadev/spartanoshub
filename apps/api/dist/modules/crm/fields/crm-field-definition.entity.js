@@ -27,6 +27,10 @@ __decorate([
     __metadata("design:type", String)
 ], CrmFieldDefinition.prototype, "entity", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'client_id', type: 'varchar', length: 36, nullable: true }),
+    __metadata("design:type", Object)
+], CrmFieldDefinition.prototype, "clientId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'field_key', length: 40 }),
     __metadata("design:type", String)
 ], CrmFieldDefinition.prototype, "fieldKey", void 0);
@@ -72,6 +76,6 @@ __decorate([
 ], CrmFieldDefinition.prototype, "updatedAt", void 0);
 exports.CrmFieldDefinition = CrmFieldDefinition = __decorate([
     (0, typeorm_1.Entity)('crm_field_definitions'),
-    (0, typeorm_1.Index)('UQ_crm_field_org_entity_key', ['organizationId', 'entity', 'fieldKey'], { unique: true }),
+    (0, typeorm_1.Index)('UQ_crm_field_org_entity_key_client', ['organizationId', 'entity', 'fieldKey', 'clientId'], { unique: true }),
     (0, typeorm_1.Index)('IDX_crm_field_org_entity', ['organizationId', 'entity', 'archivedAt'])
 ], CrmFieldDefinition);

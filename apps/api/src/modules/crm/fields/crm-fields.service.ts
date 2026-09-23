@@ -28,6 +28,7 @@ function aContrato(def: CrmFieldDefinition): CustomFieldDefinition {
     options: def.options ?? null,
     required: def.required,
     position: def.position,
+    clientId: def.clientId ?? null,
     metaQuestions: def.metaQuestions ?? null,
     archivedAt: def.archivedAt ? def.archivedAt.toISOString() : null,
   };
@@ -57,10 +58,20 @@ export class CrmFieldsService {
     return entity as CustomFieldEntity;
   }
 
-  async listar(organizationId: string, entity: string, incluirArchivados = false): Promise<CustomFieldDefinition[]> {
+  /**
+   * Los campos que se ven en una ficha.
+   *
+   * @param clientId - Empresa del registro que se está mirando. Devuelve los de todas las
+   *   empresas más los suyos; sin ella, sólo los de todas. Una lista con los de otra empresa
+   *   llenaría la ficha de datos que ahí no significan nada.
+   */
+  async listar(organizationId: string, entity: string, incluirArchivados = false, clientId?: string): Promise<CustomFieldDefinition[]> {
     const entidad = this.entidadValida(entity);
     const filas = await this.campos.find({
-      where: { organizationId, entity: entidad, ...(incluirArchivados ? {} : { archivedAt: IsNull() }) },
+      where: [
+        { organizationId, entity: entidad, clientId: IsNull(), ...(incluirArchivados ? {} : { archivedAt: IsNull() }) },
+        ...(clientId ? [{ organizationId, entity: entidad, clientId, ...(incluirArchivados ? {} : { archivedAt: IsNull() }) }] : []),
+      ],
       order: { position: 'ASC', createdAt: 'ASC' },
     });
     return filas.map(aContrato);
@@ -69,7 +80,7 @@ export class CrmFieldsService {
   async crear(
     organizationId: string,
     actorId: string,
-    datos: { entity: string; label: string; key?: string; type: string; options?: unknown; required?: boolean },
+    datos: { entity: string; label: string; key?: string; type: string; options?: unknown; required?: boolean; clientId?: string },
   ): Promise<CustomFieldDefinition> {
     const entidad = this.entidadValida(datos.entity);
     const etiqueta = (datos.label ?? '').trim().slice(0, 80);
@@ -86,7 +97,7 @@ export class CrmFieldsService {
 
     // Una clave usada antes —aunque esté archivada— no se reutiliza: sus valores siguen guardados
     // y un campo nuevo con esa clave los heredaría con otro significado.
-    const repetida = await this.campos.findOne({ where: { organizationId, entity: entidad, fieldKey: clave } });
+    const repetida = await this.campos.findOne({ where: { organizationId, entity: entidad, fieldKey: clave, clientId: datos.clientId ?? IsNull() } });
     if (repetida) {
       throw new ConflictException(repetida.archivedAt
         ? `Ya existió un campo con la clave «${clave}» y está archivado. Desarchívalo, o usa otra clave.`
@@ -101,6 +112,7 @@ export class CrmFieldsService {
       type: tipo,
       options: CON_OPCIONES.has(tipo) ? limpiarOpciones(datos.options) : null,
       required: Boolean(datos.required),
+      clientId: datos.clientId ?? null,
       position: activos,
       createdBy: actorId,
     }));
@@ -201,9 +213,11 @@ export class CrmFieldsService {
     previos: CustomFieldValues | null | undefined,
     nuevos: Record<string, unknown> | null | undefined,
     exigirObligatorios: boolean,
+    clientId?: string,
   ): Promise<CustomFieldValues | null> {
     if (!nuevos && !exigirObligatorios) return previos ?? null;
-    const definiciones = await this.listar(organizationId, entity, true);
+    // Los de todas las empresas más los de la suya: un obligatorio de otra no bloquea este registro.
+    const definiciones = await this.listar(organizationId, entity, true, clientId);
     const { valores, errores } = validarCamposPersonalizados(definiciones, previos, nuevos, { exigirObligatorios });
     if (errores.length > 0) throw new BadRequestException(errores.join('. '));
     return Object.keys(valores).length > 0 ? valores : null;

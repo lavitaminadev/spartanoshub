@@ -15,6 +15,7 @@ import { UpdateOrganizationSettingsDto } from './dto/update-organization-setting
 import { OrganizationSettingsService } from './organization-settings.service';
 import { ModuleExempt, ModuleScope } from '../authorization/module-scope.decorator';
 import { PermissionResolverService } from '../authorization/permission-resolver.service';
+import { ClientCapabilityService } from '../client-scope/client-capability.service';
 import { RequiresPermission } from '../authorization/requires-permission.decorator';
 import { CronRun } from '../cron/cron-run.entity';
 import { HORAS_SIN_CORRER_PARA_ALARMA, REQUISITOS_POR_AVISO } from './requisitos-de-correo';
@@ -57,6 +58,7 @@ export class OrganizationSettingsController {
     private readonly settings: OrganizationSettingsService,
     @Inject(forwardRef(() => PermissionResolverService)) private readonly permisos: PermissionResolverService,
     private readonly accountAccess: AccountAccessService,
+    private readonly capacidades: ClientCapabilityService,
     private readonly correo: EmailService,
     @InjectRepository(User) private readonly usuarios: Repository<User>,
     @InjectRepository(CronRun) private readonly corridas: Repository<CronRun>,
@@ -150,8 +152,8 @@ export class OrganizationSettingsController {
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
     // Sólo las plantillas de los módulos que esta persona puede editar: las demás no se muestran.
-    const puede = await this.modulosQuePuedeEditar(request);
-    if (puede.size === 0) throw new ForbiddenException('No tienes permiso para editar plantillas de correo');
+    const puede = await this.modulosQuePuedeEditar(request, clientId);
+    if (puede.size === 0) throw new ForbiddenException('No hay plantillas que puedas editar en esta empresa');
     const ajustes = await this.settings.list(organizationId, clientId ?? null) as Array<{ key: string }>;
     return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key) && puede.has(moduloDeCorreo(ajuste.key)));
   }
@@ -162,10 +164,21 @@ export class OrganizationSettingsController {
    * Se calcula con los permisos efectivos, que es lo mismo que gobierna el menú: así la pantalla
    * y lo que el servidor acepta no pueden decir cosas distintas.
    */
-  private async modulosQuePuedeEditar(request: AuthenticatedRequest): Promise<Set<'reservations' | 'surveys' | 'crm'>> {
+  private async modulosQuePuedeEditar(request: AuthenticatedRequest, clientId?: string): Promise<Set<'reservations' | 'surveys' | 'crm'>> {
     const organizationId = request.organizationId || request.user.organizationId;
+    /*
+     * Lo que la empresa tiene contratado, cuando se está escribiendo la plantilla de una.
+     *
+     * El permiso dice qué puede hacer una persona; la contratación, si esa empresa usa ese
+     * servicio. Sin esta segunda reja se podía guardar la plantilla de la encuesta de una
+     * empresa que no tiene Encuestas: un correo que nunca se enviaría, escrito para nadie.
+     */
+    const contratados = clientId
+      ? { reservations: await this.capacidades.tiene(organizationId, clientId, 'reservations'), surveys: await this.capacidades.tiene(organizationId, clientId, 'surveys'), crm: await this.capacidades.tiene(organizationId, clientId, 'crm') }
+      : null;
     const puede = new Set<'reservations' | 'surveys' | 'crm'>();
     for (const modulo of ['reservations', 'surveys', 'crm'] as const) {
+      if (contratados && contratados[modulo] !== true) continue;
       if (await this.permisos.can(organizationId, request.user.id, request.user.role as UserRole, modulo, 'edit')) puede.add(modulo);
     }
     return puede;
@@ -181,7 +194,7 @@ export class OrganizationSettingsController {
     const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
     if (ajenas.length) throw new ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
     // Cada plantilla exige el permiso de su módulo: con CRM no se reescribe lo que recibe quien reserva.
-    const puede = await this.modulosQuePuedeEditar(request);
+    const puede = await this.modulosQuePuedeEditar(request, clientId);
     const sinPermiso = Object.keys(valores).filter((clave) => !puede.has(moduloDeCorreo(clave)));
     if (sinPermiso.length) throw new ForbiddenException(`No puedes editar estas plantillas: ${sinPermiso.join(', ')}`);
     const organizationId = request.organizationId || request.user.organizationId;

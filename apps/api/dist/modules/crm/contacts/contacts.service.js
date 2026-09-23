@@ -75,7 +75,7 @@ let ContactsService = class ContactsService {
         if (dto.notes !== undefined)
             contact.notes = dto.notes.trim() || undefined;
         if (dto.customFields !== undefined) {
-            contact.customFields = await this.campos.validarPara(organizationId, 'contact', contact.customFields, dto.customFields, true) ?? undefined;
+            contact.customFields = await this.campos.validarPara(organizationId, 'contact', contact.customFields, dto.customFields, true, contact.clientId ?? undefined) ?? undefined;
         }
         return this.repo.save(contact);
     }

@@ -71,7 +71,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                 externalCampaignId: dto.campanaId,
                 pageId: dto.paginaId,
                 metadata: this.metadatosDeEntrada(dto),
-                customFields: await this.camposDelFormulario(source.organizationId, dto),
+                customFields: await this.camposDelFormulario(source.organizationId, dto, source.clientId ?? undefined),
             });
             await this.sources.update(source.id, {
                 receivedCount: () => 'received_count + 1',
@@ -147,7 +147,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
         };
         return Object.keys(metadatos).length > 0 ? metadatos : undefined;
     }
-    async camposDelFormulario(organizationId, dto) {
+    async camposDelFormulario(organizationId, dto, clientId) {
         const metadata = (dto.metadata ?? {});
         const pares = [
             ...(metadata.answers ?? []).map((item) => ({ nombre: String(item.question ?? ''), valor: String(item.answer ?? '') })),
@@ -156,7 +156,7 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
         if (pares.length === 0)
             return undefined;
         try {
-            const definiciones = await this.campos.listar(organizationId, 'lead', false);
+            const definiciones = await this.campos.listar(organizationId, 'lead', false, clientId);
             const { camposPropios } = (0, respuestas_de_formularios_1.repartirRespuestas)(definiciones, pares);
             return Object.keys(camposPropios).length > 0 ? camposPropios : undefined;
         }

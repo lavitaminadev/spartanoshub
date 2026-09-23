@@ -526,6 +526,8 @@ export class ReservationsService {
      * que es el único momento en que alguien está mirando.
      */
     if (dto.metaPixelId !== undefined && form.metaPixelId) {
+      // Primero de quién es: un Pixel de otra empresa mezclaría dos negocios en un mismo informe.
+      await this.clientPixels.assertPixelDeLaEmpresa(organizationId, form.clientId, form.metaPixelId);
       const resuelto = await this.clientPixels.resolveForScope(organizationId, form.clientId, form.metaPixelId);
       if (!resuelto.accessToken) throw new BadRequestException(`El Pixel ${form.metaPixelId} no tiene token de Conversions API. Regístralo en Integraciones antes de asignarlo a este local.`);
     }

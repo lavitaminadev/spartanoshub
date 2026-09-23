@@ -441,6 +441,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         this.validateConfiguration(form);
         if (dto.metaPixelId !== undefined && form.metaPixelId) {
+            await this.clientPixels.assertPixelDeLaEmpresa(organizationId, form.clientId, form.metaPixelId);
             const resuelto = await this.clientPixels.resolveForScope(organizationId, form.clientId, form.metaPixelId);
             if (!resuelto.accessToken)
                 throw new common_1.BadRequestException(`El Pixel ${form.metaPixelId} no tiene token de Conversions API. Regístralo en Integraciones antes de asignarlo a este local.`);
