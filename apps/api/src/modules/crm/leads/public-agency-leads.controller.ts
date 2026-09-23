@@ -4,6 +4,8 @@ import { Throttle } from '@nestjs/throttler';
 import { randomUUID } from 'crypto';
 import { Public } from '../../../core/auth/decorators/public.decorator';
 import { LeadIntakeService } from './lead-intake.service';
+import { CrmFieldsService } from '../fields/crm-fields.service';
+import { repartirRespuestas, type CampoConPreguntas } from '../fields/respuestas-de-formularios';
 import { PublicLeadSubmissionDto } from './dto/public-lead-submission.dto';
 
 /**
@@ -22,7 +24,10 @@ import { PublicLeadSubmissionDto } from './dto/public-lead-submission.dto';
 @ApiTags('CRM Agencia (público)')
 @Controller('public/agency-crm/leads')
 export class PublicAgencyLeadsController {
-  constructor(private readonly leadIntake: LeadIntakeService) {}
+  constructor(
+    private readonly leadIntake: LeadIntakeService,
+    private readonly campos: CrmFieldsService,
+  ) {}
 
   private agencyOrganizationId(): string {
     const id = process.env.AGENCY_ORGANIZATION_ID;
@@ -50,8 +55,20 @@ export class PublicAgencyLeadsController {
     }
 
     const organizationId = this.agencyOrganizationId();
-    const messageParts = [dto.message, dto.serviceInterest ? `Interés: ${dto.serviceInterest}` : undefined, dto.budgetRange ? `Presupuesto: ${dto.budgetRange}` : undefined]
-      .filter(Boolean);
+    /*
+     * Lo que contestó en el formulario, repartido.
+     *
+     * Lo que un campo propio declaró como suyo se guarda ahí, donde se puede filtrar y contar;
+     * el resto se anexa al mensaje. Si la lectura de los campos falla, todo va al mensaje: un
+     * problema de configuración no puede impedir que entre un prospecto.
+     */
+    const reparto = await this.camposDelFormulario(organizationId, dto.respuestas ?? []);
+    const messageParts = [
+      dto.message,
+      dto.serviceInterest ? `Interés: ${dto.serviceInterest}` : undefined,
+      dto.budgetRange ? `Presupuesto: ${dto.budgetRange}` : undefined,
+      ...reparto.sinCampo.map((item) => `${item.nombre}: ${item.valor}`),
+    ].filter(Boolean);
 
     // `create-only`: un envío anónimo puede dar de alta un prospecto, nunca reescribir uno que
     // ya existe. La clave de idempotencia solo evita que un reenvío duplique la captura.
@@ -67,6 +84,7 @@ export class PublicAgencyLeadsController {
       campaignName: dto.tracking?.utmCampaign,
       notes: messageParts.length > 0 ? messageParts.join(' | ') : undefined,
       externalLeadId: `public-form:${dto.idempotencyKey}`,
+      customFields: Object.keys(reparto.camposPropios).length > 0 ? reparto.camposPropios : undefined,
       consentCapturedAt: dto.consent.privacyAccepted ? new Date() : undefined,
       metadata: {
         website: dto.website,
@@ -116,5 +134,21 @@ export class PublicAgencyLeadsController {
 
     // Respuesta pública mínima: nunca el id interno del lead, pipeline, responsable ni estado.
     return { success: true, submissionId: randomUUID(), message: 'Información recibida correctamente' };
+  }
+
+  /**
+   * Reparte las respuestas del formulario entre los campos propios y el mensaje.
+   *
+   * @param respuestas - Pares pregunta/respuesta tal como los recibió quien envía.
+   */
+  private async camposDelFormulario(organizationId: string, respuestas: Array<{ pregunta: string; respuesta: string }>) {
+    if (respuestas.length === 0) return { camposPropios: {}, sinCampo: [] as Array<{ nombre: string; valor: string }> };
+    const pares = respuestas.map((item) => ({ nombre: item.pregunta, valor: item.respuesta }));
+    try {
+      const definiciones = await this.campos.listar(organizationId, 'lead', false) as CampoConPreguntas[];
+      return repartirRespuestas(definiciones, pares);
+    } catch {
+      return { camposPropios: {}, sinCampo: pares };
+    }
   }
 }

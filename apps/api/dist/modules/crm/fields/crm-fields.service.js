@@ -18,7 +18,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const shared_1 = require("@espartanos/shared");
 const crm_field_definition_entity_1 = require("./crm-field-definition.entity");
-const respuestas_de_meta_1 = require("./respuestas-de-meta");
+const respuestas_de_formularios_1 = require("./respuestas-de-formularios");
 const TABLA_DE = { lead: 'leads', contact: 'crm_contacts', opportunity: 'crm_opportunities' };
 const ENTIDADES = new Set(['lead', 'contact', 'opportunity']);
 const TIPOS = new Set(shared_1.TIPOS_DE_CAMPO.map((tipo) => tipo.value));
@@ -142,7 +142,7 @@ let CrmFieldsService = class CrmFieldsService {
             const preguntas = datos.metaQuestions
                 .map((pregunta) => pregunta.trim().slice(0, 120))
                 .filter((pregunta) => {
-                const llave = (0, respuestas_de_meta_1.comparable)(pregunta);
+                const llave = (0, respuestas_de_formularios_1.comparable)(pregunta);
                 if (!llave || vistas.has(llave))
                     return false;
                 vistas.add(llave);

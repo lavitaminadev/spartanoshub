@@ -7,7 +7,7 @@ import { LeadIntakeService } from '../../crm/leads/lead-intake.service';
 import { MetaLeadWebhookEvent } from './meta-lead-webhook-event.entity';
 import { Campaign } from '../../crm/campaigns/campaign.entity';
 import { CrmFieldsService } from '../../crm/fields/crm-fields.service';
-import { repartirRespuestasDeMeta, type CampoConPreguntas } from '../../crm/fields/respuestas-de-meta';
+import { repartirRespuestas, type CampoConPreguntas } from '../../crm/fields/respuestas-de-formularios';
 import { revealSecret } from '../../../shared/security/integration-secrets';
 import { VERSION_GRAPH_POR_DEFECTO } from './version-de-graph';
 
@@ -380,7 +380,7 @@ export class MetaLeadAdsService {
     if (respuestas.length === 0) return { camposPropios: {}, notas: undefined };
     try {
       const definiciones = await this.campos.listar(organizationId, 'lead', false) as CampoConPreguntas[];
-      const { camposPropios, sinCampo } = repartirRespuestasDeMeta(definiciones, respuestas);
+      const { camposPropios, sinCampo } = repartirRespuestas(definiciones, respuestas);
       return { camposPropios, notas: enNotas(sinCampo) };
     } catch (error) {
       this.logger.warn(`No se pudieron leer los campos propios: las respuestas quedan en las notas. ${error instanceof Error ? error.message : error}`);

@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsObject, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsObject, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -55,6 +55,18 @@ export class PublicLeadTrackingDto {
  * reservan en un restaurante cliente) y usa un endpoint, tabla de eventos y flujo de
  * conversión CAPI completamente distintos. Este DTO nunca debe tocar `reservations.service.ts`.
  */
+/**
+ * Una pregunta del formulario con lo que contestaron.
+ *
+ * Llega con el texto tal como lo escribió quien armó el formulario —«¿Cuál es tu presupuesto?»,
+ * «presupuesto», «Presupuesto mensual»—: la equivalencia con el campo propio del CRM se resuelve
+ * después, sin tildes ni signos, para que una diferencia de redacción no pierda el dato.
+ */
+export class RespuestaDeFormularioDto {
+  @IsString() @MaxLength(200) pregunta: string;
+  @IsString() @MaxLength(2000) respuesta: string;
+}
+
 export class PublicLeadSubmissionDto {
   @IsString() @MinLength(2) @MaxLength(180) name: string;
   @IsOptional() @IsEmail() @MaxLength(255) email?: string;
@@ -65,6 +77,15 @@ export class PublicLeadSubmissionDto {
   @IsOptional() @IsString() @MaxLength(255) serviceInterest?: string;
   @IsOptional() @IsString() @MaxLength(60) budgetRange?: string;
   @IsOptional() @IsString() @MaxLength(2000) message?: string;
+
+  /**
+   * Lo que contestó en el formulario, pregunta por pregunta.
+   *
+   * Lo que algún campo propio declare como suyo se guarda ahí, donde se puede filtrar y contar;
+   * el resto se anexa al mensaje, para no perder nada de lo que la persona escribió.
+   */
+  @IsOptional() @IsArray() @ArrayMaxSize(40) @ValidateNested({ each: true }) @Type(() => RespuestaDeFormularioDto)
+  respuestas?: RespuestaDeFormularioDto[];
 
   @IsObject() @ValidateNested() @Type(() => PublicLeadConsentDto) consent: PublicLeadConsentDto;
   @IsOptional() @IsObject() @ValidateNested() @Type(() => PublicLeadTrackingDto) tracking?: PublicLeadTrackingDto;

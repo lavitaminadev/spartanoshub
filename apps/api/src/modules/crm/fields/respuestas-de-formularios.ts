@@ -1,9 +1,9 @@
 import type { CustomFieldDefinition, CustomFieldValues } from '@espartanos/shared';
 
 /**
- * @fileoverview Lleva las respuestas de un formulario de Meta a los campos propios del CRM.
+ * @fileoverview Lleva las respuestas de un formulario externo a los campos propios del CRM.
  *
- * Meta manda las respuestas como pares pregunta/valor con el nombre que puso quien armó el
+ * Los formularios externos —Meta, la web, una automatización— mandan pares pregunta/valor con el nombre que puso quien armó el
  * anuncio, y ese nombre cambia entre campañas: «presupuesto», «Cuál es tu presupuesto», «¿Cuánto
  * inviertes hoy?». Cada campo propio declara qué preguntas lo llenan, y acá se comparan sin
  * tildes, signos ni mayúsculas para que una diferencia de redacción no rompa la equivalencia.
@@ -13,7 +13,7 @@ import type { CustomFieldDefinition, CustomFieldValues } from '@espartanos/share
  */
 
 /** Una respuesta del formulario, ya aplanada por la captura. */
-export type RespuestaDeMeta = { nombre: string; valor: string };
+export type RespuestaDeFormulario = { nombre: string; valor: string };
 
 /** Deja un texto comparable: sin tildes, sin signos y en minúsculas. */
 export function comparable(valor: unknown): string {
@@ -70,10 +70,10 @@ function valorParaElCampo(campo: CampoConPreguntas, crudo: string): CustomFieldV
  * @param respuestas - Lo que contestó la persona, con el nombre de pregunta tal como llega.
  * @returns Los valores de campos propios y las respuestas que no encontraron campo.
  */
-export function repartirRespuestasDeMeta(
+export function repartirRespuestas(
   definiciones: CampoConPreguntas[],
-  respuestas: RespuestaDeMeta[],
-): { camposPropios: CustomFieldValues; sinCampo: RespuestaDeMeta[] } {
+  respuestas: RespuestaDeFormulario[],
+): { camposPropios: CustomFieldValues; sinCampo: RespuestaDeFormulario[] } {
   const porPregunta = new Map<string, CampoConPreguntas>();
   for (const campo of definiciones) {
     if (campo.archivedAt) continue;
@@ -86,7 +86,7 @@ export function repartirRespuestasDeMeta(
   }
 
   const camposPropios: CustomFieldValues = {};
-  const sinCampo: RespuestaDeMeta[] = [];
+  const sinCampo: RespuestaDeFormulario[] = [];
   for (const respuesta of respuestas) {
     const campo = porPregunta.get(comparable(respuesta.nombre));
     const valor = campo ? valorParaElCampo(campo, respuesta.valor) : undefined;

@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.comparable = comparable;
-exports.repartirRespuestasDeMeta = repartirRespuestasDeMeta;
+exports.repartirRespuestas = repartirRespuestas;
 function comparable(valor) {
     return String(valor ?? '')
         .normalize('NFD')
@@ -39,7 +39,7 @@ function valorParaElCampo(campo, crudo) {
     }
     return texto.slice(0, campo.type === 'long_text' ? 4000 : 255);
 }
-function repartirRespuestasDeMeta(definiciones, respuestas) {
+function repartirRespuestas(definiciones, respuestas) {
     const porPregunta = new Map();
     for (const campo of definiciones) {
         if (campo.archivedAt)

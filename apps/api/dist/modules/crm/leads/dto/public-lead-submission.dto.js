@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PublicLeadSubmissionDto = exports.PublicLeadTrackingDto = exports.PublicLeadConsentDto = void 0;
+exports.PublicLeadSubmissionDto = exports.RespuestaDeFormularioDto = exports.PublicLeadTrackingDto = exports.PublicLeadConsentDto = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 class PublicLeadConsentDto {
@@ -111,6 +111,19 @@ __decorate([
     (0, class_validator_1.MaxLength)(500),
     __metadata("design:type", String)
 ], PublicLeadTrackingDto.prototype, "referrer", void 0);
+class RespuestaDeFormularioDto {
+}
+exports.RespuestaDeFormularioDto = RespuestaDeFormularioDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], RespuestaDeFormularioDto.prototype, "pregunta", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2000),
+    __metadata("design:type", String)
+], RespuestaDeFormularioDto.prototype, "respuesta", void 0);
 class PublicLeadSubmissionDto {
 }
 exports.PublicLeadSubmissionDto = PublicLeadSubmissionDto;
@@ -168,6 +181,14 @@ __decorate([
     (0, class_validator_1.MaxLength)(2000),
     __metadata("design:type", String)
 ], PublicLeadSubmissionDto.prototype, "message", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMaxSize)(40),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => RespuestaDeFormularioDto),
+    __metadata("design:type", Array)
+], PublicLeadSubmissionDto.prototype, "respuestas", void 0);
 __decorate([
     (0, class_validator_1.IsObject)(),
     (0, class_validator_1.ValidateNested)(),

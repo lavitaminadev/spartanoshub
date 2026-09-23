@@ -6,7 +6,7 @@ import {
   type CustomFieldDefinition, type CustomFieldEntity, type CustomFieldType, type CustomFieldValues,
 } from '@espartanos/shared';
 import { CrmFieldDefinition } from './crm-field-definition.entity';
-import { comparable } from './respuestas-de-meta';
+import { comparable } from './respuestas-de-formularios';
 
 /** Dónde guarda sus valores cada tipo de registro. Nombres fijos: nunca vienen del pedido. */
 const TABLA_DE: Record<CustomFieldEntity, string> = { lead: 'leads', contact: 'crm_contacts', opportunity: 'crm_opportunities' };
