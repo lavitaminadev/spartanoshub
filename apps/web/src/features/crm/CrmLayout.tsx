@@ -77,9 +77,6 @@ export function CrmLayout(): JSX.Element {
   const { data: clientsResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
     queryKey: ['clients'],
     queryFn: () => api.get('/clients'),
-    // El portal no administra ni enumera empresas. Su empresa viene firmada en la sesión; pedir
-    // el listado acá convertía una respuesta 403 correcta en un CRM sin contexto.
-    enabled: !esPortalCliente,
   });
   // Memorizado para conservar la identidad del arreglo entre renders: `?? []` crea uno nuevo
   // cada vez, y con eso el `useMemo` del mapa de nombres se recalculaba siempre.
@@ -89,11 +86,23 @@ export function CrmLayout(): JSX.Element {
   // vez que entra, y quien las ve todas rara vez cambia de cuenta dentro de la misma jornada.
   const scopeKey = storageKey('crm-cuenta', user?.id ?? 'anon');
   const [cuentaElegida, setCuentaElegida] = useState<string>(() => readStoredJson<string>(scopeKey, CUENTA_AGENCIA));
-  // Nunca se toma la cuenta del portal desde localStorage ni desde la URL: ambos se pueden
-  // alterar en el navegador. La sesión es la única fuente para el tenant de un cliente.
-  const clientId = esPortalCliente ? (user?.clientId ?? '') : cuentaElegida;
+  /*
+   * Qué empresa mira una cuenta de portal.
+   *
+   * Era siempre la de su sesión, porque localStorage y la dirección se pueden alterar en el
+   * navegador. Eso sigue siendo cierto, pero no obliga a fijar una sola: lo que protege no es
+   * ignorar la elección, sino aceptarla **solo si está entre las que el servidor devolvió**.
+   * Una empresa escrita a mano en el navegador no aparece en esa lista y se descarta, y cada
+   * petición vuelve a comprobarlo del lado del servidor.
+   *
+   * Quien alcanza una sola empresa sigue exactamente como antes.
+   */
+  const alcanzables = esPortalCliente ? clients.map((empresa) => empresa.id) : [];
+  const suEmpresa = user?.clientId ?? '';
+  const elegidaValida = esPortalCliente && alcanzables.includes(cuentaElegida) ? cuentaElegida : suEmpresa;
+  const clientId = esPortalCliente ? elegidaValida : cuentaElegida;
   const setClientId = (value: string) => {
-    if (esPortalCliente) return;
+    if (esPortalCliente && !alcanzables.includes(value)) return;
     setCuentaElegida(value);
     writeStoredJson(scopeKey, value);
   };
@@ -130,7 +139,13 @@ export function CrmLayout(): JSX.Element {
     // del cargo dejaba excepciones web sin efecto y mostraba drag-and-drop a personas `view`.
     puedeEditar: canEditCrm(user?.permissions?.crm),
     /** Nombre de la empresa que se está mirando, para los encabezados de cada pantalla. */
-    empresa: esAgencia ? 'Espartanos' : (esPortalCliente ? 'Tu empresa' : nombreDe(clientId)),
+    /*
+      Cuando alcanza varias, el encabezado dice cuál.
+
+      «Tu empresa» servía mientras solo hubiera una. Con dos, es justo el dato que hay que ver
+      sin buscarlo: operar el local equivocado creyendo estar en el otro es un error caro.
+    */
+    empresa: esAgencia ? 'Espartanos' : (esPortalCliente && alcanzables.length <= 1 ? 'Tu empresa' : nombreDe(clientId)),
   };
 
   /*
@@ -212,17 +227,35 @@ export function CrmLayout(): JSX.Element {
               más la propia agencia. Con eso, qué CRM ve cada quien sale de las cuentas que
               maneja, sin una regla aparte que mantener de acuerdo.
             */}
-            {esPortalCliente ? (
+            {esPortalCliente && alcanzables.length > 1 ? (
+              /*
+               * Con más de una empresa, elegir cuál se mira.
+               *
+               * La lista trae solo las que el servidor le concede, y una empresa que no esté en
+               * ella se descarta: la protección es esa, no esconder el control.
+               */
+              <label className="crm-nav-cuenta">
+                <span className="crm-nav-cuenta-label">Empresa</span>
+                <select
+                  className="input"
+                  aria-label="Empresa cuyo CRM se está mirando"
+                  value={clientId}
+                  onChange={(event) => setClientId(event.target.value)}
+                >
+                  {clients.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+                </select>
+              </label>
+            ) : esPortalCliente ? (
               /*
                * El nombre de su empresa, no «Empresa asignada».
                *
-               * En el portal no hay nada que elegir, pero el rótulo genérico obligaba a suponer
-               * de qué empresa son los datos que se están mirando. Con el nombre no hay que
-               * suponerlo, y el día que una persona alcance dos, el cambio se nota.
+               * Con una sola no hay nada que elegir, pero el rótulo genérico obligaba a suponer
+               * de qué empresa son los datos que se están mirando. Un desplegable de una única
+               * opción sería ruido; el nombre a secas dice lo mismo sin pedir nada.
                */
               <span className="crm-nav-cuenta" aria-label="Empresa cuyo CRM se está mirando">
                 <span className="crm-nav-cuenta-label">Empresa</span>
-                <strong>{user?.clientName || 'Tu empresa'}</strong>
+                <strong>{nombreDe(clientId) !== 'Cuenta no encontrada' ? nombreDe(clientId) : (user?.clientName || 'Tu empresa')}</strong>
               </span>
             ) : (
               <label className="crm-nav-cuenta">
