@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 
@@ -29,15 +30,20 @@ export interface AlcanceDeAdministracion {
  */
 @Injectable()
 export class AdministracionDelEquipoService {
-  constructor(private readonly permisos: PermissionResolverService) {}
+  constructor(
+    private readonly permisos: PermissionResolverService,
+    private readonly alcanceDeCuentas: AccountAccessService,
+  ) {}
 
   /**
    * Resuelve el alcance de quien hace la petición, o rechaza si no administra cuentas.
    *
    * @param request - Petición autenticada.
+   * @param empresaPedida - Empresa sobre la que se está trabajando, cuando se atiende más de
+   *   una. Se acepta solo si esa persona la alcanza; cualquier otra cae en la de su cuenta.
    * @throws ForbiddenException - Si no es un cargo interno ni tiene el permiso en su empresa.
    */
-  async alcance(request: AuthenticatedRequest): Promise<AlcanceDeAdministracion> {
+  async alcance(request: AuthenticatedRequest, empresaPedida?: string): Promise<AlcanceDeAdministracion> {
     const rol = request.user.role as UserRole;
     if (CARGOS_INTERNOS.includes(rol)) return {};
 
@@ -47,9 +53,22 @@ export class AdministracionDelEquipoService {
      * Devolver el alcance completo sería darle a una cuenta externa el equipo entero de la
      * organización, así que la ausencia se trata como un no.
      */
-    const empresa = request.user.clientId;
+    /*
+     * La empresa sobre la que se administra, no la de la sesión.
+     *
+     * Con la de la sesión, cambiar de local en el menú dejaba esta pantalla mostrando el equipo
+     * del anterior: se crean cuentas y se reparten accesos creyendo estar en el otro local.
+     *
+     * Lo pedido solo se acepta si esa persona lo alcanza de verdad; una empresa escrita a mano
+     * en la dirección cae en la de su cuenta y no abre nada.
+     */
     const organizacion = request.organizationId || request.user.organizationId;
-    if (!empresa || !organizacion) throw new ForbiddenException('Tu cuenta no administra personas');
+    if (!organizacion) throw new ForbiddenException('Tu cuenta no administra personas');
+    const alcanzables = await this.alcanceDeCuentas.allowedClientIds(organizacion, request.user);
+    const empresa = empresaPedida && alcanzables?.includes(empresaPedida)
+      ? empresaPedida
+      : request.user.clientId;
+    if (!empresa) throw new ForbiddenException('Tu cuenta no administra personas');
 
     const puede = await this.permisos.can(organizacion, request.user.id, rol, 'users', 'manage', empresa);
     if (!puede) throw new ForbiddenException('Tu cuenta no administra personas');

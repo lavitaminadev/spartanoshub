@@ -46,8 +46,8 @@ export class UsersController {
   @Post()
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Crear un nuevo usuario' })
-  async create(@Body() dto: CreateUserDto, @Req() req: AuthenticatedRequest) {
-    const alcance = await this.administracion.alcance(req);
+  async create(@Body() dto: CreateUserDto, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    const alcance = await this.administracion.alcance(req, clientId);
     this.administracion.asegurarDentro(alcance, { clientId: dto.clientId ?? null, role: dto.role ?? null });
     return this.createUser.execute({
       ...dto,
@@ -79,7 +79,7 @@ export class UsersController {
           ? false
           : undefined;
 
-    const alcance = await this.administracion.alcance(req);
+    const alcance = await this.administracion.alcance(req, clientId);
     return this.listUsers.execute({
       organizationId: req.organizationId || req.user.organizationId,
       // Acotado a su empresa y a las cuentas de empresa: el equipo de la agencia no es suyo.
@@ -96,8 +96,8 @@ export class UsersController {
   // computador desbloqueado y desatendido alcanza para hacerlo si solo se pide sesión abierta.
   @RequiresRecentAuth('cambiar los datos o el cargo de una persona')
   @ApiOperation({ summary: 'Actualizar usuario' })
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto, @Req() req: AuthenticatedRequest) {
-    const alcance = await this.administracion.alcance(req);
+  async update(@Param('id') id: string, @Body() dto: UpdateUserDto, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    const alcance = await this.administracion.alcance(req, clientId);
     if (alcance.soloEmpresa) {
       const actual = await this.listUsers.execute({ organizationId: req.organizationId || req.user.organizationId, clientId: alcance.soloEmpresa });
       const destino = actual.find((persona) => persona.id === id);

@@ -1,4 +1,5 @@
 import { AuthorizationModule } from '../../core/authorization/authorization.module';
+import { AccountAccessModule } from '../../core/client-scope/account-access.module';
 import { AdministracionDelEquipoService } from './administracion-del-equipo.service';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -12,7 +13,7 @@ import { ResetUserPasswordUseCase } from './reset-user-password.use-case';
 import { EmailModule } from '../../core/notifications/email.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Client]), EmailModule, AuthorizationModule],
+  imports: [TypeOrmModule.forFeature([User, Client]), EmailModule, AuthorizationModule, AccountAccessModule],
   controllers: [UsersController],
   providers: [CreateUserUseCase, ListUsersUseCase, UpdateUserUseCase, ResetUserPasswordUseCase, AdministracionDelEquipoService],
   exports: [TypeOrmModule],
