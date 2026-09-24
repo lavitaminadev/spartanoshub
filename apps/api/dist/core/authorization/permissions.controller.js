@@ -310,6 +310,9 @@ let PermissionsController = class PermissionsController {
     async revokeClientAccess(id, clientId, req) {
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user);
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT && clientId !== req.user.clientId) {
+            throw new common_2.ForbiddenException('Solo puedes retirar el acceso a tu empresa');
+        }
         if (user.role === user_role_enum_1.UserRole.CLIENT && clientId === user.clientId) {
             throw new common_2.BadRequestException('Esa es la empresa de su cuenta: se cambia editando la persona');
         }
@@ -508,7 +511,7 @@ __decorate([
 ], PermissionsController.prototype, "remove", null);
 __decorate([
     (0, common_1.Get)('users/:id/client-access'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Cuentas visibles de un usuario y por qué las ve' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -530,7 +533,7 @@ __decorate([
 ], PermissionsController.prototype, "grantClientAccess", null);
 __decorate([
     (0, common_1.Delete)('users/:id/client-access/:clientId'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Retirar acceso a una cuenta' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('clientId')),

@@ -50,7 +50,7 @@ const ORIGEN_EMPRESA: Record<AccesoEmpresa['source'], string> = {
   own: 'la empresa de su cuenta',
 };
 
-export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOperaciones = false, limitadoASuEmpresa = false, onCerrar }: {
+export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOperaciones = false, limitadoASuEmpresa = false, miEmpresa = '', onCerrar }: {
   usuario: { id: string; name: string; role: string };
   empresas: Array<{ id: string; name: string }>;
   puedeEditar: boolean;
@@ -58,6 +58,8 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
   limitadoAOperaciones?: boolean;
   /** Quien administra su propia empresa: reparte los servicios y no los módulos del sistema. */
   limitadoASuEmpresa?: boolean;
+  /** La empresa de quien administra. Es la única sobre la que puede decidir. */
+  miEmpresa?: string;
   onCerrar: () => void;
 }) {
   const qc = useQueryClient();
@@ -123,6 +125,9 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
     ? empresas
     : empresas.filter((empresa) => (Array.isArray(acceso) ? acceso : []).some((item) => item.clientId === empresa.id));
   const accesoPorEmpresa = new Map((Array.isArray(acceso) ? acceso : []).map((item) => [item.clientId, item]));
+  const alcances = Array.isArray(acceso) ? acceso : [];
+  const atiendeOtras = alcances.some((item) => item.clientId !== miEmpresa);
+  const esAsignadaAMiEmpresa = alcances.some((item) => item.clientId === miEmpresa && item.source === 'assignment');
   const ocupado = cambiarNivel.isPending || cambiarEmpresa.isPending;
 
   return <Modal open onClose={onCerrar} title={`Permisos de ${usuario.name}`}>
@@ -222,8 +227,35 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
         no desmarcándola aquí.
       */}
       <section>
-        <h3>Qué empresas alcanza</h3>
-        {accesos.isLoading ? <p>Cargando empresas…</p> : acceso === 'unrestricted' ? (
+        <h3>{limitadoASuEmpresa ? 'Su acceso a tu empresa' : 'Qué empresas alcanza'}</h3>
+        {/*
+          Quien administra su empresa ve el alcance de esa persona, no el mapa de la agencia.
+
+          Saber que alguien atiende otro local cambia cómo se le reparte el trabajo, así que el
+          dato tiene que estar. El nombre del otro local, en cambio, no le pertenece: es de otra
+          empresa y dársela sería filtrar la cartera de la agencia por una pantalla de equipo.
+        */}
+        {limitadoASuEmpresa ? (
+          <>
+            {atiendeOtras ? (
+              <p className="page-subtitle">Esta persona además atiende otra empresa. Lo que cambies acá sólo afecta a la tuya.</p>
+            ) : (
+              <p className="page-subtitle">Esta persona trabaja sólo en tu empresa.</p>
+            )}
+            {esAsignadaAMiEmpresa ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={!puedeEditar || ocupado}
+                onClick={() => { if (window.confirm('Va a dejar de entrar a tu empresa. Su cuenta sigue activa.')) cambiarEmpresa.mutate({ clientId: miEmpresa, conceder: false }); }}
+              >
+                Quitar de mi empresa
+              </button>
+            ) : (
+              <p className="page-subtitle">Pertenece a tu empresa, así que no se puede retirar desde aquí. Para dejarla fuera, ponle «Sin acceso» arriba en cada módulo.</p>
+            )}
+          </>
+        ) : accesos.isLoading ? <p>Cargando empresas…</p> : acceso === 'unrestricted' ? (
           <p className="page-subtitle">Su cargo ve todas las empresas de la organización.</p>
         ) : (
           <>
