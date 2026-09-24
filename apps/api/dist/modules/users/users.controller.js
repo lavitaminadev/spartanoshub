@@ -28,23 +28,40 @@ const reset_user_password_use_case_1 = require("./reset-user-password.use-case")
 const reset_user_password_dto_1 = require("./dto/reset-user-password.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const administracion_del_equipo_service_1 = require("./administracion-del-equipo.service");
+const administradores_de_empresa_service_1 = require("./administradores-de-empresa.service");
 let UsersController = class UsersController {
-    constructor(createUser, listUsers, updateUser, resetUserPassword, administracion) {
+    constructor(createUser, listUsers, updateUser, resetUserPassword, administracion, administradores) {
         this.createUser = createUser;
         this.listUsers = listUsers;
         this.updateUser = updateUser;
         this.resetUserPassword = resetUserPassword;
         this.administracion = administracion;
+        this.administradores = administradores;
+    }
+    async administranEquipo(req, clientId) {
+        const alcance = await this.administracion.alcance(req, clientId);
+        const empresa = alcance.soloEmpresa ?? clientId;
+        if (!empresa)
+            return { clientId: null, userIds: [], sinAdministrador: false };
+        const organizationId = req.organizationId || req.user.organizationId;
+        const userIds = await this.administradores.quienesAdministran(organizationId, empresa);
+        return { clientId: empresa, userIds, sinAdministrador: userIds.length === 0 };
     }
     async create(dto, req, clientId) {
         const alcance = await this.administracion.alcance(req, clientId);
         this.administracion.asegurarDentro(alcance, { clientId: dto.clientId ?? null, role: dto.role ?? null });
-        return this.createUser.execute({
+        const organizationId = req.organizationId || req.user.organizationId;
+        const creado = await this.createUser.execute({
             ...dto,
             ...(alcance.soloEmpresa ? { clientId: alcance.soloEmpresa, role: user_role_enum_1.UserRole.CLIENT } : {}),
-            organizationId: req.organizationId || req.user.organizationId,
+            organizationId,
             actorRole: req.user.role,
         });
+        const empresaDeLaCuenta = alcance.soloEmpresa ?? creado.clientId ?? undefined;
+        if (dto.administraElEquipo && empresaDeLaCuenta) {
+            await this.administradores.definir(organizationId, creado.id, empresaDeLaCuenta, true, req.user.id);
+        }
+        return creado;
     }
     async list(role, clientId, q, isActive, req) {
         const normalizedIsActive = isActive == null
@@ -70,6 +87,10 @@ let UsersController = class UsersController {
             const destino = actual.find((persona) => persona.id === id);
             this.administracion.asegurarDentro(alcance, { clientId: destino?.clientId ?? null, role: destino?.role ?? null });
         }
+        const empresaDelCambio = alcance.soloEmpresa ?? clientId;
+        if (dto.administraElEquipo !== undefined && empresaDelCambio) {
+            await this.administradores.definir(req.organizationId || req.user.organizationId, id, empresaDelCambio, dto.administraElEquipo, req.user.id);
+        }
         return this.updateUser.execute({
             id,
             organizationId: req.organizationId || req.user.organizationId,
@@ -89,6 +110,16 @@ let UsersController = class UsersController {
     }
 };
 exports.UsersController = UsersController;
+__decorate([
+    (0, common_1.Get)('administran-equipo'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Quiénes administran el equipo de una empresa' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "administranEquipo", null);
 __decorate([
     (0, common_1.Post)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
@@ -148,5 +179,6 @@ exports.UsersController = UsersController = __decorate([
         list_users_use_case_1.ListUsersUseCase,
         update_user_use_case_1.UpdateUserUseCase,
         reset_user_password_use_case_1.ResetUserPasswordUseCase,
-        administracion_del_equipo_service_1.AdministracionDelEquipoService])
+        administracion_del_equipo_service_1.AdministracionDelEquipoService,
+        administradores_de_empresa_service_1.AdministradoresDeEmpresaService])
 ], UsersController);

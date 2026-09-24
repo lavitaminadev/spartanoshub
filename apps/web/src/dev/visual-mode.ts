@@ -437,7 +437,17 @@ function ajustesDeCorreo(source: 'client' | 'master_default') {
   });
 }
 
+/** Cuentas que administran el equipo en el modo visual. Vacio muestra el aviso. */
+const visualAdministranEquipo: string[] = ['u-cli'];
+
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
+  /*
+   * Quien administra el equipo de una empresa.
+   *
+   * Se guarda en memoria para poder revisar los dos casos: con administrador y sin ninguno,
+   * que es cuando aparece el aviso.
+   */
+  [/\/users\/administran-equipo/, () => ({ clientId: VISUAL_USER.clientId, userIds: visualAdministranEquipo, sinAdministrador: visualAdministranEquipo.length === 0 })],
   [/\/users(?:\?|$)/, () => {
     const equipo = [
       { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z' },

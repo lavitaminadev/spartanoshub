@@ -57,6 +57,11 @@ __decorate([
 ], UpdateUserDto.prototype, "isActive", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateUserDto.prototype, "administraElEquipo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MinLength)(8),
     (0, class_validator_1.MaxLength)(128),

@@ -14,6 +14,7 @@ import { ResetUserPasswordUseCase } from './reset-user-password.use-case';
 import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { AdministracionDelEquipoService } from './administracion-del-equipo.service';
+import { AdministradoresDeEmpresaService } from './administradores-de-empresa.service';
 
 /**
  * Endpoints de administración de usuarios.
@@ -30,7 +31,26 @@ export class UsersController {
     private readonly updateUser: UpdateUserUseCase,
     private readonly resetUserPassword: ResetUserPasswordUseCase,
     private readonly administracion: AdministracionDelEquipoService,
+    private readonly administradores: AdministradoresDeEmpresaService,
   ) {}
+
+  /**
+   * Quiénes administran el equipo de una empresa, y si no queda nadie.
+   *
+   * Lo segundo importa tanto como lo primero: una empresa sin administrador no puede crear
+   * cuentas, y hasta ahora eso solo se descubría cuando alguien llamaba a preguntar.
+   */
+  @Get('administran-equipo')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Quiénes administran el equipo de una empresa' })
+  async administranEquipo(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    const alcance = await this.administracion.alcance(req, clientId);
+    const empresa = alcance.soloEmpresa ?? clientId;
+    if (!empresa) return { clientId: null, userIds: [], sinAdministrador: false };
+    const organizationId = req.organizationId || req.user.organizationId;
+    const userIds = await this.administradores.quienesAdministran(organizationId, empresa);
+    return { clientId: empresa, userIds, sinAdministrador: userIds.length === 0 };
+  }
 
   /**
    * Crea un nuevo usuario dentro de la organización del solicitante.
@@ -49,13 +69,25 @@ export class UsersController {
   async create(@Body() dto: CreateUserDto, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const alcance = await this.administracion.alcance(req, clientId);
     this.administracion.asegurarDentro(alcance, { clientId: dto.clientId ?? null, role: dto.role ?? null });
-    return this.createUser.execute({
+    const organizationId = req.organizationId || req.user.organizationId;
+    const creado = await this.createUser.execute({
       ...dto,
       // La empresa la pone el alcance, no el cuerpo: si no, bastaria cambiarla al enviar.
       ...(alcance.soloEmpresa ? { clientId: alcance.soloEmpresa, role: UserRole.CLIENT } : {}),
-      organizationId: req.organizationId || req.user.organizationId,
+      organizationId,
       actorRole: req.user.role as UserRole,
     });
+    /*
+     * Decir qué será esa persona forma parte de crearla.
+     *
+     * La empresa sale de la cuenta recién creada y no del cuerpo: conceder la administración de
+     * una empresa a la que esa persona no entra no le daría nada y ensuciaría los permisos.
+     */
+    const empresaDeLaCuenta = alcance.soloEmpresa ?? creado.clientId ?? undefined;
+    if (dto.administraElEquipo && empresaDeLaCuenta) {
+      await this.administradores.definir(organizationId, creado.id, empresaDeLaCuenta, true, req.user.id);
+    }
+    return creado;
   }
 
   /**
@@ -104,6 +136,16 @@ export class UsersController {
       // Se comprueba la cuenta que ya existe, no lo que viene en el cuerpo: cambiar de empresa
       // a alguien ajeno seria moverlo al alcance propio y editarlo en el mismo paso.
       this.administracion.asegurarDentro(alcance, { clientId: destino?.clientId ?? null, role: destino?.role ?? null });
+    }
+    const empresaDelCambio = alcance.soloEmpresa ?? clientId;
+    if (dto.administraElEquipo !== undefined && empresaDelCambio) {
+      await this.administradores.definir(
+        req.organizationId || req.user.organizationId,
+        id,
+        empresaDelCambio,
+        dto.administraElEquipo,
+        req.user.id,
+      );
     }
     return this.updateUser.execute({
       id,
