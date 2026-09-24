@@ -50,7 +50,7 @@ const ORIGEN_EMPRESA: Record<AccesoEmpresa['source'], string> = {
   own: 'la empresa de su cuenta',
 };
 
-export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOperaciones = false, limitadoASuEmpresa = false, miEmpresa = '', onCerrar }: {
+export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOperaciones = false, limitadoASuEmpresa = false, miEmpresa = '', serviciosDeLaEmpresa, onCerrar }: {
   usuario: { id: string; name: string; role: string };
   empresas: Array<{ id: string; name: string }>;
   puedeEditar: boolean;
@@ -60,6 +60,8 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
   limitadoASuEmpresa?: boolean;
   /** La empresa de quien administra. Es la única sobre la que puede decidir. */
   miEmpresa?: string;
+  /** Servicios que esa empresa tiene contratados; los demás no se ofrecen. */
+  serviciosDeLaEmpresa?: Record<string, boolean>;
   onCerrar: () => void;
 }) {
   const qc = useQueryClient();
@@ -125,6 +127,8 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
     ? empresas
     : empresas.filter((empresa) => (Array.isArray(acceso) ? acceso : []).some((item) => item.clientId === empresa.id));
   const accesoPorEmpresa = new Map((Array.isArray(acceso) ? acceso : []).map((item) => [item.clientId, item]));
+  // Lo que la empresa tiene contratado: fuera de eso no hay nada que repartir.
+  const serviciosContratados = serviciosDeLaEmpresa ?? {};
   const alcances = Array.isArray(acceso) ? acceso : [];
   const atiendeOtras = alcances.some((item) => item.clientId !== miEmpresa);
   const esAsignadaAMiEmpresa = alcances.some((item) => item.clientId === miEmpresa && item.source === 'assignment');
@@ -162,7 +166,24 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
                 así que enseñarlos solo invita a intentarlo y a leer un error.
               */
               if (limitadoASuEmpresa && ['users', 'settings', 'integrations', 'clients', 'governance'].includes(modulo.clave)) return null;
+              /*
+                Un servicio que la empresa no tiene contratado no se reparte.
+
+                Salían los ocho módulos con su desplegable, y conceder Encuestas a alguien de una
+                empresa que no las tiene no le da nada: la pantalla no aparece igual. Repartir
+                accesos que no existen confunde a quien administra y hace dudar de lo que sí dio.
+              */
+              if (limitadoASuEmpresa && ['crm', 'reservations', 'surveys'].includes(modulo.clave)
+                && serviciosContratados[modulo.clave] !== true) return null;
               const bloqueado = efectivo.moduleDisabled || efectivo.productHidden;
+              /*
+                Y tampoco los que esa empresa no puede usar en absoluto.
+
+                Al equipo interno se le muestran atenuados, porque saber que un modulo esta
+                apagado es parte de administrarlo. A quien reparte accesos dentro de su empresa
+                eso no le dice nada: no puede encenderlo ni tiene por que saber que existe.
+              */
+              if (limitadoASuEmpresa && bloqueado) return null;
               const soloAdministracion = limitadoAOperaciones && ['users', 'settings', 'integrations'].includes(modulo.clave);
               const nivelDelCargo = delCargo.data?.permissions?.[modulo.clave];
               return <div key={modulo.clave} className={`permisos-usuario-fila ${efectivo.source === 'override' ? 'es-ajuste' : ''}`}>
