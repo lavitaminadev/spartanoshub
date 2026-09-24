@@ -17,6 +17,8 @@ const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const lead_fit_status_enum_1 = require("../leads/lead-fit-status.enum");
+const lead_status_enum_1 = require("../leads/lead-status.enum");
 const class_transformer_1 = require("class-transformer");
 const reglas_service_1 = require("./reglas.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
@@ -43,17 +45,6 @@ __decorate([
     (0, class_validator_1.MaxLength)(300),
     __metadata("design:type", String)
 ], CondicionDto.prototype, "valor", void 0);
-class TareaDto {
-}
-__decorate([
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(200),
-    __metadata("design:type", String)
-], TareaDto.prototype, "titulo", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Number)
-], TareaDto.prototype, "enHoras", void 0);
 class AccionesDto {
 }
 __decorate([
@@ -63,14 +54,12 @@ __decorate([
 ], AccionesDto.prototype, "semaforo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(40),
+    (0, class_validator_1.IsEnum)(lead_fit_status_enum_1.LeadFitStatus),
     __metadata("design:type", String)
 ], AccionesDto.prototype, "calificacion", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(40),
+    (0, class_validator_1.IsEnum)(lead_status_enum_1.LeadStatus),
     __metadata("design:type", String)
 ], AccionesDto.prototype, "etapa", void 0);
 __decorate([
@@ -86,25 +75,13 @@ __decorate([
 ], AccionesDto.prototype, "descartarMotivo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.ValidateNested)(),
-    (0, class_transformer_1.Type)(() => TareaDto),
-    __metadata("design:type", TareaDto)
-], AccionesDto.prototype, "tarea", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUUID)(),
-    __metadata("design:type", String)
-], AccionesDto.prototype, "avisarA", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(500),
     __metadata("design:type", String)
 ], AccionesDto.prototype, "nota", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(40),
+    (0, class_validator_1.Matches)(/^[a-z][a-z0-9_]{0,39}$/),
     __metadata("design:type", String)
 ], AccionesDto.prototype, "guardarEnCampo", void 0);
 class GuardarReglaDto {

@@ -1,3 +1,4 @@
+import { EmailService } from '../../core/notifications/email.service';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -34,6 +35,7 @@ export class CreateUserUseCase {
     @InjectRepository(User) private readonly repo: Repository<User>,
     @InjectRepository(Client) private readonly clientsRepo: Repository<Client>,
     private readonly dataSource: DataSource,
+    private readonly email: EmailService,
   ) {}
 
   /**
@@ -63,7 +65,7 @@ export class CreateUserUseCase {
       throw new BadRequestException('Las cuentas cliente requieren una empresa asignada');
     }
     const hashed = await bcrypt.hash(data.password, Number(process.env.BCRYPT_ROUNDS || 10));
-    return this.dataSource.transaction(async (manager) => {
+    const creado = await this.dataSource.transaction(async (manager) => {
       let clientId = data.clientId
         ? await this.resolveClientId(data.organizationId, normalizedRole, data.clientId)
         : undefined;
@@ -92,6 +94,25 @@ export class CreateUserUseCase {
       });
       return manager.save(User, user);
     });
+
+    /*
+     * La clave llega a quien va a usarla.
+     *
+     * Hasta ahora se creaba la cuenta y alguien tenía que copiar la contraseña temporal y
+     * hacérsela llegar por su cuenta: si se olvidaba —y con varias altas seguidas se olvida—,
+     * esa persona tenía cuenta sin saberlo y la clave quedaba escrita en una conversación.
+     *
+     * Va fuera de la transacción y sin cortar el alta: el correo puede fallar por causas ajenas
+     * —una casilla mal escrita, el proveedor caído— y deshacer por eso una cuenta ya creada
+     * obligaría a repetir el alta entera. Quien la creó ve la clave en pantalla igualmente, y
+     * queda el camino de «Restablecer contraseña» para reenviarla.
+     */
+    const appUrl = (process.env.APP_PUBLIC_URL || 'http://localhost:5173').replace(/\/$/, '');
+    const correoEnviado = await this.email
+      .sendTemporaryPassword(creado.name, creado.email, data.password, `${appUrl}/login`)
+      .catch(() => false);
+
+    return Object.assign(creado, { correoEnviado });
   }
 
   private async resolveClientId(organizationId: string, role: UserRole, clientId?: string): Promise<string | undefined> {

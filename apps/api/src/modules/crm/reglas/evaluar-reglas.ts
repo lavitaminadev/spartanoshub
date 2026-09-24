@@ -50,8 +50,6 @@ export interface Acciones {
   etapa?: string;
   responsable?: string;
   descartarMotivo?: string;
-  tarea?: { titulo: string; enHoras?: number };
-  avisarA?: string;
   nota?: string;
   /** Guarda la respuesta encontrada en un campo propio, para poder filtrar por ella. */
   guardarEnCampo?: string;
