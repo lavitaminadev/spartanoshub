@@ -524,6 +524,61 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     masterStatus: 'master_defined',
   },
   /*
+   * El cupón.
+   *
+   * Es el único correo que da algo, y por eso es el único que puede costar dinero si sale mal:
+   * un cupón que llega a quien no corresponde se canjea igual. Por eso el interruptor está
+   * apagado de fábrica, solo alcanza a quien se marcó como asistido, y el
+   * código es un texto que la empresa escribe, no algo que el sistema invente: quien lo canjea
+   * es su caja, y tiene que reconocerlo.
+   */
+  {
+    key: 'email.coupon_enabled',
+    category: 'email',
+    label: 'Cupón',
+    description: 'Envía un cupón a quien vino, un día después de marcarle la asistencia. Apagado, no se envía ninguno.',
+    valueType: 'boolean',
+    defaultValue: false,
+    masterStatus: 'direction_required',
+  },
+  {
+    key: 'email.coupon_code',
+    category: 'email',
+    label: 'Cupón · código',
+    description: 'El código que se canjea. Lo escribe la empresa: su caja tiene que reconocerlo.',
+    valueType: 'text',
+    defaultValue: '',
+    masterStatus: 'direction_required',
+  },
+  {
+    key: 'email.coupon_subject',
+    category: 'email',
+    label: 'Cupón · asunto',
+    description: 'Variables: {{nombre}}, {{local}}, {{cupon}}.',
+    valueType: 'text',
+    defaultValue: 'Un regalo de {{local}} para ti',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.coupon_body',
+    category: 'email',
+    label: 'Cupón · cuerpo',
+    description: 'Variables: {{nombre}}, {{local}}, {{cupon}}, {{vence}}.',
+    valueType: 'text',
+    defaultValue: '{{nombre}}, gracias por venir a {{local}}.\n\nTe dejamos este código: {{cupon}}\n\nMuéstralo cuando vuelvas. Válido hasta el {{vence}}.',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.coupon_days_valid',
+    category: 'email',
+    label: 'Cupón · días de validez',
+    description: 'Desde que se envía. Es lo que rellena {{vence}} en el texto.',
+    valueType: 'number',
+    defaultValue: 30,
+    masterStatus: 'direction_required',
+  },
+
+  /*
    * Los correos de reserva.
    *
    * Quien reserva no conoce a Espartanos: reservó en el local de un cliente. Por eso el asunto

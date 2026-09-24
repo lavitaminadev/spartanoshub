@@ -71,6 +71,14 @@ export class Reservation {
   @Column({ name: 'network_consent_text', type: 'text', nullable: true }) networkConsentText?: string | null;
   /** Cuándo se envió la encuesta posterior a la visita. Cada visita se encuesta una sola vez. */
   @Column({ name: 'post_visit_survey_sent_at', type: 'timestamp', nullable: true }) postVisitSurveySentAt?: Date | null;
+
+  /**
+   * Cuando se le envio el cupon, o se decidio no enviarselo.
+   *
+   * Se marca tambien cuando se descarta por haber recibido uno hace poco: sin eso, esa reserva
+   * se volveria a revisar en cada pasada del trabajo hasta que envejeciera.
+   */
+  @Column({ name: 'cupon_enviado_en', type: 'timestamp', nullable: true }) cuponEnviadoEn?: Date | null;
   /** Confirmación explícita desde el enlace privado; no altera la asistencia real. */
   @Column({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }) guestConfirmedAt?: Date | null;
   /** Opt-in separado para analítica/conversiones; nunca se deduce del consentimiento operativo. */
