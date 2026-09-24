@@ -7,7 +7,8 @@
  * Si el formulario no define zonas, todo cae en una única columna "General".
  */
 
-import { Fragment, useMemo, useState } from 'react';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
@@ -68,7 +69,16 @@ export function AgendaPage() {
   const [searchParams] = useSearchParams();
   // La fecha puede venir del calendario de disponibilidad; si no, es hoy.
   const [dateFilter, setDateFilter] = useState(() => searchParams.get('date') || dateKey(new Date()));
-  const [clientId, setClientId] = useState(() => clientMode ? user?.clientId || '' : searchParams.get('clientId') ?? '');
+  /*
+    La empresa sobre la que se trabaja, no la de la sesión.
+    Quien atiende más de una la elige una vez y todas las pantallas la respetan; con la de la
+    sesión, elegir un local en el CRM dejaba esta pantalla mostrando el otro.
+  */
+  const empresaActiva = useEmpresaActiva();
+  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId || user?.clientId || '' : searchParams.get('clientId') ?? '');
+  useEffect(() => {
+    if (clientMode && empresaActiva.clientId && empresaActiva.clientId !== clientId) setClientId(empresaActiva.clientId);
+  }, [clientMode, empresaActiva.clientId, clientId]);
   // La entrada desde el centro del local debe abrir ese local, no el primero de otra lista.
   const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);

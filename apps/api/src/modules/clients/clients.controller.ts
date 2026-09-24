@@ -49,12 +49,18 @@ export class ClientsController {
   @Get()
   @ApiOperation({ summary: 'Listar clientes de la organizacion' })
   async list(@Query() pagination: PaginationDto, @Req() req: AuthenticatedRequest) {
-    // Un portal representa exactamente una empresa. No delegamos este caso al alcance
-    // general: aunque cambien pods o excepciones internas, un token de cliente nunca puede
-    // transformar una lista de empresas en la cartera completa de la agencia.
-    const clientIds = req.user.role === UserRole.CLIENT
-      ? (req.user.clientId ? [req.user.clientId] : [])
-      : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    /*
+     * Un portal ve su empresa y las que se le hayan asignado, nunca más que eso.
+     *
+     * Esto devolvía una sola y no consultaba el alcance, para que ningún cambio de pods ni de
+     * excepciones internas pudiera convertir un token de cliente en la cartera entera de la
+     * agencia. Esa garantía se conserva y ahora vive donde corresponde: para el cargo cliente,
+     * `allowedClientIds` compone la lista a partir de su propia empresa y de sus asignaciones
+     * explícitas, y nunca responde «sin límite». Repetir aquí el recorte dejaba fuera a quien
+     * atiende dos locales, que es justo lo que las asignaciones vienen a resolver.
+     */
+    const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    if (req.user.role === UserRole.CLIENT && clientIds === undefined) return { data: [], total: 0, limit: 0, offset: 0 };
     return this.listClients.execute(req.organizationId, clientIds, pagination.limit, pagination.offset);
   }
 

@@ -153,3 +153,33 @@
 /* En íconos la barra de desplazamiento vertical tapaba parte del menú: se oculta, se sigue desplazando con la rueda. */
 .app-layout.menu-compacto .sidebar:not(:hover) .sidebar-nav { scrollbar-width: none; }
 .app-layout.menu-compacto .sidebar:not(:hover) .sidebar-nav::-webkit-scrollbar { display: none; }
+
+/*
+  Sobre qué empresa se está trabajando.
+
+  Va dentro de la lateral y no en cada encabezado: tiene que verse igual en todas las pantallas,
+  y un dato que cambia de sitio según dónde estés se deja de mirar. Solo aparece cuando la
+  persona alcanza más de una.
+*/
+.sidebar-empresa {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 10px 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-empresa > span {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.sidebar-empresa .input {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+}

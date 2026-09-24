@@ -7,6 +7,7 @@ import { NotificationBell } from '../notifications/NotificationBell';
 import { PwaInstallButton } from '../../shared/PwaInstallButton';
 import { AvisoVersionNueva } from '../../shared/AvisoVersionNueva';
 import { useMenuCompacto } from '../../shared/useMenuCompacto';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
 
 /**
@@ -26,6 +27,7 @@ export function ClientLayout() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const { menuCompacto, alternar, esMovil } = useMenuCompacto();
+  const empresaActiva = useEmpresaActiva();
   return (
     <div className={`app-layout${menuCompacto && !esMovil ? ' menu-compacto' : ''}`}>
       <AvisoVersionNueva />
@@ -37,6 +39,27 @@ export function ClientLayout() {
           {/* El mismo botón que el marco interno: contraer el menú no es cosa de un solo cargo. */}
           {!esMovil && <button type="button" className="menu-compacto-boton" onClick={alternar} aria-pressed={menuCompacto} aria-label={menuCompacto ? 'Expandir menú' : 'Contraer menú a íconos'} title={menuCompacto ? 'Expandir menú' : 'Contraer menú'}>{menuCompacto ? '»' : '«'}</button>}
         </div>
+        {/*
+          Sobre qué empresa se está trabajando, a la vista y en todas las pantallas.
+
+          Quien atiende dos locales necesita verlo sin buscarlo: marcar asistencia o cambiar un
+          horario en el local equivocado creyendo estar en el otro no se nota hasta que está
+          hecho. Con una sola empresa no aparece: no hay nada que confundir.
+        */}
+        {empresaActiva.varias && !menuCompacto && (
+          <label className="sidebar-empresa">
+            <span>Trabajando en</span>
+            <select
+              className="input"
+              aria-label="Empresa sobre la que se trabaja"
+              value={empresaActiva.clientId}
+              onChange={(evento) => { empresaActiva.elegir(evento.target.value); window.location.reload(); }}
+            >
+              {empresaActiva.empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+            </select>
+          </label>
+        )}
+
         <nav className="sidebar-nav">
           {CLIENT_NAV.filter((item) => isClientNavItemVisible(item, user)).map((item) => {
             const active = location.pathname === item.path || (item.path !== '/portal' && location.pathname.startsWith(`${item.path}/`));

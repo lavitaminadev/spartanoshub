@@ -1,3 +1,4 @@
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -61,7 +62,16 @@ export function AvailabilityCalendarPage() {
   const [searchParams] = useSearchParams();
   const navegar = useNavigate();
   const [cursor, setCursor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [clientId, setClientId] = useState(() => clientMode ? user?.clientId || '' : searchParams.get('clientId') ?? '');
+  /*
+    La empresa sobre la que se trabaja, no la de la sesión.
+    Quien atiende más de una la elige una vez y todas las pantallas la respetan; con la de la
+    sesión, elegir un local en el CRM dejaba esta pantalla mostrando el otro.
+  */
+  const empresaActiva = useEmpresaActiva();
+  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId || user?.clientId || '' : searchParams.get('clientId') ?? '');
+  useEffect(() => {
+    if (clientMode && empresaActiva.clientId && empresaActiva.clientId !== clientId) setClientId(empresaActiva.clientId);
+  }, [clientMode, empresaActiva.clientId, clientId]);
   const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
 
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients'), enabled: !clientMode });

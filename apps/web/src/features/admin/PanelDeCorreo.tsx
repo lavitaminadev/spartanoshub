@@ -12,6 +12,7 @@
  * plantilla que se está editando, no quién la edita.
  */
 
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -275,7 +276,16 @@ export function PanelDeCorreo(): JSX.Element {
     iba a rechazar.
   */
   const soloSuEmpresa = user?.role === 'client';
-  const [empresa, setEmpresa] = useState(soloSuEmpresa ? (user?.clientId ?? '') : '');
+  const empresaActiva = useEmpresaActiva();
+  const [empresa, setEmpresa] = useState(soloSuEmpresa ? (empresaActiva.clientId || user?.clientId || '') : '');
+  // Si cambia la empresa elegida en otra pantalla, estas plantillas la siguen.
+  useEffect(() => {
+    if (soloSuEmpresa && empresaActiva.clientId && empresaActiva.clientId !== empresa) {
+      setEmpresa(empresaActiva.clientId);
+      setBorrador(null);
+      setAviso(null);
+    }
+  }, [soloSuEmpresa, empresaActiva.clientId, empresa]);
   /*
    * Encuestas que se pueden enviar después de la visita.
    *
@@ -530,7 +540,7 @@ export function PanelDeCorreo(): JSX.Element {
           </p>
         </div>
         {soloSuEmpresa ? (
-          <p className="panel-correo-empresa"><span>Plantilla de</span> <strong>{user?.clientName ?? 'tu empresa'}</strong></p>
+          <p className="panel-correo-empresa"><span>Plantilla de</span> <strong>{empresaActiva.nombre}</strong></p>
         ) : (
           <label className="panel-correo-empresa">
             <span>Plantilla de</span>
