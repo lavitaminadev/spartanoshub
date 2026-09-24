@@ -309,5 +309,5 @@
   fondo propio, y meterle texto la deformaba. Va debajo, como segunda línea de la celda.
 */
 .access-celda-rol { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-.access-manda { font-size: 10px; font-weight: 700; color: var(--brand, #cc0a55); }
-.access-role.es-quien-manda { background: var(--brand, #cc0a55); color: #fff; }
+.access-manda { font-size: 10px; font-weight: 700; color: var(--primary, #cc0a55); }
+.access-role.es-quien-manda { background: var(--primary, #cc0a55); color: #fff; }

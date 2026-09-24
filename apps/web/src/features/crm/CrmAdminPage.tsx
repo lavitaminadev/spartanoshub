@@ -47,11 +47,17 @@ const MOSTRAR_NOMBRES_POR_EMPRESA = false;
  * reglas. Cada pestaña es una tarea, y se llega a ella sin recorrer las otras.
  */
 const PESTANAS = [
-  { id: 'campanas', label: 'Campañas' },
+  /*
+    Las campañas y sus llaves van juntas.
+
+    Una campaña sin llave no recibe un solo lead, y una llave existe para una campaña: separarlas
+    obligaba a crear la campaña en una pestaña y volver a la otra a emitir su llave, con la
+    posibilidad de olvidarlo a mitad de camino y quedarse con una campaña que no recibe nada.
+  */
+  { id: 'campanas', label: 'Campañas y llaves' },
   { id: 'etapas', label: 'Etapas' },
   { id: 'campos', label: 'Campos propios' },
   { id: 'reglas', label: 'Reglas' },
-  { id: 'conexion', label: 'Conexión' },
 ] as const;
 
 
@@ -741,7 +747,7 @@ export function CrmAdminPage(): JSX.Element {
         </Modal>
       ) : null}
 
-      {pestana === 'conexion' ? (
+      {pestana === 'campanas' ? (
       <section className="crm-admin-panel">
         <header>
           <h2>Conexión de campañas</h2>
