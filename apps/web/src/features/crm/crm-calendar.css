@@ -95,3 +95,36 @@ button.crm-cal-numero:hover { background: var(--soft); }
    pedir atención. */
 .crm-cal-evento.tipo-task.esta-completada { background: var(--soft); color: var(--muted); box-shadow: none; }
 .crm-cal-evento.tipo-task.esta-completada b { text-decoration: line-through; }
+
+/*
+  Agendar en el día que se mira.
+
+  Aparece al pasar por encima y no siempre: veintiocho signos «+» permanentes competirían con lo
+  único que la celda tiene que decir, que es qué hay ese día. En pantallas táctiles, donde no hay
+  «encima», se queda visible y atenuado.
+*/
+.crm-cal-agregar {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 0.8px solid var(--line);
+  background: var(--white, #fff);
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.crm-cal-celda { position: relative; }
+.crm-cal-celda:hover .crm-cal-agregar,
+.crm-cal-agregar:focus-visible { opacity: 1; }
+
+@media (pointer: coarse) {
+  .crm-cal-agregar { opacity: 0.5; width: 32px; height: 32px; }
+}

@@ -454,6 +454,30 @@ export function CrmCalendarPage(): JSX.Element {
                     <b>{tituloDe(evento)}</b>
                   </span>
                 ))}
+                {/*
+                  Agendar en el día que se está mirando.
+
+                  Se podía navegar y leer la agenda, pero para anotar algo el jueves había que
+                  pulsar «Agendar» arriba y escribir la fecha a mano, teniéndola delante. Pulsar
+                  el día es lo primero que alguien intenta en un calendario, y no hacía nada.
+                */}
+                <button
+                  type="button"
+                  className="crm-cal-agregar"
+                  title={`Agendar el ${fecha.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+                  aria-label={`Agendar el ${fecha.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}`}
+                  onClick={() => setAgendando({
+                    type: 'meeting',
+                    description: '',
+                    // Las diez de la mañana: una hora que casi siempre sirve y se cambia en el formulario.
+                    date: `${clave}T10:00`,
+                    leadId: '',
+                    medium: '',
+                    location: '',
+                  })}
+                >
+                  +
+                </button>
               </div>
             );
           })}

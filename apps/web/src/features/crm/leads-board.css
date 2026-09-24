@@ -155,6 +155,14 @@
 .leads-board-semaforo i { width: 8px; height: 8px; border-radius: 50%; background: #c54b4b; box-shadow: 0 0 0 3px rgb(197 75 75 / .12); }
 .leads-board-semaforo.es-amarillo i { background: #d39b20; box-shadow: 0 0 0 3px rgb(211 155 32 / .14); }
 .leads-board-semaforo.es-verde i { background: #23856d; box-shadow: 0 0 0 3px rgb(35 133 109 / .14); }
+/*
+  El texto que califico al lead, junto a su color.
+
+  Se recorta a una linea: un motivo largo empujaria el resto de la tarjeta y todas dejarian de
+  medir lo mismo, que es lo que permite recorrer una columna de un vistazo. El completo esta en
+  el titulo al pasar por encima.
+*/
+.leads-board-semaforo em { font-style: normal; font-weight: 600; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .leads-board-puntaje { color: var(--muted); font-size: 10px; }
 .leads-board-chip.es-unqualified { background: var(--pink-soft); color: var(--pink-dark); border-color: var(--pink); }
 

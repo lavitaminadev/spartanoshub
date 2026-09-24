@@ -67,6 +67,8 @@ interface Lead {
   clientId?: string | null;
   fitStatus?: 'sold' | 'qualified' | 'in_review' | 'review' | 'unqualified';
   trafficLight?: 'green' | 'yellow' | 'red' | null;
+  /** El texto que hizo que una regla lo calificara así. Vacío si lo marcó una persona. */
+  reglaAplicadaMotivo?: string | null;
   qualityScore?: number;
   tags?: string[] | null;
   estimatedAmount?: number | null;
@@ -853,12 +855,20 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 </div>
                 {lead.phone ? <span className="leads-board-contacto">📞 {lead.phone}</span> : null}
                 {lead.estimatedAmount ? <span className="leads-board-monto">💰 {montoCorto(Number(lead.estimatedAmount))}</span> : null}
+                {/*
+                  El color, y por qué.
+
+                  El semáforo solo decía «Verde»: para saber qué lo puso ahí había que abrir el
+                  lead, y revisando una columna entera eso son veinte aperturas. Con el texto que
+                  lo calificó, la decisión de a quién llamar se toma mirando.
+                */}
                 {lead.trafficLight ? (
                   <span
                     className={`leads-board-semaforo es-${lead.trafficLight === 'green' ? 'verde' : lead.trafficLight === 'yellow' ? 'amarillo' : 'rojo'}`}
-                    title="Prioridad manual"
+                    title={lead.reglaAplicadaMotivo ? `Calificado por una regla: «${lead.reglaAplicadaMotivo}»` : 'Prioridad puesta a mano'}
                   >
                     <i /> {lead.trafficLight === 'green' ? 'Verde' : lead.trafficLight === 'yellow' ? 'Amarillo' : 'Rojo'}
+                    {lead.reglaAplicadaMotivo ? <em> · {lead.reglaAplicadaMotivo}</em> : null}
                   </span>
                 ) : null}
                 {/* Sin puntaje en la tarjeta: el semáforo de al lado ya dice la prioridad, y

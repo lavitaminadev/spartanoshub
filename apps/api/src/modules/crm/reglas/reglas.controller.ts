@@ -90,6 +90,20 @@ export class ReglasController {
     return this.reglas.cuantosCalzan(req.organizationId, this.empresa(req, clientId), dto as DatosDeRegla);
   }
 
+  /**
+   * Aplica las reglas a los leads que se eligieron en el tablero.
+   *
+   * Es lo que permite estrenar una regla sobre los leads que ya entraron, y probarla sobre unos
+   * pocos antes de dejarla correr sola. Corren todas las vivas, automáticas o no: aplicar a mano
+   * es precisamente pedirlo.
+   */
+  @Post('aplicar')
+  @RequiresPermission('crm', 'edit')
+  @ApiOperation({ summary: 'Aplicar las reglas a los leads elegidos' })
+  aplicar(@Req() req: AuthenticatedRequest, @Query('clientId') clientId: string, @Body() dto: AplicarDto) {
+    return this.reglas.aplicarYGuardar(req.organizationId, this.empresa(req, clientId), dto.leadIds);
+  }
+
   @Post()
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Crear una regla' })

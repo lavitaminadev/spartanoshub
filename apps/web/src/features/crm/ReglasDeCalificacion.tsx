@@ -170,6 +170,14 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
   });
 
   const lista = reglas.data ?? [];
+  /*
+   * Las respuestas que ninguna regla cubre, y cuántos leads arrastran.
+   *
+   * El número importa tanto como la cuenta: tres respuestas sueltas de un lead cada una no son
+   * lo mismo que una con cuarenta, y decidir cuál atender primero exige verlo.
+   */
+  const sinCubrir = (preguntas.data ?? []).flatMap((fila) => fila.respuestas.filter((respuesta) => !respuesta.tieneRegla));
+  const totalSinCubrir = sinCubrir.reduce((suma, respuesta) => suma + respuesta.total, 0);
   const puedeGuardar = Boolean(borrador?.nombre.trim()) && (borrador?.condiciones ?? []).every(
     (condicion) => SIN_VALOR.includes(condicion.comparador) || String(condicion.valor ?? '').trim(),
   );
@@ -191,7 +199,21 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
         Es lo que evita escribir reglas de memoria: el texto sale de los leads que ya entraron,
         con su ortografía exacta, y el número dice cuánto pesa cada respuesta antes de decidir.
       */}
-      <details className="reglas-preguntas" open={lista.length === 0}>
+      {/*
+        Lo que está llegando y ninguna regla cubre.
+
+        Es el fallo que no se ve: Meta cambia una opción del formulario, las reglas siguen
+        buscando el texto viejo, y veinte leads entran sin calificar en la misma columna que los
+        demás. Nadie lo nota hasta que alguien pregunta por qué no se llamó a nadie.
+      */}
+      {sinCubrir.length > 0 ? (
+        <div className="alert alert-warning" role="status">
+          <strong>{sinCubrir.length === 1 ? 'Una respuesta no tiene regla' : `${sinCubrir.length} respuestas no tienen regla`}</strong>
+          <span> — {totalSinCubrir} {totalSinCubrir === 1 ? 'lead entra' : 'leads entran'} sin calificar. Decide qué hacer con {sinCubrir.length === 1 ? 'ella' : 'ellas'} en la lista de abajo.</span>
+        </div>
+      ) : null}
+
+      <details className="reglas-preguntas" open={lista.length === 0 || sinCubrir.length > 0}>
         <summary>Qué están contestando {preguntas.data?.length ? `(${preguntas.data.length} preguntas)` : ''}</summary>
         {preguntas.isLoading ? <p className="page-subtitle">Buscando…</p> : !preguntas.data?.length ? (
           <p className="page-subtitle">Todavía no llegan respuestas de formularios en esta empresa.</p>
@@ -281,15 +303,17 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
                     <button type="button" className="btn btn-outline btn-xs" onClick={() => abrirExistente(regla)}>Editar</button>
                     <button type="button" className="btn btn-outline btn-xs" disabled={cambiar.isPending}
                       onClick={() => cambiar.mutate({ id: regla.id, campo: 'activa', valor: !regla.activa })}>
-                      {regla.activa ? 'Apagar' : 'Encender'}
+                      {regla.activa ? 'Pausar' : 'Reanudar'}
                     </button>
                     <button type="button" className="btn btn-outline btn-xs" disabled={cambiar.isPending}
                       onClick={() => cambiar.mutate({ id: regla.id, campo: 'automatica', valor: !regla.automatica })}>
-                      {regla.automatica ? 'Pasar a mano' : 'Dejar que corra sola'}
+                      {regla.automatica ? 'Dejar de aplicarla sola' : 'Aplicarla sola'}
                     </button>
                     <button type="button" className="btn btn-outline btn-xs" disabled={archivar.isPending}
-                      onClick={() => { if (window.confirm('Se archiva: deja de calificar y se conserva para explicar los leads que ya marcó.')) archivar.mutate(regla.id); }}>
-                      Archivar
+                      onClick={() => { if (window.confirm(`«${regla.nombre}» deja de calificar leads nuevos.
+
+Los que ya marcó se quedan como están, y la regla se conserva para poder explicar por qué.`)) archivar.mutate(regla.id); }}>
+                      Quitar de la lista
                     </button>
                   </>
                 ) : null}
