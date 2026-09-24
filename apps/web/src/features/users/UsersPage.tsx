@@ -34,6 +34,8 @@ interface ClientOption {
 }
 
 interface UserFormState {
+  /** Si administra el equipo de su empresa. Va junto al alta, no en una segunda pantalla. */
+  administraElEquipo: boolean;
   name: string;
   email: string;
   password: string;
@@ -45,7 +47,7 @@ interface UserFormState {
   capabilities: { reservations: boolean; crm: boolean };
 }
 
-const EMPTY_FORM: UserFormState = { name: '', email: '', password: '', phone: '', accountType: 'client', role: 'client', clientId: '', newClientName: '', capabilities: { reservations: true, crm: true } };
+const EMPTY_FORM: UserFormState = { name: '', email: '', password: '', phone: '', accountType: 'client', role: 'client', clientId: '', newClientName: '', capabilities: { reservations: true, crm: true }, administraElEquipo: false };
 
 const USER_ROLES = [
   'admin', 'commercial_director', 'creative_director', 'operations_director', 'art_director',
@@ -164,6 +166,21 @@ export function UsersPage() {
     onError: (mutationError) => setFeedback({ tone: 'error', text: mutationError.message }),
   });
 
+  /*
+    Quiénes administran el equipo de la empresa que se está mirando.
+
+    Se consulta aparte y no viene con cada cuenta: es un permiso por empresa, y la misma
+    persona puede administrar una y no otra. Pedirlo por empresa es lo que hace que la
+    respuesta cambie al cambiar de local, como debe.
+  */
+  const empresaMirada = clientFilter || (administraSuEmpresa ? empresaActiva.clientId : '');
+  const { data: mandos } = useQuery<{ userIds: string[]; sinAdministrador: boolean }>({
+    queryKey: ['administran-equipo', empresaMirada],
+    queryFn: () => api.get(`/users/administran-equipo?clientId=${encodeURIComponent(empresaMirada)}`),
+    enabled: Boolean(empresaMirada),
+  });
+  const administradores = new Set(mandos?.userIds ?? []);
+
   const users = Array.isArray(data) ? data : [];
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const availableRoles = ['operations_director', 'commercial_director'].includes(currentUser?.role ?? '')
@@ -200,7 +217,7 @@ export function UsersPage() {
   const openEditModal = (row: UserRow) => {
     setFeedback(null);
     setEditing(row);
-    setForm({ name: row.name, email: row.email, password: '', phone: row.phone ?? '', accountType: row.role === 'client' ? 'client' : 'internal', role: row.role, clientId: row.clientId ?? '', newClientName: '', capabilities: { reservations: true, crm: true } });
+    setForm({ name: row.name, email: row.email, password: '', phone: row.phone ?? '', accountType: row.role === 'client' ? 'client' : 'internal', role: row.role, clientId: row.clientId ?? '', newClientName: '', capabilities: { reservations: true, crm: true }, administraElEquipo: administradores.has(row.id) });
     setModalOpen(true);
   };
 
@@ -304,6 +321,20 @@ export function UsersPage() {
 
       {feedback && <div className={`alert alert-${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>{feedback.text}</div>}
 
+      {/*
+        Una empresa sin administrador no puede crear cuentas.
+
+        Hasta ahora eso solo se descubría cuando alguien llamaba a preguntar por qué no podía.
+        Se avisa donde se resuelve, y solo cuando hay cuentas: una empresa recién creada todavía
+        no tiene a quién nombrar.
+      */}
+      {mandos?.sinAdministrador && users.length > 0 && (
+        <div className="alert alert-warning" role="status">
+          Ninguna cuenta de esta empresa puede administrar el equipo. Edita a la persona que
+          corresponda y marca <strong>«Puede administrar el equipo de esta empresa»</strong>.
+        </div>
+      )}
+
       <div className="filters users-filter-bar">
         <input className="input" aria-label="Buscar usuarios" placeholder="Nombre, email, teléfono o rol..." value={search} onChange={(event) => setSearch(event.target.value)} />
         {/* Filtrar por cargo o por empresa no dice nada cuando solo hay una de cada una. */}
@@ -334,7 +365,17 @@ export function UsersPage() {
         keyExtractor={(row) => row.id}
         columns={[
           { key: 'name', label: 'Persona', sortable: true, render: (row) => <div className="user-cell"><strong>{row.name}</strong><small>{row.email}</small></div> },
-          { key: 'role', label: 'Rol', sortable: true, sortValue: (row) => roleLabel(row.role), render: (row) => <span className="access-role">{roleLabel(row.role)}</span> },
+          {
+            key: 'role',
+            label: 'Rol',
+            sortable: true,
+            sortValue: (row) => roleLabel(row.role),
+            // Sin esto no había forma de saber si esa empresa tenía quién administrara, ni quién.
+            render: (row) => <span className="access-role">
+              {roleLabel(row.role)}
+              {administradores.has(row.id) && <small className="access-manda">Administra el equipo</small>}
+            </span>,
+          },
           { key: 'clientId', label: 'Alcance', render: (row) => <span className="access-scope"><strong>{row.clientId ? clientMap.get(row.clientId) ?? 'Empresa no disponible' : 'Equipo interno'}</strong><small>{row.role === 'client' ? 'Portal de cliente' : WORK_MODE_LABELS[row.workMode || 'hybrid']}</small></span> },
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
@@ -405,6 +446,24 @@ export function UsersPage() {
               empresas={clients}
               puedeEditar={puedeEditarPermisos}
             />
+          )}
+          {/*
+            Decir qué será esa persona forma parte de crearla.
+
+            Antes eran dos pasos en dos pantallas: crear la cuenta y, después, concederle la
+            administración desde permisos. Olvidar el segundo dejaba a la empresa sin nadie que
+            pudiera crear cuentas, y sin nada que lo explicara.
+          */}
+          {clientRequired && form.clientId && form.clientId !== NEW_CLIENT_VALUE && (
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={form.administraElEquipo}
+                onChange={(evento) => setForm({ ...form, administraElEquipo: evento.target.checked })}
+              />
+              {' '}Puede administrar el equipo de esta empresa
+              <small>Crea cuentas y decide qué ve cada persona, sólo dentro de ella.</small>
+            </label>
           )}
           {requiresNewClientName && <label htmlFor="user-new-client">Nombre de la empresa nueva<input id="user-new-client" className="input" value={form.newClientName} onChange={(event) => setForm({ ...form, newClientName: event.target.value })} minLength={2} maxLength={255} required /></label>}
           {requiresNewClientName && <fieldset className="form-choice-group"><legend>Servicios contratados</legend><label className="toggle-row"><input type="checkbox" checked={form.capabilities.reservations} onChange={(event) => setForm({ ...form, capabilities: { ...form.capabilities, reservations: event.target.checked } })} /> Reservas</label><label className="toggle-row"><input type="checkbox" checked={form.capabilities.crm} onChange={(event) => setForm({ ...form, capabilities: { ...form.capabilities, crm: event.target.checked } })} /> CRM</label><small>Solo se mostrarán y autorizarán los servicios seleccionados para esta empresa.</small></fieldset>}

@@ -1,4 +1,4 @@
-import { IsString, IsEmail, Matches, MinLength, MaxLength, IsOptional, IsUUID, IsEnum, IsIn, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsEmail, Matches, MinLength, MaxLength, IsOptional, IsUUID, IsEnum, IsIn, IsNumber, Min, Max, IsBoolean } from 'class-validator';
 import { UserRole } from '../../organizations/user-role.enum';
 import { ClientCapabilitiesDto } from '../../clients/dto/create-client.dto';
 import { Type } from 'class-transformer';
@@ -8,6 +8,14 @@ import { ValidateNested } from 'class-validator';
  * DTO para crear un nuevo usuario dentro de la organización del solicitante.
  */
 export class CreateUserDto {
+  /**
+   * Si esa persona podrá administrar el equipo de su empresa: crear cuentas y repartir accesos.
+   *
+   * Se decide al crearla y no en una segunda pantalla: cuando eran dos pasos, olvidar el
+   * segundo dejaba a la empresa sin nadie que pudiera crear cuentas y sin nada que lo dijera.
+   */
+  @IsOptional() @IsBoolean() administraElEquipo?: boolean;
+
   /** Nombre para mostrar. */
   @IsString() @MinLength(2) @MaxLength(255) name: string;
 

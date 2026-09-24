@@ -93,3 +93,12 @@
 .help-item-source{font-size:10px;color:#aab5b0}
 @keyframes helpFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 @keyframes helpSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+
+/* Quién administra el equipo de su empresa, junto a su cargo en la lista de cuentas. */
+.access-manda {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary, #cc0a55);
+}

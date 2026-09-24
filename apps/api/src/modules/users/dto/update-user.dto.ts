@@ -24,6 +24,9 @@ export class UpdateUserDto {
 
   @IsOptional() @IsBoolean() isActive?: boolean;
 
+  /** Si administra el equipo de su empresa. Se guarda como permiso, no como cargo. */
+  @IsOptional() @IsBoolean() administraElEquipo?: boolean;
+
   @IsOptional() @IsString() @MinLength(8) @MaxLength(128) @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/, { message: 'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número' }) password?: string;
 
   @IsOptional() @IsIn(['presential', 'hybrid', 'remote']) workMode?: 'presential' | 'hybrid' | 'remote';
