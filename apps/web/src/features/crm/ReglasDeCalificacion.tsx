@@ -150,15 +150,24 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
 
   const cerrar = () => { setBorrador(null); setEditando(null); setPrueba(null); };
 
-  /** Escribir la respuesta en la condición: es la forma de no equivocarse con la ortografía. */
-  const usarRespuesta = (texto: string) => {
-    if (!borrador) { triggerToast('Abre o crea una regla para usar esta respuesta'); return; }
-    const condiciones = [...borrador.condiciones];
-    const ultima = condiciones.length - 1;
-    condiciones[ultima] = { ...condiciones[ultima], donde: 'respuestas', comparador: 'contiene', valor: texto };
-    setBorrador({ ...borrador, condiciones, nombre: borrador.nombre || texto.slice(0, 60) });
-    setPrueba(null);
-  };
+  /**
+   * Una regla para una respuesta concreta, de un solo gesto.
+   *
+   * Es el camino natural: se mira lo que la gente contesta y se decide qué hacer con cada
+   * respuesta. Obligar a abrir un editor vacío y transcribir el texto —que es como empezó esto—
+   * convierte cuatro decisiones en cuatro formularios, y la ortografía se escribe a mano justo
+   * donde un acento de más deja la regla sin calzar con nadie.
+   */
+  const crearDesdeRespuesta = useMutation({
+    mutationFn: ({ texto, semaforo }: { texto: string; semaforo: 'green' | 'yellow' | 'red' }) => api.post(`/crm/reglas${sufijo}`, {
+      nombre: texto.slice(0, 120),
+      unir: 'todas',
+      condiciones: [{ donde: 'respuestas', comparador: 'contiene', valor: texto }],
+      acciones: { semaforo },
+    }),
+    onSuccess: () => { refrescar(); triggerToast('Regla creada. Pruébala y luego déjala correr sola.'); },
+    onError: fallo,
+  });
 
   const lista = reglas.data ?? [];
   const puedeGuardar = Boolean(borrador?.nombre.trim()) && (borrador?.condiciones ?? []).every(
@@ -198,7 +207,21 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
                       <span>{respuesta.respuesta}</span>
                       <small>{respuesta.total}</small>
                       {respuesta.tieneRegla ? <em>ya tiene regla</em> : puedeEditar ? (
-                        <button type="button" className="btn btn-outline btn-xs" onClick={() => usarRespuesta(respuesta.respuesta)}>Usar</button>
+                        <select
+                          className="input input-en-frase"
+                          aria-label={`Qué hacer con «${respuesta.respuesta}»`}
+                          value=""
+                          disabled={crearDesdeRespuesta.isPending}
+                          onChange={(evento) => {
+                            const semaforo = evento.target.value as 'green' | 'yellow' | 'red' | '';
+                            if (semaforo) crearDesdeRespuesta.mutate({ texto: respuesta.respuesta, semaforo });
+                          }}
+                        >
+                          <option value="">¿Qué hago?</option>
+                          <option value="green">Marcar verde</option>
+                          <option value="yellow">Marcar amarillo</option>
+                          <option value="red">Marcar rojo</option>
+                        </select>
                       ) : null}
                     </li>
                   ))}
@@ -285,20 +308,30 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
                 placeholder="Ej. Paga al contado" />
             </label>
 
-            <fieldset className="form-choice-group">
-              <legend>Se cumple cuando…</legend>
-              <label className="toggle-row">
-                <input type="radio" checked={borrador.unir === 'todas'} onChange={() => setBorrador({ ...borrador, unir: 'todas' })} />
-                {' '}se cumplen <strong>todas</strong> las condiciones
-              </label>
-              <label className="toggle-row">
-                <input type="radio" checked={borrador.unir === 'alguna'} onChange={() => setBorrador({ ...borrador, unir: 'alguna' })} />
-                {' '}se cumple <strong>alguna</strong>
-              </label>
-            </fieldset>
+            {/*
+              La regla, leída como una frase.
 
+              Tres desplegables sueltos no dicen qué representa cada uno; la misma elección
+              dentro de una frase sí. Se actualiza al escribir, así se lee lo que va a pasar
+              antes de guardarlo.
+            */}
+            <p className="reglas-frase">
+              <span>Si</span>
+              <select className="input input-en-frase" aria-label="Cuántas condiciones deben cumplirse"
+                value={borrador.unir} onChange={(evento) => setBorrador({ ...borrador, unir: evento.target.value as 'todas' | 'alguna' })}>
+                <option value="todas">se cumple todo lo de abajo</option>
+                <option value="alguna">se cumple alguna de abajo</option>
+              </select>
+              <span>, entonces marcar</span>
+              <strong>{SEMAFOROS.find((opcion) => opcion.value === (borrador.acciones.semaforo ?? ''))?.label}</strong>
+              {borrador.acciones.descartarMotivo ? <span>y descartarlo</span> : null}
+            </p>
+
+            <h4 className="reglas-subtitulo">Condiciones</h4>
+            <p className="field-hint">Cada línea es una comprobación sobre el lead. Arriba eliges si hacen falta todas o basta una.</p>
             {borrador.condiciones.map((condicion, indice) => (
               <div key={indice} className="reglas-condicion">
+                <span className="reglas-condicion-numero">{indice + 1}</span>
                 <select className="input" aria-label="Qué mirar" value={condicion.donde}
                   onChange={(evento) => {
                     const condiciones = [...borrador.condiciones];
@@ -348,14 +381,15 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
               + Otra condición
             </button>
 
-            <label>Entonces, marcar
+            <h4 className="reglas-subtitulo">Qué hacer cuando se cumple</h4>
+            <label>Marcar el semáforo
               <select className="input" value={borrador.acciones.semaforo ?? ''}
                 onChange={(evento) => setBorrador({ ...borrador, acciones: { ...borrador.acciones, semaforo: (evento.target.value || undefined) as Acciones['semaforo'] } })}>
                 {SEMAFOROS.map((opcion) => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}
               </select>
             </label>
 
-            <label>Y descartar con este motivo <em>(opcional)</em>
+            <label>Y además descartarlo, con este motivo <em>(opcional — déjalo vacío para no descartar)</em>
               <input className="input" value={borrador.acciones.descartarMotivo ?? ''} maxLength={200}
                 placeholder="Ej. Solo consultaba (sin intención)"
                 onChange={(evento) => setBorrador({ ...borrador, acciones: { ...borrador.acciones, descartarMotivo: evento.target.value || undefined } })} />

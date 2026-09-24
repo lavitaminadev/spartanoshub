@@ -39,6 +39,21 @@ import './crm-admin.css';
  */
 const MOSTRAR_NOMBRES_POR_EMPRESA = false;
 
+/**
+ * Las tareas de Administración, cada una en su pestaña.
+ *
+ * Seis secciones en una sola página dejaban de ser una pantalla y pasaban a ser un depósito:
+ * para cambiar el nombre de una etapa había que bajar por las llaves, los campos propios y las
+ * reglas. Cada pestaña es una tarea, y se llega a ella sin recorrer las otras.
+ */
+const PESTANAS = [
+  { id: 'campanas', label: 'Campañas' },
+  { id: 'etapas', label: 'Etapas' },
+  { id: 'campos', label: 'Campos propios' },
+  { id: 'reglas', label: 'Reglas' },
+  { id: 'conexion', label: 'Conexión' },
+] as const;
+
 
 interface Cliente { id: string; name: string }
 
@@ -135,6 +150,7 @@ export function CrmAdminPage(): JSX.Element {
   const queryClient = useQueryClient();
   // La empresa cuyas campañas se administran; la elige la barra del CRM.
   const scope = useCrmScope();
+  const [pestana, setPestana] = useState<(typeof PESTANAS)[number]['id']>('campanas');
   /*
    * Acciones sin vuelta atrás, esperando confirmación.
    *
@@ -296,6 +312,20 @@ export function CrmAdminPage(): JSX.Element {
         </div>
       </div>
 
+      <nav className="crm-admin-pestanas" aria-label="Secciones de Administración">
+        {PESTANAS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={pestana === item.id ? 'active' : ''}
+            aria-pressed={pestana === item.id}
+            onClick={() => setPestana(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
       {/*
         La llave sola no sirve de nada.
 
@@ -370,16 +400,21 @@ export function CrmAdminPage(): JSX.Element {
         Cómo llama esta empresa a sus etapas.
         Va en Administración y no en el tablero porque cambia lo que ve todo el equipo a la vez.
       */}
-      <NombresDeEtapa />
+      {pestana === 'etapas' ? <NombresDeEtapa /> : null}
 
       {/* Datos que el CRM no trae, definidos sin migraciones. */}
-      <CamposPropiosDelCrm />
+      {pestana === 'campos' ? <CamposPropiosDelCrm /> : null}
 
       {/*
         Las reglas necesitan una empresa: califican segun lo que contesto quien llego a ella, y
         el embudo de la agencia no tiene formularios que contesten.
       */}
-      {scope.clientId ? <ReglasDeCalificacion clientId={scope.clientId} puedeEditar={scope.puedeEditar} /> : null}
+      {pestana === 'reglas' && scope.clientId ? <ReglasDeCalificacion clientId={scope.clientId} puedeEditar={scope.puedeEditar} /> : null}
+      {pestana === 'reglas' && !scope.clientId ? (
+        <section className="crm-admin-panel">
+          <p className="crm-admin-vacio">Elige una empresa arriba: las reglas califican según lo que contestó quien llegó a ella.</p>
+        </section>
+      ) : null}
 
       {MOSTRAR_NOMBRES_POR_EMPRESA ? <NombresDeLasCosas /> : null}
 
@@ -402,6 +437,7 @@ export function CrmAdminPage(): JSX.Element {
         campaña vinieron, pero nadie anota cuánto costó. El nombre debe coincidir con el que
         traen los leads, y se avisa acá porque es el error que deja la cifra en nada.
       */}
+      {pestana === 'campanas' ? (
       <section className="crm-admin-panel">
         <header>
           <h2>Campañas e inversión <span className="crm-admin-cuenta">{campanias.data?.length ?? 0}</span></h2>
@@ -515,6 +551,7 @@ export function CrmAdminPage(): JSX.Element {
           <p className="crm-admin-vacio">Todavía no hay campañas registradas.</p>
         )}
       </section>
+      ) : null}
 
       {campaniaAbierta ? (
         <Modal open onClose={() => setCampaniaAbierta(null)} title={campaniaAbierta === true ? 'Nueva campaña' : `Editar ${campaniaAbierta.name}`}>
@@ -704,6 +741,7 @@ export function CrmAdminPage(): JSX.Element {
         </Modal>
       ) : null}
 
+      {pestana === 'conexion' ? (
       <section className="crm-admin-panel">
         <header>
           <h2>Conexión de campañas</h2>
@@ -815,6 +853,7 @@ export function CrmAdminPage(): JSX.Element {
           </div>
         )}
       </section>
+      ) : null}
 
       {/*
         Confirmación de lo que no se puede deshacer.
