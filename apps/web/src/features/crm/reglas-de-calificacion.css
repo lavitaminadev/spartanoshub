@@ -1,29 +1,29 @@
 /* Las reglas que califican leads solos: lista ordenada, y el catálogo de respuestas arriba. */
 
-.reglas-preguntas { margin: 12px 0; border: 0.8px solid var(--line, #eee8ec); border-radius: 10px; padding: 10px 12px; }
+.reglas-preguntas { margin: 12px 0; border: 0.8px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .reglas-preguntas > summary { cursor: pointer; font-weight: 700; font-size: 13px; }
 .reglas-preguntas-lista { display: grid; gap: 12px; margin-top: 10px; }
 .reglas-pregunta > strong { display: block; font-size: 13px; }
-.reglas-pregunta > small { color: var(--muted, #706a73); font-size: 11px; }
+.reglas-pregunta > small { color: var(--muted); font-size: 11px; }
 .reglas-pregunta ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
-.reglas-pregunta li { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 8px; border-radius: 6px; background: var(--soft, #f6f4f5); }
+.reglas-pregunta li { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 8px; border-radius: 6px; background: var(--soft); }
 .reglas-pregunta li > span { flex: 1; min-width: 0; }
-.reglas-pregunta li > small { color: var(--muted, #706a73); font-variant-numeric: tabular-nums; }
-.reglas-pregunta li > em { font-size: 10px; color: var(--muted, #706a73); font-style: normal; }
+.reglas-pregunta li > small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.reglas-pregunta li > em { font-size: 10px; color: var(--muted); font-style: normal; }
 /* Lo ya cubierto se atenúa: lo que resalta es lo que todavía se califica a ojo. */
 .reglas-pregunta li.tiene-regla { opacity: 0.6; }
 
 .reglas-lista { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; counter-reset: regla; }
-.reglas-lista > li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 10px 12px; border: 0.8px solid var(--line, #eee8ec); border-radius: 10px; }
+.reglas-lista > li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 10px 12px; border: 0.8px solid var(--line); border-radius: 10px; }
 .reglas-lista > li.esta-apagada { opacity: 0.55; }
 .reglas-orden { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.reglas-numero { font-weight: 800; font-size: 12px; color: var(--muted, #706a73); }
+.reglas-numero { font-weight: 800; font-size: 12px; color: var(--muted); }
 .reglas-cuerpo { display: grid; gap: 2px; min-width: 0; }
-.reglas-cuerpo > small { font-size: 11px; color: var(--muted, #706a73); }
+.reglas-cuerpo > small { font-size: 11px; color: var(--muted); }
 .reglas-hace { font-weight: 600; }
 .reglas-acciones { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
-.reglas-estado { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: var(--soft, #f6f4f5); }
-.reglas-estado.es-automatica { background: var(--brand, #cc0a55); color: #fff; }
+.reglas-estado { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: var(--soft); }
+.reglas-estado.es-automatica { background: var(--primary, #cc0a55); color: #fff; }
 
 .reglas-condicion { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .reglas-condicion > .input { flex: 1; min-width: 120px; }
@@ -34,3 +34,9 @@
   .reglas-lista > li { grid-template-columns: auto 1fr; }
   .reglas-acciones { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+/* La regla leída como una frase: la elección va dentro del texto, no en un formulario aparte. */
+.reglas-frase { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; margin: 4px 0 8px; }
+.input-en-frase { width: auto; min-width: 140px; height: 34px; padding: 0 8px; font-size: 13px; }
+.reglas-subtitulo { margin: 12px 0 2px; font-size: 13px; }
+.reglas-condicion-numero { font-size: 11px; font-weight: 800; color: var(--muted); min-width: 14px; }
