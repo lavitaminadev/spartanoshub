@@ -43,6 +43,34 @@ describe('AccountAccessService', () => {
     await expect(service.allowedClientIds(ORG, userWith(UserRole.CLIENT))).resolves.toEqual([]);
   });
 
+  /*
+   * Estas tres fijan el límite de una cuenta de portal, que es lo que separa a una empresa de
+   * otra en todo el sistema: veintinueve sitios preguntan por este alcance para decidir qué
+   * datos devuelven. Ampliarlo para que alguien atienda dos locales no puede convertirse en
+   * «ve todo», ni siquiera por un fallo en otra parte.
+   */
+  it('un cliente alcanza su empresa y las que se le asignaron', async () => {
+    assignments.find.mockResolvedValue([{ clientId: 'cli-9' }, { clientId: 'cli-otra' }]);
+    const scope = await service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }));
+    // La suya primero y sin repetirse, aunque figure además como asignación.
+    expect(scope).toEqual(['cli-9', 'cli-otra']);
+  });
+
+  it('un cliente nunca queda sin límite, tenga las asignaciones que tenga', async () => {
+    assignments.find.mockResolvedValue([{ clientId: 'a' }, { clientId: 'b' }, { clientId: 'c' }]);
+    const scope = await service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }));
+    expect(scope).not.toBeUndefined();
+    expect(scope).toEqual(['cli-9', 'a', 'b', 'c']);
+  });
+
+  it('un cliente no hereda las cuentas de un pod', async () => {
+    // Los pods son del equipo interno. Una fila suelta no puede ampliar el alcance de un portal.
+    podMembers.find.mockResolvedValue([{ podId: 'pod-1' }]);
+    clients.find.mockResolvedValue([{ id: 'cli-ajena' }]);
+    const scope = await service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }));
+    expect(scope).toEqual(['cli-9']);
+  });
+
   it.each([
     UserRole.COMMERCIAL_DIRECTOR,
     UserRole.OPERATIONS_DIRECTOR,
