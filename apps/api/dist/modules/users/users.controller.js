@@ -36,8 +36,8 @@ let UsersController = class UsersController {
         this.resetUserPassword = resetUserPassword;
         this.administracion = administracion;
     }
-    async create(dto, req) {
-        const alcance = await this.administracion.alcance(req);
+    async create(dto, req, clientId) {
+        const alcance = await this.administracion.alcance(req, clientId);
         this.administracion.asegurarDentro(alcance, { clientId: dto.clientId ?? null, role: dto.role ?? null });
         return this.createUser.execute({
             ...dto,
@@ -54,7 +54,7 @@ let UsersController = class UsersController {
                 : isActive.toLowerCase() === 'false'
                     ? false
                     : undefined;
-        const alcance = await this.administracion.alcance(req);
+        const alcance = await this.administracion.alcance(req, clientId);
         return this.listUsers.execute({
             organizationId: req.organizationId || req.user.organizationId,
             role: alcance.soloEmpresa ? user_role_enum_1.UserRole.CLIENT : role,
@@ -63,8 +63,8 @@ let UsersController = class UsersController {
             isActive: normalizedIsActive,
         });
     }
-    async update(id, dto, req) {
-        const alcance = await this.administracion.alcance(req);
+    async update(id, dto, req, clientId) {
+        const alcance = await this.administracion.alcance(req, clientId);
         if (alcance.soloEmpresa) {
             const actual = await this.listUsers.execute({ organizationId: req.organizationId || req.user.organizationId, clientId: alcance.soloEmpresa });
             const destino = actual.find((persona) => persona.id === id);
@@ -95,8 +95,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Crear un nuevo usuario' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_user_dto_1.CreateUserDto, Object]),
+    __metadata("design:paramtypes", [create_user_dto_1.CreateUserDto, Object, String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "create", null);
 __decorate([
@@ -120,8 +121,9 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_user_dto_1.UpdateUserDto, Object]),
+    __metadata("design:paramtypes", [String, update_user_dto_1.UpdateUserDto, Object, String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "update", null);
 __decorate([

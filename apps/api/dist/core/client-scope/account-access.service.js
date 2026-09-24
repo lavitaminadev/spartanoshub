@@ -45,7 +45,7 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
             const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
                 .map((fila) => fila.clientId)
                 .filter((id) => id !== user.clientId);
-            return [...propias, ...asignadas];
+            return this.soloEnServicio([...propias, ...asignadas]);
         }
         const cacheKey = `${organizationId}:${user.id}`;
         const cached = this.cache.get(cacheKey);
@@ -79,6 +79,15 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
             return [...propia, ...asignadas];
         }
         return this.resolve(organizationId, user.id);
+    }
+    async soloEnServicio(clientIds) {
+        if (clientIds.length === 0)
+            return [];
+        const filas = await this.clients.find({ where: { id: (0, typeorm_2.In)(clientIds) }, select: { id: true, status: true } });
+        const corriendo = new Set(filas
+            .filter((fila) => !['paused', 'churned', 'cancelled'].includes(String(fila.status)))
+            .map((fila) => fila.id));
+        return clientIds.filter((id) => corriendo.has(id));
     }
     invalidateUser(userId) {
         for (const key of this.cache.keys()) {

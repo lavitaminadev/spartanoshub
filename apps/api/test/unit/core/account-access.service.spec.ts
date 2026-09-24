@@ -35,8 +35,27 @@ describe('AccountAccessService', () => {
   });
 
   it('un cliente solo ve su propia cuenta', async () => {
+    clients.find.mockResolvedValue([{ id: 'cli-9', status: 'active' }]);
     const scope = await service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }));
     expect(scope).toEqual(['cli-9']);
+  });
+
+  /*
+   * Pausar tiene que notarse en el portal.
+   *
+   * Cortaba las reservas públicas y nada más: la empresa seguía entrando y operando como si el
+   * servicio estuviera corriendo, que es lo contrario de pausarlo.
+   */
+  it.each(['paused', 'churned', 'cancelled'])('una empresa en %s desaparece del portal', async (estado) => {
+    clients.find.mockResolvedValue([{ id: 'cli-9', status: estado }]);
+    await expect(service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }))).resolves.toEqual([]);
+  });
+
+  it('pausar una empresa no afecta a las demás que atiende', async () => {
+    assignments.find.mockResolvedValue([{ clientId: 'cli-otra' }]);
+    clients.find.mockResolvedValue([{ id: 'cli-9', status: 'paused' }, { id: 'cli-otra', status: 'active' }]);
+    const scope = await service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }));
+    expect(scope).toEqual(['cli-otra']);
   });
 
   it('un cliente sin cuenta asociada no ve ninguna', async () => {
@@ -51,6 +70,7 @@ describe('AccountAccessService', () => {
    */
   it('un cliente alcanza su empresa y las que se le asignaron', async () => {
     assignments.find.mockResolvedValue([{ clientId: 'cli-9' }, { clientId: 'cli-otra' }]);
+    clients.find.mockResolvedValue([{ id: 'cli-9', status: 'active' }, { id: 'cli-otra', status: 'active' }]);
     const scope = await service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }));
     // La suya primero y sin repetirse, aunque figure además como asignación.
     expect(scope).toEqual(['cli-9', 'cli-otra']);
@@ -58,6 +78,7 @@ describe('AccountAccessService', () => {
 
   it('un cliente nunca queda sin límite, tenga las asignaciones que tenga', async () => {
     assignments.find.mockResolvedValue([{ clientId: 'a' }, { clientId: 'b' }, { clientId: 'c' }]);
+    clients.find.mockResolvedValue([{ id: 'cli-9', status: 'active' }, { id: 'a', status: 'active' }, { id: 'b', status: 'active' }, { id: 'c', status: 'active' }]);
     const scope = await service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }));
     expect(scope).not.toBeUndefined();
     expect(scope).toEqual(['cli-9', 'a', 'b', 'c']);
@@ -66,7 +87,7 @@ describe('AccountAccessService', () => {
   it('un cliente no hereda las cuentas de un pod', async () => {
     // Los pods son del equipo interno. Una fila suelta no puede ampliar el alcance de un portal.
     podMembers.find.mockResolvedValue([{ podId: 'pod-1' }]);
-    clients.find.mockResolvedValue([{ id: 'cli-ajena' }]);
+    clients.find.mockResolvedValue([{ id: 'cli-9', status: 'active' }]);
     const scope = await service.allowedClientIds(ORG, userWith(UserRole.CLIENT, { clientId: 'cli-9' }));
     expect(scope).toEqual(['cli-9']);
   });

@@ -1,3 +1,4 @@
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -86,6 +87,18 @@ export function UsersPage() {
   const [creatingClient, setCreatingClient] = useState(false);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
   const [pendingBulkAccess, setPendingBulkAccess] = useState<{ rows: UserRow[]; isActive: boolean } | null>(null);
+  /*
+    La empresa sobre la que se administra viaja en cada petición.
+
+    Sin ella, el servidor usaba la de la sesión: cambiar de local en el menú dejaba esta
+    pantalla con el equipo del anterior, y se creaban cuentas en la empresa equivocada.
+  */
+  const empresaActiva = useEmpresaActiva();
+  const administraSuEmpresa = currentUser?.role === 'client';
+  // Crear y editar van a la empresa elegida, no a la de la sesión.
+  const sufijoDeEmpresa = administraSuEmpresa && empresaActiva.clientId
+    ? `?clientId=${encodeURIComponent(empresaActiva.clientId)}`
+    : '';
   const [bulkAccessPending, setBulkAccessPending] = useState(false);
 
   const query = useMemo(() => {
@@ -93,9 +106,11 @@ export function UsersPage() {
     if (deferredSearch) params.set('q', deferredSearch);
     if (roleFilter) params.set('role', roleFilter);
     if (statusFilter) params.set('isActive', statusFilter);
-    if (clientFilter) params.set('clientId', clientFilter);
+    // Quien administra su propia empresa manda la elegida; el equipo interno usa su filtro.
+    const empresa = clientFilter || (administraSuEmpresa ? empresaActiva.clientId : '');
+    if (empresa) params.set('clientId', empresa);
     return params.toString();
-  }, [clientFilter, deferredSearch, roleFilter, statusFilter]);
+  }, [administraSuEmpresa, clientFilter, deferredSearch, empresaActiva.clientId, roleFilter, statusFilter]);
 
   const { data, isLoading, error } = useQuery<UserRow[]>({
     queryKey: ['users', query],
@@ -114,7 +129,7 @@ export function UsersPage() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.post('/users', body),
+    mutationFn: (body: Record<string, unknown>) => api.post(`/users${sufijoDeEmpresa}`, body),
     onSuccess: async () => {
       setCreatedPassword(String(form.password));
       setCreatedName(form.name);
@@ -129,7 +144,7 @@ export function UsersPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => api.patch(`/users/${id}`, body),
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => api.patch(`/users/${id}${sufijoDeEmpresa}`, body),
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ['users'] });
       setAccessTarget(null);
@@ -163,8 +178,6 @@ export function UsersPage() {
     ya viene fijada y el servidor no le devuelve nada más, así que aquí solo se quita lo que no
     tiene sentido ofrecerle.
   */
-  const administraSuEmpresa = currentUser?.role === 'client';
-
   const canManage = (row: UserRow) => currentUser?.role === 'admin'
     || currentUser?.role === 'dev'
     || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role);

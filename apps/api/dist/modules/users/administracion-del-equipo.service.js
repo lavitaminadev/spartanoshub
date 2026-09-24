@@ -12,19 +12,26 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdministracionDelEquipoService = void 0;
 const common_1 = require("@nestjs/common");
 const permission_resolver_service_1 = require("../../core/authorization/permission-resolver.service");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const CARGOS_INTERNOS = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR];
 let AdministracionDelEquipoService = class AdministracionDelEquipoService {
-    constructor(permisos) {
+    constructor(permisos, alcanceDeCuentas) {
         this.permisos = permisos;
+        this.alcanceDeCuentas = alcanceDeCuentas;
     }
-    async alcance(request) {
+    async alcance(request, empresaPedida) {
         const rol = request.user.role;
         if (CARGOS_INTERNOS.includes(rol))
             return {};
-        const empresa = request.user.clientId;
         const organizacion = request.organizationId || request.user.organizationId;
-        if (!empresa || !organizacion)
+        if (!organizacion)
+            throw new common_1.ForbiddenException('Tu cuenta no administra personas');
+        const alcanzables = await this.alcanceDeCuentas.allowedClientIds(organizacion, request.user);
+        const empresa = empresaPedida && alcanzables?.includes(empresaPedida)
+            ? empresaPedida
+            : request.user.clientId;
+        if (!empresa)
             throw new common_1.ForbiddenException('Tu cuenta no administra personas');
         const puede = await this.permisos.can(organizacion, request.user.id, rol, 'users', 'manage', empresa);
         if (!puede)
@@ -43,5 +50,6 @@ let AdministracionDelEquipoService = class AdministracionDelEquipoService {
 exports.AdministracionDelEquipoService = AdministracionDelEquipoService;
 exports.AdministracionDelEquipoService = AdministracionDelEquipoService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [permission_resolver_service_1.PermissionResolverService])
+    __metadata("design:paramtypes", [permission_resolver_service_1.PermissionResolverService,
+        account_access_service_1.AccountAccessService])
 ], AdministracionDelEquipoService);

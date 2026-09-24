@@ -87,7 +87,7 @@ export class AccountAccessService {
       const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
         .map((fila) => fila.clientId)
         .filter((id) => id !== user.clientId);
-      return [...propias, ...asignadas];
+      return this.soloEnServicio([...propias, ...asignadas]);
     }
 
     const cacheKey = `${organizationId}:${user.id}`;
@@ -136,6 +136,26 @@ export class AccountAccessService {
       return [...propia, ...asignadas];
     }
     return this.resolve(organizationId, user.id);
+  }
+
+  /**
+   * Deja fuera las empresas cuyo servicio no está corriendo.
+   *
+   * Pausar o cancelar ya cortaba las reservas públicas, pero no el portal: la empresa seguía
+   * entrando y operando como si nada, que es lo contrario de pausar. Quien queda sin ninguna ve
+   * el aviso del portal y puede pedir el acceso por la bandeja de solicitudes.
+   *
+   * No se aplica al equipo interno: administrar una empresa pausada —ver su historial, retomar
+   * el servicio— es justo lo que hay que poder hacer mientras está pausada.
+   */
+  private async soloEnServicio(clientIds: string[]): Promise<string[]> {
+    if (clientIds.length === 0) return [];
+    const filas = await this.clients.find({ where: { id: In(clientIds) }, select: { id: true, status: true } });
+    const corriendo = new Set(filas
+      .filter((fila) => !['paused', 'churned', 'cancelled'].includes(String(fila.status)))
+      .map((fila) => fila.id));
+    // Se conserva el orden: la empresa de la cuenta va primero y es la que se elige por defecto.
+    return clientIds.filter((id) => corriendo.has(id));
   }
 
   /** Descarta lo memorizado de una persona tras cambiar sus pods o sus asignaciones. */
