@@ -367,16 +367,29 @@ export function UsersPage() {
           { key: 'name', label: 'Persona', sortable: true, render: (row) => <div className="user-cell"><strong>{row.name}</strong><small>{row.email}</small></div> },
           {
             key: 'role',
-            label: 'Rol',
+            label: administraSuEmpresa ? 'En el equipo' : 'Rol',
             sortable: true,
-            sortValue: (row) => roleLabel(row.role),
-            // Sin esto no había forma de saber si esa empresa tenía quién administrara, ni quién.
-            render: (row) => <span className="access-role">
-              {roleLabel(row.role)}
-              {administradores.has(row.id) && <small className="access-manda">Administra el equipo</small>}
-            </span>,
+            sortValue: (row) => (administraSuEmpresa
+              ? (administradores.has(row.id) ? 'Administra' : 'Miembro')
+              : roleLabel(row.role)),
+            /*
+              Dentro de una empresa, el cargo de todos es el mismo.
+
+              La columna repetía «Cliente» en cada fila y no distinguía nada; lo que sí distingue
+              —quién administra— iba apretado dentro de la misma píldora, que es una etiqueta de
+              una línea y no la admite. Para la agencia el cargo sigue importando, porque ahí
+              conviven cuentas internas y de empresa.
+            */
+            render: (row) => (administraSuEmpresa
+              ? <span className={administradores.has(row.id) ? 'access-role es-quien-manda' : 'access-role'}>
+                  {administradores.has(row.id) ? 'Administra el equipo' : 'Miembro'}
+                </span>
+              : <span className="access-celda-rol">
+                  <span className="access-role">{roleLabel(row.role)}</span>
+                  {administradores.has(row.id) && <small className="access-manda">Administra el equipo</small>}
+                </span>),
           },
-          { key: 'clientId', label: 'Alcance', render: (row) => <span className="access-scope"><strong>{row.clientId ? clientMap.get(row.clientId) ?? 'Empresa no disponible' : 'Equipo interno'}</strong><small>{row.role === 'client' ? 'Portal de cliente' : WORK_MODE_LABELS[row.workMode || 'hybrid']}</small></span> },
+          ...(administraSuEmpresa ? [] : [{ key: 'clientId', label: 'Alcance', render: (row: UserRow) => <span className="access-scope"><strong>{row.clientId ? clientMap.get(row.clientId) ?? 'Empresa no disponible' : 'Equipo interno'}</strong><small>{row.role === 'client' ? 'Portal de cliente' : WORK_MODE_LABELS[row.workMode || 'hybrid']}</small></span> }]),
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
           { key: 'createdAt', label: 'Creado', sortable: true, render: (row) => new Date(row.createdAt).toLocaleDateString('es-CL') },

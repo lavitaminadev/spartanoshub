@@ -301,3 +301,13 @@
 /* Pedir el aviso del sistema: una línea discreta bajo el título, nunca un cartel que interrumpa. */
 .notification-permiso { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 0 16px 8px; padding: 8px 10px; border-radius: 10px; background: #f4f4f5; font-size: .8rem; color: var(--txt-muted, #52525b); }
 .notification-permiso button { border: 0; background: none; color: var(--primary, #cc0a55); font-weight: 700; cursor: pointer; padding: 2px 4px; }
+
+/*
+  El cargo y, debajo, quién administra su empresa.
+
+  «Administra el equipo» no cabe dentro de `.access-role`: esa es una etiqueta de una línea con
+  fondo propio, y meterle texto la deformaba. Va debajo, como segunda línea de la celda.
+*/
+.access-celda-rol { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.access-manda { font-size: 10px; font-weight: 700; color: var(--brand, #cc0a55); }
+.access-role.es-quien-manda { background: var(--brand, #cc0a55); color: #fff; }
