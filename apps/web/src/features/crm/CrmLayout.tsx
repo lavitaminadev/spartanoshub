@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../core/auth';
 import { api } from '../../core/api';
 import { readStoredJson, storageKey, writeStoredJson } from '../../core/browser-storage';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { isPathEnabled } from '../../core/navigation.registry';
 import { canEditCrm, CrmScopeContext, type CrmScopeValue } from './crm-scope';
 import './crm-layout.css';
@@ -70,6 +71,7 @@ export const CUENTA_AGENCIA = 'espartanos';
 export function CrmLayout(): JSX.Element {
   const { user } = useAuth();
   const esPortalCliente = user?.role === 'client';
+  const empresaActiva = useEmpresaActiva();
 
   // El servidor ya devuelve solo las cuentas que la persona alcanza —pod, asignación directa o
   // ser su community manager—, así que la lista del selector no necesita filtrarse acá: una
@@ -97,12 +99,17 @@ export function CrmLayout(): JSX.Element {
    *
    * Quien alcanza una sola empresa sigue exactamente como antes.
    */
+  /*
+   * En el portal manda la empresa activa compartida, no un estado propio de esta barra.
+   *
+   * Con dos estados, cambiar de empresa en la lateral dejaba el CRM en la anterior: dos
+   * controles para lo mismo que no se ponían de acuerdo. El equipo interno conserva el suyo,
+   * que además incluye el embudo de la agencia y no es una empresa.
+   */
   const alcanzables = esPortalCliente ? clients.map((empresa) => empresa.id) : [];
-  const suEmpresa = user?.clientId ?? '';
-  const elegidaValida = esPortalCliente && alcanzables.includes(cuentaElegida) ? cuentaElegida : suEmpresa;
-  const clientId = esPortalCliente ? elegidaValida : cuentaElegida;
+  const clientId = esPortalCliente ? empresaActiva.clientId : cuentaElegida;
   const setClientId = (value: string) => {
-    if (esPortalCliente && !alcanzables.includes(value)) return;
+    if (esPortalCliente) { empresaActiva.elegir(value); return; }
     setCuentaElegida(value);
     writeStoredJson(scopeKey, value);
   };

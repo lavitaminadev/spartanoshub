@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -312,13 +312,16 @@ export class PermissionsController {
   @Get('users/:id/permissions')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Detalle de permisos de un usuario' })
-  async ofUser(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+  async ofUser(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const user = await this.findUser(id, req.organizationId);
     await this.assertCanManageUserPermissionException(req, user);
+    // Quien mira una empresa concreta tiene que ver lo que rige **en ella**, no el promedio.
+    if (clientId) await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     return {
       userId: user.id,
       role: user.role,
-      modules: await this.permissions.explain(req.organizationId, user.id, user.role as UserRole),
+      clientId: clientId ?? null,
+      modules: await this.permissions.explain(req.organizationId, user.id, user.role as UserRole, clientId || undefined),
     };
   }
 
@@ -372,11 +375,19 @@ export class PermissionsController {
   @Delete('users/:id/permissions/:module')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Quitar una excepción de permiso' })
-  async remove(@Param('id') id: string, @Param('module') module: string, @Req() req: AuthenticatedRequest) {
+  async remove(@Param('id') id: string, @Param('module') module: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
     const user = await this.findUser(id, req.organizationId);
     await this.assertCanManageUserPermissionException(req, user, module);
-    const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
+    if (clientId) await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    /*
+     * Se retira la excepción de la empresa que se está mirando, no «la del módulo».
+     *
+     * Sin la empresa en la búsqueda, quitar un permiso estando en una empresa borraba la
+     * excepción general —la que vale en todas— y dejaba intacta la de esa empresa: lo contrario
+     * de lo que se pidió, y en dos empresas a la vez.
+     */
+    const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: clientId ?? IsNull() } });
     if (!existing) throw new NotFoundException('No existe una excepción para ese módulo');
     await this.overrides.remove(existing);
     this.permissions.invalidateUser(user.id);

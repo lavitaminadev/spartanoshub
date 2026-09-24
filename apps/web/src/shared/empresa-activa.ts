@@ -9,7 +9,8 @@
  * La elección vive en un solo lugar y todas las pantallas la leen de aquí.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSyncExternalStore } from 'react';
 import { api } from '../core/api';
 import { useAuth } from '../core/auth';
 import { readStoredJson, storageKey, writeStoredJson } from '../core/browser-storage';
@@ -35,8 +36,26 @@ export interface EmpresaActiva {
  * no aparece en esa lista y se descarta, y cada petición vuelve a comprobarlo del lado del
  * servidor. Lo que protege no es ignorar la elección, es validarla.
  */
+/*
+ * Quién está escuchando el cambio de empresa.
+ *
+ * Cambiarla recargaba la página entera para que ninguna pantalla se quedara con datos del local
+ * anterior. Funcionaba, pero parpadea y pierde lo que se estuviera escribiendo. Con un aviso a
+ * los componentes montados y el descarte de lo consultado, el resultado es el mismo sin recarga.
+ */
+const oyentes = new Set<() => void>();
+let version = 0;
+
+function suscribir(avisar: () => void): () => void {
+  oyentes.add(avisar);
+  return () => { oyentes.delete(avisar); };
+}
+
 export function useEmpresaActiva(): EmpresaActiva {
   const { user } = useAuth();
+  const qc = useQueryClient();
+  // Obliga a releer lo guardado cuando otra pantalla cambia la empresa.
+  useSyncExternalStore(suscribir, () => version, () => version);
   const esPortal = user?.role === 'client';
 
   const { data } = useQuery<{ data: Array<{ id: string; name: string }> }>({
@@ -64,6 +83,16 @@ export function useEmpresaActiva(): EmpresaActiva {
     elegir: (destino: string) => {
       if (!esPortal || !alcanzables.includes(destino)) return;
       writeStoredJson(clave, destino);
+      version += 1;
+      oyentes.forEach((avisar) => avisar());
+      /*
+       * Todo lo consultado queda obsoleto al cambiar de empresa.
+       *
+       * Se invalida en bloque y no consulta por consulta: cada pantalla arma su clave a su
+       * manera, y olvidar una dejaría una lista del local anterior bajo el nombre del nuevo,
+       * que es peor que recargar.
+       */
+      void qc.invalidateQueries();
     },
     varias: empresas.length > 1,
   };

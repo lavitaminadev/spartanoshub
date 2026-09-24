@@ -404,9 +404,29 @@ export class MetaClientPixelService {
     }
 
     if (mode === 'existing') {
+      /*
+       * Un Pixel existente puede venir de dos sitios, y aquí solo se miraba uno.
+       *
+       * El desplegable se llena con `pixelesElegibles`, que lee la tabla de Pixeles **y** las
+       * credenciales de la integración. Guardar, en cambio, buscaba solo en el mapa por empresa
+       * de Reservas. Un Pixel creado desde una campaña del CRM vive en la tabla y no en ese
+       * mapa: se ofrecía en la lista y al elegirlo respondía «no está disponible en esta
+       * organización», que además señalaba al lugar equivocado.
+       *
+       * Se busca en los dos sitios, en el mismo orden en que se ofrecen.
+       */
+      const enLaTabla = input.existingPixelId
+        ? await this.pixelesGuardados.findOne({ where: { organizationId, pixelId: input.existingPixelId } })
+        : null;
+      // La exclusividad sigue valiendo: un Pixel de otra empresa mezclaría sus conversiones.
+      if (input.existingPixelId) await this.assertPixelDeLaEmpresa(organizationId, clientId, input.existingPixelId);
+
       return this.mutateRecords(integration.id, (records) => {
-        const source = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
-        if (!source) throw new BadRequestException('El Pixel existente no está disponible en esta organización');
+        const enElMapa = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
+        const source: ClientPixelRecord | undefined = enElMapa ?? (enLaTabla
+          ? { pixelId: enLaTabla.pixelId, pixelName: enLaTabla.name ?? undefined, accessToken: enLaTabla.accessToken ?? undefined, configuredAt: new Date().toISOString() }
+          : undefined);
+        if (!source) throw new BadRequestException('Ese Pixel no existe en esta organización. Créalo con «Agregar Pixel».');
         const configuredAt = new Date().toISOString();
         const record: ClientPixelRecord = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
         return [

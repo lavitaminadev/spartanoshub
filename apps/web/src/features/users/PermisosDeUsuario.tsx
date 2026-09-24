@@ -10,6 +10,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
 import { triggerToast } from '../../shared/toast-events';
@@ -60,8 +61,19 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
   onCerrar: () => void;
 }) {
   const qc = useQueryClient();
-  const clave = ['permisos-de-usuario', usuario.id];
-  const permisos = useQuery<{ modules: PermisoEfectivo[] }>({ queryKey: clave, queryFn: () => api.get(`/users/${usuario.id}/permissions`) });
+  /*
+   * En qué empresa valen estos permisos.
+   *
+   * Se guardaban sin decirlo, así que todo quedaba como excepción general: valía igual en
+   * todas las empresas y no había forma de decir «en esta administra Reservas y en esta otra
+   * solo mira», que es justo para lo que se guarda la empresa en cada excepción.
+   *
+   * Vacío sigue siendo «en todas»: es lo que había y lo que sirve para la mayoría.
+   */
+  const [empresaDelPermiso, setEmpresaDelPermiso] = useState('');
+  const qs = empresaDelPermiso ? `?clientId=${encodeURIComponent(empresaDelPermiso)}` : '';
+  const clave = ['permisos-de-usuario', usuario.id, empresaDelPermiso];
+  const permisos = useQuery<{ modules: PermisoEfectivo[] }>({ queryKey: clave, queryFn: () => api.get(`/users/${usuario.id}/permissions${qs}`) });
   const delCargo = useQuery<{ permissions: Record<string, Nivel> }>({
     queryKey: ['permisos-del-cargo', usuario.role],
     queryFn: () => api.get(`/roles/${encodeURIComponent(usuario.role)}/permissions`),
@@ -91,8 +103,8 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
 
   const cambiarNivel = useMutation({
     mutationFn: ({ modulo, nivel }: { modulo: string; nivel: Nivel | 'cargo' }) => nivel === 'cargo'
-      ? api.delete(`/users/${usuario.id}/permissions/${modulo}`)
-      : api.put(`/users/${usuario.id}/permissions/${modulo}`, { level: nivel, reason: 'Ajuste desde Usuarios' }),
+      ? api.delete(`/users/${usuario.id}/permissions/${modulo}${qs}`)
+      : api.put(`/users/${usuario.id}/permissions/${modulo}`, { level: nivel, reason: 'Ajuste desde Usuarios', clientId: empresaDelPermiso || undefined }),
     onSuccess: () => { refrescar(); triggerToast('Permiso actualizado. Se aplica en su próxima acción.'); },
     onError: fallo,
   });
@@ -106,6 +118,10 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
 
   const porModulo = new Map((permisos.data?.modules ?? []).map((item) => [item.module, item]));
   const acceso = accesos.data?.access;
+  // Las que alcanza de verdad, para no ofrecer una empresa en la que no entra.
+  const empresasQueAlcanza = acceso === 'unrestricted'
+    ? empresas
+    : empresas.filter((empresa) => (Array.isArray(acceso) ? acceso : []).some((item) => item.clientId === empresa.id));
   const accesoPorEmpresa = new Map((Array.isArray(acceso) ? acceso : []).map((item) => [item.clientId, item]));
   const ocupado = cambiarNivel.isPending || cambiarEmpresa.isPending;
 
@@ -114,6 +130,22 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
       <section>
         <h3>Qué puede hacer</h3>
         <p className="page-subtitle">Parte de lo que da su cargo. Un ajuste aquí vale sólo para esta persona.</p>
+        {/*
+          Solo cuando alcanza más de una empresa: con una sola, «en todas» y «en esta» son lo
+          mismo y el control obligaría a elegir sin que nada cambie.
+        */}
+        {empresasQueAlcanza.length > 1 && (
+          <label className="permisos-usuario-empresa">
+            <span>Estos permisos valen</span>
+            <select className="input" value={empresaDelPermiso} onChange={(evento) => setEmpresaDelPermiso(evento.target.value)}>
+              <option value="">En todas sus empresas</option>
+              {empresasQueAlcanza.map((empresa) => <option key={empresa.id} value={empresa.id}>Sólo en {empresa.name}</option>)}
+            </select>
+          </label>
+        )}
+        {empresaDelPermiso ? (
+          <p className="page-subtitle">Lo que ajustes acá manda sobre lo general mientras esté en esa empresa.</p>
+        ) : null}
         {permisos.isLoading ? <p>Cargando permisos…</p> : permisos.error ? <p className="error-text">{(permisos.error as Error).message}</p> : (
           <div className="permisos-usuario-lista">
             {MODULOS.map((modulo) => {

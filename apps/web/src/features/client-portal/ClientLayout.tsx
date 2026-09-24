@@ -53,7 +53,7 @@ export function ClientLayout() {
               className="input"
               aria-label="Empresa sobre la que se trabaja"
               value={empresaActiva.clientId}
-              onChange={(evento) => { empresaActiva.elegir(evento.target.value); window.location.reload(); }}
+              onChange={(evento) => empresaActiva.elegir(evento.target.value)}
             >
               {empresaActiva.empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
             </select>
