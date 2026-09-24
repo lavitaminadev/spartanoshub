@@ -7,6 +7,12 @@ import { NotificationBell } from '../notifications/NotificationBell';
 import { PwaInstallButton } from '../../shared/PwaInstallButton';
 import { AvisoVersionNueva } from '../../shared/AvisoVersionNueva';
 import { useMenuCompacto } from '../../shared/useMenuCompacto';
+import { CommandPalette } from '../../shared/CommandPalette';
+import { openCommandPalette } from '../../shared/command-events';
+import { VitaIcons } from '../../shared/Icons';
+import { NotificationCenter } from '../../shared/NotificationCenter';
+import { ReauthPrompt } from '../../shared/ReauthPrompt';
+import { ContextHelpDrawer } from '../../shared/help/ContextHelpDrawer';
 import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
 
@@ -26,11 +32,23 @@ export function ClientLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const { menuCompacto, alternar, esMovil } = useMenuCompacto();
   const empresaActiva = useEmpresaActiva();
   return (
     <div className={`app-layout${menuCompacto && !esMovil ? ' menu-compacto' : ''}`}>
+      {/*
+        Lo que vive en el marco y no en una pantalla.
+
+        Estaban en el marco interno, y el portal usaba otro: al pasar las cuentas de empresa a
+        este marco se quedaron sin buscador, sin el centro de notificaciones y sin la ayuda. No
+        son adornos —el buscador es la forma rápida de llegar a cualquier sitio, y la ayuda
+        explica la pantalla en la que se está—, así que viven donde siempre debieron: en los dos.
+      */}
+      <ReauthPrompt />
       <AvisoVersionNueva />
+      <NotificationCenter />
+      <CommandPalette />
       <button className="sidebar-toggle" onClick={() => setOpen(!open)} aria-label="Abrir navegación" aria-expanded={open}>☰</button>
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-header">
@@ -80,7 +98,39 @@ export function ClientLayout() {
         </div>
       </aside>
       {open && <button className="sidebar-backdrop" onClick={() => setOpen(false)} aria-label="Cerrar navegacion" />}
-      <div className="app-workspace client-workspace"><header className="workspace-header"><div className="workspace-heading"><span>Portal cliente</span><strong>Tu marca, en un solo lugar</strong></div></header><main className="main-content"><Outlet /></main></div>
+      <div className="app-workspace client-workspace">
+        <header className="workspace-header">
+          <div className="workspace-heading"><span>Portal cliente</span><strong>Tu marca, en un solo lugar</strong></div>
+          {/*
+            El buscador, visible y no solo por atajo.
+
+            El atajo por sí solo lo usa quien ya sabe que existe. El campo es lo que lo enseña,
+            y es la forma rápida de llegar a cualquier pantalla sin recorrer el menú.
+          */}
+          <button
+            type="button"
+            className="workspace-command workspace-search"
+            onClick={openCommandPalette}
+            aria-label="Buscar o ejecutar una acción"
+          >
+            <span aria-hidden="true"><VitaIcons.search /></span>
+            <span>Buscar o ejecutar</span>
+            <kbd>Ctrl K</kbd>
+          </button>
+          <button
+            type="button"
+            className="workspace-command"
+            style={{ minWidth: 0, padding: '7px 9px' }}
+            onClick={() => setHelpOpen(true)}
+            aria-label="Abrir ayuda"
+            title="Ayuda"
+          >
+            <span aria-hidden="true">?</span>
+          </button>
+        </header>
+        <main className="main-content"><Outlet /></main>
+        <ContextHelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
+      </div>
     </div>
   );
 }
