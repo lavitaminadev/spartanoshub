@@ -515,4 +515,17 @@ export class ReglasService {
 
     return { calificados, sinRegla, fallidos };
   }
+  /**
+   * Aplica las reglas a unos leads y guarda el resultado.
+   *
+   * Envuelve `aplicarA` con el guardado: el servicio decide, y aqui se escribe. Un lead que
+   * falla no detiene a los demas —con doscientos elegidos, uno con datos raros dejaria la mitad
+   * calificada sin decir cual es cual— y el resumen dice exactamente que paso con cada grupo.
+   */
+  async aplicarYGuardar(organizationId: string, clientId: string, leadIds: string[]) {
+    return this.aplicarA(organizationId, clientId, leadIds, async (lead, aplicada) => {
+      this.aplicarAlLead(lead, aplicada);
+      await this.leads.save(lead);
+    });
+  }
 }

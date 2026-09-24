@@ -178,6 +178,9 @@ let ReglasController = class ReglasController {
     probar(req, clientId, dto) {
         return this.reglas.cuantosCalzan(req.organizationId, this.empresa(req, clientId), dto);
     }
+    aplicar(req, clientId, dto) {
+        return this.reglas.aplicarYGuardar(req.organizationId, this.empresa(req, clientId), dto.leadIds);
+    }
     crear(req, clientId, dto) {
         return this.reglas.crear(req.organizationId, this.empresa(req, clientId), dto, req.user.id);
     }
@@ -242,6 +245,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, GuardarReglaDto]),
     __metadata("design:returntype", void 0)
 ], ReglasController.prototype, "probar", null);
+__decorate([
+    (0, common_1.Post)('aplicar'),
+    (0, requires_permission_decorator_1.RequiresPermission)('crm', 'edit'),
+    (0, swagger_1.ApiOperation)({ summary: 'Aplicar las reglas a los leads elegidos' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, AplicarDto]),
+    __metadata("design:returntype", void 0)
+], ReglasController.prototype, "aplicar", null);
 __decorate([
     (0, common_1.Post)(),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),

@@ -349,6 +349,12 @@ let ReglasService = ReglasService_1 = class ReglasService {
         }
         return { calificados, sinRegla, fallidos };
     }
+    async aplicarYGuardar(organizationId, clientId, leadIds) {
+        return this.aplicarA(organizationId, clientId, leadIds, async (lead, aplicada) => {
+            this.aplicarAlLead(lead, aplicada);
+            await this.leads.save(lead);
+        });
+    }
 };
 exports.ReglasService = ReglasService;
 exports.ReglasService = ReglasService = ReglasService_1 = __decorate([
