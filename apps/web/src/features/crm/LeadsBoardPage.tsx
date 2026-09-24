@@ -476,6 +476,28 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const anunciosALaVista = useMemo(() => [...new Set(leads.map((lead) => String((lead.metadata as { adName?: string } | undefined)?.adName ?? '').trim()).filter(Boolean))].sort(), [leads]);
 
   const seleccionVisible = useMemo(() => leads.filter((lead) => seleccion.has(lead.id)).map((lead) => lead.id), [leads, seleccion]);
+
+  /**
+   * Calificar los elegidos con las reglas de la empresa.
+   *
+   * El resumen nombra los tres grupos por separado: los que quedaron calificados, los que
+   * ninguna regla cubre —que es la señal de que falta una— y los que fallaron. Un solo número
+   * escondería justo el caso que hay que mirar.
+   */
+  const aplicarReglas = useMutation({
+    mutationFn: (leadIds: string[]): Promise<{ calificados: number; sinRegla: number; fallidos: number }> =>
+      api.post(`/crm/reglas/aplicar?clientId=${encodeURIComponent(scope.clientId)}`, { leadIds }),
+    onSuccess: (resultado) => {
+      void queryClient.invalidateQueries({ queryKey: ['crm-leads'] });
+      const partes = [
+        `${resultado.calificados} calificado${resultado.calificados === 1 ? '' : 's'}`,
+        resultado.sinRegla > 0 ? `${resultado.sinRegla} sin regla que los cubra` : '',
+        resultado.fallidos > 0 ? `${resultado.fallidos} con error` : '',
+      ].filter(Boolean);
+      setAviso({ tono: resultado.fallidos > 0 ? 'error' : 'success', texto: partes.join(' · ') });
+    },
+    onError: (error: Error) => setAviso({ tono: 'error', texto: error.message }),
+  });
   const todosVisiblesSeleccionados = leads.length > 0 && seleccionVisible.length === leads.length;
 
   const alternarSeleccion = (id: string) => {
@@ -757,6 +779,23 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
       {seleccionVisible.length > 0 ? (
         <div className="leads-board-lote">
           <strong>{seleccionVisible.length} seleccionado{seleccionVisible.length === 1 ? '' : 's'}</strong>
+          {/*
+            Calificar con las reglas ya escritas.
+
+            Es lo que permite estrenar una regla sobre los leads que ya entraron —las automáticas
+            solo corren con los nuevos— y probarla sobre unos pocos antes de dejarla suelta.
+          */}
+          {scope.puedeEditar && scope.clientId ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              disabled={aplicarReglas.isPending}
+              title="Calificar los elegidos con las reglas de esta empresa"
+              onClick={() => aplicarReglas.mutate(seleccionVisible)}
+            >
+              {aplicarReglas.isPending ? 'Calificando…' : 'Calificar con las reglas'}
+            </button>
+          ) : null}
           <select
             className="input"
             // Vacío hasta que se elige: obliga a decidir a dónde se mueve la tanda en vez de

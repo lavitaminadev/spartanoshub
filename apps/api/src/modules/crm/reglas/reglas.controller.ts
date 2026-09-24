@@ -1,7 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { LeadFitStatus } from '../leads/lead-fit-status.enum';
+import { LeadStatus } from '../leads/lead-status.enum';
 import { Type } from 'class-transformer';
 import { ReglasService, type DatosDeRegla } from './reglas.service';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
@@ -15,21 +17,26 @@ class CondicionDto {
   @IsOptional() @IsString() @MaxLength(300) valor?: string;
 }
 
-class TareaDto {
-  @IsString() @MaxLength(200) titulo: string;
-  @IsOptional() enHoras?: number;
-}
-
+/**
+ * Lo que una regla puede hacer.
+ *
+ * Cada acción se valida contra los mismos valores que el resto del CRM: sin eso, una regla podía
+ * guardar una calificación inventada y escribirla en el lead, y el tablero mostraba un estado
+ * que ninguna pantalla sabe pintar. El origen —una regla, no una persona— es lo último donde
+ * alguien buscaría.
+ *
+ * No están «crear tarea» ni «avisar a alguien»: se aceptaban y no hacían nada. Guardar algo que
+ * se ignora en silencio es peor que no ofrecerlo, porque quien lo configuró da por hecho que
+ * ocurre. Vuelven cuando se implementen.
+ */
 class AccionesDto {
   @IsOptional() @IsIn(['green', 'yellow', 'red']) semaforo?: 'green' | 'yellow' | 'red';
-  @IsOptional() @IsString() @MaxLength(40) calificacion?: string;
-  @IsOptional() @IsString() @MaxLength(40) etapa?: string;
+  @IsOptional() @IsEnum(LeadFitStatus) calificacion?: LeadFitStatus;
+  @IsOptional() @IsEnum(LeadStatus) etapa?: LeadStatus;
   @IsOptional() @IsUUID() responsable?: string;
   @IsOptional() @IsString() @MaxLength(200) descartarMotivo?: string;
-  @IsOptional() @ValidateNested() @Type(() => TareaDto) tarea?: TareaDto;
-  @IsOptional() @IsUUID() avisarA?: string;
   @IsOptional() @IsString() @MaxLength(500) nota?: string;
-  @IsOptional() @IsString() @MaxLength(40) guardarEnCampo?: string;
+  @IsOptional() @Matches(/^[a-z][a-z0-9_]{0,39}$/) guardarEnCampo?: string;
 }
 
 class GuardarReglaDto {
