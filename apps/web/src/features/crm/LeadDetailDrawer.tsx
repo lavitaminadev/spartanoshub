@@ -29,7 +29,7 @@ import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { mensajeDePrimerContacto, whatsapp } from './contacto';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
-import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
+import { CALIFICACIONES, CALIFICACION_TITULO } from './calificacion';
 import { respuestasDelFormulario } from './respuestas-del-formulario';
 import { MEDIOS, TIPOS_AGENDABLES, TIPO_DE_ACTIVIDAD, admiteMedio, campoDelMedio } from './tipos-de-actividad';
 import './lead-detail.css';
@@ -629,19 +629,16 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       <div className="lead-detail">
         {aviso ? <div className={`alert alert-${aviso.tone}`} role={aviso.tone === 'error' ? 'alert' : 'status'}>{aviso.text}</div> : null}
 
+        {/*
+          Teléfono, correo, empresa y calificación salieron de aquí.
+
+          Estaban como texto arriba y como campo unas líneas más abajo, los dos a la vista sin
+          hacer scroll: el mismo dato dos veces y sin forma de saber cuál mandaba. Se conservan
+          donde se pueden corregir, y para usarlos están los botones de contacto de aquí debajo.
+        */}
         <dl className="lead-detail-datos">
-          <dt>Teléfono</dt>
-          <dd>{lead.phone || '—'}</dd>
-
-          <dt>Correo</dt>
-          <dd>{lead.email || '—'}</dd>
-
-          {lead.company ? (<><dt>Empresa</dt><dd>{lead.company}</dd></>) : null}
-
           <dt>Origen</dt>
           <dd>{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}{lead.sourceDetail ? ` · ${lead.sourceDetail}` : ''}</dd>
-
-          {lead.fitStatus ? (<><dt>{CALIFICACION_TITULO}</dt><dd>{rotuloDeCalificacion(lead.fitStatus)}</dd></>) : null}
 
           {/*
             El puntaje automático no se muestra.
@@ -775,7 +772,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           </label>
 
           <label>
-            <span>Calificación <em>La decides tú; venta y descarte la fijan solas</em></span>
+            <span>{CALIFICACION_TITULO} <em>La decides tú; venta y descarte la fijan solas</em></span>
             <select className="input" value={calificacion} onChange={(event) => cambiarCalificacion(event.target.value as Lead['fitStatus'])} disabled={!scope.puedeEditar}>
               {/*
                 Del mismo catálogo que el filtro y la tabla. Escritas a mano quedaban tres acá y
