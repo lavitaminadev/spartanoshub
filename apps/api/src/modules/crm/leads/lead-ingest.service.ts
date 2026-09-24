@@ -1,3 +1,5 @@
+import { Lead } from './lead.entity';
+import { ReglasService } from '../reglas/reglas.service';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
@@ -39,6 +41,8 @@ export class LeadIngestService {
     @InjectRepository(Campaign) private readonly campaigns: Repository<Campaign>,
     private readonly intake: LeadIntakeService,
     private readonly campos: CrmFieldsService,
+    @InjectRepository(Lead) private readonly leads: Repository<Lead>,
+    private readonly reglas: ReglasService,
   ) {}
 
   /**
@@ -186,6 +190,18 @@ export class LeadIngestService {
         })
         : false;
 
+      /*
+       * Las reglas de calificación, si la empresa tiene alguna automática.
+       *
+       * Va después de guardar y fuera de lo que decide la respuesta: calificar es una mejora, no
+       * un requisito de la entrada. Si fallara —una regla rota, la base ocupada—, el lead ya
+       * está guardado y devolver un error haría que Make reintentara y creara un duplicado, que
+       * es un daño mucho mayor que entrar sin semáforo.
+       */
+      if (source.clientId) {
+        await this.calificarConReglas(source.organizationId, source.clientId, lead.id);
+      }
+
       return {
         leadId: lead.id,
         source: source.source,
@@ -300,4 +316,24 @@ export class LeadIngestService {
       return undefined;
     }
   }
+
+  /**
+   * Aplica las reglas automáticas a un lead recién entrado.
+   *
+   * Nunca lanza: lo peor que puede pasar es que el lead entre sin calificar, y eso se ve en el
+   * tablero. Detener la entrada por esto perdería el lead entero.
+   */
+  private async calificarConReglas(organizationId: string, clientId: string, leadId: string): Promise<void> {
+    try {
+      const lead = await this.leads.findOne({ where: { id: leadId, organizationId } });
+      if (!lead) return;
+      const aplicada = await this.reglas.queLeTocaria(organizationId, clientId, lead, 'automatica');
+      if (!aplicada) return;
+      await this.reglas.aplicarAlLead(lead, aplicada);
+      await this.leads.save(lead);
+    } catch (error) {
+      this.logger.warn(`No se pudieron aplicar las reglas al lead ${leadId}: ${(error as Error).message}`);
+    }
+  }
+
 }

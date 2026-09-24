@@ -440,7 +440,97 @@ function ajustesDeCorreo(source: 'client' | 'master_default') {
 /** Cuentas que administran el equipo en el modo visual. Vacio muestra el aviso. */
 const visualAdministranEquipo: string[] = ['u-cli'];
 
+/**
+ * Reglas de calificación del modo visual.
+ *
+ * Se modifican de verdad —crear, editar, ordenar, apagar— porque lo único que hay que revisar
+ * en esta pantalla es si el orden se entiende y si la prueba dice algo útil antes de activar.
+ * Con una lista fija no se podría comprobar ninguna de las dos cosas.
+ */
+const visualReglas: Array<Record<string, unknown>> = [
+  { id: 'r-1', nombre: 'Paga al contado', posicion: 1, activa: true, automatica: true, unir: 'todas',
+    condiciones: [{ donde: 'respuestas', comparador: 'contiene', valor: 'contado' }],
+    acciones: { semaforo: 'green' } },
+  { id: 'r-2', nombre: 'Solo cotiza', posicion: 2, activa: true, automatica: false, unir: 'alguna',
+    condiciones: [{ donde: 'respuestas', comparador: 'contiene', valor: 'solo estoy cotizando' }],
+    acciones: { semaforo: 'red', descartarMotivo: 'Solo consultaba (sin intención)' } },
+];
+
+/** Lo que están contestando, con sus conteos: el cimiento para escribir una regla. */
+const visualPreguntasDeFormulario = [
+  { pregunta: '¿Cuánto te interesa invertir en este proyecto?', total: 87, respuestas: [
+    { respuesta: '$60.000.000 a $80.000.000', total: 31, tieneRegla: false },
+    { respuesta: '$30.000.000 a $60.000.000', total: 28, tieneRegla: false },
+    { respuesta: 'Menos de $30.000.000', total: 19, tieneRegla: false },
+  ] },
+  { pregunta: '¿Cómo pagas?', total: 64, respuestas: [
+    { respuesta: 'Contado', total: 24, tieneRegla: true },
+    { respuesta: 'Crédito Banco', total: 22, tieneRegla: false },
+    { respuesta: 'Solo estoy cotizando', total: 18, tieneRegla: true },
+  ] },
+];
+
 const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
+  // Las reglas van primero: sus rutas son más específicas que las del resto del CRM.
+  [/\/crm\/reglas\/preguntas/, () => visualPreguntasDeFormulario],
+  [/\/crm\/reglas\/probar/, (config) => {
+    /*
+     * La prueba cuenta sobre las respuestas del catálogo.
+     *
+     * No es el cálculo real —eso lo hace el servidor sobre los leads—, pero reproduce lo que
+     * importa revisar: que el número aparezca antes de activar y que cambie al cambiar el texto.
+     */
+    const cuerpo = visualRequestBody(config) ?? {};
+    const textos = ((cuerpo.condiciones ?? []) as Array<{ valor?: string }>)
+      .map((condicion) => String(condicion?.valor ?? '').toLowerCase())
+      .filter(Boolean);
+    const calzan = visualPreguntasDeFormulario
+      .flatMap((pregunta) => pregunta.respuestas)
+      .filter((fila) => textos.some((texto) => fila.respuesta.toLowerCase().includes(texto)));
+    return {
+      total: calzan.reduce((suma, fila) => suma + fila.total, 0),
+      revisados: 87,
+      ejemplos: calzan.slice(0, 3).map((fila) => ({ id: fila.respuesta, nombre: 'Lead de ejemplo', porque: fila.respuesta })),
+    };
+  }],
+  [/\/crm\/reglas\/orden/, (config) => {
+    const ids = ((visualRequestBody(config)?.ids ?? []) as string[]);
+    visualReglas.sort((a, b) => ids.indexOf(a.id as string) - ids.indexOf(b.id as string));
+    visualReglas.forEach((regla, indice) => { regla.posicion = indice + 1; });
+    return visualReglas;
+  }],
+  [/\/crm\/reglas\/[^/]+\/(activa|automatica)$/, (config) => {
+    const id = (config?.url?.match(/\/crm\/reglas\/([^/]+)\/(activa|automatica)/) ?? [])[1];
+    const regla = visualReglas.find((fila) => fila.id === id);
+    if (regla) Object.assign(regla, visualRequestBody(config) ?? {});
+    return regla ?? { ok: true };
+  }],
+  [/\/crm\/reglas\/[^/]+$/, (config) => {
+    const id = (config?.url?.match(/\/crm\/reglas\/([^/?]+)/) ?? [])[1];
+    if ((config?.method ?? 'get').toLowerCase() === 'delete') {
+      const indice = visualReglas.findIndex((fila) => fila.id === id);
+      if (indice >= 0) visualReglas.splice(indice, 1);
+      return { ok: true };
+    }
+    const regla = visualReglas.find((fila) => fila.id === id);
+    if (regla) Object.assign(regla, visualRequestBody(config) ?? {});
+    return regla ?? { ok: true };
+  }],
+  [/\/crm\/reglas(\?|$)/, (config) => {
+    if ((config?.method ?? 'get').toLowerCase() === 'post') {
+      const nueva = {
+        id: 'r-' + (visualReglas.length + 1),
+        posicion: visualReglas.length + 1,
+        activa: true,
+        // Nace a mano, como en el servidor: se prueba antes de dejarla correr sola.
+        automatica: false,
+        ...(visualRequestBody(config) ?? {}),
+      };
+      visualReglas.push(nueva);
+      return nueva;
+    }
+    return visualReglas;
+  }],
   /*
    * Quien administra el equipo de una empresa.
    *

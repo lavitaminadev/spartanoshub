@@ -84,6 +84,16 @@ export class Lead {
    * campo con el mismo nombre que una pregunta del formulario se habría sobrescrito en silencio.
    */
   @Column({ name: 'custom_fields', type: 'json', nullable: true }) customFields?: Record<string, string | number | boolean | string[]> | null;
+  /*
+   * Qué regla de calificación lo marcó, y con qué texto.
+   *
+   * El motivo se guarda aunque se pueda recalcular: la regla se edita y se archiva, y lo que
+   * explica por qué este lead está verde es el texto que se encontró el día que se calificó,
+   * no lo que la regla diga hoy.
+   */
+  @Column({ name: 'regla_aplicada_id', type: 'varchar', length: 36, nullable: true }) reglaAplicadaId?: string | null;
+
+  @Column({ name: 'regla_aplicada_motivo', type: 'varchar', length: 300, nullable: true }) reglaAplicadaMotivo?: string | null;
   @Column({ name: 'converted_at', type: 'timestamp', nullable: true }) convertedAt?: Date;
   @Column({ name: 'converted_to_client_id', type: 'uuid', nullable: true }) convertedToClientId?: string;
   /**

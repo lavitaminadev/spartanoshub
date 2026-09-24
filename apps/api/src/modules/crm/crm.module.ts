@@ -1,3 +1,6 @@
+import { ReglaDeCalificacion } from './reglas/regla-de-calificacion.entity';
+import { ReglasController } from './reglas/reglas.controller';
+import { ReglasService } from './reglas/reglas.service';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditModule } from '../../core/audit/audit.module';
@@ -59,9 +62,10 @@ import { CrmFieldsService } from './fields/crm-fields.service';
 import { CrmFieldsController } from './fields/crm-fields.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CrmFieldDefinition, Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule],
-  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController, CrmFieldsController],
+  imports: [TypeOrmModule.forFeature([CrmFieldDefinition, ReglaDeCalificacion, Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule],
+  controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController, CrmFieldsController, ReglasController],
   providers: [
+    ReglasService,
     LeadTaskSummaryService, ResponsablesDelCrmService, StageLabelsService, LeadCierreService, LeadCreatedEmailListener,
     CreateLeadUseCase, ListLeadsUseCase, GetLeadUseCase, ConvertLeadUseCase, UpdateLeadUseCase, ImportLeadsUseCase, LeadIntakeService, LeadIngestService, CrmHomeService, CrmDashboardService, CrmLeadAutomationService,
     ContactsService,
