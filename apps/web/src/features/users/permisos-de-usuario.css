@@ -17,3 +17,21 @@
 .permisos-usuario-accion strong { font-size: 13px; }
 .permisos-usuario-accion.es-ajuste strong { color: var(--amber-deep, #9a5a00); }
 @media (max-width: 560px) { .permisos-usuario-accion { grid-template-columns: minmax(0, 1fr); } }
+
+/* En qué empresa valen los permisos que se están ajustando. */
+.permisos-usuario-empresa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.permisos-usuario-empresa > span {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.permisos-usuario-empresa .input {
+  flex: 1;
+  min-width: 0;
+}

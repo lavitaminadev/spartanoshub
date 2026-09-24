@@ -199,13 +199,16 @@ let PermissionsController = class PermissionsController {
         }).catch(() => { });
         return { role, permissions };
     }
-    async ofUser(id, req) {
+    async ofUser(id, req, clientId) {
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user);
+        if (clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         return {
             userId: user.id,
             role: user.role,
-            modules: await this.permissions.explain(req.organizationId, user.id, user.role),
+            clientId: clientId ?? null,
+            modules: await this.permissions.explain(req.organizationId, user.id, user.role, clientId || undefined),
         };
     }
     async upsert(id, module, dto, req) {
@@ -239,12 +242,14 @@ let PermissionsController = class PermissionsController {
         });
         return saved;
     }
-    async remove(id, module, req) {
+    async remove(id, module, req, clientId) {
         if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
             throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user, module);
-        const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
+        if (clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: clientId ?? (0, typeorm_2.IsNull)() } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una excepción para ese módulo');
         await this.overrides.remove(existing);
@@ -472,8 +477,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Detalle de permisos de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, String]),
     __metadata("design:returntype", Promise)
 ], PermissionsController.prototype, "ofUser", null);
 __decorate([
@@ -495,8 +501,9 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),
     __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:paramtypes", [String, String, Object, String]),
     __metadata("design:returntype", Promise)
 ], PermissionsController.prototype, "remove", null);
 __decorate([

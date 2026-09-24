@@ -251,10 +251,18 @@ let MetaClientPixelService = class MetaClientPixelService {
             });
         }
         if (mode === 'existing') {
+            const enLaTabla = input.existingPixelId
+                ? await this.pixelesGuardados.findOne({ where: { organizationId, pixelId: input.existingPixelId } })
+                : null;
+            if (input.existingPixelId)
+                await this.assertPixelDeLaEmpresa(organizationId, clientId, input.existingPixelId);
             return this.mutateRecords(integration.id, (records) => {
-                const source = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
+                const enElMapa = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
+                const source = enElMapa ?? (enLaTabla
+                    ? { pixelId: enLaTabla.pixelId, pixelName: enLaTabla.name ?? undefined, accessToken: enLaTabla.accessToken ?? undefined, configuredAt: new Date().toISOString() }
+                    : undefined);
                 if (!source)
-                    throw new common_1.BadRequestException('El Pixel existente no está disponible en esta organización');
+                    throw new common_1.BadRequestException('Ese Pixel no existe en esta organización. Créalo con «Agregar Pixel».');
                 const configuredAt = new Date().toISOString();
                 const record = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
                 return [

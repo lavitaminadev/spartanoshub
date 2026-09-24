@@ -164,14 +164,18 @@ export class PermissionResolverService {
    * Detalle por módulo con la procedencia del nivel, para mostrarlo en administración de
    * usuarios: permite distinguir lo heredado del cargo de lo ajustado a mano.
    */
-  async explain(organizationId: string, userId: string, role: UserRole): Promise<EffectivePermission[]> {
+  /**
+   * @param clientId - Empresa que se está mirando. Sin ella se explican las excepciones
+   *   generales; con ella, las de esa empresa, que son las que mandan estando en ella.
+   */
+  async explain(organizationId: string, userId: string, role: UserRole, clientId?: string): Promise<EffectivePermission[]> {
     const [features, lifecycleMap, overrides, roleLevels] = await Promise.all([
       this.featuresOf(organizationId),
       this.lifecycleOf(organizationId),
       this.overrides.find({ where: { organizationId, userId } }),
       this.roleLevelsOf(organizationId),
     ]);
-    const overrideByModule = this.activeOverrides(overrides);
+    const overrideByModule = this.activeOverrides(overrides, clientId);
 
     return ORGANIZATION_FEATURE_KEYS.map((module) => {
       const override = overrideByModule.get(module);
