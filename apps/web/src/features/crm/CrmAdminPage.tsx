@@ -12,6 +12,7 @@
 
 import { useState, type JSX } from 'react';
 import { CamposPropiosDelCrm } from './CamposPropiosDelCrm';
+import { ReglasDeCalificacion } from './ReglasDeCalificacion';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { API_BASE, api } from '../../core/api';
@@ -373,6 +374,12 @@ export function CrmAdminPage(): JSX.Element {
 
       {/* Datos que el CRM no trae, definidos sin migraciones. */}
       <CamposPropiosDelCrm />
+
+      {/*
+        Las reglas necesitan una empresa: califican segun lo que contesto quien llego a ella, y
+        el embudo de la agencia no tiene formularios que contesten.
+      */}
+      {scope.clientId ? <ReglasDeCalificacion clientId={scope.clientId} puedeEditar={scope.puedeEditar} /> : null}
 
       {MOSTRAR_NOMBRES_POR_EMPRESA ? <NombresDeLasCosas /> : null}
 

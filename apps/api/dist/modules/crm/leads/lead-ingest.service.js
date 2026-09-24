@@ -14,6 +14,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 var LeadIngestService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LeadIngestService = void 0;
+const lead_entity_1 = require("./lead.entity");
+const reglas_service_1 = require("../reglas/reglas.service");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -27,11 +29,13 @@ const respuestas_de_formularios_1 = require("../fields/respuestas-de-formularios
 const TOKEN_PREFIX = 'esp_in_';
 const GRACIA_LLAVE_ANTERIOR_MS = 48 * 60 * 60 * 1000;
 let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
-    constructor(sources, campaigns, intake, campos) {
+    constructor(sources, campaigns, intake, campos, leads, reglas) {
         this.sources = sources;
         this.campaigns = campaigns;
         this.intake = intake;
         this.campos = campos;
+        this.leads = leads;
+        this.reglas = reglas;
         this.logger = new common_1.Logger(LeadIngestService_1.name);
     }
     async issueToken(source) {
@@ -89,6 +93,9 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
                     },
                 })
                 : false;
+            if (source.clientId) {
+                await this.calificarConReglas(source.organizationId, source.clientId, lead.id);
+            }
             return {
                 leadId: lead.id,
                 source: source.source,
@@ -164,14 +171,32 @@ let LeadIngestService = LeadIngestService_1 = class LeadIngestService {
             return undefined;
         }
     }
+    async calificarConReglas(organizationId, clientId, leadId) {
+        try {
+            const lead = await this.leads.findOne({ where: { id: leadId, organizationId } });
+            if (!lead)
+                return;
+            const aplicada = await this.reglas.queLeTocaria(organizationId, clientId, lead, 'automatica');
+            if (!aplicada)
+                return;
+            await this.reglas.aplicarAlLead(lead, aplicada);
+            await this.leads.save(lead);
+        }
+        catch (error) {
+            this.logger.warn(`No se pudieron aplicar las reglas al lead ${leadId}: ${error.message}`);
+        }
+    }
 };
 exports.LeadIngestService = LeadIngestService;
 exports.LeadIngestService = LeadIngestService = LeadIngestService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(ingest_source_entity_1.LeadIngestSource)),
     __param(1, (0, typeorm_1.InjectRepository)(campaign_entity_1.Campaign)),
+    __param(4, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         lead_intake_service_1.LeadIntakeService,
-        crm_fields_service_1.CrmFieldsService])
+        crm_fields_service_1.CrmFieldsService,
+        typeorm_2.Repository,
+        reglas_service_1.ReglasService])
 ], LeadIngestService);
