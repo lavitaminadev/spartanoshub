@@ -9,6 +9,7 @@
 import { useState, type JSX } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { CompartirEncuesta } from './CompartirEncuesta';
 import { Link } from 'react-router-dom';
 import { DataTable, type Column } from '../../shared/DataTable';
@@ -75,6 +76,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
   const typeFilter = (filtros.values.tipo || 'all') as 'all' | SurveyType;
   const { user } = useAuth();
   // Empresas visibles para esta persona: el servidor ya recorta la lista a las suyas.
+  const empresaActiva = useEmpresaActiva();
   const { data: clientsResponse } = useQuery<{ data?: Array<{ id: string; name: string; capabilities?: { surveys?: boolean } }> }>({
     queryKey: ['clients'], queryFn: () => api.get('/clients'),
   });
@@ -84,6 +86,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
   const puedeEnviar = puedeAccion(user, 'surveys.enviar');
 
   if (isLoading) return <LoadingSpinner text="Cargando encuestas..." />;
+
   if (error) {
     return (
       <QueryErrorState
@@ -96,6 +99,14 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
   }
 
   const visible = surveys.filter((survey) => {
+    /*
+     * La empresa sobre la que se trabaja manda también acá.
+     *
+     * Esta pantalla mostraba todas las encuestas que la sesión alcanzaba, así que quien atiende
+     * dos locales veía las del otro bajo el nombre del que tenía elegido: es el caso que hace
+     * enviar una encuesta a los clientes equivocados.
+     */
+    if (empresaActiva.clientId && survey.clientId && survey.clientId !== empresaActiva.clientId) return false;
     if (typeFilter !== 'all' && survey.type !== typeFilter) return false;
     if (filtros.values.estado && survey.status !== filtros.values.estado) return false;
     if (filtros.values.empresa === 'equipo' && survey.clientId) return false;

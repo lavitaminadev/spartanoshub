@@ -141,6 +141,24 @@ export function ClientDashboard() {
          * Se muestran cuando el resumen todavía no llegó o falló. El portal nunca se queda sin
          * puerta de entrada por un resumen que no cargó.
          */
+        activePortalCards(user).length === 0 ? (
+          /*
+           * Cuando no queda nada que abrir, decirlo.
+           *
+           * A quien le retiran el acceso a su empresa, o cuyo servicio quedó en pausa, le
+           * aparecía el portal con el saludo y ni una tarjeta: se lee como que el sistema se
+           * rompió y termina en una llamada preguntando qué pasó. Un aviso que nombra el motivo
+           * y a quién acudir convierte eso en un trámite.
+           */
+          <div className="card portal-home-card">
+            <h3>Por ahora no tienes servicios activos</h3>
+            <p>
+              Tu cuenta funciona, pero no hay ninguna empresa ni servicio asignado a ella. Suele ser
+              porque el servicio está en pausa o porque se retiró tu acceso a la empresa.
+            </p>
+            <p>Escríbele a quien administra tu empresa, o a Espartanos, para que te lo habiliten.</p>
+          </div>
+        ) : (
         <div className="card-grid">
           {activePortalCards(user).map((card) => (
             <div key={card.link} className="card portal-home-card">
@@ -152,6 +170,7 @@ export function ClientDashboard() {
             </div>
           ))}
         </div>
+        )
       )}
     </div>
   );
