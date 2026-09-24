@@ -409,7 +409,7 @@ export class PermissionsController {
    * accesos sin reconstruir la decisión: las excepciones se ven como excepciones.
    */
   @Get('users/:id/client-access')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Cuentas visibles de un usuario y por qué las ve' })
   async clientAccessOfUser(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const user = await this.findUser(id, req.organizationId);
@@ -480,7 +480,7 @@ export class PermissionsController {
    * visible, para que quien administra no crea haber cerrado algo que sigue abierto.
    */
   @Delete('users/:id/client-access/:clientId')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Retirar acceso a una cuenta' })
   async revokeClientAccess(
     @Param('id') id: string,
@@ -489,6 +489,16 @@ export class PermissionsController {
   ) {
     const user = await this.findUser(id, req.organizationId);
     await this.assertCanManageUserPermissionException(req, user);
+    /*
+     * Quien administra su empresa retira de la suya, no de una ajena.
+     *
+     * Es su forma de dar de baja a alguien sin apagarle la cuenta: la persona deja de entrar a
+     * este local y sigue trabajando en el otro. Apagar la cuenta entera lo decide quien la
+     * administra en todas, que es la agencia.
+     */
+    if (req.user.role === UserRole.CLIENT && clientId !== req.user.clientId) {
+      throw new ForbiddenException('Solo puedes retirar el acceso a tu empresa');
+    }
     // La empresa de la cuenta no es una asignación y no se retira desde aquí: se cambia
     // editando la persona. Sin esto, el mensaje de «no existe» no explicaba por qué.
     if (user.role === UserRole.CLIENT && clientId === user.clientId) {

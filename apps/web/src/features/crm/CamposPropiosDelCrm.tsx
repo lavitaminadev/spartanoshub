@@ -114,6 +114,18 @@ export function CamposPropiosDelCrm(): JSX.Element {
         Datos que tu equipo necesita y el CRM no trae. Se completan en la ficha de cada registro. Archivar esconde el
         campo sin borrar lo que ya se guardó.
       </p>
+      {/*
+        Aquí un campo sin empresa se hereda; una campaña sin empresa no.
+
+        Son dos reglas opuestas en la misma pantalla, y cada una tiene su motivo: un campo que
+        sirve a todas se declara una vez, mientras que una campaña de la agencia no es de nadie
+        más. Lo que faltaba era decirlo: se avisaba en campañas y no acá, así que un campo creado
+        sin empresa aparecía en las fichas de todas sin que nadie lo hubiera pedido.
+      */}
+      <p className="crm-admin-explica">
+        Un campo <strong>sin empresa aparece en todas</strong>, y uno con empresa sólo en la suya. Para algo
+        que necesita un solo cliente, elige su empresa al crearlo.
+      </p>
 
       <div className="campos-propios-barra">
         <div role="group" aria-label="Tipo de registro" className="campos-propios-entidades">
