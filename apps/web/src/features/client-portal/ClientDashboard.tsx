@@ -156,7 +156,13 @@ export function ClientDashboard() {
               Tu cuenta funciona, pero no hay ninguna empresa ni servicio asignado a ella. Suele ser
               porque el servicio está en pausa o porque se retiró tu acceso a la empresa.
             </p>
-            <p>Escríbele a quien administra tu empresa, o a Espartanos, para que te lo habiliten.</p>
+            {/*
+              La bandeja de solicitudes ya existe y tiene el tipo «Crear cuenta o acceso».
+              Mandar a escribir un correo, teniendo el formulario, deja el pedido sin registro
+              ni estado: acá se ve en qué va.
+            */}
+            <p>Pídelo por el formulario de acceso y queda registrado, con su estado a la vista.</p>
+            <Link to="/solicitudes" className="btn btn-primary btn-sm">Solicitar acceso</Link>
           </div>
         ) : (
         <div className="card-grid">
