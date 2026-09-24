@@ -8,6 +8,7 @@ import { ResumenDiarioJob } from './cron/resumen-diario.job';
 import { SaludoDeCumpleanosJob } from './cron/saludo-de-cumpleanos.job';
 import { RecordatorioDeReservasJob } from './cron/recordatorio-de-reservas.job';
 import { EncuestaPostVisitaJob } from './cron/encuesta-post-visita.job';
+import { CuponPostVisitaJob } from './cron/cupon-post-visita.job';
 import { CollectionEmailsJob } from './cron/collection-emails.job';
 import { PurgeExpiredLeadsJob } from './cron/purge-expired-leads.job';
 import { MetaLeadRecoveryJob } from './cron/meta-lead-recovery.job';
@@ -35,6 +36,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly cumpleanos: SaludoDeCumpleanosJob,
     private readonly recordatorioReservas: RecordatorioDeReservasJob,
     private readonly encuestaPostVisita: EncuestaPostVisitaJob,
+    private readonly cuponPostVisita: CuponPostVisitaJob,
     private readonly autoCloseReservations: AutoCloseReservationsJob,
     private readonly collections: CollectionEmailsJob,
     private readonly purge: PurgeExpiredLeadsJob,
@@ -101,6 +103,8 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     // recordatorio saldría con menos margen del que la empresa eligió.
     this.schedule('recordatorio-reservas', 30 * 60_000, () => this.recordatorioReservas.handle());
     this.schedule('encuesta-post-visita', 30 * 60_000, () => this.encuestaPostVisita.handle());
+    // Cada hora basta: el cupón sale un día después de la visita, no hay prisa por minutos.
+    this.schedule('cupon-post-visita', 60 * 60_000, () => this.cuponPostVisita.handle());
     this.schedule('auto-close-reservations', 15 * 60_000, () => this.autoCloseReservations.handle());
     this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
     this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);

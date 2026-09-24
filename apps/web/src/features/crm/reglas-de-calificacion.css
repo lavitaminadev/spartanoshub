@@ -40,3 +40,23 @@
 .input-en-frase { width: auto; min-width: 140px; height: 34px; padding: 0 8px; font-size: 13px; }
 .reglas-subtitulo { margin: 12px 0 2px; font-size: 13px; }
 .reglas-condicion-numero { font-size: 11px; font-weight: 800; color: var(--muted); min-width: 14px; }
+
+/*
+  El camino a seguir cuando no hay ninguna regla.
+
+  Desaparece en cuanto existe la primera: quien ya tiene reglas no necesita que le expliquen
+  cómo se crean, y dejarlo ahí convierte un instructivo en ruido permanente.
+*/
+.reglas-guia { list-style: none; counter-reset: paso; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.reglas-guia > li { counter-increment: paso; display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: baseline; }
+.reglas-guia > li::before {
+  content: counter(paso);
+  grid-row: span 2;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--primary); color: #fff;
+  font-size: 12px; font-weight: 800;
+}
+.reglas-guia strong { font-size: 13px; }
+.reglas-guia span { grid-column: 2; font-size: 12px; color: var(--muted); }

@@ -191,7 +191,29 @@ export class ListLeadsUseCase {
       skip: offset,
       take: limit,
     });
-    return { data, total, limit, offset };
+    return { data: data.map((lead) => this.aligerar(lead)), total, limit, offset };
+  }
+
+  /**
+   * Quita de la respuesta lo que el listado no muestra.
+   *
+   * La metadata de un lead guarda todas las respuestas de su formulario. El tablero pinta cuatro
+   * datos por tarjeta y nunca abre esa lista —para leerla se abre la ficha, que pide el lead
+   * entero—, así que con cien leads de un formulario de seis preguntas viajaban al navegador
+   * cientos de respuestas que nadie iba a mirar. Es lo que hace que un tablero de ochenta y ocho
+   * leads tarde en abrir.
+   *
+   * Se conservan las dos claves que el tablero sí usa: el nombre del anuncio y la plataforma
+   * alimentan sus filtros. Quitarlas dejaría esos filtros vacíos sin que nada fallara.
+   */
+  private aligerar(lead: Lead): Lead {
+    const metadata = lead.metadata as { adName?: unknown; platform?: unknown } | null | undefined;
+    if (!metadata || typeof metadata !== 'object') return lead;
+
+    const resumen: Record<string, unknown> = {};
+    if (metadata.adName !== undefined) resumen.adName = metadata.adName;
+    if (metadata.platform !== undefined) resumen.platform = metadata.platform;
+    return Object.assign(lead, { metadata: resumen });
   }
 
   /**

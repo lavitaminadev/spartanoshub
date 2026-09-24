@@ -194,6 +194,31 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
       </p>
 
       {/*
+        El camino, cuando todavía no hay ninguna regla.
+
+        La pantalla arrancaba con el catálogo de respuestas abierto y una lista vacía, y eso no
+        dice por dónde empezar: lo que se ve son datos, no una tarea. Tres pasos numerados
+        convierten la pantalla en algo que se sigue, y desaparecen en cuanto hay una regla,
+        porque entonces estorban.
+      */}
+      {lista.length === 0 && !reglas.isLoading ? (
+        <ol className="reglas-guia">
+          <li>
+            <strong>Mira qué te están contestando</strong>
+            <span>Abajo están las respuestas reales de tus leads, con cuántos las dieron.</span>
+          </li>
+          <li>
+            <strong>Elige qué hacer con cada una</strong>
+            <span>En «¿Qué hago?» marcas verde, amarillo o rojo. Cada elección crea una regla.</span>
+          </li>
+          <li>
+            <strong>Pruébala y déjala correr</strong>
+            <span>Nace en «solo a mano»: la aplicas desde el tablero a unos pocos y, cuando confíes, la sueltas.</span>
+          </li>
+        </ol>
+      ) : null}
+
+      {/*
         Las preguntas que están llegando, con sus respuestas reales.
 
         Es lo que evita escribir reglas de memoria: el texto sale de los leads que ya entraron,
