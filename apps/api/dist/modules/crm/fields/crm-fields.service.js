@@ -104,6 +104,7 @@ let CrmFieldsService = class CrmFieldsService {
             options: CON_OPCIONES.has(tipo) ? limpiarOpciones(datos.options) : null,
             required: Boolean(datos.required),
             clientId: datos.clientId ?? null,
+            metaQuestions: this.preguntasLimpias(datos.metaQuestions),
             position: activos,
             createdBy: actorId,
         }));
@@ -142,20 +143,24 @@ let CrmFieldsService = class CrmFieldsService {
             campo.position = Math.max(0, datos.position);
         campo.type = tipoNuevo;
         campo.options = opcionesNuevas;
-        if (datos.metaQuestions !== undefined) {
-            const vistas = new Set();
-            const preguntas = datos.metaQuestions
-                .map((pregunta) => pregunta.trim().slice(0, 120))
-                .filter((pregunta) => {
-                const llave = (0, respuestas_de_formularios_1.comparable)(pregunta);
-                if (!llave || vistas.has(llave))
-                    return false;
-                vistas.add(llave);
-                return true;
-            });
-            campo.metaQuestions = preguntas.length > 0 ? preguntas : null;
-        }
+        if (datos.metaQuestions !== undefined)
+            campo.metaQuestions = this.preguntasLimpias(datos.metaQuestions);
         return aContrato(await this.campos.save(campo));
+    }
+    preguntasLimpias(preguntas) {
+        if (!Array.isArray(preguntas))
+            return null;
+        const vistas = new Set();
+        const limpias = preguntas
+            .map((pregunta) => String(pregunta ?? '').trim().slice(0, 120))
+            .filter((pregunta) => {
+            const llave = (0, respuestas_de_formularios_1.comparable)(pregunta);
+            if (!llave || vistas.has(llave))
+                return false;
+            vistas.add(llave);
+            return true;
+        });
+        return limpias.length > 0 ? limpias : null;
     }
     async archivar(organizationId, id, archivar) {
         const campo = await this.campos.findOne({ where: { id, organizationId } });

@@ -47,6 +47,25 @@ let UsersController = class UsersController {
         const userIds = await this.administradores.quienesAdministran(organizationId, empresa);
         return { clientId: empresa, userIds, sinAdministrador: userIds.length === 0 };
     }
+    async empresasQueAdministra(id, req) {
+        const alcance = await this.administracion.alcance(req);
+        const organizationId = req.organizationId || req.user.organizationId;
+        const empresas = await this.administradores.empresasQueAdministra(organizationId, id);
+        return { clientIds: alcance.soloEmpresa ? empresas.filter((uno) => uno === alcance.soloEmpresa) : empresas };
+    }
+    async concederAdministracion(id, clientId, req) {
+        await this.definirAdministracion(id, clientId, true, req);
+        return { clientId, administra: true };
+    }
+    async retirarAdministracion(id, clientId, req) {
+        await this.definirAdministracion(id, clientId, false, req);
+        return { clientId, administra: false };
+    }
+    async definirAdministracion(id, clientId, puede, req) {
+        const alcance = await this.administracion.alcance(req, clientId);
+        this.administracion.asegurarDentro(alcance, { clientId, role: user_role_enum_1.UserRole.CLIENT });
+        await this.administradores.definir(req.organizationId || req.user.organizationId, id, clientId, puede, req.user.id);
+    }
     async create(dto, req, clientId) {
         const alcance = await this.administracion.alcance(req, clientId);
         this.administracion.asegurarDentro(alcance, { clientId: dto.clientId ?? null, role: dto.role ?? null });
@@ -87,10 +106,6 @@ let UsersController = class UsersController {
             const destino = actual.find((persona) => persona.id === id);
             this.administracion.asegurarDentro(alcance, { clientId: destino?.clientId ?? null, role: destino?.role ?? null });
         }
-        const empresaDelCambio = alcance.soloEmpresa ?? clientId;
-        if (dto.administraElEquipo !== undefined && empresaDelCambio) {
-            await this.administradores.definir(req.organizationId || req.user.organizationId, id, empresaDelCambio, dto.administraElEquipo, req.user.id);
-        }
         return this.updateUser.execute({
             id,
             organizationId: req.organizationId || req.user.organizationId,
@@ -120,6 +135,40 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "administranEquipo", null);
+__decorate([
+    (0, common_1.Get)(':id/administra'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Empresas cuyo equipo administra esta persona' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "empresasQueAdministra", null);
+__decorate([
+    (0, common_1.Put)(':id/administra/:clientId'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('conceder la administración del equipo de una empresa'),
+    (0, swagger_1.ApiOperation)({ summary: 'Conceder la administración del equipo de una empresa' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('clientId')),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "concederAdministracion", null);
+__decorate([
+    (0, common_1.Delete)(':id/administra/:clientId'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('retirar la administración del equipo de una empresa'),
+    (0, swagger_1.ApiOperation)({ summary: 'Retirar la administración del equipo de una empresa' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('clientId')),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "retirarAdministracion", null);
 __decorate([
     (0, common_1.Post)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),

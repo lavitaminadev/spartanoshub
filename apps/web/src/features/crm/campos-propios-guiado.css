@@ -1,0 +1,56 @@
+/*
+  El editor de un campo propio, guiado.
+
+  El tipo se elegia de una lista de siete palabras —«Una opcion», «Varias opciones»— que solo
+  significan algo para quien ya sabe lo que hacen. Aqui cada tipo es una tarjeta con su ejemplo,
+  las opciones se escriben una por caja, y abajo se ve el control tal como quedara en la ficha:
+  la diferencia entre elegir una y marcar varias se entiende viendola, no leyendola.
+*/
+
+.campos-propios-que-es { display: grid; gap: 2px; margin: 8px 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--soft); }
+.campos-propios-que-es > strong { font-size: 13px; color: var(--ink, #151317); }
+.campos-propios-que-es > span { font-size: 12px; color: var(--muted); }
+
+.campo-guiado { display: grid; gap: 14px; padding: 14px; border: 0.8px solid var(--line); border-radius: 12px; }
+.campo-guiado > label > small { font-size: 11px; color: var(--muted); font-weight: 400; }
+
+.campo-tipos { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.campo-tipos > legend { padding: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--ink, #151317); }
+/*
+  Gana a `.campos-propios-form label`, que apila el rotulo sobre el campo.
+
+  Esa regla es correcta para un campo de texto y exactamente lo contrario para una tarjeta con
+  su punto: dejaba el punto encima de su propia etiqueta, y no se veia cual marcaba cual.
+*/
+.campos-propios-form label.campo-tipo,
+.modal-form .campo-tipo,
+.campo-tipo { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; padding: 9px 11px; border: 0.8px solid var(--line); border-radius: 10px; cursor: pointer; }
+.campo-tipo > input { flex: none; margin: 2px 0 0; width: 15px; height: 15px; accent-color: var(--primary, #cc0a55); }
+.campo-tipo > span { display: grid; gap: 1px; min-width: 0; }
+.campo-tipo strong { font-size: 12px; }
+.campo-tipo small { font-size: 11px; color: var(--muted); }
+.campo-tipo-ejemplo { font-style: italic; }
+.campo-tipo.elegido { border-color: var(--primary, #cc0a55); background: color-mix(in srgb, var(--primary, #cc0a55) 5%, #fff); }
+
+.campo-opciones { border: 0.8px solid var(--line); border-radius: 10px; margin: 0; padding: 12px; display: grid; gap: 6px; background: var(--soft); }
+.campo-opciones > legend { padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--ink, #151317); }
+.campo-opcion { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.campo-opcion > span { font-size: 11px; font-weight: 800; color: var(--muted); }
+
+/* La vista previa: el control de verdad, apagado, para que se vea antes de crearlo. */
+.campo-previa { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+.campo-previa-titulo { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.campos-propios-form label.campo-previa-campo,
+.modal-form .campo-previa-campo,
+.campo-previa-campo { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink, #151317); }
+.campo-previa-campo em { color: var(--primary, #cc0a55); font-style: normal; }
+.campo-previa-marcas { display: flex; flex-wrap: wrap; gap: 10px; font-weight: 400; font-size: 13px; }
+.campo-previa-marcas span { display: inline-flex; align-items: center; gap: 5px; }
+
+.campo-meta { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: var(--soft); }
+.campo-clave code, .campo-guiado code { font-size: 12px; }
+
+/* Lo mismo para las casillas sueltas del formulario: al lado de su texto, no encima. */
+.campos-propios-form label.toggle-row { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+.campos-propios-form label.toggle-row > input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--primary, #cc0a55); }
+.campos-propios-form label.toggle-row > small { flex-basis: 100%; margin: 0 0 0 24px; }

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -13,8 +14,17 @@ const PRODUCTION_OXC = {
   },
 } as any
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
   const isBuild = command === 'build'
+
+  /*
+   * El modo visual sólo existe cuando se pide explícitamente.
+   *
+   * `.env.visual` se carga únicamente con `--mode visual`, así que en cualquier otra compilación
+   * `VITE_VISUAL` no está definida. Se acepta además la variable suelta para quien lo exporte a
+   * mano en su entorno.
+   */
+  const esModoVisual = mode === 'visual' || process.env.VITE_VISUAL === '1'
 
   if (isBuild) {
     process.env.NODE_ENV = 'production'
@@ -27,6 +37,19 @@ export default defineConfig(({ command }) => {
     // `@espartanos/shared` se emite en CommonJS para que la API lo consuma. El pre-bundling es
     // necesario para que Vite resuelva sus exportaciones nombradas en tiempo de ejecucion.
     optimizeDeps: { include: ['@espartanos/shared'] },
+    /*
+     * Fuera del modo visual, el módulo de demostración se sustituye por uno vacío.
+     *
+     * Tiene que hacerse al resolver y no dentro del propio módulo: `main.tsx` lo importa por su
+     * efecto secundario y el archivo ejecuta código en su nivel superior, así que un `if` no
+     * impide que Rollup lo empaquete. Con el alias, lo que entra al paquete es el sustituto.
+     */
+    resolve: esModoVisual ? undefined : {
+      alias: [{
+        find: /^\.\/dev\/visual-mode$/,
+        replacement: fileURLToPath(new URL('./src/dev/visual-mode.vacio.ts', import.meta.url)),
+      }],
+    },
     plugins: [react(), VitePWA({
       registerType: 'autoUpdate',
       workbox: {
@@ -38,6 +61,18 @@ export default defineConfig(({ command }) => {
          * los mismos archivos y ya no se puede saber cuál está sirviendo el navegador.
          */
         cleanupOutdatedCaches: true,
+        /*
+         * Se precarga el armazón, no la aplicación entera.
+         *
+         * De fábrica, Workbox precarga cada archivo del build: quien abre la portada sin haber
+         * entrado nunca se descargaba también CRM, facturación, reservas y administración. Nada
+         * de eso le da acceso a un dato —cada pantalla vuelve a pedir permiso al servidor—,
+         * pero es tráfico que nadie pidió y código a la vista de cualquiera.
+         *
+         * Los módulos con sesión se cargan cuando hacen falta y el `runtimeCaching` de abajo los
+         * conserva a partir de la primera visita real.
+         */
+        globPatterns: ['index.html', 'manifest.webmanifest', 'assets/index-*.{js,css}', 'assets/vendor-*.js', '*.{svg,png,ico}'],
         /*
          * El HTML nunca debe quedar fijado a la versión con que se instaló la PWA.
          *

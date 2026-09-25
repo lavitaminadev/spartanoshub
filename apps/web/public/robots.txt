@@ -1,0 +1,13 @@
+# Cuartel es la herramienta de trabajo del equipo, no un sitio para buscar en Google.
+#
+# Lo único público de este dominio son las páginas que se comparten con un enlace: la de reservar
+# y la de responder una encuesta. Esas se dejan abiertas; el resto no tiene por qué aparecer en
+# ningún buscador, y hasta ahora todas devolvían la portada con un 200 y podían acabar indexadas.
+#
+# Esto no protege nada: cada pantalla sigue pidiendo sesión al servidor. Sólo evita que se
+# publique el mapa de lo que hay dentro.
+
+User-agent: *
+Allow: /book/
+Allow: /survey/
+Disallow: /

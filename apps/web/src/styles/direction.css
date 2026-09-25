@@ -29,6 +29,34 @@
   color: var(--text-dark);
 }
 
+/*
+  Una casilla va al lado de lo que dice, no encima.
+
+  `.modal-form label` apila el rótulo sobre el campo, que es lo correcto para un campo de
+  texto y lo contrario de lo correcto para una casilla o un radio: dejaba el punto centrado
+  sobre su propia etiqueta y no se veía cuál marcaba cuál. Estaba corregido en tres pantallas
+  concretas —el editor de diseño, las zonas, el constructor— y en ninguna de las demás, así
+  que cada formulario nuevo heredaba el defecto. Se corrige donde nace.
+*/
+.modal-form label.toggle-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.modal-form label.toggle-row > input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary, #cc0a55);
+}
+/* La aclaración baja a su propia línea, alineada con el texto y no con la casilla. */
+.modal-form label.toggle-row > small {
+  flex-basis: 100%;
+  margin: 0 0 0 24px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar {

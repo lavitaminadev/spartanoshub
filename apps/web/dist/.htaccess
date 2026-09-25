@@ -17,6 +17,24 @@ RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,NE]
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
   Header always set X-Frame-Options "DENY"
+
+  # La defensa que faltaba: si algún día entra un script ajeno en la página, esto decide si
+  # puede ejecutarse. Va en `Report-Only` a propósito —sólo avisa en la consola del navegador,
+  # no bloquea nada— para poder recoger los avisos antes de aplicarla de verdad.
+  #
+  # Lo que aparece nombrado aquí no es decorativo: cada dominio corresponde a algo que la
+  # aplicación hace hoy y que una política cerrada cortaría el día que deje de ser Report-Only.
+  #
+  #   refugio          la API vive en otro dominio; sin esto la aplicación se queda muda
+  #   connect.facebook el Pixel de la página pública de reservas y encuestas
+  #   googletagmanager GA4, cargado igual que el Pixel
+  #   facebook/google  el envío de los eventos de conversión, que va aparte del script
+  #   drive.google     las piezas que se revisan en Aprobaciones se incrustan desde Drive
+  #   frame-src 'self' la vista previa de los correos, que usa un iframe con `srcDoc`
+  #
+  # `style-src` conserva `unsafe-inline` porque varias pantallas calculan estilos al vuelo;
+  # cerrarlo es un trabajo aparte y no cambia gran cosa frente a un script inyectado.
+  Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' https://connect.facebook.net https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://refugio.espartanos.cl https://connect.facebook.net https://www.facebook.com https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com; object-src 'none'; frame-src 'self' blob: https://drive.google.com https://refugio.espartanos.cl; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 </IfModule>
 
 # El shell de la SPA y el service worker deben revalidarse siempre para que un despliegue
@@ -36,8 +54,15 @@ RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,NE]
   </IfModule>
 </FilesMatch>
 
+# Los archivos con hash en el nombre —`index-DtDy7p4u.js`— cambian de nombre en cada build, así
+# que se pueden guardar para siempre.
+#
+# El patrón anterior era `^assets/.+\.hash\.(css|js)$` y no acertaba nunca, por dos motivos a la
+# vez: `FilesMatch` compara contra el nombre del archivo y no contra la ruta, así que ningún
+# archivo empieza por `assets/`; y Vite separa el hash con un guion, no con un punto. El
+# resultado era que estos archivos se revalidaban en cada visita sin que nadie lo notara.
 <IfModule mod_headers.c>
-  <FilesMatch "^assets/.+\.[A-Za-z0-9_-]+\.(css|js)$">
+  <FilesMatch "-[A-Za-z0-9_-]{6,}\.(css|js)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 </IfModule>
@@ -54,6 +79,16 @@ RewriteRule ^survey/([A-Za-z0-9_-]+) https://refugio.espartanos.cl/api/public/su
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
+
+# Lo que no existe y no es una ruta de la aplicación responde 404, no la portada.
+#
+# El fallback de abajo devolvía `index.html` con un 200 para cualquier dirección: un mapa de
+# código que no está publicado, un `sitemap.xml` que no existe. Para un navegador da igual, pero
+# un buscador lee «esta página existe» y una herramienta de diagnóstico recibe HTML donde espera
+# otra cosa. Va después de la comprobación de archivos reales, así que el día que exista uno de
+# verdad se sirve igual.
+RewriteRule \.map$ - [R=404,L]
+RewriteRule ^sitemap\.xml$ - [R=404,L]
 
 # React Router fallback for direct links such as /portal/reservations and /book/slug.
 RewriteRule ^ index.html [L]

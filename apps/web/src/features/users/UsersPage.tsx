@@ -247,6 +247,14 @@ export function UsersPage() {
     // validación de UUID rechace la solicitud antes de que la transacción pueda crearla.
     if (form.accountType === 'client' && clientId) body.clientId = clientId;
     if (form.password) body.password = form.password;
+    /*
+     * Sólo al crear.
+     *
+     * Al editar, la administración se concede empresa por empresa en la lista de arriba, que es
+     * donde se ve a cuál corresponde; mandarla también aquí la aplicaría sobre una empresa que
+     * esta pantalla tendría que adivinar.
+     */
+    if (!editing && form.accountType === 'client') body.administraElEquipo = form.administraElEquipo;
     if (editing) updateMutation.mutate({ id: editing.id, body });
     else createMutation.mutate(body);
   };
@@ -452,12 +460,13 @@ export function UsersPage() {
             Solo al editar: una persona que todavía no existe no tiene a quién asignarle nada.
             Al crearla se elige su empresa arriba y las demás se marcan al volver a abrirla.
           */}
-          {editing && clientRequired && form.clientId && form.clientId !== NEW_CLIENT_VALUE && !administraSuEmpresa && (
+          {editing && clientRequired && form.clientId && form.clientId !== NEW_CLIENT_VALUE && (
             <EmpresasAdicionales
               usuarioId={editing.id}
               empresaDeLaCuenta={form.clientId}
               empresas={clients}
               puedeEditar={puedeEditarPermisos}
+              puedeAsignarEmpresas={!administraSuEmpresa}
             />
           )}
           {/*
@@ -467,15 +476,18 @@ export function UsersPage() {
             administración desde permisos. Olvidar el segundo dejaba a la empresa sin nadie que
             pudiera crear cuentas, y sin nada que lo explicara.
           */}
-          {clientRequired && form.clientId && form.clientId !== NEW_CLIENT_VALUE && (
+          {!editing && clientRequired && form.clientId && form.clientId !== NEW_CLIENT_VALUE && (
             <label className="toggle-row">
               <input
                 type="checkbox"
                 checked={form.administraElEquipo}
                 onChange={(evento) => setForm({ ...form, administraElEquipo: evento.target.checked })}
               />
-              {' '}Puede administrar el equipo de esta empresa
-              <small>Crea cuentas y decide qué ve cada persona, sólo dentro de ella.</small>
+              {' '}Puede administrar el equipo de <strong>{clientMap.get(form.clientId) ?? 'esta empresa'}</strong>
+              <small>
+                Crea cuentas y reparte accesos, sólo dentro de esa empresa. Si más adelante
+                atiende otras, se concede en cada una por separado desde su ficha.
+              </small>
             </label>
           )}
           {requiresNewClientName && <label htmlFor="user-new-client">Nombre de la empresa nueva<input id="user-new-client" className="input" value={form.newClientName} onChange={(event) => setForm({ ...form, newClientName: event.target.value })} minLength={2} maxLength={255} required /></label>}

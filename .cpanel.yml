@@ -62,3 +62,10 @@ deployment:
 
     - /bin/touch "$APP_ROOT/tmp/restart.txt"
     - /bin/touch "$APP_ROOT/app.js"
+
+    # El `.htaccess` del subdominio de la API lo regenera CloudLinux si alguien recrea el
+    # subdominio, y se lleva por delante los dos anadidos manuales: el `RewriteEngine Off` que
+    # impide heredar las reglas de WordPress —sin el, la API responde 500 sin dejar rastro en
+    # `passenger-error.log`— y la cabecera de version oculta. Va despues del reinicio para poder
+    # comprobar la API de verdad; si algo sale mal, el propio script restaura su respaldo.
+    - /bin/bash scripts/deploy/asegurar-htaccess-refugio.sh

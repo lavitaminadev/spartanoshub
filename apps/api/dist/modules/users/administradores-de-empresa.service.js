@@ -32,6 +32,13 @@ let AdministradoresDeEmpresaService = class AdministradoresDeEmpresaService {
         });
         return filas.map((fila) => fila.userId);
     }
+    async empresasQueAdministra(organizationId, userId) {
+        const filas = await this.overrides.find({
+            where: { organizationId, userId, module: MODULO, level: NIVEL },
+            select: { clientId: true },
+        });
+        return filas.map((fila) => fila.clientId).filter((id) => Boolean(id));
+    }
     async definir(organizationId, userId, clientId, puede, grantedBy) {
         const existente = await this.overrides.findOne({ where: { organizationId, userId, module: MODULO, clientId } });
         if (!puede) {

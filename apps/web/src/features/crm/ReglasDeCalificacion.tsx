@@ -10,18 +10,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
-import { Modal } from '../../shared/Modal';
 import { EmptyState } from '../../shared/EmptyState';
 import { triggerToast } from '../../shared/toast-events';
+import { EditorDeRegla, comoSeLee, CONDICION_NUEVA } from './EditorDeRegla';
+import { useEtapasOcultas, useStageLabels } from './use-stage-labels';
+import { STAGES, STAGE_LABEL } from './stage-labels';
+import type { Acciones, Condicion, Pregunta } from './EditorDeRegla';
 import './reglas-de-calificacion.css';
 
-interface Condicion { donde: string; clave?: string; comparador: string; valor?: string }
-interface Acciones {
-  semaforo?: 'green' | 'yellow' | 'red';
-  calificacion?: string;
-  descartarMotivo?: string;
-  nota?: string;
-}
 interface Regla {
   id: string;
   nombre: string;
@@ -33,45 +29,6 @@ interface Regla {
   acciones?: Acciones;
   archivedAt?: string | null;
 }
-interface Pregunta {
-  pregunta: string;
-  total: number;
-  respuestas: Array<{ respuesta: string; total: number; tieneRegla: boolean }>;
-}
-
-const DONDE = [
-  { value: 'respuestas', label: 'lo que contestó' },
-  { value: 'pregunta', label: 'una pregunta concreta' },
-  { value: 'campo', label: 'un campo propio' },
-  { value: 'fuente', label: 'de dónde vino' },
-  { value: 'responsable', label: 'quién lo atiende' },
-  { value: 'monto', label: 'el monto' },
-  { value: 'campana', label: 'la campaña' },
-];
-
-const COMPARADORES = [
-  { value: 'contiene', label: 'contiene' },
-  { value: 'no_contiene', label: 'no contiene' },
-  { value: 'es', label: 'es exactamente' },
-  { value: 'no_es', label: 'no es' },
-  { value: 'mayor_que', label: 'es mayor que' },
-  { value: 'menor_que', label: 'es menor que' },
-  { value: 'vacio', label: 'está vacío' },
-  { value: 'no_vacio', label: 'tiene algo' },
-];
-
-const SEMAFOROS = [
-  { value: '', label: 'No cambiar' },
-  { value: 'green', label: 'Verde · calificado' },
-  { value: 'yellow', label: 'Amarillo · en revisión' },
-  { value: 'red', label: 'Rojo · no califica' },
-];
-
-/** Los comparadores que no necesitan un valor escrito. */
-const SIN_VALOR = ['vacio', 'no_vacio'];
-
-const CONDICION_NUEVA: Condicion = { donde: 'respuestas', comparador: 'contiene', valor: '' };
-
 export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: string; puedeEditar: boolean }) {
   const qc = useQueryClient();
   const sufijo = `?clientId=${encodeURIComponent(clientId)}`;
@@ -169,6 +126,19 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
     onError: fallo,
   });
 
+  /*
+   * Las columnas de verdad de ese tablero, con el nombre que les puso esa empresa.
+   *
+   * El editor traía su propia lista escrita a mano y decía «Cotizados» donde el tablero dice
+   * «Agendado esperando reunión», y ofrecía columnas que la empresa había escondido: se
+   * elegía un destino que no existe en su pantalla.
+   */
+  const rotulos = useStageLabels(clientId);
+  const ocultas = useEtapasOcultas(clientId);
+  const etapas = STAGES
+    .filter((etapa) => !ocultas.includes(etapa))
+    .map((etapa) => ({ value: etapa, titulo: rotulos[etapa] ?? STAGE_LABEL[etapa] ?? etapa }));
+
   const lista = reglas.data ?? [];
   /*
    * Las respuestas que ninguna regla cubre, y cuántos leads arrastran.
@@ -178,9 +148,6 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
    */
   const sinCubrir = (preguntas.data ?? []).flatMap((fila) => fila.respuestas.filter((respuesta) => !respuesta.tieneRegla));
   const totalSinCubrir = sinCubrir.reduce((suma, respuesta) => suma + respuesta.total, 0);
-  const puedeGuardar = Boolean(borrador?.nombre.trim()) && (borrador?.condiciones ?? []).every(
-    (condicion) => SIN_VALOR.includes(condicion.comparador) || String(condicion.valor ?? '').trim(),
-  );
 
   return (
     <section className="crm-admin-panel reglas-calificacion">
@@ -302,21 +269,19 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
 
               <div className="reglas-cuerpo">
                 <strong>{regla.nombre}</strong>
-                <small>
-                  Si {regla.unir === 'alguna' ? 'alguna' : 'todas'}: {(regla.condiciones ?? []).map((condicion) => (
-                    `${DONDE.find((d) => d.value === condicion.donde)?.label ?? condicion.donde}`
-                    + `${condicion.clave ? ` «${condicion.clave}»` : ''}`
-                    + ` ${COMPARADORES.find((c) => c.value === condicion.comparador)?.label ?? condicion.comparador}`
-                    + `${condicion.valor ? ` «${condicion.valor}»` : ''}`
-                  )).join(regla.unir === 'alguna' ? ' o ' : ' y ')}
-                </small>
-                <small className="reglas-hace">
-                  Entonces: {[
-                    regla.acciones?.semaforo ? SEMAFOROS.find((s) => s.value === regla.acciones?.semaforo)?.label : '',
-                    regla.acciones?.descartarMotivo ? `descartar («${regla.acciones.descartarMotivo}»)` : '',
-                    regla.acciones?.nota ? 'anotar' : '',
-                  ].filter(Boolean).join(' · ') || 'nada todavía'}
-                </small>
+                {/*
+                  La regla contada igual en la lista que en el editor.
+
+                  Antes la lista la resumía con sus propias palabras —«Si todas: lo que contestó
+                  contiene…»— y el editor con otras: quien acababa de escribirla no reconocía en
+                  la lista la misma regla. Ahora es la misma frase en los dos sitios.
+                */}
+                <small className="reglas-hace">{comoSeLee({
+                  nombre: regla.nombre,
+                  unir: regla.unir,
+                  condiciones: regla.condiciones ?? [],
+                  acciones: regla.acciones ?? {},
+                }, etapas)}</small>
               </div>
 
               <div className="reglas-acciones">
@@ -349,135 +314,19 @@ Los que ya marcó se quedan como están, y la regla se conserva para poder expli
       )}
 
       {borrador ? (
-        <Modal open onClose={cerrar} title={editando ? `Editar «${editando.nombre}»` : 'Nueva regla'}>
-          <div className="modal-form reglas-editor">
-            <label>Nombre
-              <input className="input" value={borrador.nombre} maxLength={120}
-                onChange={(evento) => setBorrador({ ...borrador, nombre: evento.target.value })}
-                placeholder="Ej. Paga al contado" />
-            </label>
-
-            {/*
-              La regla, leída como una frase.
-
-              Tres desplegables sueltos no dicen qué representa cada uno; la misma elección
-              dentro de una frase sí. Se actualiza al escribir, así se lee lo que va a pasar
-              antes de guardarlo.
-            */}
-            <p className="reglas-frase">
-              <span>Si</span>
-              <select className="input input-en-frase" aria-label="Cuántas condiciones deben cumplirse"
-                value={borrador.unir} onChange={(evento) => setBorrador({ ...borrador, unir: evento.target.value as 'todas' | 'alguna' })}>
-                <option value="todas">se cumple todo lo de abajo</option>
-                <option value="alguna">se cumple alguna de abajo</option>
-              </select>
-              <span>, entonces marcar</span>
-              <strong>{SEMAFOROS.find((opcion) => opcion.value === (borrador.acciones.semaforo ?? ''))?.label}</strong>
-              {borrador.acciones.descartarMotivo ? <span>y descartarlo</span> : null}
-            </p>
-
-            <h4 className="reglas-subtitulo">Condiciones</h4>
-            <p className="field-hint">Cada línea es una comprobación sobre el lead. Arriba eliges si hacen falta todas o basta una.</p>
-            {borrador.condiciones.map((condicion, indice) => (
-              <div key={indice} className="reglas-condicion">
-                <span className="reglas-condicion-numero">{indice + 1}</span>
-                <select className="input" aria-label="Qué mirar" value={condicion.donde}
-                  onChange={(evento) => {
-                    const condiciones = [...borrador.condiciones];
-                    condiciones[indice] = { ...condicion, donde: evento.target.value };
-                    setBorrador({ ...borrador, condiciones }); setPrueba(null);
-                  }}>
-                  {DONDE.map((opcion) => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}
-                </select>
-
-                {['pregunta', 'campo'].includes(condicion.donde) ? (
-                  <input className="input" placeholder={condicion.donde === 'pregunta' ? 'Parte de la pregunta' : 'Clave del campo'}
-                    value={condicion.clave ?? ''}
-                    onChange={(evento) => {
-                      const condiciones = [...borrador.condiciones];
-                      condiciones[indice] = { ...condicion, clave: evento.target.value };
-                      setBorrador({ ...borrador, condiciones }); setPrueba(null);
-                    }} />
-                ) : null}
-
-                <select className="input" aria-label="Cómo comparar" value={condicion.comparador}
-                  onChange={(evento) => {
-                    const condiciones = [...borrador.condiciones];
-                    condiciones[indice] = { ...condicion, comparador: evento.target.value };
-                    setBorrador({ ...borrador, condiciones }); setPrueba(null);
-                  }}>
-                  {COMPARADORES.map((opcion) => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}
-                </select>
-
-                {SIN_VALOR.includes(condicion.comparador) ? null : (
-                  <input className="input" placeholder="Qué buscar" value={condicion.valor ?? ''}
-                    onChange={(evento) => {
-                      const condiciones = [...borrador.condiciones];
-                      condiciones[indice] = { ...condicion, valor: evento.target.value };
-                      setBorrador({ ...borrador, condiciones }); setPrueba(null);
-                    }} />
-                )}
-
-                {borrador.condiciones.length > 1 ? (
-                  <button type="button" className="btn btn-outline btn-xs" aria-label="Quitar condición"
-                    onClick={() => setBorrador({ ...borrador, condiciones: borrador.condiciones.filter((_, i) => i !== indice) })}>×</button>
-                ) : null}
-              </div>
-            ))}
-
-            <button type="button" className="btn btn-outline btn-sm" disabled={borrador.condiciones.length >= 10}
-              onClick={() => setBorrador({ ...borrador, condiciones: [...borrador.condiciones, { ...CONDICION_NUEVA }] })}>
-              + Otra condición
-            </button>
-
-            <h4 className="reglas-subtitulo">Qué hacer cuando se cumple</h4>
-            <label>Marcar el semáforo
-              <select className="input" value={borrador.acciones.semaforo ?? ''}
-                onChange={(evento) => setBorrador({ ...borrador, acciones: { ...borrador.acciones, semaforo: (evento.target.value || undefined) as Acciones['semaforo'] } })}>
-                {SEMAFOROS.map((opcion) => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}
-              </select>
-            </label>
-
-            <label>Y además descartarlo, con este motivo <em>(opcional — déjalo vacío para no descartar)</em>
-              <input className="input" value={borrador.acciones.descartarMotivo ?? ''} maxLength={200}
-                placeholder="Ej. Solo consultaba (sin intención)"
-                onChange={(evento) => setBorrador({ ...borrador, acciones: { ...borrador.acciones, descartarMotivo: evento.target.value || undefined } })} />
-            </label>
-
-            {/*
-              Probar antes de guardar.
-
-              El número es lo que caza el error tonto: si sale 0 la regla no sirve, y si salen
-              todos está mal escrita. Verlo antes evita descubrirlo con cien leads calificados.
-            */}
-            <div className="reglas-prueba">
-              <button type="button" className="btn btn-outline btn-sm" disabled={!puedeGuardar || probar.isPending} onClick={() => probar.mutate()}>
-                {probar.isPending ? 'Probando…' : 'Probar con mis leads'}
-              </button>
-              {prueba ? (
-                <div className={prueba.total === 0 ? 'alert alert-warning' : 'alert alert-info'}>
-                  <strong>{prueba.total} de {prueba.revisados}</strong> leads calzarían.
-                  {prueba.total === 0 ? ' Revisa el texto: así no calificaría a nadie.' : null}
-                  {prueba.ejemplos.length > 0 ? (
-                    <ul>{prueba.ejemplos.map((ejemplo, i) => <li key={i}>{ejemplo.nombre} — «{ejemplo.porque}»</li>)}</ul>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            <p className="field-hint">
-              La regla nace <strong>solo a mano</strong>: pruébala sobre unos pocos leads y, cuando
-              confíes, déjala correr sola desde la lista.
-            </p>
-
-            <div className="modal-actions">
-              <button type="button" className="btn btn-outline" onClick={cerrar}>Cancelar</button>
-              <button type="button" className="btn btn-primary" disabled={!puedeGuardar || guardar.isPending} onClick={() => guardar.mutate()}>
-                {guardar.isPending ? 'Guardando…' : 'Guardar'}
-              </button>
-            </div>
-          </div>
-        </Modal>
+        <EditorDeRegla
+          borrador={borrador}
+          setBorrador={setBorrador}
+          editando={editando}
+          preguntas={preguntas.data ?? []}
+          etapas={etapas}
+          prueba={prueba}
+          probando={probar.isPending}
+          onProbar={() => probar.mutate()}
+          guardando={guardar.isPending}
+          onGuardar={() => guardar.mutate()}
+          onCerrar={cerrar}
+        />
       ) : null}
     </section>
   );
