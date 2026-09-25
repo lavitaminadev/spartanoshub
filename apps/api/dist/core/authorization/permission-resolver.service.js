@@ -56,6 +56,8 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
                 ? overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? (0, role_permissions_1.roleLevel)(role, module)
                 : 'none',
         ]));
+        if (role === user_role_enum_1.UserRole.CLIENT && !overrideByModule.has('users'))
+            permissions.users = 'none';
         this.cache.set(cacheKey, { permissions, expiresAt: Date.now() + PermissionResolverService_1.CACHE_TTL_MS });
         return permissions;
     }
@@ -68,14 +70,14 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
             return true;
         return role === user_role_enum_1.UserRole.DEV && lifecycle === 'development';
     }
-    async explain(organizationId, userId, role) {
+    async explain(organizationId, userId, role, clientId) {
         const [features, lifecycleMap, overrides, roleLevels] = await Promise.all([
             this.featuresOf(organizationId),
             this.lifecycleOf(organizationId),
             this.overrides.find({ where: { organizationId, userId } }),
             this.roleLevelsOf(organizationId),
         ]);
-        const overrideByModule = this.activeOverrides(overrides);
+        const overrideByModule = this.activeOverrides(overrides, clientId);
         return organization_features_1.ORGANIZATION_FEATURE_KEYS.map((module) => {
             const override = overrideByModule.get(module);
             const adjusted = roleLevels.get(cellKey(role, module));

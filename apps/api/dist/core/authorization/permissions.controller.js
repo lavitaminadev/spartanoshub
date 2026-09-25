@@ -199,12 +199,16 @@ let PermissionsController = class PermissionsController {
         }).catch(() => { });
         return { role, permissions };
     }
-    async ofUser(id, req) {
+    async ofUser(id, req, clientId) {
         const user = await this.findUser(id, req.organizationId);
+        await this.assertCanManageUserPermissionException(req, user);
+        if (clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         return {
             userId: user.id,
             role: user.role,
-            modules: await this.permissions.explain(req.organizationId, user.id, user.role),
+            clientId: clientId ?? null,
+            modules: await this.permissions.explain(req.organizationId, user.id, user.role, clientId || undefined),
         };
     }
     async upsert(id, module, dto, req) {
@@ -238,12 +242,14 @@ let PermissionsController = class PermissionsController {
         });
         return saved;
     }
-    async remove(id, module, req) {
+    async remove(id, module, req, clientId) {
         if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
             throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user, module);
-        const existing = await this.overrides.findOne({ where: { userId: user.id, module } });
+        if (clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: clientId ?? (0, typeorm_2.IsNull)() } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una excepción para ese módulo');
         await this.overrides.remove(existing);
@@ -274,8 +280,8 @@ let PermissionsController = class PermissionsController {
     async grantClientAccess(id, clientId, dto, req) {
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user);
-        if (user.role === user_role_enum_1.UserRole.CLIENT) {
-            throw new common_2.BadRequestException('El acceso de un cliente lo define su propia cuenta, no una asignación');
+        if (user.role === user_role_enum_1.UserRole.CLIENT && clientId === user.clientId) {
+            throw new common_2.BadRequestException('Esa es la empresa de su cuenta: ya la alcanza y no se asigna aparte');
         }
         const client = await this.clients.findOne({ where: { id: clientId, organizationId: req.organizationId }, select: { id: true } });
         if (!client)
@@ -304,6 +310,12 @@ let PermissionsController = class PermissionsController {
     async revokeClientAccess(id, clientId, req) {
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user);
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT && clientId !== req.user.clientId) {
+            throw new common_2.ForbiddenException('Solo puedes retirar el acceso a tu empresa');
+        }
+        if (user.role === user_role_enum_1.UserRole.CLIENT && clientId === user.clientId) {
+            throw new common_2.BadRequestException('Esa es la empresa de su cuenta: se cambia editando la persona');
+        }
         const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una asignación directa para esa cuenta');
@@ -344,6 +356,21 @@ let PermissionsController = class PermissionsController {
             return;
         if (target.id === req.user.id)
             throw new common_2.ForbiddenException('No puedes ajustar tus propios accesos');
+        if (actorRole === user_role_enum_1.UserRole.CLIENT) {
+            const suEmpresa = req.user.clientId;
+            const puede = suEmpresa
+                ? await this.permissions.can(req.organizationId, req.user.id, actorRole, 'users', 'manage', suEmpresa)
+                : false;
+            if (!puede)
+                throw new common_2.ForbiddenException('Tu cuenta no administra personas');
+            if (target.clientId !== suEmpresa || target.role !== user_role_enum_1.UserRole.CLIENT) {
+                throw new common_2.ForbiddenException('Esa cuenta es de otra empresa');
+            }
+            if (module && ['users', 'settings', 'integrations', 'clients', 'governance'].includes(module)) {
+                throw new common_2.ForbiddenException('Ese acceso lo entrega Espartanos');
+            }
+            return;
+        }
         if (target.role === user_role_enum_1.UserRole.DEV) {
             throw new common_2.ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
         }
@@ -449,17 +476,18 @@ __decorate([
 ], PermissionsController.prototype, "ofRole", null);
 __decorate([
     (0, common_1.Get)('users/:id/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Detalle de permisos de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, String]),
     __metadata("design:returntype", Promise)
 ], PermissionsController.prototype, "ofUser", null);
 __decorate([
     (0, common_1.Put)('users/:id/permissions/:module'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Definir una excepción de permiso' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),
@@ -476,13 +504,14 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),
     __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:paramtypes", [String, String, Object, String]),
     __metadata("design:returntype", Promise)
 ], PermissionsController.prototype, "remove", null);
 __decorate([
     (0, common_1.Get)('users/:id/client-access'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Cuentas visibles de un usuario y por qué las ve' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -504,7 +533,7 @@ __decorate([
 ], PermissionsController.prototype, "grantClientAccess", null);
 __decorate([
     (0, common_1.Delete)('users/:id/client-access/:clientId'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Retirar acceso a una cuenta' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('clientId')),

@@ -36,6 +36,7 @@ const reservation_hold_entity_1 = require("../domain/reservation-hold.entity");
 const reservation_group_request_entity_1 = require("../domain/reservation-group-request.entity");
 const timezone_1 = require("../domain/timezone");
 const cierre_del_local_1 = require("../domain/cierre-del-local");
+const mesa_ocupada_1 = require("../domain/mesa-ocupada");
 const phone_1 = require("../../../shared/phone");
 const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
@@ -741,8 +742,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     }
     async assertCupoDeZona(manager, form, booking, resourceId) {
         const solapadas = await manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r')
-            .where('r.form_id = :formId AND r.resource_id = :resourceId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses) AND r.id != :id', {
-            formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, statuses: OCCUPYING_STATUSES, id: booking.id,
+            .where(`r.form_id = :formId AND r.resource_id = :resourceId AND ${(0, mesa_ocupada_1.condicionDeSolape)('r')} AND r.status IN (:...statuses) AND r.id != :id`, {
+            formId: form.id, resourceId, startsAt: booking.startsAt, endsAt: booking.endsAt, ahoraOcupacion: new Date(), statuses: OCCUPYING_STATUSES, id: booking.id,
         })
             .getMany();
         const rechazo = (0, cambio_de_zona_1.evaluarCambioDeZona)({
@@ -774,7 +775,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             if (clientCount + partySize > clientCap)
                 throw new common_1.ConflictException('Este día no tiene cupo para ese grupo');
         }
-        const qb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
+        const qb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').where(`r.form_id = :formId AND ${(0, mesa_ocupada_1.condicionDeSolape)('r')} AND r.status IN (:...statuses)`, { formId: form.id, startsAt, endsAt, ahoraOcupacion: new Date(), statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
         if (resourceId)
             qb.andWhere('r.resource_id = :resourceId', { resourceId });
         if (excludeId)
@@ -792,7 +793,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (used + partySize > rules.capacity)
             throw new common_1.ConflictException('Ese horario acaba de ocuparse. Selecciona una alternativa.');
         if (resourceId) {
-            const totalQb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').where('r.form_id = :formId AND r.starts_at < :endsAt AND r.ends_at > :startsAt AND r.status IN (:...statuses)', { formId: form.id, startsAt, endsAt, statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
+            const totalQb = manager.getRepository(reservation_entity_1.Reservation).createQueryBuilder('r').where(`r.form_id = :formId AND ${(0, mesa_ocupada_1.condicionDeSolape)('r')} AND r.status IN (:...statuses)`, { formId: form.id, startsAt, endsAt, ahoraOcupacion: new Date(), statuses: OCCUPYING_STATUSES }).setLock('pessimistic_write');
             if (excludeId)
                 totalQb.andWhere('r.id != :excludeId', { excludeId });
             const enElLocal = (await totalQb.getMany()).reduce((sum, item) => sum + item.partySize, 0);

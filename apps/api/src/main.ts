@@ -44,7 +44,16 @@ async function bootstrap() {
   app.enableCors({
     origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
       if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) return callback(null, true);
-      return callback(new Error('Origin not allowed by CORS'), false);
+      /*
+       * Un origen ajeno se rechaza, no se convierte en un error.
+       *
+       * Pasar un `Error` al callback hace que Express lo propague como excepción: la petición
+       * terminaba en un 500 genérico y dejaba un error en el registro por cada sonda que
+       * probara suerte desde fuera. Con `false` la respuesta simplemente sale sin cabeceras
+       * CORS —el navegador la bloquea igual, que es lo único que importa— y no se inventa una
+       * avería donde sólo hubo una petición no autorizada.
+       */
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

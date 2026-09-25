@@ -57,6 +57,52 @@ En `Setup Node.js App`:
 El `Application root` debe quedar fuera de `public_html`. La ruta recomendada es
 `/home/espartanoscl/repositories/spartanoshub`.
 
+### Los dos anadidos a mano de `public_html/refugio.espartanos.cl/.htaccess`
+
+Ese archivo lo genera CloudLinux al crear la aplicacion Node y **se regenera si alguien vuelve a
+crear el subdominio**. Los bloques `DO NOT REMOVE` son suyos y no se tocan. Al final hay dos
+anadidos que no vienen de CloudLinux:
+
+> **No hay que reponerlos a mano.** `scripts/deploy/asegurar-htaccess-refugio.sh` corre en cada
+> despliegue desde `.cpanel.yml`: si los dos bloques estan, no escribe nada; si falta alguno, lo
+> repone tras dejar un respaldo, comprueba que la API siga respondiendo y **restaura el respaldo
+> por su cuenta** si dejara de hacerlo. Lo que sigue es para entender que hace ese script y para
+> poder repararlo a mano si alguna vez hiciera falta.
+
+```apache
+# Este subdominio sirve la API por Passenger, no WordPress.
+# Sin esta linea hereda las reglas de reescritura de public_html/.htaccess
+# y toda peticion sin archivo real termina reescrita a /index.php.
+<IfModule mod_rewrite.c>
+RewriteEngine Off
+</IfModule>
+
+# Passenger anuncia su version en cada respuesta. No abre ninguna puerta, pero tampoco
+# hay motivo para publicar que version corre.
+<IfModule mod_headers.c>
+Header always unset X-Powered-By
+</IfModule>
+```
+
+El primero corrige el fallo mas dificil de diagnosticar que ha tenido este servidor: WordPress
+vive en `public_html/` y su `.htaccess` se hereda hacia los subdominios, asi que la API devolvia
+un 500 **sin una sola linea en `passenger-error.log`**, porque el error era de Apache y no de la
+aplicacion. Si vuelve a pasar, se mira el `.htaccess` padre antes que los registros de Node.
+
+El segundo quita la cabecera `X-Powered-By: Phusion Passenger(R) 6.1.8`. Los dos van envueltos en
+`<IfModule>` a proposito: si el modulo no estuviera cargado, una directiva suelta hace que Apache
+rechace el archivo entero y devuelva 500.
+
+Antes de tocarlo, respaldar y comprobar que la API sigue viva despues:
+
+```bash
+cp -p ~/public_html/refugio.espartanos.cl/.htaccess ~/public_html/refugio.espartanos.cl/.htaccess.bak-$(date +%Y%m%d-%H%M)
+curl -sSI https://refugio.espartanos.cl/api/health | grep -iE "HTTP/|powered"
+```
+
+Se espera `200` y ninguna linea `powered`. Apache relee el archivo en cada peticion, asi que
+restaurar el respaldo surte efecto de inmediato y no hay que reiniciar nada.
+
 ## GitHub y cPanel
 
 1. Subir cambios a `main`

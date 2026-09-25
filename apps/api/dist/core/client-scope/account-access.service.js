@@ -40,8 +40,13 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
     async allowedClientIds(organizationId, user) {
         if (UNRESTRICTED_ROLES.has(user.role))
             return undefined;
-        if (user.role === user_role_enum_1.UserRole.CLIENT)
-            return user.clientId ? [user.clientId] : [];
+        if (user.role === user_role_enum_1.UserRole.CLIENT) {
+            const propias = user.clientId ? [user.clientId] : [];
+            const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
+                .map((fila) => fila.clientId)
+                .filter((id) => id !== user.clientId);
+            return this.soloEnServicio([...propias, ...asignadas]);
+        }
         const cacheKey = `${organizationId}:${user.id}`;
         const cached = this.cache.get(cacheKey);
         if (cached && cached.expiresAt > Date.now())
@@ -67,9 +72,22 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
         if (UNRESTRICTED_ROLES.has(user.role))
             return 'unrestricted';
         if (user.role === user_role_enum_1.UserRole.CLIENT) {
-            return user.clientId ? [{ clientId: user.clientId, source: 'assignment' }] : [];
+            const propia = user.clientId ? [{ clientId: user.clientId, source: 'own' }] : [];
+            const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
+                .filter((fila) => fila.clientId !== user.clientId)
+                .map((fila) => ({ clientId: fila.clientId, source: 'assignment' }));
+            return [...propia, ...asignadas];
         }
         return this.resolve(organizationId, user.id);
+    }
+    async soloEnServicio(clientIds) {
+        if (clientIds.length === 0)
+            return [];
+        const filas = await this.clients.find({ where: { id: (0, typeorm_2.In)(clientIds) }, select: { id: true, status: true } });
+        const corriendo = new Set(filas
+            .filter((fila) => !['paused', 'churned', 'cancelled'].includes(String(fila.status)))
+            .map((fila) => fila.id));
+        return clientIds.filter((id) => corriendo.has(id));
     }
     invalidateUser(userId) {
         for (const key of this.cache.keys()) {

@@ -46,6 +46,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateUserUseCase = void 0;
+const email_service_1 = require("../../core/notifications/email.service");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -55,10 +56,11 @@ const user_role_enum_1 = require("../organizations/user-role.enum");
 const client_entity_1 = require("../clients/client.entity");
 const client_capabilities_1 = require("../clients/client-capabilities");
 let CreateUserUseCase = class CreateUserUseCase {
-    constructor(repo, clientsRepo, dataSource) {
+    constructor(repo, clientsRepo, dataSource, email) {
         this.repo = repo;
         this.clientsRepo = clientsRepo;
         this.dataSource = dataSource;
+        this.email = email;
     }
     async execute(data) {
         const normalizedRole = data.role || user_role_enum_1.UserRole.DESIGNER;
@@ -84,7 +86,7 @@ let CreateUserUseCase = class CreateUserUseCase {
             throw new common_1.BadRequestException('Las cuentas cliente requieren una empresa asignada');
         }
         const hashed = await bcrypt.hash(data.password, Number(process.env.BCRYPT_ROUNDS || 10));
-        return this.dataSource.transaction(async (manager) => {
+        const creado = await this.dataSource.transaction(async (manager) => {
             let clientId = data.clientId
                 ? await this.resolveClientId(data.organizationId, normalizedRole, data.clientId)
                 : undefined;
@@ -113,6 +115,11 @@ let CreateUserUseCase = class CreateUserUseCase {
             });
             return manager.save(user_entity_1.User, user);
         });
+        const appUrl = (process.env.APP_PUBLIC_URL || 'http://localhost:5173').replace(/\/$/, '');
+        const correoEnviado = await this.email
+            .sendTemporaryPassword(creado.name, creado.email, data.password, `${appUrl}/login`)
+            .catch(() => false);
+        return Object.assign(creado, { correoEnviado });
     }
     async resolveClientId(organizationId, role, clientId) {
         if (role !== user_role_enum_1.UserRole.CLIENT)
@@ -132,5 +139,6 @@ exports.CreateUserUseCase = CreateUserUseCase = __decorate([
     __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.DataSource])
+        typeorm_2.DataSource,
+        email_service_1.EmailService])
 ], CreateUserUseCase);

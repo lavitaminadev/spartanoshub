@@ -49,9 +49,9 @@ let ClientsController = class ClientsController {
         return this.createClient.execute({ ...dto, organizationId: req.organizationId });
     }
     async list(pagination, req) {
-        const clientIds = req.user.role === user_role_enum_1.UserRole.CLIENT
-            ? (req.user.clientId ? [req.user.clientId] : [])
-            : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT && clientIds === undefined)
+            return { data: [], total: 0, limit: 0, offset: 0 };
         return this.listClients.execute(req.organizationId, clientIds, pagination.limit, pagination.offset);
     }
     managerOptions(req) {

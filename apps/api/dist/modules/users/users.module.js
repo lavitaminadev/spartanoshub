@@ -7,6 +7,11 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersModule = void 0;
+const authorization_module_1 = require("../../core/authorization/authorization.module");
+const user_permission_override_entity_1 = require("../../core/authorization/user-permission-override.entity");
+const administradores_de_empresa_service_1 = require("./administradores-de-empresa.service");
+const account_access_module_1 = require("../../core/client-scope/account-access.module");
+const administracion_del_equipo_service_1 = require("./administracion-del-equipo.service");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const user_entity_1 = require("./user.entity");
@@ -22,9 +27,9 @@ let UsersModule = class UsersModule {
 exports.UsersModule = UsersModule;
 exports.UsersModule = UsersModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, client_entity_1.Client]), email_module_1.EmailModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride]), email_module_1.EmailModule, authorization_module_1.AuthorizationModule, account_access_module_1.AccountAccessModule],
         controllers: [users_controller_1.UsersController],
-        providers: [create_user_use_case_1.CreateUserUseCase, list_users_use_case_1.ListUsersUseCase, update_user_use_case_1.UpdateUserUseCase, reset_user_password_use_case_1.ResetUserPasswordUseCase],
+        providers: [create_user_use_case_1.CreateUserUseCase, list_users_use_case_1.ListUsersUseCase, update_user_use_case_1.UpdateUserUseCase, reset_user_password_use_case_1.ResetUserPasswordUseCase, administracion_del_equipo_service_1.AdministracionDelEquipoService, administradores_de_empresa_service_1.AdministradoresDeEmpresaService],
         exports: [typeorm_1.TypeOrmModule],
     })
 ], UsersModule);

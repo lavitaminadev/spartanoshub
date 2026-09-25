@@ -27,21 +27,62 @@ const update_user_use_case_1 = require("./update-user.use-case");
 const reset_user_password_use_case_1 = require("./reset-user-password.use-case");
 const reset_user_password_dto_1 = require("./dto/reset-user-password.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const administracion_del_equipo_service_1 = require("./administracion-del-equipo.service");
+const administradores_de_empresa_service_1 = require("./administradores-de-empresa.service");
 let UsersController = class UsersController {
-    constructor(createUser, listUsers, updateUser, resetUserPassword) {
+    constructor(createUser, listUsers, updateUser, resetUserPassword, administracion, administradores) {
         this.createUser = createUser;
         this.listUsers = listUsers;
         this.updateUser = updateUser;
         this.resetUserPassword = resetUserPassword;
+        this.administracion = administracion;
+        this.administradores = administradores;
     }
-    create(dto, req) {
-        return this.createUser.execute({
+    async administranEquipo(req, clientId) {
+        const alcance = await this.administracion.alcance(req, clientId);
+        const empresa = alcance.soloEmpresa ?? clientId;
+        if (!empresa)
+            return { clientId: null, userIds: [], sinAdministrador: false };
+        const organizationId = req.organizationId || req.user.organizationId;
+        const userIds = await this.administradores.quienesAdministran(organizationId, empresa);
+        return { clientId: empresa, userIds, sinAdministrador: userIds.length === 0 };
+    }
+    async empresasQueAdministra(id, req) {
+        const alcance = await this.administracion.alcance(req);
+        const organizationId = req.organizationId || req.user.organizationId;
+        const empresas = await this.administradores.empresasQueAdministra(organizationId, id);
+        return { clientIds: alcance.soloEmpresa ? empresas.filter((uno) => uno === alcance.soloEmpresa) : empresas };
+    }
+    async concederAdministracion(id, clientId, req) {
+        await this.definirAdministracion(id, clientId, true, req);
+        return { clientId, administra: true };
+    }
+    async retirarAdministracion(id, clientId, req) {
+        await this.definirAdministracion(id, clientId, false, req);
+        return { clientId, administra: false };
+    }
+    async definirAdministracion(id, clientId, puede, req) {
+        const alcance = await this.administracion.alcance(req, clientId);
+        this.administracion.asegurarDentro(alcance, { clientId, role: user_role_enum_1.UserRole.CLIENT });
+        await this.administradores.definir(req.organizationId || req.user.organizationId, id, clientId, puede, req.user.id);
+    }
+    async create(dto, req, clientId) {
+        const alcance = await this.administracion.alcance(req, clientId);
+        this.administracion.asegurarDentro(alcance, { clientId: dto.clientId ?? null, role: dto.role ?? null });
+        const organizationId = req.organizationId || req.user.organizationId;
+        const creado = await this.createUser.execute({
             ...dto,
-            organizationId: req.organizationId || req.user.organizationId,
+            ...(alcance.soloEmpresa ? { clientId: alcance.soloEmpresa, role: user_role_enum_1.UserRole.CLIENT } : {}),
+            organizationId,
             actorRole: req.user.role,
         });
+        const empresaDeLaCuenta = alcance.soloEmpresa ?? creado.clientId ?? undefined;
+        if (dto.administraElEquipo && empresaDeLaCuenta) {
+            await this.administradores.definir(organizationId, creado.id, empresaDeLaCuenta, true, req.user.id);
+        }
+        return creado;
     }
-    list(role, clientId, q, isActive, req) {
+    async list(role, clientId, q, isActive, req) {
         const normalizedIsActive = isActive == null
             ? undefined
             : isActive.toLowerCase() === 'true'
@@ -49,21 +90,29 @@ let UsersController = class UsersController {
                 : isActive.toLowerCase() === 'false'
                     ? false
                     : undefined;
+        const alcance = await this.administracion.alcance(req, clientId);
         return this.listUsers.execute({
             organizationId: req.organizationId || req.user.organizationId,
-            role,
-            clientId,
+            role: alcance.soloEmpresa ? user_role_enum_1.UserRole.CLIENT : role,
+            clientId: alcance.soloEmpresa ?? clientId,
             q,
             isActive: normalizedIsActive,
         });
     }
-    update(id, dto, req) {
+    async update(id, dto, req, clientId) {
+        const alcance = await this.administracion.alcance(req, clientId);
+        if (alcance.soloEmpresa) {
+            const actual = await this.listUsers.execute({ organizationId: req.organizationId || req.user.organizationId, clientId: alcance.soloEmpresa });
+            const destino = actual.find((persona) => persona.id === id);
+            this.administracion.asegurarDentro(alcance, { clientId: destino?.clientId ?? null, role: destino?.role ?? null });
+        }
         return this.updateUser.execute({
             id,
             organizationId: req.organizationId || req.user.organizationId,
             actorId: req.user.id,
             actorRole: req.user.role,
             ...dto,
+            ...(alcance.soloEmpresa ? { clientId: alcance.soloEmpresa, role: user_role_enum_1.UserRole.CLIENT } : {}),
         });
     }
     resetPassword(id, dto, req) {
@@ -77,18 +126,63 @@ let UsersController = class UsersController {
 };
 exports.UsersController = UsersController;
 __decorate([
+    (0, common_1.Get)('administran-equipo'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Quiénes administran el equipo de una empresa' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "administranEquipo", null);
+__decorate([
+    (0, common_1.Get)(':id/administra'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Empresas cuyo equipo administra esta persona' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "empresasQueAdministra", null);
+__decorate([
+    (0, common_1.Put)(':id/administra/:clientId'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('conceder la administración del equipo de una empresa'),
+    (0, swagger_1.ApiOperation)({ summary: 'Conceder la administración del equipo de una empresa' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('clientId')),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "concederAdministracion", null);
+__decorate([
+    (0, common_1.Delete)(':id/administra/:clientId'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('retirar la administración del equipo de una empresa'),
+    (0, swagger_1.ApiOperation)({ summary: 'Retirar la administración del equipo de una empresa' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('clientId')),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "retirarAdministracion", null);
+__decorate([
     (0, common_1.Post)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Crear un nuevo usuario' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_user_dto_1.CreateUserDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [create_user_dto_1.CreateUserDto, Object, String]),
+    __metadata("design:returntype", Promise)
 ], UsersController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar usuarios' }),
     __param(0, (0, common_1.Query)('role')),
     __param(1, (0, common_1.Query)('clientId')),
@@ -97,19 +191,20 @@ __decorate([
     __param(4, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object, Object, Object, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], UsersController.prototype, "list", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('cambiar los datos o el cargo de una persona'),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_user_dto_1.UpdateUserDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [String, update_user_dto_1.UpdateUserDto, Object, String]),
+    __metadata("design:returntype", Promise)
 ], UsersController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/reset-password'),
@@ -132,5 +227,7 @@ exports.UsersController = UsersController = __decorate([
     __metadata("design:paramtypes", [create_user_use_case_1.CreateUserUseCase,
         list_users_use_case_1.ListUsersUseCase,
         update_user_use_case_1.UpdateUserUseCase,
-        reset_user_password_use_case_1.ResetUserPasswordUseCase])
+        reset_user_password_use_case_1.ResetUserPasswordUseCase,
+        administracion_del_equipo_service_1.AdministracionDelEquipoService,
+        administradores_de_empresa_service_1.AdministradoresDeEmpresaService])
 ], UsersController);

@@ -7,6 +7,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CrmModule = void 0;
+const regla_de_calificacion_entity_1 = require("./reglas/regla-de-calificacion.entity");
+const reglas_controller_1 = require("./reglas/reglas.controller");
+const reglas_service_1 = require("./reglas/reglas.service");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const audit_module_1 = require("../../core/audit/audit.module");
@@ -71,9 +74,10 @@ let CrmModule = class CrmModule {
 exports.CrmModule = CrmModule;
 exports.CrmModule = CrmModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([crm_field_definition_entity_1.CrmFieldDefinition, lead_entity_1.Lead, contact_entity_1.Contact, opportunity_entity_1.Opportunity, opportunity_stage_change_entity_1.OpportunityStageChange, interaction_entity_1.Interaction, user_entity_1.User, client_entity_1.Client, reservation_entity_1.Reservation, ingest_source_entity_1.LeadIngestSource, campaign_entity_1.Campaign, approval_request_entity_1.ApprovalRequest, parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), account_access_module_1.AccountAccessModule, audit_module_1.AuditModule, process_templates_module_1.ProcessTemplatesModule, notifications_module_1.NotificationsModule, parameters_module_1.ParametersModule],
-        controllers: [lead_controller_1.LeadController, contacts_controller_1.ContactsController, opportunities_controller_1.OpportunitiesController, interactions_controller_1.InteractionsController, public_agency_leads_controller_1.PublicAgencyLeadsController, lead_ingest_controller_1.LeadIngestController, crm_home_controller_1.CrmHomeController, ingest_sources_controller_1.IngestSourcesController, campaigns_controller_1.CampaignsController, stage_labels_controller_1.StageLabelsController, crm_fields_controller_1.CrmFieldsController],
+        imports: [typeorm_1.TypeOrmModule.forFeature([crm_field_definition_entity_1.CrmFieldDefinition, regla_de_calificacion_entity_1.ReglaDeCalificacion, lead_entity_1.Lead, contact_entity_1.Contact, opportunity_entity_1.Opportunity, opportunity_stage_change_entity_1.OpportunityStageChange, interaction_entity_1.Interaction, user_entity_1.User, client_entity_1.Client, reservation_entity_1.Reservation, ingest_source_entity_1.LeadIngestSource, campaign_entity_1.Campaign, approval_request_entity_1.ApprovalRequest, parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), account_access_module_1.AccountAccessModule, audit_module_1.AuditModule, process_templates_module_1.ProcessTemplatesModule, notifications_module_1.NotificationsModule, parameters_module_1.ParametersModule],
+        controllers: [lead_controller_1.LeadController, contacts_controller_1.ContactsController, opportunities_controller_1.OpportunitiesController, interactions_controller_1.InteractionsController, public_agency_leads_controller_1.PublicAgencyLeadsController, lead_ingest_controller_1.LeadIngestController, crm_home_controller_1.CrmHomeController, ingest_sources_controller_1.IngestSourcesController, campaigns_controller_1.CampaignsController, stage_labels_controller_1.StageLabelsController, crm_fields_controller_1.CrmFieldsController, reglas_controller_1.ReglasController],
         providers: [
+            reglas_service_1.ReglasService,
             lead_task_summary_service_1.LeadTaskSummaryService, responsables_del_crm_service_1.ResponsablesDelCrmService, stage_labels_service_1.StageLabelsService, lead_cierre_service_1.LeadCierreService, lead_created_email_listener_1.LeadCreatedEmailListener,
             create_lead_use_case_1.CreateLeadUseCase, list_leads_use_case_1.ListLeadsUseCase, get_lead_use_case_1.GetLeadUseCase, convert_lead_use_case_1.ConvertLeadUseCase, update_lead_use_case_1.UpdateLeadUseCase, import_leads_use_case_1.ImportLeadsUseCase, lead_intake_service_1.LeadIntakeService, lead_ingest_service_1.LeadIngestService, crm_home_service_1.CrmHomeService, crm_dashboard_service_1.CrmDashboardService, crm_lead_automation_service_1.CrmLeadAutomationService,
             contacts_service_1.ContactsService,

@@ -89,7 +89,18 @@ let ListLeadsUseCase = class ListLeadsUseCase {
             skip: offset,
             take: limit,
         });
-        return { data, total, limit, offset };
+        return { data: data.map((lead) => this.aligerar(lead)), total, limit, offset };
+    }
+    aligerar(lead) {
+        const metadata = lead.metadata;
+        if (!metadata || typeof metadata !== 'object')
+            return lead;
+        const resumen = {};
+        if (metadata.adName !== undefined)
+            resumen.adName = metadata.adName;
+        if (metadata.platform !== undefined)
+            resumen.platform = metadata.platform;
+        return Object.assign(lead, { metadata: resumen });
     }
     resolveClientScope(filters) {
         const { clientId, allowedClientIds, agencyOnly } = filters;

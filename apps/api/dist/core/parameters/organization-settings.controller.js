@@ -80,6 +80,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null);
     }
     async correos(request, clientId) {
+        clientId = this.empresaDeLaSesion(request, clientId);
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         const puede = await this.modulosQuePuedeEditar(request, clientId);
@@ -103,6 +104,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         return puede;
     }
     async guardarCorreos(request, dto, clientId) {
+        clientId = this.empresaDeLaSesion(request, clientId);
         const valores = dto.values ?? {};
         const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
         if (ajenas.length)
@@ -172,6 +174,11 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             throw new common_1.BadRequestException('Esa persona no tiene correo registrado');
         return persona.email;
     }
+    empresaDeLaSesion(request, pedido) {
+        if (request.user.role === user_role_enum_1.UserRole.CLIENT)
+            return request.user.clientId ?? undefined;
+        return pedido;
+    }
 };
 exports.OrganizationSettingsController = OrganizationSettingsController;
 __decorate([
@@ -195,7 +202,7 @@ __decorate([
 ], OrganizationSettingsController.prototype, "update", null);
 __decorate([
     (0, module_scope_decorator_1.ModuleExempt)('Cada plantilla exige el permiso de su propio módulo, comprobado en el método'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, common_1.Get)('correos'),
     (0, swagger_1.ApiOperation)({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -206,7 +213,7 @@ __decorate([
 ], OrganizationSettingsController.prototype, "correos", null);
 __decorate([
     (0, module_scope_decorator_1.ModuleExempt)('Cada plantilla exige el permiso de su propio módulo, comprobado en el método'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, common_1.Put)('correos'),
     (0, swagger_1.ApiOperation)({ summary: 'Guardar plantillas de correo' }),
     __param(0, (0, common_1.Req)()),
