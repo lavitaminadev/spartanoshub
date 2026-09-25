@@ -390,6 +390,15 @@ const visualCrmFields: Array<Record<string, any>> = [
   { id: 'f2', entity: 'lead', key: 'presupuesto_mensual', label: 'Presupuesto mensual', type: 'number', options: null, required: false, position: 1, archivedAt: null },
   { id: 'f3', entity: 'lead', key: 'servicios_interes', label: 'Servicios de interés', type: 'multi_select', options: ['Meta Ads', 'Sitio web', 'Branding'], required: false, position: 2, archivedAt: null },
   { id: 'f4', entity: 'lead', key: 'rubro_antiguo', label: 'Rubro', type: 'text', options: null, required: false, position: 3, archivedAt: '2026-08-01T00:00:00.000Z' },
+  /*
+   * Contactos y oportunidades también traen ejemplos.
+   *
+   * Con campos sólo en «Leads», las otras dos pestañas parecían no admitirlos —y admiten los
+   * mismos—. En una empresa de verdad las tres empiezan vacías; acá se muestran llenas para que
+   * se vea cómo quedan.
+   */
+  { id: 'f5', entity: 'contact', key: 'cargo', label: 'Cargo en la empresa', type: 'text', options: null, required: false, position: 0, archivedAt: null },
+  { id: 'f6', entity: 'opportunity', key: 'via_de_cierre', label: 'Cómo se cerró', type: 'select', options: ['Presencial', 'Por teléfono', 'Por WhatsApp'], required: false, position: 0, archivedAt: null },
 ];
 
 /**
@@ -439,6 +448,23 @@ function ajustesDeCorreo(source: 'client' | 'master_default') {
 
 /** Cuentas que administran el equipo en el modo visual. Vacio muestra el aviso. */
 const visualAdministranEquipo: string[] = ['u-cli'];
+
+/** Las empresas que administra cada persona, para poder marcar unas y otras no. */
+const visualAdministraPorUsuario: Record<string, string[]> = {};
+
+/**
+ * Cómo llama esta empresa a sus columnas, y cuáles decidió no usar.
+ *
+ * Renombradas y con dos escondidas a propósito: es la única forma de ver que las pantallas leen
+ * los nombres de verdad y no los de fábrica. Con todo por omisión, una pantalla que ignora estos
+ * datos se ve idéntica a una que los respeta.
+ */
+const visualRotulosDeEtapa: Record<string, string> = {
+  new: 'Por llamar',
+  contacted: 'Ya los llamé',
+  meeting_scheduled: 'Visita coordinada',
+};
+const visualEtapasOcultas: string[] = ['quote_sent', 'negotiation'];
 
 /**
  * Reglas de calificación del modo visual.
@@ -587,6 +613,35 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { clave: 'surveys.borrar', modulo: 'surveys', nombre: 'Eliminar encuestas', ayuda: 'Borrar una encuesta con todas sus respuestas.', porNivel: false },
     ];
     return { userId: usuario, acciones: base.map((accion) => ({ ...accion, permitida: ajustes[accion.clave] ?? accion.porNivel, origen: accion.clave in ajustes ? 'ajuste' : 'nivel' })) };
+  }],
+  /*
+   * Quién administra el equipo, empresa por empresa.
+   *
+   * Se guarda por persona y no como un sí/no porque es lo que la ficha revisa: quien atiende
+   * dos locales puede administrar uno, y con un booleano las dos casillas se moverían juntas.
+   */
+  /*
+   * Los rótulos de etapa y las columnas escondidas de esta empresa.
+   *
+   * No estaban, así que toda pantalla que pregunta cómo se llaman las columnas recibía la
+   * respuesta vacía y caía en los nombres de fábrica con todas las columnas visibles: se veía
+   * igual que si no leyera nada, que es justo lo que había que poder comprobar.
+   */
+  [/\/crm\/stage-labels\/hidden/, () => ({ hidden: visualEtapasOcultas })],
+  [/\/crm\/stage-labels\/vocabulary/, () => ({ labels: {} })],
+  [/\/crm\/stage-labels/, () => ({ labels: visualRotulosDeEtapa })],
+  [/\/users\/[^/]+\/administra\/[^/]+$/, (config) => {
+    const [, usuario, empresa] = config?.url?.match(/\/users\/([^/]+)\/administra\/([^/?]+)/) ?? [];
+    const lista = visualAdministraPorUsuario[usuario] ??= [];
+    const quita = (config?.method ?? '').toLowerCase() === 'delete';
+    if (quita) visualAdministraPorUsuario[usuario] = lista.filter((item) => item !== empresa);
+    else if (!lista.includes(empresa)) lista.push(empresa);
+    return { clientId: empresa, administra: !quita };
+  }],
+  [/\/users\/[^/]+\/administra$/, (config) => {
+    const usuario = (config?.url?.match(/\/users\/([^/]+)\/administra/) ?? [])[1];
+    const inicial = visualAdministranEquipo.includes(String(usuario)) ? [VISUAL_USER.clientId] : [];
+    return { clientIds: visualAdministraPorUsuario[usuario] ??= inicial };
   }],
   [/\/users\/[^/]+\/client-access\/[^/]+$/, (config) => {
     const [, usuario, empresa] = config?.url?.match(/\/users\/([^/]+)\/client-access\/([^/?]+)/) ?? [];

@@ -21,6 +21,14 @@ class CrearCampoDto {
   @IsIn(TIPOS) type: string;
   @IsOptional() @IsArray() @IsString({ each: true }) options?: string[];
   @IsOptional() @IsBoolean() required?: boolean;
+  /*
+   * Las preguntas de Meta se declaran al crear el campo, no después.
+   *
+   * Sólo se podían añadir editándolo, así que conectar un campo con el formulario del anuncio
+   * eran dos pasos en dos momentos; quien no volvía a abrirlo tenía un campo que nunca se
+   * llenaba solo y no había nada que lo dijera.
+   */
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(120, { each: true }) metaQuestions?: string[];
 }
 
 class EditarCampoDto {

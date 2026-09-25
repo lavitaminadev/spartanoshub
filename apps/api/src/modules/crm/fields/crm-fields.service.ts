@@ -80,7 +80,7 @@ export class CrmFieldsService {
   async crear(
     organizationId: string,
     actorId: string,
-    datos: { entity: string; label: string; key?: string; type: string; options?: unknown; required?: boolean; clientId?: string },
+    datos: { entity: string; label: string; key?: string; type: string; options?: unknown; required?: boolean; clientId?: string; metaQuestions?: string[] },
   ): Promise<CustomFieldDefinition> {
     const entidad = this.entidadValida(datos.entity);
     const etiqueta = (datos.label ?? '').trim().slice(0, 80);
@@ -113,6 +113,7 @@ export class CrmFieldsService {
       options: CON_OPCIONES.has(tipo) ? limpiarOpciones(datos.options) : null,
       required: Boolean(datos.required),
       clientId: datos.clientId ?? null,
+      metaQuestions: this.preguntasLimpias(datos.metaQuestions),
       position: activos,
       createdBy: actorId,
     }));
@@ -173,19 +174,29 @@ export class CrmFieldsService {
      * que ya emparejan igual no aportan nada y ensucian la lista que se le muestra a quien
      * configura. Una lista vacía deja el campo sólo para llenarse a mano.
      */
-    if (datos.metaQuestions !== undefined) {
-      const vistas = new Set<string>();
-      const preguntas = datos.metaQuestions
-        .map((pregunta) => pregunta.trim().slice(0, 120))
-        .filter((pregunta) => {
-          const llave = comparable(pregunta);
-          if (!llave || vistas.has(llave)) return false;
-          vistas.add(llave);
-          return true;
-        });
-      campo.metaQuestions = preguntas.length > 0 ? preguntas : null;
-    }
+    if (datos.metaQuestions !== undefined) campo.metaQuestions = this.preguntasLimpias(datos.metaQuestions);
     return aContrato(await this.campos.save(campo));
+  }
+
+  /**
+   * Las preguntas de Meta, sin repetidas ni vacías, o `null` si no queda ninguna.
+   *
+   * Dos redacciones que sólo se diferencian en una tilde son la misma pregunta —quien arma el
+   * anuncio la escribe a mano y cambia entre campañas—, así que se comparan normalizadas y se
+   * conserva la primera forma escrita, que es la que alguien reconoce al volver a leerla.
+   */
+  private preguntasLimpias(preguntas?: string[]): string[] | null {
+    if (!Array.isArray(preguntas)) return null;
+    const vistas = new Set<string>();
+    const limpias = preguntas
+      .map((pregunta) => String(pregunta ?? '').trim().slice(0, 120))
+      .filter((pregunta) => {
+        const llave = comparable(pregunta);
+        if (!llave || vistas.has(llave)) return false;
+        vistas.add(llave);
+        return true;
+      });
+    return limpias.length > 0 ? limpias : null;
   }
 
   /** Archivar esconde el campo sin tocar lo guardado; desarchivar lo devuelve con sus valores. */

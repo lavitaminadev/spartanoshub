@@ -25,21 +25,13 @@
 .reglas-estado { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: var(--soft); }
 .reglas-estado.es-automatica { background: var(--primary, #cc0a55); color: #fff; }
 
-.reglas-condicion { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.reglas-condicion > .input { flex: 1; min-width: 120px; }
-.reglas-prueba { display: grid; gap: 8px; }
-.reglas-prueba ul { margin: 6px 0 0; padding-left: 18px; font-size: 12px; }
-
 @media (max-width: 720px) {
   .reglas-lista > li { grid-template-columns: auto 1fr; }
   .reglas-acciones { grid-column: 1 / -1; justify-content: flex-start; }
 }
 
-/* La regla leída como una frase: la elección va dentro del texto, no en un formulario aparte. */
-.reglas-frase { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; margin: 4px 0 8px; }
+/* Los desplegables «¿Qué hago?» del catálogo de respuestas, dentro de su propia línea. */
 .input-en-frase { width: auto; min-width: 140px; height: 34px; padding: 0 8px; font-size: 13px; }
-.reglas-subtitulo { margin: 12px 0 2px; font-size: 13px; }
-.reglas-condicion-numero { font-size: 11px; font-weight: 800; color: var(--muted); min-width: 14px; }
 
 /*
   El camino a seguir cuando no hay ninguna regla.
@@ -60,3 +52,77 @@
 }
 .reglas-guia strong { font-size: 13px; }
 .reglas-guia span { grid-column: 2; font-size: 12px; color: var(--muted); }
+
+/*
+  El editor de una regla, en tres pasos numerados.
+
+  Un formulario largo con todos los campos al mismo nivel obliga a decidir en qué orden
+  responderlo. Los pasos separados por recuadro responden esa pregunta antes de que se haga:
+  primero a quiénes, después qué les hago, y al final el nombre —que nadie sabe elegir antes
+  de haber escrito la regla—.
+*/
+.regla-guiada-entrada { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+
+.regla-paso { border: 0.8px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.regla-paso > h4 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
+.regla-paso-numero {
+  width: 22px; height: 22px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--primary, #cc0a55); color: #fff;
+  font-size: 12px; font-weight: 800;
+}
+.regla-paso-ayuda { margin: 0; font-size: 12px; color: var(--muted); }
+
+/* Cada comprobación es un bloque con su encabezado: se ve dónde empieza y dónde termina. */
+.regla-condicion { border: 0.8px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; background: var(--soft); }
+.regla-condicion-encabezado { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 800; color: var(--primary, #cc0a55); text-transform: uppercase; letter-spacing: .04em; }
+.regla-condicion label { font-size: 12px; }
+.regla-condicion small { font-size: 11px; color: var(--muted); font-weight: 400; }
+
+.regla-unir { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.regla-unir > legend { padding: 0; font-size: 12px; font-weight: 700; }
+
+/* Las opciones del paso 2, con la consecuencia escrita al lado y no sólo un color. */
+.regla-opciones { display: grid; gap: 6px; }
+/* Gana a `.modal-form label`, que apila el rótulo sobre el campo: el punto va al lado del texto. */
+.modal-form .regla-opcion,
+.regla-opcion { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 0.8px solid var(--line); border-radius: 10px; cursor: pointer; }
+.regla-opcion > input { flex: none; margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--primary, #cc0a55); }
+.regla-opcion > span { display: grid; gap: 2px; min-width: 0; }
+.regla-opcion strong { font-size: 13px; }
+.regla-opcion small { font-size: 11px; color: var(--muted); }
+.regla-opcion.elegida { border-color: var(--primary, #cc0a55); background: color-mix(in srgb, var(--primary, #cc0a55) 5%, #fff); }
+/* El color del semáforo se ve, además de leerse: es lo que el equipo mirará en el tablero. */
+.regla-opcion.sem-green strong { color: #157a4a; }
+.regla-opcion.sem-yellow strong { color: #9a6700; }
+.regla-opcion.sem-red strong { color: #b3261e; }
+
+.regla-descartar { display: grid; gap: 6px; }
+
+/* La frase final: es lo que se va a guardar, dicho de una vez. */
+.regla-resumen {
+  margin: 0; padding: 12px 14px;
+  border-left: 3px solid var(--primary, #cc0a55);
+  border-radius: 0 10px 10px 0;
+  background: var(--soft);
+  font-size: 14px; font-weight: 600; line-height: 1.45;
+  color: var(--ink, #151317);
+}
+
+.regla-sin-valor { margin: 0; font-size: 12px; color: var(--muted); }
+
+/* Lo que falta es un boton, no un parrafo: lleva hasta el campo en vez de describirlo. */
+.regla-falta { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; border: 0; padding: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.regla-falta > span { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--primary, #cc0a55); text-decoration: underline; }
+
+/*
+  Calificar y mover son dos decisiones, y se eligen por separado.
+
+  Estaban juntas —la columna colgaba del color elegido— y eso las hacia parecer una sola: quien
+  solo queria mover un lead de columna tenia que pintarlo de algun color antes. Cada una tiene su
+  bloque, con el mismo aspecto, y se puede usar una sin la otra.
+*/
+.regla-eleccion { border: 0.8px solid var(--line); border-radius: 10px; margin: 0; padding: 12px; display: grid; gap: 8px; }
+.regla-eleccion > legend { padding: 0 6px; font-size: 13px; font-weight: 800; color: var(--ink, #151317); }
+/* Las columnas son muchas y de nombre corto: caben de a dos y se recorren de un vistazo. */
+.regla-opciones-columnas { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }

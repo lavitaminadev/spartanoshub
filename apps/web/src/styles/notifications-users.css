@@ -311,3 +311,27 @@
 .access-celda-rol { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .access-manda { font-size: 10px; font-weight: 700; color: var(--primary, #cc0a55); }
 .access-role.es-quien-manda { background: var(--primary, #cc0a55); color: #fff; }
+
+/*
+  A qué empresas entra una persona y en cuáles manda.
+
+  Una fila por empresa con sus dos casillas en columnas fijas: leídas de arriba abajo se puede
+  responder «¿en cuáles administra?» de un vistazo, que es lo que una lista de casillas sueltas
+  no permitía. En pantalla angosta las casillas caen bajo el nombre en vez de encogerse.
+*/
+.empresas-de-persona-lista { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 6px; padding: 0; list-style: none; }
+.empresa-de-persona { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 8px; }
+.empresa-de-persona:nth-child(odd) { background: var(--soft, #f7f7f8); }
+.empresa-de-persona-nombre { display: flex; flex-direction: column; gap: 2px; font-size: .85rem; font-weight: 600; color: var(--ink, #151317); }
+.empresa-de-persona-nombre small { font-size: 10px; font-weight: 700; color: var(--txt-muted, #706a73); text-transform: uppercase; letter-spacing: .04em; }
+/* Gana a `.modal-form label`, que apila el rótulo sobre el campo: aquí van en la misma línea. */
+.modal-form .empresa-de-persona-casilla,
+.empresa-de-persona-casilla { display: inline-flex; flex-direction: row; gap: 6px; align-items: center; white-space: nowrap; font-size: .78rem; font-weight: 600; color: var(--txt-muted, #706a73); cursor: pointer; }
+.empresa-de-persona-casilla input { cursor: pointer; width: 16px; height: 16px; margin: 0; accent-color: var(--primary, #cc0a55); }
+/* Lo que no se puede marcar tiene que verse así, o se lee como una opción que no responde. */
+.empresa-de-persona-casilla:has(input:disabled) { opacity: .55; cursor: default; }
+.empresa-de-persona-casilla:has(input:checked) { color: var(--primary, #cc0a55); }
+
+@media (max-width: 560px) {
+  .empresa-de-persona { grid-template-columns: 1fr; gap: 6px; }
+}

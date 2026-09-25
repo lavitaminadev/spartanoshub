@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Req, Patch, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Req, Patch, Param, Put, Delete } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CreateUserUseCase } from './create-user.use-case';
@@ -50,6 +50,67 @@ export class UsersController {
     const organizationId = req.organizationId || req.user.organizationId;
     const userIds = await this.administradores.quienesAdministran(organizationId, empresa);
     return { clientId: empresa, userIds, sinAdministrador: userIds.length === 0 };
+  }
+
+  /**
+   * Las empresas cuyo equipo administra esa persona.
+   *
+   * Se lee por persona y no por empresa porque es lo que su ficha necesita: quien atiende
+   * varios locales administra unos y en otros solo mira, y la ficha tiene que poder marcar
+   * exactamente cuáles sin preguntar una por una.
+   */
+  @Get(':id/administra')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Empresas cuyo equipo administra esta persona' })
+  async empresasQueAdministra(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const alcance = await this.administracion.alcance(req);
+    const organizationId = req.organizationId || req.user.organizationId;
+    const empresas = await this.administradores.empresasQueAdministra(organizationId, id);
+    // Quien administra una sola empresa no puede enterarse de las demás que atiende esa persona.
+    return { clientIds: alcance.soloEmpresa ? empresas.filter((uno) => uno === alcance.soloEmpresa) : empresas };
+  }
+
+  /**
+   * Concede o retira la administración del equipo de **una** empresa.
+   *
+   * Va empresa por empresa y no con una casilla única a propósito: la misma persona puede
+   * atender tres locales y administrar uno. Una casilla sola obligaría a elegir entre darle
+   * todos o ninguno, que es justo lo que no se quiere.
+   */
+  @Put(':id/administra/:clientId')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @RequiresRecentAuth('conceder la administración del equipo de una empresa')
+  @ApiOperation({ summary: 'Conceder la administración del equipo de una empresa' })
+  async concederAdministracion(@Param('id') id: string, @Param('clientId') clientId: string, @Req() req: AuthenticatedRequest) {
+    await this.definirAdministracion(id, clientId, true, req);
+    return { clientId, administra: true };
+  }
+
+  @Delete(':id/administra/:clientId')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @RequiresRecentAuth('retirar la administración del equipo de una empresa')
+  @ApiOperation({ summary: 'Retirar la administración del equipo de una empresa' })
+  async retirarAdministracion(@Param('id') id: string, @Param('clientId') clientId: string, @Req() req: AuthenticatedRequest) {
+    await this.definirAdministracion(id, clientId, false, req);
+    return { clientId, administra: false };
+  }
+
+  /**
+   * El control común de las dos anteriores.
+   *
+   * La empresa pedida pasa por `alcance()`, que rechaza la que queda fuera: sin eso, quien
+   * administra un local podría nombrarse administrador de otro cambiando el id de la dirección.
+   */
+  private async definirAdministracion(id: string, clientId: string, puede: boolean, req: AuthenticatedRequest): Promise<void> {
+    const alcance = await this.administracion.alcance(req, clientId);
+    this.administracion.asegurarDentro(alcance, { clientId, role: UserRole.CLIENT });
+    await this.administradores.definir(
+      req.organizationId || req.user.organizationId,
+      id,
+      clientId,
+      puede,
+      req.user.id,
+    );
   }
 
   /**
@@ -137,16 +198,14 @@ export class UsersController {
       // a alguien ajeno seria moverlo al alcance propio y editarlo en el mismo paso.
       this.administracion.asegurarDentro(alcance, { clientId: destino?.clientId ?? null, role: destino?.role ?? null });
     }
-    const empresaDelCambio = alcance.soloEmpresa ?? clientId;
-    if (dto.administraElEquipo !== undefined && empresaDelCambio) {
-      await this.administradores.definir(
-        req.organizationId || req.user.organizationId,
-        id,
-        empresaDelCambio,
-        dto.administraElEquipo,
-        req.user.id,
-      );
-    }
+    /*
+     * Editar ya no concede ni retira la administración.
+     *
+     * Con una casilla en la ficha había que adivinar sobre qué empresa aplicaba, y cuando quien
+     * editaba era la agencia —que no manda ninguna— no aplicaba sobre ninguna: la casilla se
+     * marcaba, se guardaba y no pasaba nada. Ahora se concede empresa por empresa, con su
+     * dirección propia, donde se ve a cuál corresponde.
+     */
     return this.updateUser.execute({
       id,
       organizationId: req.organizationId || req.user.organizationId,

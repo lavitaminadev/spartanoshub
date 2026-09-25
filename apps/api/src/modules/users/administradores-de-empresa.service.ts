@@ -33,6 +33,21 @@ export class AdministradoresDeEmpresaService {
   }
 
   /**
+   * Las empresas cuyo equipo administra esa persona.
+   *
+   * Es la pregunta inversa y hace falta al abrir su ficha: quien atiende tres locales puede
+   * administrar uno y en los otros solo mirar, y sin esta lista la ficha tendría que elegir una
+   * empresa cualquiera para preguntar por ella.
+   */
+  async empresasQueAdministra(organizationId: string, userId: string): Promise<string[]> {
+    const filas = await this.overrides.find({
+      where: { organizationId, userId, module: MODULO, level: NIVEL },
+      select: { clientId: true },
+    });
+    return filas.map((fila) => fila.clientId).filter((id): id is string => Boolean(id));
+  }
+
+  /**
    * Concede o retira la administración del equipo de una empresa.
    *
    * @param puede - `true` concede, `false` retira. Retirar borra la excepción en vez de
