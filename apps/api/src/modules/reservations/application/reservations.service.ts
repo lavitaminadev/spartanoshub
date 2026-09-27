@@ -26,7 +26,7 @@ import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { evaluarCambioDeZona, type ZonaDelLocal } from './cambio-de-zona';
 import { describirCambio } from './describir-cambio';
-import { ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
+import { FORM_FIELD_TYPES, ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
@@ -123,7 +123,17 @@ type DesignConfig = {
   enforceCompanyDailyCap?: string;
 };
 
-const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
+/*
+ * Una sola lista de tipos, la que ya valida la entrada.
+ *
+ * Había dos escritas a mano y habían divergido: el DTO aceptaba `rut` y `birthdate`, y esta
+ * comprobación los rechazaba. El constructor ofrece los dos en su lista de campos, así que
+ * añadir un RUT o una fecha de nacimiento pasaba la validación de entrada y moría después con
+ * «Configuración inválida en el campo …», sin decir que el tipo era el problema.
+ *
+ * Derivarla de `FORM_FIELD_TYPES` hace imposible que vuelvan a separarse.
+ */
+const FIELD_TYPES = new Set<string>(FORM_FIELD_TYPES);
 /** Tipos cuyas respuestas son una alternativa de una lista cerrada. */
 /** Estados que puede tomar una solicitud de contacto post-encuesta. */
 // Solo las reservas que aún tienen un turno futuro consumen capacidad.
@@ -431,7 +441,28 @@ export class ReservationsService {
         { id: 'served_by', type: 'text', label: '¿Podrías indicarnos quien te atendió durante tu visita?', required: true, placeholder: 'Ej: Juan' },
         { id: 'rating', type: 'rating', label: 'De 1 a 5 ¿Cómo calificarías la experiencia?', required: true },
       ]
-      : [{ id: 'name', type: 'text', label: 'Nombre completo', required: true, system: true }, { id: 'email', type: 'email', label: 'Correo', required: false, system: true }, { id: 'phone', type: 'phone', label: 'Teléfono', required: true, system: true }, { id: 'consent', type: 'consent', label: 'Acepto el tratamiento de mis datos para gestionar esta reserva.', required: true }];
+      /*
+       * La reserva también pregunta el cumpleaños, y lo pide de verdad.
+       *
+       * El saludo de cumpleaños existe desde hace tiempo y no tenía de dónde sacar la fecha en
+       * Reservas: sólo la encuesta la preguntaba. Un aviso encendido que nunca encuentra a quién
+       * felicitar parece roto, y en realidad le faltaba el dato desde el principio.
+       *
+       * Va como `birthdate` y no como `date` porque ese tipo valida que la fecha tenga sentido
+       * para una persona; una fecha cualquiera aceptada sin queja reaparece meses después como
+       * un saludo absurdo.
+       *
+       * **Sólo alcanza a los formularios nuevos.** Los ya publicados conservan sus campos tal
+       * como están: añadirles uno obligatorio por detrás dejaría a medias cualquier reserva en
+       * curso y cambiaría sin avisar lo que se le pide a quien ya estaba reservando.
+       */
+      : [
+        { id: 'name', type: 'text', label: 'Nombre completo', required: true, system: true },
+        { id: 'email', type: 'email', label: 'Correo', required: false, system: true },
+        { id: 'phone', type: 'phone', label: 'Teléfono', required: true, system: true },
+        { id: 'birthdate', type: 'birthdate', label: 'Fecha de nacimiento', required: true },
+        { id: 'consent', type: 'consent', label: 'Acepto el tratamiento de mis datos para gestionar esta reserva.', required: true },
+      ];
     /*
      * Una reserva nueva nace con su propio cupo, no compartiendo el de la empresa.
      *

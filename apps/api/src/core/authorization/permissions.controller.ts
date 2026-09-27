@@ -413,6 +413,15 @@ export class PermissionsController {
   @ApiOperation({ summary: 'Cuentas visibles de un usuario y por qué las ve' })
   async clientAccessOfUser(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const user = await this.findUser(id, req.organizationId);
+    /*
+     * La misma reja que su vecino de arriba, que aquí faltaba.
+     *
+     * `findUser` sólo comprueba que la cuenta sea de esta organización, así que cualquier cuenta
+     * de portal podía pedir un identificador ajeno y recibir el cargo de esa persona y el mapa
+     * completo de empresas que atiende. Es exactamente lo que el encierro por empresa existe
+     * para impedir, y se coló porque esta pantalla empezó a usarse desde el portal después.
+     */
+    await this.assertCanManageUserPermissionException(req, user);
     const access = await this.accountAccess.explain(req.organizationId, {
       id: user.id,
       email: user.email,

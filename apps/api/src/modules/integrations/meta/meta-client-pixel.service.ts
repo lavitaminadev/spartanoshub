@@ -282,13 +282,24 @@ export class MetaClientPixelService {
    * locales de empresas que todavía no tienen el suyo.
    */
   async assertPixelDeLaEmpresa(organizationId: string, clientId: string, pixelId: string): Promise<void> {
-    const ajeno = await this.pixelesGuardados.findOne({
+    /*
+     * Se miran todas las filas con dueño, no una cualquiera.
+     *
+     * Con `findOne` el resultado dependía del orden que devolviera el índice: un Pixel que por
+     * arrastre histórico figura en dos empresas hacía que la comprobación fallara unas veces sí
+     * y otras no sobre la misma empresa. Cambiar el dueño no arreglaba nada, porque la otra fila
+     * seguía ahí y podía volver a ganar.
+     *
+     * Con la lista entera, la empresa que ya lo tiene asignado siempre pasa, y sólo se rechaza
+     * cuando de verdad pertenece a otra.
+     */
+    const conDueno = await this.pixelesGuardados.find({
       where: { organizationId, pixelId, clientId: Not(IsNull()) },
       select: { id: true, clientId: true },
     });
-    if (ajeno && ajeno.clientId !== clientId) {
-      throw new BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
-    }
+    if (conDueno.length === 0) return;
+    if (conDueno.some((fila) => fila.clientId === clientId)) return;
+    throw new BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
   }
 
   async pixelesElegibles(organizationId: string, clientId: string) {
@@ -418,15 +429,39 @@ export class MetaClientPixelService {
       const enLaTabla = input.existingPixelId
         ? await this.pixelesGuardados.findOne({ where: { organizationId, pixelId: input.existingPixelId } })
         : null;
+      /*
+       * Y también entre las credenciales, que es la tercera procedencia.
+       *
+       * «Agregar Pixel» guarda sólo en `config.metaPixels`; la tabla no la escribe nadie desde
+       * que una migración la pobló. El catálogo que llena el desplegable sí lee esas
+       * credenciales, así que ofrecía Pixels registrados hace un rato y al elegirlos respondía
+       * que no existen —y remataba mandando a crearlos con el botón que acababa de usarse—.
+       */
+      const enLasCredenciales = input.existingPixelId
+        ? this.credenciales(integration)[input.existingPixelId]
+        : undefined;
       // La exclusividad sigue valiendo: un Pixel de otra empresa mezclaría sus conversiones.
       if (input.existingPixelId) await this.assertPixelDeLaEmpresa(organizationId, clientId, input.existingPixelId);
 
       return this.mutateRecords(integration.id, (records) => {
         const enElMapa = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
+        const desdeCredencial: ClientPixelRecord | undefined = enLasCredenciales && input.existingPixelId
+          ? {
+            pixelId: input.existingPixelId,
+            pixelName: enLasCredenciales.name ?? undefined,
+            accessToken: enLasCredenciales.accessToken ?? undefined,
+            configuredAt: new Date().toISOString(),
+          }
+          : undefined;
+        // Se busca en las tres, en el mismo orden en que el catálogo las ofrece.
         const source: ClientPixelRecord | undefined = enElMapa ?? (enLaTabla
           ? { pixelId: enLaTabla.pixelId, pixelName: enLaTabla.name ?? undefined, accessToken: enLaTabla.accessToken ?? undefined, configuredAt: new Date().toISOString() }
-          : undefined);
-        if (!source) throw new BadRequestException('Ese Pixel no existe en esta organización. Créalo con «Agregar Pixel».');
+          : desdeCredencial);
+        if (!source) {
+          throw new BadRequestException(
+            'Ese Pixel ya no está registrado en esta organización. Vuelve a agregarlo con su token en Integraciones.',
+          );
+        }
         const configuredAt = new Date().toISOString();
         const record: ClientPixelRecord = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
         return [

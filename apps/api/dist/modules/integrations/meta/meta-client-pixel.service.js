@@ -160,13 +160,15 @@ let MetaClientPixelService = class MetaClientPixelService {
         return { bindings, pixels: [...pixels, ...sinAsignar], agencyPixelId };
     }
     async assertPixelDeLaEmpresa(organizationId, clientId, pixelId) {
-        const ajeno = await this.pixelesGuardados.findOne({
+        const conDueno = await this.pixelesGuardados.find({
             where: { organizationId, pixelId, clientId: (0, typeorm_2.Not)((0, typeorm_3.IsNull)()) },
             select: { id: true, clientId: true },
         });
-        if (ajeno && ajeno.clientId !== clientId) {
-            throw new common_1.BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
-        }
+        if (conDueno.length === 0)
+            return;
+        if (conDueno.some((fila) => fila.clientId === clientId))
+            return;
+        throw new common_1.BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
     }
     async pixelesElegibles(organizationId, clientId) {
         const filas = await this.pixelesGuardados.find({
@@ -254,15 +256,27 @@ let MetaClientPixelService = class MetaClientPixelService {
             const enLaTabla = input.existingPixelId
                 ? await this.pixelesGuardados.findOne({ where: { organizationId, pixelId: input.existingPixelId } })
                 : null;
+            const enLasCredenciales = input.existingPixelId
+                ? this.credenciales(integration)[input.existingPixelId]
+                : undefined;
             if (input.existingPixelId)
                 await this.assertPixelDeLaEmpresa(organizationId, clientId, input.existingPixelId);
             return this.mutateRecords(integration.id, (records) => {
                 const enElMapa = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
+                const desdeCredencial = enLasCredenciales && input.existingPixelId
+                    ? {
+                        pixelId: input.existingPixelId,
+                        pixelName: enLasCredenciales.name ?? undefined,
+                        accessToken: enLasCredenciales.accessToken ?? undefined,
+                        configuredAt: new Date().toISOString(),
+                    }
+                    : undefined;
                 const source = enElMapa ?? (enLaTabla
                     ? { pixelId: enLaTabla.pixelId, pixelName: enLaTabla.name ?? undefined, accessToken: enLaTabla.accessToken ?? undefined, configuredAt: new Date().toISOString() }
-                    : undefined);
-                if (!source)
-                    throw new common_1.BadRequestException('Ese Pixel no existe en esta organización. Créalo con «Agregar Pixel».');
+                    : desdeCredencial);
+                if (!source) {
+                    throw new common_1.BadRequestException('Ese Pixel ya no está registrado en esta organización. Vuelve a agregarlo con su token en Integraciones.');
+                }
                 const configuredAt = new Date().toISOString();
                 const record = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
                 return [
