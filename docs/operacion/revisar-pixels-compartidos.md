@@ -27,10 +27,10 @@ Sin filas, la tabla está limpia.
 
 ## 2. En el registro de las pantallas: el mapa empresa → Pixel
 
-Es una fila por organización y un JSON corto, así que se lee a ojo:
+Es una fila por organización y un JSON corto, así que se lee a ojo. La base es MariaDB, donde la función que lo ordena se llama `JSON_DETAILED` (en MySQL sería `JSON_PRETTY`):
 
 ```sql
-SELECT JSON_PRETTY(JSON_EXTRACT(config, '$.clientPixels')) AS mapa
+SELECT JSON_DETAILED(JSON_EXTRACT(config, '$.clientPixels')) AS mapa
 FROM integrations
 WHERE provider = 'meta';
 ```
