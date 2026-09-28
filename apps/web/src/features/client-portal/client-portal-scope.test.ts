@@ -19,8 +19,8 @@ describe('portal del cliente en la operación inicial', () => {
   it('solo publica Inicio y los servicios efectivamente contratados', () => {
     const visible = CLIENT_NAV.filter((item) => isClientNavItemVisible(item, client())).map((item) => item.label);
 
-    // Correos entra con CRM: es el servicio el que genera los avisos que salen a su nombre.
-    expect(visible).toEqual(['Inicio', 'CRM', 'Correos']);
+    // Sin administrar la empresa no hay Correos: qué sale a su nombre lo decide quien la administra.
+    expect(visible).toEqual(['Inicio', 'CRM']);
     expect(CLIENT_NAV.map((item) => item.label)).not.toContain('Aprobaciones');
     expect(CLIENT_NAV.map((item) => item.label)).not.toContain('Informes');
   });
@@ -48,5 +48,27 @@ describe('portal del cliente en la operación inicial', () => {
   it('no consulta Pulso mientras Reportes esté fuera del portal inicial', () => {
     const user = client({ features: { crm: true, reservations: true, reports: true }, permissions: { crm: 'view', reservations: 'edit', reports: 'view' } });
     expect(isPortalPulseVisible(user)).toBe(false);
+  });
+});
+
+/*
+ * Correos, dentro de una empresa, es de quien la administra.
+ *
+ * El resto de su equipo trabaja con sus reservas o sus leads, pero no decide qué correos salen a
+ * nombre de la empresa. El servidor ya les negaba la entrada; el enlace aparecía igual en el menú.
+ */
+describe('Correos en el portal', () => {
+  const correos = CLIENT_NAV.find((item) => item.label === 'Correos')!;
+
+  it('lo ve quien administra su empresa', () => {
+    expect(isClientNavItemVisible(correos, client({ permissions: { crm: 'view', reservations: 'edit', users: 'manage' } }))).toBe(true);
+  });
+
+  it('no lo ve el resto de su equipo, aunque trabaje con el servicio', () => {
+    expect(isClientNavItemVisible(correos, client({ permissions: { crm: 'manage', reservations: 'manage', users: 'view' } }))).toBe(false);
+  });
+
+  it('ni el administrador lo ve si la empresa no tiene servicios que envíen correos', () => {
+    expect(isClientNavItemVisible(correos, client({ capabilities: { crm: false, reservations: false }, permissions: { users: 'manage' } }))).toBe(false);
   });
 });

@@ -322,8 +322,33 @@ function textoLegible(texto: string, conocidos: Record<string, string> = {}): st
 
 /** Las variables que admite una plantilla, sacadas de su propia descripción. */
 function variablesDe(descripcion: string): string[] {
-  return [...descripcion.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)].map((m) => m[1]);
+  // Sin repetidas: una descripción puede nombrar dos veces la misma —«tiene que llevar {{enlace}}»—
+  // y cada una se ofrecía como un botón más para insertar lo mismo.
+  return [...new Set([...descripcion.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)].map((m) => m[1]))];
 }
+
+/**
+ * De dónde salen los datos que se insertan, dicho para cada tipo de correo.
+ *
+ * Era una sola frase para todos —«los datos de la reserva de quien recibe»—, y en un correo de
+ * acceso, de CRM o de cobranza no hay ninguna reserva.
+ */
+const DE_DONDE_SALEN: Record<ModuloDeAviso, string> = {
+  reservas: 'Se llenan con los datos de la reserva de quien recibe: su local, su fecha, su código.',
+  equipo: 'Se llenan con los datos de la reserva de la que se avisa.',
+  encuestas: 'Se llenan con los datos de la encuesta y de quien la respondió.',
+  crm: 'Se llenan con los datos del lead y de quien lo lleva.',
+  cobranza: 'Se llenan con los datos de la factura y de la empresa.',
+  acceso: 'Se llenan con los datos de la cuenta que recibe el correo.',
+};
+
+/** Los avisos cuyo origen no es el de su grupo. */
+const DE_DONDE_SALEN_POR_AVISO: Record<string, string> = {
+  'email.birthday': 'Se llenan con los datos de quien cumple años.',
+  'email.daily_digest': 'Se llenan con el resumen de quien lo recibe.',
+  'email.task_reminder': 'Se llenan con los datos de la tarea y de su lead.',
+  'email.coupon': 'Se llenan con los datos de la visita de quien recibe y del cupón elegido.',
+};
 
 /**
  * Cuerpo del correo con las variables resaltadas.
@@ -779,14 +804,26 @@ export function PanelDeCorreo(): JSX.Element {
               {grupo.siempre || !encendido ? (
                 <span className="panel-correo-siempre"><strong>{grupo.titulo}</strong><em>Siempre se envía</em></span>
               ) : (
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={activo}
-                    onChange={() => editar(encendido.key, !activo)}
-                  />
+                <>
                   <strong>{grupo.titulo}</strong>
-                </label>
+                  {/*
+                    Un interruptor que dice su estado en palabras.
+
+                    Una casilla sola junto al título no decía qué hacía: marcada, ¿el correo sale o
+                    está elegido para algo? «Se envía / No se envía» no deja lugar a dudas.
+                  */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={activo}
+                    aria-label={`${grupo.titulo}: ${activo ? 'se envía' : 'no se envía'}`}
+                    className={`panel-correo-interruptor${activo ? ' es-activo' : ''}`}
+                    onClick={() => editar(encendido.key, !activo)}
+                  >
+                    <span className="panel-correo-interruptor-pista" aria-hidden="true"><span /></span>
+                    <span>{activo ? 'Se envía' : 'No se envía'}</span>
+                  </button>
+                </>
               )}
               {porClave.get(`${grupo.prefijo}_subject`)?.source === 'client' ? (
                 <em className="panel-correo-propio">Propia de esta empresa</em>
@@ -940,7 +977,7 @@ export function PanelDeCorreo(): JSX.Element {
                             </button>
                           ))}
                           {/* De dónde sale cada dato: sin esto, «{{local}}» no dice cuál de las sucursales. */}
-                          <span className="panel-correo-variables-nota">Se llenan con los datos de la reserva de quien recibe: su local, su fecha, su código.</span>
+                          <span className="panel-correo-variables-nota">{DE_DONDE_SALEN_POR_AVISO[grupo.prefijo] ?? DE_DONDE_SALEN[grupo.modulo]}</span>
                         </small>
                       ) : ajuste.unit ? <small>{ajuste.unit}</small> : null}
                     </label>

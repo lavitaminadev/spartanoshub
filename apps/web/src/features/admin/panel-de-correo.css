@@ -201,3 +201,17 @@
 /* Los que no tienen interruptor: dicen por qué, en lugar de una casilla que no haría nada. */
 .panel-correo-siempre { display: inline-flex; align-items: center; gap: 8px; }
 .panel-correo-siempre em { padding: 1px 8px; border-radius: 999px; background: #e6f4ea; color: #1f6b3a; font-size: 11px; font-style: normal; font-weight: 600; }
+
+/*
+ * El interruptor de cada correo: a la derecha del título, con su estado en palabras. En pantallas
+ * angostas baja debajo del título en vez de apretarlo.
+ */
+.panel-correo-aviso header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.panel-correo-aviso header > strong { flex: 1 1 180px; min-width: 0; }
+.panel-correo-interruptor { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 1px solid var(--border, #e7e1ea); border-radius: 999px; background: var(--surface, #fff); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; }
+.panel-correo-interruptor-pista { position: relative; width: 36px; height: 20px; border-radius: 999px; background: #d9d3dc; transition: background 0.15s; }
+.panel-correo-interruptor-pista > span { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); transition: transform 0.15s; }
+.panel-correo-interruptor.es-activo { border-color: #b7dfc3; color: #1f6b3a; }
+.panel-correo-interruptor.es-activo .panel-correo-interruptor-pista { background: #2f9a55; }
+.panel-correo-interruptor.es-activo .panel-correo-interruptor-pista > span { transform: translateX(16px); }
+.panel-correo-interruptor:focus-visible { outline: 2px solid var(--brand, #d64b81); outline-offset: 2px; }
