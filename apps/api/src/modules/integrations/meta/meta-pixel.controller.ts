@@ -20,6 +20,9 @@ import { MetaConversionOutboxService } from './meta-conversion-outbox.service';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { RequiresRecentAuth } from '../../../core/auth/requires-recent-auth.decorator';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
+import { Campaign } from '../../crm/campaigns/campaign.entity';
 
 @Controller('integrations/meta')
 @UseGuards(AuthGuard('jwt'))
@@ -35,12 +38,32 @@ export class MetaPixelController {
     private clientPixels: MetaClientPixelService,
     private conversionOutbox: MetaConversionOutboxService,
     private accountAccess: AccountAccessService,
+    @InjectRepository(Campaign) private campaigns: Repository<Campaign>,
   ) {}
 
   @Get('client-pixels/catalog')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
   clientPixelCatalog(@Req() req: AuthenticatedRequest) {
     return this.clientPixels.catalog(req.organizationId);
+  }
+
+  /**
+   * Las campañas del CRM que reportan a Meta, para contarlas junto a los flujos de Reservas.
+   *
+   * El centro de medición solo miraba formularios de Reservas, así que una organización que
+   * mide únicamente desde el CRM veía «0 flujos con CAPI» mientras sus eventos llegaban a Meta.
+   *
+   * Solo las de una empresa: sin empresa no hay Pixel que heredar y el CRM no las reporta.
+   * El Pixel efectivo —el propio o el de la empresa— lo resuelve la pantalla con el catálogo.
+   */
+  @Get('client-pixels/campanias')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
+  campaniasConCapi(@Req() req: AuthenticatedRequest) {
+    return this.campaigns.find({
+      where: { organizationId: req.organizationId, clientId: Not(IsNull()), metaCapiEnabled: true },
+      select: { id: true, name: true, clientId: true, metaPixelId: true, status: true },
+      order: { name: 'ASC' },
+    });
   }
 
   /**
