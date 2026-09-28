@@ -83,6 +83,9 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
             const previa = persona
                 ? await manager.findOne(survey_response_entity_1.SurveyResponse, { where: { surveyId: survey.id, reservationId: persona.reservationId } })
                 : null;
+            if (previa?.completedAt) {
+                throw new common_1.ConflictException('Ya nos dejaste tu opinión sobre esta visita. ¡Gracias!');
+            }
             if (previa) {
                 await manager.update(survey_response_entity_1.SurveyResponse, { id: previa.id }, {
                     rating,
@@ -130,6 +133,9 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
         if (!respuesta.editTokenHash || esperado.length !== recibido.length || !(0, node_crypto_1.timingSafeEqual)(esperado, recibido)) {
             throw new common_1.ForbiddenException('No se puede modificar esta respuesta');
         }
+        if (respuesta.completedAt) {
+            throw new common_1.ConflictException('Esta respuesta ya se envió y no se puede cambiar. ¡Gracias por tu opinión!');
+        }
         let respuestas;
         try {
             respuestas = (0, flujo_de_encuesta_1.unirRespuestas)(survey.questions ?? [], respuesta.answers ?? {}, datos.answers);
@@ -157,7 +163,7 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
         if (respuesta.privacyConsentAt)
             aceptacion = {};
         const mensaje = typeof datos.teamMessage === 'string' ? datos.teamMessage.trim().slice(0, flujo_de_encuesta_1.LARGO_MAXIMO_MENSAJE) : undefined;
-        const mensajeNuevo = Boolean(mensaje) && mensaje !== (respuesta.teamMessage ?? '').trim();
+        const mensajeNuevo = Boolean(mensaje) && !(respuesta.teamMessage ?? '').trim();
         await this.responses.update({ id: respuesta.id }, {
             answers: respuestas,
             ...aceptacion,

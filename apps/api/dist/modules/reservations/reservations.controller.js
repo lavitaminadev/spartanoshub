@@ -254,6 +254,8 @@ let ReservationsController = class ReservationsController {
     async createCoupon(req, dto) {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT)
             dto.clientId = this.client(req);
+        if (!dto.clientId)
+            throw new common_1.BadRequestException('Elige la empresa del cupón: cada cupón vale sólo en los locales de su empresa.');
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
         await this.capabilities.assert(req.organizationId, dto.clientId, 'reservations');
         return this.service.createCoupon(req.organizationId, req.user.id, dto, dto.clientId);

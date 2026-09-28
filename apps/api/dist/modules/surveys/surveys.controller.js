@@ -241,7 +241,9 @@ let SurveysController = class SurveysController {
         }
         const visitas = await this.dataSource.query('SELECT COALESCE(NULLIF(origen, \'\'), \'link\') origen, DATE(created_at) dia, COUNT(*) total FROM survey_visits WHERE survey_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 365 DAY) GROUP BY origen, dia', [survey.id]).catch(() => []);
         const visitasPorDia = visitas.map((fila) => ({ origen: fila.origen, dia: (fila.dia instanceof Date ? fila.dia.toISOString() : String(fila.dia)).slice(0, 10), total: Number(fila.total) }));
+        const historial = await this.historialPorCorreo(survey, rows.map((row) => row.respondentEmail));
         const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
+            historial: row.respondentEmail ? historial.get(row.respondentEmail.trim().toLowerCase()) ?? null : null,
             id: row.id,
             submittedAt: row.submittedAt.toISOString(),
             rating: row.rating ?? null,
@@ -269,6 +271,29 @@ let SurveysController = class SurveysController {
     async nombreDe(userId) {
         const filas = await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [userId]).catch(() => []);
         return filas?.[0]?.name ?? null;
+    }
+    async historialPorCorreo(survey, correos) {
+        const unicos = [...new Set(correos.map((correo) => correo?.trim().toLowerCase()).filter((correo) => Boolean(correo)))];
+        const resultado = new Map();
+        if (unicos.length === 0)
+            return resultado;
+        const filas = await this.dataSource.query(`SELECT LOWER(TRIM(r.respondent_email)) AS correo, r.survey_id AS encuesta, COUNT(*) AS total
+         FROM survey_responses r
+         JOIN surveys s ON s.id = r.survey_id
+        WHERE r.organization_id = ?
+          AND s.client_id <=> ?
+          AND LOWER(TRIM(r.respondent_email)) IN (${unicos.map(() => '?').join(',')})
+        GROUP BY correo, encuesta`, [survey.organizationId, survey.clientId ?? null, ...unicos]).catch(() => []);
+        for (const fila of filas) {
+            const actual = resultado.get(fila.correo) ?? { enEstaEncuesta: 0, enLaEmpresa: 0, encuestas: 0 };
+            const total = Number(fila.total) || 0;
+            actual.enLaEmpresa += total;
+            actual.encuestas += 1;
+            if (fila.encuesta === survey.id)
+                actual.enEstaEncuesta = total;
+            resultado.set(fila.correo, actual);
+        }
+        return resultado;
     }
     async submit(req, id, dto) {
         const survey = await this.findOwned(id, req);

@@ -115,6 +115,20 @@ export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surv
                   <small>
                     {new Date(respuesta.submittedAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
                     {respuesta.completedAt ? '' : ' · dejó sólo la nota'}
+                    {/*
+                      Quien vuelve no es igual que quien opina una vez. Se marca sólo cuando hay más
+                      de una: «1 respuesta» en cada fila sería ruido para la mayoría.
+                    */}
+                    {respuesta.historial && respuesta.historial.enLaEmpresa > 1 && (
+                      <span
+                        className="respuestas-persona-historial"
+                        title={`${respuesta.historial.enEstaEncuesta} en esta encuesta · ${respuesta.historial.enLaEmpresa} en ${respuesta.historial.encuestas} encuesta${respuesta.historial.encuestas === 1 ? '' : 's'} de esta empresa`}
+                      >
+                        {respuesta.historial.enEstaEncuesta > 1
+                          ? `Respondió ${respuesta.historial.enEstaEncuesta} veces`
+                          : `${respuesta.historial.enLaEmpresa} respuestas en la empresa`}
+                      </span>
+                    )}
                   </small>
                   <span className="respuestas-persona-abrir" aria-hidden="true">{estaAbierta ? '−' : '+'}</span>
                 </button>
@@ -138,6 +152,7 @@ export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surv
                   {c.telefono && <><dt>{DATOS_DE_CONTACTO.telefono.etiqueta}</dt><dd>{c.telefono}</dd></>}
                   {c.rut && <><dt>{DATOS_DE_CONTACTO.rut.etiqueta}</dt><dd>{c.rut}</dd></>}
                   {c.nacimiento && <><dt>{DATOS_DE_CONTACTO.nacimiento.etiqueta}</dt><dd>{new Date(`${c.nacimiento}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</dd></>}
+                  {respuesta.historial && <><dt>Historial</dt><dd>{respuesta.historial.enEstaEncuesta} {respuesta.historial.enEstaEncuesta === 1 ? 'respuesta' : 'respuestas'} en esta encuesta · {respuesta.historial.enLaEmpresa} en total en {respuesta.historial.encuestas} {respuesta.historial.encuestas === 1 ? 'encuesta' : 'encuestas'} de esta empresa</dd></>}
                   {respuesta.privacyConsentAt && <><dt>Aceptó uso de datos</dt><dd>{new Date(respuesta.privacyConsentAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</dd></>}
                   {detalle.length === 0 ? <><dt>Respuestas</dt><dd>No contestó más preguntas.</dd></> : detalle.map((item) => <Fragment key={item.pregunta}><dt>{item.pregunta}</dt><dd>{String(item.valor)}</dd></Fragment>)}
                 </dl>}

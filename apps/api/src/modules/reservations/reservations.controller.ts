@@ -394,6 +394,9 @@ export class ReservationsController {
   async createCoupon(@Req() req: AuthenticatedRequest, @Body() dto: CreateCouponDto) {
     // Una cuenta de empresa crea cupones sólo para sí misma, diga lo que diga el cuerpo.
     if (req.user.role === UserRole.CLIENT) dto.clientId = this.client(req)!;
+    // Todo cupón tiene empresa. Uno sin dueño se aceptaba en los locales de todos los clientes, y
+    // un descuento pensado para un negocio terminaba aplicándose en otro.
+    if (!dto.clientId) throw new BadRequestException('Elige la empresa del cupón: cada cupón vale sólo en los locales de su empresa.');
     // El cupón modifica la oferta pública de una empresa: no basta con el permiso del
     // módulo; quien lo crea debe alcanzar esa empresa y tener Reservas contratado.
     await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);

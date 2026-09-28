@@ -289,7 +289,17 @@ export class SurveysController {
       [survey.id],
     ).catch(() => []) as Array<{ origen: string; dia: string | Date; total: number }>;
     const visitasPorDia = visitas.map((fila) => ({ origen: fila.origen, dia: (fila.dia instanceof Date ? fila.dia.toISOString() : String(fila.dia)).slice(0, 10), total: Number(fila.total) }));
+    /*
+     * Cuántas veces ha respondido cada persona: en esta encuesta y en todas las de la misma empresa.
+     *
+     * Quien vuelve una y otra vez no es igual que quien opina una vez, y leerlo sin ese dato hace
+     * pasar a un cliente habitual por alguien nuevo. Se cuenta por correo —el único dato que
+     * identifica a alguien entre visitas— y sólo dentro de la empresa de la encuesta: lo que la
+     * misma persona haya contestado para otro negocio no es asunto de este.
+     */
+    const historial = await this.historialPorCorreo(survey, rows.map((row) => row.respondentEmail));
     const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
+      historial: row.respondentEmail ? historial.get(row.respondentEmail.trim().toLowerCase()) ?? null : null,
       id: row.id,
       submittedAt: row.submittedAt.toISOString(),
       rating: row.rating ?? null,
@@ -330,6 +340,46 @@ export class SurveysController {
   private async nombreDe(userId: string): Promise<string | null> {
     const filas = await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [userId]).catch(() => []) as Array<{ name?: string }>;
     return filas?.[0]?.name ?? null;
+  }
+
+  /**
+   * Respuestas de cada persona, contadas dentro de la empresa de la encuesta.
+   *
+   * La empresa se compara con `<=>` para que las encuestas sin empresa —las internas— se cuenten
+   * entre sí y no se mezclen con las de ningún cliente. Si la consulta falla, los resultados se
+   * muestran igual, sin el conteo: es un dato que ayuda a leer, no uno sin el que no se pueda.
+   *
+   * @returns Por correo en minúsculas: en esta encuesta, en toda la empresa, y en cuántas encuestas
+   *   distintas de ella.
+   */
+  private async historialPorCorreo(
+    survey: Survey,
+    correos: Array<string | null | undefined>,
+  ): Promise<Map<string, { enEstaEncuesta: number; enLaEmpresa: number; encuestas: number }>> {
+    const unicos = [...new Set(correos.map((correo) => correo?.trim().toLowerCase()).filter((correo): correo is string => Boolean(correo)))];
+    const resultado = new Map<string, { enEstaEncuesta: number; enLaEmpresa: number; encuestas: number }>();
+    if (unicos.length === 0) return resultado;
+
+    const filas = await this.dataSource.query(
+      `SELECT LOWER(TRIM(r.respondent_email)) AS correo, r.survey_id AS encuesta, COUNT(*) AS total
+         FROM survey_responses r
+         JOIN surveys s ON s.id = r.survey_id
+        WHERE r.organization_id = ?
+          AND s.client_id <=> ?
+          AND LOWER(TRIM(r.respondent_email)) IN (${unicos.map(() => '?').join(',')})
+        GROUP BY correo, encuesta`,
+      [survey.organizationId, survey.clientId ?? null, ...unicos],
+    ).catch(() => []) as Array<{ correo: string; encuesta: string; total: number | string }>;
+
+    for (const fila of filas) {
+      const actual = resultado.get(fila.correo) ?? { enEstaEncuesta: 0, enLaEmpresa: 0, encuestas: 0 };
+      const total = Number(fila.total) || 0;
+      actual.enLaEmpresa += total;
+      actual.encuestas += 1;
+      if (fila.encuesta === survey.id) actual.enEstaEncuesta = total;
+      resultado.set(fila.correo, actual);
+    }
+    return resultado;
   }
 
   @Post(':id/responses')
