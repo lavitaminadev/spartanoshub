@@ -9,6 +9,7 @@ import { MetaConversionOutboxService } from '../../modules/integrations/meta/met
 import { GoogleConversionOutboxService } from '../../modules/integrations/google/google-conversion-outbox.service';
 import { DetectStalePiecesJob } from '../jobs/cron/detect-stale-pieces.job';
 import { LeadsParadosJob } from '../jobs/cron/leads-parados.job';
+import { CuponPostVisitaJob } from '../jobs/cron/cupon-post-visita.job';
 import { RecordatorioDeTareasJob } from '../jobs/cron/recordatorio-de-tareas.job';
 import { ResumenDiarioJob } from '../jobs/cron/resumen-diario.job';
 import { SaludoDeCumpleanosJob } from '../jobs/cron/saludo-de-cumpleanos.job';
@@ -54,6 +55,9 @@ export class CronController {
     private readonly webhooks: WebhookDeliveryService,
     // Último del constructor: las pruebas de este controlador lo construyen por posición.
     @InjectRepository(CronRun) private readonly corridas: Repository<CronRun>,
+    // Al final a propósito: las pruebas construyen este controlador pasando las dependencias por
+    // posición, y agregarla en medio las habría corrido todas.
+    private readonly cuponPostVisita: CuponPostVisitaJob,
   ) {}
 
   /**
@@ -218,6 +222,26 @@ export class CronController {
   async leadsParadosGet(@Headers('x-cron-secret') secret: string) {
     this.verifySecret(secret);
     return this.runLocked('leads-parados', () => this.leadsParados.handle());
+  }
+
+  /**
+   * El cupón automático tras la visita o la encuesta.
+   *
+   * Sólo corría con el planificador interno: donde el trabajo lo hace el cron de cPanel, el cupón
+   * no salía nunca aunque estuviera encendido y con cupón elegido.
+   */
+  @Post('cupon-post-visita')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async cuponPostVisitaPost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('cupon-post-visita', () => this.cuponPostVisita.handle());
+  }
+
+  @Get('cupon-post-visita')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async cuponPostVisitaGet(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('cupon-post-visita', () => this.cuponPostVisita.handle());
   }
 
   @Post('recordatorio-tareas')

@@ -44,7 +44,9 @@ function servicio(respuesta: Record<string, unknown>) {
     })),
   };
   const correo = { send: vi.fn().mockResolvedValue(true) };
-  const flujo = new PublicSurveyFlowService(surveys as never, responses as never, dataSource as never, correo as never);
+  // Sin plantilla guardada: se usa el texto de fábrica y el aviso está encendido.
+  const parametros = { get: vi.fn().mockResolvedValue(null) };
+  const flujo = new PublicSurveyFlowService(surveys as never, responses as never, dataSource as never, correo as never, parametros as never);
   return { flujo, responses, correo };
 }
 

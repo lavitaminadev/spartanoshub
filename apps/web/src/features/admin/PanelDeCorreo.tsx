@@ -46,7 +46,7 @@ interface Destinatario { id: string; name: string; email: string }
  * muestra. Va escrito acá y no derivado de las claves porque el orden es una decisión editorial:
  * primero lo que le llega a un cliente, después lo interno.
  */
-type ModuloDeAviso = 'reservas' | 'encuestas' | 'crm' | 'equipo' | 'cobranza';
+type ModuloDeAviso = 'reservas' | 'encuestas' | 'crm' | 'equipo' | 'cobranza' | 'acceso';
 
 /** Rótulo y orden de cada grupo. Reservas primero: es lo que más se edita. */
 const MODULOS: Array<{ clave: ModuloDeAviso; titulo: string; explica: string; servicio?: 'reservations' | 'crm' | 'surveys' }> = [
@@ -56,6 +56,8 @@ const MODULOS: Array<{ clave: ModuloDeAviso; titulo: string; explica: string; se
   { clave: 'crm', titulo: 'CRM', explica: 'Para el equipo que atiende prospectos.', servicio: 'crm' },
   // Cobranza es de Espartanos hacia la empresa: no depende de lo que ella contrató.
   { clave: 'cobranza', titulo: 'Cobranza', explica: 'A la empresa cliente.' },
+  // Los envía la plataforma a cualquier cuenta. No se pueden apagar: sin ellos nadie entra.
+  { clave: 'acceso', titulo: 'Accesos a la plataforma', explica: 'Contraseñas y recuperación de cuenta. Siempre se envían.' },
 ];
 
 /** Lo que una empresa tiene contratado. `undefined` es la plantilla general, sin empresa elegida. */
@@ -75,7 +77,7 @@ type ServiciosContratados = Partial<Record<'reservations' | 'crm' | 'surveys', b
  * Sin empresa elegida se muestra todo: la plantilla general la heredan todas.
  */
 export function agruparAvisos(clavesEntregadas: Set<string>, contratados: ServiciosContratados) {
-  const entregados = AVISOS.filter((grupo) => clavesEntregadas.has(`${grupo.prefijo}_enabled`));
+  const entregados = AVISOS.filter((grupo) => clavesEntregadas.has(`${grupo.prefijo}_${grupo.siempre ? 'subject' : 'enabled'}`));
   const conAvisos = new Set(entregados.flatMap((grupo) => [grupo.modulo, grupo.moduloAlterno].filter(Boolean) as ModuloDeAviso[]));
   const modulosVisibles = MODULOS.filter((modulo) => {
     if (!conAvisos.has(modulo.clave)) return false;
@@ -98,7 +100,58 @@ export function agruparAvisos(clavesEntregadas: Set<string>, contratados: Servic
  * contactos del CRM y a quien dejó su fecha al reservar. Agrupado sólo bajo CRM, una empresa con
  * Reservas y sin CRM lo perdía de vista aunque el servidor se lo entregara y el correo saliera.
  */
-const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: ModuloDeAviso; moduloAlterno?: ModuloDeAviso }> = [
+const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: ModuloDeAviso; moduloAlterno?: ModuloDeAviso; siempre?: boolean }> = [
+  {
+    prefijo: 'email.reservation_pending',
+    modulo: 'reservas',
+    titulo: 'Solicitud pendiente de confirmar',
+    explica: 'Cuando el local confirma a mano, o en grupos grandes. Deja claro que todavía no está confirmada. Sólo sale si la confirmación también está encendida.',
+  },
+  {
+    prefijo: 'email.team_guest_cancel',
+    modulo: 'equipo',
+    titulo: 'Aviso al equipo: el cliente canceló',
+    explica: 'Cuando quien reservó cancela desde su enlace. El aviso dentro de la aplicación sale igual.',
+  },
+  {
+    prefijo: 'email.team_guest_reschedule',
+    modulo: 'equipo',
+    titulo: 'Aviso al equipo: el cliente cambió la hora',
+    explica: 'Cuando quien reservó cambia la hora desde su enlace. El aviso dentro de la aplicación sale igual.',
+  },
+  {
+    prefijo: 'email.team_survey_message',
+    modulo: 'encuestas',
+    titulo: 'Aviso al equipo: mensaje en una encuesta',
+    explica: 'Cuando alguien con nota baja le escribe al local. Sale una vez por respuesta; el mensaje queda en los resultados.',
+  },
+  {
+    prefijo: 'email.survey_invite',
+    modulo: 'encuestas',
+    titulo: 'Encuesta enviada por correo',
+    explica: 'Al pulsar «Enviar por correo» en una encuesta. Si la encuesta tiene su propio texto de bienvenida, ese manda.',
+    siempre: true,
+  },
+  {
+    prefijo: 'email.idle_lead',
+    modulo: 'crm',
+    titulo: 'Aviso de lead parado',
+    explica: 'Al responsable, cuando un lead lleva días sin movimiento. El aviso dentro de la aplicación sale siempre; este correo es además.',
+  },
+  {
+    prefijo: 'email.access_temporary_password',
+    modulo: 'acceso',
+    titulo: 'Contraseña temporal',
+    explica: 'Al crear una cuenta o resetear su clave. Si el texto pierde la clave o el enlace, se usa el de fábrica.',
+    siempre: true,
+  },
+  {
+    prefijo: 'email.access_password_reset',
+    modulo: 'acceso',
+    titulo: 'Recuperar el acceso',
+    explica: 'Cuando alguien olvidó su contraseña. Si el texto pierde el enlace, se usa el de fábrica.',
+    siempre: true,
+  },
   {
     prefijo: 'email.reservation_confirmation',
     modulo: 'reservas',
@@ -249,7 +302,23 @@ const ETIQUETAS_DE_VARIABLE: Record<string, string> = {
   parados: 'Cuántos sin movimiento',
   cupon: 'Código del cupón',
   vence: 'Hasta cuándo vale',
+  antes: 'Fecha y hora anterior',
+  nota: 'Estrellas que dio',
+  mensaje: 'Lo que escribió',
+  encuesta: 'Nombre de la encuesta',
+  responsable: 'Quien lleva el lead',
+  etapa: 'Etapa del lead',
+  dias: 'Días sin movimiento',
+  clave: 'Contraseña temporal',
+  enlace: 'Enlace para entrar',
 };
+
+/** El texto de una plantilla con cada variable escrita en palabras, para quien sólo lo lee. */
+function textoLegible(texto: string, conocidos: Record<string, string> = {}): string {
+  // Lo que ya se sabe —el nombre de la empresa— se muestra tal cual: así se lee como el correo
+  // que va a salir. Lo que cambia en cada reserva queda entre corchetes, en palabras.
+  return texto.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (_todo, nombre: string) => conocidos[nombre] ?? `[${ETIQUETAS_DE_VARIABLE[nombre] ?? nombre}]`);
+}
 
 /** Las variables que admite una plantilla, sacadas de su propia descripción. */
 function variablesDe(descripcion: string): string[] {
@@ -491,8 +560,19 @@ export function PanelDeCorreo(): JSX.Element {
           // quién pedirla, que es lo único que pueden hacer.
           texto: tarea?.corriendo
             ? 'Se está enviando: la tarea programada corre con normalidad'
-            : `No corre la tarea programada «${requisito.tarea}»: créala en cPanel → Cron Jobs`,
+            : tarea?.ultima
+              ? `La tarea «${requisito.tarea}» no corre desde el ${new Date(tarea.ultima).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}. Revisa en cPanel → Cron Jobs que siga activa, o que el planificador interno esté encendido.`
+              // La línea exacta a pegar: «créala» a secas no le decía a nadie qué escribir.
+              : `La tarea «${requisito.tarea}» nunca ha corrido. En cPanel → Cron Jobs agrega: curl -s -H "x-cron-secret: TU_CLAVE" https://refugio.espartanos.cl/api/cron/${requisito.tarea}`,
           cumple: Boolean(tarea?.corriendo),
+        };
+      }
+      if (requisito.clave === 'cupon') {
+        const codigo = String(valorDe('email.coupon_code') ?? '').trim();
+        return {
+          texto: codigo ? `Cupón elegido: ${codigo}` : 'Falta elegir qué cupón se envía, en Reservas → Cupones → Cupón automático',
+          cumple: Boolean(codigo),
+          enlace: codigo ? undefined : `/reservations?tab=coupons${empresa ? `&clientId=${encodeURIComponent(empresa)}` : ''}`,
         };
       }
       // Asistencia y correos del equipo ya los explica la descripción del aviso, arriba: repetirlos
@@ -512,7 +592,7 @@ export function PanelDeCorreo(): JSX.Element {
       return null;
     }).filter((requisito): requisito is { texto: string; cumple: boolean | null; enlace?: string } => requisito !== null);
     // La casilla es común a todos: se nombra una sola vez y sólo cuando falta.
-    if (datos.casilla === false) requisitos.unshift({ texto: 'La casilla que envía no está configurada', cumple: false });
+    if (datos.casilla === false) requisitos.unshift({ texto: 'La casilla que envía no está configurada: mientras tanto no sale ningún correo. Arriba, en el estado del servidor de correo, está lo que falta.', cumple: false });
     return requisitos;
   };
   /** Nulo significa «vuelve a heredar el general»; el servidor cierra el valor propio. */
@@ -547,8 +627,9 @@ export function PanelDeCorreo(): JSX.Element {
     && requisitosDe(prefijo).some((requisito) => requisito.cumple === false);
 
   const visibles = AVISOS.filter((grupo) => {
-    if (!porClave.get(`${grupo.prefijo}_enabled`)) return false;
-    const activo = Boolean(valorDe(`${grupo.prefijo}_enabled`));
+    // Los que siempre se envían no tienen interruptor: se muestran por su texto y cuentan como encendidos.
+    if (!porClave.get(`${grupo.prefijo}_${grupo.siempre ? 'subject' : 'enabled'}`)) return false;
+    const activo = grupo.siempre || Boolean(valorDe(`${grupo.prefijo}_enabled`));
     if (filtro === 'activos' && !activo) return false;
     if (filtro === 'apagados' && activo) return false;
     if (filtro === 'pendientes' && !tieneAlgoPendiente(grupo.prefijo)) return false;
@@ -560,7 +641,8 @@ export function PanelDeCorreo(): JSX.Element {
     return true;
   });
 
-  const conInterruptor = AVISOS.filter((grupo) => porClave.get(`${grupo.prefijo}_enabled`) && moduloDe(grupo) !== null);
+  // Los que siempre se envían no cuentan: no tienen interruptor que pueda estar apagado.
+  const conInterruptor = AVISOS.filter((grupo) => !grupo.siempre && porClave.get(`${grupo.prefijo}_enabled`) && moduloDe(grupo) !== null);
   const activos = conInterruptor.filter((grupo) => Boolean(valorDe(`${grupo.prefijo}_enabled`))).length;
   const pendientes = conInterruptor.filter((grupo) => tieneAlgoPendiente(grupo.prefijo)).length;
 
@@ -571,11 +653,19 @@ export function PanelDeCorreo(): JSX.Element {
       <header>
         <div>
           <h2>Correos automáticos</h2>
-          <p>
-            Se escribe texto con variables, nunca HTML: el diseño y la marca los pone el sistema.
-            Una variable sin valor se borra al enviar, así que la frase queda incompleta pero
-            nunca se ve <code>{'{{nombre}}'}</code> en la bandeja de nadie.
-          </p>
+          {soloSuEmpresa ? (
+            <p>
+              Estos son los correos que reciben tus clientes y tu equipo. Puedes encender o apagar
+              cada uno; el texto lo escribe Espartanos. Lo que va entre corchetes se reemplaza por
+              los datos de cada reserva.
+            </p>
+          ) : (
+            <p>
+              Se escribe texto con variables, nunca HTML: el diseño y la marca los pone el sistema.
+              Una variable sin valor se borra al enviar, así que la frase queda incompleta pero
+              nunca se ve <code>{'{{nombre}}'}</code> en la bandeja de nadie.
+            </p>
+          )}
         </div>
         {soloSuEmpresa ? (
           <p className="panel-correo-empresa"><span>Plantilla de</span> <strong>{empresaActiva.nombre}</strong></p>
@@ -628,7 +718,7 @@ export function PanelDeCorreo(): JSX.Element {
       </section>}
 
 
-      {empresa ? (
+      {empresa && !soloSuEmpresa ? (
         <p className="panel-correo-nota">
           Lo que no cambies acá sigue usando la plantilla general. Guardar solo afecta a esta
           empresa.
@@ -645,7 +735,7 @@ export function PanelDeCorreo(): JSX.Element {
         */}
       <div className="panel-correo-resumen">
         <span><strong>{activos}</strong> de {conInterruptor.length} encendidos</span>
-        {pendientes > 0 && <button type="button" className={`panel-correo-pendientes${filtro === 'pendientes' ? ' es-activo' : ''}`} onClick={() => setFiltro(filtro === 'pendientes' ? 'todos' : 'pendientes')}>
+        {pendientes > 0 && <button type="button" className={`panel-correo-pendientes${filtro === 'pendientes' ? ' es-activo' : ''}`} onClick={() => { const activar = filtro !== 'pendientes'; setFiltro(activar ? 'pendientes' : 'todos'); if (activar) { setModuloElegido(''); setBusqueda(''); } }}>
           <strong>{pendientes}</strong> encendido{pendientes === 1 ? '' : 's'} que no {pendientes === 1 ? 'sale' : 'salen'}
         </button>}
         <div className="panel-correo-filtros">
@@ -663,7 +753,15 @@ export function PanelDeCorreo(): JSX.Element {
         </div>
       </div>
 
-      {visibles.length === 0 && <p className="panel-correo-nota">Ningún aviso coincide con el filtro.</p>}
+      {visibles.length === 0 && (
+        <p className="panel-correo-nota">
+          {filtro === 'pendientes' && moduloElegido
+            ? 'Ningún aviso de este módulo tiene algo pendiente: los pendientes son de otro módulo.'
+            : 'Ningún aviso coincide con el filtro.'}
+          {' '}
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => { setFiltro('todos'); setModuloElegido(''); setBusqueda(''); }}>Ver todos los avisos</button>
+        </p>
+      )}
 
       {modulosVisibles.map((modulo) => {
         const delModulo = visibles.filter((grupo) => moduloDe(grupo) === modulo.clave);
@@ -671,21 +769,25 @@ export function PanelDeCorreo(): JSX.Element {
         return <section key={modulo.clave} className="panel-correo-modulo">
           <h3>{modulo.titulo} <small>{modulo.explica}</small></h3>
           {delModulo.map((grupo) => {
-        const encendido = porClave.get(`${grupo.prefijo}_enabled`)!;
-        const activo = Boolean(valorDe(encendido.key));
+        const encendido = porClave.get(`${grupo.prefijo}_enabled`);
+        const activo = Boolean(grupo.siempre) || Boolean(encendido && valorDe(encendido.key));
         const requisitos = requisitosDe(grupo.prefijo);
 
         return (
           <article key={grupo.prefijo} className={`panel-correo-aviso${activo ? ' esta-activo' : ''}`}>
             <header>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={activo}
-                  onChange={() => editar(encendido.key, !activo)}
-                />
-                <strong>{grupo.titulo}</strong>
-              </label>
+              {grupo.siempre || !encendido ? (
+                <span className="panel-correo-siempre"><strong>{grupo.titulo}</strong><em>Siempre se envía</em></span>
+              ) : (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={activo}
+                    onChange={() => editar(encendido.key, !activo)}
+                  />
+                  <strong>{grupo.titulo}</strong>
+                </label>
+              )}
               {porClave.get(`${grupo.prefijo}_subject`)?.source === 'client' ? (
                 <em className="panel-correo-propio">Propia de esta empresa</em>
               ) : null}
@@ -753,6 +855,22 @@ export function PanelDeCorreo(): JSX.Element {
                   const ajuste = porClave.get(`${grupo.prefijo}_${sufijo}`);
                   if (!ajuste) return null;
                   const variables = variablesDe(ajuste.description);
+
+                  /*
+                   * La empresa ve qué dice el correo; el texto lo escribe Espartanos.
+                   *
+                   * Las variables se leen en palabras: «[Nombre de quien recibe]» se entiende sin
+                   * saber qué es una variable. El servidor rechaza igual cualquier cambio de texto
+                   * que venga de una cuenta de empresa.
+                   */
+                  if (soloSuEmpresa && sufijo !== 'hours') {
+                    return (
+                      <div key={ajuste.key} className="panel-correo-solo-lectura">
+                        <span>{ajuste.label.split('·')[1]?.trim() ?? ajuste.label}</span>
+                        <p>{textoLegible(String(valorDe(ajuste.key) ?? ''), empresaActiva.nombre ? { local: empresaActiva.nombre, empresa: empresaActiva.nombre } : {})}</p>
+                      </div>
+                    );
+                  }
 
                   return (
                     <label key={ajuste.key}>

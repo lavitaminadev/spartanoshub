@@ -12,7 +12,9 @@ import {
 import { EmailService } from '../../core/notifications/email.service';
 import { problemasDeRespuesta } from '@espartanos/shared';
 import { aceptacionAGuardar, contactoEscrito } from './consentimiento-de-encuesta';
-import { armazonDeCorreo } from '../../core/notifications/plantilla-de-correo';
+import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
+import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
+import { leerPlantilla } from '../../core/parameters/plantilla-resuelta';
 
 /** Lo que recibe la página después de dejar la nota. */
 export interface RespuestaIniciada {
@@ -66,6 +68,7 @@ export class PublicSurveyFlowService {
     @InjectRepository(SurveyResponse) private readonly responses: Repository<SurveyResponse>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly correo: EmailService,
+    private readonly parametros: ParameterResolver,
   ) {}
 
   private async activa(surveyId: string): Promise<Survey> {
@@ -285,9 +288,28 @@ export class PublicSurveyFlowService {
     if (destinatarios.size === 0) return;
 
     const quien = respuesta.respondentName?.trim() || 'Una persona que los visitó';
-    const html = armazonDeCorreo(
-      `${quien} les dejó un mensaje`,
-      `Calificó su visita a ${local.name} con ${respuesta.rating ?? '—'} de 5 y quiso contarles esto antes de publicar nada:\n\n«${respuesta.teamMessage}»${respuesta.respondentEmail ? '\n\nPueden responderle directo a este correo.' : ''}`,
+    // El texto sale de su plantilla, editable en Correos. El mensaje queda igual guardado en los
+    // resultados aunque el correo esté apagado.
+    const plantilla = await leerPlantilla(
+      this.parametros,
+      'email.team_survey_message',
+      { clientId: survey.clientId ?? null, organizationId: survey.organizationId },
+      {
+        asunto: 'Mensaje de {{nombre}} sobre su visita',
+        cuerpo: 'Calificó su visita a {{local}} con {{nota}} de 5 y quiso contarles esto antes de publicar nada:\n\n«{{mensaje}}»',
+      },
+    );
+    if (!plantilla.encendido) return;
+    const { subject, html } = componerCorreo(
+      plantilla.asunto,
+      `${plantilla.cuerpo}${respuesta.respondentEmail ? '\n\nPueden responderle directo a este correo.' : ''}`,
+      {
+        nombre: quien,
+        local: local.name,
+        nota: respuesta.rating ?? '—',
+        mensaje: respuesta.teamMessage ?? '',
+        encuesta: survey.title,
+      },
       undefined,
       undefined,
       [
@@ -297,7 +319,7 @@ export class PublicSurveyFlowService {
       ],
     );
     for (const destino of destinatarios) {
-      await this.correo.send(destino, `Mensaje de ${quien} sobre su visita`, html, respuesta.respondentEmail ? { replyTo: respuesta.respondentEmail } : undefined);
+      await this.correo.send(destino, subject, html, respuesta.respondentEmail ? { replyTo: respuesta.respondentEmail } : undefined);
     }
   }
 }

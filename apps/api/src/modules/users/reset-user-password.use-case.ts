@@ -37,6 +37,7 @@ export class ResetUserPasswordUseCase {
       user.email,
       temporaryPassword,
       `${appUrl}/login`,
+      user.organizationId,
     );
 
     return { userId: user.id, temporaryPassword, emailSent, mustChangePassword: true };

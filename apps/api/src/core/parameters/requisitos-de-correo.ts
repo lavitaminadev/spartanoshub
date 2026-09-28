@@ -10,7 +10,7 @@
  */
 
 /** Requisito que el servidor sabe comprobar por sí mismo. */
-export type ClaveDeRequisito = 'casilla' | 'cron' | 'encuesta' | 'asistencia' | 'equipo';
+export type ClaveDeRequisito = 'casilla' | 'cron' | 'encuesta' | 'asistencia' | 'equipo' | 'cupon';
 
 export interface RequisitoDeAviso {
   clave: ClaveDeRequisito;
@@ -32,7 +32,11 @@ export const REQUISITOS_POR_AVISO: Record<string, RequisitoDeAviso[]> = {
     { clave: 'encuesta' },
   ],
   'email.birthday': [{ clave: 'cron', tarea: 'cumpleanos' }],
-  'email.daily_digest': [{ clave: 'cron', tarea: 'resumen-diario' }],
+  // Encendido sin cupón elegido no manda nada: el trabajo lo descarta antes de escribir.
+  'email.coupon': [{ clave: 'cron', tarea: 'cupon-post-visita' }, { clave: 'cupon' }],
+  'email.idle_lead': [{ clave: 'cron', tarea: 'leads-parados' }],
+  'email.team_guest_cancel': [{ clave: 'equipo' }],
+  'email.team_guest_reschedule': [{ clave: 'equipo' }],  'email.daily_digest': [{ clave: 'cron', tarea: 'resumen-diario' }],
   'email.task_reminder': [{ clave: 'cron', tarea: 'recordatorio-tareas' }],
   'email.collection_overdue': [{ clave: 'cron', tarea: 'collection-emails' }],
   'email.team_new_reservation': [{ clave: 'equipo' }],

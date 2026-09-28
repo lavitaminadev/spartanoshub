@@ -1,8 +1,20 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ParameterDefinition } from '../parameters/parameter-definition.entity';
+import { ParameterValue } from '../parameters/parameter-value.entity';
+import { ParameterResolver } from '../parameters/parameter-resolver.service';
 import { EmailService } from './email.service';
 
+/*
+ * El lector de parámetros va declarado acá y no importado del módulo de parámetros.
+ *
+ * Los correos de acceso —contraseña temporal, recuperar la cuenta— leen su plantilla, y el módulo
+ * de parámetros ya importa este: importarlo de vuelta formaría un ciclo que Nest resuelve mal. Es
+ * una segunda instancia del mismo lector, con su propia caché corta; lee las mismas tablas.
+ */
 @Module({
-  providers: [EmailService],
+  imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue])],
+  providers: [EmailService, ParameterResolver],
   exports: [EmailService],
 })
 export class EmailModule {}

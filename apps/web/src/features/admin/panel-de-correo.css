@@ -192,3 +192,12 @@
 
 /* Qué cupón se envía, con el enlace a donde se elige. */
 .panel-correo-cupon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 8px; background: var(--surface-muted, #f7f4f8); }
+
+/* Lo que la empresa ve del correo: el texto tal cual, sin cajas para editar. */
+.panel-correo-solo-lectura { display: grid; gap: 4px; }
+.panel-correo-solo-lectura > span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.panel-correo-solo-lectura p { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--surface-muted, #f7f4f8); white-space: pre-line; line-height: 1.5; }
+
+/* Los que no tienen interruptor: dicen por qué, en lugar de una casilla que no haría nada. */
+.panel-correo-siempre { display: inline-flex; align-items: center; gap: 8px; }
+.panel-correo-siempre em { padding: 1px 8px; border-radius: 999px; background: #e6f4ea; color: #1f6b3a; font-size: 11px; font-style: normal; font-weight: 600; }

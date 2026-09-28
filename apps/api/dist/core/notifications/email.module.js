@@ -8,13 +8,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmailModule = void 0;
 const common_1 = require("@nestjs/common");
+const typeorm_1 = require("@nestjs/typeorm");
+const parameter_definition_entity_1 = require("../parameters/parameter-definition.entity");
+const parameter_value_entity_1 = require("../parameters/parameter-value.entity");
+const parameter_resolver_service_1 = require("../parameters/parameter-resolver.service");
 const email_service_1 = require("./email.service");
 let EmailModule = class EmailModule {
 };
 exports.EmailModule = EmailModule;
 exports.EmailModule = EmailModule = __decorate([
     (0, common_1.Module)({
-        providers: [email_service_1.EmailService],
+        imports: [typeorm_1.TypeOrmModule.forFeature([parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue])],
+        providers: [email_service_1.EmailService, parameter_resolver_service_1.ParameterResolver],
         exports: [email_service_1.EmailService],
     })
 ], EmailModule);

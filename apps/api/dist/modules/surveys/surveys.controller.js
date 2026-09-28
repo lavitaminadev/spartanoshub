@@ -33,6 +33,8 @@ const survey_dto_1 = require("./dto/survey.dto");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const email_service_1 = require("../../core/notifications/email.service");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
+const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
+const plantilla_resuelta_1 = require("../../core/parameters/plantilla-resuelta");
 const encuestas_de_la_empresa_1 = require("./encuestas-de-la-empresa");
 const typeorm_3 = require("typeorm");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
@@ -43,13 +45,14 @@ function publicSurveyUrl(id) {
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
 }
 let SurveysController = class SurveysController {
-    constructor(surveys, responses, dataSource, accountAccess, correo, audit) {
+    constructor(surveys, responses, dataSource, accountAccess, correo, audit, parametros) {
         this.surveys = surveys;
         this.responses = responses;
         this.dataSource = dataSource;
         this.accountAccess = accountAccess;
         this.correo = correo;
         this.audit = audit;
+        this.parametros = parametros;
     }
     toContract(survey) {
         return {
@@ -342,11 +345,12 @@ let SurveysController = class SurveysController {
             throw new common_1.BadRequestException(`Son ${validos.length} destinatarios; el máximo por envío es ${exports.MAXIMO_ENVIO_POR_PEDIDO}.`);
         }
         const enlace = `${base}?src=email`;
-        const html = (0, plantilla_de_correo_1.armazonDeCorreo)(survey.title, survey.designConfig?.welcome || 'Nos gustaría saber tu opinión. Es un minuto.', { texto: 'Responder la encuesta', url: enlace });
+        const plantilla = await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, 'email.survey_invite', { clientId: survey.clientId ?? null, organizationId: survey.organizationId }, { asunto: '{{encuesta}}', cuerpo: 'Nos gustaría saber tu opinión. Es un minuto.' }, { encendidoPorDefecto: null });
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, survey.designConfig?.welcome || plantilla.cuerpo, { encuesta: survey.title }, { texto: 'Responder la encuesta', url: enlace });
         let enviados = 0;
         let fallidos = 0;
         for (const destino of validos) {
-            const ok = await this.correo.send(destino, survey.title, html).catch(() => false);
+            const ok = await this.correo.send(destino, subject, html).catch(() => false);
             if (ok)
                 enviados += 1;
             else
@@ -498,5 +502,6 @@ exports.SurveysController = SurveysController = __decorate([
         typeorm_2.DataSource,
         account_access_service_1.AccountAccessService,
         email_service_1.EmailService,
-        audit_service_1.AuditService])
+        audit_service_1.AuditService,
+        parameter_resolver_service_1.ParameterResolver])
 ], SurveysController);

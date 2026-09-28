@@ -8,10 +8,16 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var JobSchedulerService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.JobSchedulerService = void 0;
 const common_1 = require("@nestjs/common");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
+const cron_run_entity_1 = require("../cron/cron-run.entity");
 const close_xp_periods_job_1 = require("./cron/close-xp-periods.job");
 const create_monthly_cycles_job_1 = require("./cron/create-monthly-cycles.job");
 const detect_stale_pieces_job_1 = require("./cron/detect-stale-pieces.job");
@@ -33,7 +39,7 @@ const automation_schedule_job_1 = require("../../modules/automations/automation-
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 const auto_close_reservations_job_1 = require("./cron/auto-close-reservations.job");
 let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
-    constructor(xp, cycles, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, cuponPostVisita, autoCloseReservations, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks) {
+    constructor(xp, cycles, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, cuponPostVisita, autoCloseReservations, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks, corridas) {
         this.xp = xp;
         this.cycles = cycles;
         this.stale = stale;
@@ -54,6 +60,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.automations = automations;
         this.automationSchedule = automationSchedule;
         this.webhooks = webhooks;
+        this.corridas = corridas;
         this.logger = new common_1.Logger(JobSchedulerService_1.name);
         this.timers = [];
         this.running = new Set();
@@ -95,9 +102,11 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
             this.running.add(name);
             try {
                 await task();
+                await this.anotar(name, true, null);
             }
             catch (error) {
                 this.logger.error(`${name} failed`, error instanceof Error ? error.stack : undefined);
+                await this.anotar(name, false, error instanceof Error ? error.message.slice(0, 500) : 'falló');
             }
             finally {
                 this.running.delete(name);
@@ -109,10 +118,19 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         timer.unref();
         this.timers.push(timer);
     }
+    async anotar(task, ok, detail) {
+        try {
+            await this.corridas.save({ task, lastRunAt: new Date(), ok, detail });
+        }
+        catch (error) {
+            this.logger.warn(`No se pudo anotar la corrida de ${task}: ${error instanceof Error ? error.message : error}`);
+        }
+    }
 };
 exports.JobSchedulerService = JobSchedulerService;
 exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __decorate([
     (0, common_1.Injectable)(),
+    __param(20, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
     __metadata("design:paramtypes", [close_xp_periods_job_1.CloseXpPeriodsJob,
         create_monthly_cycles_job_1.CreateMonthlyCyclesJob,
         detect_stale_pieces_job_1.DetectStalePiecesJob,
@@ -132,5 +150,6 @@ exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __de
         operational_alerts_job_1.OperationalAlertsJob,
         automation_runner_service_1.AutomationRunnerService,
         automation_schedule_job_1.AutomationScheduleJob,
-        webhook_delivery_service_1.WebhookDeliveryService])
+        webhook_delivery_service_1.WebhookDeliveryService,
+        typeorm_2.Repository])
 ], JobSchedulerService);

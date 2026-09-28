@@ -102,3 +102,47 @@ describe('alerta de prospectos parados', () => {
     expect(notificaciones.save).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * El correo del lead parado.
+ *
+ * El interruptor existía en Correos pero ningún código lo leía: sólo salía la notificación. Ahora
+ * el correo sale si está encendido, y la notificación dentro de la aplicación sale siempre.
+ */
+describe('alerta de lead parado · correo', () => {
+  function conCorreo(encendido: boolean | null) {
+    const notificaciones = { create: vi.fn((valor: unknown) => valor), save: vi.fn(async (valor: unknown) => valor) };
+    const repoLeads = { find: vi.fn().mockResolvedValue([parado(10, { assignedTo: 'ejecutiva-1' })]), update: vi.fn().mockResolvedValue({ affected: 1 }) };
+    const usuarios = { findOne: vi.fn().mockResolvedValue({ id: 'ejecutiva-1', name: 'Camila Rojas', email: 'camila@agencia.cl' }) };
+    const parametros = {
+      getManyForOrganization: vi.fn().mockResolvedValue(new Map()),
+      get: vi.fn(async (clave: string) => (clave === 'email.idle_lead_enabled' ? encendido : null)),
+    };
+    const correo = { send: vi.fn().mockResolvedValue(true) };
+    const job = new LeadsParadosJob(repoLeads as never, notificaciones as never, usuarios as never, parametros as never, correo as never);
+    return { job, notificaciones, correo };
+  }
+
+  it('encendido, manda el correo al responsable además de la notificación', async () => {
+    const { job, notificaciones, correo } = conCorreo(true);
+    await job.handle();
+
+    expect(notificaciones.save).toHaveBeenCalled();
+    expect(correo.send).toHaveBeenCalledWith('camila@agencia.cl', expect.stringContaining('Ana Pérez'), expect.any(String));
+  });
+
+  it('apagado, sale sólo la notificación dentro de la aplicación', async () => {
+    const { job, notificaciones, correo } = conCorreo(false);
+    await job.handle();
+
+    expect(notificaciones.save).toHaveBeenCalled();
+    expect(correo.send).not.toHaveBeenCalled();
+  });
+
+  it('sin valor guardado queda apagado, como vino de fábrica', async () => {
+    const { job, correo } = conCorreo(null);
+    await job.handle();
+
+    expect(correo.send).not.toHaveBeenCalled();
+  });
+});

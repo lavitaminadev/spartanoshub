@@ -24,6 +24,7 @@ const meta_conversion_outbox_service_1 = require("../../modules/integrations/met
 const google_conversion_outbox_service_1 = require("../../modules/integrations/google/google-conversion-outbox.service");
 const detect_stale_pieces_job_1 = require("../jobs/cron/detect-stale-pieces.job");
 const leads_parados_job_1 = require("../jobs/cron/leads-parados.job");
+const cupon_post_visita_job_1 = require("../jobs/cron/cupon-post-visita.job");
 const recordatorio_de_tareas_job_1 = require("../jobs/cron/recordatorio-de-tareas.job");
 const resumen_diario_job_1 = require("../jobs/cron/resumen-diario.job");
 const saludo_de_cumpleanos_job_1 = require("../jobs/cron/saludo-de-cumpleanos.job");
@@ -41,7 +42,7 @@ const automation_runner_service_1 = require("../../modules/automations/automatio
 const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 let CronController = class CronController {
-    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks, corridas) {
+    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks, corridas, cuponPostVisita) {
         this.capiOutbox = capiOutbox;
         this.googleOutbox = googleOutbox;
         this.stale = stale;
@@ -63,6 +64,7 @@ let CronController = class CronController {
         this.automationScheduleJob = automationScheduleJob;
         this.webhooks = webhooks;
         this.corridas = corridas;
+        this.cuponPostVisita = cuponPostVisita;
         this.running = new Set();
     }
     verifySecret(secret) {
@@ -167,6 +169,14 @@ let CronController = class CronController {
     async leadsParadosGet(secret) {
         this.verifySecret(secret);
         return this.runLocked('leads-parados', () => this.leadsParados.handle());
+    }
+    async cuponPostVisitaPost(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('cupon-post-visita', () => this.cuponPostVisita.handle());
+    }
+    async cuponPostVisitaGet(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('cupon-post-visita', () => this.cuponPostVisita.handle());
     }
     async recordatorioTareasPost(secret) {
         this.verifySecret(secret);
@@ -373,6 +383,22 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], CronController.prototype, "leadsParadosGet", null);
+__decorate([
+    (0, common_1.Post)('cupon-post-visita'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "cuponPostVisitaPost", null);
+__decorate([
+    (0, common_1.Get)('cupon-post-visita'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "cuponPostVisitaGet", null);
 __decorate([
     (0, common_1.Post)('recordatorio-tareas'),
     (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
@@ -653,5 +679,6 @@ exports.CronController = CronController = __decorate([
         automation_runner_service_1.AutomationRunnerService,
         automation_schedule_job_1.AutomationScheduleJob,
         webhook_delivery_service_1.WebhookDeliveryService,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        cupon_post_visita_job_1.CuponPostVisitaJob])
 ], CronController);

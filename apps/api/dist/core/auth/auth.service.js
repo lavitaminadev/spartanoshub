@@ -447,7 +447,7 @@ let AuthService = AuthService_1 = class AuthService {
             expiresAt: new Date(now.getTime() + 30 * 60_000),
         }));
         const appUrl = (process.env.APP_PUBLIC_URL || 'http://localhost:5173').replace(/\/$/, '');
-        await this.emailService.sendPasswordReset(user.name, user.email, `${appUrl}/reset-password?token=${encodeURIComponent(token)}`);
+        await this.emailService.sendPasswordReset(user.name, user.email, `${appUrl}/reset-password?token=${encodeURIComponent(token)}`, user.organizationId);
         return { accepted: true };
     }
     async completePasswordReset(token, password) {

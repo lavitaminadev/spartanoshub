@@ -16,13 +16,14 @@ const surveys_controller_1 = require("./surveys.controller");
 const public_surveys_controller_1 = require("./public-surveys.controller");
 const account_access_module_1 = require("../../core/client-scope/account-access.module");
 const email_module_1 = require("../../core/notifications/email.module");
+const parameters_module_1 = require("../../core/parameters/parameters.module");
 const public_survey_flow_service_1 = require("./public-survey-flow.service");
 let SurveysModule = class SurveysModule {
 };
 exports.SurveysModule = SurveysModule;
 exports.SurveysModule = SurveysModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([survey_entity_1.Survey, survey_response_entity_1.SurveyResponse]), account_access_module_1.AccountAccessModule, email_module_1.EmailModule, audit_module_1.AuditModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([survey_entity_1.Survey, survey_response_entity_1.SurveyResponse]), account_access_module_1.AccountAccessModule, email_module_1.EmailModule, audit_module_1.AuditModule, parameters_module_1.ParametersModule],
         controllers: [surveys_controller_1.SurveysController, public_surveys_controller_1.PublicSurveysController],
         providers: [public_survey_flow_service_1.PublicSurveyFlowService],
         exports: [public_survey_flow_service_1.PublicSurveyFlowService],

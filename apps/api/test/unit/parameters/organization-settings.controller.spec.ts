@@ -150,3 +150,36 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
     await expect(controller.guardarCorreos(request, { values: { 'email.post_visit_survey_subject': 'Hola' } }, 'c-1')).rejects.toThrow(ForbiddenException);
   });
 });
+
+/*
+ * La empresa enciende y apaga sus correos, pero no reescribe el texto: lo que sale con su marca
+ * lo redacta Espartanos. La pantalla ya no le muestra cajas para editar, y el servidor lo cierra.
+ */
+describe('Correos: la empresa no edita el texto', () => {
+  const settings = { list: vi.fn(), update: vi.fn() };
+  const accountAccess = { assertClient: vi.fn().mockResolvedValue(undefined) };
+  const permisos = { can: vi.fn().mockResolvedValue(true) };
+  const capacidades = { tiene: vi.fn().mockResolvedValue(true) };
+  const controller = new OrganizationSettingsController(settings as any, permisos as any, accountAccess as any, capacidades as any);
+  const administradora = { organizationId: 'org-1', user: { id: 'ana', role: UserRole.CLIENT, clientId: 'c-1' } } as any;
+
+  it('no puede cambiar el asunto ni el cuerpo', async () => {
+    await expect(controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_subject': 'Hola' } }))
+      .rejects.toThrow(ForbiddenException);
+    await expect(controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_body': 'Hola' } }))
+      .rejects.toThrow(ForbiddenException);
+    expect(settings.update).not.toHaveBeenCalled();
+  });
+
+  it('sí puede encenderlo o apagarlo', async () => {
+    settings.update.mockResolvedValue([]);
+    await controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_enabled': false } });
+    expect(settings.update).toHaveBeenCalledWith('org-1', 'ana', { 'email.reservation_confirmation_enabled': false }, 'c-1');
+  });
+
+  it('el equipo de Espartanos sigue escribiendo el texto', async () => {
+    settings.update.mockResolvedValue([]);
+    const agencia = { organizationId: 'org-1', user: { id: 'cd', role: UserRole.COMMERCIAL_DIRECTOR } } as any;
+    await expect(controller.guardarCorreos(agencia, { values: { 'email.reservation_confirmation_subject': 'Hola' } })).resolves.toBeDefined();
+  });
+});

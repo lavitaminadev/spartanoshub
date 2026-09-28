@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -16,6 +19,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmailService = void 0;
 const brand_1 = require("../../shared/brand");
 const common_1 = require("@nestjs/common");
+const parameter_resolver_service_1 = require("../parameters/parameter-resolver.service");
+const plantilla_resuelta_1 = require("../parameters/plantilla-resuelta");
+const plantilla_de_correo_1 = require("./plantilla-de-correo");
 const nodemailer_1 = __importDefault(require("nodemailer"));
 function escapeHtml(value) {
     return value.replace(/[&<>"']/g, (character) => ({
@@ -26,7 +32,8 @@ function validRecipient(value) {
     return value.length <= 320 && !/[\r\n]/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 let EmailService = EmailService_1 = class EmailService {
-    constructor() {
+    constructor(parametros) {
+        this.parametros = parametros;
         this.logger = new common_1.Logger(EmailService_1.name);
         const enabled = process.env.SMTP_ENABLED === 'true';
         this.from = process.env.SMTP_FROM?.trim() || '';
@@ -116,22 +123,36 @@ let EmailService = EmailService_1 = class EmailService {
        <p>La pieza <strong>${safeTitle}</strong> lleva <strong>${Math.round(hoursStuck)} horas</strong> sin movimiento.</p>
        <p>Por favor, revise y actualice su estado.</p>`);
     }
-    async sendTemporaryPassword(name, recipient, password, loginUrl) {
-        return this.send(recipient, `Acceso temporal a ${brand_1.BRAND.name}`, `<h2>Hola ${escapeHtml(name)}</h2>
-       <p>Un administrador generó un acceso temporal para tu cuenta.</p>
-       <p>Contraseña temporal: <strong>${escapeHtml(password)}</strong></p>
-       <p><a href="${escapeHtml(loginUrl)}">Ingresar a ${brand_1.BRAND.name}</a></p>
-       <p>El sistema solicitará crear una contraseña personal al iniciar sesión.</p>`);
+    async sendTemporaryPassword(name, recipient, password, loginUrl, organizationId) {
+        const plantilla = await this.plantillaDeAcceso('email.access_temporary_password', organizationId, {
+            asunto: `Acceso temporal a ${brand_1.BRAND.name}`,
+            cuerpo: 'Hola {{nombre}}:\n\nUn administrador generó un acceso temporal para tu cuenta.\n\nContraseña temporal: {{clave}}\n\nEntra en {{enlace}}. El sistema te pedirá crear una contraseña personal al iniciar sesión.',
+        }, ['clave', 'enlace']);
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: name, clave: password, enlace: loginUrl }, { texto: `Ingresar a ${brand_1.BRAND.name}`, url: loginUrl });
+        return this.send(recipient, subject, html);
     }
-    async sendPasswordReset(name, recipient, resetUrl) {
-        return this.send(recipient, `Recupera tu acceso a ${brand_1.BRAND.name}`, `<h2>Hola ${escapeHtml(name)}</h2>
-       <p>Recibimos una solicitud para restablecer tu contraseña.</p>
-       <p><a href="${escapeHtml(resetUrl)}">Crear una nueva contraseña</a></p>
-       <p>Este enlace vence en 30 minutos. Si no solicitaste el cambio, ignora este mensaje.</p>`);
+    async sendPasswordReset(name, recipient, resetUrl, organizationId) {
+        const plantilla = await this.plantillaDeAcceso('email.access_password_reset', organizationId, {
+            asunto: `Recupera tu acceso a ${brand_1.BRAND.name}`,
+            cuerpo: 'Hola {{nombre}}:\n\nRecibimos una solicitud para restablecer tu contraseña. Para crear una nueva entra en {{enlace}}\n\nEste enlace vence en 30 minutos. Si no lo pediste, ignora este mensaje.',
+        }, ['enlace']);
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: name, enlace: resetUrl }, { texto: 'Crear una nueva contraseña', url: resetUrl });
+        return this.send(recipient, subject, html);
+    }
+    async plantillaDeAcceso(prefijo, organizationId, respaldo, obligatorias) {
+        if (!this.parametros)
+            return { ...respaldo, encendido: true };
+        try {
+            return await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, prefijo, { organizationId: organizationId ?? null }, respaldo, { obligatorias, encendidoPorDefecto: null });
+        }
+        catch {
+            return { ...respaldo, encendido: true };
+        }
     }
 };
 exports.EmailService = EmailService;
 exports.EmailService = EmailService = EmailService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __param(0, (0, common_1.Optional)()),
+    __metadata("design:paramtypes", [parameter_resolver_service_1.ParameterResolver])
 ], EmailService);

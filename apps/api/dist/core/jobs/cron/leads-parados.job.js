@@ -15,6 +15,9 @@ var LeadsParadosJob_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LeadsParadosJob = void 0;
 const common_1 = require("@nestjs/common");
+const email_service_1 = require("../../notifications/email.service");
+const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
+const plantilla_resuelta_1 = require("../../parameters/plantilla-resuelta");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../../../modules/users/user.entity");
@@ -30,13 +33,39 @@ const MENSAJE = {
     critical: { titulo: 'Lead abandonado', verbo: 'lleva' },
 };
 let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
-    constructor(leads, notificaciones, usuarios, parametros) {
+    constructor(leads, notificaciones, usuarios, parametros, correo) {
         this.leads = leads;
         this.notificaciones = notificaciones;
         this.usuarios = usuarios;
         this.parametros = parametros;
+        this.correo = correo;
         this.logger = new common_1.Logger(LeadsParadosJob_1.name);
         this.responsablePorOrganizacion = new Map();
+    }
+    async enviarCorreo(lead, destinatario, idleDays) {
+        if (!this.correo)
+            return;
+        try {
+            const plantilla = await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, 'email.idle_lead', { clientId: lead.clientId ?? null, organizationId: lead.organizationId }, {
+                asunto: '{{lead}} lleva {{dias}} días sin movimiento',
+                cuerpo: 'Hola {{responsable}}:\n\n{{lead}} sigue en «{{etapa}}» hace {{dias}} días. Conviene retomarlo antes de que se enfríe.',
+            }, { encendidoPorDefecto: false });
+            if (!plantilla.encendido)
+                return;
+            const persona = await this.usuarios.findOne({ where: { id: destinatario }, select: { id: true, name: true, email: true } });
+            if (!persona?.email)
+                return;
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, {
+                responsable: persona.name?.trim().split(/\s+/)[0] ?? '',
+                lead: lead.name,
+                etapa: lead.status,
+                dias: idleDays,
+            });
+            await this.correo.send(persona.email, subject, html);
+        }
+        catch (error) {
+            this.logger.warn(`No se pudo enviar el correo del lead parado ${lead.id}: ${error instanceof Error ? error.message : error}`);
+        }
     }
     async handle() {
         const candidatos = await this.leads.find({
@@ -44,7 +73,7 @@ let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
                 status: (0, typeorm_2.Not)((0, typeorm_2.In)(['won', 'lost', 'attended', 'no_show'])),
             },
             select: {
-                id: true, organizationId: true, name: true, status: true,
+                id: true, organizationId: true, clientId: true, name: true, status: true,
                 assignedTo: true, stageChangedAt: true, createdAt: true, idleAlertedLevel: true,
             },
         });
@@ -79,6 +108,7 @@ let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
                         : `«${lead.name}» ${verbo} ${idleDays} ${idleDays === 1 ? 'día' : 'días'} sin avanzar.`,
                     data: { leadId: lead.id, status: lead.status, idleDays, idleLevel, sinResponsable: sinDuenio },
                 }));
+                await this.enviarCorreo(lead, destinatario, idleDays);
                 await this.leads.update(lead.id, { idleAlertedLevel: idleLevel });
                 avisados += 1;
             }
@@ -121,8 +151,10 @@ exports.LeadsParadosJob = LeadsParadosJob = LeadsParadosJob_1 = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __param(1, (0, typeorm_1.InjectRepository)(notification_entity_1.Notification)),
     __param(2, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(4, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        email_service_1.EmailService])
 ], LeadsParadosJob);
