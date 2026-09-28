@@ -9,13 +9,23 @@ import { cumpleHoy, diaDelAnoEn, edadEn, puedeRecibirPorEdad } from '../../../sr
  * menor que declaró serlo.
  */
 describe('edad y cumpleaños', () => {
+  /*
+   * El «hoy» va a mediodía a propósito.
+   *
+   * `cumpleHoy` decide el día en la zona del negocio. Una medianoche construida con la hora local
+   * de la máquina cae en días distintos según dónde corran las pruebas: en Santiago es el día
+   * pedido, y en el servidor de integración —que corre en UTC— son las nueve de la noche del día
+   * anterior en Chile. Al mediodía las dos zonas coinciden.
+   */
+  const mediodia = (ano: number, mes: number, dia: number) => new Date(ano, mes, dia, 12);
+
   describe('cumpleHoy', () => {
     it('reconoce el día, sin importar el año', () => {
-      expect(cumpleHoy(new Date(1990, 7, 28), new Date(2026, 7, 28))).toBe(true);
+      expect(cumpleHoy(new Date(1990, 7, 28), mediodia(2026, 7, 28))).toBe(true);
     });
 
     it('no confunde el mismo día de otro mes', () => {
-      expect(cumpleHoy(new Date(1990, 6, 28), new Date(2026, 7, 28))).toBe(false);
+      expect(cumpleHoy(new Date(1990, 6, 28), mediodia(2026, 7, 28))).toBe(false);
     });
 
     /*
@@ -23,12 +33,12 @@ describe('edad y cumpleaños', () => {
      * sistema se olvidó de ella.
      */
     it('a quien nació un 29 de febrero se le felicita el 28 en año no bisiesto', () => {
-      expect(cumpleHoy(new Date(2000, 1, 29), new Date(2026, 1, 28))).toBe(true);
+      expect(cumpleHoy(new Date(2000, 1, 29), mediodia(2026, 1, 28))).toBe(true);
     });
 
     it('en año bisiesto se le felicita el 29, no el 28', () => {
-      expect(cumpleHoy(new Date(2000, 1, 29), new Date(2028, 1, 28))).toBe(false);
-      expect(cumpleHoy(new Date(2000, 1, 29), new Date(2028, 1, 29))).toBe(true);
+      expect(cumpleHoy(new Date(2000, 1, 29), mediodia(2028, 1, 28))).toBe(false);
+      expect(cumpleHoy(new Date(2000, 1, 29), mediodia(2028, 1, 29))).toBe(true);
     });
   });
 
