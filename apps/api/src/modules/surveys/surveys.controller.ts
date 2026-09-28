@@ -1,9 +1,10 @@
+import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
 import {
   BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { exigirIdentidadLegalDeEncuesta } from './consentimiento-de-encuesta';
 import { AuditService } from '../../core/audit/audit.service';
-import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -58,6 +59,7 @@ export class SurveysController {
     private readonly correo: EmailService,
     private readonly audit: AuditService,
     private readonly parametros: ParameterResolver,
+    private readonly permisos: PermissionResolverService,
   ) {}
 
   /** Traduce la fila a la forma que el frontend ya consume, con el conteo desnormalizado. */
@@ -143,7 +145,9 @@ export class SurveysController {
   @RequiresPermission('surveys', 'view')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+    const empresa = await this.empresaLegal(req, query.clientId);
+    await asegurarQueAdministraLaEmpresa(this.permisos, req.organizationId, req.user, empresa);
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
   }
 
   private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {

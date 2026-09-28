@@ -7,6 +7,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SurveysModule = void 0;
+const authorization_module_1 = require("../../core/authorization/authorization.module");
 const common_1 = require("@nestjs/common");
 const audit_module_1 = require("../../core/audit/audit.module");
 const typeorm_1 = require("@nestjs/typeorm");
@@ -23,7 +24,7 @@ let SurveysModule = class SurveysModule {
 exports.SurveysModule = SurveysModule;
 exports.SurveysModule = SurveysModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([survey_entity_1.Survey, survey_response_entity_1.SurveyResponse]), account_access_module_1.AccountAccessModule, email_module_1.EmailModule, audit_module_1.AuditModule, parameters_module_1.ParametersModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([survey_entity_1.Survey, survey_response_entity_1.SurveyResponse]), account_access_module_1.AccountAccessModule, email_module_1.EmailModule, audit_module_1.AuditModule, parameters_module_1.ParametersModule, authorization_module_1.AuthorizationModule],
         controllers: [surveys_controller_1.SurveysController, public_surveys_controller_1.PublicSurveysController],
         providers: [public_survey_flow_service_1.PublicSurveyFlowService],
         exports: [public_survey_flow_service_1.PublicSurveyFlowService],

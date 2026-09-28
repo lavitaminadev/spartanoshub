@@ -1,3 +1,4 @@
+import { AuthorizationModule } from '../../core/authorization/authorization.module';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../../core/audit/audit.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,7 +12,7 @@ import { ParametersModule } from '../../core/parameters/parameters.module';
 import { PublicSurveyFlowService } from './public-survey-flow.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Survey, SurveyResponse]), AccountAccessModule, EmailModule, AuditModule, ParametersModule],
+  imports: [TypeOrmModule.forFeature([Survey, SurveyResponse]), AccountAccessModule, EmailModule, AuditModule, ParametersModule, AuthorizationModule],
   controllers: [SurveysController, PublicSurveysController],
   providers: [PublicSurveyFlowService],
   exports: [PublicSurveyFlowService],

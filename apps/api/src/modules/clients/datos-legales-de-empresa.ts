@@ -14,6 +14,31 @@ import type { AuditService } from '../../core/audit/audit.service';
  * responda desde ese momento.
  */
 
+interface PreguntaPermisos {
+  can(organizationId: string, userId: string, role: never, module: string, required: 'manage', clientId?: string): Promise<boolean>;
+}
+
+/**
+ * Sólo quien administra la empresa guarda sus datos legales.
+ *
+ * Cualquier cuenta de la empresa podía cambiar la razón social, el RUT o el correo de privacidad,
+ * y además **aceptar el encargo de tratamiento** en nombre de la empresa, que es una aceptación
+ * legal. Bastaba con tener acceso de lectura a Encuestas. Leerlos lo sigue pudiendo cualquiera de
+ * la empresa; guardarlos, quien la administra —el mismo permiso con que reparte su equipo—.
+ *
+ * El equipo de Espartanos no pasa por aquí: su acceso se comprueba por empresa en cada ruta.
+ */
+export async function asegurarQueAdministraLaEmpresa(
+  permisos: PreguntaPermisos,
+  organizationId: string,
+  user: { id: string; role: string },
+  clientId: string,
+): Promise<void> {
+  if (user.role !== 'client') return;
+  const administra = await permisos.can(organizationId, user.id, user.role as never, 'users', 'manage', clientId);
+  if (!administra) throw new ForbiddenException('Los datos legales de la empresa los mantiene quien la administra. Pídeselo a esa persona.');
+}
+
 export class CompanyLegalDto {
   @IsOptional() @IsString() @MaxLength(255) legalName?: string | null;
   @IsOptional() @IsString() @MaxLength(30) taxId?: string | null;

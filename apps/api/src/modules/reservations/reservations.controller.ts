@@ -1,5 +1,6 @@
+import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { DataSource } from 'typeorm';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -32,6 +33,7 @@ export class ReservationsController {
     private readonly bulkImport: ReservationsBulkImportService,
     private readonly audit: AuditService,
     private readonly dataSource: DataSource,
+    private readonly permisos: PermissionResolverService,
   ) {}
 
   private publicOrigin(): string | undefined {
@@ -85,7 +87,9 @@ export class ReservationsController {
   @Put('company-legal')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+    const empresa = await this.empresaLegal(req, query.clientId);
+    await asegurarQueAdministraLaEmpresa(this.permisos, req.organizationId, req.user, empresa);
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
   }
 
   private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {

@@ -32,7 +32,8 @@ export const CLIENT_NAV: ClientPortalEntry[] = [
   // nombre. El servidor ya les negaba la entrada; el enlace aparecía igual y llevaba a un error.
   { label: 'Correos', path: '/correos', icon: 'CO', anyCapability: ['reservations', 'surveys', 'crm'], anyModule: ['reservations', 'surveys', 'crm'], soloAdministrador: true },
   // Lo usan Reservas y Encuestas: basta con tener uno de los dos.
-  { label: 'Datos legales', path: '/portal/legal', icon: 'DL', anyCapability: ['reservations', 'surveys'] },
+  // Guardarlos y aceptar el encargo de tratamiento es de quien administra la empresa.
+  { label: 'Datos legales', path: '/portal/legal', icon: 'DL', anyCapability: ['reservations', 'surveys'], soloAdministrador: true },
 ];
 
 export const PORTAL_CARDS = [

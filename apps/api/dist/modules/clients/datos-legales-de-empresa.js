@@ -10,12 +10,20 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CompanyLegalScopeDto = exports.CompanyLegalDto = void 0;
+exports.asegurarQueAdministraLaEmpresa = asegurarQueAdministraLaEmpresa;
 exports.leerDatosLegales = leerDatosLegales;
 exports.guardarDatosLegales = guardarDatosLegales;
 exports.empresaDelPortal = empresaDelPortal;
 const common_1 = require("@nestjs/common");
 const class_validator_1 = require("class-validator");
 const shared_1 = require("@espartanos/shared");
+async function asegurarQueAdministraLaEmpresa(permisos, organizationId, user, clientId) {
+    if (user.role !== 'client')
+        return;
+    const administra = await permisos.can(organizationId, user.id, user.role, 'users', 'manage', clientId);
+    if (!administra)
+        throw new common_1.ForbiddenException('Los datos legales de la empresa los mantiene quien la administra. Pídeselo a esa persona.');
+}
 class CompanyLegalDto {
 }
 exports.CompanyLegalDto = CompanyLegalDto;
