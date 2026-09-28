@@ -14,7 +14,7 @@ const vacioComoAusente = ({ value }: { value: unknown }) => (value === '' ? unde
  * respuestas. Lo que se quiere preguntar después es «quién cumple este mes», y eso no se contesta
  * recorriendo un JSON reserva por reserva.
  */
-export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'select', 'multi_select', 'number', 'date', 'birthdate', 'consent', 'coupon', 'rating', 'nps'] as const;
+export const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'document', 'select', 'multi_select', 'number', 'date', 'birthdate', 'consent', 'coupon', 'rating', 'nps'] as const;
 
 /**
  * Número móvil chileno, con o sin prefijo de país y con espacios o guiones
@@ -347,6 +347,10 @@ export class CreateCouponDto {
   /** Franja horaria de la reserva, `HH:MM` en la zona del formulario. */
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) validFromTime?: string;
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) validUntilTime?: string;
+  /** Cuántas veces puede usarlo la misma persona en su empresa. 0 = sin límite. */
+  @IsOptional() @IsInt() @Min(0) @Max(100) maxUsesPerPerson?: number;
+  /** Con qué se reconoce a la misma persona. Basta con que coincida uno. */
+  @IsOptional() @IsArray() @ArrayMaxSize(3) @IsIn(['phone', 'email', 'document'], { each: true }) personKeys?: Array<'phone' | 'email' | 'document'>;
 }
 export class CreateManualReservationDto {
   @IsUUID() formId: string;
@@ -397,6 +401,10 @@ export class UpdateCouponDto {
   @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @Min(0, { each: true }) @Max(6, { each: true }) validDaysOfWeek?: number[];
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) validFromTime?: string;
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) validUntilTime?: string;
+  /** Cuántas veces puede usarlo la misma persona en su empresa. 0 = sin límite. */
+  @IsOptional() @IsInt() @Min(0) @Max(100) maxUsesPerPerson?: number;
+  /** Con qué se reconoce a la misma persona. Basta con que coincida uno. */
+  @IsOptional() @IsArray() @ArrayMaxSize(3) @IsIn(['phone', 'email', 'document'], { each: true }) personKeys?: Array<'phone' | 'email' | 'document'>;
 }
 
 export class ExportFormReservationsDto {

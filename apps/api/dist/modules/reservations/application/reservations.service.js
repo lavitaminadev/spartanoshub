@@ -270,7 +270,19 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             if (field.type === 'birthdate' && typeof value === 'string' && value.trim() && !(0, fecha_de_nacimiento_1.fechaDeNacimientoValida)(value)) {
                 throw new common_1.BadRequestException(`La fecha de ${field.label} no es válida`);
             }
+            if (field.type === 'document' && typeof value === 'string' && value.trim() && !(0, shared_2.leerDocumento)(value)) {
+                throw new common_1.BadRequestException(`${field.label}: revisa el número. Un RUT necesita su dígito verificador; un pasaporte, el país que lo emitió.`);
+            }
         }
+    }
+    documentoDe(form, answers) {
+        const campo = form.fieldSchema.find((field) => field.type === 'document' || field.type === 'rut');
+        const documento = campo ? (0, shared_2.leerDocumento)(answers?.[campo.id]) : null;
+        return {
+            guestDocumentType: documento?.tipo ?? null,
+            guestDocumentCountry: documento?.pais ?? null,
+            guestDocument: documento?.numero ?? null,
+        };
     }
     fechaDeNacimientoDe(form, answers) {
         const campo = form.fieldSchema.find((field) => field.type === 'birthdate');
@@ -708,6 +720,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 guestName, guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone),
                 serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers || {}, internalNotes: dto.internalNotes,
                 birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
+                ...this.documentoDe(form, dto.answers || {}),
             }));
             await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId, clientId: form.clientId, reservationId: booking.id, type: 'created', toStatus: 'confirmed', actorId: userId, actorType: 'team', metadata: { startsAt: startsAt.toISOString(), serviceId: dto.serviceId, resourceId: dto.resourceId, manual: true, skipAvailability: dto.skipAvailability } }));
             return { booking, form };
@@ -1681,6 +1694,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone),
                 serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers,
                 birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
+                ...this.documentoDe(form, dto.answers || {}),
                 consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
                 marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
                 marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
@@ -1878,7 +1892,11 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const partySize = dto.partySize || 1;
             const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.idempotencyKey);
             this.validateSubmission(form, dto.answers, dto);
-            const coupon = await this.validateCoupon(dto.couponCode, form, manager, startsAt);
+            const coupon = await this.validateCoupon(dto.couponCode, form, manager, startsAt, {
+                telefono: (0, phone_1.normalizePhone)(dto.guestPhone),
+                correo: dto.guestEmail?.trim().toLowerCase() || null,
+                documento: this.documentoDe(form, dto.answers || {}).guestDocument,
+            });
             if (coupon) {
                 coupon.usageCount += 1;
                 await manager.save(reservation_coupon_entity_1.ReservationCoupon, coupon);
@@ -1897,6 +1915,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 guestName: dto.guestName.trim(),
                 guestEmail: dto.guestEmail?.trim().toLowerCase(),
                 guestPhone: (0, phone_1.normalizePhone)(dto.guestPhone),
+                birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
+                ...this.documentoDe(form, dto.answers || {}),
                 serviceId: dto.serviceId,
                 resourceId: dto.resourceId,
                 answers: {
@@ -2800,7 +2820,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const validUntil = dto.validUntil ? new Date(dto.validUntil) : undefined;
         if (validFrom && validUntil && validUntil <= validFrom)
             throw new common_1.BadRequestException('La fecha de término debe ser posterior a la fecha de inicio');
-        const coupon = this.coupons.create({ organizationId, clientId, code, discountType: dto.discountType || 'percentage', value: dto.value ?? 0, maxUses: dto.maxUses ?? 0, validFrom, validUntil, formIds: dto.formIds, validDaysOfWeek: validDays, validFromTime: dto.validFromTime, validUntilTime: dto.validUntilTime });
+        const coupon = this.coupons.create({ organizationId, clientId, code, discountType: dto.discountType || 'percentage', value: dto.value ?? 0, maxUses: dto.maxUses ?? 0, validFrom, validUntil, formIds: dto.formIds, validDaysOfWeek: validDays, validFromTime: dto.validFromTime, validUntilTime: dto.validUntilTime, maxUsesPerPerson: dto.maxUsesPerPerson ?? 0, personKeys: dto.personKeys?.length ? [...new Set(dto.personKeys)] : null });
+        this.assertLimitePorPersona(coupon);
         return this.coupons.save(coupon);
     }
     async updateCoupon(organizationId, id, dto, clientIds) {
@@ -2823,16 +2844,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.BadRequestException('La fecha de término debe ser posterior a la fecha de inicio');
         if (coupon.validFromTime && coupon.validUntilTime && this.minutes(coupon.validFromTime) >= this.minutes(coupon.validUntilTime))
             throw new common_1.BadRequestException('La hora de inicio del cupón debe ser anterior a la de término');
+        this.assertLimitePorPersona(coupon);
         return this.coupons.save(coupon);
     }
     listCoupons(organizationId, clientId, clientIds) {
         const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
         if (clientId)
-            qb.andWhere('(coupon.client_id = :clientId OR coupon.client_id IS NULL)', { clientId });
+            qb.andWhere('coupon.client_id = :clientId', { clientId });
         else if (clientIds?.length)
-            qb.andWhere('(coupon.client_id IN (:...clientIds) OR coupon.client_id IS NULL)', { clientIds });
+            qb.andWhere('coupon.client_id IN (:...clientIds)', { clientIds });
         else if (clientIds !== undefined)
-            qb.andWhere('coupon.client_id IS NULL');
+            qb.andWhere('1 = 0');
         return qb.orderBy('coupon.created_at', 'DESC').getMany();
     }
     async validatePublicCoupon(slug, code, startsAt) {
@@ -2859,7 +2881,12 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             this.assertCouponSchedule(coupon, form, startsAt);
         return { valid: true, discountType: coupon.discountType, value: coupon.value };
     }
-    async validateCoupon(code, form, manager, startsAt) {
+    assertLimitePorPersona(coupon) {
+        if (coupon.maxUsesPerPerson > 0 && !coupon.personKeys?.length) {
+            throw new common_1.BadRequestException('Elige cómo reconocer a la misma persona: teléfono, correo o documento.');
+        }
+    }
+    async validateCoupon(code, form, manager, startsAt, persona) {
         if (!code)
             return undefined;
         if (form.designConfig?.couponEnabled === 'false')
@@ -2879,7 +2906,38 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (coupon.formIds && coupon.formIds.length > 0 && !coupon.formIds.includes(form.id))
             throw new common_1.BadRequestException('El cupón no aplica para este formulario');
         this.assertCouponSchedule(coupon, form, startsAt);
+        if (persona)
+            await this.assertUsosPorPersona(manager, coupon, form, persona);
         return coupon;
+    }
+    async assertUsosPorPersona(manager, coupon, form, persona) {
+        if (!coupon.maxUsesPerPerson || coupon.maxUsesPerPerson <= 0)
+            return;
+        const claves = coupon.personKeys?.length ? coupon.personKeys : ['phone'];
+        const condiciones = [];
+        const valores = [];
+        if (claves.includes('phone') && persona.telefono) {
+            condiciones.push('guest_phone = ?');
+            valores.push(persona.telefono);
+        }
+        if (claves.includes('email') && persona.correo) {
+            condiciones.push('guest_email = ?');
+            valores.push(persona.correo);
+        }
+        if (claves.includes('document') && persona.documento) {
+            condiciones.push('guest_document = ?');
+            valores.push(persona.documento);
+        }
+        if (condiciones.length === 0)
+            return;
+        const filas = await manager.query(`SELECT COUNT(*) AS usos FROM reservations
+        WHERE client_id = ? AND coupon_code = ? AND status NOT LIKE 'cancelled%'
+          AND (${condiciones.join(' OR ')})`, [form.clientId, coupon.code, ...valores]);
+        const usos = Number(filas?.[0]?.usos ?? 0);
+        if (usos >= coupon.maxUsesPerPerson) {
+            const veces = coupon.maxUsesPerPerson === 1 ? 'ya lo usaste' : `ya lo usaste las ${coupon.maxUsesPerPerson} veces permitidas`;
+            throw new common_1.BadRequestException(`El cupón ${coupon.code} ${veces} en este local. Puedes reservar igual si quitas el código.`);
+        }
     }
     assertCouponSchedule(coupon, form, startsAt) {
         const local = new Intl.DateTimeFormat('en-US', { timeZone: form.timezone, hourCycle: 'h23', weekday: 'short', hour: '2-digit', minute: '2-digit' })

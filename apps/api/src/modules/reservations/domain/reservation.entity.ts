@@ -57,6 +57,15 @@ export class Reservation {
 
   /** Fecha de nacimiento, cuando el formulario la pide. En columna propia para poder consultarla. */
   @Column({ name: 'birth_date', type: 'date', nullable: true }) birthDate?: string | null;
+  /**
+   * Documento de identidad, ya normalizado, si el formulario lo pidió.
+   *
+   * Va en columnas propias y no sólo en las respuestas para poder compararlo: es lo que permite
+   * limitar un cupón por persona. `rut` o `pasaporte`; el país sólo en pasaportes.
+   */
+  @Column({ name: 'guest_document_type', type: 'varchar', length: 12, nullable: true }) guestDocumentType?: string | null;
+  @Column({ name: 'guest_document_country', type: 'char', length: 2, nullable: true }) guestDocumentCountry?: string | null;
+  @Column({ name: 'guest_document', type: 'varchar', length: 40, nullable: true }) guestDocument?: string | null;
   @Column({ name: 'consent_version', type: 'varchar', length: 30, nullable: true }) consentVersion?: string;
   /** Evidencia separada: necesaria para operar la reserva, no autoriza campañas. */
   @Column({ name: 'reservation_consent_at', type: 'timestamp', nullable: true }) reservationConsentAt?: Date | null;

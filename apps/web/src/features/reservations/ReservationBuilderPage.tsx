@@ -21,7 +21,7 @@ import { camposVisibles } from '@espartanos/shared';
 
 const FIELD_LIBRARY = [
   ['text', 'Texto corto'], ['textarea', 'Texto largo'], ['email', 'Correo'],
-  ['phone', 'Teléfono'], ['rut', 'RUT'], ['select', 'Elegir una opción'], ['multi_select', 'Elegir varias opciones'],
+  ['phone', 'Teléfono'], ['document', 'Documento de identidad'], ['rut', 'RUT'], ['select', 'Elegir una opción'], ['multi_select', 'Elegir varias opciones'],
   ['number', 'Número'], ['date', 'Fecha'], ['birthdate', 'Fecha de nacimiento'], ['consent', 'Casilla para confirmar'],
   ['rating', 'Calificación'], ['coupon', 'Cupón promocional'],
 ] as const;
@@ -29,7 +29,8 @@ const FIELD_LIBRARY = [
 /** Qué hace cada campo, en palabras de quien arma el formulario. */
 const FIELD_HINTS: Record<string, string> = {
   text: 'Una línea: nombre de empresa, patente…', textarea: 'Un comentario o detalle largo',
-  email: 'Ayuda a medir campañas', phone: 'Ayuda a medir campañas', rut: 'Con dígito verificador; opcional',
+  email: 'Ayuda a medir campañas', phone: 'Ayuda a medir campañas', rut: 'Sólo RUT chileno: un extranjero no podrá completarlo',
+  document: 'RUT o pasaporte con su país. Pídelo sólo si lo necesitas: es un dato personal',
   select: 'Botones o lista: marca sólo una', multi_select: 'Casillas: puede marcar varias',
   number: 'Sólo números', date: 'Calendario para elegir un día', consent: 'Obligatoria al agregarla',
 };

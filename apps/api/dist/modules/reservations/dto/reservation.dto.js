@@ -13,7 +13,7 @@ exports.ActualizarOperacionDto = exports.PauseReservationFormDto = exports.Occup
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const vacioComoAusente = ({ value }) => (value === '' ? undefined : value);
-exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'select', 'multi_select', 'number', 'date', 'birthdate', 'consent', 'coupon', 'rating', 'nps'];
+exports.FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'rut', 'document', 'select', 'multi_select', 'number', 'date', 'birthdate', 'consent', 'coupon', 'rating', 'nps'];
 exports.CHILEAN_MOBILE_PHONE = /^(?:\+?56[\s-]?)?9[\s-]?\d{4}[\s-]?\d{4}$/;
 exports.CHILEAN_MOBILE_PHONE_MESSAGE = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
 class FormFieldDto {
@@ -1205,6 +1205,20 @@ __decorate([
     (0, class_validator_1.Matches)(/^([01]\d|2[0-3]):[0-5]\d$/),
     __metadata("design:type", String)
 ], CreateCouponDto.prototype, "validUntilTime", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(100),
+    __metadata("design:type", Number)
+], CreateCouponDto.prototype, "maxUsesPerPerson", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMaxSize)(3),
+    (0, class_validator_1.IsIn)(['phone', 'email', 'document'], { each: true }),
+    __metadata("design:type", Array)
+], CreateCouponDto.prototype, "personKeys", void 0);
 class CreateManualReservationDto {
 }
 exports.CreateManualReservationDto = CreateManualReservationDto;
@@ -1415,6 +1429,20 @@ __decorate([
     (0, class_validator_1.Matches)(/^([01]\d|2[0-3]):[0-5]\d$/),
     __metadata("design:type", String)
 ], UpdateCouponDto.prototype, "validUntilTime", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(100),
+    __metadata("design:type", Number)
+], UpdateCouponDto.prototype, "maxUsesPerPerson", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMaxSize)(3),
+    (0, class_validator_1.IsIn)(['phone', 'email', 'document'], { each: true }),
+    __metadata("design:type", Array)
+], UpdateCouponDto.prototype, "personKeys", void 0);
 class ExportFormReservationsDto {
 }
 exports.ExportFormReservationsDto = ExportFormReservationsDto;

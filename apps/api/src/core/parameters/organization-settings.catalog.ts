@@ -577,6 +577,20 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     defaultValue: 30,
     masterStatus: 'direction_required',
   },
+  /*
+   * Cuándo sale el cupón: al día siguiente de marcar la asistencia, o cuando la persona responde
+   * la encuesta de su visita. La segunda sólo aplica si la empresa tiene Reservas y Encuestas: sin
+   * Encuestas no hay respuesta que esperar, y el cupón no sale.
+   */
+  {
+    key: 'email.coupon_trigger',
+    category: 'email',
+    label: 'Cupón · cuándo se envía',
+    description: '«asistencia»: un día después de marcar que vino. «encuesta»: cuando responde la encuesta de su visita.',
+    valueType: 'text',
+    defaultValue: 'asistencia',
+    masterStatus: 'direction_required',
+  },
 
   /*
    * Los correos de reserva.

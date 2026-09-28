@@ -2,7 +2,7 @@ import { normalizarCorreo, normalizarTelefono } from '../../integrations/meta/id
 import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
-import { camposVisibles, esMotivoDeCierre, type ReglaDeCampo } from '@espartanos/shared';
+import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
@@ -326,7 +326,27 @@ export class ReservationsService {
       if (field.type === 'birthdate' && typeof value === 'string' && value.trim() && !fechaDeNacimientoValida(value)) {
         throw new BadRequestException(`La fecha de ${field.label} no es válida`);
       }
+      if (field.type === 'document' && typeof value === 'string' && value.trim() && !leerDocumento(value)) {
+        throw new BadRequestException(`${field.label}: revisa el número. Un RUT necesita su dígito verificador; un pasaporte, el país que lo emitió.`);
+      }
     }
+  }
+
+  /**
+   * El documento de identidad que trae el formulario, ya normalizado.
+   *
+   * Sirve tanto el campo «Documento de identidad» —RUT o pasaporte— como los campos «RUT» que ya
+   * existían: los dos se leen con la misma regla, así que una persona que reservó con uno y
+   * después con el otro se reconoce igual.
+   */
+  private documentoDe(form: ReservationForm, answers: Record<string, unknown>): { guestDocumentType: string | null; guestDocumentCountry: string | null; guestDocument: string | null } {
+    const campo = (form.fieldSchema as FieldConfig[]).find((field) => field.type === 'document' || field.type === 'rut');
+    const documento = campo ? leerDocumento(answers?.[campo.id]) : null;
+    return {
+      guestDocumentType: documento?.tipo ?? null,
+      guestDocumentCountry: documento?.pais ?? null,
+      guestDocument: documento?.numero ?? null,
+    };
   }
 
   /**
@@ -898,6 +918,7 @@ export class ReservationsService {
         guestName, guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: normalizePhone(dto.guestPhone),
         serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers || {}, internalNotes: dto.internalNotes,
         birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
+        ...this.documentoDe(form, dto.answers || {}),
       }));
       await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: form.clientId, reservationId: booking.id, type: 'created', toStatus: 'confirmed', actorId: userId, actorType: 'team', metadata: { startsAt: startsAt.toISOString(), serviceId: dto.serviceId, resourceId: dto.resourceId, manual: true, skipAvailability: dto.skipAvailability } }));
       return { booking, form };
@@ -2090,6 +2111,7 @@ export class ReservationsService {
         guestName: dto.guestName.trim(), guestEmail: dto.guestEmail?.trim().toLowerCase(), guestPhone: normalizePhone(dto.guestPhone),
         serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers,
         birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
+        ...this.documentoDe(form, dto.answers || {}),
         consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
         marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
@@ -2300,7 +2322,11 @@ export class ReservationsService {
       const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.idempotencyKey);
       this.validateSubmission(form, dto.answers, dto);
 
-      const coupon = await this.validateCoupon(dto.couponCode, form, manager, startsAt);
+      const coupon = await this.validateCoupon(dto.couponCode, form, manager, startsAt, {
+        telefono: normalizePhone(dto.guestPhone),
+        correo: dto.guestEmail?.trim().toLowerCase() || null,
+        documento: this.documentoDe(form, dto.answers || {}).guestDocument,
+      });
       if (coupon) {
         coupon.usageCount += 1;
         await manager.save(ReservationCoupon, coupon);
@@ -2322,6 +2348,10 @@ export class ReservationsService {
         guestName: dto.guestName.trim(),
         guestEmail: dto.guestEmail?.trim().toLowerCase(),
         guestPhone: normalizePhone(dto.guestPhone),
+        // La fecha y el documento, en sus columnas: la reserva pública pedía la fecha pero nunca la
+        // guardaba aquí, y por eso no llegaba a la lista de suscriptores ni al saludo de cumpleaños.
+        birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
+        ...this.documentoDe(form, dto.answers || {}),
         serviceId: dto.serviceId,
         resourceId: dto.resourceId,
         answers: {
@@ -3458,7 +3488,8 @@ export class ReservationsService {
     const validFrom = dto.validFrom ? new Date(dto.validFrom) : undefined;
     const validUntil = dto.validUntil ? new Date(dto.validUntil) : undefined;
     if (validFrom && validUntil && validUntil <= validFrom) throw new BadRequestException('La fecha de término debe ser posterior a la fecha de inicio');
-    const coupon = this.coupons.create({ organizationId, clientId, code, discountType: dto.discountType || 'percentage', value: dto.value ?? 0, maxUses: dto.maxUses ?? 0, validFrom, validUntil, formIds: dto.formIds, validDaysOfWeek: validDays, validFromTime: dto.validFromTime, validUntilTime: dto.validUntilTime });
+    const coupon = this.coupons.create({ organizationId, clientId, code, discountType: dto.discountType || 'percentage', value: dto.value ?? 0, maxUses: dto.maxUses ?? 0, validFrom, validUntil, formIds: dto.formIds, validDaysOfWeek: validDays, validFromTime: dto.validFromTime, validUntilTime: dto.validUntilTime, maxUsesPerPerson: dto.maxUsesPerPerson ?? 0, personKeys: dto.personKeys?.length ? [...new Set(dto.personKeys)] : null });
+    this.assertLimitePorPersona(coupon);
     return this.coupons.save(coupon);
   }
 
@@ -3475,14 +3506,23 @@ export class ReservationsService {
     Object.assign(coupon, update);
     if (coupon.validFrom && coupon.validUntil && coupon.validUntil <= coupon.validFrom) throw new BadRequestException('La fecha de término debe ser posterior a la fecha de inicio');
     if (coupon.validFromTime && coupon.validUntilTime && this.minutes(coupon.validFromTime) >= this.minutes(coupon.validUntilTime)) throw new BadRequestException('La hora de inicio del cupón debe ser anterior a la de término');
+    this.assertLimitePorPersona(coupon);
     return this.coupons.save(coupon);
   }
 
   listCoupons(organizationId: string, clientId?: string, clientIds?: string[]) {
     const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
-    if (clientId) qb.andWhere('(coupon.client_id = :clientId OR coupon.client_id IS NULL)', { clientId });
-    else if (clientIds?.length) qb.andWhere('(coupon.client_id IN (:...clientIds) OR coupon.client_id IS NULL)', { clientIds });
-    else if (clientIds !== undefined) qb.andWhere('coupon.client_id IS NULL');
+    /*
+     * Cada empresa ve sólo sus cupones.
+     *
+     * Antes se sumaban los que no tienen empresa: aparecían en la lista de todas, una cuenta de
+     * empresa los veía, y se podían elegir como cupón automático aunque nunca se fueran a enviar
+     * —el envío exige que el cupón sea de la misma empresa del local—. Los que quedaron sin dueño
+     * de antes sólo los ve el equipo de Espartanos, sin empresa elegida, para asignarlos.
+     */
+    if (clientId) qb.andWhere('coupon.client_id = :clientId', { clientId });
+    else if (clientIds?.length) qb.andWhere('coupon.client_id IN (:...clientIds)', { clientIds });
+    else if (clientIds !== undefined) qb.andWhere('1 = 0');
     return qb.orderBy('coupon.created_at', 'DESC').getMany();
   }
 
@@ -3514,7 +3554,14 @@ export class ReservationsService {
    * @param form - Formulario de la reserva, que aporta la zona horaria.
    * @param startsAt - Inicio de la reserva, en UTC.
    */
-  private async validateCoupon(code: string | undefined, form: ReservationForm, manager: EntityManager, startsAt: Date): Promise<ReservationCoupon | undefined> {
+  /** Un límite por persona sin forma de reconocerla no limitaría nada: se exige al menos una. */
+  private assertLimitePorPersona(coupon: ReservationCoupon): void {
+    if (coupon.maxUsesPerPerson > 0 && !coupon.personKeys?.length) {
+      throw new BadRequestException('Elige cómo reconocer a la misma persona: teléfono, correo o documento.');
+    }
+  }
+
+  private async validateCoupon(code: string | undefined, form: ReservationForm, manager: EntityManager, startsAt: Date, persona?: { telefono?: string | null; correo?: string | null; documento?: string | null }): Promise<ReservationCoupon | undefined> {
     if (!code) return undefined;
     // Con «Aceptar cupones» apagado en el local, un código enviado igual no descuenta nada.
     if ((form.designConfig as DesignConfig | undefined)?.couponEnabled === 'false') throw new BadRequestException('Este local no está aceptando cupones');
@@ -3528,7 +3575,51 @@ export class ReservationsService {
     if (coupon.formIds && coupon.formIds.length > 0 && !coupon.formIds.includes(form.id)) throw new BadRequestException('El cupón no aplica para este formulario');
 
     this.assertCouponSchedule(coupon, form, startsAt);
+    if (persona) await this.assertUsosPorPersona(manager, coupon, form, persona);
     return coupon;
+  }
+
+  /**
+   * Rechaza el cupón si esta persona ya lo usó las veces permitidas.
+   *
+   * Se cuenta **sólo en la empresa del cupón**: usar el de un local no afecta lo que la misma
+   * persona pueda usar en otra empresa. Basta con que coincida **cualquiera** de los datos
+   * elegidos en el cupón —teléfono, correo, documento—, así que cambiar sólo uno no sirve para
+   * saltarse el límite.
+   *
+   * Una reserva cancelada devuelve el uso, como ya lo devuelve al total del cupón; una en la que
+   * la persona no se presentó, no: el descuento se reservó igual.
+   *
+   * Corre dentro de la transacción que ya bloqueó la fila del cupón, así que dos reservas
+   * simultáneas de la misma persona no pueden pasar las dos.
+   */
+  private async assertUsosPorPersona(
+    manager: EntityManager,
+    coupon: ReservationCoupon,
+    form: ReservationForm,
+    persona: { telefono?: string | null; correo?: string | null; documento?: string | null },
+  ): Promise<void> {
+    if (!coupon.maxUsesPerPerson || coupon.maxUsesPerPerson <= 0) return;
+    const claves = coupon.personKeys?.length ? coupon.personKeys : ['phone'];
+    const condiciones: string[] = [];
+    const valores: unknown[] = [];
+    if (claves.includes('phone') && persona.telefono) { condiciones.push('guest_phone = ?'); valores.push(persona.telefono); }
+    if (claves.includes('email') && persona.correo) { condiciones.push('guest_email = ?'); valores.push(persona.correo); }
+    if (claves.includes('document') && persona.documento) { condiciones.push('guest_document = ?'); valores.push(persona.documento); }
+    // Sin ninguno de los datos elegidos no hay a quién contarle: la persona no se puede reconocer.
+    if (condiciones.length === 0) return;
+
+    const filas = await manager.query(
+      `SELECT COUNT(*) AS usos FROM reservations
+        WHERE client_id = ? AND coupon_code = ? AND status NOT LIKE 'cancelled%'
+          AND (${condiciones.join(' OR ')})`,
+      [form.clientId, coupon.code, ...valores],
+    ) as Array<{ usos: number | string }>;
+    const usos = Number(filas?.[0]?.usos ?? 0);
+    if (usos >= coupon.maxUsesPerPerson) {
+      const veces = coupon.maxUsesPerPerson === 1 ? 'ya lo usaste' : `ya lo usaste las ${coupon.maxUsesPerPerson} veces permitidas`;
+      throw new BadRequestException(`El cupón ${coupon.code} ${veces} en este local. Puedes reservar igual si quitas el código.`);
+    }
   }
 
   private assertCouponSchedule(coupon: ReservationCoupon, form: ReservationForm, startsAt: Date): void {

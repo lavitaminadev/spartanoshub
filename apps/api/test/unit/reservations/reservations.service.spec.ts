@@ -339,7 +339,11 @@ describe('ReservationsService', () => {
     await expect(service.createCoupon('org-1', 'user-1', { code: 'DUPE', discountType: 'percentage', value: 10 })).rejects.toThrow('Ya existe un cupón');
   });
 
-  it('limits coupon visibility to global coupons when the user has no assigned clients', async () => {
+  /*
+   * Cada empresa ve sólo sus cupones. Antes se sumaban los que no tienen empresa, que aparecían
+   * en la lista de todas y se podían elegir como cupón automático aunque nunca se enviaran.
+   */
+  it('quien no lleva ninguna empresa no ve ningún cupón', async () => {
     const qb = {
       where: vi.fn().mockReturnThis(),
       andWhere: vi.fn().mockReturnThis(),
@@ -350,8 +354,22 @@ describe('ReservationsService', () => {
 
     await service.listCoupons('org-1', undefined, []);
 
-    expect(qb.andWhere).toHaveBeenCalledWith('coupon.client_id IS NULL');
-    expect(qb.andWhere).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ clientIds: [] }));
+    expect(qb.andWhere).toHaveBeenCalledWith('1 = 0');
+    expect(qb.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('IS NULL'));
+  });
+
+  it('una empresa ve sólo los suyos, sin los cupones que no tienen empresa', async () => {
+    const qb = {
+      where: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      getMany: vi.fn().mockResolvedValue([]),
+    };
+    coupons.createQueryBuilder.mockReturnValue(qb);
+
+    await service.listCoupons('org-1', 'casa-costanera');
+
+    expect(qb.andWhere).toHaveBeenCalledWith('coupon.client_id = :clientId', { clientId: 'casa-costanera' });
   });
 
   it('rejects clearing availability on a form that is already published', async () => {

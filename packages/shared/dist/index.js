@@ -38,6 +38,7 @@ __exportStar(require("./types/integration"), exports);
 __exportStar(require("./types/survey"), exports);
 __exportStar(require("./survey-metrics"), exports);
 __exportStar(require("./survey-rules"), exports);
+__exportStar(require("./documento-de-identidad"), exports);
 __exportStar(require("./survey-edits"), exports);
 __exportStar(require("./measurement-consent"), exports);
 __exportStar(require("./documentos-legales"), exports);

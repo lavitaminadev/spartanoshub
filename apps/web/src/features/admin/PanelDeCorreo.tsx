@@ -118,6 +118,12 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: 
     explica: 'Cuando la reserva cambia de horario, desde el local o desde su enlace. Lleva la cita nueva para el calendario.',
   },
   {
+    prefijo: 'email.coupon',
+    modulo: 'reservas',
+    titulo: 'Cupón de regalo',
+    explica: 'A quien vino, para que vuelva: al día siguiente de su visita o cuando responde la encuesta. Qué cupón se envía y cuándo se elige en Reservas → Cupones.',
+  },
+  {
     prefijo: 'email.post_visit_survey',
     modulo: 'encuestas',
     titulo: 'Encuesta después de la visita',
@@ -241,6 +247,8 @@ const ETIQUETAS_DE_VARIABLE: Record<string, string> = {
   campana: 'Campaña',
   pendientes: 'Cuántos pendientes',
   parados: 'Cuántos sin movimiento',
+  cupon: 'Código del cupón',
+  vence: 'Hasta cuándo vale',
 };
 
 /** Las variables que admite una plantilla, sacadas de su propia descripción. */
@@ -720,6 +728,27 @@ export function PanelDeCorreo(): JSX.Element {
                     </label>
                   );
                 })() : null}
+                {/*
+                  El cupón se elige en Reservas, no acá.
+
+                  Acá se escribe el texto; qué cupón y cuándo sale se eligen de la lista de cupones
+                  de la empresa, que comprueba que exista y esté activo. Escribir el código a mano
+                  —como se hacía— dejaba pasar errores de tipeo que la caja después rechazaba.
+                */}
+                {grupo.prefijo === 'email.coupon' && (() => {
+                  const codigo = String(valorDe('email.coupon_code') ?? '').trim();
+                  const momento = valorDe('email.coupon_trigger') === 'encuesta' ? 'cuando responde la encuesta de su visita' : 'al día siguiente de su visita';
+                  return (
+                    <div className="panel-correo-cupon">
+                      {!empresa
+                        ? <small>Elige una empresa arriba: cada empresa envía su propio cupón.</small>
+                        : codigo
+                          ? <small>Se envía el cupón <strong>{codigo}</strong> {momento}.</small>
+                          : <small className="error-text">No hay cupón elegido: aunque esté encendido, no se envía nada.</small>}
+                      <Link to={`/reservations?tab=coupons${empresa ? `&clientId=${encodeURIComponent(empresa)}` : ''}`}>Elegir el cupón y cuándo se envía</Link>
+                    </div>
+                  );
+                })()}
                 {['subject', 'body', 'hours'].map((sufijo) => {
                   const ajuste = porClave.get(`${grupo.prefijo}_${sufijo}`);
                   if (!ajuste) return null;

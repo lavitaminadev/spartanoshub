@@ -22,6 +22,7 @@ export * from './types/integration';
 export * from './types/survey';
 export * from './survey-metrics';
 export * from './survey-rules';
+export * from './documento-de-identidad';
 export * from './survey-edits';
 export * from './measurement-consent';
 export * from './documentos-legales';
