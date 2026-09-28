@@ -23,12 +23,14 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
    * está montado. Quien administra reservas no puede entrar al servidor a resolverlo, así que sólo
    * necesita saber que aún no está activo.
    */
-  it('sólo desarrollo ve qué le falta al servidor de correo', () => {
+  it('sólo desarrollo ve qué le falta al servidor de correo', async () => {
     const correo = { estado: () => ({ habilitado: false, remitente: null, servidor: null, puerto: null, respuestasA: null, faltan: ['SMTP_ENABLED=true', 'SMTP_HOST'] }) };
     const conCorreo = new OrganizationSettingsController(settings as any, permisos as any, accountAccess as any, capacidades as any, correo as any, {} as any);
+    // La ruta dejó de pedir el permiso de Reservas y pide el de Correos, que se comprueba dentro.
+    permisos.can.mockResolvedValue(true);
 
-    const comoAdmin = conCorreo.estadoDelCorreo({ user: { role: UserRole.ADMIN } } as any);
-    const comoDev = conCorreo.estadoDelCorreo({ user: { role: UserRole.DEV } } as any);
+    const comoAdmin = await conCorreo.estadoDelCorreo({ organizationId: 'org-1', user: { id: 'a', role: UserRole.ADMIN } } as any);
+    const comoDev = await conCorreo.estadoDelCorreo({ organizationId: 'org-1', user: { id: 'd', role: UserRole.DEV } } as any);
 
     expect(comoAdmin.faltan).toEqual([]);
     expect(comoAdmin.habilitado).toBe(false);
@@ -85,17 +87,17 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
     const request = { organizationId: 'org-1', user: { id: 'cm-1', role: UserRole.COMMUNITY_MANAGER } } as any;
     permisos.can.mockImplementation(async (_org: string, _user: string, _rol: string, modulo: string) => modulo === 'crm');
     settings.list.mockResolvedValue([
-      { key: 'email.lead_assigned_subject' },
+      { key: 'email.new_lead_subject' },
       { key: 'email.reservation_confirmation_subject' },
       { key: 'email.post_visit_survey_subject' },
     ]);
 
-    await expect(controller.correos(request)).resolves.toEqual([{ key: 'email.lead_assigned_subject' }]);
+    await expect(controller.correos(request)).resolves.toEqual([{ key: 'email.new_lead_subject' }]);
 
     await expect(controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } })).rejects.toThrow(ForbiddenException);
     expect(settings.update).not.toHaveBeenCalled();
 
-    await controller.guardarCorreos(request, { values: { 'email.lead_assigned_subject': 'Hola' } });
+    await controller.guardarCorreos(request, { values: { 'email.new_lead_subject': 'Hola' } });
     expect(settings.update).toHaveBeenCalled();
   });
 
@@ -103,6 +105,35 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
     const request = { organizationId: 'org-1', user: { id: 'x', role: UserRole.COMMUNITY_MANAGER } } as any;
     permisos.can.mockResolvedValue(false);
     await expect(controller.correos(request)).rejects.toThrow(ForbiddenException);
+  });
+
+  /*
+   * Dentro de una empresa, los correos son de quien la administra.
+   *
+   * El resto del equipo trabaja con sus reservas o sus leads, pero el texto que sale con la marca
+   * del local lo decide una sola persona: sin esta reja bastaba con poder editar el módulo
+   * —cualquier ejecutivo— para reescribir lo que reciben todos sus clientes.
+   */
+  it('una cuenta de empresa que no la administra no ve ninguna plantilla', async () => {
+    const request = { organizationId: 'org-1', user: { id: 'ana', role: UserRole.CLIENT, clientId: 'c-1' } } as any;
+    capacidades.tiene.mockResolvedValue(true);
+    // Puede editar sus módulos, pero no administra personas en su empresa.
+    permisos.can.mockImplementation(async (_org: string, _user: string, _rol: string, modulo: string) => modulo !== 'users');
+    settings.list.mockResolvedValue([{ key: 'email.reservation_confirmation_subject' }]);
+
+    await expect(controller.correos(request)).rejects.toThrow(ForbiddenException);
+    await expect(controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } }))
+      .rejects.toThrow(ForbiddenException);
+    expect(settings.update).not.toHaveBeenCalled();
+  });
+
+  it('quien sí administra su empresa ve y guarda las plantillas de sus módulos', async () => {
+    const request = { organizationId: 'org-1', user: { id: 'ana', role: UserRole.CLIENT, clientId: 'c-1' } } as any;
+    capacidades.tiene.mockResolvedValue(true);
+    permisos.can.mockResolvedValue(true);
+    settings.list.mockResolvedValue([{ key: 'email.reservation_confirmation_subject' }]);
+
+    await expect(controller.correos(request)).resolves.toEqual([{ key: 'email.reservation_confirmation_subject' }]);
   });
 
   /*

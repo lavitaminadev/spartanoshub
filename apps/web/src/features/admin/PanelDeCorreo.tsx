@@ -58,7 +58,47 @@ const MODULOS: Array<{ clave: ModuloDeAviso; titulo: string; explica: string; se
   { clave: 'cobranza', titulo: 'Cobranza', explica: 'A la empresa cliente.' },
 ];
 
-const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: ModuloDeAviso }> = [
+/** Lo que una empresa tiene contratado. `undefined` es la plantilla general, sin empresa elegida. */
+type ServiciosContratados = Partial<Record<'reservations' | 'crm' | 'surveys', boolean>> | undefined;
+
+/**
+ * Qué grupos se muestran y en cuál cae cada aviso.
+ *
+ * Un grupo aparece sólo si el servidor entregó al menos un aviso suyo y la empresa tiene ese
+ * servicio contratado. La primera condición es la que faltaba: el servidor ya decide qué plantillas
+ * puede editar cada cuenta, y sin mirar su respuesta el selector ofrecía grupos que después salían
+ * vacíos —Cobranza, que no depende de ningún servicio y por eso figuraba siempre—.
+ *
+ * Un aviso que pertenece a dos servicios se muestra en su grupo natural, y en el alterno cuando ese
+ * grupo está oculto, para que no desaparezca de la pantalla mientras el correo sí se envía.
+ *
+ * Sin empresa elegida se muestra todo: la plantilla general la heredan todas.
+ */
+export function agruparAvisos(clavesEntregadas: Set<string>, contratados: ServiciosContratados) {
+  const entregados = AVISOS.filter((grupo) => clavesEntregadas.has(`${grupo.prefijo}_enabled`));
+  const conAvisos = new Set(entregados.flatMap((grupo) => [grupo.modulo, grupo.moduloAlterno].filter(Boolean) as ModuloDeAviso[]));
+  const modulosVisibles = MODULOS.filter((modulo) => {
+    if (!conAvisos.has(modulo.clave)) return false;
+    if (!modulo.servicio || !contratados) return true;
+    return contratados[modulo.servicio] !== false;
+  });
+  const clavesVisibles = new Set(modulosVisibles.map((modulo) => modulo.clave));
+  const moduloDe = (grupo: { modulo: ModuloDeAviso; moduloAlterno?: ModuloDeAviso }): ModuloDeAviso | null => {
+    if (clavesVisibles.has(grupo.modulo)) return grupo.modulo;
+    if (grupo.moduloAlterno && clavesVisibles.has(grupo.moduloAlterno)) return grupo.moduloAlterno;
+    return null;
+  };
+  return { modulosVisibles, moduloDe };
+}
+
+/*
+ * `moduloAlterno` es dónde se muestra un aviso cuando su grupo natural está oculto.
+ *
+ * Sólo lo necesita el saludo de cumpleaños, que es de dos servicios a la vez: saluda a los
+ * contactos del CRM y a quien dejó su fecha al reservar. Agrupado sólo bajo CRM, una empresa con
+ * Reservas y sin CRM lo perdía de vista aunque el servidor se lo entregara y el correo saliera.
+ */
+const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: ModuloDeAviso; moduloAlterno?: ModuloDeAviso }> = [
   {
     prefijo: 'email.reservation_confirmation',
     modulo: 'reservas',
@@ -122,6 +162,7 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: 
   {
     prefijo: 'email.birthday',
     modulo: 'crm',
+    moduloAlterno: 'reservas',
     titulo: 'Saludo de cumpleaños',
     explica: 'Solo a quien dio su fecha y está suscrito. Lleva enlace de baja como todo correo comercial.',
   },
@@ -489,21 +530,9 @@ export function PanelDeCorreo(): JSX.Element {
     queryFn: () => api.get<{ habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[] }>('/settings/estado-del-correo'),
   });
 
-  /*
-   * Con una empresa elegida se listan sólo los módulos que ella tiene contratados.
-   *
-   * Editar la plantilla de CRM de una empresa que no contrató CRM es trabajo que no llega a
-   * nadie, y llena la pantalla de avisos que nunca van a salir para esa cuenta. Lo de Espartanos
-   * —la cobranza— no depende de eso: va de la agencia hacia ella.
-   *
-   * En «General» se muestran todos: esa plantilla la heredan todas las empresas.
-   */
+  // Los servicios de la empresa elegida deciden qué grupos se muestran: ver `agruparAvisos`.
   const contratados = (empresasQuery.data?.data ?? []).find((cliente) => cliente.id === empresa)?.capabilities;
-  const modulosVisibles = MODULOS.filter((modulo) => {
-    if (!empresa || !modulo.servicio || !contratados) return true;
-    return contratados[modulo.servicio] !== false;
-  });
-  const clavesVisibles = new Set(modulosVisibles.map((modulo) => modulo.clave));
+  const { modulosVisibles, moduloDe } = agruparAvisos(new Set(porClave.keys()), empresa ? contratados : undefined);
 
   /** Un aviso encendido al que le falta algo comprobable: está prendido y no sale. */
   const tieneAlgoPendiente = (prefijo: string) => Boolean(valorDe(`${prefijo}_enabled`))
@@ -515,14 +544,15 @@ export function PanelDeCorreo(): JSX.Element {
     if (filtro === 'activos' && !activo) return false;
     if (filtro === 'apagados' && activo) return false;
     if (filtro === 'pendientes' && !tieneAlgoPendiente(grupo.prefijo)) return false;
-    if (!clavesVisibles.has(grupo.modulo)) return false;
-    if (moduloElegido && grupo.modulo !== moduloElegido) return false;
+    const modulo = moduloDe(grupo);
+    if (!modulo) return false;
+    if (moduloElegido && modulo !== moduloElegido) return false;
     const texto = busqueda.trim().toLowerCase();
     if (texto && !`${grupo.titulo} ${grupo.explica}`.toLowerCase().includes(texto)) return false;
     return true;
   });
 
-  const conInterruptor = AVISOS.filter((grupo) => porClave.get(`${grupo.prefijo}_enabled`) && clavesVisibles.has(grupo.modulo));
+  const conInterruptor = AVISOS.filter((grupo) => porClave.get(`${grupo.prefijo}_enabled`) && moduloDe(grupo) !== null);
   const activos = conInterruptor.filter((grupo) => Boolean(valorDe(`${grupo.prefijo}_enabled`))).length;
   const pendientes = conInterruptor.filter((grupo) => tieneAlgoPendiente(grupo.prefijo)).length;
 
@@ -628,7 +658,7 @@ export function PanelDeCorreo(): JSX.Element {
       {visibles.length === 0 && <p className="panel-correo-nota">Ningún aviso coincide con el filtro.</p>}
 
       {modulosVisibles.map((modulo) => {
-        const delModulo = visibles.filter((grupo) => grupo.modulo === modulo.clave);
+        const delModulo = visibles.filter((grupo) => moduloDe(grupo) === modulo.clave);
         if (delModulo.length === 0) return null;
         return <section key={modulo.clave} className="panel-correo-modulo">
           <h3>{modulo.titulo} <small>{modulo.explica}</small></h3>

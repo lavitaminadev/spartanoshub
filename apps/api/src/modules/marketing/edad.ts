@@ -11,6 +11,26 @@
 export const MAYORIA_DE_EDAD = 18;
 
 /**
+ * Zona en la que se decide qué día es hoy.
+ *
+ * El proceso corre en UTC, que entre las ocho de la tarde y la medianoche de Chile ya está en el
+ * día siguiente: preguntar «¿cumple hoy?» con la fecha del servidor felicita un día antes a todo
+ * el mundo si el trabajo se ejecuta en esa franja. Y la hora a la que se ejecuta depende de
+ * cuándo arrancó el servidor, así que no es algo que se pueda dar por bueno mirándolo una vez.
+ *
+ * Es el mismo valor por defecto que usan los locales de Reservas cuando no declaran el suyo.
+ */
+export const ZONA_DEL_NEGOCIO = 'America/Santiago';
+
+/** El día del año en una zona concreta, como mes (0-11) y día, sin pasar por un instante. */
+export function diaDelAnoEn(momento: Date, zona: string = ZONA_DEL_NEGOCIO): { mes: number; dia: number; ano: number } {
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: zona, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(momento)
+    .reduce<Record<string, string>>((acumulado, parte) => ({ ...acumulado, [parte.type]: parte.value }), {});
+  return { ano: Number(partes.year), mes: Number(partes.month) - 1, dia: Number(partes.day) };
+}
+
+/**
  * Si dos fechas caen el mismo día del año.
  *
  * El año se ignora a propósito: es un cumpleaños, no un aniversario exacto.
@@ -19,15 +39,17 @@ export const MAYORIA_DE_EDAD = 18;
  * felicitar— deja a esa persona sin saludo tres de cada cuatro años, que es peor que un día de
  * diferencia y además parece que el sistema se olvidó de ella.
  */
-export function cumpleHoy(nacimiento: Date, hoy: Date = new Date()): boolean {
+export function cumpleHoy(nacimiento: Date, hoy: Date = new Date(), zona: string = ZONA_DEL_NEGOCIO): boolean {
   const mes = nacimiento.getMonth();
   const dia = nacimiento.getDate();
+  // Qué día es hoy donde está el negocio, no donde está el servidor.
+  const local = diaDelAnoEn(hoy, zona);
 
-  if (mes === hoy.getMonth() && dia === hoy.getDate()) return true;
+  if (mes === local.mes && dia === local.dia) return true;
 
-  const bisiesto = new Date(hoy.getFullYear(), 1, 29).getMonth() === 1;
+  const bisiesto = new Date(local.ano, 1, 29).getMonth() === 1;
   const naceEn29DeFebrero = mes === 1 && dia === 29;
-  const hoyEs28DeFebrero = hoy.getMonth() === 1 && hoy.getDate() === 28;
+  const hoyEs28DeFebrero = local.mes === 1 && local.dia === 28;
 
   return naceEn29DeFebrero && hoyEs28DeFebrero && !bisiesto;
 }

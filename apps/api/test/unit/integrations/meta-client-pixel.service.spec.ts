@@ -66,6 +66,50 @@ describe('MetaClientPixelService', () => {
     expect(elegibles.pixels.map((pixel) => pixel.pixelId)).toEqual(['111']);
   });
 
+  /*
+   * El registro de Pixels de la organización no es una lista de candidatos.
+   *
+   * `metaPixels` guarda todos los Pixels registrados, de todas las empresas, y se añadía entero a
+   * la lista. El selector de un local mostraba así el Pixel de otro negocio; y elegirlo pasaba la
+   * comprobación siempre que ese Pixel no estuviera además en la tabla con dueño, con lo que las
+   * reservas de una empresa terminaban contándose en el Events Manager de otra.
+   *
+   * Sí entra el que la organización declaró como Pixel de la agencia, que es una decisión tomada
+   * a propósito, y va marcado para que se vea al elegirlo.
+   */
+  it('no ofrece el Pixel de otra empresa aunque esté registrado en la organización', async () => {
+    givenIntegration({
+      config: {
+        clientPixels: { 'client-a': { pixelId: '111', pixelName: 'Pixel Principal', accessToken: 'token-a', configuredAt: '2026-07-20' } },
+        metaPixels: {
+          '222': { name: 'Pixel de Cliente B', accessToken: 'token-b', updatedAt: '2026-07-20' },
+          '333': { name: 'Pixel de la Agencia', accessToken: 'token-agencia', updatedAt: '2026-07-20' },
+        },
+        agencyPixelId: '333',
+      },
+    });
+
+    const elegibles = await service.pixelesElegibles('org-1', 'client-a');
+
+    expect(elegibles.pixels.map((pixel) => pixel.pixelId).sort()).toEqual(['111', '333']);
+    expect(elegibles.pixels.find((pixel) => pixel.pixelId === '333')?.esDeLaAgencia).toBe(true);
+  });
+
+  /*
+   * Un local que ya guardó un Pixel lo sigue viendo aunque hoy no cumpla la regla. Quitarlo de la
+   * lista no deja de enviar nada —el envío lee el formulario— y sólo dejaría el selector en
+   * blanco, que esconde el problema en vez de mostrarlo.
+   */
+  it('mantiene en la lista el Pixel que un local ya tiene guardado', async () => {
+    givenIntegration({
+      config: { clientPixels: { 'client-a': { pixelId: '111', pixelName: 'Pixel Principal', accessToken: 'token-a', configuredAt: '2026-07-20' } } },
+    });
+
+    const elegibles = await service.pixelesElegibles('org-1', 'client-a', ['444']);
+
+    expect(elegibles.pixels.map((pixel) => pixel.pixelId).sort()).toEqual(['111', '444']);
+  });
+
   it('resolves only the Pixel and token explicitly assigned to the requested client', async () => {
     givenIntegration({
       config: { clientPixels: {
@@ -129,16 +173,42 @@ describe('MetaClientPixelService', () => {
     expect(saved['client-a'].pixelId).toBe('111');
   });
 
-  it('reuses an existing organization Pixel only after an explicit selection', async () => {
+  /*
+   * Elegir un Pixel «existente» no puede ser la puerta de atrás a la exclusividad.
+   *
+   * Reutilizar copiaba el registro de la empresa que lo tuviera, así que bastaba elegirlo en el
+   * desplegable para que dos negocios midieran en el mismo conjunto de datos: sus conversiones se
+   * mezclan en el Events Manager aunque las reservas y la base estén separadas. La regla ya se
+   * aplicaba al escribir el número a mano; ahora también acá.
+   */
+  it('no deja reutilizar el Pixel que ya es de otra empresa', async () => {
     const integration = { config: { clientPixels: {
       'client-a': { pixelId: '999', pixelName: 'Pixel Compartido', accessToken: 'protected-token', configuredAt: '2026-07-20' },
     } } };
     givenIntegration(integration);
     clients.findOne.mockResolvedValue({ id: 'client-b', name: 'Cliente B' });
+
+    await expect(service.setup('org-1', 'client-b', 'existing', { existingPixelId: '999' }))
+      .rejects.toThrow(/ya está asignado a otra empresa/);
+    expect(integration.config.clientPixels['client-b']).toBeUndefined();
+  });
+
+  /*
+   * Lo que sí se reutiliza: un Pixel registrado en la organización que todavía no es de nadie.
+   * Es el caso para el que existe elegir en vez de escribir, y conserva su credencial.
+   */
+  it('reutiliza un Pixel registrado que no tiene dueño, con su token', async () => {
+    const integration = { config: {
+      clientPixels: {},
+      metaPixels: { '999': { name: 'Pixel Sin Dueño', accessToken: 'protected-token', updatedAt: '2026-07-20' } },
+    } };
+    givenIntegration(integration);
+    clients.findOne.mockResolvedValue({ id: 'client-b', name: 'Cliente B' });
+
     const result = await service.setup('org-1', 'client-b', 'existing', { existingPixelId: '999' });
-    expect(result).toMatchObject({ clientId: 'client-b', pixelId: '999', pixelName: 'Pixel Compartido', tokenConfigured: true });
+
+    expect(result).toMatchObject({ clientId: 'client-b', pixelId: '999', pixelName: 'Pixel Sin Dueño', tokenConfigured: true });
     expect(integration.config.clientPixels['client-b'].accessToken).toBe('protected-token');
-    expect(integration.config.clientPixels['client-b'].pixelName).toBe('Pixel Compartido');
     expect(pixels.verificarPixel).not.toHaveBeenCalled();
   });
 });

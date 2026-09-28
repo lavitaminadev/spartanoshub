@@ -237,7 +237,7 @@ export function ReservationBuilderPage() {
     staleTime: 60_000,
   });
 
-  const { data: pixelesDelLocal } = useQuery<{ porDefecto: { pixelId: string | null; pixelName: string | null; tieneToken: boolean }; pixels: Array<{ pixelId: string; nombre: string | null; tieneToken: boolean; esDeLaEmpresa: boolean }> }>({
+  const { data: pixelesDelLocal } = useQuery<{ porDefecto: { pixelId: string | null; pixelName: string | null; tieneToken: boolean }; pixels: Array<{ pixelId: string; nombre: string | null; tieneToken: boolean; esDeLaEmpresa: boolean; esDeLaAgencia?: boolean }> }>({
     queryKey: ['reservation-form-pixels', data?.clientId],
     queryFn: () => api.get(`/reservations/forms/meta-pixels?clientId=${data?.clientId}`),
     enabled: Boolean(data?.clientId) && Boolean(data?.capabilities?.metaConversions),
@@ -749,7 +749,7 @@ export function ReservationBuilderPage() {
                 <option value="">Usar el de la empresa{pixelDeLaEmpresa ? ` (${pixelDeLaEmpresa.pixelId})` : ''} — recomendado</option>
                 {(pixelesDelLocal?.pixels || [])
                   .filter((pixel) => !pixel.esDeLaEmpresa)
-                  .map((pixel) => <option key={pixel.pixelId} value={pixel.pixelId}>{pixel.pixelId}{pixel.nombre ? ` — ${pixel.nombre}` : ''}{pixel.tieneToken ? '' : ' (sin token)'}</option>)}
+                  .map((pixel) => <option key={pixel.pixelId} value={pixel.pixelId}>{pixel.pixelId}{pixel.nombre ? ` — ${pixel.nombre}` : ''}{pixel.esDeLaAgencia ? ' — Pixel de la agencia' : ''}{pixel.tieneToken ? '' : ' (sin token)'}</option>)}
                 {draft.metaPixelId && !(pixelesDelLocal?.pixels || []).some((pixel) => pixel.pixelId === draft.metaPixelId) && <option value={draft.metaPixelId}>{draft.metaPixelId} (no registrado)</option>}
               </select>
               <small>{!draft.metaPixelId

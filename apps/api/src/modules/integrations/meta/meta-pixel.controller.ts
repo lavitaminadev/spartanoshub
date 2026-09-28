@@ -19,6 +19,7 @@ import { MetaClientPixelService } from './meta-client-pixel.service';
 import { MetaConversionOutboxService } from './meta-conversion-outbox.service';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { RequiresRecentAuth } from '../../../core/auth/requires-recent-auth.decorator';
+import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 
 @Controller('integrations/meta')
 @UseGuards(AuthGuard('jwt'))
@@ -33,12 +34,30 @@ export class MetaPixelController {
     private insights: MetaInsightsService,
     private clientPixels: MetaClientPixelService,
     private conversionOutbox: MetaConversionOutboxService,
+    private accountAccess: AccountAccessService,
   ) {}
 
   @Get('client-pixels/catalog')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
   clientPixelCatalog(@Req() req: AuthenticatedRequest) {
     return this.clientPixels.catalog(req.organizationId);
+  }
+
+  /**
+   * Los Pixels que una campaña de esta empresa puede usar, con su nombre y si tienen credencial.
+   *
+   * Es la lista que ya usa el constructor de Reservas. La administración del CRM ofrecía en su
+   * lugar una caja de texto: había que copiar el número desde Meta, y un Pixel sin token o de otra
+   * empresa sólo se descubría al guardar —o peor, después, en la cola de errores—.
+   *
+   * Sin empresa la campaña es de la agencia, y entonces los candidatos son los Pixels que la
+   * organización tiene registrados sin dueño.
+   */
+  @Get('client-pixels/elegibles')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
+  async pixelsElegibles(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    if (clientId) await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    return this.clientPixels.elegiblesParaCampania(req.organizationId, clientId || null);
   }
 
   /**
@@ -70,22 +89,22 @@ export class MetaPixelController {
     };
   }
 
-
-  /**
-   * Devuelve a la cola los eventos que se dieron por perdidos.
-   *
-   * Sin identificadores reintenta todo lo fallido de la organización, que es lo que se quiere
-   * después de arreglar una causa común. El `event_id` no cambia, así que Meta deduplica lo que
-   * hubiera llegado pese al error.
-   */
-  @Post('conversions/outbox/reintentar')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
-  @ApiOperation({ summary: 'Reintentar eventos de conversión fallidos' })
-  async reintentarConversiones(
-    @Req() req: AuthenticatedRequest,
-    @Body() cuerpo: { ids?: string[] },
-  ) {
-    return this.conversionOutbox.reintentar(req.organizationId, cuerpo?.ids);
+
+  /**
+   * Devuelve a la cola los eventos que se dieron por perdidos.
+   *
+   * Sin identificadores reintenta todo lo fallido de la organización, que es lo que se quiere
+   * después de arreglar una causa común. El `event_id` no cambia, así que Meta deduplica lo que
+   * hubiera llegado pese al error.
+   */
+  @Post('conversions/outbox/reintentar')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR)
+  @ApiOperation({ summary: 'Reintentar eventos de conversión fallidos' })
+  async reintentarConversiones(
+    @Req() req: AuthenticatedRequest,
+    @Body() cuerpo: { ids?: string[] },
+  ) {
+    return this.conversionOutbox.reintentar(req.organizationId, cuerpo?.ids);
   }
 
   @Post('client-pixels/setup')

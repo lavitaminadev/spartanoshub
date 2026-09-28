@@ -446,6 +446,62 @@ function ajustesDeCorreo(source: 'client' | 'master_default') {
   });
 }
 
+/**
+ * A qué módulo pertenece cada plantilla, igual que en el servidor.
+ *
+ * Es la misma tabla de `organization-settings.controller.ts`. Está repetida a propósito: el modo
+ * visual no habla con el backend, así que la única forma de que la pantalla enseñe lo mismo que
+ * enseñará en producción es aplicar aquí la misma regla.
+ *
+ * Sin esto el simulador devolvía el catálogo entero, y una empresa sin CRM veía en pantalla
+ * avisos que el servidor le habría ocultado: la revisión daba por buena una pantalla que en
+ * producción salía distinta.
+ */
+const MODULO_DE_CORREO_VISUAL: Array<[string, Array<'reservations' | 'surveys' | 'crm' | 'agencia'>]> = [
+  ['email.post_visit_survey', ['surveys']],
+  ['email.new_lead', ['crm']],
+  ['email.idle_lead', ['crm']],
+  ['email.daily_digest', ['crm']],
+  ['email.birthday', ['crm', 'reservations']],
+  ['email.task_reminder', ['agencia']],
+  ['email.collection_overdue', ['agencia']],
+];
+
+function modulosDeCorreoVisual(clave: string): Array<'reservations' | 'surveys' | 'crm' | 'agencia'> {
+  return MODULO_DE_CORREO_VISUAL.find(([prefijo]) => clave.startsWith(prefijo))?.[1] ?? ['reservations'];
+}
+
+/**
+ * Las empresas del catálogo visual con los servicios que tiene contratado cada una.
+ *
+ * Es la misma lista que responde `/clients` y la que filtra las plantillas de correo: una sola
+ * fuente, para que la pantalla de Correos no pueda contradecir al selector de empresa.
+ *
+ * Casa Costanera no tiene CRM y Bar Ruperto no tiene Encuestas a propósito: así se puede comprobar
+ * en pantalla que Correos oculta los avisos de un servicio que esa empresa no contrató. Dos
+ * empresas, porque con una sola no se revisa que alguien atienda más de una.
+ */
+const EMPRESAS_VISUALES = [
+  { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } },
+  { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false } },
+];
+
+/**
+ * Las plantillas que esa empresa puede editar de verdad.
+ *
+ * Deja fuera las de un servicio que no contrató —un correo que nunca se enviaría— y las de la
+ * agencia, que no son de ninguna empresa: recordatorio de tareas y aviso de pago vencido hablan
+ * de lo que pasa dentro de Espartanos.
+ */
+function correosDeLaEmpresa<T extends { key: string }>(ajustes: T[], clientId: string): T[] {
+  const servicios = EMPRESAS_VISUALES.find((empresa) => empresa.id === clientId)?.capabilities
+    ?? { reservations: true, crm: true, surveys: true };
+  return ajustes.filter((ajuste) => {
+    if (!ajuste.key.startsWith('email.')) return true;
+    return modulosDeCorreoVisual(ajuste.key).some((modulo) => modulo !== 'agencia' && servicios[modulo]);
+  });
+}
+
 /** Cuentas que administran el equipo en el modo visual. Vacio muestra el aviso. */
 const visualAdministranEquipo: string[] = ['u-cli'];
 
@@ -769,13 +825,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/notifications\/read-all$/, () => { visualNotifications.forEach((item) => { item.read = true; }); return { updated: visualNotifications.length }; }],
   [/\/notifications(?:\?|$)/, () => visualNotifications],
-  // Casa Costanera tiene Reservas y Encuestas, no CRM: así se comprueba que Correos oculta los
-  // avisos de un servicio que esa empresa no contrató.
-  // Dos empresas: con una sola no se puede revisar que alguien atienda más de una.
-  [/\/clients(?:\?|$)/, () => ({ data: [
-    { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } },
-    { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false } },
-  ] })],
+  [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],
   /*
    * Datos de ejemplo del CRM.
    *
@@ -972,12 +1022,36 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     if (reserva && accion === 'sigue') reserva.endsAt = new Date(Math.max(new Date(String(reserva.endsAt)).getTime(), Date.now()) + 30 * 60_000).toISOString();
     return { reserva, sobreCupo: false };
   }],
+  /*
+   * Los Pixels que puede usar una campaña, según de quién sea.
+   *
+   * Con empresa, los suyos; sin empresa —campaña de la agencia— los que no son de nadie. Nunca el
+   * de otra empresa: el servidor dejó de ofrecerlo y rechaza guardarlo.
+   */
+  [/\/integrations\/meta\/client-pixels\/elegibles/, (config) => {
+    const empresa = /\bclientId=([^&]+)/.exec(config?.url ?? '')?.[1];
+    if (!empresa) {
+      return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels: [
+        { pixelId: '998877665544332', nombre: 'Espartanos · agencia', tieneToken: true, esDeLaEmpresa: false, esDeLaAgencia: true },
+      ] };
+    }
+    const suyos = empresa === 'visual-client'
+      ? [{ pixelId: '123456789012345', nombre: 'Casa Costanera · Reservas', tieneToken: true, esDeLaEmpresa: true, esDeLaAgencia: false }]
+      : [{ pixelId: '222333444555666', nombre: 'Bar Ruperto · Campañas', tieneToken: false, esDeLaEmpresa: true, esDeLaAgencia: false }];
+    return { porDefecto: { pixelId: suyos[0].pixelId, pixelName: suyos[0].nombre, tieneToken: suyos[0].tieneToken }, pixels: suyos };
+  }],
   [/\/reservations\/forms\/meta-pixels/, () => ({
     porDefecto: { pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', tieneToken: true },
+    /*
+     * Sólo los Pixels de esta empresa y el de la agencia, como responde el servidor.
+     *
+     * El de otra empresa no aparece nunca: el servidor dejó de ofrecerlo y elegirlo se rechaza,
+     * porque medir dos negocios en el mismo Pixel mezcla sus conversiones en el Events Manager.
+     */
     pixels: [
-      { pixelId: '123456789012345', nombre: 'Casa Costanera · Reservas', tieneToken: true, esDeLaEmpresa: true },
-      { pixelId: '998877665544332', nombre: 'Terraza · agencia', tieneToken: true, esDeLaEmpresa: false },
-      { pixelId: '555000111222333', nombre: null, tieneToken: false, esDeLaEmpresa: false },
+      { pixelId: '123456789012345', nombre: 'Casa Costanera · Reservas', tieneToken: true, esDeLaEmpresa: true, esDeLaAgencia: false },
+      { pixelId: '998877665544332', nombre: 'Espartanos · agencia', tieneToken: true, esDeLaEmpresa: false, esDeLaAgencia: true },
+      { pixelId: '555000111222333', nombre: null, tieneToken: false, esDeLaEmpresa: false, esDeLaAgencia: false },
     ],
   })],
   [/\/reservations\/forms(?:\?|$)/, (config) => {
@@ -1492,14 +1566,14 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * Sólo con la empresa elegida —\`?clientId=\`—: la encuesta es de cada empresa, y la vista general
    * tiene que decir que se elige empresa primero.
    */
-  [/\/settings(\/correos)?\?clientId=[^&]+$/, () => [
+  [/\/settings(\/correos)?\?clientId=[^&]+$/, (config) => correosDeLaEmpresa([
     ...ajustesDeCorreo('client'),
     { key: 'email.post_visit_survey_enabled', label: 'Encuesta después de la visita', description: 'Unas horas después de una reserva asistida.', valueType: 'boolean', value: true, source: 'client' },
     { key: 'email.post_visit_survey_id', label: 'Encuesta después de la visita · encuesta', description: 'Qué encuesta se envía.', valueType: 'text', value: 'visual-survey', source: 'client' },
     { key: 'email.post_visit_survey_hours', label: 'Encuesta después de la visita · espera', description: 'Horas después del fin de la visita.', valueType: 'number', value: 3, source: 'master_default', min: 1, max: 72, unit: 'horas' },
     { key: 'email.post_visit_survey_subject', label: 'Encuesta después de la visita · asunto', description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text', value: '¿Cómo te fue en {{local}}?', source: 'master_default' },
     { key: 'email.post_visit_survey_body', label: 'Encuesta después de la visita · cuerpo', description: 'Variables: {{nombre}}, {{local}}, {{fecha}}.', valueType: 'text', value: 'Hola {{nombre}}:\n\nGracias por venir a {{local}}.', source: 'master_default' },
-  ]],
+  ], /\bclientId=([^&]+)/.exec(config?.url ?? '')?.[1] ?? '')],
   // Requisitos de cada aviso: una tarea corriendo, otra detenida y la encuesta sin elegir, para
   // poder revisar en pantalla los tres estados posibles.
   // Vista previa: un armazón parecido al real, suficiente para revisar el marco, el asunto y

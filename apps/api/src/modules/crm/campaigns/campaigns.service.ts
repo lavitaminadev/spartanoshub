@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Campaign } from './campaign.entity';
 import { Lead } from '../leads/lead.entity';
 import { LeadIngestSource } from '../leads/ingest-source.entity';
 import { LeadIngestService } from '../leads/lead-ingest.service';
+import { MetaClientPixelService } from '../../integrations/meta/meta-client-pixel.service';
 import type { SaveCampaignDto } from './dto/save-campaign.dto';
 
 /** Una campaña con lo que ya se puede medir de ella. */
@@ -37,7 +38,33 @@ export class CampaignsService {
     @InjectRepository(Lead) private readonly leads: Repository<Lead>,
     @InjectRepository(LeadIngestSource) private readonly sources: Repository<LeadIngestSource>,
     private readonly ingest: LeadIngestService,
+    private readonly clientPixels: MetaClientPixelService,
   ) {}
+
+  /**
+   * Comprueba el Pixel de una campaña antes de guardarlo.
+   *
+   * Las mismas dos condiciones que ya exige un local de Reservas, y por los mismos motivos:
+   *
+   * - **De quién es.** Dos negocios midiendo en el mismo Pixel mezclan sus conversiones en el
+   *   Events Manager, y ahí ya no se separan. La pantalla dejaba escribir el número a mano, así
+   *   que la reja de Reservas se saltaba pasando por el CRM.
+   * - **Si tiene credencial.** Sin token de Conversions API no se puede escribir en ese Pixel:
+   *   la campaña queda marcada como que reporta, cada evento muere en el envío y nadie se entera
+   *   hasta mirar la cola de errores. Se rechaza acá, que es cuando alguien está mirando.
+   *
+   * Heredar el de la empresa —`metaPixelId` vacío— no se comprueba: ese Pixel ya pasó por esta
+   * misma puerta cuando se le asignó a ella.
+   */
+  private async comprobarPixel(organizationId: string, clientId: string | null | undefined, pixelId: string | null | undefined): Promise<void> {
+    const pixel = pixelId?.trim();
+    if (!pixel) return;
+    if (clientId) await this.clientPixels.assertPixelDeLaEmpresa(organizationId, clientId, pixel);
+    const resuelto = await this.clientPixels.resolveForScope(organizationId, clientId ?? null, pixel);
+    if (!resuelto.accessToken) {
+      throw new BadRequestException(`El Pixel ${pixel} no tiene token de Conversions API. Regístralo en Conexiones antes de usarlo en esta campaña.`);
+    }
+  }
 
   /**
    * Campañas de una cuenta, o las de la agencia cuando no se pide ninguna.
@@ -102,6 +129,7 @@ export class CampaignsService {
     dto: SaveCampaignDto,
     createdBy?: string,
   ): Promise<{ campaign: Campaign; token: string }> {
+    await this.comprobarPixel(organizationId, dto.clientId, dto.metaPixelId);
     const campaign = await this.campaigns.save(this.campaigns.create({
       organizationId,
       name: dto.name.trim(),
@@ -133,6 +161,15 @@ export class CampaignsService {
 
   async update(id: string, organizationId: string, dto: SaveCampaignDto): Promise<Campaign> {
     const campania = await this.findOne(id, organizationId);
+    /*
+     * Con qué Pixel y de qué empresa estaba antes, para saber después si eso cambió.
+     *
+     * No sirve mirar si el dato viene en la petición: la pantalla manda el formulario entero en
+     * cada guardado, así que las dos claves llegan siempre. Comparando contra lo guardado, editar
+     * la inversión de una campaña antigua no la obliga a arreglar primero un Pixel que nadie está
+     * tocando; cambiarlos sí pasa por la comprobación.
+     */
+    const antes = { clientId: campania.clientId ?? null, metaPixelId: campania.metaPixelId ?? null };
 
     const source = await this.sources.findOne({
       where: [
@@ -152,6 +189,20 @@ export class CampaignsService {
     //  la devuelve a heredar el Pixel de su empresa; omitirlo no toca lo configurado.
     if (dto.metaPixelId !== undefined) campania.metaPixelId = dto.metaPixelId?.trim() || null;
     if (dto.metaCapiEnabled !== undefined) campania.metaCapiEnabled = dto.metaCapiEnabled;
+
+    /*
+     * Se comprueba el par que queda, y sólo cuando alguna de las dos mitades cambió de verdad.
+     *
+     * Cambiar la empresa mueve el Pixel a otro dueño aunque el número no se toque, así que las
+     * dos mitades importan. Lo que no puede pasar es revalidar en cada guardado: dejaría atascada
+     * una campaña antigua con un Pixel ya irregular, y corregirle la inversión fallaría por algo
+     * que nadie está editando.
+     */
+    const cambioElPixel = (campania.metaPixelId ?? null) !== antes.metaPixelId
+      || (campania.clientId ?? null) !== antes.clientId;
+    if (cambioElPixel) {
+      await this.comprobarPixel(organizationId, campania.clientId, campania.metaPixelId);
+    }
 
     const saved = await this.campaigns.save(campania);
     if (source) {

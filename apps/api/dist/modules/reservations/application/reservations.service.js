@@ -42,6 +42,7 @@ const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
 const cambio_de_zona_1 = require("./cambio-de-zona");
 const describir_cambio_1 = require("./describir-cambio");
+const reservation_dto_1 = require("../dto/reservation.dto");
 const shared_3 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
@@ -62,7 +63,7 @@ const DEFAULT_VENUE_TIPS = [
     'Si te surge algo, avísanos con tu código y liberamos la mesa sin problema.',
     '¿Alguna duda antes de venir? Escríbenos y te respondemos.',
 ].join('\n');
-const FIELD_TYPES = new Set(['text', 'textarea', 'email', 'phone', 'select', 'multi_select', 'number', 'date', 'consent', 'coupon', 'rating', 'nps']);
+const FIELD_TYPES = new Set(reservation_dto_1.FORM_FIELD_TYPES);
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 const OCCUPYING_STATUSES = [...ACTIVE_STATUSES, 'attended'];
 const ASISTENCIA_SUPUESTA_SQL = `EXISTS (SELECT 1 FROM reservation_events e WHERE e.reservation_id = r.id AND e.type = 'status_changed' AND e.to_status = 'attended' AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.via')) = 'automatic_day_close')`;
@@ -355,7 +356,13 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 { id: 'served_by', type: 'text', label: '¿Podrías indicarnos quien te atendió durante tu visita?', required: true, placeholder: 'Ej: Juan' },
                 { id: 'rating', type: 'rating', label: 'De 1 a 5 ¿Cómo calificarías la experiencia?', required: true },
             ]
-            : [{ id: 'name', type: 'text', label: 'Nombre completo', required: true, system: true }, { id: 'email', type: 'email', label: 'Correo', required: false, system: true }, { id: 'phone', type: 'phone', label: 'Teléfono', required: true, system: true }, { id: 'consent', type: 'consent', label: 'Acepto el tratamiento de mis datos para gestionar esta reserva.', required: true }];
+            : [
+                { id: 'name', type: 'text', label: 'Nombre completo', required: true, system: true },
+                { id: 'email', type: 'email', label: 'Correo', required: false, system: true },
+                { id: 'phone', type: 'phone', label: 'Teléfono', required: true, system: true },
+                { id: 'birthdate', type: 'birthdate', label: 'Fecha de nacimiento', required: true },
+                { id: 'consent', type: 'consent', label: 'Acepto el tratamiento de mis datos para gestionar esta reserva.', required: true },
+            ];
         const form = this.forms.create({
             organizationId, clientId: dto.clientId, createdBy: userId, name: dto.name.trim(), publicSlug: await this.uniqueSlug(dto.publicSlug || dto.name), mode: dto.mode || 'appointment',
             fieldSchema,
@@ -667,7 +674,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = await this.clientCapabilities(organizationId, clientId);
         if (!capabilities.metaConversions)
             return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels: [] };
-        return this.clientPixels.pixelesElegibles(organizationId, clientId);
+        const locales = await this.forms.find({ where: { organizationId, clientId }, select: { metaPixelId: true } });
+        const enUso = locales.map((local) => local.metaPixelId).filter((pixelId) => Boolean(pixelId));
+        return this.clientPixels.pixelesElegibles(organizationId, clientId, enUso);
     }
     async getClientMetaConfig(clientId, organizationId, form) {
         return this.clientPixels.resolveForScope(organizationId, clientId, form?.metaPixelId);

@@ -268,3 +268,63 @@ describe('CRM-05 · sobrescritura de identidad', () => {
     });
   });
 });
+
+/*
+ * La misma persona en el CRM de varias empresas.
+ *
+ * Quien reserva en dos restaurantes es cliente de dos negocios que no se conocen entre sí: son
+ * dos fichas, con su propio nombre, sus notas y su historial. Y un lead de Espartanos no es la
+ * ficha de un cliente de una empresa aunque compartan correo.
+ */
+describe('LeadIntakeService · una persona en varios CRM', () => {
+  let service: LeadIntakeService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new LeadIntakeService(repo as any, automation as any, { log: vi.fn() } as any, { emit: vi.fn() } as any);
+    repo.create.mockImplementation((data) => data);
+    repo.save.mockImplementation(async (data) => ({ id: data.id ?? 'lead-1', ...data }));
+    repo.findOne.mockResolvedValue(null);
+    automation.runForLead.mockResolvedValue(undefined);
+    automation.ensureAudienceContact.mockResolvedValue(undefined);
+  });
+
+  /** Las consultas por correo y teléfono que hizo la captura. */
+  const busquedas = () => repo.findOne.mock.calls.map(([opciones]) => opciones.where);
+
+  it('busca sólo dentro de la empresa cuando el lead es de una', async () => {
+    await service.captureLead({
+      organizationId: 'org-1',
+      clientId: 'casa-costanera',
+      name: 'Camila Rojas',
+      email: 'camila@correo.cl',
+      phone: '+56911111111',
+      source: RESERVATION_LEAD_SOURCE,
+      domain: 'audience',
+    } as never);
+
+    const porEmpresa = busquedas().filter((donde) => donde.email || donde.phone);
+    expect(porEmpresa.length).toBeGreaterThan(0);
+    for (const donde of porEmpresa) expect(donde.clientId).toBe('casa-costanera');
+  });
+
+  /*
+   * Sin empresa la búsqueda quedaba abierta a toda la organización: un lead de la agencia se
+   * fusionaba con el de un cliente por compartir correo, y los datos de un negocio acababan
+   * escritos en la ficha de otro.
+   */
+  it('un lead sin empresa no se mezcla con el de un cliente', async () => {
+    await service.captureLead({
+      organizationId: 'org-1',
+      name: 'Camila Rojas',
+      email: 'camila@correo.cl',
+      phone: '+56911111111',
+      source: 'meta_lead_ads',
+    } as never);
+
+    const porEmpresa = busquedas().filter((donde) => donde.email || donde.phone);
+    expect(porEmpresa.length).toBeGreaterThan(0);
+    // `IsNull()` de TypeORM: la consulta pide `client_id IS NULL`, no «cualquier empresa».
+    for (const donde of porEmpresa) expect(String(donde.clientId?.type ?? donde.clientId)).toContain('isNull');
+  });
+});

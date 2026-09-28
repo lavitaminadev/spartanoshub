@@ -30,15 +30,42 @@ const ES_CLAVE_DE_CORREO = (clave: string) => clave.startsWith('email.');
  * las plantillas del CRM, que son suyas—. Cada correo responde ahora al módulo del que habla: el
  * de la encuesta a Encuestas, el del lead al CRM, y el resto a Reservas.
  */
-const MODULO_DE_CORREO: Array<[string, 'reservations' | 'surveys' | 'crm']> = [
-  ['email.post_visit_survey', 'surveys'],
-  ['email.survey', 'surveys'],
-  ['email.lead', 'crm'],
-  ['email.crm', 'crm'],
+/** Módulos que gobiernan una plantilla. `agencia` es la propia Espartanos, no una empresa. */
+type ModuloDeCorreo = 'reservations' | 'surveys' | 'crm' | 'agencia';
+
+/**
+ * A qué módulos pertenece cada plantilla de correo.
+ *
+ * Una plantilla puede responder a **varios**: el saludo de cumpleaños lo usan tanto el CRM como
+ * Reservas, así que basta tener uno de los dos para poder escribirlo. Antes era un módulo y sólo
+ * uno, y obligaba a elegir de cuál «era» un correo que es de ambos.
+ *
+ * Los prefijos de CRM decían `email.lead` y `email.crm`, y ninguna clave del catálogo empieza
+ * así: se llaman `email.new_lead_*` e `email.idle_lead_*`. El resultado es que la categoría
+ * existía vacía, y una empresa que sólo tiene CRM se quedaba sin ninguna plantilla que editar
+ * —la pantalla cargaba en blanco— mientras el aviso de su propio lead nuevo caía en Reservas
+ * por el valor de reserva del final.
+ *
+ * El orden importa: gana el primer prefijo que calce, así que los más largos van antes.
+ */
+export const MODULO_DE_CORREO: Array<[string, ModuloDeCorreo[]]> = [
+  // Encuestas. `email.survey` estaba declarado y no lo usa ninguna plantilla: las de encuesta
+  // se llaman `email.post_visit_survey_*`. Lo señaló la prueba que compara con el catálogo.
+  ['email.post_visit_survey', ['surveys']],
+  // CRM
+  ['email.new_lead', ['crm']],
+  ['email.idle_lead', ['crm']],
+  ['email.daily_digest', ['crm']],
+  // De los dos: se felicita a quien reservó y a quien está en el CRM.
+  ['email.birthday', ['crm', 'reservations']],
+  // De la agencia: no dependen de lo que tenga contratado ninguna empresa.
+  ['email.task_reminder', ['agencia']],
+  ['email.collection_overdue', ['agencia']],
 ];
 
-function moduloDeCorreo(clave: string): 'reservations' | 'surveys' | 'crm' {
-  return MODULO_DE_CORREO.find(([prefijo]) => clave.startsWith(prefijo))?.[1] ?? 'reservations';
+/** Sin prefijo que calce es de Reservas, que es de donde vienen casi todas. */
+export function modulosDeCorreo(clave: string): ModuloDeCorreo[] {
+  return MODULO_DE_CORREO.find(([prefijo]) => clave.startsWith(prefijo))?.[1] ?? ['reservations'];
 }
 import { REQUIRED_LIFECYCLE_KEYS } from '../../modules/organizations/organization-features';
 import { isModuleLifecycleVisible, moduleLifecycleSettingKey, type ModuleLifecycleStatus } from '@espartanos/shared';
@@ -156,7 +183,8 @@ export class OrganizationSettingsController {
     const puede = await this.modulosQuePuedeEditar(request, clientId);
     if (puede.size === 0) throw new ForbiddenException('No hay plantillas que puedas editar en esta empresa');
     const ajustes = await this.settings.list(organizationId, clientId ?? null) as Array<{ key: string }>;
-    return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key) && puede.has(moduloDeCorreo(ajuste.key)));
+    return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key)
+      && modulosDeCorreo(ajuste.key).some((modulo) => puede.has(modulo)));
   }
 
   /**
@@ -165,7 +193,20 @@ export class OrganizationSettingsController {
    * Se calcula con los permisos efectivos, que es lo mismo que gobierna el menú: así la pantalla
    * y lo que el servidor acepta no pueden decir cosas distintas.
    */
-  private async modulosQuePuedeEditar(request: AuthenticatedRequest, clientId?: string): Promise<Set<'reservations' | 'surveys' | 'crm'>> {
+  /**
+   * La reja de Correos: tener al menos una plantilla que editar.
+   *
+   * Sustituye al permiso de Reservas que pedían estas rutas. Es la misma condición que decide qué
+   * plantillas se devuelven, así que la pantalla y lo que el servidor acepta no pueden decir
+   * cosas distintas —que es justo lo que pasaba: la lista llegaba vacía y el resto de la pantalla
+   * respondía 403 por un módulo que no tiene nada que ver con el correo que se está escribiendo.
+   */
+  private async asegurarQuePuedeCorreos(request: AuthenticatedRequest, clientId?: string): Promise<void> {
+    const puede = await this.modulosQuePuedeEditar(request, clientId);
+    if (puede.size === 0) throw new ForbiddenException('No hay plantillas que puedas editar en esta empresa');
+  }
+
+  private async modulosQuePuedeEditar(request: AuthenticatedRequest, clientId?: string): Promise<Set<ModuloDeCorreo>> {
     const organizationId = request.organizationId || request.user.organizationId;
     /*
      * Lo que la empresa tiene contratado, cuando se está escribiendo la plantilla de una.
@@ -177,11 +218,37 @@ export class OrganizationSettingsController {
     const contratados = clientId
       ? { reservations: await this.capacidades.tiene(organizationId, clientId, 'reservations'), surveys: await this.capacidades.tiene(organizationId, clientId, 'surveys'), crm: await this.capacidades.tiene(organizationId, clientId, 'crm') }
       : null;
-    const puede = new Set<'reservations' | 'surveys' | 'crm'>();
+    /*
+     * Dentro de una empresa, los correos son cosa de quien la administra.
+     *
+     * El resto del equipo de esa empresa trabaja con sus reservas o sus leads, pero el texto que
+     * sale con la marca del local lo decide una sola persona. Sin esta reja bastaba con poder
+     * editar el módulo —cualquier ejecutivo— para reescribir lo que reciben todos sus clientes.
+     *
+     * Es el mismo permiso por empresa con el que se administra el equipo, así que quien reparte
+     * accesos es quien escribe los correos: una sola cosa que entender, no dos.
+     */
+    if (request.user.role === UserRole.CLIENT) {
+      const suEmpresa = request.user.clientId;
+      const administra = suEmpresa
+        ? await this.permisos.can(organizationId, request.user.id, UserRole.CLIENT, 'users', 'manage', suEmpresa)
+        : false;
+      if (!administra) return new Set<ModuloDeCorreo>();
+    }
+
+    const puede = new Set<ModuloDeCorreo>();
     for (const modulo of ['reservations', 'surveys', 'crm'] as const) {
       if (contratados && contratados[modulo] !== true) continue;
       if (await this.permisos.can(organizationId, request.user.id, request.user.role as UserRole, modulo, 'edit')) puede.add(modulo);
     }
+    /*
+     * Las plantillas de la agencia no son de ninguna empresa.
+     *
+     * Recordatorio de tareas y aviso de pago vencido hablan de lo que pasa dentro de Espartanos,
+     * así que no se miden con lo que una empresa tenga contratado. Sólo las ve el equipo interno:
+     * en el portal de una empresa no pintan nada, y caían en Reservas por descarte.
+     */
+    if (request.user.role !== UserRole.CLIENT && !clientId && puede.size > 0) puede.add('agencia');
     return puede;
   }
 
@@ -197,7 +264,7 @@ export class OrganizationSettingsController {
     if (ajenas.length) throw new ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
     // Cada plantilla exige el permiso de su módulo: con CRM no se reescribe lo que recibe quien reserva.
     const puede = await this.modulosQuePuedeEditar(request, clientId);
-    const sinPermiso = Object.keys(valores).filter((clave) => !puede.has(moduloDeCorreo(clave)));
+    const sinPermiso = Object.keys(valores).filter((clave) => !modulosDeCorreo(clave).some((modulo) => puede.has(modulo)));
     if (sinPermiso.length) throw new ForbiddenException(`No puedes editar estas plantillas: ${sinPermiso.join(', ')}`);
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
@@ -212,9 +279,17 @@ export class OrganizationSettingsController {
    * no está activo.
    */
   @Get('estado-del-correo')
-  @RequiresPermission('reservations', 'edit')
+  /*
+    Estas cinco rutas son de Correos, no de Reservas.
+
+    Pedir el permiso de Reservas dejaba fuera a una empresa que solo tiene CRM: no podia ver el
+    estado del envio, ni previsualizar, ni mandarse una prueba, aunque si pudiera editar sus
+    propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
+  */
+  @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
   @ApiOperation({ summary: 'Estado del envío de correos' })
-  estadoDelCorreo(@Req() request: AuthenticatedRequest) {
+  async estadoDelCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
     const estado = this.correo.estado();
     return request.user.role === UserRole.DEV ? estado : { ...estado, faltan: [] };
   }
@@ -227,9 +302,17 @@ export class OrganizationSettingsController {
    * que hasta ahora no se veía en ninguna parte.
    */
   @Get('correos/requisitos')
-  @RequiresPermission('reservations', 'edit')
+  /*
+    Estas cinco rutas son de Correos, no de Reservas.
+
+    Pedir el permiso de Reservas dejaba fuera a una empresa que solo tiene CRM: no podia ver el
+    estado del envio, ni previsualizar, ni mandarse una prueba, aunque si pudiera editar sus
+    propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
+  */
+  @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
   @ApiOperation({ summary: 'Condiciones que necesita cada aviso además de su interruptor' })
-  async requisitosDeCorreo() {
+  async requisitosDeCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
     const corridas = new Map((await this.corridas.find()).map((fila) => [fila.task, fila]));
     const limite = Date.now() - HORAS_SIN_CORRER_PARA_ALARMA * 3_600_000;
     const casilla = this.correo.estado().habilitado;
@@ -249,12 +332,35 @@ export class OrganizationSettingsController {
   }
 
   @Get('destinatarios-de-prueba')
-  @RequiresPermission('reservations', 'edit')
+  /*
+    Estas cinco rutas son de Correos, no de Reservas.
+
+    Pedir el permiso de Reservas dejaba fuera a una empresa que solo tiene CRM: no podia ver el
+    estado del envio, ni previsualizar, ni mandarse una prueba, aunque si pudiera editar sus
+    propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
+  */
+  @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
   @ApiOperation({ summary: 'Personas del equipo a las que se puede enviar una prueba' })
-  async destinatariosDePrueba(@Req() request: AuthenticatedRequest) {
+  async destinatariosDePrueba(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const organizationId = request.organizationId || request.user.organizationId;
+    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+    /*
+     * Cada empresa prueba con su propia gente.
+     *
+     * Esto devolvía el equipo entero de la organización: quien administra una empresa veía en el
+     * desplegable los nombres y los correos del equipo de la agencia y de las demás empresas. No
+     * hacía falta enviar nada para que fuera una filtración —basta con abrir la lista—, y va en
+     * contra de la regla de que cada empresa ve lo suyo y nada más.
+     *
+     * El equipo interno sigue viendo a todos: es quien escribe las plantillas de varias empresas
+     * y necesita poder mandarse la prueba a sí mismo.
+     */
+    const empresa = this.empresaDeLaSesion(request, clientId);
+    if (empresa) await this.accountAccess.assertClient(organizationId, request.user, empresa);
     const equipo = await this.usuarios.find({
-      where: { organizationId, isActive: true },
+      where: empresa
+        ? { organizationId, isActive: true, clientId: empresa }
+        : { organizationId, isActive: true },
       select: { id: true, name: true, email: true },
       order: { name: 'ASC' },
     });
@@ -288,20 +394,40 @@ export class OrganizationSettingsController {
    * variables de muestra que usa el envío, así que lo que se ve es lo que llega.
    */
   @Post('correos/vista-previa')
-  @RequiresPermission('reservations', 'edit')
+  /*
+    Estas cinco rutas son de Correos, no de Reservas.
+
+    Pedir el permiso de Reservas dejaba fuera a una empresa que solo tiene CRM: no podia ver el
+    estado del envio, ni previsualizar, ni mandarse una prueba, aunque si pudiera editar sus
+    propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
+  */
+  @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
   @ApiOperation({ summary: 'Componer una plantilla para verla, sin enviarla' })
-  vistaPreviaDeCorreo(@Body() dto: { asunto?: string; cuerpo?: string }) {
+  async vistaPreviaDeCorreo(
+    @Body() dto: { asunto?: string; cuerpo?: string },
+    @Req() request: AuthenticatedRequest,
+    @Query('clientId') clientId?: string,
+  ) {
+    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
     return componerCorreo(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), MUESTRA);
   }
 
   @Post('probar')
-  @RequiresPermission('reservations', 'edit')
+  /*
+    Estas cinco rutas son de Correos, no de Reservas.
+
+    Pedir el permiso de Reservas dejaba fuera a una empresa que solo tiene CRM: no podia ver el
+    estado del envio, ni previsualizar, ni mandarse una prueba, aunque si pudiera editar sus
+    propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
+  */
+  @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Enviar una plantilla de correo a alguien del equipo' })
   async probar(
     @Req() request: AuthenticatedRequest,
     @Body() dto: { asunto?: string; cuerpo?: string; destinatarioId?: string },
   ) {
+    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request));
     const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId);
 
     const { subject, html } = componerCorreo(

@@ -266,6 +266,7 @@ let PermissionsController = class PermissionsController {
     }
     async clientAccessOfUser(id, req) {
         const user = await this.findUser(id, req.organizationId);
+        await this.assertCanManageUserPermissionException(req, user);
         const access = await this.accountAccess.explain(req.organizationId, {
             id: user.id,
             email: user.email,

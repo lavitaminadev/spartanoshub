@@ -12,7 +12,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OrganizationSettingsController = void 0;
+exports.OrganizationSettingsController = exports.MODULO_DE_CORREO = void 0;
+exports.modulosDeCorreo = modulosDeCorreo;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const roles_decorator_1 = require("../authorization/roles.decorator");
@@ -30,18 +31,20 @@ const organization_settings_service_1 = require("./organization-settings.service
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
 const permission_resolver_service_1 = require("../authorization/permission-resolver.service");
 const client_capability_service_1 = require("../client-scope/client-capability.service");
-const requires_permission_decorator_1 = require("../authorization/requires-permission.decorator");
 const cron_run_entity_1 = require("../cron/cron-run.entity");
 const requisitos_de_correo_1 = require("./requisitos-de-correo");
 const ES_CLAVE_DE_CORREO = (clave) => clave.startsWith('email.');
-const MODULO_DE_CORREO = [
-    ['email.post_visit_survey', 'surveys'],
-    ['email.survey', 'surveys'],
-    ['email.lead', 'crm'],
-    ['email.crm', 'crm'],
+exports.MODULO_DE_CORREO = [
+    ['email.post_visit_survey', ['surveys']],
+    ['email.new_lead', ['crm']],
+    ['email.idle_lead', ['crm']],
+    ['email.daily_digest', ['crm']],
+    ['email.birthday', ['crm', 'reservations']],
+    ['email.task_reminder', ['agencia']],
+    ['email.collection_overdue', ['agencia']],
 ];
-function moduloDeCorreo(clave) {
-    return MODULO_DE_CORREO.find(([prefijo]) => clave.startsWith(prefijo))?.[1] ?? 'reservations';
+function modulosDeCorreo(clave) {
+    return exports.MODULO_DE_CORREO.find(([prefijo]) => clave.startsWith(prefijo))?.[1] ?? ['reservations'];
 }
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const shared_1 = require("@espartanos/shared");
@@ -87,13 +90,27 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         if (puede.size === 0)
             throw new common_1.ForbiddenException('No hay plantillas que puedas editar en esta empresa');
         const ajustes = await this.settings.list(organizationId, clientId ?? null);
-        return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key) && puede.has(moduloDeCorreo(ajuste.key)));
+        return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key)
+            && modulosDeCorreo(ajuste.key).some((modulo) => puede.has(modulo)));
+    }
+    async asegurarQuePuedeCorreos(request, clientId) {
+        const puede = await this.modulosQuePuedeEditar(request, clientId);
+        if (puede.size === 0)
+            throw new common_1.ForbiddenException('No hay plantillas que puedas editar en esta empresa');
     }
     async modulosQuePuedeEditar(request, clientId) {
         const organizationId = request.organizationId || request.user.organizationId;
         const contratados = clientId
             ? { reservations: await this.capacidades.tiene(organizationId, clientId, 'reservations'), surveys: await this.capacidades.tiene(organizationId, clientId, 'surveys'), crm: await this.capacidades.tiene(organizationId, clientId, 'crm') }
             : null;
+        if (request.user.role === user_role_enum_1.UserRole.CLIENT) {
+            const suEmpresa = request.user.clientId;
+            const administra = suEmpresa
+                ? await this.permisos.can(organizationId, request.user.id, user_role_enum_1.UserRole.CLIENT, 'users', 'manage', suEmpresa)
+                : false;
+            if (!administra)
+                return new Set();
+        }
         const puede = new Set();
         for (const modulo of ['reservations', 'surveys', 'crm']) {
             if (contratados && contratados[modulo] !== true)
@@ -101,6 +118,8 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             if (await this.permisos.can(organizationId, request.user.id, request.user.role, modulo, 'edit'))
                 puede.add(modulo);
         }
+        if (request.user.role !== user_role_enum_1.UserRole.CLIENT && !clientId && puede.size > 0)
+            puede.add('agencia');
         return puede;
     }
     async guardarCorreos(request, dto, clientId) {
@@ -110,18 +129,20 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         if (ajenas.length)
             throw new common_1.ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
         const puede = await this.modulosQuePuedeEditar(request, clientId);
-        const sinPermiso = Object.keys(valores).filter((clave) => !puede.has(moduloDeCorreo(clave)));
+        const sinPermiso = Object.keys(valores).filter((clave) => !modulosDeCorreo(clave).some((modulo) => puede.has(modulo)));
         if (sinPermiso.length)
             throw new common_1.ForbiddenException(`No puedes editar estas plantillas: ${sinPermiso.join(', ')}`);
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);
     }
-    estadoDelCorreo(request) {
+    async estadoDelCorreo(request, clientId) {
+        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
         const estado = this.correo.estado();
         return request.user.role === user_role_enum_1.UserRole.DEV ? estado : { ...estado, faltan: [] };
     }
-    async requisitosDeCorreo() {
+    async requisitosDeCorreo(request, clientId) {
+        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
         const corridas = new Map((await this.corridas.find()).map((fila) => [fila.task, fila]));
         const limite = Date.now() - requisitos_de_correo_1.HORAS_SIN_CORRER_PARA_ALARMA * 3_600_000;
         const casilla = this.correo.estado().habilitado;
@@ -134,19 +155,27 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         }));
         return { casilla, tareas, avisos: requisitos_de_correo_1.REQUISITOS_POR_AVISO };
     }
-    async destinatariosDePrueba(request) {
+    async destinatariosDePrueba(request, clientId) {
         const organizationId = request.organizationId || request.user.organizationId;
+        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+        const empresa = this.empresaDeLaSesion(request, clientId);
+        if (empresa)
+            await this.accountAccess.assertClient(organizationId, request.user, empresa);
         const equipo = await this.usuarios.find({
-            where: { organizationId, isActive: true },
+            where: empresa
+                ? { organizationId, isActive: true, clientId: empresa }
+                : { organizationId, isActive: true },
             select: { id: true, name: true, email: true },
             order: { name: 'ASC' },
         });
         return equipo.filter((persona) => persona.email?.trim());
     }
-    vistaPreviaDeCorreo(dto) {
+    async vistaPreviaDeCorreo(dto, request, clientId) {
+        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
         return (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
     }
     async probar(request, dto) {
+        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request));
         const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId);
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? 'Prueba'), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
         const enviado = await this.correo.send(destino, `[Prueba] ${subject}`, html);
@@ -225,42 +254,48 @@ __decorate([
 ], OrganizationSettingsController.prototype, "guardarCorreos", null);
 __decorate([
     (0, common_1.Get)('estado-del-correo'),
-    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
     (0, swagger_1.ApiOperation)({ summary: 'Estado del envío de correos' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "estadoDelCorreo", null);
 __decorate([
     (0, common_1.Get)('correos/requisitos'),
-    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
     (0, swagger_1.ApiOperation)({ summary: 'Condiciones que necesita cada aviso además de su interruptor' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "requisitosDeCorreo", null);
 __decorate([
     (0, common_1.Get)('destinatarios-de-prueba'),
-    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
     (0, swagger_1.ApiOperation)({ summary: 'Personas del equipo a las que se puede enviar una prueba' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "destinatariosDePrueba", null);
 __decorate([
     (0, common_1.Post)('correos/vista-previa'),
-    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
     (0, swagger_1.ApiOperation)({ summary: 'Componer una plantilla para verla, sin enviarla' }),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object, Object, String]),
+    __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "vistaPreviaDeCorreo", null);
 __decorate([
     (0, common_1.Post)('probar'),
-    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     (0, swagger_1.ApiOperation)({ summary: 'Enviar una plantilla de correo a alguien del equipo' }),
     __param(0, (0, common_1.Req)()),

@@ -20,12 +20,25 @@ const campaign_entity_1 = require("./campaign.entity");
 const lead_entity_1 = require("../leads/lead.entity");
 const ingest_source_entity_1 = require("../leads/ingest-source.entity");
 const lead_ingest_service_1 = require("../leads/lead-ingest.service");
+const meta_client_pixel_service_1 = require("../../integrations/meta/meta-client-pixel.service");
 let CampaignsService = class CampaignsService {
-    constructor(campaigns, leads, sources, ingest) {
+    constructor(campaigns, leads, sources, ingest, clientPixels) {
         this.campaigns = campaigns;
         this.leads = leads;
         this.sources = sources;
         this.ingest = ingest;
+        this.clientPixels = clientPixels;
+    }
+    async comprobarPixel(organizationId, clientId, pixelId) {
+        const pixel = pixelId?.trim();
+        if (!pixel)
+            return;
+        if (clientId)
+            await this.clientPixels.assertPixelDeLaEmpresa(organizationId, clientId, pixel);
+        const resuelto = await this.clientPixels.resolveForScope(organizationId, clientId ?? null, pixel);
+        if (!resuelto.accessToken) {
+            throw new common_1.BadRequestException(`El Pixel ${pixel} no tiene token de Conversions API. Regístralo en Conexiones antes de usarlo en esta campaña.`);
+        }
     }
     async list(organizationId, clientId) {
         const campanias = await this.campaigns.find({
@@ -61,6 +74,7 @@ let CampaignsService = class CampaignsService {
         return campaign;
     }
     async create(organizationId, dto, createdBy) {
+        await this.comprobarPixel(organizationId, dto.clientId, dto.metaPixelId);
         const campaign = await this.campaigns.save(this.campaigns.create({
             organizationId,
             name: dto.name.trim(),
@@ -87,6 +101,7 @@ let CampaignsService = class CampaignsService {
     }
     async update(id, organizationId, dto) {
         const campania = await this.findOne(id, organizationId);
+        const antes = { clientId: campania.clientId ?? null, metaPixelId: campania.metaPixelId ?? null };
         const source = await this.sources.findOne({
             where: [
                 { organizationId, campaignId: campania.id },
@@ -110,6 +125,11 @@ let CampaignsService = class CampaignsService {
             campania.metaPixelId = dto.metaPixelId?.trim() || null;
         if (dto.metaCapiEnabled !== undefined)
             campania.metaCapiEnabled = dto.metaCapiEnabled;
+        const cambioElPixel = (campania.metaPixelId ?? null) !== antes.metaPixelId
+            || (campania.clientId ?? null) !== antes.clientId;
+        if (cambioElPixel) {
+            await this.comprobarPixel(organizationId, campania.clientId, campania.metaPixelId);
+        }
         const saved = await this.campaigns.save(campania);
         if (source) {
             source.campaignId = saved.id;
@@ -163,5 +183,6 @@ exports.CampaignsService = CampaignsService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        lead_ingest_service_1.LeadIngestService])
+        lead_ingest_service_1.LeadIngestService,
+        meta_client_pixel_service_1.MetaClientPixelService])
 ], CampaignsService);

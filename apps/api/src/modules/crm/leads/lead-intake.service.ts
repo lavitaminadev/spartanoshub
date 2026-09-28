@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { EntityManager, FindOptionsWhere, Repository } from 'typeorm';
+import { EntityManager, FindOptionsWhere, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../../../core/audit/audit.service';
 import { Lead } from './lead.entity';
 import { LeadFitStatus } from './lead-fit-status.enum';
@@ -496,8 +496,19 @@ export class LeadIntakeService {
       if (byExternalId) return { lead: byExternalId, matchedBy: 'externalLeadId' };
     }
 
+    /*
+     * La misma persona puede estar en el CRM de muchas empresas, y ahí son registros distintos.
+     *
+     * Quien reserva en dos restaurantes es dos veces cliente, de dos negocios que no se conocen:
+     * fusionarlos pondría el nombre, las notas y el historial de uno en la ficha del otro.
+     *
+     * Sin empresa la búsqueda se acota a los leads que tampoco la tienen —los de la agencia—.
+     * Dejarla abierta hacía que un lead de Espartanos se fusionara con el de un cliente por
+     * compartir correo: los datos de un negocio terminaban escritos en la ficha de otro, que es
+     * justo lo que esta separación existe para impedir.
+     */
     const baseWhere: FindOptionsWhere<Lead> = { organizationId: input.organizationId };
-    if (input.clientId) baseWhere.clientId = input.clientId;
+    baseWhere.clientId = input.clientId ? input.clientId : IsNull();
 
     const [byPhone, byEmail] = await Promise.all([
       input.phone ? repo.findOne({ where: { ...baseWhere, phone: input.phone } }) : Promise.resolve(null),

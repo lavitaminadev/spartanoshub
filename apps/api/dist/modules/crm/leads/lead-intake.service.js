@@ -249,8 +249,7 @@ let LeadIntakeService = LeadIntakeService_1 = class LeadIntakeService {
                 return { lead: byExternalId, matchedBy: 'externalLeadId' };
         }
         const baseWhere = { organizationId: input.organizationId };
-        if (input.clientId)
-            baseWhere.clientId = input.clientId;
+        baseWhere.clientId = input.clientId ? input.clientId : (0, typeorm_2.IsNull)();
         const [byPhone, byEmail] = await Promise.all([
             input.phone ? repo.findOne({ where: { ...baseWhere, phone: input.phone } }) : Promise.resolve(null),
             input.email ? repo.findOne({ where: { ...baseWhere, email: input.email } }) : Promise.resolve(null),

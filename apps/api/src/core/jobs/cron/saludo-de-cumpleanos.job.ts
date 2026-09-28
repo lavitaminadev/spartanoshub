@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { IsNull } from 'typeorm';
 import { EstadoDeSuscripcion, Suscriptor } from '../../../modules/marketing/suscriptor.entity';
-import { cumpleHoy } from '../../../modules/marketing/edad';
+import { cumpleHoy, diaDelAnoEn } from '../../../modules/marketing/edad';
 import { EmailService } from '../../notifications/email.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
@@ -43,7 +43,16 @@ export class SaludoDeCumpleanosJob {
       where: { status: EstadoDeSuscripcion.SUSCRITO, birthDate: Not(IsNull()) },
     });
 
-    const encendidoPorOrganizacion = new Map<string, boolean>();
+    /*
+     * El interruptor se pregunta por empresa, no sólo por organización.
+     *
+     * Cada empresa enciende y apaga sus propios avisos y escribe sus propios textos; este trabajo
+     * preguntaba siempre por el valor general, así que una empresa que apagaba el saludo lo seguía
+     * mandando, y la plantilla que había escrito no se usaba nunca. El resolutor de parámetros
+     * hereda —empresa, plan, organización, valor por defecto—, de modo que quien no tenga valor
+     * propio sigue recibiendo exactamente lo mismo que hasta ahora.
+     */
+    const encendidoPorEmpresa = new Map<string, boolean>();
     let enviados = 0;
 
     for (const suscriptor of candidatos) {
@@ -59,12 +68,13 @@ export class SaludoDeCumpleanosJob {
         // leen como un fallo del sistema.
         if (suscriptor.lastSentAt && this.mismoDia(suscriptor.lastSentAt, hoy)) continue;
 
-        let encendido = encendidoPorOrganizacion.get(suscriptor.organizationId);
+        const clave = `${suscriptor.organizationId}:${suscriptor.clientId ?? 'sin-empresa'}`;
+        let encendido = encendidoPorEmpresa.get(clave);
         if (encendido === undefined) {
           encendido = Boolean(await this.parametros.get(
-            'email.birthday_enabled', null, null, suscriptor.organizationId,
+            'email.birthday_enabled', suscriptor.clientId ?? null, null, suscriptor.organizationId,
           ));
-          encendidoPorOrganizacion.set(suscriptor.organizationId, encendido);
+          encendidoPorEmpresa.set(clave, encendido);
         }
         if (!encendido) continue;
 
@@ -81,16 +91,24 @@ export class SaludoDeCumpleanosJob {
     this.logger.log(`Saludos de cumpleaños enviados: ${enviados} de ${candidatos.length} con fecha`);
   }
 
+  /**
+   * Si dos instantes caen el mismo día **donde está el negocio**.
+   *
+   * Comparado con la fecha del servidor —que corre en UTC— el día cambia a las nueve de la noche
+   * en Chile: un saludo enviado a las 21:30 y otro a las 22:30 del mismo día parecían de días
+   * distintos, y la persona recibía dos.
+   */
   private mismoDia(a: Date, b: Date): boolean {
-    return a.getFullYear() === b.getFullYear()
-      && a.getMonth() === b.getMonth()
-      && a.getDate() === b.getDate();
+    const uno = diaDelAnoEn(a);
+    const otro = diaDelAnoEn(b);
+    return uno.ano === otro.ano && uno.mes === otro.mes && uno.dia === otro.dia;
   }
 
   private async enviar(suscriptor: Suscriptor): Promise<void> {
+    // Con la empresa: el texto que ella escribió para su marca, y el general si no escribió ninguno.
     const [asunto, cuerpo] = await Promise.all([
-      this.parametros.get('email.birthday_subject', null, null, suscriptor.organizationId),
-      this.parametros.get('email.birthday_body', null, null, suscriptor.organizationId),
+      this.parametros.get('email.birthday_subject', suscriptor.clientId ?? null, null, suscriptor.organizationId),
+      this.parametros.get('email.birthday_body', suscriptor.clientId ?? null, null, suscriptor.organizationId),
     ]);
 
     const { subject, html } = componerCorreo(

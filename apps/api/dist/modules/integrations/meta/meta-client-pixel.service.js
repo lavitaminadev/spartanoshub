@@ -160,25 +160,39 @@ let MetaClientPixelService = class MetaClientPixelService {
         return { bindings, pixels: [...pixels, ...sinAsignar], agencyPixelId };
     }
     async assertPixelDeLaEmpresa(organizationId, clientId, pixelId) {
-        const ajeno = await this.pixelesGuardados.findOne({
+        const conDueno = await this.pixelesGuardados.find({
             where: { organizationId, pixelId, clientId: (0, typeorm_2.Not)((0, typeorm_3.IsNull)()) },
             select: { id: true, clientId: true },
         });
-        if (ajeno && ajeno.clientId !== clientId) {
-            throw new common_1.BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
-        }
+        if (conDueno.some((fila) => fila.clientId === clientId))
+            return;
+        const integration = await this.organizationIntegration(organizationId);
+        const deOtraEnElMapa = integration
+            ? Object.entries(this.records(integration)).some(([dueno, registro]) => dueno !== clientId && registro?.pixelId === pixelId)
+            : false;
+        const suyoEnElMapa = integration ? this.records(integration)[clientId]?.pixelId === pixelId : false;
+        if (suyoEnElMapa)
+            return;
+        if (conDueno.length === 0 && !deOtraEnElMapa)
+            return;
+        throw new common_1.BadRequestException(`El Pixel ${pixelId} ya está asignado a otra empresa, y cada empresa mide en el suyo: `
+            + 'sus conversiones se mezclarían en el mismo Events Manager. Elige un Pixel de esta empresa, '
+            + 'o registra el suyo en Conexiones → Meta con su token de Conversions API.');
     }
-    async pixelesElegibles(organizationId, clientId) {
+    async pixelesElegibles(organizationId, clientId, enUso = []) {
         const filas = await this.pixelesGuardados.find({
-            where: [{ organizationId, clientId }, { organizationId, clientId: (0, typeorm_3.IsNull)() }],
+            where: { organizationId, clientId },
             order: { pixelId: 'ASC' },
         });
         const integration = await this.organizationIntegration(organizationId);
         const credenciales = integration ? this.credenciales(integration) : {};
         const porDefecto = await this.resolve(organizationId, clientId);
-        const ids = new Set([...filas.map((fila) => fila.pixelId), ...Object.keys(credenciales)]);
+        const deLaAgencia = typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : null;
+        const ids = new Set([...filas.map((fila) => fila.pixelId), ...enUso.filter(Boolean)]);
         if (porDefecto.pixelId)
             ids.add(porDefecto.pixelId);
+        if (deLaAgencia)
+            ids.add(deLaAgencia);
         const pixels = [];
         for (const pixelId of ids) {
             const resuelto = await this.resolveForScope(organizationId, clientId, pixelId);
@@ -187,6 +201,7 @@ let MetaClientPixelService = class MetaClientPixelService {
                 nombre: filas.find((fila) => fila.pixelId === pixelId)?.name ?? credenciales[pixelId]?.name ?? null,
                 tieneToken: Boolean(resuelto.accessToken),
                 esDeLaEmpresa: pixelId === porDefecto.pixelId,
+                esDeLaAgencia: pixelId === deLaAgencia,
             });
         }
         return {
@@ -197,6 +212,34 @@ let MetaClientPixelService = class MetaClientPixelService {
             },
             pixels,
         };
+    }
+    async elegiblesParaCampania(organizationId, clientId) {
+        if (clientId)
+            return this.pixelesElegibles(organizationId, clientId);
+        const integration = await this.organizationIntegration(organizationId);
+        const credenciales = integration ? this.credenciales(integration) : {};
+        const deEmpresas = new Set(Object.values(integration ? this.records(integration) : {}).map((registro) => registro?.pixelId).filter(Boolean));
+        const conDueno = await this.pixelesGuardados.find({
+            where: { organizationId, clientId: (0, typeorm_2.Not)((0, typeorm_3.IsNull)()) },
+            select: { id: true, pixelId: true },
+        });
+        for (const fila of conDueno)
+            deEmpresas.add(fila.pixelId);
+        const sinDueno = await this.pixelesGuardados.find({ where: { organizationId, clientId: (0, typeorm_3.IsNull)() }, order: { pixelId: 'ASC' } });
+        const ids = new Set([...sinDueno.map((fila) => fila.pixelId), ...Object.keys(credenciales)]);
+        const pixels = [];
+        for (const pixelId of ids) {
+            if (deEmpresas.has(pixelId))
+                continue;
+            pixels.push({
+                pixelId,
+                nombre: sinDueno.find((fila) => fila.pixelId === pixelId)?.name ?? credenciales[pixelId]?.name ?? null,
+                tieneToken: Boolean(await this.resolveByPixel(organizationId, pixelId, null)),
+                esDeLaEmpresa: false,
+                esDeLaAgencia: pixelId === (typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : null),
+            });
+        }
+        return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels };
     }
     async configure(id, organizationId, clientId, pixelId, accessToken, pixelName) {
         const integration = await this.integration(id, organizationId);
@@ -254,15 +297,27 @@ let MetaClientPixelService = class MetaClientPixelService {
             const enLaTabla = input.existingPixelId
                 ? await this.pixelesGuardados.findOne({ where: { organizationId, pixelId: input.existingPixelId } })
                 : null;
+            const enLasCredenciales = input.existingPixelId
+                ? this.credenciales(integration)[input.existingPixelId]
+                : undefined;
             if (input.existingPixelId)
                 await this.assertPixelDeLaEmpresa(organizationId, clientId, input.existingPixelId);
             return this.mutateRecords(integration.id, (records) => {
                 const enElMapa = Object.values(records).find((record) => record.pixelId === input.existingPixelId);
+                const desdeCredencial = enLasCredenciales && input.existingPixelId
+                    ? {
+                        pixelId: input.existingPixelId,
+                        pixelName: enLasCredenciales.name ?? undefined,
+                        accessToken: enLasCredenciales.accessToken ?? undefined,
+                        configuredAt: new Date().toISOString(),
+                    }
+                    : undefined;
                 const source = enElMapa ?? (enLaTabla
                     ? { pixelId: enLaTabla.pixelId, pixelName: enLaTabla.name ?? undefined, accessToken: enLaTabla.accessToken ?? undefined, configuredAt: new Date().toISOString() }
-                    : undefined);
-                if (!source)
-                    throw new common_1.BadRequestException('Ese Pixel no existe en esta organización. Créalo con «Agregar Pixel».');
+                    : desdeCredencial);
+                if (!source) {
+                    throw new common_1.BadRequestException('Ese Pixel ya no está registrado en esta organización. Vuelve a agregarlo con su token en Integraciones.');
+                }
                 const configuredAt = new Date().toISOString();
                 const record = { ...source, pixelName: input.pixelName?.trim() || source.pixelName || client.name, configuredAt };
                 return [

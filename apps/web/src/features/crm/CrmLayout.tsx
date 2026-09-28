@@ -177,7 +177,18 @@ export function CrmLayout(): JSX.Element {
       de una empresa entera. Quién tiene `manage` se ajusta en Configuración, sin desplegar.
     */
     if (seccion.to === '/crm/administracion') {
-      if (esPortalCliente) return false;
+      /*
+       * Quien administra su empresa también entra aquí.
+       *
+       * Se cerraba a toda cuenta de portal porque la pantalla era de la agencia y sólo habría
+       * mostrado un encabezado vacío. Dejó de ser cierto: Administración ya es por empresa
+       * —campañas y llaves, etapas, campos propios y reglas—, y quien reparte los accesos de su
+       * local es justo quien necesita tocar eso sin pedírselo a nadie.
+       *
+       * La reja sigue siendo el mismo permiso que gobierna el resto de su administración, no el
+       * cargo: dentro de una empresa hay quien administra y quien sólo trabaja sus leads.
+       */
+      if (esPortalCliente) return user?.permissions?.users === 'manage';
       if (user?.permissions?.crm !== 'manage') return false;
     }
     return isPathEnabled(
