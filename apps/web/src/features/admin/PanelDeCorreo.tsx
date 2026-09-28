@@ -804,14 +804,26 @@ export function PanelDeCorreo(): JSX.Element {
               {grupo.siempre || !encendido ? (
                 <span className="panel-correo-siempre"><strong>{grupo.titulo}</strong><em>Siempre se envía</em></span>
               ) : (
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={activo}
-                    onChange={() => editar(encendido.key, !activo)}
-                  />
+                <>
                   <strong>{grupo.titulo}</strong>
-                </label>
+                  {/*
+                    Un interruptor que dice su estado en palabras.
+
+                    Una casilla sola junto al título no decía qué hacía: marcada, ¿el correo sale o
+                    está elegido para algo? «Se envía / No se envía» no deja lugar a dudas.
+                  */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={activo}
+                    aria-label={`${grupo.titulo}: ${activo ? 'se envía' : 'no se envía'}`}
+                    className={`panel-correo-interruptor${activo ? ' es-activo' : ''}`}
+                    onClick={() => editar(encendido.key, !activo)}
+                  >
+                    <span className="panel-correo-interruptor-pista" aria-hidden="true"><span /></span>
+                    <span>{activo ? 'Se envía' : 'No se envía'}</span>
+                  </button>
+                </>
               )}
               {porClave.get(`${grupo.prefijo}_subject`)?.source === 'client' ? (
                 <em className="panel-correo-propio">Propia de esta empresa</em>
