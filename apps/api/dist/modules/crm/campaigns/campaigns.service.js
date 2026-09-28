@@ -101,6 +101,7 @@ let CampaignsService = class CampaignsService {
     }
     async update(id, organizationId, dto) {
         const campania = await this.findOne(id, organizationId);
+        const antes = { clientId: campania.clientId ?? null, metaPixelId: campania.metaPixelId ?? null };
         const source = await this.sources.findOne({
             where: [
                 { organizationId, campaignId: campania.id },
@@ -124,7 +125,9 @@ let CampaignsService = class CampaignsService {
             campania.metaPixelId = dto.metaPixelId?.trim() || null;
         if (dto.metaCapiEnabled !== undefined)
             campania.metaCapiEnabled = dto.metaCapiEnabled;
-        if (dto.metaPixelId !== undefined || dto.clientId !== undefined) {
+        const cambioElPixel = (campania.metaPixelId ?? null) !== antes.metaPixelId
+            || (campania.clientId ?? null) !== antes.clientId;
+        if (cambioElPixel) {
             await this.comprobarPixel(organizationId, campania.clientId, campania.metaPixelId);
         }
         const saved = await this.campaigns.save(campania);

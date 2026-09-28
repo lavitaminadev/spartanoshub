@@ -161,6 +161,15 @@ export class CampaignsService {
 
   async update(id: string, organizationId: string, dto: SaveCampaignDto): Promise<Campaign> {
     const campania = await this.findOne(id, organizationId);
+    /*
+     * Con qué Pixel y de qué empresa estaba antes, para saber después si eso cambió.
+     *
+     * No sirve mirar si el dato viene en la petición: la pantalla manda el formulario entero en
+     * cada guardado, así que las dos claves llegan siempre. Comparando contra lo guardado, editar
+     * la inversión de una campaña antigua no la obliga a arreglar primero un Pixel que nadie está
+     * tocando; cambiarlos sí pasa por la comprobación.
+     */
+    const antes = { clientId: campania.clientId ?? null, metaPixelId: campania.metaPixelId ?? null };
 
     const source = await this.sources.findOne({
       where: [
@@ -182,13 +191,16 @@ export class CampaignsService {
     if (dto.metaCapiEnabled !== undefined) campania.metaCapiEnabled = dto.metaCapiEnabled;
 
     /*
-     * Se comprueba el par que queda, y sólo si alguna de las dos mitades cambió.
+     * Se comprueba el par que queda, y sólo cuando alguna de las dos mitades cambió de verdad.
      *
      * Cambiar la empresa mueve el Pixel a otro dueño aunque el número no se toque, así que las
-     * dos mitades importan. Y revalidar en cada guardado dejaría atascada una campaña antigua con
-     * un Pixel ya irregular: corregirle la inversión fallaría por algo que no se está editando.
+     * dos mitades importan. Lo que no puede pasar es revalidar en cada guardado: dejaría atascada
+     * una campaña antigua con un Pixel ya irregular, y corregirle la inversión fallaría por algo
+     * que nadie está editando.
      */
-    if (dto.metaPixelId !== undefined || dto.clientId !== undefined) {
+    const cambioElPixel = (campania.metaPixelId ?? null) !== antes.metaPixelId
+      || (campania.clientId ?? null) !== antes.clientId;
+    if (cambioElPixel) {
       await this.comprobarPixel(organizationId, campania.clientId, campania.metaPixelId);
     }
 

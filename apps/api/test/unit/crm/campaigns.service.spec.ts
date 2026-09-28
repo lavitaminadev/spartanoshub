@@ -178,7 +178,8 @@ describe('CampaignsService · el Pixel de la campaña', () => {
   it('al editar otra cosa no se revisa el Pixel', async () => {
     const { service, clientPixels } = servicio([{ id: 'c1', name: 'Verano', clientId: 'cliente-1', metaPixelId: '999' }]);
 
-    await service.update('c1', 'org-1', { name: 'Verano', investment: 5000 } as never);
+    // La pantalla manda el formulario entero, incluidos empresa y Pixel sin cambios.
+    await service.update('c1', 'org-1', { name: 'Verano', investment: 5000, clientId: 'cliente-1', metaPixelId: '999' } as never);
 
     expect(clientPixels.assertPixelDeLaEmpresa).not.toHaveBeenCalled();
   });
