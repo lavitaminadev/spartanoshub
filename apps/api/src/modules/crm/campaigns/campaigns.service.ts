@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Campaign } from './campaign.entity';
@@ -56,6 +56,29 @@ export class CampaignsService {
    * Heredar el de la empresa —`metaPixelId` vacío— no se comprueba: ese Pixel ya pasó por esta
    * misma puerta cuando se le asignó a ella.
    */
+  /**
+   * Rechaza un nombre de campaña que ya usa otra empresa.
+   *
+   * Meta manda el **nombre** de la campaña, no de quién es: con el mismo nombre en dos empresas,
+   * un lead no se puede atribuir a ninguna y queda en error hasta que alguien renombre una. Dentro
+   * de la misma empresa sí se permite repetirlo, porque ahí no hay duda de a quién pertenece.
+   *
+   * La base compara sin distinguir mayúsculas, igual que al recibir el lead, así que «Verano» y
+   * «VERANO» cuentan como el mismo nombre en los dos lados.
+   *
+   * @param excepto - La campaña que se está editando, que no choca consigo misma.
+   */
+  private async comprobarNombreLibre(organizationId: string, nombre: string, clientId: string | null | undefined, excepto?: string): Promise<void> {
+    const mismas = await this.campaigns.find({ where: { organizationId, name: nombre.trim() }, select: { id: true, clientId: true } });
+    const deOtraEmpresa = mismas.some((campania) => campania.id !== excepto && (campania.clientId ?? null) !== (clientId ?? null));
+    if (deOtraEmpresa) {
+      throw new ConflictException(
+        `Ya hay una campaña llamada «${nombre.trim()}» en otra cuenta. Meta sólo manda el nombre, así que con dos iguales `
+        + 'no se puede saber de quién es cada lead. Usa un nombre distinto, por ejemplo con la marca delante, y ponle el mismo en Meta.',
+      );
+    }
+  }
+
   private async comprobarPixel(organizationId: string, clientId: string | null | undefined, pixelId: string | null | undefined): Promise<void> {
     const pixel = pixelId?.trim();
     if (!pixel) return;
@@ -129,6 +152,7 @@ export class CampaignsService {
     dto: SaveCampaignDto,
     createdBy?: string,
   ): Promise<{ campaign: Campaign; token: string }> {
+    await this.comprobarNombreLibre(organizationId, dto.name, dto.clientId);
     await this.comprobarPixel(organizationId, dto.clientId, dto.metaPixelId);
     const campaign = await this.campaigns.save(this.campaigns.create({
       organizationId,
@@ -169,7 +193,7 @@ export class CampaignsService {
      * la inversión de una campaña antigua no la obliga a arreglar primero un Pixel que nadie está
      * tocando; cambiarlos sí pasa por la comprobación.
      */
-    const antes = { clientId: campania.clientId ?? null, metaPixelId: campania.metaPixelId ?? null };
+    const antes = { clientId: campania.clientId ?? null, metaPixelId: campania.metaPixelId ?? null, name: campania.name };
 
     const source = await this.sources.findOne({
       where: [
@@ -200,6 +224,9 @@ export class CampaignsService {
      */
     const cambioElPixel = (campania.metaPixelId ?? null) !== antes.metaPixelId
       || (campania.clientId ?? null) !== antes.clientId;
+    if (campania.name.trim().toLowerCase() !== antes.name.trim().toLowerCase() || (campania.clientId ?? null) !== antes.clientId) {
+      await this.comprobarNombreLibre(organizationId, campania.name, campania.clientId, campania.id);
+    }
     if (cambioElPixel) {
       await this.comprobarPixel(organizationId, campania.clientId, campania.metaPixelId);
     }
