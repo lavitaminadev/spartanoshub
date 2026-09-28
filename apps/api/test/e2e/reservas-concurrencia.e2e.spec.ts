@@ -98,7 +98,15 @@ describe('reservas simultáneas', () => {
         guestName: `${etiqueta} ${i + 1}`,
         guestPhone: `+5691${String(i).padStart(7, '0')}`,
         partySize: 1,
-        answers: { name: `${etiqueta} ${i + 1}`, phone: `+5691${String(i).padStart(7, '0')}`, consent: true },
+        // La fecha de nacimiento va porque el formulario la pide: los formularios nuevos la traen
+        // como campo obligatorio, y sin ella el servidor responde «Falta completar Fecha de
+        // nacimiento» y no crea ninguna reserva. Enviarla es lo que hace la página pública.
+        answers: {
+          name: `${etiqueta} ${i + 1}`,
+          phone: `+5691${String(i).padStart(7, '0')}`,
+          birthdate: '1990-05-15',
+          consent: true,
+        },
         // La página pública siempre la envía y el servidor la exige: sin ella no hay reserva.
         reservationConsent: true,
         // Clave distinta en cada intento: acá se prueba la concurrencia, no la idempotencia.
