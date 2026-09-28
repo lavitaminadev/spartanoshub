@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { encuestaPublicaDisponible } from './encuestas-de-la-empresa';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -116,6 +116,18 @@ export class PublicSurveyFlowService {
         ? await manager.findOne(SurveyResponse, { where: { surveyId: survey.id, reservationId: persona.reservationId } })
         : null;
 
+      /*
+       * Una respuesta ya enviada no se reescribe.
+       *
+       * Volver al enlace de la invitación otro día sobrescribía la nota que se dio en su momento,
+       * y con ella el historial: los resultados ya leídos cambiaban por debajo sin que nadie lo
+       * supiera. Mientras la persona no haya terminado —dos clics seguidos, o cerrar a medias y
+       * volver— sigue siendo la misma respuesta y se actualiza.
+       */
+      if (previa?.completedAt) {
+        throw new ConflictException('Ya nos dejaste tu opinión sobre esta visita. ¡Gracias!');
+      }
+
       if (previa) {
         await manager.update(SurveyResponse, { id: previa.id }, {
           rating,
@@ -178,6 +190,11 @@ export class PublicSurveyFlowService {
     if (!respuesta.editTokenHash || esperado.length !== recibido.length || !timingSafeEqual(esperado, recibido)) {
       throw new ForbiddenException('No se puede modificar esta respuesta');
     }
+    // Terminada, queda como se envió: el token no caduca, y sin esta reja cualquiera que
+    // conservara el enlace podía cambiar su nota meses después, con los resultados ya leídos.
+    if (respuesta.completedAt) {
+      throw new ConflictException('Esta respuesta ya se envió y no se puede cambiar. ¡Gracias por tu opinión!');
+    }
 
     let respuestas: Record<string, string | number>;
     try {
@@ -206,7 +223,14 @@ export class PublicSurveyFlowService {
     if (respuesta.privacyConsentAt) aceptacion = {};
 
     const mensaje = typeof datos.teamMessage === 'string' ? datos.teamMessage.trim().slice(0, LARGO_MAXIMO_MENSAJE) : undefined;
-    const mensajeNuevo = Boolean(mensaje) && mensaje !== (respuesta.teamMessage ?? '').trim();
+    /*
+     * Se avisa al local la primera vez que la persona escribe, no cada vez que corrige.
+     *
+     * Antes cada edición del texto mandaba otro correo: con el límite de la ruta, hasta veinte por
+     * minuto al mismo local, con la respuesta dirigida a quien escribió. El texto corregido igual
+     * queda guardado y se lee completo en los resultados.
+     */
+    const mensajeNuevo = Boolean(mensaje) && !(respuesta.teamMessage ?? '').trim();
 
     await this.responses.update({ id: respuesta.id }, {
       answers: respuestas,

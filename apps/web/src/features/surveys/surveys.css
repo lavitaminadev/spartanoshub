@@ -434,6 +434,8 @@
 .respuestas-persona-fila { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 14px; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .respuestas-persona-nota { color: #c98a00; letter-spacing: 1px; white-space: nowrap; }
 .respuestas-persona-fila small { color: var(--muted); font-size: 12px; }
+/* Quien vuelve a responder: discreto, para leerlo al pasar sin competir con la nota. */
+.respuestas-persona-historial { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--surface-muted, #f1eef3); color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; }
 .respuestas-persona blockquote { margin: 0 14px 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: #fff6e7; color: #5a3b00; font-size: 14px; line-height: 1.45; }
 .respuestas-persona dl { display: grid; grid-template-columns: minmax(120px, 30%) 1fr; gap: 6px 12px; margin: 0; padding: 0 14px 14px; font-size: 13px; }
 .respuestas-persona dt { color: var(--muted); }

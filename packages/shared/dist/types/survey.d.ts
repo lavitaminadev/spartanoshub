@@ -215,6 +215,15 @@ export interface SurveyIndividualResponse {
     attendedByName?: string | null;
     /** Cuándo aceptó el uso de sus datos, si la encuesta los pidió. */
     privacyConsentAt?: string | null;
+    /**
+     * Cuántas veces ha respondido esta persona, contado por su correo y sólo dentro de la empresa de
+     * la encuesta. `null` si la respuesta es anónima: sin correo no hay a quién seguirle la pista.
+     */
+    historial?: {
+        enEstaEncuesta: number;
+        enLaEmpresa: number;
+        encuestas: number;
+    } | null;
     answers: Record<string, string | number>;
 }
 //# sourceMappingURL=survey.d.ts.map
