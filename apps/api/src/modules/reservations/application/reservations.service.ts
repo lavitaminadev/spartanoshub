@@ -852,7 +852,14 @@ export class ReservationsService {
   async pixelesDelFormulario(organizationId: string, clientId: string) {
     const capabilities = await this.clientCapabilities(organizationId, clientId);
     if (!capabilities.metaConversions) return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels: [] };
-    return this.clientPixels.pixelesElegibles(organizationId, clientId);
+    /*
+     * Los Pixels que los locales de esta empresa ya tienen guardados van en la lista aunque hoy no
+     * le pertenezcan. Quitar de golpe uno que se está usando no deja de enviar nada —el envío lee
+     * el formulario, no esta lista— y sólo consigue que el selector aparezca en blanco.
+     */
+    const locales = await this.forms.find({ where: { organizationId, clientId }, select: { metaPixelId: true } });
+    const enUso = locales.map((local) => local.metaPixelId).filter((pixelId): pixelId is string => Boolean(pixelId));
+    return this.clientPixels.pixelesElegibles(organizationId, clientId, enUso);
   }
 
   private async getClientMetaConfig(clientId: string, organizationId: string, form?: ReservationForm) {

@@ -297,24 +297,59 @@ export class MetaClientPixelService {
       where: { organizationId, pixelId, clientId: Not(IsNull()) },
       select: { id: true, clientId: true },
     });
-    if (conDueno.length === 0) return;
     if (conDueno.some((fila) => fila.clientId === clientId)) return;
+
+    /*
+     * El registro antiguo cuenta como dueño igual que la tabla.
+     *
+     * La tabla se pobló con lo que había en una migración, pero lo que se configura desde
+     * entonces sigue quedando también en el mapa por empresa de la integración. Mirando sólo la
+     * tabla, un Pixel asignado a otra empresa después de esa migración pasaba la comprobación:
+     * bastaba escribir el número a mano para medir sobre el Pixel de un negocio ajeno.
+     */
+    const integration = await this.organizationIntegration(organizationId);
+    const deOtraEnElMapa = integration
+      ? Object.entries(this.records(integration)).some(([dueno, registro]) => dueno !== clientId && registro?.pixelId === pixelId)
+      : false;
+    const suyoEnElMapa = integration ? this.records(integration)[clientId]?.pixelId === pixelId : false;
+    if (suyoEnElMapa) return;
+
+    if (conDueno.length === 0 && !deOtraEnElMapa) return;
     throw new BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
   }
 
-  async pixelesElegibles(organizationId: string, clientId: string) {
+  /**
+   * Los Pixels entre los que puede elegir un ámbito de esta empresa.
+   *
+   * Sólo los suyos: los registrados a su nombre, el que tiene asignado, el que la organización
+   * declaró como Pixel de la agencia, y los que sus propios formularios ya están usando.
+   *
+   * Antes se añadían además **todas** las credenciales de la organización, que es el registro de
+   * Pixels de todas las empresas. El selector de un local mostraba así el Pixel de otro negocio, y
+   * elegirlo pasaba la comprobación siempre que ese Pixel no estuviera en la tabla con dueño: las
+   * reservas de una empresa se contaban en el Events Manager de otra.
+   *
+   * Los que ya están en uso se incluyen aunque no cumplan la regla. Si alguno quedó apuntando a un
+   * Pixel ajeno de antes, esta lista no es el lugar donde se corrige: quitarlo de aquí lo dejaría
+   * enviando igual pero con el selector en blanco, que es peor para quien lo mira.
+   *
+   * @param enUso - Pixels que los ámbitos de esta empresa ya tienen guardados.
+   */
+  async pixelesElegibles(organizationId: string, clientId: string, enUso: string[] = []) {
     const filas = await this.pixelesGuardados.find({
-      where: [{ organizationId, clientId }, { organizationId, clientId: IsNull() }],
+      where: { organizationId, clientId },
       order: { pixelId: 'ASC' },
     });
     const integration = await this.organizationIntegration(organizationId);
     const credenciales = integration ? this.credenciales(integration) : {};
     const porDefecto = await this.resolve(organizationId, clientId);
+    const deLaAgencia = typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : null;
 
-    const ids = new Set<string>([...filas.map((fila) => fila.pixelId), ...Object.keys(credenciales)]);
+    const ids = new Set<string>([...filas.map((fila) => fila.pixelId), ...enUso.filter(Boolean)]);
     if (porDefecto.pixelId) ids.add(porDefecto.pixelId);
+    if (deLaAgencia) ids.add(deLaAgencia);
 
-    const pixels = [] as Array<{ pixelId: string; nombre: string | null; tieneToken: boolean; esDeLaEmpresa: boolean }>;
+    const pixels = [] as Array<{ pixelId: string; nombre: string | null; tieneToken: boolean; esDeLaEmpresa: boolean; esDeLaAgencia: boolean }>;
     for (const pixelId of ids) {
       const resuelto = await this.resolveForScope(organizationId, clientId, pixelId);
       pixels.push({
@@ -322,6 +357,9 @@ export class MetaClientPixelService {
         nombre: filas.find((fila) => fila.pixelId === pixelId)?.name ?? credenciales[pixelId]?.name ?? null,
         tieneToken: Boolean(resuelto.accessToken),
         esDeLaEmpresa: pixelId === porDefecto.pixelId,
+        // Medir en el de la agencia mezcla este negocio con el embudo de Espartanos, así que la
+        // pantalla tiene que poder decirlo antes de que alguien lo elija sin saberlo.
+        esDeLaAgencia: pixelId === deLaAgencia,
       });
     }
     return {
@@ -332,6 +370,45 @@ export class MetaClientPixelService {
       },
       pixels,
     };
+  }
+
+  /**
+   * Candidatos para una campaña del CRM, que puede ser de una empresa o de la propia agencia.
+   *
+   * Con empresa son los mismos que ve un local suyo. Sin empresa, la campaña es de Espartanos y
+   * los candidatos son los Pixels registrados que no pertenecen a ninguna empresa: ofrecer el de
+   * un cliente aquí mezclaría el embudo de la agencia con el de ese negocio.
+   *
+   * `tieneToken` sale de resolver cada candidato de verdad, no de que exista la fila: un Pixel sin
+   * credencial se guardaría igual y después no enviaría nada sin avisar.
+   */
+  async elegiblesParaCampania(organizationId: string, clientId: string | null) {
+    if (clientId) return this.pixelesElegibles(organizationId, clientId);
+
+    const integration = await this.organizationIntegration(organizationId);
+    const credenciales = integration ? this.credenciales(integration) : {};
+    const deEmpresas = new Set(Object.values(integration ? this.records(integration) : {}).map((registro) => registro?.pixelId).filter(Boolean));
+    const conDueno = await this.pixelesGuardados.find({
+      where: { organizationId, clientId: Not(IsNull()) },
+      select: { id: true, pixelId: true },
+    });
+    for (const fila of conDueno) deEmpresas.add(fila.pixelId);
+
+    const sinDueno = await this.pixelesGuardados.find({ where: { organizationId, clientId: IsNull() }, order: { pixelId: 'ASC' } });
+    const ids = new Set<string>([...sinDueno.map((fila) => fila.pixelId), ...Object.keys(credenciales)]);
+
+    const pixels = [];
+    for (const pixelId of ids) {
+      if (deEmpresas.has(pixelId)) continue;
+      pixels.push({
+        pixelId,
+        nombre: sinDueno.find((fila) => fila.pixelId === pixelId)?.name ?? credenciales[pixelId]?.name ?? null,
+        tieneToken: Boolean(await this.resolveByPixel(organizationId, pixelId, null)),
+        esDeLaEmpresa: false,
+        esDeLaAgencia: pixelId === (typeof integration?.config?.agencyPixelId === 'string' ? integration.config.agencyPixelId : null),
+      });
+    }
+    return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels };
   }
 
   async configure(id: string, organizationId: string, clientId: string, pixelId: string, accessToken?: string, pixelName?: string) {

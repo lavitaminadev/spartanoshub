@@ -1022,12 +1022,36 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     if (reserva && accion === 'sigue') reserva.endsAt = new Date(Math.max(new Date(String(reserva.endsAt)).getTime(), Date.now()) + 30 * 60_000).toISOString();
     return { reserva, sobreCupo: false };
   }],
+  /*
+   * Los Pixels que puede usar una campaña, según de quién sea.
+   *
+   * Con empresa, los suyos; sin empresa —campaña de la agencia— los que no son de nadie. Nunca el
+   * de otra empresa: el servidor dejó de ofrecerlo y rechaza guardarlo.
+   */
+  [/\/integrations\/meta\/client-pixels\/elegibles/, (config) => {
+    const empresa = /\bclientId=([^&]+)/.exec(config?.url ?? '')?.[1];
+    if (!empresa) {
+      return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels: [
+        { pixelId: '998877665544332', nombre: 'Espartanos · agencia', tieneToken: true, esDeLaEmpresa: false, esDeLaAgencia: true },
+      ] };
+    }
+    const suyos = empresa === 'visual-client'
+      ? [{ pixelId: '123456789012345', nombre: 'Casa Costanera · Reservas', tieneToken: true, esDeLaEmpresa: true, esDeLaAgencia: false }]
+      : [{ pixelId: '222333444555666', nombre: 'Bar Ruperto · Campañas', tieneToken: false, esDeLaEmpresa: true, esDeLaAgencia: false }];
+    return { porDefecto: { pixelId: suyos[0].pixelId, pixelName: suyos[0].nombre, tieneToken: suyos[0].tieneToken }, pixels: suyos };
+  }],
   [/\/reservations\/forms\/meta-pixels/, () => ({
     porDefecto: { pixelId: '123456789012345', pixelName: 'Casa Costanera · Reservas', tieneToken: true },
+    /*
+     * Sólo los Pixels de esta empresa y el de la agencia, como responde el servidor.
+     *
+     * El de otra empresa no aparece nunca: el servidor dejó de ofrecerlo y elegirlo se rechaza,
+     * porque medir dos negocios en el mismo Pixel mezcla sus conversiones en el Events Manager.
+     */
     pixels: [
-      { pixelId: '123456789012345', nombre: 'Casa Costanera · Reservas', tieneToken: true, esDeLaEmpresa: true },
-      { pixelId: '998877665544332', nombre: 'Terraza · agencia', tieneToken: true, esDeLaEmpresa: false },
-      { pixelId: '555000111222333', nombre: null, tieneToken: false, esDeLaEmpresa: false },
+      { pixelId: '123456789012345', nombre: 'Casa Costanera · Reservas', tieneToken: true, esDeLaEmpresa: true, esDeLaAgencia: false },
+      { pixelId: '998877665544332', nombre: 'Espartanos · agencia', tieneToken: true, esDeLaEmpresa: false, esDeLaAgencia: true },
+      { pixelId: '555000111222333', nombre: null, tieneToken: false, esDeLaEmpresa: false, esDeLaAgencia: false },
     ],
   })],
   [/\/reservations\/forms(?:\?|$)/, (config) => {

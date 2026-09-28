@@ -674,7 +674,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = await this.clientCapabilities(organizationId, clientId);
         if (!capabilities.metaConversions)
             return { porDefecto: { pixelId: null, pixelName: null, tieneToken: false }, pixels: [] };
-        return this.clientPixels.pixelesElegibles(organizationId, clientId);
+        const locales = await this.forms.find({ where: { organizationId, clientId }, select: { metaPixelId: true } });
+        const enUso = locales.map((local) => local.metaPixelId).filter((pixelId) => Boolean(pixelId));
+        return this.clientPixels.pixelesElegibles(organizationId, clientId, enUso);
     }
     async getClientMetaConfig(clientId, organizationId, form) {
         return this.clientPixels.resolveForScope(organizationId, clientId, form?.metaPixelId);

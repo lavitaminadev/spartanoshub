@@ -2,6 +2,7 @@ import { ReglaDeCalificacion } from './reglas/regla-de-calificacion.entity';
 import { ReglasController } from './reglas/reglas.controller';
 import { ReglasService } from './reglas/reglas.service';
 import { Module } from '@nestjs/common';
+import { MetaPixelsModule } from '../integrations/meta/meta-pixels.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditModule } from '../../core/audit/audit.module';
 import { ProcessTemplatesModule } from '../process-templates/process-templates.module';
@@ -62,7 +63,7 @@ import { CrmFieldsService } from './fields/crm-fields.service';
 import { CrmFieldsController } from './fields/crm-fields.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CrmFieldDefinition, ReglaDeCalificacion, Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule],
+  imports: [TypeOrmModule.forFeature([CrmFieldDefinition, ReglaDeCalificacion, Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule, MetaPixelsModule],
   controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController, CrmFieldsController, ReglasController],
   providers: [
     ReglasService,

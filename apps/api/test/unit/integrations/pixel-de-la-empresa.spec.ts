@@ -17,11 +17,14 @@ describe('assertPixelDeLaEmpresa', () => {
    * orden del índice cuando un Pixel figuraba en dos empresas: fallaba unas veces sí y otras no
    * sobre la misma. Se acepta una lista de dueños para poder probar justo ese caso.
    */
-  const servicio = (duenios: string | null | string[]) => {
+  const servicio = (duenios: string | null | string[], mapaAntiguo: Record<string, { pixelId: string }> = {}) => {
     const lista = duenios === null ? [] : (Array.isArray(duenios) ? duenios : [duenios])
       .map((clientId, indice) => ({ id: `p${indice}`, clientId }));
     const pixeles = { find: vi.fn().mockResolvedValue(lista) };
-    return new MetaClientPixelService({} as never, {} as never, pixeles as never, {} as never);
+    // El mapa por empresa de la integración cuenta como dueño igual que la tabla: lo que se
+    // configura desde que se pobló la tabla vive sólo ahí.
+    const integraciones = { findOne: vi.fn().mockResolvedValue({ config: { clientPixels: mapaAntiguo } }) };
+    return new MetaClientPixelService(integraciones as never, {} as never, pixeles as never, {} as never);
   };
 
   it('rechaza el Pixel registrado por otra empresa', async () => {
@@ -56,5 +59,22 @@ describe('assertPixelDeLaEmpresa', () => {
   it('sigue rechazando cuando ninguna de las dueñas es la que pregunta', async () => {
     await expect(servicio(['empresa-2', 'empresa-3']).assertPixelDeLaEmpresa('org-1', 'empresa-1', '123'))
       .rejects.toThrow(BadRequestException);
+  });
+
+  /*
+   * El dueño puede estar sólo en el registro antiguo.
+   *
+   * La tabla se pobló una vez con lo que había; lo que se asigna desde entonces queda también en
+   * el mapa por empresa de la integración. Mirando sólo la tabla, un Pixel asignado a otra empresa
+   * después de esa migración pasaba la comprobación, y bastaba escribir el número a mano.
+   */
+  it('rechaza un Pixel que figura en el registro antiguo de otra empresa', async () => {
+    await expect(servicio(null, { 'empresa-2': { pixelId: '123' } }).assertPixelDeLaEmpresa('org-1', 'empresa-1', '123'))
+      .rejects.toThrow(BadRequestException);
+  });
+
+  it('acepta el suyo cuando está sólo en el registro antiguo', async () => {
+    await expect(servicio(null, { 'empresa-1': { pixelId: '123' } }).assertPixelDeLaEmpresa('org-1', 'empresa-1', '123'))
+      .resolves.toBeUndefined();
   });
 });

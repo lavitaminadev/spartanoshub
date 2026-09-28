@@ -33,8 +33,9 @@ const meta_client_pixel_service_1 = require("./meta-client-pixel.service");
 const meta_conversion_outbox_service_1 = require("./meta-conversion-outbox.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const requires_recent_auth_decorator_1 = require("../../../core/auth/requires-recent-auth.decorator");
+const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 let MetaPixelController = class MetaPixelController {
-    constructor(pixel, conversions, oauth, assetDiscovery, metaLeadAds, insights, clientPixels, conversionOutbox) {
+    constructor(pixel, conversions, oauth, assetDiscovery, metaLeadAds, insights, clientPixels, conversionOutbox, accountAccess) {
         this.pixel = pixel;
         this.conversions = conversions;
         this.oauth = oauth;
@@ -43,9 +44,15 @@ let MetaPixelController = class MetaPixelController {
         this.insights = insights;
         this.clientPixels = clientPixels;
         this.conversionOutbox = conversionOutbox;
+        this.accountAccess = accountAccess;
     }
     clientPixelCatalog(req) {
         return this.clientPixels.catalog(req.organizationId);
+    }
+    async pixelsElegibles(req, clientId) {
+        if (clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        return this.clientPixels.elegiblesParaCampania(req.organizationId, clientId || null);
     }
     async conversionsOutbox(req) {
         const [stats, problems] = await Promise.all([
@@ -164,6 +171,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], MetaPixelController.prototype, "clientPixelCatalog", null);
+__decorate([
+    (0, common_1.Get)('client-pixels/elegibles'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], MetaPixelController.prototype, "pixelsElegibles", null);
 __decorate([
     (0, common_1.Get)('conversions/outbox'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
@@ -371,5 +387,6 @@ exports.MetaPixelController = MetaPixelController = __decorate([
         meta_lead_ads_service_1.MetaLeadAdsService,
         meta_insights_service_1.MetaInsightsService,
         meta_client_pixel_service_1.MetaClientPixelService,
-        meta_conversion_outbox_service_1.MetaConversionOutboxService])
+        meta_conversion_outbox_service_1.MetaConversionOutboxService,
+        account_access_service_1.AccountAccessService])
 ], MetaPixelController);

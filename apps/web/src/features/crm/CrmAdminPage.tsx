@@ -21,6 +21,7 @@ import { EmptyState } from '../../shared/EmptyState';
 import { Modal } from '../../shared/Modal';
 import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { useCrmScope } from './crm-scope';
+import { useAuth } from '../../core/auth';
 import { useEtapasOcultas, useStageLabels, type RotulosDeEtapa } from './use-stage-labels';
 import { useVocabulario, VOCABULARIO_BASE, type Vocabulario } from './use-vocabulario';
 import { STAGES, STAGE_LABEL } from './stage-labels';
@@ -79,6 +80,9 @@ interface BindingMeta {
  * porque Meta acepta la petición y la descarta después sin avisar a nadie.
  */
 interface PixelRegistrado { pixelId: string; pixelNames: string[]; usageCount: number }
+
+/** Un Pixel que esta campaña puede usar, con lo que hace falta saber antes de elegirlo. */
+interface PixelElegible { pixelId: string; nombre: string | null; tieneToken: boolean; esDeLaEmpresa: boolean; esDeLaAgencia?: boolean }
 
 interface Origen {
   id: string;
@@ -156,6 +160,9 @@ export function CrmAdminPage(): JSX.Element {
   const queryClient = useQueryClient();
   // La empresa cuyas campañas se administran; la elige la barra del CRM.
   const scope = useCrmScope();
+  const { user } = useAuth();
+  /** Quien administra su propia empresa desde el portal, no el equipo de Espartanos. */
+  const esPortalCliente = user?.role === 'client';
   const [pestana, setPestana] = useState<(typeof PESTANAS)[number]['id']>('campanas');
   /*
    * Acciones sin vuelta atrás, esperando confirmación.
@@ -257,14 +264,27 @@ export function CrmAdminPage(): JSX.Element {
   const estadoMeta = scope.clientId
     ? metaCatalogo.data?.bindings.find((fila) => fila.clientId === scope.clientId)
     : undefined;
+
   /*
-   * Los Pixels que ya existen, para elegir en vez de transcribir.
+   * Los Pixels que esta campaña puede usar, según de quién sea.
    *
-   * Se ofrecen todos los de la organización y no solo los de esta empresa: una campaña puede
-   * reportar al Pixel de otra marca del mismo grupo, y esconderlo obligaría a copiar el número
-   * a mano, que es justo lo que este desplegable evita.
+   * Antes se ofrecían todos los de la organización, que son los de todas las empresas: elegir el
+   * de otro negocio mezclaba las conversiones de los dos en el mismo Events Manager, donde ya no
+   * se separan. El servidor pide los de esa empresa y dice cuáles tienen credencial, que es la
+   * otra mitad: un Pixel sin token deja la campaña reportando contra una puerta cerrada.
+   *
+   * Sin empresa la campaña es de la agencia, y entonces son los Pixels que no son de nadie.
    */
-  const pixelesRegistrados = metaCatalogo.data?.pixels ?? [];
+  const pixelesDeLaCampania = useQuery<{ pixels: PixelElegible[] }>({
+    queryKey: ['meta-pixels-elegibles', formCampania.clientId],
+    queryFn: () => api.get(`/integrations/meta/client-pixels/elegibles${formCampania.clientId ? `?clientId=${formCampania.clientId}` : ''}`),
+    retry: false,
+    enabled: campaniaAbierta !== null,
+  });
+  const pixelesElegibles = pixelesDeLaCampania.data?.pixels ?? [];
+  /** Un Pixel elegido sin credencial no envía nada: se dice antes de que el servidor lo rechace. */
+  const pixelSinCredencial = Boolean(formCampania.metaPixelId)
+    && pixelesElegibles.some((pixel) => pixel.pixelId === formCampania.metaPixelId && !pixel.tieneToken);
 
   const clientes = useQuery<{ data: Cliente[] }>({ queryKey: ['clients-min'], queryFn: () => api.get('/clients') });
   // La lista de usuarios se consultaba solo para dibujar el bloque «Equipo», que salió de esta
@@ -535,7 +555,7 @@ export function CrmAdminPage(): JSX.Element {
                         abrir el modal. Se abre en escritura libre con su valor intacto.
                       */
                       setPixelManual(Boolean(campania.metaPixelId)
-                        && !pixelesRegistrados.some((pixel) => pixel.pixelId === campania.metaPixelId));
+                        && !pixelesElegibles.some((pixel) => pixel.pixelId === campania.metaPixelId));
                       setCampaniaAbierta(campania);
                     }}
                   >
@@ -697,13 +717,46 @@ export function CrmAdminPage(): JSX.Element {
                 }}
               >
                 <option value="">Heredar el de la empresa</option>
-                {pixelesRegistrados.map((pixel) => (
-                  <option key={pixel.pixelId} value={pixel.pixelId}>
-                    {pixel.pixelNames[0] ?? 'Pixel'} · {pixel.pixelId}
-                  </option>
-                ))}
-                <option value="otro">Otro Pixel…</option>
+                {/*
+                  Los Pixels van bajo el nombre de su dueño, y no sueltos.
+
+                  El desplegable enseña números de quince cifras: sin decir de quién es cada uno,
+                  elegir es adivinar. El título lo dice, y de paso deja claro que aquí sólo están
+                  los de esta empresa —el de otra no se ofrece, y el servidor lo rechaza—.
+                */}
+                {pixelesElegibles.length > 0 && (
+                  <optgroup label={formCampania.clientId
+                    ? `Pixels de ${clientes.data?.data.find((empresa) => empresa.id === formCampania.clientId)?.name ?? 'esta empresa'}`
+                    : 'Pixels de Espartanos'}>
+                    {pixelesElegibles.map((pixel) => (
+                      <option key={pixel.pixelId} value={pixel.pixelId}>
+                        {pixel.nombre ?? 'Pixel'} · {pixel.pixelId}
+                        {pixel.esDeLaAgencia ? ' — de la agencia' : ''}
+                        {pixel.tieneToken ? '' : ' (sin token)'}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {/*
+                  Escribir el número a mano queda para el equipo de Espartanos.
+
+                  Es la salida para el Pixel que todavía no está en Conexiones. Quien administra su
+                  propia empresa no la necesita —sus Pixels ya están en la lista— y con ella podía
+                  escribir el de cualquiera: el servidor lo rechaza, pero ofrecerlo es invitar a un
+                  error que después hay que explicar.
+                */}
+                {!esPortalCliente && <option value="otro">Otro Pixel…</option>}
               </select>
+              {/*
+                Qué se está eligiendo, dicho antes de guardar.
+
+                El Pixel es el destino y el token es el permiso para escribir en él: son dos cosas
+                y sólo se ve una. Sin token la campaña queda marcada como que reporta y cada evento
+                muere en el envío, que es lo que llena la cola de errores sin que nadie lo note.
+              */}
+              {pixelSinCredencial ? (
+                <small className="campo-alerta">Ese Pixel no tiene token de Conversions API: regístralo en <Link to="/integrations">Conexiones</Link> antes de guardar.</small>
+              ) : <small>El token con el que se escribe en el Pixel se guarda una sola vez en Conexiones, junto al Pixel. Acá sólo se elige a cuál reporta esta campaña.</small>}
             </label>
             {/*
               Escribirlo a mano es la salida, no la puerta.

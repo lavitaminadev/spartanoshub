@@ -17,7 +17,7 @@ const leadIntake = {
 };
 
 const campaignsRepo = {
-  findOne: vi.fn(),
+  find: vi.fn(),
 };
 
 describe('MetaLeadAdsService', () => {
@@ -30,7 +30,7 @@ describe('MetaLeadAdsService', () => {
      * Un lead de Meta solo se guarda si su campaña está registrada en el CRM: es de ahí de donde
      * sale a qué empresa pertenece. El doble devuelve la campaña que nombra el payload.
      */
-    campaignsRepo.findOne.mockResolvedValue({ id: 'camp-1', clientId: null });
+    campaignsRepo.find.mockResolvedValue([{ id: 'camp-1', clientId: null }]);
     // Campos propios: sin definiciones, todas las respuestas siguen yendo a las notas.
     const campos = { listar: async () => [] };
     service = new MetaLeadAdsService(accountsRepo as any, eventsRepo as any, campaignsRepo as any, campos as any, leadIntake as any);

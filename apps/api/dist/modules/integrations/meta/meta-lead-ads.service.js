@@ -38,13 +38,18 @@ let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
     async resolverEmpresa(organizationId, campaignName) {
         if (!campaignName?.trim())
             return null;
-        const campania = await this.campaignsRepo.findOne({
+        const campanias = await this.campaignsRepo.find({
             where: { organizationId, name: campaignName.trim() },
+            select: { id: true, clientId: true },
         });
-        if (!campania)
+        if (campanias.length === 0)
             return null;
-        return campania.clientId
-            ? { clientId: campania.clientId, domain: 'audience' }
+        const empresas = new Set(campanias.map((campania) => campania.clientId ?? null));
+        if (empresas.size > 1)
+            return 'ambigua';
+        const clientId = campanias[0].clientId;
+        return clientId
+            ? { clientId, domain: 'audience' }
             : { domain: 'commercial' };
     }
     async processWebhook(payload, options) {
@@ -121,6 +126,12 @@ let MetaLeadAdsService = MetaLeadAdsService_1 = class MetaLeadAdsService {
                 const leadDetail = await this.retrieveLead(change.leadgenId, accessToken);
                 const normalized = this.normalizeLeadDetail(leadDetail);
                 const destino = await this.resolverEmpresa(pageAccount.integration.organizationId, leadDetail.campaign_name);
+                if (destino === 'ambigua') {
+                    event.processingStatus = 'error';
+                    event.errorMessage = `Hay más de una campaña llamada "${leadDetail.campaign_name}" y son de empresas distintas: renombra una para saber de quién es este lead.`;
+                    await this.eventsRepo.save(event);
+                    continue;
+                }
                 if (!destino) {
                     event.processingStatus = 'error';
                     event.errorMessage = leadDetail.campaign_name
