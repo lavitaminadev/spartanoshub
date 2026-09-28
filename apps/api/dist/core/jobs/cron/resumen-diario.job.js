@@ -44,18 +44,19 @@ let ResumenDiarioJob = ResumenDiarioJob_1 = class ResumenDiarioJob {
         const inicioDeAyer = new Date(inicioDeHoy.getTime() - 86_400_000);
         const activos = await this.usuarios.find({
             where: { isActive: true },
-            select: { id: true, name: true, email: true, organizationId: true },
+            select: { id: true, name: true, email: true, organizationId: true, clientId: true },
         });
-        const encendidoPorOrganizacion = new Map();
+        const encendidoPorEmpresa = new Map();
         let enviados = 0;
         for (const persona of activos) {
             try {
                 if (!persona.email)
                     continue;
-                let encendido = encendidoPorOrganizacion.get(persona.organizationId);
+                const clave = `${persona.organizationId}:${persona.clientId ?? 'agencia'}`;
+                let encendido = encendidoPorEmpresa.get(clave);
                 if (encendido === undefined) {
-                    encendido = Boolean(await this.parametros.get('email.daily_digest_enabled', null, null, persona.organizationId));
-                    encendidoPorOrganizacion.set(persona.organizationId, encendido);
+                    encendido = Boolean(await this.parametros.get('email.daily_digest_enabled', persona.clientId ?? null, null, persona.organizationId));
+                    encendidoPorEmpresa.set(clave, encendido);
                 }
                 if (!encendido)
                     continue;
@@ -110,8 +111,8 @@ let ResumenDiarioJob = ResumenDiarioJob_1 = class ResumenDiarioJob {
     }
     async enviar(persona, cifras, hoy) {
         const [asunto, cuerpo] = await Promise.all([
-            this.parametros.get('email.daily_digest_subject', null, null, persona.organizationId),
-            this.parametros.get('email.daily_digest_body', null, null, persona.organizationId),
+            this.parametros.get('email.daily_digest_subject', persona.clientId ?? null, null, persona.organizationId),
+            this.parametros.get('email.daily_digest_body', persona.clientId ?? null, null, persona.organizationId),
         ]);
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? 'Tu CRM hoy'), String(cuerpo ?? 'Tienes {{pendientes}} tareas y {{parados}} leads sin avanzar.'), {
             responsable: persona.name,

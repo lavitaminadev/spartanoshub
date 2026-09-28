@@ -46,10 +46,17 @@ export class ResumenDiarioJob {
 
     const activos = await this.usuarios.find({
       where: { isActive: true },
-      select: { id: true, name: true, email: true, organizationId: true },
+      select: { id: true, name: true, email: true, organizationId: true, clientId: true },
     });
 
-    const encendidoPorOrganizacion = new Map<string, boolean>();
+    /*
+     * El interruptor y el texto se piden con la empresa de cada persona.
+     *
+     * Se leía siempre el valor general: una empresa que apagaba el resumen para su equipo lo seguía
+     * recibiendo, y su texto no se usaba. Quien no tiene empresa —el equipo de Espartanos— sigue con
+     * el general. El resolutor hereda, así que sin valor propio todo queda igual que antes.
+     */
+    const encendidoPorEmpresa = new Map<string, boolean>();
     let enviados = 0;
 
     for (const persona of activos) {
@@ -57,12 +64,13 @@ export class ResumenDiarioJob {
       try {
         if (!persona.email) continue;
 
-        let encendido = encendidoPorOrganizacion.get(persona.organizationId);
+        const clave = `${persona.organizationId}:${persona.clientId ?? 'agencia'}`;
+        let encendido = encendidoPorEmpresa.get(clave);
         if (encendido === undefined) {
           encendido = Boolean(await this.parametros.get(
-            'email.daily_digest_enabled', null, null, persona.organizationId,
+            'email.daily_digest_enabled', persona.clientId ?? null, null, persona.organizationId,
           ));
-          encendidoPorOrganizacion.set(persona.organizationId, encendido);
+          encendidoPorEmpresa.set(clave, encendido);
         }
         if (!encendido) continue;
 
@@ -148,8 +156,8 @@ export class ResumenDiarioJob {
     hoy: Date,
   ): Promise<void> {
     const [asunto, cuerpo] = await Promise.all([
-      this.parametros.get('email.daily_digest_subject', null, null, persona.organizationId),
-      this.parametros.get('email.daily_digest_body', null, null, persona.organizationId),
+      this.parametros.get('email.daily_digest_subject', persona.clientId ?? null, null, persona.organizationId),
+      this.parametros.get('email.daily_digest_body', persona.clientId ?? null, null, persona.organizationId),
     ]);
 
     const { subject, html } = componerCorreo(
