@@ -214,8 +214,10 @@ let MetaClientPixelService = class MetaClientPixelService {
         };
     }
     async elegiblesParaCampania(organizationId, clientId) {
+        const enUso = await this.integrations.query('SELECT DISTINCT meta_pixel_id AS pixel FROM crm_campaigns WHERE organization_id = ? AND client_id <=> ? AND meta_pixel_id IS NOT NULL AND meta_pixel_id <> \'\'', [organizationId, clientId]).catch(() => []);
+        const pixelesEnUso = enUso.map((fila) => fila.pixel);
         if (clientId)
-            return this.pixelesElegibles(organizationId, clientId);
+            return this.pixelesElegibles(organizationId, clientId, pixelesEnUso);
         const integration = await this.organizationIntegration(organizationId);
         const credenciales = integration ? this.credenciales(integration) : {};
         const deEmpresas = new Set(Object.values(integration ? this.records(integration) : {}).map((registro) => registro?.pixelId).filter(Boolean));
@@ -226,7 +228,7 @@ let MetaClientPixelService = class MetaClientPixelService {
         for (const fila of conDueno)
             deEmpresas.add(fila.pixelId);
         const sinDueno = await this.pixelesGuardados.find({ where: { organizationId, clientId: (0, typeorm_3.IsNull)() }, order: { pixelId: 'ASC' } });
-        const ids = new Set([...sinDueno.map((fila) => fila.pixelId), ...Object.keys(credenciales)]);
+        const ids = new Set([...sinDueno.map((fila) => fila.pixelId), ...Object.keys(credenciales), ...pixelesEnUso]);
         const pixels = [];
         for (const pixelId of ids) {
             if (deEmpresas.has(pixelId))

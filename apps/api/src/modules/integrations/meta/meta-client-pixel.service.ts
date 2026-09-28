@@ -394,7 +394,17 @@ export class MetaClientPixelService {
    * credencial se guardaría igual y después no enviaría nada sin avisar.
    */
   async elegiblesParaCampania(organizationId: string, clientId: string | null) {
-    if (clientId) return this.pixelesElegibles(organizationId, clientId);
+    /*
+     * Los Pixels que las campañas de esa cuenta ya usan van en la lista aunque no estén asignados
+     * a ella, igual que en Reservas con los de sus locales. Quitarlos de la lista no corta ningún
+     * envío —manda lo que la campaña tiene guardado— pero dejaba el selector en blanco al abrirla.
+     */
+    const enUso = await this.integrations.query(
+      'SELECT DISTINCT meta_pixel_id AS pixel FROM crm_campaigns WHERE organization_id = ? AND client_id <=> ? AND meta_pixel_id IS NOT NULL AND meta_pixel_id <> \'\'',
+      [organizationId, clientId],
+    ).catch(() => []) as Array<{ pixel: string }>;
+    const pixelesEnUso = enUso.map((fila) => fila.pixel);
+    if (clientId) return this.pixelesElegibles(organizationId, clientId, pixelesEnUso);
 
     const integration = await this.organizationIntegration(organizationId);
     const credenciales = integration ? this.credenciales(integration) : {};
@@ -406,7 +416,7 @@ export class MetaClientPixelService {
     for (const fila of conDueno) deEmpresas.add(fila.pixelId);
 
     const sinDueno = await this.pixelesGuardados.find({ where: { organizationId, clientId: IsNull() }, order: { pixelId: 'ASC' } });
-    const ids = new Set<string>([...sinDueno.map((fila) => fila.pixelId), ...Object.keys(credenciales)]);
+    const ids = new Set<string>([...sinDueno.map((fila) => fila.pixelId), ...Object.keys(credenciales), ...pixelesEnUso]);
 
     const pixels = [];
     for (const pixelId of ids) {
