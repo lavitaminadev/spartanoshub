@@ -189,7 +189,7 @@ describe('MetaClientPixelService', () => {
     clients.findOne.mockResolvedValue({ id: 'client-b', name: 'Cliente B' });
 
     await expect(service.setup('org-1', 'client-b', 'existing', { existingPixelId: '999' }))
-      .rejects.toThrow(/es de otra empresa/);
+      .rejects.toThrow(/ya está asignado a otra empresa/);
     expect(integration.config.clientPixels['client-b']).toBeUndefined();
   });
 

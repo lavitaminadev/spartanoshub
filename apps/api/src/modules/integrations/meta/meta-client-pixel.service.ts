@@ -315,7 +315,18 @@ export class MetaClientPixelService {
     if (suyoEnElMapa) return;
 
     if (conDueno.length === 0 && !deOtraEnElMapa) return;
-    throw new BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
+    /*
+     * El mensaje dice qué pasa y qué hacer, y no de quién es el Pixel.
+     *
+     * Quien administra su propia empresa no tiene por qué enterarse de qué otro negocio está en
+     * la plataforma, y el nombre no le sirve para resolverlo: lo que necesita es saber que ese
+     * número ya tiene dueño y por dónde se registra el suyo.
+     */
+    throw new BadRequestException(
+      `El Pixel ${pixelId} ya está asignado a otra empresa, y cada empresa mide en el suyo: `
+      + 'sus conversiones se mezclarían en el mismo Events Manager. Elige un Pixel de esta empresa, '
+      + 'o registra el suyo en Conexiones → Meta con su token de Conversions API.',
+    );
   }
 
   /**

@@ -175,7 +175,9 @@ let MetaClientPixelService = class MetaClientPixelService {
             return;
         if (conDueno.length === 0 && !deOtraEnElMapa)
             return;
-        throw new common_1.BadRequestException(`El Pixel ${pixelId} es de otra empresa. Cada empresa mide en el suyo.`);
+        throw new common_1.BadRequestException(`El Pixel ${pixelId} ya está asignado a otra empresa, y cada empresa mide en el suyo: `
+            + 'sus conversiones se mezclarían en el mismo Events Manager. Elige un Pixel de esta empresa, '
+            + 'o registra el suyo en Conexiones → Meta con su token de Conversions API.');
     }
     async pixelesElegibles(organizationId, clientId, enUso = []) {
         const filas = await this.pixelesGuardados.find({
