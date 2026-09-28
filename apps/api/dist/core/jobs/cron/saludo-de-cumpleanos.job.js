@@ -35,7 +35,7 @@ let SaludoDeCumpleanosJob = SaludoDeCumpleanosJob_1 = class SaludoDeCumpleanosJo
         const candidatos = await this.suscriptores.find({
             where: { status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO, birthDate: (0, typeorm_2.Not)((0, typeorm_3.IsNull)()) },
         });
-        const encendidoPorOrganizacion = new Map();
+        const encendidoPorEmpresa = new Map();
         let enviados = 0;
         for (const suscriptor of candidatos) {
             try {
@@ -47,10 +47,11 @@ let SaludoDeCumpleanosJob = SaludoDeCumpleanosJob_1 = class SaludoDeCumpleanosJo
                     continue;
                 if (suscriptor.lastSentAt && this.mismoDia(suscriptor.lastSentAt, hoy))
                     continue;
-                let encendido = encendidoPorOrganizacion.get(suscriptor.organizationId);
+                const clave = `${suscriptor.organizationId}:${suscriptor.clientId ?? 'sin-empresa'}`;
+                let encendido = encendidoPorEmpresa.get(clave);
                 if (encendido === undefined) {
-                    encendido = Boolean(await this.parametros.get('email.birthday_enabled', null, null, suscriptor.organizationId));
-                    encendidoPorOrganizacion.set(suscriptor.organizationId, encendido);
+                    encendido = Boolean(await this.parametros.get('email.birthday_enabled', suscriptor.clientId ?? null, null, suscriptor.organizationId));
+                    encendidoPorEmpresa.set(clave, encendido);
                 }
                 if (!encendido)
                     continue;
@@ -65,14 +66,14 @@ let SaludoDeCumpleanosJob = SaludoDeCumpleanosJob_1 = class SaludoDeCumpleanosJo
         this.logger.log(`Saludos de cumpleaños enviados: ${enviados} de ${candidatos.length} con fecha`);
     }
     mismoDia(a, b) {
-        return a.getFullYear() === b.getFullYear()
-            && a.getMonth() === b.getMonth()
-            && a.getDate() === b.getDate();
+        const uno = (0, edad_1.diaDelAnoEn)(a);
+        const otro = (0, edad_1.diaDelAnoEn)(b);
+        return uno.ano === otro.ano && uno.mes === otro.mes && uno.dia === otro.dia;
     }
     async enviar(suscriptor) {
         const [asunto, cuerpo] = await Promise.all([
-            this.parametros.get('email.birthday_subject', null, null, suscriptor.organizationId),
-            this.parametros.get('email.birthday_body', null, null, suscriptor.organizationId),
+            this.parametros.get('email.birthday_subject', suscriptor.clientId ?? null, null, suscriptor.organizationId),
+            this.parametros.get('email.birthday_body', suscriptor.clientId ?? null, null, suscriptor.organizationId),
         ]);
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? '¡Feliz cumpleaños, {{nombre}}!'), String(cuerpo ?? 'Que tengas un gran día.'), { nombre: suscriptor.name ?? '' }, this.enlaceDeBaja(suscriptor));
         await this.correo.send(suscriptor.email, subject, html);
