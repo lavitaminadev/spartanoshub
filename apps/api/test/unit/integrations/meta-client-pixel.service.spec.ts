@@ -367,3 +367,36 @@ describe('MetaClientPixelService · Pixel de la agencia', () => {
     await expect(service.resolveAgencia('org-1')).resolves.toEqual({ pixelId: '' });
   });
 });
+
+/*
+ * Un Pixel registrado en la organización pero no asignado a ninguna empresa no se ofrece a las
+ * empresas. Si una campaña suya ya lo usa, igual tiene que aparecer al abrirla: si no, el
+ * selector queda en blanco aunque la campaña siga enviando a ese Pixel.
+ */
+describe('Pixels que puede elegir una campaña', () => {
+  it('incluye el Pixel que una campaña de esa empresa ya usa, aunque no esté asignado a nadie', async () => {
+    const integracion = { config: { clientPixels: {}, metaPixels: { '1482422770574849': { name: 'FastNotJunkABR', accessToken: 'token', updatedAt: '2026-09-01' } } } };
+    const integrations = {
+      findOne: vi.fn().mockResolvedValue(integracion),
+      query: vi.fn().mockResolvedValue([{ pixel: '1482422770574849' }]),
+    };
+    const pixelesGuardados = { find: vi.fn().mockResolvedValue([]), findOne: vi.fn().mockResolvedValue(null) };
+    const servicio = new MetaClientPixelService(integrations as never, {} as never, pixelesGuardados as never, {} as never);
+
+    const elegibles = await servicio.elegiblesParaCampania('org-1', 'fastnotjunk');
+
+    expect(elegibles.pixels.map((pixel) => pixel.pixelId)).toContain('1482422770574849');
+    expect(integrations.query).toHaveBeenCalledWith(expect.stringContaining('crm_campaigns'), ['org-1', 'fastnotjunk']);
+  });
+
+  it('sin campañas que lo usen, un Pixel sin dueño no se ofrece a una empresa', async () => {
+    const integracion = { config: { clientPixels: {}, metaPixels: { '1482422770574849': { name: 'FastNotJunkABR', accessToken: 'token', updatedAt: '2026-09-01' } } } };
+    const integrations = { findOne: vi.fn().mockResolvedValue(integracion), query: vi.fn().mockResolvedValue([]) };
+    const pixelesGuardados = { find: vi.fn().mockResolvedValue([]), findOne: vi.fn().mockResolvedValue(null) };
+    const servicio = new MetaClientPixelService(integrations as never, {} as never, pixelesGuardados as never, {} as never);
+
+    const elegibles = await servicio.elegiblesParaCampania('org-1', 'otra-empresa');
+
+    expect(elegibles.pixels.map((pixel) => pixel.pixelId)).not.toContain('1482422770574849');
+  });
+});
