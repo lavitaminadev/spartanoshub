@@ -183,6 +183,7 @@
   border-radius: var(--radius-md);
   background: var(--white);
 }
+.measurement-row.is-meta { grid-template-columns: minmax(180px, 1fr) 74px 74px 74px auto; }
 .measurement-row > div:first-child { display: grid; gap: 2px; }
 .measurement-row strong { color: var(--text-dark); font-size: 13px; }
 .measurement-row span,
@@ -192,6 +193,7 @@
 @media (max-width: 900px) {
   .measurement-grid { grid-template-columns: 1fr; }
   .measurement-row { grid-template-columns: 1fr 70px 70px; }
+  .measurement-row.is-meta { grid-template-columns: 1fr 70px 70px 70px; }
   .measurement-row .meta-readiness { grid-column: 1 / -1; justify-self: start; }
 }
 .design-quick-help { display:grid; gap:3px; margin-bottom:14px; padding:11px 12px; border:1px solid var(--border); border-left:3px solid var(--primary); border-radius:var(--radius-md); background:var(--soft); }

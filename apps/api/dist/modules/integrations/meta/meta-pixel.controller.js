@@ -34,8 +34,11 @@ const meta_conversion_outbox_service_1 = require("./meta-conversion-outbox.servi
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const requires_recent_auth_decorator_1 = require("../../../core/auth/requires-recent-auth.decorator");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
+const campaign_entity_1 = require("../../crm/campaigns/campaign.entity");
 let MetaPixelController = class MetaPixelController {
-    constructor(pixel, conversions, oauth, assetDiscovery, metaLeadAds, insights, clientPixels, conversionOutbox, accountAccess) {
+    constructor(pixel, conversions, oauth, assetDiscovery, metaLeadAds, insights, clientPixels, conversionOutbox, accountAccess, campaigns) {
         this.pixel = pixel;
         this.conversions = conversions;
         this.oauth = oauth;
@@ -45,9 +48,17 @@ let MetaPixelController = class MetaPixelController {
         this.clientPixels = clientPixels;
         this.conversionOutbox = conversionOutbox;
         this.accountAccess = accountAccess;
+        this.campaigns = campaigns;
     }
     clientPixelCatalog(req) {
         return this.clientPixels.catalog(req.organizationId);
+    }
+    campaniasConCapi(req) {
+        return this.campaigns.find({
+            where: { organizationId: req.organizationId, clientId: (0, typeorm_2.Not)((0, typeorm_2.IsNull)()), metaCapiEnabled: true },
+            select: { id: true, name: true, clientId: true, metaPixelId: true, status: true },
+            order: { name: 'ASC' },
+        });
     }
     async pixelsElegibles(req, clientId) {
         if (clientId)
@@ -171,6 +182,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], MetaPixelController.prototype, "clientPixelCatalog", null);
+__decorate([
+    (0, common_1.Get)('client-pixels/campanias'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], MetaPixelController.prototype, "campaniasConCapi", null);
 __decorate([
     (0, common_1.Get)('client-pixels/elegibles'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
@@ -380,6 +399,7 @@ exports.MetaPixelController = MetaPixelController = __decorate([
     (0, common_1.Controller)('integrations/meta'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, module_scope_decorator_1.ModuleScope)('integrations'),
+    __param(9, (0, typeorm_1.InjectRepository)(campaign_entity_1.Campaign)),
     __metadata("design:paramtypes", [meta_pixel_service_1.MetaPixelService,
         meta_conversions_service_1.MetaConversionsService,
         meta_oauth_service_1.MetaOAuthService,
@@ -388,5 +408,6 @@ exports.MetaPixelController = MetaPixelController = __decorate([
         meta_insights_service_1.MetaInsightsService,
         meta_client_pixel_service_1.MetaClientPixelService,
         meta_conversion_outbox_service_1.MetaConversionOutboxService,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        typeorm_2.Repository])
 ], MetaPixelController);

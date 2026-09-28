@@ -6,6 +6,8 @@ import type { ReservationForm } from '../reservations/types';
 
 interface ClientOption { id: string; name: string }
 
+interface CampaniaCrm { id: string; name: string; clientId: string; metaPixelId: string | null; status: string }
+
 interface MetaPixelCatalog {
   bindings: Array<{ clientId: string; clientName: string; pixelId: string | null; pixelName: string | null; tokenConfigured: boolean; configuredAt: string | null }>;
   pixels: Array<{ pixelId: string; clientNames: string[]; pixelNames: string[]; usageCount: number; tokenConfigured: boolean }>;
@@ -42,17 +44,43 @@ export function MeasurementCenter() {
     enabled: hayReservas,
   });
   const { data: metaCatalog } = useQuery<MetaPixelCatalog>({ queryKey: ['meta-client-pixel-catalog'], queryFn: () => api.get('/integrations/meta/client-pixels/catalog') });
+  /*
+    Las campañas del CRM también envían a Meta. Sin ellas, una organización que mide solo desde
+    el CRM veía «0 flujos con CAPI» con los eventos llegando a Meta.
+  */
+  const { data: campanias = [] } = useQuery<CampaniaCrm[]>({
+    queryKey: ['meta-crm-campaigns', 'measurement-center'],
+    queryFn: () => api.get('/integrations/meta/client-pixels/campanias'),
+  });
+
+  /*
+    El Pixel efectivo es el mismo que resuelve el envío: el propio del ámbito si lo tiene, el de
+    su empresa si no. Contar solo el de la empresa ubicaba mal a los que se apartan de él.
+  */
+  const pixelDeEmpresa = useMemo(
+    () => new Map((metaCatalog?.bindings ?? []).filter((binding) => binding.pixelId).map((binding) => [binding.clientId, binding.pixelId as string])),
+    [metaCatalog?.bindings],
+  );
 
   const pixelUsage = useMemo(() => {
-    const byClient = new Map((metaCatalog?.bindings ?? []).filter((binding) => binding.pixelId).map((binding) => [binding.clientId, binding]));
     const usage = new Map<string, Array<ReservationForm>>();
     for (const form of forms) {
-      const binding = byClient.get(form.clientId);
-      if (!binding?.pixelId || !form.metaCapiEnabled) continue;
-      usage.set(binding.pixelId, [...(usage.get(binding.pixelId) ?? []), form]);
+      const pixelId = form.metaPixelId || pixelDeEmpresa.get(form.clientId);
+      if (!pixelId || !form.metaCapiEnabled) continue;
+      usage.set(pixelId, [...(usage.get(pixelId) ?? []), form]);
     }
     return usage;
-  }, [forms, metaCatalog?.bindings]);
+  }, [forms, pixelDeEmpresa]);
+
+  const campaniasPorPixel = useMemo(() => {
+    const usage = new Map<string, CampaniaCrm[]>();
+    for (const campania of campanias) {
+      const pixelId = campania.metaPixelId || pixelDeEmpresa.get(campania.clientId);
+      if (!pixelId) continue;
+      usage.set(pixelId, [...(usage.get(pixelId) ?? []), campania]);
+    }
+    return usage;
+  }, [campanias, pixelDeEmpresa]);
 
   const ga4Rows = useMemo(() => {
     const rows = new Map<string, { measurementId: string; clients: Set<string>; forms: ReservationForm[] }>();
@@ -67,7 +95,8 @@ export function MeasurementCenter() {
   }, [forms]);
 
   const configuredPixels = metaCatalog?.pixels ?? [];
-  const formsWithMeta = Array.from(pixelUsage.values()).reduce((total, list) => total + list.length, 0);
+  const formsWithMeta = Array.from(pixelUsage.values()).reduce((total, list) => total + list.length, 0)
+    + Array.from(campaniasPorPixel.values()).reduce((total, list) => total + list.length, 0);
   const formsWithGa4 = forms.filter((form) => form.ga4MeasurementId).length;
 
   return (
@@ -82,7 +111,7 @@ export function MeasurementCenter() {
 
       <div className="meta-health-strip">
         <div className="meta-health-item"><strong>{configuredPixels.length}</strong><span>Pixels Meta</span></div>
-        <div className="meta-health-item"><strong>{formsWithMeta}</strong><span>flujos con CAPI</span></div>
+        <div className="meta-health-item"><strong>{formsWithMeta}</strong><span>flujos y campañas con CAPI</span></div>
         <div className="meta-health-item"><strong>{ga4Rows.length}</strong><span>IDs GA4</span></div>
         <div className="meta-health-item"><strong>{formsWithGa4}</strong><span>flujos con GA4</span></div>
       </div>
@@ -90,18 +119,21 @@ export function MeasurementCenter() {
       <div className="measurement-grid">
         <section>
           <div className="integration-section-head">
-            <div><h4>Meta Pixel + CAPI</h4><p className="page-subtitle">Qué Pixel está guardado, cuántas empresas lo usan y cuántos flujos envían eventos.</p></div>
+            <div><h4>Meta Pixel + CAPI</h4><p className="page-subtitle">Qué Pixel está guardado, cuántas empresas lo usan y cuántos flujos de Reservas y campañas del CRM envían eventos.</p></div>
           </div>
           <div className="measurement-list">
             {configuredPixels.length === 0 ? <div className="alert alert-warning">Aún no hay Pixels guardados.</div> : configuredPixels.map((pixel) => {
               const formsUsingPixel = pixelUsage.get(pixel.pixelId) ?? [];
-              return <article key={pixel.pixelId} className="measurement-row">
+              const campaniasUsingPixel = campaniasPorPixel.get(pixel.pixelId) ?? [];
+              return <article key={pixel.pixelId} className="measurement-row is-meta">
                 <div><strong>{pixel.pixelNames?.[0] || 'Pixel Meta'}</strong><span>{pixel.pixelId}</span></div>
                 <div><b>{pixel.usageCount ?? pixel.clientNames?.length ?? 0}</b><small>empresa(s)</small></div>
                 <div><b>{formsUsingPixel.length}</b><small>flujo(s)</small></div>
+                <div><b>{campaniasUsingPixel.length}</b><small>campaña(s) CRM</small></div>
                 <span className={`meta-readiness is-${pixel.tokenConfigured ? 'ok' : 'warn'}`}>{pixel.tokenConfigured ? 'Token CAPI listo' : 'Falta token'}</span>
                 <small>{pixel.clientNames?.join(', ') || 'Sin empresas asociadas'}</small>
                 {formsUsingPixel.length > 0 && <small>Flujos: {formsUsingPixel.slice(0, 4).map((form) => `${form.name} (${clientName(form.clientId)})`).join(', ')}{formsUsingPixel.length > 4 ? '...' : ''}</small>}
+                {campaniasUsingPixel.length > 0 && <small>Campañas CRM: {campaniasUsingPixel.slice(0, 4).map((campania) => `${campania.name} (${clientName(campania.clientId)})`).join(', ')}{campaniasUsingPixel.length > 4 ? '...' : ''}</small>}
               </article>;
             })}
           </div>
