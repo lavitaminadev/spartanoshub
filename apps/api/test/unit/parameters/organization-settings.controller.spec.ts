@@ -108,6 +108,35 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
   });
 
   /*
+   * Dentro de una empresa, los correos son de quien la administra.
+   *
+   * El resto del equipo trabaja con sus reservas o sus leads, pero el texto que sale con la marca
+   * del local lo decide una sola persona: sin esta reja bastaba con poder editar el módulo
+   * —cualquier ejecutivo— para reescribir lo que reciben todos sus clientes.
+   */
+  it('una cuenta de empresa que no la administra no ve ninguna plantilla', async () => {
+    const request = { organizationId: 'org-1', user: { id: 'ana', role: UserRole.CLIENT, clientId: 'c-1' } } as any;
+    capacidades.tiene.mockResolvedValue(true);
+    // Puede editar sus módulos, pero no administra personas en su empresa.
+    permisos.can.mockImplementation(async (_org: string, _user: string, _rol: string, modulo: string) => modulo !== 'users');
+    settings.list.mockResolvedValue([{ key: 'email.reservation_confirmation_subject' }]);
+
+    await expect(controller.correos(request)).rejects.toThrow(ForbiddenException);
+    await expect(controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } }))
+      .rejects.toThrow(ForbiddenException);
+    expect(settings.update).not.toHaveBeenCalled();
+  });
+
+  it('quien sí administra su empresa ve y guarda las plantillas de sus módulos', async () => {
+    const request = { organizationId: 'org-1', user: { id: 'ana', role: UserRole.CLIENT, clientId: 'c-1' } } as any;
+    capacidades.tiene.mockResolvedValue(true);
+    permisos.can.mockResolvedValue(true);
+    settings.list.mockResolvedValue([{ key: 'email.reservation_confirmation_subject' }]);
+
+    await expect(controller.correos(request)).resolves.toEqual([{ key: 'email.reservation_confirmation_subject' }]);
+  });
+
+  /*
    * El permiso dice qué puede hacer una persona; la contratación, si esa empresa usa el servicio.
    * Escribir la plantilla de la encuesta de una empresa sin Encuestas es un correo para nadie.
    */
