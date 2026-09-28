@@ -35,6 +35,7 @@ import { EmailService } from '../../../core/notifications/email.service';
 import { componerCorreo, type DetalleDeCorreo, type TarjetaDeCorreo } from '../../../core/notifications/plantilla-de-correo';
 import { ORGANIZATION_SETTINGS } from '../../../core/parameters/organization-settings.catalog';
 import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
+import { leerPlantilla } from '../../../core/parameters/plantilla-resuelta';
 import { AuditService } from '../../../core/audit/audit.service';
 import { MetaClientPixelService } from '../../integrations/meta/meta-client-pixel.service';
 import { AltaDeSuscriptorDesdeReserva } from '../../marketing/alta-desde-reserva';
@@ -1972,7 +1973,25 @@ export class ReservationsService {
       const equipo = await this.equipoDelLocal(form);
       // Con el id, tocar el aviso abre esa reserva y no la portada del módulo.
       if (equipo.userIds.length) await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle, { reservationId: booking.id, formId: form.id, clientId: form.clientId });
-      const { subject, html } = componerCorreo(titulo, '{{detalle}}', { detalle });
+      /*
+       * El correo usa su plantilla, editable en Correos; el aviso dentro de la aplicación de arriba
+       * sale siempre, esté encendido o no el correo.
+       */
+      const plantilla = await leerPlantilla(
+        this.parametros,
+        cambio === 'cancelada' ? 'email.team_guest_cancel' : 'email.team_guest_reschedule',
+        { clientId: form.clientId, organizationId: form.organizationId },
+        { asunto: titulo, cuerpo: detalle.replace(/\{\{/g, '{ {') },
+      );
+      if (!plantilla.encendido) return;
+      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+        nombre: booking.guestName,
+        codigo: booking.referenceCode,
+        local: form.name,
+        fecha: fecha(booking.startsAt),
+        antes: horaAnterior ? fecha(horaAnterior) : '',
+        personas: booking.partySize,
+      });
       void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
         .catch((err) => this.logger.warn(`Aviso de cambio de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
     } catch (err) {
@@ -2711,38 +2730,33 @@ export class ReservationsService {
     try {
       if (!booking.guestEmail) return;
 
-      const encendido = await this.parametros.get(
-        'email.reservation_confirmation_enabled', form.clientId, null, form.organizationId,
-      );
-      if (!encendido) return;
-
-      const [asunto, cuerpo] = await Promise.all([
-        this.parametros.get('email.reservation_confirmation_subject', form.clientId, null, form.organizationId),
-        this.parametros.get('email.reservation_confirmation_body', form.clientId, null, form.organizationId),
-      ]);
-
       const managementUrl = managementToken && process.env.APP_PUBLIC_URL
         ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${managementToken}` : undefined;
 
       /*
        * Una reserva pendiente no está confirmada, y el comprobante no puede decir que sí.
        *
-       * En modo de revisión manual —y en cualquier grupo grande— la reserva nace `pending`. La
-       * pantalla pública lo dice bien: «aún no está confirmada». El correo usaba igualmente la
-       * plantilla de confirmación, así que la persona leía que tenía mesa asegurada y el local
-       * se encontraba con alguien que llegaba sin cupo. Este texto no es configurable a
-       * propósito: la plantilla de la empresa afirma una confirmación que todavía no ocurrió.
+       * En modo de revisión manual —y en cualquier grupo grande— la reserva nace `pending`. El
+       * correo usaba la plantilla de confirmación, así que la persona leía que tenía mesa asegurada
+       * y el local se encontraba con alguien que llegaba sin cupo. Tiene su propia plantilla, con
+       * su propio interruptor: apagar la confirmación no deja sin aviso a quien espera respuesta.
        */
       const pendiente = booking.status === 'pending';
-      const plantilla = pendiente
-        ? {
-          asunto: 'Recibimos tu solicitud en {{local}}',
-          cuerpo: 'Hola {{nombre}}:\n\nRecibimos tu solicitud para el {{fecha}} en {{local}}. Todavía no está confirmada: el local la revisará y te avisará por este mismo medio.\n\nPersonas: {{personas}}\nCódigo: {{codigo}}',
-        }
-        : {
-          asunto: String(asunto ?? 'Tu reserva en {{local}} está confirmada'),
-          cuerpo: String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
-        };
+      const plantilla = await leerPlantilla(
+        this.parametros,
+        pendiente ? 'email.reservation_pending' : 'email.reservation_confirmation',
+        { clientId: form.clientId, organizationId: form.organizationId },
+        pendiente
+          ? {
+            asunto: 'Recibimos tu solicitud en {{local}}',
+            cuerpo: 'Hola {{nombre}}:\n\nRecibimos tu solicitud para el {{fecha}} en {{local}}. Todavía no está confirmada: el local la revisará y te avisará por este mismo medio.\n\nPersonas: {{personas}}\nCódigo: {{codigo}}',
+          }
+          : { asunto: 'Tu reserva en {{local}} está confirmada', cuerpo: 'Tu reserva quedó confirmada para el {{fecha}}.' },
+      );
+      // Apagar la confirmación siempre apagó también el aviso de pendiente. Se conserva: una
+      // empresa que lo tenía apagado no empieza a recibir correos que nunca pidió.
+      const confirmacion = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
+      if (!confirmacion || !plantilla.encendido) return;
 
       const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);
       const { subject, html } = componerCorreo(

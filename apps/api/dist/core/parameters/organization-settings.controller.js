@@ -36,6 +36,9 @@ const requisitos_de_correo_1 = require("./requisitos-de-correo");
 const ES_CLAVE_DE_CORREO = (clave) => clave.startsWith('email.');
 exports.MODULO_DE_CORREO = [
     ['email.post_visit_survey', ['surveys']],
+    ['email.team_survey_message', ['surveys']],
+    ['email.survey_invite', ['surveys']],
+    ['email.access_', ['agencia']],
     ['email.new_lead', ['crm']],
     ['email.idle_lead', ['crm']],
     ['email.daily_digest', ['crm']],
@@ -128,6 +131,11 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
         if (ajenas.length)
             throw new common_1.ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
+        if (request.user.role === user_role_enum_1.UserRole.CLIENT) {
+            const textos = Object.keys(valores).filter((clave) => clave.endsWith('_subject') || clave.endsWith('_body'));
+            if (textos.length)
+                throw new common_1.ForbiddenException('El texto de los correos lo escribe Espartanos. Desde aquí puedes encenderlos, apagarlos y ver qué dicen.');
+        }
         const puede = await this.modulosQuePuedeEditar(request, clientId);
         const sinPermiso = Object.keys(valores).filter((clave) => !modulosDeCorreo(clave).some((modulo) => puede.has(modulo)));
         if (sinPermiso.length)

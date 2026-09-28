@@ -1,5 +1,8 @@
 import { BRAND } from '../../shared/brand';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ParameterResolver } from '../parameters/parameter-resolver.service';
+import { leerPlantilla } from '../parameters/plantilla-resuelta';
+import { componerCorreo } from './plantilla-de-correo';
 import nodemailer, { SendMailOptions, Transporter } from 'nodemailer';
 
 function escapeHtml(value: string): string {
@@ -19,7 +22,9 @@ export class EmailService {
   private readonly from: string;
   private readonly replyTo?: string;
 
-  constructor() {
+  // Opcional: las pruebas y los usos sin base de datos siguen construyéndolo sin argumentos, y
+  // entonces los correos de acceso usan su texto de fábrica.
+  constructor(@Optional() private readonly parametros?: ParameterResolver) {
     const enabled = process.env.SMTP_ENABLED === 'true';
     this.from = process.env.SMTP_FROM?.trim() || '';
     this.replyTo = process.env.SMTP_REPLY_TO?.trim() || undefined;
@@ -134,26 +139,53 @@ export class EmailService {
     );
   }
 
-  async sendTemporaryPassword(name: string, recipient: string, password: string, loginUrl: string): Promise<boolean> {
-    return this.send(
-      recipient,
-      `Acceso temporal a ${BRAND.name}`,
-      `<h2>Hola ${escapeHtml(name)}</h2>
-       <p>Un administrador generó un acceso temporal para tu cuenta.</p>
-       <p>Contraseña temporal: <strong>${escapeHtml(password)}</strong></p>
-       <p><a href="${escapeHtml(loginUrl)}">Ingresar a ${BRAND.name}</a></p>
-       <p>El sistema solicitará crear una contraseña personal al iniciar sesión.</p>`,
+  /**
+   * Contraseña temporal para una cuenta nueva o reseteada.
+   *
+   * El texto sale de su plantilla, editable en Correos. No tiene interruptor: sin él la persona no
+   * entra. Y si la plantilla guardada perdió `{{clave}}` o `{{enlace}}`, se usa la de fábrica.
+   */
+  async sendTemporaryPassword(name: string, recipient: string, password: string, loginUrl: string, organizationId?: string | null): Promise<boolean> {
+    const plantilla = await this.plantillaDeAcceso('email.access_temporary_password', organizationId, {
+      asunto: `Acceso temporal a ${BRAND.name}`,
+      cuerpo: 'Hola {{nombre}}:\n\nUn administrador generó un acceso temporal para tu cuenta.\n\nContraseña temporal: {{clave}}\n\nEntra en {{enlace}}. El sistema te pedirá crear una contraseña personal al iniciar sesión.',
+    }, ['clave', 'enlace']);
+    const { subject, html } = componerCorreo(
+      plantilla.asunto,
+      plantilla.cuerpo,
+      { nombre: name, clave: password, enlace: loginUrl },
+      { texto: `Ingresar a ${BRAND.name}`, url: loginUrl },
     );
+    return this.send(recipient, subject, html);
   }
 
-  async sendPasswordReset(name: string, recipient: string, resetUrl: string): Promise<boolean> {
-    return this.send(
-      recipient,
-      `Recupera tu acceso a ${BRAND.name}`,
-      `<h2>Hola ${escapeHtml(name)}</h2>
-       <p>Recibimos una solicitud para restablecer tu contraseña.</p>
-       <p><a href="${escapeHtml(resetUrl)}">Crear una nueva contraseña</a></p>
-       <p>Este enlace vence en 30 minutos. Si no solicitaste el cambio, ignora este mensaje.</p>`,
+  /** Enlace para recuperar el acceso. Misma regla: sin interruptor, y `{{enlace}}` obligatorio. */
+  async sendPasswordReset(name: string, recipient: string, resetUrl: string, organizationId?: string | null): Promise<boolean> {
+    const plantilla = await this.plantillaDeAcceso('email.access_password_reset', organizationId, {
+      asunto: `Recupera tu acceso a ${BRAND.name}`,
+      cuerpo: 'Hola {{nombre}}:\n\nRecibimos una solicitud para restablecer tu contraseña. Para crear una nueva entra en {{enlace}}\n\nEste enlace vence en 30 minutos. Si no lo pediste, ignora este mensaje.',
+    }, ['enlace']);
+    const { subject, html } = componerCorreo(
+      plantilla.asunto,
+      plantilla.cuerpo,
+      { nombre: name, enlace: resetUrl },
+      { texto: 'Crear una nueva contraseña', url: resetUrl },
     );
+    return this.send(recipient, subject, html);
+  }
+
+  /**
+   * La plantilla de un correo de acceso, o la de fábrica si no se puede leer.
+   *
+   * Un fallo al leer los parámetros no puede impedir que alguien reciba su acceso: se cae al
+   * texto de fábrica, que siempre funciona.
+   */
+  private async plantillaDeAcceso(prefijo: string, organizationId: string | null | undefined, respaldo: { asunto: string; cuerpo: string }, obligatorias: string[]) {
+    if (!this.parametros) return { ...respaldo, encendido: true };
+    try {
+      return await leerPlantilla(this.parametros, prefijo, { organizationId: organizationId ?? null }, respaldo, { obligatorias, encendidoPorDefecto: null });
+    } catch {
+      return { ...respaldo, encendido: true };
+    }
   }
 }

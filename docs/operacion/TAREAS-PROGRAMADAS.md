@@ -43,13 +43,14 @@ en el mismo segundo.
 
 ## Imprescindibles
 
-Sin estas cinco, Reservas queda a medias.
+Sin estas seis, Reservas queda a medias.
 
 | Tarea | Frecuencia | Qué pasa si falta |
 |---|---|---|
 | `meta-capi` | cada 10 min | Las conversiones se acumulan en la cola y **nunca llegan a Meta**. Las campañas optimizan a ciegas. |
 | `recordatorio-reservas` | cada hora | No se envía el recordatorio de la víspera, que es la medida que más reduce las ausencias. |
 | `encuesta-post-visita` | cada hora | No se envía la encuesta tras la visita: no entra ninguna opinión. |
+| `cupon-post-visita` | cada hora | No sale el cupón automático, aunque esté encendido y con cupón elegido en Reservas → Cupones. |
 | `cierre-asistencia` | cada hora | Las reservas pasadas quedan abiertas para siempre y la asistencia nunca se informa. |
 | `data-retention` | diaria, de madrugada | No se anonimiza lo vencido. Es una obligación de la ley 21.719, no una comodidad. |
 

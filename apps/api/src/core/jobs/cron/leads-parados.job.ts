@@ -1,4 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { EmailService } from '../../notifications/email.service';
+import { componerCorreo } from '../../notifications/plantilla-de-correo';
+import { leerPlantilla } from '../../parameters/plantilla-resuelta';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
 import { User } from '../../../modules/users/user.entity';
@@ -56,7 +59,46 @@ export class LeadsParadosJob {
     @InjectRepository(Notification) private readonly notificaciones: Repository<Notification>,
     @InjectRepository(User) private readonly usuarios: Repository<User>,
     private readonly parametros: ParameterResolver,
+    @Optional() private readonly correo?: EmailService,
   ) {}
+
+  /**
+   * El correo del aviso, además de la notificación dentro de la aplicación.
+   *
+   * El interruptor «Aviso de lead parado» existía en Correos pero ningún código lo leía: sólo
+   * salía la notificación. Ahora, si está encendido, también llega por correo. La notificación
+   * sale siempre, encendido o no.
+   *
+   * Nunca hace fallar el aviso: si el correo no sale, la notificación ya quedó guardada.
+   */
+  private async enviarCorreo(lead: Lead, destinatario: string, idleDays: number): Promise<void> {
+    if (!this.correo) return;
+    try {
+      const plantilla = await leerPlantilla(
+        this.parametros,
+        'email.idle_lead',
+        { clientId: lead.clientId ?? null, organizationId: lead.organizationId },
+        {
+          asunto: '{{lead}} lleva {{dias}} días sin movimiento',
+          cuerpo: 'Hola {{responsable}}:\n\n{{lead}} sigue en «{{etapa}}» hace {{dias}} días. Conviene retomarlo antes de que se enfríe.',
+        },
+        // Apagado de fábrica: el resumen diario ya lo cuenta.
+        { encendidoPorDefecto: false },
+      );
+      if (!plantilla.encendido) return;
+      const persona = await this.usuarios.findOne({ where: { id: destinatario }, select: { id: true, name: true, email: true } });
+      if (!persona?.email) return;
+      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+        responsable: persona.name?.trim().split(/\s+/)[0] ?? '',
+        lead: lead.name,
+        etapa: lead.status,
+        dias: idleDays,
+      });
+      await this.correo.send(persona.email, subject, html);
+    } catch (error) {
+      this.logger.warn(`No se pudo enviar el correo del lead parado ${lead.id}: ${error instanceof Error ? error.message : error}`);
+    }
+  }
 
   async handle(): Promise<void> {
     /*
@@ -71,7 +113,7 @@ export class LeadsParadosJob {
         status: Not(In(['won', 'lost', 'attended', 'no_show'])),
       },
       select: {
-        id: true, organizationId: true, name: true, status: true,
+        id: true, organizationId: true, clientId: true, name: true, status: true,
         assignedTo: true, stageChangedAt: true, createdAt: true, idleAlertedLevel: true,
       },
     });
@@ -128,6 +170,8 @@ export class LeadsParadosJob {
             : `«${lead.name}» ${verbo} ${idleDays} ${idleDays === 1 ? 'día' : 'días'} sin avanzar.`,
           data: { leadId: lead.id, status: lead.status, idleDays, idleLevel, sinResponsable: sinDuenio },
         }));
+
+        await this.enviarCorreo(lead, destinatario, idleDays);
 
         // Después de notificar: si el guardado fallara, el aviso se repetiría en la siguiente
         // pasada, que es preferible a marcarlo como avisado sin haberlo mandado.

@@ -20,7 +20,9 @@ import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurvey
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { EmailService } from '../../core/notifications/email.service';
-import { armazonDeCorreo } from '../../core/notifications/plantilla-de-correo';
+import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
+import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
+import { leerPlantilla } from '../../core/parameters/plantilla-resuelta';
 import { exigirEncuestasHabilitadas } from './encuestas-de-la-empresa';
 import { In, IsNull } from 'typeorm';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
@@ -55,6 +57,7 @@ export class SurveysController {
     private readonly accountAccess: AccountAccessService,
     private readonly correo: EmailService,
     private readonly audit: AuditService,
+    private readonly parametros: ParameterResolver,
   ) {}
 
   /** Traduce la fila a la forma que el frontend ya consume, con el conteo desnormalizado. */
@@ -452,9 +455,21 @@ export class SurveysController {
     }
 
     const enlace = `${base}?src=email`;
-    const html = armazonDeCorreo(
-      survey.title,
-      survey.designConfig?.welcome || 'Nos gustaría saber tu opinión. Es un minuto.',
+    /*
+     * La plantilla es la de Correos; el texto de bienvenida que escribió quien armó la encuesta,
+     * si lo hay, sigue mandando sobre ella: es lo que esa encuesta en particular quiso decir.
+     */
+    const plantilla = await leerPlantilla(
+      this.parametros,
+      'email.survey_invite',
+      { clientId: survey.clientId ?? null, organizationId: survey.organizationId },
+      { asunto: '{{encuesta}}', cuerpo: 'Nos gustaría saber tu opinión. Es un minuto.' },
+      { encendidoPorDefecto: null },
+    );
+    const { subject, html } = componerCorreo(
+      plantilla.asunto,
+      survey.designConfig?.welcome || plantilla.cuerpo,
+      { encuesta: survey.title },
       { texto: 'Responder la encuesta', url: enlace },
     );
 
@@ -462,7 +477,7 @@ export class SurveysController {
     let fallidos = 0;
     for (const destino of validos) {
       // Uno por uno: si un destino falla, los demás siguen saliendo.
-      const ok = await this.correo.send(destino, survey.title, html).catch(() => false);
+      const ok = await this.correo.send(destino, subject, html).catch(() => false);
       if (ok) enviados += 1; else fallidos += 1;
     }
     return { enviados, fallidos, invalidos };

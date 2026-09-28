@@ -27,6 +27,8 @@ const email_service_1 = require("../../core/notifications/email.service");
 const shared_1 = require("@espartanos/shared");
 const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
+const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
+const plantilla_resuelta_1 = require("../../core/parameters/plantilla-resuelta");
 function hashDelToken(token) {
     return (0, node_crypto_1.createHash)('sha256').update(token).digest('hex');
 }
@@ -43,11 +45,12 @@ function secretoDeInvitaciones() {
     return process.env.JWT_SECRET || '';
 }
 let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlowService {
-    constructor(surveys, responses, dataSource, correo) {
+    constructor(surveys, responses, dataSource, correo, parametros) {
         this.surveys = surveys;
         this.responses = responses;
         this.dataSource = dataSource;
         this.correo = correo;
+        this.parametros = parametros;
         this.logger = new common_1.Logger(PublicSurveyFlowService_1.name);
     }
     async activa(surveyId) {
@@ -207,13 +210,25 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
         if (destinatarios.size === 0)
             return;
         const quien = respuesta.respondentName?.trim() || 'Una persona que los visitó';
-        const html = (0, plantilla_de_correo_1.armazonDeCorreo)(`${quien} les dejó un mensaje`, `Calificó su visita a ${local.name} con ${respuesta.rating ?? '—'} de 5 y quiso contarles esto antes de publicar nada:\n\n«${respuesta.teamMessage}»${respuesta.respondentEmail ? '\n\nPueden responderle directo a este correo.' : ''}`, undefined, undefined, [
+        const plantilla = await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, 'email.team_survey_message', { clientId: survey.clientId ?? null, organizationId: survey.organizationId }, {
+            asunto: 'Mensaje de {{nombre}} sobre su visita',
+            cuerpo: 'Calificó su visita a {{local}} con {{nota}} de 5 y quiso contarles esto antes de publicar nada:\n\n«{{mensaje}}»',
+        });
+        if (!plantilla.encendido)
+            return;
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, `${plantilla.cuerpo}${respuesta.respondentEmail ? '\n\nPueden responderle directo a este correo.' : ''}`, {
+            nombre: quien,
+            local: local.name,
+            nota: respuesta.rating ?? '—',
+            mensaje: respuesta.teamMessage ?? '',
+            encuesta: survey.title,
+        }, undefined, undefined, [
             { etiqueta: 'Encuesta', valor: survey.title },
             { etiqueta: 'Nota', valor: `${respuesta.rating ?? '—'} de 5` },
             ...(respuesta.respondentEmail ? [{ etiqueta: 'Correo', valor: respuesta.respondentEmail }] : []),
         ]);
         for (const destino of destinatarios) {
-            await this.correo.send(destino, `Mensaje de ${quien} sobre su visita`, html, respuesta.respondentEmail ? { replyTo: respuesta.respondentEmail } : undefined);
+            await this.correo.send(destino, subject, html, respuesta.respondentEmail ? { replyTo: respuesta.respondentEmail } : undefined);
         }
     }
 };
@@ -226,5 +241,6 @@ exports.PublicSurveyFlowService = PublicSurveyFlowService = PublicSurveyFlowServ
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.DataSource,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        parameter_resolver_service_1.ParameterResolver])
 ], PublicSurveyFlowService);

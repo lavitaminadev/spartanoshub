@@ -117,7 +117,7 @@ let CreateUserUseCase = class CreateUserUseCase {
         });
         const appUrl = (process.env.APP_PUBLIC_URL || 'http://localhost:5173').replace(/\/$/, '');
         const correoEnviado = await this.email
-            .sendTemporaryPassword(creado.name, creado.email, data.password, `${appUrl}/login`)
+            .sendTemporaryPassword(creado.name, creado.email, data.password, `${appUrl}/login`, creado.organizationId)
             .catch(() => false);
         return Object.assign(creado, { correoEnviado });
     }

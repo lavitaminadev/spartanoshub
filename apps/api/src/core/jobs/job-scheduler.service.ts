@@ -1,4 +1,7 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CronRun } from '../cron/cron-run.entity';
 import { CloseXpPeriodsJob } from './cron/close-xp-periods.job';
 import { CreateMonthlyCyclesJob } from './cron/create-monthly-cycles.job';
 import { DetectStalePiecesJob } from './cron/detect-stale-pieces.job';
@@ -47,6 +50,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly automations: AutomationRunnerService,
     private readonly automationSchedule: AutomationScheduleJob,
     private readonly webhooks: WebhookDeliveryService,
+    @InjectRepository(CronRun) private readonly corridas: Repository<CronRun>,
   ) {}
 
   onModuleInit(): void {
@@ -119,10 +123,32 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     const run = async () => {
       if (this.running.has(name)) return;
       this.running.add(name);
-      try { await task(); } catch (error) { this.logger.error(`${name} failed`, error instanceof Error ? error.stack : undefined); }
-      finally { this.running.delete(name); }
+      try {
+        await task();
+        await this.anotar(name, true, null);
+      } catch (error) {
+        this.logger.error(`${name} failed`, error instanceof Error ? error.stack : undefined);
+        await this.anotar(name, false, error instanceof Error ? error.message.slice(0, 500) : 'falló');
+      } finally { this.running.delete(name); }
     };
     if (runAtStartup) void run();
     const timer = setInterval(() => void run(), interval); timer.unref(); this.timers.push(timer);
+  }
+
+  /**
+   * Deja constancia de la corrida, igual que cuando la dispara el cron de cPanel.
+   *
+   * La pantalla de Correos decide si un aviso «sale» mirando cuándo corrió su tarea por última
+   * vez, y sólo el cron de cPanel lo anotaba. Con el planificador interno haciendo el trabajo, los
+   * avisos se enviaban y la pantalla igual los marcaba como «encendidos que no salen».
+   *
+   * Nunca hace fallar la tarea: el trabajo ya se hizo, y perderlo por no poder anotarlo sería peor.
+   */
+  private async anotar(task: string, ok: boolean, detail: string | null): Promise<void> {
+    try {
+      await this.corridas.save({ task, lastRunAt: new Date(), ok, detail });
+    } catch (error) {
+      this.logger.warn(`No se pudo anotar la corrida de ${task}: ${error instanceof Error ? error.message : error}`);
+    }
   }
 }

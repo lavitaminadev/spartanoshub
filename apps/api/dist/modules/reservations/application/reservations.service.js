@@ -51,6 +51,7 @@ const email_service_1 = require("../../../core/notifications/email.service");
 const plantilla_de_correo_1 = require("../../../core/notifications/plantilla-de-correo");
 const organization_settings_catalog_1 = require("../../../core/parameters/organization-settings.catalog");
 const parameter_resolver_service_1 = require("../../../core/parameters/parameter-resolver.service");
+const plantilla_resuelta_1 = require("../../../core/parameters/plantilla-resuelta");
 const audit_service_1 = require("../../../core/audit/audit.service");
 const meta_client_pixel_service_1 = require("../../integrations/meta/meta-client-pixel.service");
 const alta_desde_reserva_1 = require("../../marketing/alta-desde-reserva");
@@ -1558,7 +1559,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const equipo = await this.equipoDelLocal(form);
             if (equipo.userIds.length)
                 await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle, { reservationId: booking.id, formId: form.id, clientId: form.clientId });
-            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(titulo, '{{detalle}}', { detalle });
+            const plantilla = await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, cambio === 'cancelada' ? 'email.team_guest_cancel' : 'email.team_guest_reschedule', { clientId: form.clientId, organizationId: form.organizationId }, { asunto: titulo, cuerpo: detalle.replace(/\{\{/g, '{ {') });
+            if (!plantilla.encendido)
+                return;
+            const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, {
+                nombre: booking.guestName,
+                codigo: booking.referenceCode,
+                local: form.name,
+                fecha: fecha(booking.startsAt),
+                antes: horaAnterior ? fecha(horaAnterior) : '',
+                personas: booking.partySize,
+            });
             void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
                 .catch((err) => this.logger.warn(`Aviso de cambio de ${booking.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
@@ -2152,25 +2163,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         try {
             if (!booking.guestEmail)
                 return;
-            const encendido = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
-            if (!encendido)
-                return;
-            const [asunto, cuerpo] = await Promise.all([
-                this.parametros.get('email.reservation_confirmation_subject', form.clientId, null, form.organizationId),
-                this.parametros.get('email.reservation_confirmation_body', form.clientId, null, form.organizationId),
-            ]);
             const managementUrl = managementToken && process.env.APP_PUBLIC_URL
                 ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${managementToken}` : undefined;
             const pendiente = booking.status === 'pending';
-            const plantilla = pendiente
+            const plantilla = await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, pendiente ? 'email.reservation_pending' : 'email.reservation_confirmation', { clientId: form.clientId, organizationId: form.organizationId }, pendiente
                 ? {
                     asunto: 'Recibimos tu solicitud en {{local}}',
                     cuerpo: 'Hola {{nombre}}:\n\nRecibimos tu solicitud para el {{fecha}} en {{local}}. Todavía no está confirmada: el local la revisará y te avisará por este mismo medio.\n\nPersonas: {{personas}}\nCódigo: {{codigo}}',
                 }
-                : {
-                    asunto: String(asunto ?? 'Tu reserva en {{local}} está confirmada'),
-                    cuerpo: String(cuerpo ?? 'Tu reserva quedó confirmada para el {{fecha}}.'),
-                };
+                : { asunto: 'Tu reserva en {{local}} está confirmada', cuerpo: 'Tu reserva quedó confirmada para el {{fecha}}.' });
+            const confirmacion = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
+            if (!confirmacion || !plantilla.encendido)
+                return;
             const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);
             const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, {
                 nombre: booking.guestName,

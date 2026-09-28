@@ -73,7 +73,7 @@ let ResetUserPasswordUseCase = class ResetUserPasswordUseCase {
         user.refreshToken = null;
         await this.users.save(user);
         const appUrl = (process.env.APP_PUBLIC_URL || 'http://localhost:5173').replace(/\/$/, '');
-        const emailSent = params.sendEmail !== false && await this.email.sendTemporaryPassword(user.name, user.email, temporaryPassword, `${appUrl}/login`);
+        const emailSent = params.sendEmail !== false && await this.email.sendTemporaryPassword(user.name, user.email, temporaryPassword, `${appUrl}/login`, user.organizationId);
         return { userId: user.id, temporaryPassword, emailSent, mustChangePassword: true };
     }
 };

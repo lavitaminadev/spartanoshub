@@ -52,6 +52,10 @@ export const MODULO_DE_CORREO: Array<[string, ModuloDeCorreo[]]> = [
   // Encuestas. `email.survey` estaba declarado y no lo usa ninguna plantilla: las de encuesta
   // se llaman `email.post_visit_survey_*`. Lo señaló la prueba que compara con el catálogo.
   ['email.post_visit_survey', ['surveys']],
+  ['email.team_survey_message', ['surveys']],
+  ['email.survey_invite', ['surveys']],
+  // Contraseña temporal y recuperar el acceso: son de la plataforma, no de ninguna empresa.
+  ['email.access_', ['agencia']],
   // CRM
   ['email.new_lead', ['crm']],
   ['email.idle_lead', ['crm']],
@@ -262,6 +266,18 @@ export class OrganizationSettingsController {
     const valores = dto.values ?? {};
     const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
     if (ajenas.length) throw new ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
+    /*
+     * Una empresa enciende y apaga sus correos, pero no reescribe el texto.
+     *
+     * Lo que sale con su marca lo redacta Espartanos: una plantilla a medio editar —sin el enlace
+     * para gestionar la reserva, con una variable borrada— llega igual a todos sus clientes. La
+     * empresa ve qué dice cada correo y decide si sale; el resto de ajustes —cuántas horas antes,
+     * qué encuesta— sigue siendo suyo.
+     */
+    if (request.user.role === UserRole.CLIENT) {
+      const textos = Object.keys(valores).filter((clave) => clave.endsWith('_subject') || clave.endsWith('_body'));
+      if (textos.length) throw new ForbiddenException('El texto de los correos lo escribe Espartanos. Desde aquí puedes encenderlos, apagarlos y ver qué dicen.');
+    }
     // Cada plantilla exige el permiso de su módulo: con CRM no se reescribe lo que recibe quien reserva.
     const puede = await this.modulosQuePuedeEditar(request, clientId);
     const sinPermiso = Object.keys(valores).filter((clave) => !modulosDeCorreo(clave).some((modulo) => puede.has(modulo)));
