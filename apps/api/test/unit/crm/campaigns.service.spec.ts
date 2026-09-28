@@ -193,3 +193,43 @@ describe('CampaignsService · el Pixel de la campaña', () => {
     expect(clientPixels.assertPixelDeLaEmpresa).toHaveBeenCalledWith('org-1', 'cliente-2', '999');
   });
 });
+
+/*
+ * Meta manda el nombre de la campaña, no de quién es. Con el mismo nombre en dos empresas, un
+ * lead no se puede atribuir y queda en error hasta que alguien renombre una.
+ */
+describe('CampaignsService · nombre de campaña único entre empresas', () => {
+  it('rechaza crear una campaña con el nombre que ya usa otra empresa', async () => {
+    const { service, campaigns } = servicio([{ id: 'c1', name: 'Verano', clientId: 'cliente-1' }]);
+
+    await expect(service.create('org-1', { name: 'Verano', clientId: 'cliente-2' } as never)).rejects.toThrow(/otra cuenta/);
+    expect(campaigns.save).not.toHaveBeenCalled();
+  });
+
+  it('también choca entre una empresa y la agencia', async () => {
+    const { service } = servicio([{ id: 'c1', name: 'Verano', clientId: null }]);
+
+    await expect(service.create('org-1', { name: 'Verano', clientId: 'cliente-1' } as never)).rejects.toThrow(/otra cuenta/);
+  });
+
+  it('dentro de la misma empresa se puede repetir: no hay duda de a quién pertenece el lead', async () => {
+    const { service } = servicio([{ id: 'c1', name: 'Verano', clientId: 'cliente-1' }]);
+
+    await expect(service.create('org-1', { name: 'Verano', clientId: 'cliente-1' } as never)).resolves.toBeDefined();
+  });
+
+  it('renombrar hacia el nombre de otra empresa se rechaza', async () => {
+    const { service, campaigns } = servicio([{ id: 'c1', name: 'Primavera', clientId: 'cliente-1' }]);
+    campaigns.find.mockResolvedValue([{ id: 'c9', name: 'Verano', clientId: 'cliente-2' }]);
+
+    await expect(service.update('c1', 'org-1', { name: 'Verano' } as never)).rejects.toThrow(/otra cuenta/);
+  });
+
+  /* Editar otra cosa de una campaña antigua ya repetida no la deja atascada. */
+  it('editar la inversión de una campaña ya repetida no revisa el nombre', async () => {
+    const { service, campaigns } = servicio([{ id: 'c1', name: 'Verano', clientId: 'cliente-1' }]);
+    campaigns.find.mockResolvedValue([{ id: 'c9', name: 'Verano', clientId: 'cliente-2' }]);
+
+    await expect(service.update('c1', 'org-1', { name: 'Verano', investment: 5000, clientId: 'cliente-1' } as never)).resolves.toBeDefined();
+  });
+});

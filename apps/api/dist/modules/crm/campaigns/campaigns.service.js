@@ -29,6 +29,14 @@ let CampaignsService = class CampaignsService {
         this.ingest = ingest;
         this.clientPixels = clientPixels;
     }
+    async comprobarNombreLibre(organizationId, nombre, clientId, excepto) {
+        const mismas = await this.campaigns.find({ where: { organizationId, name: nombre.trim() }, select: { id: true, clientId: true } });
+        const deOtraEmpresa = mismas.some((campania) => campania.id !== excepto && (campania.clientId ?? null) !== (clientId ?? null));
+        if (deOtraEmpresa) {
+            throw new common_1.ConflictException(`Ya hay una campaña llamada «${nombre.trim()}» en otra cuenta. Meta sólo manda el nombre, así que con dos iguales `
+                + 'no se puede saber de quién es cada lead. Usa un nombre distinto, por ejemplo con la marca delante, y ponle el mismo en Meta.');
+        }
+    }
     async comprobarPixel(organizationId, clientId, pixelId) {
         const pixel = pixelId?.trim();
         if (!pixel)
@@ -74,6 +82,7 @@ let CampaignsService = class CampaignsService {
         return campaign;
     }
     async create(organizationId, dto, createdBy) {
+        await this.comprobarNombreLibre(organizationId, dto.name, dto.clientId);
         await this.comprobarPixel(organizationId, dto.clientId, dto.metaPixelId);
         const campaign = await this.campaigns.save(this.campaigns.create({
             organizationId,
@@ -101,7 +110,7 @@ let CampaignsService = class CampaignsService {
     }
     async update(id, organizationId, dto) {
         const campania = await this.findOne(id, organizationId);
-        const antes = { clientId: campania.clientId ?? null, metaPixelId: campania.metaPixelId ?? null };
+        const antes = { clientId: campania.clientId ?? null, metaPixelId: campania.metaPixelId ?? null, name: campania.name };
         const source = await this.sources.findOne({
             where: [
                 { organizationId, campaignId: campania.id },
@@ -127,6 +136,9 @@ let CampaignsService = class CampaignsService {
             campania.metaCapiEnabled = dto.metaCapiEnabled;
         const cambioElPixel = (campania.metaPixelId ?? null) !== antes.metaPixelId
             || (campania.clientId ?? null) !== antes.clientId;
+        if (campania.name.trim().toLowerCase() !== antes.name.trim().toLowerCase() || (campania.clientId ?? null) !== antes.clientId) {
+            await this.comprobarNombreLibre(organizationId, campania.name, campania.clientId, campania.id);
+        }
         if (cambioElPixel) {
             await this.comprobarPixel(organizationId, campania.clientId, campania.metaPixelId);
         }
