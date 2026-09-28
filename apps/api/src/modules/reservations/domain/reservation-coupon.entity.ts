@@ -21,6 +21,18 @@ export class ReservationCoupon {
    */
   @Column({ name: 'valid_from_time', type: 'varchar', length: 5, nullable: true }) validFromTime?: string;
   @Column({ name: 'valid_until_time', type: 'varchar', length: 5, nullable: true }) validUntilTime?: string;
+  /**
+   * Cuántas veces puede usarlo la misma persona en los locales de su empresa. `0` = sin límite.
+   *
+   * Es independiente de `maxUses`, que es el total del cupón: uno de cien usos sin este límite lo
+   * podía gastar entero una sola persona.
+   */
+  @Column({ name: 'max_uses_per_person', type: 'int', default: 0 }) maxUsesPerPerson: number;
+  /**
+   * Con qué se reconoce a la misma persona: `phone`, `email`, `document`. Basta con que coincida
+   * cualquiera de los elegidos, así que cambiar sólo uno no sirve para saltarse el límite.
+   */
+  @Column({ name: 'person_keys', type: 'json', nullable: true }) personKeys?: Array<'phone' | 'email' | 'document'> | null;
   @Column({ type: 'boolean', default: true }) active: boolean;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

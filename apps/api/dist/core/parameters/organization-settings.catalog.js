@@ -469,6 +469,15 @@ exports.ORGANIZATION_SETTINGS = [
         masterStatus: 'direction_required',
     },
     {
+        key: 'email.coupon_trigger',
+        category: 'email',
+        label: 'Cupón · cuándo se envía',
+        description: '«asistencia»: un día después de marcar que vino. «encuesta»: cuando responde la encuesta de su visita.',
+        valueType: 'text',
+        defaultValue: 'asistencia',
+        masterStatus: 'direction_required',
+    },
+    {
         key: 'email.reservation_confirmation_enabled',
         category: 'email',
         label: 'Confirmación de reserva',

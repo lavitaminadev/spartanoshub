@@ -8,7 +8,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { PieLegal } from '../../shared/PieLegal';
 import { DialogoModal } from '../../shared/DialogoModal';
 import { resumenDeHorarios } from './resumen-de-horarios';
-import { VERSION_BENEFICIOS, formatearRut, rutValido, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, documentoATexto, faltantesDeIdentidadLegal, nombreLegalDelLocal, politicaDePrivacidadDelLocal, rutaDocumentoLegal, textosDeAceptacionDeReserva, type IdentidadLegal } from '@espartanos/shared';
+import { VERSION_BENEFICIOS, formatearRut, rutValido, leerDocumento, documentoLegible, PAISES_DE_DOCUMENTO, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, documentoATexto, faltantesDeIdentidadLegal, nombreLegalDelLocal, politicaDePrivacidadDelLocal, rutaDocumentoLegal, textosDeAceptacionDeReserva, type IdentidadLegal } from '@espartanos/shared';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../core/api';
 import { camposVisibles } from '@espartanos/shared';
@@ -563,6 +563,7 @@ export function PublicReservationPage() {
       else if (!vacio && field.type === 'number' && !Number.isFinite(Number(valor))) errs[field.id] = 'Ingresa un número';
       else if (!vacio && field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(valor))) errs[field.id] = 'Correo inválido';
       else if (!vacio && field.type === 'rut' && !rutValido(String(valor))) errs[field.id] = 'RUT inválido: revisa el dígito verificador';
+      else if (!vacio && field.type === 'document' && !leerDocumento(String(valor))) errs[field.id] = String(valor).startsWith('pasaporte') ? 'Elige el país y escribe el número del documento' : 'RUT inválido: revisa el dígito verificador';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -1301,6 +1302,7 @@ function textoDeRespuesta(field: FormField, valor: unknown): string {
   if (valor === undefined || valor === null || valor === '') return '';
   if (Array.isArray(valor)) return valor.join(', ');
   if (typeof valor === 'boolean') return valor ? 'Sí' : 'No';
+  if (field.type === 'document') return documentoLegible(valor);
   if ((field.type === 'date' || field.type === 'birthdate') && /^\d{4}-\d{2}-\d{2}$/.test(String(valor))) return new Date(`${valor}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
   return String(valor);
 }
@@ -1314,8 +1316,55 @@ function tipoDeEventoDesde(valor: unknown): string {
   return 'otro';
 }
 
+/**
+ * Documento de identidad: RUT, o pasaporte con el país que lo emitió.
+ *
+ * Un campo que sólo aceptara RUT dejaba sin poder reservar a cualquier turista. El valor viaja
+ * como texto —`rut:12345678-9`, `pasaporte:AR:AB123456`— para que el servidor lo normalice y lo
+ * compare igual lo escriba como lo escriba la persona.
+ */
+function CampoDocumento({ field, value, onChange, error }: { field: FormField; value: unknown; onChange: (v: string) => void; error?: string }) {
+  const actual = typeof value === 'string' ? value : '';
+  const [tipoInicial, paisInicial, ...resto] = actual.split(':');
+  const tipo = tipoInicial === 'pasaporte' ? 'pasaporte' : 'rut';
+  const pais = tipo === 'pasaporte' ? paisInicial || '' : '';
+  const numero = tipo === 'pasaporte' ? resto.join(':') : actual.startsWith('rut:') ? actual.slice(4) : '';
+  const componer = (siguienteTipo: string, siguientePais: string, siguienteNumero: string) => {
+    if (!siguienteNumero.trim() && !siguientePais) return onChange('');
+    onChange(siguienteTipo === 'rut' ? `rut:${siguienteNumero}` : `pasaporte:${siguientePais}:${siguienteNumero}`);
+  };
+  const errorId = `error-${field.id}`;
+  return <fieldset className={`public-radio-group public-documento ${error ? 'has-error' : ''}`}>
+    <legend>{field.label}{field.required ? <span className="required-star"> *</span> : <small> (opcional)</small>}</legend>
+    <div className="public-documento-tipo" role="radiogroup" aria-label="Tipo de documento">
+      <label><input type="radio" checked={tipo === 'rut'} onChange={() => componer('rut', '', '')} /> RUT</label>
+      <label><input type="radio" checked={tipo === 'pasaporte'} onChange={() => componer('pasaporte', '', '')} /> Pasaporte u otro documento</label>
+    </div>
+    {tipo === 'rut' ? (
+      <input
+        className={error ? 'input-error' : ''} inputMode="text" autoComplete="off" maxLength={12} placeholder="12.345.678-9"
+        value={numero} aria-label="RUT" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined}
+        onChange={(event) => componer('rut', '', event.target.value.replace(/[^0-9kK.\-]/g, ''))}
+        onBlur={(event) => { if (rutValido(event.target.value)) componer('rut', '', formatearRut(event.target.value)); }}
+      />
+    ) : <>
+      <select value={pais} aria-label="País que emitió el documento" onChange={(event) => componer('pasaporte', event.target.value, numero)}>
+        <option value="">País que lo emitió</option>
+        {PAISES_DE_DOCUMENTO.map(([codigo, nombre]) => <option key={codigo} value={codigo}>{nombre}</option>)}
+      </select>
+      <input
+        className={error ? 'input-error' : ''} autoComplete="off" maxLength={24} placeholder="Número del documento"
+        value={numero} aria-label="Número del documento" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined}
+        onChange={(event) => componer('pasaporte', pais, event.target.value.replace(/[^0-9a-zA-Z -]/g, ''))}
+      />
+    </>}
+    {error && <span className="field-error" id={errorId} role="alert">{error}</span>}
+  </fieldset>;
+}
+
 function renderField(field: FormField, value: unknown, onChange: (v: string | boolean | string[]) => void, error?: string) {
   if (field.type === 'coupon') return null;
+  if (field.type === 'document') return <CampoDocumento field={field} value={value} onChange={onChange} error={error} />;
   const errorId = `error-${field.id}`;
   /*
    * Selección múltiple: el constructor la ofrecía y la página no la pintaba.

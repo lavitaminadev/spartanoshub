@@ -316,3 +316,10 @@
   left: 6px;
   font-weight: 700;
 }
+
+/* Documento de identidad: el tipo arriba, en una fila, y los datos debajo a todo el ancho. */
+.public-documento { display: grid; gap: 8px; }
+.public-documento-tipo { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.public-documento-tipo label { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; }
+.public-documento > input,
+.public-documento > select { width: 100%; }

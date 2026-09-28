@@ -905,3 +905,45 @@
 .contacto-del-lead { grid-column: 1 / -1; display: grid; gap: 8px; margin: 14px 0; padding: 12px 14px; border: 1px solid var(--border, #e4e4e7); border-radius: 12px; background: var(--soft, #fafafa); }
 .contacto-del-lead h4 { margin: 0; font-size: 13px; }
 .contacto-del-lead .crm-admin-ayuda { margin: 0; }
+
+/* Límite por persona del cupón: un bloque propio, con el resumen en palabras al final. */
+.limite-por-persona { display: grid; gap: 10px; margin: 4px 0; padding: 14px; border: 1px solid var(--border, #e7e1ea); border-radius: 12px; }
+.limite-por-persona legend { padding: 0 4px; font-weight: 600; }
+.limite-por-persona > small { color: var(--muted); }
+.limite-por-persona-modo { display: flex; gap: 8px; }
+.limite-por-persona-modo label { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--border, #e7e1ea); border-radius: 8px; cursor: pointer; }
+.limite-por-persona-modo label.activo { border-color: var(--brand, #d64b81); }
+.limite-por-persona-veces { display: flex; align-items: center; gap: 10px; }
+.limite-por-persona-veces input { width: 90px; }
+.limite-por-persona-pregunta { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.limite-por-persona-opcion { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border, #e7e1ea); border-radius: 8px; cursor: pointer; }
+.limite-por-persona-opcion.activa { border-color: var(--brand, #d64b81); background: rgba(214, 75, 129, 0.05); }
+.limite-por-persona-opcion small { display: block; color: var(--muted); font-size: 12px; }
+.limite-por-persona-recomendado { margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #e6f4ea; color: #1f6b3a; font-size: 11px; font-style: normal; }
+.limite-por-persona-resumen { margin: 4px 0 0; padding-top: 10px; border-top: 1px solid var(--border, #e7e1ea); font-size: 14px; }
+
+/* Cupón automático: una tarjeta propia en Cupones, con el resumen en palabras antes de guardar. */
+.cupon-automatico { display: grid; gap: 12px; margin: 0 0 18px; padding: 16px 18px; border: 1px solid var(--border, #e7e1ea); border-radius: 12px; background: var(--surface, #fff); }
+.cupon-automatico header h2 { margin: 0 0 4px; font-size: 16px; }
+.cupon-automatico header p { margin: 0; color: var(--muted); font-size: 13px; }
+.cupon-automatico label { display: grid; gap: 6px; }
+.cupon-automatico-interruptor { display: flex !important; align-items: center; gap: 8px; font-weight: 600; }
+.cupon-automatico-momento { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.cupon-automatico-momento legend { margin-bottom: 6px; font-weight: 600; }
+.cupon-automatico-momento label { display: flex !important; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border, #e7e1ea); border-radius: 8px; cursor: pointer; }
+.cupon-automatico-momento small { display: block; color: var(--muted); font-size: 12px; }
+.cupon-automatico-dias input { width: 110px; }
+.cupon-automatico-resumen { margin: 0; padding-top: 10px; border-top: 1px solid var(--border, #e7e1ea); font-size: 14px; }
+.cupon-automatico footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+/*
+ * Dentro de un formulario en ventana, `.modal-form label` apila todo en columna. En estas opciones
+ * la casilla va al lado de su texto, no encima: si no, parece un campo suelto sin etiqueta.
+ */
+.modal-form .limite-por-persona-modo label,
+.modal-form .limite-por-persona-opcion,
+.modal-form .day-checkboxes .day-checkbox { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.modal-form .limite-por-persona-opcion { align-items: flex-start; }
+.modal-form .limite-por-persona-opcion > input { margin-top: 3px; }
+.modal-form .limite-por-persona-veces { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.modal-form .day-checkboxes { display: flex; flex-wrap: wrap; gap: 6px 14px; }

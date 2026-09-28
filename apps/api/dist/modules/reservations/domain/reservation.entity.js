@@ -103,6 +103,18 @@ __decorate([
     __metadata("design:type", Object)
 ], Reservation.prototype, "birthDate", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'guest_document_type', type: 'varchar', length: 12, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "guestDocumentType", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'guest_document_country', type: 'char', length: 2, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "guestDocumentCountry", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'guest_document', type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "guestDocument", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'consent_version', type: 'varchar', length: 30, nullable: true }),
     __metadata("design:type", String)
 ], Reservation.prototype, "consentVersion", void 0);

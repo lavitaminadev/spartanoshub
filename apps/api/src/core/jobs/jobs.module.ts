@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ReservationCoupon } from '../../modules/reservations/domain/reservation-coupon.entity';
 import { XPPeriod } from '../../modules/gamification/xp-period.entity';
 import { XPEvent } from '../../modules/gamification/xp-event.entity';
 import { Client } from '../../modules/clients/client.entity';
@@ -45,7 +46,7 @@ import { CrmModule } from '../../modules/crm/crm.module';
 import { AutomationsModule } from '../../modules/automations/automations.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([XPPeriod, XPEvent, Client, UDBudget, Piece, Notification, Invoice, Lead, IntegrationAccount, Reservation, ReservationForm, Survey, ReservationManagementToken, ReservationEvent, ReservationHold, ApprovalRequest, User, Suscriptor]), EmailModule, DataProtectionModule, MetaModule, AccountCyclesModule, ParametersModule, GoogleModule, CrmModule, AutomationsModule],
+  imports: [TypeOrmModule.forFeature([XPPeriod, XPEvent, Client, UDBudget, Piece, Notification, Invoice, Lead, IntegrationAccount, Reservation, ReservationForm, Survey, ReservationManagementToken, ReservationEvent, ReservationHold, ReservationCoupon, ApprovalRequest, User, Suscriptor]), EmailModule, DataProtectionModule, MetaModule, AccountCyclesModule, ParametersModule, GoogleModule, CrmModule, AutomationsModule],
   providers: [CloseXpPeriodsJob, CreateMonthlyCyclesJob, DetectStalePiecesJob, LeadsParadosJob, RecordatorioDeTareasJob, ResumenDiarioJob, SaludoDeCumpleanosJob, RecordatorioDeReservasJob, EncuestaPostVisitaJob, CuponPostVisitaJob, AutoCloseReservationsJob, CollectionEmailsJob, PurgeExpiredLeadsJob, MetaLeadRecoveryJob, OperationalAlertsJob, RecoverReservationIntegrationsJob, JobSchedulerService],
   exports: [CloseXpPeriodsJob, CreateMonthlyCyclesJob, DetectStalePiecesJob, LeadsParadosJob, RecordatorioDeTareasJob, ResumenDiarioJob, SaludoDeCumpleanosJob, RecordatorioDeReservasJob, EncuestaPostVisitaJob, AutoCloseReservationsJob, CollectionEmailsJob, PurgeExpiredLeadsJob, MetaLeadRecoveryJob, OperationalAlertsJob, RecoverReservationIntegrationsJob],
 })

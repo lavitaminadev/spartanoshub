@@ -71,6 +71,14 @@ __decorate([
     __metadata("design:type", String)
 ], ReservationCoupon.prototype, "validUntilTime", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'max_uses_per_person', type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], ReservationCoupon.prototype, "maxUsesPerPerson", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'person_keys', type: 'json', nullable: true }),
+    __metadata("design:type", Object)
+], ReservationCoupon.prototype, "personKeys", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'boolean', default: true }),
     __metadata("design:type", Boolean)
 ], ReservationCoupon.prototype, "active", void 0);
