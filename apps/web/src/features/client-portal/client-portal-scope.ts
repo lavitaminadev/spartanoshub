@@ -11,6 +11,8 @@ export interface ClientPortalEntry {
   anyCapability?: string[];
   /** Visible si la persona tiene permiso en al menos uno de estos módulos. */
   anyModule?: string[];
+  /** Visible sólo para quien administra su empresa: el mismo permiso con que reparte su equipo. */
+  soloAdministrador?: boolean;
 }
 
 export const CLIENT_NAV: ClientPortalEntry[] = [
@@ -26,7 +28,9 @@ export const CLIENT_NAV: ClientPortalEntry[] = [
   // Los avisos que salen a nombre de la empresa. Pide las dos cosas: que tenga alguno de los
   // servicios que generan correo, y permiso en él. Con el servicio solo, una persona sin acceso
   // a ese módulo vería —y editaría— lo que sale a nombre de la empresa.
-  { label: 'Correos', path: '/correos', icon: 'CO', anyCapability: ['reservations', 'surveys', 'crm'], anyModule: ['reservations', 'surveys', 'crm'] },
+  // Y sólo para quien la administra: el resto de su equipo no decide qué correos salen a su
+  // nombre. El servidor ya les negaba la entrada; el enlace aparecía igual y llevaba a un error.
+  { label: 'Correos', path: '/correos', icon: 'CO', anyCapability: ['reservations', 'surveys', 'crm'], anyModule: ['reservations', 'surveys', 'crm'], soloAdministrador: true },
   // Lo usan Reservas y Encuestas: basta con tener uno de los dos.
   { label: 'Datos legales', path: '/portal/legal', icon: 'DL', anyCapability: ['reservations', 'surveys'] },
 ];
@@ -70,6 +74,7 @@ export function isClientNavItemVisible(item: ClientPortalEntry, user: User | nul
   // sin el servicio explícitamente activo debe fallar cerrada y no anunciar algo no contratado.
   if (item.capability && user?.capabilities?.[item.capability] !== true) return false;
   if (item.anyCapability && !item.anyCapability.some((servicio) => user?.capabilities?.[servicio] === true)) return false;
+  if (item.soloAdministrador && user?.permissions?.users !== 'manage') return false;
   /*
    * Con varios módulos basta uno, pero uno de verdad.
    *
