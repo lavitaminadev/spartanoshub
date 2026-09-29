@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '../../core/auth';
+import { useEmpresaActiva, useUsuarioEnEmpresaActiva } from '../../shared/empresa-activa';
 import { api } from '../../core/api';
 import { PulsoEspartano } from '../pulse/PulsoEspartano';
 import { PageHero } from '../../shared/PageHero';
@@ -44,7 +44,9 @@ const PENDIENTES: Record<string, { titulo: string; porque: string }> = {
  * que un cero acá significa «no hay nada pendiente» y nunca «no lo tienes».
  */
 export function ClientDashboard() {
-  const { user } = useAuth();
+  // Las tarjetas son las de la empresa activa, no las de la empresa propia de la cuenta.
+  const user = useUsuarioEnEmpresaActiva();
+  const { clientId: empresaActiva } = useEmpresaActiva();
 
   const { data } = useQuery<Inicio>({
     /*
@@ -54,9 +56,10 @@ export function ClientDashboard() {
      * primer dibujo: en ese hueco, una clave compartida deja que una empresa vea el resumen de
      * la anterior. Con la persona dentro, ese dato es inalcanzable aunque siga guardado.
      */
-    queryKey: ['portal-inicio', user?.id],
+    // Y la empresa activa: cada una tiene su propio resumen.
+    queryKey: ['portal-inicio', user?.id, empresaActiva],
     enabled: Boolean(user?.id),
-    queryFn: () => api.get('/portal/inicio'),
+    queryFn: () => api.get(`/portal/inicio${empresaActiva ? `?clientId=${encodeURIComponent(empresaActiva)}` : ''}`),
     // Es un resumen, no un dato transaccional: si falla, la pantalla sigue sirviendo como menú.
     retry: false,
   });

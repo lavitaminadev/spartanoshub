@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PortalHomeController = void 0;
 const common_1 = require("@nestjs/common");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
 const typeorm_1 = require("@nestjs/typeorm");
@@ -24,16 +25,19 @@ const crm_home_service_1 = require("../crm/leads/crm-home.service");
 const reservation_entity_1 = require("../reservations/domain/reservation.entity");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 let PortalHomeController = class PortalHomeController {
-    constructor(crmHome, capacidades, reservas) {
+    constructor(crmHome, capacidades, reservas, accesos) {
         this.crmHome = crmHome;
         this.capacidades = capacidades;
         this.reservas = reservas;
+        this.accesos = accesos;
     }
-    async inicio(req) {
+    async inicio(req, pedida) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT) {
             throw new common_1.ForbiddenException('Este resumen es del portal de una empresa cliente');
         }
-        const clientId = req.user.clientId;
+        if (pedida)
+            await this.accesos.assertClient(req.organizationId, req.user, pedida);
+        const clientId = pedida || req.user.clientId;
         if (!clientId)
             throw new common_1.ForbiddenException('La cuenta cliente no está asociada a una empresa');
         const [tieneCrm, tieneReservas] = await Promise.all([
@@ -80,8 +84,9 @@ __decorate([
     (0, common_1.Get)('inicio'),
     (0, swagger_1.ApiOperation)({ summary: 'Qué tiene que atender hoy esta empresa' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], PortalHomeController.prototype, "inicio", null);
 exports.PortalHomeController = PortalHomeController = __decorate([
@@ -93,5 +98,6 @@ exports.PortalHomeController = PortalHomeController = __decorate([
     __param(2, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __metadata("design:paramtypes", [crm_home_service_1.CrmHomeService,
         client_capability_service_1.ClientCapabilityService,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        account_access_service_1.AccountAccessService])
 ], PortalHomeController);

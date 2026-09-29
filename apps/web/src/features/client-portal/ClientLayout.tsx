@@ -13,7 +13,7 @@ import { VitaIcons } from '../../shared/Icons';
 import { NotificationCenter } from '../../shared/NotificationCenter';
 import { ReauthPrompt } from '../../shared/ReauthPrompt';
 import { ContextHelpDrawer } from '../../shared/help/ContextHelpDrawer';
-import { useEmpresaActiva } from '../../shared/empresa-activa';
+import { useEmpresaActiva, useUsuarioEnEmpresaActiva } from '../../shared/empresa-activa';
 import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
 
 /**
@@ -30,6 +30,8 @@ import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
  */
 export function ClientLayout() {
   const { user, logout } = useAuth();
+  // El menú muestra los servicios de la empresa que se está mirando.
+  const usuarioEnEmpresa = useUsuarioEnEmpresaActiva();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -79,7 +81,7 @@ export function ClientLayout() {
         )}
 
         <nav className="sidebar-nav">
-          {CLIENT_NAV.filter((item) => isClientNavItemVisible(item, user)).map((item) => {
+          {CLIENT_NAV.filter((item) => isClientNavItemVisible(item, usuarioEnEmpresa)).map((item) => {
             const active = location.pathname === item.path || (item.path !== '/portal' && location.pathname.startsWith(`${item.path}/`));
             return (
               <Link key={item.path} to={item.path} className={`nav-item ${active ? 'active' : ''}`} onClick={() => setOpen(false)}>

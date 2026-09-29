@@ -97,3 +97,29 @@ export function useEmpresaActiva(): EmpresaActiva {
     varias: empresas.length > 1,
   };
 }
+
+/** Servicios que se venden por empresa. Sin la clave cuentan como encendidos, igual que en el servidor. */
+const SERVICIOS_POR_EMPRESA = ['crm', 'reservations', 'surveys'] as const;
+
+/**
+ * La persona con los servicios de la empresa que está mirando, no los de la suya.
+ *
+ * La sesión trae los servicios de la empresa de la cuenta. Quien atiende dos locales —uno con
+ * CRM y otro sin— veía el CRM en el menú también al pasar al segundo, y al abrirlo el servidor
+ * lo rechazaba. El menú, el inicio y las rutas del portal leen de aquí para mostrar solo lo que
+ * esa empresa tiene activo. Fuera del portal devuelve la sesión tal cual.
+ */
+export function useUsuarioEnEmpresaActiva() {
+  const { user } = useAuth();
+  const { clientId } = useEmpresaActiva();
+  const { data } = useQuery<{ data: Array<{ id: string; name: string; capabilities?: Partial<Record<string, boolean>> | null }> }>({
+    queryKey: ['clients'],
+    queryFn: () => api.get('/clients'),
+    enabled: user?.role === 'client',
+    staleTime: 5 * 60 * 1000,
+  });
+  const activa = data?.data?.find((empresa) => empresa.id === clientId);
+  if (!user || user.role !== 'client' || !activa) return user;
+  const propias = Object.fromEntries(SERVICIOS_POR_EMPRESA.map((servicio) => [servicio, activa.capabilities?.[servicio] !== false]));
+  return { ...user, capabilities: { ...(user.capabilities ?? {}), ...propias } };
+}
