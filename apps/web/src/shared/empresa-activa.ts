@@ -136,6 +136,14 @@ export function useEmpresaActiva(): EmpresaActiva {
       version += 1;
       oyentes.forEach((avisar) => avisar());
       /*
+       * Los permisos se vuelven a pedir: se conceden empresa por empresa.
+       *
+       * Quien administra el equipo en un local y no en el otro tiene distinto menú en cada uno, y
+       * los permisos viven en la sesión y no en la caché de consultas, así que invalidarla no los
+       * alcanza. Sin esto, cambiar de empresa dejaba el menú de la anterior hasta recargar.
+       */
+      void useAuth.getState().refreshProfile();
+      /*
        * Todo lo consultado queda obsoleto al cambiar de empresa.
        *
        * Se invalida en bloque y no consulta por consulta: cada pantalla arma su clave a su

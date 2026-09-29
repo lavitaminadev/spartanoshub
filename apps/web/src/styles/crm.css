@@ -233,3 +233,12 @@
   .segment-cards { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
+
+/* Buscar el lead al agendar: sugerencias bajo el campo, en vez de pedir su identificador. */
+.lead-sugerencias { list-style:none; margin:6px 0 0; padding:0; display:grid; gap:4px; max-height:220px; overflow:auto; }
+.lead-sugerencias button { width:100%; display:grid; gap:2px; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--white); text-align:left; cursor:pointer; }
+.lead-sugerencias button:hover { border-color:var(--primary); background:var(--soft); }
+.lead-sugerencias strong { font-size:13px; color:var(--ink); }
+.lead-sugerencias small { color:var(--muted); font-size:11px; }
+.lead-elegido { display:block; margin-top:6px; color:var(--muted); font-size:11px; }
+.btn-enlace { border:0; background:none; padding:0; color:var(--primary); font:inherit; text-decoration:underline; cursor:pointer; }

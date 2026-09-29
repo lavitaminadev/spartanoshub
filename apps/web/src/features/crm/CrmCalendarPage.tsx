@@ -9,7 +9,7 @@
  * tablero, en vez de depender del módulo futuro de Reuniones y terminar en 403.
  */
 
-import { useMemo, useState, type JSX } from 'react';
+import { useDeferredValue, useMemo, useState, type JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { MEDIOS, TIPOS_AGENDABLES, TIPO_DE_ACTIVIDAD, admiteMedio, campoDelMedio } from './tipos-de-actividad';
@@ -246,6 +246,26 @@ export function CrmCalendarPage(): JSX.Element {
    * reunión de equipo, un bloqueo— y exigirlo obligaría a inventar uno.
    */
   const [agendando, setAgendando] = useState<{ type: string; description: string; date: string; leadId: string; medium: string; location: string } | null>(null);
+
+  /*
+   * Buscar el lead por su nombre.
+   *
+   * El campo pedía el identificador, que obliga a ir a la ficha, copiarlo y volver: en la práctica
+   * quedaba vacío siempre. Se consulta sólo con dos letras o más y acotado a la empresa que se
+   * está mirando, así que no trae nada de otra cuenta.
+   */
+  const [buscandoLead, setBuscandoLead] = useState('');
+  const terminoLead = useDeferredValue(buscandoLead.trim());
+  const { data: leadsEncontrados = [] } = useQuery<Array<{ id: string; name: string; email?: string | null; phone?: string | null; company?: string | null }>>({
+    queryKey: ['crm-buscar-lead', scope.clientId, terminoLead],
+    queryFn: () => api
+      .get<{ data: Array<{ id: string; name: string; email?: string | null; phone?: string | null; company?: string | null }> }>(
+        `/crm/leads?limit=8&search=${encodeURIComponent(terminoLead)}${!scope.esAgencia && scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      )
+      .then((respuesta) => respuesta.data ?? []),
+    enabled: Boolean(agendando) && terminoLead.length >= 2 && !agendando?.leadId,
+    staleTime: 30_000,
+  });
 
   const agendar = useMutation({
     mutationFn: () => api.post('/crm/interactions', {
@@ -568,14 +588,36 @@ export function CrmCalendarPage(): JSX.Element {
               El lead es opcional: no toda actividad de la agenda cuelga de un contacto. Cuando se
               indica, la actividad aparece además en su ficha, que es donde se lee en contexto.
             */}
+            {/*
+              Se busca por nombre, no por identificador.
+              Pedir el identificador obligaba a ir a la ficha, copiarlo y volver, así que en la
+              práctica el campo quedaba vacío siempre.
+            */}
             <label>
               {termino('lead')} relacionado <small>(opcional)</small>
               <input
                 className="input"
-                value={agendando.leadId}
-                onChange={(evento) => setAgendando({ ...agendando, leadId: evento.target.value })}
-                placeholder="Identificador del contacto, si aplica"
+                value={buscandoLead}
+                onChange={(evento) => { setBuscandoLead(evento.target.value); setAgendando({ ...agendando, leadId: '' }); }}
+                placeholder={`Escribe el nombre, correo o teléfono del ${termino('lead').toLowerCase()}`}
+                autoComplete="off"
               />
+              {agendando.leadId
+                ? <small className="lead-elegido">Se anotará en la ficha de <strong>{leadsEncontrados.find((lead) => lead.id === agendando.leadId)?.name ?? buscandoLead}</strong>. <button type="button" className="btn-enlace" onClick={() => { setAgendando({ ...agendando, leadId: '' }); setBuscandoLead(''); }}>Quitar</button></small>
+                : buscandoLead.trim().length >= 2 && (
+                  leadsEncontrados.length
+                    ? <ul className="lead-sugerencias">
+                        {leadsEncontrados.slice(0, 6).map((lead) => (
+                          <li key={lead.id}>
+                            <button type="button" onClick={() => { setAgendando({ ...agendando, leadId: lead.id }); setBuscandoLead(lead.name); }}>
+                              <strong>{lead.name}</strong>
+                              <small>{[lead.email, lead.phone, lead.company].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</small>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    : <small>Sin resultados. Puedes dejarlo vacío: la actividad queda igual en la agenda.</small>
+                )}
             </label>
             {agendar.error ? <div className="alert alert-error">{(agendar.error as Error).message}</div> : null}
             <div className="modal-actions">
