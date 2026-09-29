@@ -11,7 +11,7 @@ además se oculta la existencia.
 | CRM · leads | 200 | 200 | 200 | 200 | 403 |
 | CRM · inicio | 200 | 200 | 200 | 200 | 403 |
 | CRM · panel | 200 | 200 | 200 | 200 | 403 |
-| CRM · rótulos de etapa | 200 | 200 | 200 | 200 | 200 |
+| CRM · rótulos de etapa | 200 | 200 | 200 | 200 | 403 |
 | Clientes | 200 | 200 | 403 | 403 | 403 |
 | Usuarios | 200 | 200 | 403 | 403 | 403 |
 | Reservas | 200 | 200 | 200 | 403 | 200 |

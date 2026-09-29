@@ -15,6 +15,7 @@ var CuponPostVisitaJob_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CuponPostVisitaJob = void 0;
 const common_1 = require("@nestjs/common");
+const client_capability_service_1 = require("../../client-scope/client-capability.service");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const reservation_entity_1 = require("../../../modules/reservations/domain/reservation.entity");
@@ -30,12 +31,13 @@ const DIAS_HACIA_ATRAS = 7;
 const DIAS_ENTRE_CUPONES = 60;
 const TOPE_POR_PASADA = 300;
 let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
-    constructor(reservas, formularios, cupones, correo, parametros) {
+    constructor(reservas, formularios, cupones, correo, parametros, servicios) {
         this.reservas = reservas;
         this.formularios = formularios;
         this.cupones = cupones;
         this.correo = correo;
         this.parametros = parametros;
+        this.servicios = servicios;
         this.logger = new common_1.Logger(CuponPostVisitaJob_1.name);
     }
     async handle() {
@@ -128,6 +130,8 @@ let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
         return this.reservas.find({ where: filas.map((fila) => ({ id: fila.id })) });
     }
     async ajustesDe(form) {
+        if (this.servicios && form.clientId && !(await this.servicios.enServicio(form.organizationId, form.clientId, 'reservations')))
+            return null;
         const leer = (clave) => this.parametros.get(clave, form.clientId, null, form.organizationId);
         const [encendido, codigo, asunto, cuerpo, dias, momento] = await Promise.all([
             leer('email.coupon_enabled'),
@@ -178,9 +182,11 @@ exports.CuponPostVisitaJob = CuponPostVisitaJob = CuponPostVisitaJob_1 = __decor
     __param(0, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
     __param(2, (0, typeorm_1.InjectRepository)(reservation_coupon_entity_1.ReservationCoupon)),
+    __param(5, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        client_capability_service_1.ClientCapabilityService])
 ], CuponPostVisitaJob);

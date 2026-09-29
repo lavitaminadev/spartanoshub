@@ -1,4 +1,7 @@
-import { Controller, Get, Put, Param, Req, NotFoundException, Delete } from '@nestjs/common';
+import { Controller, Get, Put, Param, Req, NotFoundException, Delete, Optional } from '@nestjs/common';
+import { AccountAccessService } from '../client-scope/account-access.service';
+import { ClientCapabilityService } from '../client-scope/client-capability.service';
+import { avisosVisibles } from './notificaciones-visibles';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import type { AuthenticatedRequest } from '@shared/types/request';
@@ -11,7 +14,11 @@ import { ModuleExempt } from '../authorization/module-scope.decorator';
 @Roles(...Object.values(UserRole))
 @ModuleExempt('Autoservicio: cada persona ve y marca sus propios avisos')
 export class NotificationsController {
-  constructor(private readonly service: NotificationService) {}
+  constructor(
+    private readonly service: NotificationService,
+    @Optional() private readonly accesos?: AccountAccessService,
+    @Optional() private readonly servicios?: ClientCapabilityService,
+  ) {}
 
   private canReadSystemNotifications(req: AuthenticatedRequest) {
     return req.user.role === UserRole.ADMIN;
@@ -20,14 +27,18 @@ export class NotificationsController {
   @Get()
   @ApiOperation({ summary: 'Listar notificaciones del usuario' })
   async findAll(@Req() req: AuthenticatedRequest) {
-    return this.service.findByUser(req.organizationId || req.user.organizationId, req.user.id, this.canReadSystemNotifications(req));
+    const organizationId = req.organizationId || req.user.organizationId;
+    const avisos = await this.service.findByUser(organizationId, req.user.id, this.canReadSystemNotifications(req));
+    return avisosVisibles(avisos, organizationId, req.user, this.accesos, this.servicios);
   }
 
   @Get('unread-count')
   @ApiOperation({ summary: 'Obtener cantidad de notificaciones no leídas' })
   async unreadCount(@Req() req: AuthenticatedRequest) {
-    const count = await this.service.unreadCount(req.organizationId || req.user.organizationId, req.user.id, this.canReadSystemNotifications(req));
-    return { unread: count };
+    // Se cuentan las mismas que se muestran: un número que no calza con la lista parece un error.
+    const organizationId = req.organizationId || req.user.organizationId;
+    const noLeidas = await this.service.unreadByUser(organizationId, req.user.id, this.canReadSystemNotifications(req));
+    return { unread: (await avisosVisibles(noLeidas, organizationId, req.user, this.accesos, this.servicios)).length };
   }
 
   @Put('read-all')

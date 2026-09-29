@@ -1,4 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ClientCapabilityService } from '../../client-scope/client-capability.service';
 import { EmailService } from '../../notifications/email.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
 import { leerPlantilla } from '../../parameters/plantilla-resuelta';
@@ -60,6 +61,7 @@ export class LeadsParadosJob {
     @InjectRepository(User) private readonly usuarios: Repository<User>,
     private readonly parametros: ParameterResolver,
     @Optional() private readonly correo?: EmailService,
+    @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
   /**
@@ -136,6 +138,8 @@ export class LeadsParadosJob {
 
         const { idleDays, idleLevel } = inactividadDe(lead, plazos);
         if (!idleLevel) continue;
+        // Sin CRM, o con la empresa pausada, no se avisa ni se nombra el lead: el dato queda intacto.
+        if (this.servicios && lead.clientId && !(await this.servicios.enServicio(lead.organizationId, lead.clientId, 'crm'))) continue;
 
         /*
          * Solo se avisa al empeorar.

@@ -12,6 +12,7 @@ import type { Reservation, ReservationForm } from './types';
 import { respuestasLegibles } from './answer-labels';
 import { browserDateBoundaryUtc } from './local-time';
 import { useUrlFilters } from '../../shared/use-url-filters';
+import { empresasConServicio } from '../../shared/empresas-con-servicio';
 
 interface Client { id: string; name: string }
 /** Página de reservas. `data` es el nombre con que responden todas las listas del sistema. */
@@ -82,7 +83,7 @@ export function WaitlistPage() {
   });
 
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
-  const clients = (Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [];
+  const clients = empresasConServicio((Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [], 'reservations');
   /*
    * Los locales se cargan siempre, no sólo con una empresa elegida.
    *

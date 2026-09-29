@@ -15,6 +15,7 @@ var LeadsParadosJob_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LeadsParadosJob = void 0;
 const common_1 = require("@nestjs/common");
+const client_capability_service_1 = require("../../client-scope/client-capability.service");
 const email_service_1 = require("../../notifications/email.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
 const plantilla_resuelta_1 = require("../../parameters/plantilla-resuelta");
@@ -33,12 +34,13 @@ const MENSAJE = {
     critical: { titulo: 'Lead abandonado', verbo: 'lleva' },
 };
 let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
-    constructor(leads, notificaciones, usuarios, parametros, correo) {
+    constructor(leads, notificaciones, usuarios, parametros, correo, servicios) {
         this.leads = leads;
         this.notificaciones = notificaciones;
         this.usuarios = usuarios;
         this.parametros = parametros;
         this.correo = correo;
+        this.servicios = servicios;
         this.logger = new common_1.Logger(LeadsParadosJob_1.name);
         this.responsablePorOrganizacion = new Map();
     }
@@ -89,6 +91,8 @@ let LeadsParadosJob = LeadsParadosJob_1 = class LeadsParadosJob {
                 }
                 const { idleDays, idleLevel } = (0, inactividad_del_lead_1.inactividadDe)(lead, plazos);
                 if (!idleLevel)
+                    continue;
+                if (this.servicios && lead.clientId && !(await this.servicios.enServicio(lead.organizationId, lead.clientId, 'crm')))
                     continue;
                 const yaAvisado = ORDEN.indexOf(lead.idleAlertedLevel);
                 if (yaAvisado >= ORDEN.indexOf(idleLevel))
@@ -152,9 +156,11 @@ exports.LeadsParadosJob = LeadsParadosJob = LeadsParadosJob_1 = __decorate([
     __param(1, (0, typeorm_1.InjectRepository)(notification_entity_1.Notification)),
     __param(2, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(4, (0, common_1.Optional)()),
+    __param(5, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         parameter_resolver_service_1.ParameterResolver,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        client_capability_service_1.ClientCapabilityService])
 ], LeadsParadosJob);

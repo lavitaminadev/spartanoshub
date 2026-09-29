@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -18,6 +19,7 @@ const portalNuevo: User = {
 function dibujar(path: string, user: User) {
   act(() => useAuth.setState({ user, token: 'token-prueba', loading: false }));
   return render(
+    <QueryClientProvider client={new QueryClient()}>
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/login" element={<div>Ingreso</div>} />
@@ -31,7 +33,8 @@ function dibujar(path: string, user: User) {
           <ProtectedRoute path="/crm"><div>CRM cliente</div></ProtectedRoute>
         } />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

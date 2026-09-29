@@ -5,6 +5,7 @@
 import { Navigate } from 'react-router-dom';
 import type { JSX } from 'react';
 import { useAuth } from './auth';
+import { useUsuarioEnEmpresaActiva } from '../shared/empresa-activa';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { getAllowedRolesForPath, isPathEnabled, isRoleAllowedForPath } from './navigation.registry';
 import { AccessDenied } from './AccessDenied';
@@ -26,7 +27,9 @@ export interface ProtectedRouteProps {
  * Envuelve rutas que requieren una sesión autenticada.
  */
 export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteProps): JSX.Element {
-  const user = useAuth((s) => s.user);
+  // En el portal, con los servicios de la empresa que se está mirando: una URL directa no abre
+  // un módulo que esa empresa no tiene, aunque lo tenga la empresa propia de la cuenta.
+  const user = useUsuarioEnEmpresaActiva();
   const loading = useAuth((s) => s.loading);
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;

@@ -35,6 +35,7 @@ import { empresaOfrece } from './servicios-contratados';
 import { MOTIVOS_DE_CIERRE, nombreDelMotivo } from '@espartanos/shared';
 import { esperandoDesde, tonoDeEspera, whatsappDeSolicitud } from './solicitudes-de-grupo';
 import { describirEvento, type EventoDeReserva } from './describir-evento';
+import { empresasConServicio } from '../../shared/empresas-con-servicio';
 
 interface Client { id: string; name: string; capabilities?: Record<string, boolean> }
 interface PixelBinding { clientId: string; pixelId: string | null; pixelName: string | null; tokenConfigured: boolean }
@@ -213,7 +214,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const { data: formsArray = [], isLoading, error: formsError, refetch: refetchForms, isFetching: fetchingForms } = useQuery<ReservationForm[]>({ queryKey: ['reservation-forms', clientFilter], queryFn: () => api.get(`/reservations/forms${clientQuery}`) });
   const forms = Array.isArray(formsArray) ? formsArray : [];
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients'), enabled: !clientView });
-  const clients = (Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [];
+  const clients = empresasConServicio((Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [], 'reservations');
   // El catálogo de Pixels está restringido a administración, operaciones y dirección
   // comercial; el resto de los roles no ve la etiqueta de estado.
   const canReadPixels = !clientView && ['admin', 'operations_director', 'commercial_director', 'dev'].includes(user?.role ?? '');

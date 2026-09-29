@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ClientCapabilityService } from '../../client-scope/client-capability.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, IsNull, Not, Repository } from 'typeorm';
 import { Reservation } from '../../../modules/reservations/domain/reservation.entity';
@@ -45,6 +46,7 @@ export class RecordatorioDeReservasJob {
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
     @InjectRepository(ReservationManagementToken) private readonly enlaces?: Repository<ReservationManagementToken>,
+    @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
   async handle(): Promise<void> {
@@ -135,8 +137,10 @@ export class RecordatorioDeReservasJob {
       this.parametros.get('email.reservation_reminder_enabled', form.clientId, null, form.organizationId),
       this.parametros.get('email.reservation_reminder_hours', form.clientId, null, form.organizationId),
     ]);
+    // Con Reservas apagado o la empresa pausada no sale ningún recordatorio; los datos quedan.
+    const enServicio = !this.servicios || !form.clientId || await this.servicios.enServicio(form.organizationId, form.clientId, 'reservations');
     return {
-      encendido: Boolean(encendido),
+      encendido: Boolean(encendido) && enServicio,
       horas: Number(horas ?? HORAS_POR_DEFECTO),
     };
   }

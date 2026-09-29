@@ -15,6 +15,7 @@ var SaludoDeCumpleanosJob_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SaludoDeCumpleanosJob = void 0;
 const common_1 = require("@nestjs/common");
+const client_capability_service_1 = require("../../client-scope/client-capability.service");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const typeorm_3 = require("typeorm");
@@ -24,10 +25,11 @@ const email_service_1 = require("../../notifications/email.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 let SaludoDeCumpleanosJob = SaludoDeCumpleanosJob_1 = class SaludoDeCumpleanosJob {
-    constructor(suscriptores, correo, parametros) {
+    constructor(suscriptores, correo, parametros, servicios) {
         this.suscriptores = suscriptores;
         this.correo = correo;
         this.parametros = parametros;
+        this.servicios = servicios;
         this.logger = new common_1.Logger(SaludoDeCumpleanosJob_1.name);
     }
     async handle() {
@@ -51,6 +53,10 @@ let SaludoDeCumpleanosJob = SaludoDeCumpleanosJob_1 = class SaludoDeCumpleanosJo
                 let encendido = encendidoPorEmpresa.get(clave);
                 if (encendido === undefined) {
                     encendido = Boolean(await this.parametros.get('email.birthday_enabled', suscriptor.clientId ?? null, null, suscriptor.organizationId));
+                    if (encendido && this.servicios && suscriptor.clientId) {
+                        encendido = await this.servicios.enServicio(suscriptor.organizationId, suscriptor.clientId, 'crm')
+                            || await this.servicios.enServicio(suscriptor.organizationId, suscriptor.clientId, 'reservations');
+                    }
                     encendidoPorEmpresa.set(clave, encendido);
                 }
                 if (!encendido)
@@ -92,7 +98,9 @@ exports.SaludoDeCumpleanosJob = SaludoDeCumpleanosJob;
 exports.SaludoDeCumpleanosJob = SaludoDeCumpleanosJob = SaludoDeCumpleanosJob_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(suscriptor_entity_1.Suscriptor)),
+    __param(3, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         email_service_1.EmailService,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        client_capability_service_1.ClientCapabilityService])
 ], SaludoDeCumpleanosJob);

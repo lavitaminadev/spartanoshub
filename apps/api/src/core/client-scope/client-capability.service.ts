@@ -11,6 +11,7 @@ import {
 const NOMBRE: Record<string, string> = {
   crm: 'CRM',
   reservations: 'reservas',
+  surveys: 'encuestas',
   metaConversions: 'conversiones de Meta',
   googleConversions: 'conversiones de Google',
   budgetVisibility: 'visibilidad de presupuesto',
@@ -75,6 +76,20 @@ export class ClientCapabilityService {
     );
     this.cache.set(clave, { capacidades, expiresAt: Date.now() + ClientCapabilityService.CACHE_TTL_MS });
     return capacidades.has(capacidad);
+  }
+
+  /**
+   * Si a una empresa se le puede escribir en nombre de un servicio: lo tiene contratado y no
+   * está pausada, perdida ni cancelada.
+   *
+   * La usan los correos automáticos. Un servicio apagado no manda nada —ni al cliente final ni
+   * al equipo—, y así un correo no nombra una empresa o un lead de un servicio que ya no corre.
+   * No borra ni toca datos: al reactivarse, los envíos vuelven solos.
+   */
+  async enServicio(organizationId: string, clientId: string, capacidad: ClientCapabilityKey): Promise<boolean> {
+    if (!(await this.tiene(organizationId, clientId, capacidad))) return false;
+    const empresa = await this.clients.findOne({ where: { id: clientId, organizationId }, select: { id: true, status: true } as never });
+    return Boolean(empresa) && !['paused', 'churned', 'cancelled'].includes(String((empresa as { status?: string }).status));
   }
 
   /**

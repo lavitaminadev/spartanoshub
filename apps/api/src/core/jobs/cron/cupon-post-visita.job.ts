@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ClientCapabilityService } from '../../client-scope/client-capability.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { Reservation } from '../../../modules/reservations/domain/reservation.entity';
@@ -67,6 +68,7 @@ export class CuponPostVisitaJob {
     @InjectRepository(ReservationCoupon) private readonly cupones: Repository<ReservationCoupon>,
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
+    @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
   async handle(): Promise<{ enviados: number; revisados: number }> {
@@ -196,6 +198,8 @@ export class CuponPostVisitaJob {
    * empresa no tiene Encuestas. En los casos que parecen un error deja el motivo en el registro.
    */
   private async ajustesDe(form: ReservationForm): Promise<AjustesDeCupon | null> {
+    // Con Reservas apagado o la empresa pausada no sale ningún cupón.
+    if (this.servicios && form.clientId && !(await this.servicios.enServicio(form.organizationId, form.clientId, 'reservations'))) return null;
     const leer = (clave: string) => this.parametros.get(clave, form.clientId, null, form.organizationId);
     const [encendido, codigo, asunto, cuerpo, dias, momento] = await Promise.all([
       leer('email.coupon_enabled'),

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -31,6 +32,7 @@ export class LeadCreatedEmailListener {
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly parameters: ParameterResolver,
     private readonly email: EmailService,
+    @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
   @OnEvent('lead.created')
@@ -44,6 +46,8 @@ export class LeadCreatedEmailListener {
         'email.new_lead_enabled', event.clientId, null, event.organizationId,
       );
       if (enabled !== true) return;
+      // Sin CRM, o con la empresa pausada, el lead se guarda pero no se avisa por correo.
+      if (this.servicios && !(await this.servicios.enServicio(event.organizationId, event.clientId, 'crm'))) return;
 
       const [lead, subjectTemplate, bodyTemplate, recipients] = await Promise.all([
         this.leads.findOne({

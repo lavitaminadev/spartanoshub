@@ -5,6 +5,7 @@
 import { Navigate } from 'react-router-dom';
 import type { JSX } from 'react';
 import { useAuth } from './auth';
+import { useUsuarioEnEmpresaActiva } from '../shared/empresa-activa';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { AccessDenied } from './AccessDenied';
 
@@ -24,7 +25,9 @@ export interface ClientRouteProps {
  * Envuelve rutas disponibles solo para usuarios con el rol `client`.
  */
 export function ClientRoute({ children, capability, anyCapability }: ClientRouteProps): JSX.Element {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
+  // Los servicios de la empresa que se está mirando: la URL directa no abre lo que esa empresa no tiene.
+  const user = useUsuarioEnEmpresaActiva();
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'client') return <Navigate to="/dashboard" replace />;

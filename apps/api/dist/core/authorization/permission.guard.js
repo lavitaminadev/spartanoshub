@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var PermissionGuard_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PermissionGuard = void 0;
@@ -19,6 +22,8 @@ const module_scope_decorator_1 = require("./module-scope.decorator");
 const requires_feature_decorator_1 = require("./requires-feature.decorator");
 const permission_resolver_service_1 = require("./permission-resolver.service");
 const shared_1 = require("@espartanos/shared");
+const client_capability_service_1 = require("../client-scope/client-capability.service");
+const MODULOS_CONTRATADOS = new Set(['crm', 'reservations', 'surveys']);
 const LEVEL_BY_METHOD = {
     GET: 'view',
     HEAD: 'view',
@@ -29,9 +34,10 @@ const LEVEL_BY_METHOD = {
     DELETE: 'manage',
 };
 let PermissionGuard = PermissionGuard_1 = class PermissionGuard {
-    constructor(reflector, permissions) {
+    constructor(reflector, permissions, capacidades) {
         this.reflector = reflector;
         this.permissions = permissions;
+        this.capacidades = capacidades;
         this.logger = new common_1.Logger(PermissionGuard_1.name);
     }
     async canActivate(context) {
@@ -57,6 +63,12 @@ let PermissionGuard = PermissionGuard_1 = class PermissionGuard {
         const allowed = await this.permissions.can(organizationId, user.id, user.role, required.module, required.level);
         if (!allowed)
             throw new common_1.ForbiddenException('No tienes acceso a este módulo');
+        if (this.capacidades && MODULOS_CONTRATADOS.has(required.module)) {
+            const pedida = request.query?.clientId ?? request.body?.clientId ?? (user.role === 'client' ? user.clientId : undefined);
+            if (typeof pedida === 'string' && pedida) {
+                await this.capacidades.assert(organizationId, pedida, required.module);
+            }
+        }
         return true;
     }
     resolveRequirement(context, targets) {
@@ -74,6 +86,8 @@ let PermissionGuard = PermissionGuard_1 = class PermissionGuard {
 exports.PermissionGuard = PermissionGuard;
 exports.PermissionGuard = PermissionGuard = PermissionGuard_1 = __decorate([
     (0, common_1.Injectable)(),
+    __param(2, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [core_1.Reflector,
-        permission_resolver_service_1.PermissionResolverService])
+        permission_resolver_service_1.PermissionResolverService,
+        client_capability_service_1.ClientCapabilityService])
 ], PermissionGuard);

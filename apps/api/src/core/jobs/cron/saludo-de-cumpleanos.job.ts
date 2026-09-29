@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ClientCapabilityService } from '../../client-scope/client-capability.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { IsNull } from 'typeorm';
@@ -27,6 +28,7 @@ export class SaludoDeCumpleanosJob {
     @InjectRepository(Suscriptor) private readonly suscriptores: Repository<Suscriptor>,
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
+    @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
   async handle(): Promise<void> {
@@ -74,6 +76,11 @@ export class SaludoDeCumpleanosJob {
           encendido = Boolean(await this.parametros.get(
             'email.birthday_enabled', suscriptor.clientId ?? null, null, suscriptor.organizationId,
           ));
+          // Es de CRM o de Reservas: basta uno en servicio. Sin ninguno, no se saluda en su nombre.
+          if (encendido && this.servicios && suscriptor.clientId) {
+            encendido = await this.servicios.enServicio(suscriptor.organizationId, suscriptor.clientId, 'crm')
+              || await this.servicios.enServicio(suscriptor.organizationId, suscriptor.clientId, 'reservations');
+          }
           encendidoPorEmpresa.set(clave, encendido);
         }
         if (!encendido) continue;

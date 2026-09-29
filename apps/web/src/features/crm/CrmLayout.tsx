@@ -19,6 +19,7 @@ import { readStoredJson, storageKey, writeStoredJson } from '../../core/browser-
 import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { isPathEnabled } from '../../core/navigation.registry';
 import { canEditCrm, CrmScopeContext, type CrmScopeValue } from './crm-scope';
+import { empresasConServicio } from '../../shared/empresas-con-servicio';
 import './crm-layout.css';
 
 /**
@@ -76,13 +77,14 @@ export function CrmLayout(): JSX.Element {
   // El servidor ya devuelve solo las cuentas que la persona alcanza —pod, asignación directa o
   // ser su community manager—, así que la lista del selector no necesita filtrarse acá: una
   // dirección ve todas y una CM ve las suyas, sin dos reglas que mantener de acuerdo.
-  const { data: clientsResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
+  const { data: clientsResp } = useQuery<{ data: Array<{ id: string; name: string; capabilities?: Partial<Record<string, boolean>> | null }> }>({
     queryKey: ['clients'],
     queryFn: () => api.get('/clients'),
   });
   // Memorizado para conservar la identidad del arreglo entre renders: `?? []` crea uno nuevo
   // cada vez, y con eso el `useMemo` del mapa de nombres se recalculaba siempre.
-  const clients = useMemo(() => clientsResp?.data ?? [], [clientsResp]);
+  // Solo las que tienen CRM: una empresa sin el servicio no se ofrece ni se nombra aquí.
+  const clients = useMemo(() => empresasConServicio(clientsResp?.data ?? [], 'crm'), [clientsResp]);
 
   // Se recuerda por persona: quien atiende una sola cuenta no debería tener que elegirla cada
   // vez que entra, y quien las ve todas rara vez cambia de cuenta dentro de la misma jornada.
@@ -107,7 +109,12 @@ export function CrmLayout(): JSX.Element {
    * que además incluye el embudo de la agencia y no es una empresa.
    */
   const alcanzables = esPortalCliente ? clients.map((empresa) => empresa.id) : [];
-  const clientId = esPortalCliente ? empresaActiva.clientId : cuentaElegida;
+  // La guardada vale solo si sigue en la lista: si esa empresa perdió el CRM o el acceso, se vuelve
+  // al embudo de la agencia en vez de mirar una cuenta que ya no corresponde.
+  const cuentaVigente = cuentaElegida === CUENTA_AGENCIA || !clientsResp || clients.some((empresa) => empresa.id === cuentaElegida)
+    ? cuentaElegida
+    : CUENTA_AGENCIA;
+  const clientId = esPortalCliente ? empresaActiva.clientId : cuentaVigente;
   const setClientId = (value: string) => {
     if (esPortalCliente) { empresaActiva.elegir(value); return; }
     setCuentaElegida(value);

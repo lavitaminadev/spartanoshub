@@ -13,6 +13,7 @@ import { EmptyState } from '../../shared/EmptyState';
 import type { ReservationForm } from './types';
 import './AvailabilityCalendarPage.css';
 import { useAutoSeleccionUnica } from './use-auto-seleccion';
+import { empresasConServicio } from '../../shared/empresas-con-servicio';
 
 interface Client { id: string; name: string }
 interface OccupancyDay { date: string; count: number; pct: number | null }
@@ -75,7 +76,7 @@ export function AvailabilityCalendarPage() {
   const [formId, setFormId] = useState(searchParams.get('formId') ?? '');
 
   const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients'), enabled: !clientMode });
-  const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : (Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [];
+  const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : empresasConServicio((Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [], 'reservations');
   useAutoSeleccionUnica(clients, clientId, setClientId);
   const { data: forms = [] } = useQuery<ReservationForm[]>({
     queryKey: ['reservation-forms', clientId], queryFn: () => api.get(`/reservations/forms?clientId=${encodeURIComponent(clientId)}`), enabled: Boolean(clientId),

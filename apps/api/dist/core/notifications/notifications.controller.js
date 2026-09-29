@@ -14,24 +14,32 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationsController = void 0;
 const common_1 = require("@nestjs/common");
+const account_access_service_1 = require("../client-scope/account-access.service");
+const client_capability_service_1 = require("../client-scope/client-capability.service");
+const notificaciones_visibles_1 = require("./notificaciones-visibles");
 const swagger_1 = require("@nestjs/swagger");
 const notification_service_1 = require("./notification.service");
 const roles_decorator_1 = require("../authorization/roles.decorator");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
 let NotificationsController = class NotificationsController {
-    constructor(service) {
+    constructor(service, accesos, servicios) {
         this.service = service;
+        this.accesos = accesos;
+        this.servicios = servicios;
     }
     canReadSystemNotifications(req) {
         return req.user.role === user_role_enum_1.UserRole.ADMIN;
     }
     async findAll(req) {
-        return this.service.findByUser(req.organizationId || req.user.organizationId, req.user.id, this.canReadSystemNotifications(req));
+        const organizationId = req.organizationId || req.user.organizationId;
+        const avisos = await this.service.findByUser(organizationId, req.user.id, this.canReadSystemNotifications(req));
+        return (0, notificaciones_visibles_1.avisosVisibles)(avisos, organizationId, req.user, this.accesos, this.servicios);
     }
     async unreadCount(req) {
-        const count = await this.service.unreadCount(req.organizationId || req.user.organizationId, req.user.id, this.canReadSystemNotifications(req));
-        return { unread: count };
+        const organizationId = req.organizationId || req.user.organizationId;
+        const noLeidas = await this.service.unreadByUser(organizationId, req.user.id, this.canReadSystemNotifications(req));
+        return { unread: (await (0, notificaciones_visibles_1.avisosVisibles)(noLeidas, organizationId, req.user, this.accesos, this.servicios)).length };
     }
     markAllAsRead(req) {
         return this.service.markAllAsRead(req.organizationId || req.user.organizationId, req.user.id, this.canReadSystemNotifications(req));
@@ -108,5 +116,9 @@ exports.NotificationsController = NotificationsController = __decorate([
     (0, common_1.Controller)('notifications'),
     (0, roles_decorator_1.Roles)(...Object.values(user_role_enum_1.UserRole)),
     (0, module_scope_decorator_1.ModuleExempt)('Autoservicio: cada persona ve y marca sus propios avisos'),
-    __metadata("design:paramtypes", [notification_service_1.NotificationService])
+    __param(1, (0, common_1.Optional)()),
+    __param(2, (0, common_1.Optional)()),
+    __metadata("design:paramtypes", [notification_service_1.NotificationService,
+        account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService])
 ], NotificationsController);

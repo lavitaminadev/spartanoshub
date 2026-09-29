@@ -16,6 +16,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EncuestaPostVisitaJob = exports.MARGEN_MAXIMO_HORAS = exports.HORAS_POST_VISITA_POR_DEFECTO = void 0;
 exports.encuestaUtil = encuestaUtil;
 const common_1 = require("@nestjs/common");
+const client_capability_service_1 = require("../../client-scope/client-capability.service");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const encuestas_de_la_empresa_1 = require("../../../modules/surveys/encuestas-de-la-empresa");
@@ -31,12 +32,13 @@ const DIAS_ENTRE_ENCUESTAS = 7;
 exports.HORAS_POST_VISITA_POR_DEFECTO = 3;
 exports.MARGEN_MAXIMO_HORAS = 48;
 let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJob {
-    constructor(reservas, formularios, encuestas, correo, parametros) {
+    constructor(reservas, formularios, encuestas, correo, parametros, servicios) {
         this.reservas = reservas;
         this.formularios = formularios;
         this.encuestas = encuestas;
         this.correo = correo;
         this.parametros = parametros;
+        this.servicios = servicios;
         this.logger = new common_1.Logger(EncuestaPostVisitaJob_1.name);
     }
     async handle() {
@@ -85,6 +87,8 @@ let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJo
                 if (!encuesta || !encuestaUtil(encuesta, form))
                     continue;
                 if (!(await (0, encuestas_de_la_empresa_1.encuestasHabilitadas)(this.reservas, form.clientId)))
+                    continue;
+                if (this.servicios && form.clientId && !(await this.servicios.enServicio(form.organizationId, form.clientId, 'surveys')))
                     continue;
                 const encuestadaHacePoco = await this.reservas.count({ where: { formId: reserva.formId, guestEmail: reserva.guestEmail, postVisitSurveySentAt: (0, typeorm_2.MoreThan)(new Date(ahora - DIAS_ENTRE_ENCUESTAS * 24 * UNA_HORA)) } });
                 if (encuestadaHacePoco > 0) {
@@ -142,11 +146,13 @@ exports.EncuestaPostVisitaJob = EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 
     __param(0, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
     __param(2, (0, typeorm_1.InjectRepository)(survey_entity_1.Survey)),
+    __param(5, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        client_capability_service_1.ClientCapabilityService])
 ], EncuestaPostVisitaJob);
 function encuestaUtil(encuesta, form) {
     if (encuesta.status !== 'active' || encuesta.type !== 'customer')

@@ -15,6 +15,7 @@ var LeadCreatedEmailListener_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LeadCreatedEmailListener = void 0;
 const common_1 = require("@nestjs/common");
+const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -24,11 +25,12 @@ const parameter_resolver_service_1 = require("../../../core/parameters/parameter
 const user_entity_1 = require("../../users/user.entity");
 const lead_entity_1 = require("./lead.entity");
 let LeadCreatedEmailListener = LeadCreatedEmailListener_1 = class LeadCreatedEmailListener {
-    constructor(leads, users, parameters, email) {
+    constructor(leads, users, parameters, email, servicios) {
         this.leads = leads;
         this.users = users;
         this.parameters = parameters;
         this.email = email;
+        this.servicios = servicios;
         this.logger = new common_1.Logger(LeadCreatedEmailListener_1.name);
     }
     async handle(event) {
@@ -37,6 +39,8 @@ let LeadCreatedEmailListener = LeadCreatedEmailListener_1 = class LeadCreatedEma
         try {
             const enabled = await this.parameters.get('email.new_lead_enabled', event.clientId, null, event.organizationId);
             if (enabled !== true)
+                return;
+            if (this.servicios && !(await this.servicios.enServicio(event.organizationId, event.clientId, 'crm')))
                 return;
             const [lead, subjectTemplate, bodyTemplate, recipients] = await Promise.all([
                 this.leads.findOne({
@@ -92,8 +96,10 @@ exports.LeadCreatedEmailListener = LeadCreatedEmailListener = LeadCreatedEmailLi
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __param(1, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(4, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         parameter_resolver_service_1.ParameterResolver,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        client_capability_service_1.ClientCapabilityService])
 ], LeadCreatedEmailListener);

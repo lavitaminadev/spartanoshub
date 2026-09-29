@@ -1,4 +1,5 @@
-import { Controller, ForbiddenException, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -42,6 +43,7 @@ export class PortalHomeController {
     private readonly crmHome: CrmHomeService,
     private readonly capacidades: ClientCapabilityService,
     @InjectRepository(Reservation) private readonly reservas: Repository<Reservation>,
+    private readonly accesos: AccountAccessService,
   ) {}
 
   /**
@@ -52,17 +54,19 @@ export class PortalHomeController {
    */
   @Get('inicio')
   @ApiOperation({ summary: 'Qué tiene que atender hoy esta empresa' })
-  async inicio(@Req() req: AuthenticatedRequest) {
+  async inicio(@Req() req: AuthenticatedRequest, @Query('clientId') pedida?: string) {
     /*
-     * La empresa sale de la sesión y de ningún otro sitio.
+     * La empresa que se está mirando, o la de la sesión.
      *
-     * No hay parámetro que aceptar acá: el portal mira su propia casa, y ofrecer una forma de
-     * pedir otra empresa sería crear el agujero que el resto del CRM cierra en cada endpoint.
+     * Quien atiende varias empresas veía siempre las cifras de la propia aunque estuviera en otra.
+     * La pedida se acepta solo si está entre las que el servidor le da a esa persona: escribir
+     * otra en el navegador responde 404, igual que en el resto del CRM.
      */
     if (req.user.role !== UserRole.CLIENT) {
       throw new ForbiddenException('Este resumen es del portal de una empresa cliente');
     }
-    const clientId = req.user.clientId;
+    if (pedida) await this.accesos.assertClient(req.organizationId, req.user, pedida);
+    const clientId = pedida || req.user.clientId;
     if (!clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
 
     const [tieneCrm, tieneReservas] = await Promise.all([

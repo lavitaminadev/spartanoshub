@@ -22,6 +22,7 @@ const client_capabilities_1 = require("../../modules/clients/client-capabilities
 const NOMBRE = {
     crm: 'CRM',
     reservations: 'reservas',
+    surveys: 'encuestas',
     metaConversions: 'conversiones de Meta',
     googleConversions: 'conversiones de Google',
     budgetVisibility: 'visibilidad de presupuesto',
@@ -52,6 +53,12 @@ let ClientCapabilityService = ClientCapabilityService_1 = class ClientCapability
             .map(([nombre]) => nombre));
         this.cache.set(clave, { capacidades, expiresAt: Date.now() + ClientCapabilityService_1.CACHE_TTL_MS });
         return capacidades.has(capacidad);
+    }
+    async enServicio(organizationId, clientId, capacidad) {
+        if (!(await this.tiene(organizationId, clientId, capacidad)))
+            return false;
+        const empresa = await this.clients.findOne({ where: { id: clientId, organizationId }, select: { id: true, status: true } });
+        return Boolean(empresa) && !['paused', 'churned', 'cancelled'].includes(String(empresa.status));
     }
     async filtrar(organizationId, clientIds, capacidad) {
         const empresas = await this.clients.find({
