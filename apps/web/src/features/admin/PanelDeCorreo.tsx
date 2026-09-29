@@ -142,7 +142,7 @@ const AVISOS: Array<{ prefijo: string; titulo: string; explica: string; modulo: 
     prefijo: 'email.access_temporary_password',
     modulo: 'acceso',
     titulo: 'Contraseña temporal',
-    explica: 'Al crear una cuenta o resetear su clave. Si el texto pierde la clave o el enlace, se usa el de fábrica.',
+    explica: 'Al crear una cuenta, resetear su clave o reenviarle el acceso. La clave sirve hasta que la persona elige la suya. Si el texto pierde la clave o el enlace, se usa el de fábrica.',
     siempre: true,
   },
   {
