@@ -1,0 +1,1 @@
+function e(e,t){let n=e?.acciones?.[t];return n===void 0||n}export{e as t};

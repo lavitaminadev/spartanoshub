@@ -96,6 +96,9 @@ export function useEmpresaActiva(): EmpresaActiva {
    * `/clients` pertenece al módulo Clientes, que es de la agencia: una cuenta de portal lo pide y
    * recibe un 403. La lista llegaba vacía, esto lo leía como «tiene una sola empresa» y caía a la
    * de su sesión, así que quien atendía dos locales nunca veía el segundo ni el selector.
+   *
+   * El cliente HTTP traduce `/clients` a esta misma ruta para las cuentas de portal, así que el
+   * resto de las pantallas no tuvo que cambiar; acá se pide directa porque es su propia lista.
    */
   const { data } = useQuery<{ data: Array<{ id: string; name: string }> }>({
     queryKey: ['portal-empresas'],

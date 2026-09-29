@@ -8,7 +8,7 @@
 
 import { create } from 'zustand';
 import type { AuthResponse, ModuleLifecycleStatus, UserRole } from '@espartanos/shared';
-import { api, setApiToken } from './api';
+import { api, setApiRole, setApiToken } from './api';
 import { claimQueryCache, clearQueryCache } from './query-persistence';
 import { readStoredJson, storageKey } from './browser-storage';
 
@@ -123,6 +123,9 @@ export interface AuthState {
  */
 async function loadProfile(): Promise<User> {
   const user = await api.get<User>('/auth/me');
+  // Antes de pedir nada más: una cuenta de empresa consulta sus empresas por la ruta del portal,
+  // porque `/clients` es de la agencia y le responde 403. Lo traduce el cliente HTTP.
+  setApiRole(user.role);
   /*
    * Los permisos se piden para la empresa que se está mirando.
    *

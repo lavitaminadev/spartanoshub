@@ -1,0 +1,1 @@
+function e(e){if(e)try{let t=new URL(e,window.location.origin);return[`http:`,`https:`].includes(t.protocol)?t.toString():void 0}catch{return}}export{e as t};
