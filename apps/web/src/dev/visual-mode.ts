@@ -637,6 +637,12 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * que es cuando aparece el aviso.
    */
   [/\/users\/administran-equipo/, () => ({ clientId: VISUAL_USER.clientId, userIds: visualAdministranEquipo, sinAdministrador: visualAdministranEquipo.length === 0 })],
+  // Tres envíos de ejemplo para revisar la pantalla de diagnóstico de correo.
+  [/\/registro-de-correos/, () => ([
+    { id: 'rc-1', destinatario: 'ana@casacostanera.cl', asunto: 'Acceso temporal a Espartanos', resultado: 'enviado', motivo: null, createdAt: new Date(Date.now() - 3 * 60_000).toISOString() },
+    { id: 'rc-2', destinatario: 'test3@gmail.com', asunto: 'Lead nuevo: Javi Meza (meta lead ads)', resultado: 'rechazado', motivo: 'El servidor de correo no lo aceptó', createdAt: new Date(Date.now() - 90 * 60_000).toISOString() },
+    { id: 'rc-3', destinatario: 'diego@casacostanera.cl', asunto: 'Tu reserva en Casa Costanera', resultado: 'omitido', motivo: 'El correo de salida está apagado (SMTP_ENABLED)', createdAt: new Date(Date.now() - 26 * 60 * 60_000).toISOString() },
+  ])],
   // Sin servidor de correo el reenvío no sale, como en producción con SMTP apagado.
   [/\/users\/[^/]+\/resend-access$/, (config) => ({ userId: config?.url?.split('/')[2], emailSent: false })],
   [/\/users(?:\?|$)/, (config) => {

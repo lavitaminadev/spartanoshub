@@ -32,6 +32,7 @@ const PipelineBoardPage = lazy(() => import('../features/crm/PipelineBoardPage')
 const AutomationsPage = lazy(() => import('../features/automations/AutomationsPage').then(m => ({ default: m.AutomationsPage })));
 const AutomationEditorPage = lazy(() => import('../features/automations/AutomationEditorPage').then(m => ({ default: m.AutomationEditorPage })));
 const AutomationRunsPage = lazy(() => import('../features/automations/AutomationRunsPage').then(m => ({ default: m.AutomationRunsPage })));
+const RegistroDeCorreosPage = lazy(() => import('../features/registro-de-correos/RegistroDeCorreosPage').then(m => ({ default: m.RegistroDeCorreosPage })));
 const ContactsPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.ContactsPage })));
 const InteractionsPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.InteractionsPage })));
 const ProductionPage = lazy(() => import('../features/production/ProductionPage').then(m => ({ default: m.ProductionPage })));
@@ -148,6 +149,8 @@ export function AppRouter() {
             <Route path="/crm/interactions" element={<ProtectedRoute path="/crm/interactions"><SafeSuspense><InteractionsPage /></SafeSuspense></ProtectedRoute>} />
           </Route>
           <Route path="/automations" element={<ProtectedRoute path="/automations"><SafeSuspense><AutomationsPage /></SafeSuspense></ProtectedRoute>} />
+          {/* Diagnóstico de correo: el cargo permitido sale del manifiesto, que la declara sólo para dev. */}
+          <Route path="/registro-de-correos" element={<ProtectedRoute path="/registro-de-correos"><SafeSuspense><RegistroDeCorreosPage /></SafeSuspense></ProtectedRoute>} />
           {/* El editor y el historial cuelgan de la misma ruta de permiso que el listado: se
               declaran con `path="/automations"` para no tener que repetir la regla por cada
               subruta y arriesgar que una quede sin proteger. */}
@@ -234,6 +237,7 @@ import '../features/contracts/feature.manifest';
 import '../features/catalog/feature.manifest';
 import '../features/crm/feature.manifest';
 import '../features/automations/feature.manifest';
+import '../features/registro-de-correos/feature.manifest';
 import '../features/briefs/feature.manifest';
 import '../features/intake/feature.manifest';
 import '../features/production/feature.manifest';
