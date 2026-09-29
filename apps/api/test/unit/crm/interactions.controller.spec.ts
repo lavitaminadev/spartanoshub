@@ -15,6 +15,13 @@ function setup() {
   const accountAccess = {
     allowedClientIds: vi.fn().mockResolvedValue(['client-1']),
     assertClient: vi.fn(),
+    // Misma regla que el servicio real: el portal usa la pedida sólo si la alcanza.
+    empresaDeTrabajo: vi.fn(async (_org: string, user: { role: string; clientId?: string }, pedida?: string) => {
+      if (user.role !== 'client') return pedida || undefined;
+      if (!pedida || pedida === user.clientId) return user.clientId;
+      const alcanzables = await accountAccess.allowedClientIds();
+      return alcanzables?.includes(pedida) ? pedida : user.clientId;
+    }),
   };
   const capabilities = { assert: vi.fn() };
   return {
@@ -81,5 +88,18 @@ describe('InteractionsController · aislamiento por empresa', () => {
     expect(accountAccess.assertClient).toHaveBeenNthCalledWith(1, 'org-1', request.user, 'client-1');
     expect(accountAccess.assertClient).toHaveBeenNthCalledWith(2, 'org-1', request.user, 'client-2');
     expect(service.update).toHaveBeenCalledWith('interaction-1', { leadId: 'lead-2' }, 'org-1');
+  });
+
+  it('el portal trabaja en su segunda empresa cuando la elige', async () => {
+    const { controller, service, capabilities } = setup();
+    const portalRequest = { organizationId: 'org-1', user: { id: 'portal-1', role: 'client', clientId: 'client-1' } } as any;
+    service.findAll.mockResolvedValue({ data: [], total: 0, limit: 500, offset: 0 });
+    const { accountAccess } = { accountAccess: (controller as any).accountAccess };
+    accountAccess.allowedClientIds.mockResolvedValue(['client-1', 'client-2']);
+
+    await controller.findAll({ limit: 500, offset: 0, clientId: 'client-2' } as any, portalRequest);
+
+    expect(capabilities.assert).toHaveBeenCalledWith('org-1', 'client-2', 'crm');
+    expect(service.findAll).toHaveBeenCalledWith('org-1', 500, 0, undefined, ['client-1', 'client-2'], 'client-2', { from: undefined, to: undefined });
   });
 });

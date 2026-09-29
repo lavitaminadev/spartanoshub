@@ -30,10 +30,23 @@ export class ContactsController {
     private readonly capabilities: ClientCapabilityService,
   ) {}
 
+  /** El portal entra al CRM de la empresa que está mirando; ver el mismo método en `LeadController`. */
   private async assertPortalCrm(req: AuthenticatedRequest): Promise<void> {
     if (req.user.role !== UserRole.CLIENT) return;
-    if (!req.user.clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
-    await this.capabilities.assert(req.organizationId, req.user.clientId, 'crm');
+    const pedida = (req.query as { clientId?: string } | undefined)?.clientId;
+    if (typeof pedida !== 'string' || !pedida) {
+      /*
+       * Sin empresa pedida —la ficha de un lead, que va por su identificador— basta con que alguna
+       * de las empresas que alcanza tenga CRM. Exigirlo en la de su cuenta dejaba sin fichas a quien
+       * tiene CRM sólo en su segundo local. Qué lead puede abrir lo decide después su alcance.
+       */
+      const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+      const conCrm = await this.capabilities.filtrar(req.organizationId, alcanzables ?? [], 'crm');
+      if (conCrm.length) return;
+    }
+    const empresa = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, typeof pedida === 'string' ? pedida : undefined);
+    if (!empresa) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
+    await this.capabilities.assert(req.organizationId, empresa, 'crm');
   }
 
   @Get()

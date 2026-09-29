@@ -73,7 +73,8 @@ export class LeadController {
      * navegador y decide de quién es el contacto. Sin ellas, quien crea puede depositarlo en una
      * cuenta que no alcanza con solo cambiar el valor enviado.
      */
-    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : dto.clientId;
+    // En el portal, la empresa elegida si la alcanza; si no, la de su cuenta. Nunca una ajena.
+    const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     await this.capacidades.assert(req.organizationId, clientId, 'crm');
     return this.createLead.execute({
@@ -100,7 +101,8 @@ export class LeadController {
     // La cuenta se comprueba antes de escribir una sola fila. Es un identificador que llega del
     // navegador y decide a qué cliente quedan atribuidos cientos de contactos: sin esto, quien
     // importa puede escribir en una cuenta que no alcanza con solo cambiar el valor enviado.
-    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : dto.clientId;
+    // En el portal, la empresa elegida si la alcanza; si no, la de su cuenta. Nunca una ajena.
+    const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     // Y que esa empresa tenga CRM: importar cuatrocientos contactos a una que solo lleva
     // reservas los deja en un módulo que esa empresa no tiene, sin nadie que los trabaje.
@@ -124,10 +126,14 @@ export class LeadController {
   async list(@Query() query: ListLeadsQueryDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    // El portal no decide el tenant con un query string. Aunque mande otro `clientId`, se usa el
-    // que viene firmado en su sesión. Para el equipo interno la empresa elegida sigue siendo un
-    // filtro permitido, validado contra sus asignaciones por `ListLeadsUseCase`.
-    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : query.clientId;
+    /*
+     * El portal trabaja sobre la empresa que eligió, si la alcanza; si no, sobre la de su cuenta.
+     *
+     * Antes se usaba siempre la de la cuenta, así que al cambiar de local la lista seguía siendo la
+     * del primero. Una empresa ajena escrita en la dirección cae en la propia: no abre nada. Para el
+     * equipo interno la empresa elegida sigue siendo un filtro, validado por `ListLeadsUseCase`.
+     */
+    const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, query.clientId);
     /*
      * Tercera reja: qué servicios tiene contratados la empresa.
      *
@@ -239,7 +245,7 @@ export class LeadController {
     await this.assertPortalCrm(req);
     // El portal no elige empresa: la suya viene firmada en la sesión y un query string no la
     // cambia. Es la misma regla que gobierna el listado de leads.
-    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : solicitado;
+    const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, solicitado);
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     if (clientId) await this.capacidades.assert(req.organizationId, clientId, 'crm');
     return this.responsablesDelCrm.execute(req.organizationId, clientId);
@@ -293,7 +299,8 @@ export class LeadController {
     // Se comprueban las dos cuentas, no solo la de origen: sin verificar el destino, mover un
     // lead a una cuenta ajena sería una forma de sacarlo del alcance de quien lo estaba viendo
     // —o de meterlo en el de otro equipo— con un solo campo.
-    if (req.user.role === UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== req.user.clientId) {
+    // El lead ya pasó por el alcance: lo que el portal no puede es cambiarlo de empresa.
+    if (req.user.role === UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== lead.clientId) {
       throw new ForbiddenException('El portal no puede mover contactos fuera de su empresa');
     }
     if (req.user.role === UserRole.CLIENT && dto.excludedFromMeta !== undefined) {
@@ -303,7 +310,9 @@ export class LeadController {
     await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
     // Mover un lead a una empresa sin CRM lo haría desaparecer de toda pantalla salvo la base.
     await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
-    return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.clientId ?? null);
+    // Para el portal, la empresa del lead —que ya alcanza— y no la de su cuenta: con dos locales,
+    // mover una tarjeta en el segundo no se reconocía como trabajo propio.
+    return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.role === UserRole.CLIENT ? lead.clientId ?? null : req.user.clientId ?? null);
   }
 
   /**
@@ -336,11 +345,29 @@ export class LeadController {
     return lead;
   }
 
-  /** El portal toma la empresa de su sesión, nunca de un query string opcional. */
+  /**
+   * El portal entra al CRM de la empresa que está mirando.
+   *
+   * Se exigía el CRM en la empresa de la cuenta: quien tiene un local sin CRM y otro con CRM no
+   * podía usar el del segundo. La empresa pedida se resuelve contra su alcance —una ajena cae en
+   * la propia— y es la que tiene que tener el servicio.
+   */
   private async assertPortalCrm(req: AuthenticatedRequest): Promise<void> {
     if (req.user.role !== UserRole.CLIENT) return;
-    if (!req.user.clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
-    await this.capacidades.assert(req.organizationId, req.user.clientId, 'crm');
+    const pedida = (req.query as { clientId?: string } | undefined)?.clientId;
+    if (typeof pedida !== 'string' || !pedida) {
+      /*
+       * Sin empresa pedida —la ficha de un lead, que va por su identificador— basta con que alguna
+       * de las empresas que alcanza tenga CRM. Exigirlo en la de su cuenta dejaba sin fichas a quien
+       * tiene CRM sólo en su segundo local. Qué lead puede abrir lo decide después su alcance.
+       */
+      const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+      const conCrm = await this.capacidades.filtrar(req.organizationId, alcanzables ?? [], 'crm');
+      if (conCrm.length) return;
+    }
+    const empresa = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, typeof pedida === 'string' ? pedida : undefined);
+    if (!empresa) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
+    await this.capacidades.assert(req.organizationId, empresa, 'crm');
   }
 
   /**
