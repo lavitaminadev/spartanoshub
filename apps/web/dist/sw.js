@@ -78,7 +78,7 @@ define(['./workbox-3d8c9f1b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "1a297f8d97ff138aee45d7a7b2cdd06a"
+    "revision": "45e7546f1c5874f22cc234588f3aeb22"
   }, {
     "url": "manifest.webmanifest",
     "revision": "5e4ebab5a95e7df65224bbb2f0fb66e7"
@@ -86,22 +86,22 @@ define(['./workbox-3d8c9f1b'], (function (workbox) { 'use strict';
     "url": "assets/index-MwEitPZY.css",
     "revision": null
   }, {
-    "url": "assets/index-D1PGTwc4.js",
+    "url": "assets/index-DUXFH7yW.js",
     "revision": null
   }, {
-    "url": "assets/vendor-router-D4R7niJZ.js",
+    "url": "assets/vendor-router-pZoxAoUG.js",
     "revision": null
   }, {
-    "url": "assets/vendor-react-Dh4-nPVS.js",
+    "url": "assets/vendor-react-D04HRvAa.js",
     "revision": null
   }, {
-    "url": "assets/vendor-query-Cg6_q2kr.js",
+    "url": "assets/vendor-query-DlUwY8h0.js",
     "revision": null
   }, {
-    "url": "assets/vendor-charts-BkjpatEL.js",
+    "url": "assets/vendor-charts-B0yMiSqK.js",
     "revision": null
   }, {
-    "url": "assets/vendor-C-JFuBkI.js",
+    "url": "assets/vendor-B3NU-sW0.js",
     "revision": null
   }, {
     "url": "icons.svg",

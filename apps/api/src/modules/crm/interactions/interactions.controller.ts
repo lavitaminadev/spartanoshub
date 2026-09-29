@@ -24,8 +24,23 @@ export class InteractionsController {
 
   @Post()
   async create(@Body() dto: CreateInteractionDto, @Req() req: AuthenticatedRequest) {
-    await this.assertClientScope(req, await this.service.referenceClientId(dto, req.organizationId));
-    return this.service.create(dto, req.organizationId, req.user.id);
+    /*
+     * La empresa sale del lead o del contacto; sin ellos, de la que se está mirando.
+     *
+     * El calendario permite a propósito una actividad que no cuelga de nadie —una reunión de
+     * equipo, un bloqueo—, y antes eso se rechazaba con «Interaction not found» para cualquiera
+     * que no viera la organización entera: la actividad no habría pertenecido a ninguna empresa y
+     * habría quedado fuera de todo listado. Ahora se le escribe la empresa.
+     *
+     * Del portal se toma la de la sesión y no la del cuerpo: el navegador puede escribir lo que
+     * quiera, y `assertClient` vuelve a comprobarla igualmente.
+     */
+    const deLaReferencia = await this.service.referenceClientId(dto, req.organizationId);
+    const clientId = deLaReferencia
+      ?? (req.user.role === 'client' ? req.user.clientId : dto.clientId)
+      ?? undefined;
+    await this.assertClientScope(req, clientId);
+    return this.service.create({ ...dto, clientId }, req.organizationId, req.user.id);
   }
 
   @Get()
@@ -66,7 +81,9 @@ export class InteractionsController {
 
   private async assertClientScope(req: AuthenticatedRequest, clientId?: string): Promise<void> {
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    if (!clientId && allowed !== undefined) throw new NotFoundException('Interaction not found');
+    // Sin empresa y con el alcance acotado no hay a qué compararla: sería una actividad que nadie
+    // podría listar después. Quien ve la organización entera sí puede tener actividad sin empresa.
+    if (!clientId && allowed !== undefined) throw new NotFoundException('Esta actividad no quedó asociada a ninguna empresa, así que no podría verse después. Elige la empresa o relaciona un contacto.');
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     await this.capabilities.assert(req.organizationId, clientId, 'crm');
   }

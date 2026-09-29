@@ -17,6 +17,19 @@ export class Interaction {
   @ManyToOne(() => Organization) @JoinColumn({ name: 'organization_id' }) organization: Organization;
   @Column({ name: 'lead_id', type: 'uuid', nullable: true }) leadId?: string;
   @Column({ name: 'contact_id', type: 'uuid', nullable: true }) contactId?: string;
+
+  /**
+   * Empresa a la que pertenece la actividad.
+   *
+   * Antes se deducía del lead o del contacto, y una actividad que no cuelga de ninguno —una
+   * reunión de equipo, un bloqueo de agenda, que el calendario permite a propósito— no pertenecía
+   * a ninguna empresa: el listado la habría dejado fuera para cualquiera que no vea la
+   * organización entera, así que crearla se rechazaba con «Interaction not found». Con la empresa
+   * escrita acá, esa actividad tiene dueño y se lista como el resto.
+   *
+   * Cuando hay lead o contacto, manda la empresa de ellos: es el mismo dato y no pueden discrepar.
+   */
+  @Column({ name: 'client_id', type: 'uuid', nullable: true }) clientId?: string | null;
   @Column({ type: 'varchar', length: 50 }) type: string;
   @Column({ type: 'text', nullable: true }) description?: string;
   /**

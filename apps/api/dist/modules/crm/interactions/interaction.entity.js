@@ -37,6 +37,10 @@ __decorate([
     __metadata("design:type", String)
 ], Interaction.prototype, "contactId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'client_id', type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], Interaction.prototype, "clientId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 50 }),
     __metadata("design:type", String)
 ], Interaction.prototype, "type", void 0);

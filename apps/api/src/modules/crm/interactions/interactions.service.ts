@@ -56,10 +56,12 @@ export class InteractionsService {
         .leftJoin(Lead, 'lead', 'lead.id = interaction.lead_id AND lead.organization_id = interaction.organization_id')
         .leftJoin(Contact, 'contact', 'contact.id = interaction.contact_id AND contact.organization_id = interaction.organization_id')
         .where('interaction.organization_id = :organizationId', { organizationId });
+      // La empresa propia de la actividad cuenta igual que la de su lead o su contacto: es la que
+      // tienen las que no cuelgan de nadie, y sin mirarla no aparecerían en ninguna lista.
       if (clientId) {
-        query.andWhere('(lead.client_id = :clientId OR contact.client_id = :clientId)', { clientId });
+        query.andWhere('(interaction.client_id = :clientId OR lead.client_id = :clientId OR contact.client_id = :clientId)', { clientId });
       } else if (allowedClientIds !== undefined) {
-        query.andWhere('(lead.client_id IN (:...allowedClientIds) OR contact.client_id IN (:...allowedClientIds))', { allowedClientIds });
+        query.andWhere('(interaction.client_id IN (:...allowedClientIds) OR lead.client_id IN (:...allowedClientIds) OR contact.client_id IN (:...allowedClientIds))', { allowedClientIds });
       }
       if (leadId) query.andWhere('interaction.lead_id = :leadId', { leadId });
       acotarRango((sql, params) => { query.andWhere(sql, params); });

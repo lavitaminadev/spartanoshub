@@ -253,6 +253,10 @@ export function CrmCalendarPage(): JSX.Element {
       description: agendando!.description.trim(),
       date: new Date(agendando!.date).toISOString(),
       leadId: agendando!.leadId || undefined,
+      // Sin lead, la actividad se queda en la empresa que se está mirando: sin empresa no la
+      // podría listar nadie después, y el servidor la rechazaba con un error que no se entendía.
+      // El embudo de la agencia no es una empresa, así que ahí no se manda ninguna.
+      clientId: !scope.esAgencia && scope.clientId ? scope.clientId : undefined,
       // Vacío se manda como ausente y no como cadena vacía: en la base, «no tiene medio» y
       // «tiene el medio ""» se leerían igual al mostrarlo pero distinto al filtrar.
       medium: agendando!.medium || undefined,
