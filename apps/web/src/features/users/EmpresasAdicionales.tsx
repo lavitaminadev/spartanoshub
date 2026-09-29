@@ -83,6 +83,19 @@ export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, pu
     cambiarAcceso.mutate({ clientId, conceder: false });
   };
 
+  /*
+   * Dar la administración da también la entrada.
+   *
+   * Administrar una empresa en la que no se entra no significa nada, así que la casilla estaba
+   * inhabilitada hasta marcar «Entra» primero. Eso deja a la vista un control que no responde y
+   * obliga a adivinar el orden: marcarlo es decir «que administre esta empresa», y entrar es
+   * parte de eso. Es la simétrica de quitar el acceso, que ya retira la administración.
+   */
+  const darMando = async (clientId: string, conceder: boolean, entra: boolean) => {
+    if (conceder && !entra) await cambiarAcceso.mutateAsync({ clientId, conceder: true }).catch(() => null);
+    cambiarMando.mutate({ clientId, conceder });
+  };
+
   const fila = (empresa: { id: string; name: string }, esPropia: boolean) => {
     const entra = esPropia || asignadas.has(empresa.id);
     return (
@@ -106,8 +119,8 @@ export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, pu
           <input
             type="checkbox"
             checked={administradas.has(empresa.id)}
-            disabled={!entra || !puedeEditar || guardando}
-            onChange={(evento) => cambiarMando.mutate({ clientId: empresa.id, conceder: evento.target.checked })}
+            disabled={!puedeEditar || guardando}
+            onChange={(evento) => darMando(empresa.id, evento.target.checked, entra)}
           />
           {' '}Administra el equipo
         </label>

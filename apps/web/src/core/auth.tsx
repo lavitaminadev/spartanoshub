@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import type { AuthResponse, ModuleLifecycleStatus, UserRole } from '@espartanos/shared';
 import { api, setApiToken } from './api';
 import { claimQueryCache, clearQueryCache } from './query-persistence';
+import { readStoredJson, storageKey } from './browser-storage';
 
 type BrowserAuthResponse = Pick<AuthResponse, 'accessToken' | 'user'>;
 
@@ -121,11 +122,23 @@ export interface AuthState {
  * utilizable mientras el backend responde de nuevo.
  */
 async function loadProfile(): Promise<User> {
-  const [user, resueltos] = await Promise.all([
-    api.get<User>('/auth/me'),
-    api.get<{ permissions: Record<string, PermissionLevel>; acciones?: Record<string, boolean> }>('/me/permissions')
-      .catch(() => undefined),
-  ]);
+  const user = await api.get<User>('/auth/me');
+  /*
+   * Los permisos se piden para la empresa que se está mirando.
+   *
+   * Administrar el equipo se concede empresa por empresa. Sin decir cuál, el servidor descartaba
+   * todas esas concesiones y devolvía siempre «none», así que marcar «Administra el equipo» no
+   * encendía nada. La guardada es la misma clave que usa el selector; el servidor la comprueba
+   * contra el alcance y cae a la propia si no corresponde.
+   */
+  const empresa = user.role === 'client'
+    ? (readStoredJson<string>(storageKey('crm-cuenta', user.id), '') || user.clientId || '')
+    : '';
+  const resueltos = await api
+    .get<{ permissions: Record<string, PermissionLevel>; acciones?: Record<string, boolean> }>(
+      `/me/permissions${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`,
+    )
+    .catch(() => undefined);
   return { ...user, permissions: resueltos?.permissions, acciones: resueltos?.acciones };
 }
 

@@ -29,8 +29,12 @@ let InteractionsController = class InteractionsController {
         this.capabilities = capabilities;
     }
     async create(dto, req) {
-        await this.assertClientScope(req, await this.service.referenceClientId(dto, req.organizationId));
-        return this.service.create(dto, req.organizationId, req.user.id);
+        const deLaReferencia = await this.service.referenceClientId(dto, req.organizationId);
+        const clientId = deLaReferencia
+            ?? (req.user.role === 'client' ? req.user.clientId : dto.clientId)
+            ?? undefined;
+        await this.assertClientScope(req, clientId);
+        return this.service.create({ ...dto, clientId }, req.organizationId, req.user.id);
     }
     async findAll(query, req) {
         const clientId = req.user.role === 'client' ? req.user.clientId : query.clientId;
@@ -61,7 +65,7 @@ let InteractionsController = class InteractionsController {
     async assertClientScope(req, clientId) {
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         if (!clientId && allowed !== undefined)
-            throw new common_1.NotFoundException('Interaction not found');
+            throw new common_1.NotFoundException('Esta actividad no quedó asociada a ninguna empresa, así que no podría verse después. Elige la empresa o relaciona un contacto.');
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         await this.capabilities.assert(req.organizationId, clientId, 'crm');
     }

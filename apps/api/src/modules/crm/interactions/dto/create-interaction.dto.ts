@@ -4,6 +4,8 @@ export class CreateInteractionDto {
   @IsString() @MaxLength(50) type: string;
   @IsOptional() @IsUUID() leadId?: string;
   @IsOptional() @IsUUID() contactId?: string;
+  /** Empresa de la actividad cuando no cuelga de un lead ni de un contacto. Del portal se ignora. */
+  @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsString() @MaxLength(10000) description?: string;
   @IsOptional() @IsDateString() date?: string;
   /** Por dónde ocurre. Solo tiene sentido en reuniones y visitas. */

@@ -180,10 +180,20 @@ let PermissionsController = class PermissionsController {
         }));
         return { data: excepciones };
     }
-    async mine(req) {
-        const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role);
+    async mine(req, clientId) {
+        const empresa = req.user.role === user_role_enum_1.UserRole.CLIENT
+            ? await this.empresaDelPortal(req, clientId)
+            : clientId;
+        const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role, empresa);
         const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role)).map((accion) => [accion.clave, accion.permitida]));
         return { permissions, acciones };
+    }
+    async empresaDelPortal(req, pedida) {
+        const propia = req.user.clientId ?? undefined;
+        if (!pedida || pedida === propia)
+            return propia;
+        const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user).catch(() => undefined);
+        return alcanzables?.includes(pedida) ? pedida : propia;
     }
     async ofRole(role, req) {
         if (!Object.values(user_role_enum_1.UserRole).includes(role))
@@ -461,8 +471,9 @@ __decorate([
     (0, module_scope_decorator_1.ModuleExempt)('Devuelve los permisos de quien pregunta; exigir un módulo para leerlos sería circular'),
     (0, swagger_1.ApiOperation)({ summary: 'Permisos efectivos del usuario autenticado' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], PermissionsController.prototype, "mine", null);
 __decorate([

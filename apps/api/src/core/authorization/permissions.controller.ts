@@ -259,11 +259,37 @@ export class PermissionsController {
    */
   @ModuleExempt('Devuelve los permisos de quien pregunta; exigir un módulo para leerlos sería circular')
   @ApiOperation({ summary: 'Permisos efectivos del usuario autenticado' })
-  async mine(@Req() req: AuthenticatedRequest) {
-    const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role as UserRole);
+  async mine(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    /*
+     * Los permisos de una cuenta de portal se resuelven sobre una empresa concreta.
+     *
+     * Administrar el equipo se concede empresa por empresa, y al resolver sin ninguna todas esas
+     * concesiones se descartaban: `users` quedaba siempre en «none», así que marcar «Administra el
+     * equipo» no encendía nada —ni el menú Equipo, ni Correos, ni Datos legales— por más que la
+     * concesión estuviera guardada. Se toma la empresa que está mirando, comprobada contra su
+     * alcance, y si no manda ninguna, la de su cuenta.
+     */
+    const empresa = req.user.role === UserRole.CLIENT
+      ? await this.empresaDelPortal(req, clientId)
+      : clientId;
+    const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role as UserRole, empresa);
     // Las acciones van junto a los niveles para que la pantalla esconda lo que el servidor rechazaría.
     const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role as UserRole)).map((accion) => [accion.clave, accion.permitida]));
     return { permissions, acciones };
+  }
+
+  /**
+   * La empresa pedida si esa cuenta de portal la alcanza; si no, la de su cuenta.
+   *
+   * La pedida llega del navegador, así que se comprueba contra el alcance en vez de creerle. Se
+   * cae a la suya en silencio y no con un error: pedir los propios permisos no puede fallar por
+   * una empresa mal escrita, porque sin permisos la aplicación queda inutilizable.
+   */
+  private async empresaDelPortal(req: AuthenticatedRequest, pedida?: string): Promise<string | undefined> {
+    const propia = req.user.clientId ?? undefined;
+    if (!pedida || pedida === propia) return propia;
+    const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user).catch(() => undefined);
+    return alcanzables?.includes(pedida) ? pedida : propia;
   }
 
   /**
