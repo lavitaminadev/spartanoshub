@@ -1,4 +1,4 @@
-import { useEmpresaActiva } from '../../shared/empresa-activa';
+import { useEmpresaActiva, useUsuarioEnEmpresaActiva } from '../../shared/empresa-activa';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -126,6 +126,9 @@ export function UsersPage() {
     pantalla con el equipo del anterior, y se creaban cuentas en la empresa equivocada.
   */
   const empresaActiva = useEmpresaActiva();
+  // Los servicios de la empresa que se está mirando, no los de la empresa de la cuenta: con los
+  // de la cuenta, en el segundo local se repartían servicios que ese local no tiene contratados.
+  const usuarioEnEmpresa = useUsuarioEnEmpresaActiva();
   const administraSuEmpresa = currentUser?.role === 'client';
   // Crear y editar van a la empresa elegida, no a la de la sesión.
   const sufijoDeEmpresa = administraSuEmpresa && empresaActiva.clientId
@@ -351,7 +354,8 @@ export function UsersPage() {
     const { rows: manageable, isActive } = pendingBulkAccess;
     setBulkAccessPending(true);
     try {
-      await Promise.all(manageable.map((row) => api.patch(`/users/${row.id}`, { isActive })));
+      // A la empresa elegida, igual que editar de a una: sin ella se medía contra la de la cuenta.
+      await Promise.all(manageable.map((row) => api.patch(`/users/${row.id}${sufijoDeEmpresa}`, { isActive })));
       await queryClient.invalidateQueries({ queryKey: ['users'] });
       setFeedback({ tone: 'success', text: `${manageable.length} acceso(s) actualizados.` });
     } catch (bulkError) {
@@ -537,6 +541,7 @@ export function UsersPage() {
               empresas={clients}
               puedeEditar={puedeEditarPermisos}
               puedeAsignarEmpresas={!administraSuEmpresa}
+              empresaMirada={administraSuEmpresa ? empresaActiva.clientId : ''}
             />
           )}
           {/*
@@ -589,7 +594,7 @@ export function UsersPage() {
         onClose={() => setPendingBulkAccess(null)}
         onConfirm={() => void confirmBulkAccess()}
       />
-      {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id && !(esOperaciones && ['admin', 'operations_director', 'dev'].includes(permisosDe.role))} limitadoAOperaciones={esOperaciones} limitadoASuEmpresa={administraSuEmpresa} miEmpresa={currentUser?.clientId ?? ''} serviciosDeLaEmpresa={currentUser?.capabilities} onCerrar={() => setPermisosDe(null)} />}
+      {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id && !(esOperaciones && ['admin', 'operations_director', 'dev'].includes(permisosDe.role))} limitadoAOperaciones={esOperaciones} limitadoASuEmpresa={administraSuEmpresa} miEmpresa={(administraSuEmpresa && empresaActiva.clientId) || currentUser?.clientId || ''} serviciosDeLaEmpresa={usuarioEnEmpresa?.capabilities} onCerrar={() => setPermisosDe(null)} />}
       <Modal open={Boolean(resetTarget)} onClose={() => { setResetTarget(null); setResetResult(null); }} title={`Resetear clave de ${resetTarget?.name ?? ''}`}>
         <div className="modal-form reset-access-modal">
           {!resetResult ? <><p>Se cerrarán las sesiones activas y se generará una contraseña temporal. La persona deberá cambiarla al ingresar.</p><label className="toggle-row"><input type="checkbox" checked={sendResetEmail} onChange={(event) => setSendResetEmail(event.target.checked)} /> Enviar también al correo {resetTarget?.email}</label>{resetMutation.error && <div className="alert alert-error">{resetMutation.error.message}</div>}<div className="modal-actions"><button className="btn btn-outline" type="button" onClick={() => setResetTarget(null)}>Cancelar</button><button className="btn btn-primary" type="button" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>{resetMutation.isPending ? 'Generando...' : 'Generar acceso temporal'}</button></div></> : <><div className="temporary-password-result"><span>CLAVE TEMPORAL · SE MUESTRA UNA VEZ</span><strong>{resetResult.temporaryPassword}</strong><button className="btn btn-outline btn-sm" type="button" onClick={() => navigator.clipboard.writeText(resetResult.temporaryPassword)}>Copiar clave</button></div><div className={`alert alert-${resetResult.emailSent ? 'success' : 'info'}`}>{resetResult.emailSent ? 'También fue enviada por correo.' : 'El correo no fue enviado. Comparte esta clave por un canal seguro.'}</div><button className="btn btn-primary btn-block" type="button" onClick={() => { setResetTarget(null); setResetResult(null); }}>Cerrar</button></>}

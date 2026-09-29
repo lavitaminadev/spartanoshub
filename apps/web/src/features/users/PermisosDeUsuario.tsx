@@ -74,21 +74,36 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
    *
    * Vacío sigue siendo «en todas»: es lo que había y lo que sirve para la mayoría.
    */
-  const [empresaDelPermiso, setEmpresaDelPermiso] = useState('');
+  const [empresaElegida, setEmpresaDelPermiso] = useState('');
+  /*
+   * Quien administra su empresa decide sólo en ella: nunca «en todas».
+   *
+   * Con el vacío de siempre, lo que repartía se guardaba como excepción general y valía también
+   * en las otras empresas de esa persona, que no administra. El servidor ya lo encierra; aquí se
+   * pide así desde el principio para que lo que se ve sea lo que rige en su empresa.
+   */
+  const empresaDelPermiso = limitadoASuEmpresa ? miEmpresa : empresaElegida;
   const qs = empresaDelPermiso ? `?clientId=${encodeURIComponent(empresaDelPermiso)}` : '';
   const clave = ['permisos-de-usuario', usuario.id, empresaDelPermiso];
   const permisos = useQuery<{ modules: PermisoEfectivo[] }>({ queryKey: clave, queryFn: () => api.get(`/users/${usuario.id}/permissions${qs}`) });
   const delCargo = useQuery<{ permissions: Record<string, Nivel> }>({
     queryKey: ['permisos-del-cargo', usuario.role],
     queryFn: () => api.get(`/roles/${encodeURIComponent(usuario.role)}/permissions`),
-    enabled: puedeEditar,
+    // La matriz de cargos es de la agencia: el servidor no se la abre al portal.
+    enabled: puedeEditar && !limitadoASuEmpresa,
   });
-  const accesos = useQuery<{ access: AccesoEmpresa[] | 'unrestricted' }>({
-    queryKey: ['empresas-de-usuario', usuario.id],
-    queryFn: () => api.get(`/users/${usuario.id}/client-access`),
+  const accesos = useQuery<{ access: AccesoEmpresa[] | 'unrestricted'; atiendeOtras?: boolean }>({
+    queryKey: ['empresas-de-usuario', usuario.id, limitadoASuEmpresa ? miEmpresa : ''],
+    queryFn: () => api.get(`/users/${usuario.id}/client-access${limitadoASuEmpresa ? qs : ''}`),
   });
 
-  const acciones = useQuery<{ acciones: AccionEfectiva[] }>({ queryKey: ['acciones-de-usuario', usuario.id], queryFn: () => api.get(`/users/${usuario.id}/actions`) });
+  // Las acciones se ajustan sólo desde la agencia (el servidor no se las abre al portal): pedirlas
+  // desde una empresa era un 403 seguro en cada apertura de la ficha.
+  const acciones = useQuery<{ acciones: AccionEfectiva[] }>({
+    queryKey: ['acciones-de-usuario', usuario.id, empresaDelPermiso],
+    queryFn: () => api.get(`/users/${usuario.id}/actions${qs}`),
+    enabled: !limitadoASuEmpresa,
+  });
   const cambiarAccion = useMutation({
     mutationFn: ({ accion, valor }: { accion: string; valor: 'nivel' | 'si' | 'no' }) => valor === 'nivel'
       ? api.delete(`/users/${usuario.id}/actions/${accion}`)
@@ -130,7 +145,8 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
   // Lo que la empresa tiene contratado: fuera de eso no hay nada que repartir.
   const serviciosContratados = serviciosDeLaEmpresa ?? {};
   const alcances = Array.isArray(acceso) ? acceso : [];
-  const atiendeOtras = alcances.some((item) => item.clientId !== miEmpresa);
+  // El servidor ya no le manda las otras empresas a quien administra una: sólo si las hay.
+  const atiendeOtras = accesos.data?.atiendeOtras ?? alcances.some((item) => item.clientId !== miEmpresa);
   const esAsignadaAMiEmpresa = alcances.some((item) => item.clientId === miEmpresa && item.source === 'assignment');
   const ocupado = cambiarNivel.isPending || cambiarEmpresa.isPending;
 
@@ -143,16 +159,16 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
           Solo cuando alcanza más de una empresa: con una sola, «en todas» y «en esta» son lo
           mismo y el control obligaría a elegir sin que nada cambie.
         */}
-        {empresasQueAlcanza.length > 1 && (
+        {!limitadoASuEmpresa && empresasQueAlcanza.length > 1 && (
           <label className="permisos-usuario-empresa">
             <span>Estos permisos valen</span>
-            <select className="input" value={empresaDelPermiso} onChange={(evento) => setEmpresaDelPermiso(evento.target.value)}>
+            <select className="input" value={empresaElegida} onChange={(evento) => setEmpresaDelPermiso(evento.target.value)}>
               <option value="">En todas sus empresas</option>
               {empresasQueAlcanza.map((empresa) => <option key={empresa.id} value={empresa.id}>Sólo en {empresa.name}</option>)}
             </select>
           </label>
         )}
-        {empresaDelPermiso ? (
+        {!limitadoASuEmpresa && empresaDelPermiso ? (
           <p className="page-subtitle">Lo que ajustes acá manda sobre lo general mientras esté en esa empresa.</p>
         ) : null}
         {permisos.isLoading ? <p>Cargando permisos…</p> : permisos.error ? <p className="error-text">{(permisos.error as Error).message}</p> : (

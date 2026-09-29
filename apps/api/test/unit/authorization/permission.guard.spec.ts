@@ -59,7 +59,7 @@ describe('PermissionGuard', () => {
 
     await guard.canActivate(executionContext('GET'));
 
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'view');
+    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'view', undefined);
   });
 
   it('deduce el nivel del verbo: modificar exige edit', async () => {
@@ -68,7 +68,7 @@ describe('PermissionGuard', () => {
 
     await guard.canActivate(executionContext('PATCH'));
 
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'edit');
+    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'edit', undefined);
   });
 
   it('deduce el nivel del verbo: borrar exige manage', async () => {
@@ -77,7 +77,7 @@ describe('PermissionGuard', () => {
 
     await guard.canActivate(executionContext('DELETE'));
 
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'manage');
+    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'manage', undefined);
   });
 
   it('rechaza un módulo futuro antes de consultar permisos', async () => {
@@ -100,7 +100,7 @@ describe('PermissionGuard', () => {
 
     await guard.canActivate(executionContext('GET'));
 
-    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'manage');
+    expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'manage', undefined);
   });
 
   it('rechaza cuando el nivel resuelto no alcanza', async () => {
@@ -113,5 +113,54 @@ describe('PermissionGuard', () => {
     const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'clients' }), resolverThatAnswers(true));
 
     await expect(guard.canActivate(executionContext('GET', {}))).rejects.toThrow(ForbiddenException);
+  });
+
+  /*
+   * La empresa entra en la pregunta.
+   *
+   * Hay permisos que se entregan empresa por empresa —administrar el equipo— y viven como
+   * excepción con `client_id`. Resolviendo sin decir cuál se descartan todas, así que la puerta
+   * negaba lo que la base concedía y el servicio que sí mira la empresa nunca se ejecutaba.
+   */
+  describe('la empresa sobre la que va la petición', () => {
+    it('la toma de la cuenta cuando es una cuenta de empresa', async () => {
+      const resolver = resolverThatAnswers(true);
+      const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'users' }), resolver);
+      const portal = { id: 'user-9', role: 'client', organizationId: 'org-1', clientId: 'empresa-1' };
+
+      await guard.canActivate(executionContext('GET', { user: portal, organizationId: 'org-1' }));
+
+      expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-9', 'client', 'users', 'view', 'empresa-1');
+    });
+
+    it('la toma de la consulta cuando se está mirando otra', async () => {
+      const resolver = resolverThatAnswers(true);
+      const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'users' }), resolver);
+      const portal = { id: 'user-9', role: 'client', organizationId: 'org-1', clientId: 'empresa-1' };
+
+      await guard.canActivate(executionContext('GET', { user: portal, organizationId: 'org-1', query: { clientId: 'empresa-2' } }));
+
+      expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-9', 'client', 'users', 'view', 'empresa-2');
+    });
+
+    it('la toma del cuerpo cuando la petición la trae ahí', async () => {
+      const resolver = resolverThatAnswers(true);
+      const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'crm' }), resolver);
+
+      await guard.canActivate(executionContext('POST', { user: AUTHENTICATED, organizationId: 'org-1', body: { clientId: 'empresa-3' } }));
+
+      expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'edit', 'empresa-3');
+    });
+
+    it('nombrar una empresa no concede nada: si el resolutor dice que no, se rechaza igual', async () => {
+      // La empresa sólo hace que se miren las excepciones escritas para ella. Una ajena escrita
+      // a mano en la dirección no encuentra ninguna.
+      const guard = new PermissionGuard(reflectorWith({ [MODULE_SCOPE_KEY]: 'users' }), resolverThatAnswers(false));
+      const portal = { id: 'user-9', role: 'client', organizationId: 'org-1', clientId: 'empresa-1' };
+
+      await expect(
+        guard.canActivate(executionContext('GET', { user: portal, organizationId: 'org-1', query: { clientId: 'empresa-ajena' } })),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 });

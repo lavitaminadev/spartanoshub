@@ -31,7 +31,10 @@ let AccionGuard = class AccionGuard {
         const organizationId = request.organizationId ?? user?.organizationId;
         if (!user?.id || !organizationId)
             throw new common_1.ForbiddenException('No se pudo determinar el usuario');
-        if (await this.acciones.puede(organizationId, user.id, user.role, clave))
+        const pedida = request.params?.clientId ?? request.query?.clientId ?? request.body?.clientId
+            ?? (user.role === 'client' ? user.clientId : undefined);
+        const empresa = typeof pedida === 'string' && pedida ? pedida : undefined;
+        if (await this.acciones.puede(organizationId, user.id, user.role, clave, empresa))
             return true;
         throw new common_1.ForbiddenException(`No tienes permiso para ${(0, acciones_1.definicionDeAccion)(clave)?.nombre.toLowerCase() ?? 'esta acción'}`);
     }

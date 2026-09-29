@@ -54,9 +54,11 @@ export class PermissionsController {
   @Get('users/:id/actions')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Acciones permitidas de un usuario' })
-  async accionesDeUsuario(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+  async accionesDeUsuario(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const user = await this.findUser(id, req.organizationId);
-    return { userId: user.id, acciones: await this.acciones.explicar(req.organizationId, user.id, user.role as UserRole) };
+    // Con empresa se ven las acciones que rigen **en ella**, igual que el detalle de permisos.
+    if (clientId) await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    return { userId: user.id, acciones: await this.acciones.explicar(req.organizationId, user.id, user.role as UserRole, clientId || undefined) };
   }
 
   /** Abre o cierra una acción para una persona. */
@@ -274,7 +276,7 @@ export class PermissionsController {
       : clientId;
     const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role as UserRole, empresa);
     // Las acciones van junto a los niveles para que la pantalla esconda lo que el servidor rechazaría.
-    const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role as UserRole)).map((accion) => [accion.clave, accion.permitida]));
+    const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role as UserRole, empresa)).map((accion) => [accion.clave, accion.permitida]));
     return { permissions, acciones };
   }
 
@@ -340,14 +342,17 @@ export class PermissionsController {
   @ApiOperation({ summary: 'Detalle de permisos de un usuario' })
   async ofUser(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const user = await this.findUser(id, req.organizationId);
-    await this.assertCanManageUserPermissionException(req, user);
+    // Una cuenta de portal mira siempre dentro de la empresa que administra: lo general de esa
+    // persona —y lo que rige en sus otras empresas— no es asunto suyo.
+    const encerrada = await this.assertCanManageUserPermissionException(req, user, undefined, undefined, clientId || undefined);
+    const empresa = encerrada ?? (clientId || undefined);
     // Quien mira una empresa concreta tiene que ver lo que rige **en ella**, no el promedio.
-    if (clientId) await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    if (empresa) await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
     return {
       userId: user.id,
       role: user.role,
-      clientId: clientId ?? null,
-      modules: await this.permissions.explain(req.organizationId, user.id, user.role as UserRole, clientId || undefined),
+      clientId: empresa ?? null,
+      modules: await this.permissions.explain(req.organizationId, user.id, user.role as UserRole, empresa),
     };
   }
 
@@ -367,16 +372,23 @@ export class PermissionsController {
   ) {
     if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
     const user = await this.findUser(id, req.organizationId);
-    await this.assertCanManageUserPermissionException(req, user, module, dto.level);
+    /*
+     * Una cuenta de portal concede siempre **en una empresa**, nunca en general.
+     *
+     * Guardada sin empresa, la excepción valía en todas las de esa persona, incluidas las que
+     * quien concedía no administra: dar CRM en su local lo daba también en el del vecino.
+     */
+    const encerrada = await this.assertCanManageUserPermissionException(req, user, module, dto.level, dto.clientId || undefined);
+    const empresa = encerrada ?? (dto.clientId || undefined);
     // Quien concede tiene que alcanzar esa empresa: sin esto se daría permiso en una cartera ajena.
-    if (dto.clientId) await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
-    const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: dto.clientId ?? IsNull() } });
+    if (empresa) await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
+    const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: empresa ?? IsNull() } });
     const saved = await this.overrides.save({
       ...(existing ?? {}),
       organizationId: req.organizationId,
       userId: user.id,
       module,
-      clientId: dto.clientId ?? null,
+      clientId: empresa ?? null,
       level: dto.level,
       reason: dto.reason ?? null,
       // El formulario admite excepciones temporales. Omitir esta asignación hacía que el
@@ -392,19 +404,28 @@ export class PermissionsController {
       entityId: saved.id,
       action: existing ? 'updated' : 'created',
       before: existing ? { level: existing.level, reason: existing.reason } : undefined,
-      after: { module, level: dto.level, reason: dto.reason ?? null, expiresAt: dto.expiresAt ?? null },
+      after: { module, level: dto.level, clientId: empresa ?? null, reason: dto.reason ?? null, expiresAt: dto.expiresAt ?? null },
     });
     return saved;
   }
 
   /** Elimina la excepción y devuelve el módulo al nivel que define el cargo. */
   @Delete('users/:id/permissions/:module')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  /*
+   * El cargo cliente entra por la misma razón que en el `PUT`: quien administra su empresa
+   * reparte accesos dentro de ella. Sin él acá podía concederlos y no retirarlos, que es la
+   * mitad de la atribución y la mitad peligrosa. El encierro lo aplica
+   * `assertCanManageUserPermissionException`, que es el mismo en las dos rutas.
+   */
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Quitar una excepción de permiso' })
   async remove(@Param('id') id: string, @Param('module') module: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
     const user = await this.findUser(id, req.organizationId);
-    await this.assertCanManageUserPermissionException(req, user, module);
+    // Una cuenta de portal retira sólo lo de su empresa: la excepción general la puso la agencia
+    // y vale en todas las empresas de esa persona, así que no es suya para borrarla.
+    const encerrada = await this.assertCanManageUserPermissionException(req, user, module, undefined, clientId || undefined);
+    clientId = encerrada ?? (clientId || undefined);
     if (clientId) await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     /*
      * Se retira la excepción de la empresa que se está mirando, no «la del módulo».
@@ -437,7 +458,7 @@ export class PermissionsController {
   @Get('users/:id/client-access')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Cuentas visibles de un usuario y por qué las ve' })
-  async clientAccessOfUser(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+  async clientAccessOfUser(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const user = await this.findUser(id, req.organizationId);
     /*
      * La misma reja que su vecino de arriba, que aquí faltaba.
@@ -447,7 +468,7 @@ export class PermissionsController {
      * completo de empresas que atiende. Es exactamente lo que el encierro por empresa existe
      * para impedir, y se coló porque esta pantalla empezó a usarse desde el portal después.
      */
-    await this.assertCanManageUserPermissionException(req, user);
+    const encerrada = await this.assertCanManageUserPermissionException(req, user, undefined, undefined, clientId || undefined);
     const access = await this.accountAccess.explain(req.organizationId, {
       id: user.id,
       email: user.email,
@@ -457,6 +478,22 @@ export class PermissionsController {
       clientId: user.clientId,
       tenantId: user.organizationId,
     });
+    /*
+     * Quien administra una empresa ve el alcance de esa persona **en ella**, y sólo sabe que
+     * además atiende otras.
+     *
+     * La pantalla ya lo decía así —el nombre del otro local no le pertenece—, pero la respuesta
+     * traía el mapa entero: los identificadores de cada empresa de esa persona, con la vía por
+     * la que llegó a cada una. Ocultarlo en pantalla y mandarlo igual no protege nada.
+     */
+    if (encerrada && Array.isArray(access)) {
+      return {
+        userId: user.id,
+        role: user.role,
+        access: access.filter((item) => item.clientId === encerrada),
+        atiendeOtras: access.some((item) => item.clientId !== encerrada),
+      };
+    }
     return { userId: user.id, role: user.role, access };
   }
 
@@ -523,17 +560,17 @@ export class PermissionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     const user = await this.findUser(id, req.organizationId);
-    await this.assertCanManageUserPermissionException(req, user);
     /*
      * Quien administra su empresa retira de la suya, no de una ajena.
      *
      * Es su forma de dar de baja a alguien sin apagarle la cuenta: la persona deja de entrar a
      * este local y sigue trabajando en el otro. Apagar la cuenta entera lo decide quien la
      * administra en todas, que es la agencia.
+     *
+     * «La suya» es la que administra y de la que se retira, que va en la dirección. Comparar con
+     * la empresa de su propia cuenta dejaba sin baja a quien administra un segundo local.
      */
-    if (req.user.role === UserRole.CLIENT && clientId !== req.user.clientId) {
-      throw new ForbiddenException('Solo puedes retirar el acceso a tu empresa');
-    }
+    await this.assertCanManageUserPermissionException(req, user, undefined, undefined, clientId);
     // La empresa de la cuenta no es una asignación y no se retira desde aquí: se cambia
     // editando la persona. Sin esto, el mensaje de «no existe» no explicaba por qué.
     if (user.role === UserRole.CLIENT && clientId === user.clientId) {
@@ -594,9 +631,16 @@ export class PermissionsController {
    *   Dirección de operaciones; no toca Usuarios, Ajustes ni Integraciones, y no concede más
    *   de lo que ella misma tiene en ese módulo.
    */
-  private async assertCanManageUserPermissionException(req: AuthenticatedRequest, target: User, module?: string, level?: PermissionLevel): Promise<void> {
+  /**
+   * @param empresa - Empresa sobre la que se decide. Sólo cuenta para una cuenta de portal: es
+   *   la que tiene que administrar, y la que el destinatario tiene que alcanzar. Sin ella se usa
+   *   la empresa de la cuenta del destinatario.
+   * @returns Para una cuenta de portal, la empresa en la que queda encerrada la decisión; para el
+   *   resto, `undefined`.
+   */
+  private async assertCanManageUserPermissionException(req: AuthenticatedRequest, target: User, module?: string, level?: PermissionLevel, empresa?: string): Promise<string | undefined> {
     const actorRole = req.user.role as UserRole;
-    if (actorRole === UserRole.DEV) return;
+    if (actorRole === UserRole.DEV) return undefined;
     if (target.id === req.user.id) throw new ForbiddenException('No puedes ajustar tus propios accesos');
 
     /*
@@ -609,23 +653,47 @@ export class PermissionsController {
     if (actorRole === UserRole.CLIENT) {
       // La comprobación va aquí y no en el servicio del equipo: ese vive en el módulo de
       // usuarios, que ya depende de este, y traerlo cerraría el círculo entre ambos.
-      const suEmpresa = req.user.clientId;
-      const puede = suEmpresa
-        ? await this.permissions.can(req.organizationId, req.user.id, actorRole, 'users', 'manage', suEmpresa)
+      /*
+       * Todo queda encerrado en **una** empresa: la que se está administrando.
+       *
+       * Antes se medía siempre contra la empresa de la cuenta de quien administra. Con dos
+       * locales, quien administra el segundo no podía repartir accesos ahí, y a alguien asignado
+       * a su local desde otra empresa tampoco se le podía dar de baja: el propio botón de la
+       * pantalla respondía «esa cuenta es de otra empresa».
+       *
+       * Las cuatro condiciones son el encierro entero:
+       * - administra esa empresa (la concesión existe para ella, no para otra),
+       * - la alcanza de verdad (retirada del local, una concesión olvidada no actúa),
+       * - el destinatario es una cuenta de empresa que también la alcanza,
+       * - y nunca los módulos con los que se administra el sistema.
+       */
+      const enEmpresa = empresa ?? target.clientId ?? undefined;
+      const administra = enEmpresa
+        ? await this.permissions.can(req.organizationId, req.user.id, actorRole, 'users', 'manage', enEmpresa)
         : false;
-      if (!puede) throw new ForbiddenException('Tu cuenta no administra personas');
-      if (target.clientId !== suEmpresa || target.role !== UserRole.CLIENT) {
-        throw new ForbiddenException('Esa cuenta es de otra empresa');
-      }
+      if (!enEmpresa || !administra) throw new ForbiddenException('Tu cuenta no administra personas');
+      const alcanzaQuienAdministra = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+      if (!alcanzaQuienAdministra?.includes(enEmpresa)) throw new ForbiddenException('Tu cuenta no administra personas');
+      if (target.role !== UserRole.CLIENT) throw new ForbiddenException('Esa cuenta es de otra empresa');
+      const alcanzaElDestino = await this.accountAccess.allowedClientIds(req.organizationId, {
+        id: target.id,
+        email: target.email,
+        name: target.name,
+        role: target.role,
+        organizationId: target.organizationId,
+        clientId: target.clientId,
+        tenantId: target.organizationId,
+      });
+      if (!alcanzaElDestino?.includes(enEmpresa)) throw new ForbiddenException('Esa cuenta es de otra empresa');
       if (module && ['users', 'settings', 'integrations', 'clients', 'governance'].includes(module)) {
         throw new ForbiddenException('Ese acceso lo entrega Espartanos');
       }
-      return;
+      return enEmpresa;
     }
     if (target.role === UserRole.DEV) {
       throw new ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
     }
-    if (actorRole !== UserRole.OPERATIONS_DIRECTOR) return;
+    if (actorRole !== UserRole.OPERATIONS_DIRECTOR) return undefined;
     if ([UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR].includes(target.role as UserRole)) {
       throw new ForbiddenException('Los accesos de Administración y de Dirección de operaciones los ajusta Administración');
     }
@@ -633,11 +701,13 @@ export class PermissionsController {
       throw new ForbiddenException('Usuarios, Ajustes e Integraciones los ajusta Administración');
     }
     if (module && level) {
-      const propios = await this.permissions.permissionsFor(req.organizationId, req.user.id, actorRole);
+      // En la empresa en que se concede: su nivel ahí puede no ser el general.
+      const propios = await this.permissions.permissionsFor(req.organizationId, req.user.id, actorRole, empresa);
       const orden = ['none', 'view', 'edit', 'manage'];
       if (orden.indexOf(level) > orden.indexOf(String(propios[module as keyof typeof propios] ?? 'none'))) {
         throw new ForbiddenException('No puedes conceder más acceso del que tienes en ese módulo');
       }
     }
+    return undefined;
   }
 }

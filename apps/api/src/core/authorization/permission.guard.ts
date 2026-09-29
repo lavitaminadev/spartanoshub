@@ -78,7 +78,21 @@ export class PermissionGuard implements CanActivate {
       throw new ForbiddenException('Este módulo aún no está disponible en la operación');
     }
 
-    const allowed = await this.permissions.can(organizationId, user.id, user.role, required.module, required.level);
+    /*
+     * La empresa sobre la que se está trabajando, si la hay.
+     *
+     * Hay permisos que se entregan empresa por empresa —administrar el equipo es el caso— y
+     * viven como excepción con `client_id`. Resolver sin decir cuál las descarta todas, así que
+     * la puerta negaba lo que la base concedía: una cuenta de empresa con «Administra el equipo»
+     * marcado recibía 403 en cada ruta de Usuarios, y el servicio que sí mira la empresa nunca
+     * llegaba a ejecutarse.
+     *
+     * Se toma de la ruta, de la consulta, del cuerpo o, en el portal, de la cuenta; la misma
+     * procedencia —más la ruta— que ya usaba la comprobación de servicios contratados.
+     */
+    const empresa = this.empresaDeLaPeticion(request, user);
+
+    const allowed = await this.permissions.can(organizationId, user.id, user.role, required.module, required.level, empresa);
     if (!allowed) throw new ForbiddenException('No tienes acceso a este módulo');
 
     /*
@@ -88,13 +102,25 @@ export class PermissionGuard implements CanActivate {
      * oportunidades—: una empresa sin CRM se podía elegir y configurar igual. Aquí queda una sola
      * vez para todas. La empresa sale de la consulta, del cuerpo o, en el portal, de la cuenta.
      */
-    if (this.capacidades && MODULOS_CONTRATADOS.has(required.module)) {
-      const pedida = request.query?.clientId ?? request.body?.clientId ?? (user.role === 'client' ? user.clientId : undefined);
-      if (typeof pedida === 'string' && pedida) {
-        await this.capacidades.assert(organizationId, pedida, required.module as ClientCapabilityKey);
-      }
+    if (this.capacidades && MODULOS_CONTRATADOS.has(required.module) && empresa) {
+      await this.capacidades.assert(organizationId, empresa, required.module as ClientCapabilityKey);
     }
     return true;
+  }
+
+  /**
+   * La empresa sobre la que va esta petición, si viene alguna.
+   *
+   * Nombrar una empresa no concede nada: solo hace que se miren las excepciones escritas para
+   * ella. Una empresa ajena escrita a mano en la dirección no encuentra ninguna, y las rutas que
+   * después tocan datos siguen comprobándola contra el alcance de la cuenta.
+   */
+  private empresaDeLaPeticion(request: any, user: { role?: string; clientId?: string }): string | undefined {
+    // La ruta primero: `PUT users/:id/administra/:clientId` dice en la propia dirección sobre qué
+    // empresa actúa, y sin leerla quien administra un segundo local se medía contra el primero.
+    const pedida = request.params?.clientId ?? request.query?.clientId ?? request.body?.clientId
+      ?? (user.role === 'client' ? user.clientId : undefined);
+    return typeof pedida === 'string' && pedida ? pedida : undefined;
   }
 
   /** Módulo y nivel exigidos por el endpoint, o `undefined` si no declara ninguno. */

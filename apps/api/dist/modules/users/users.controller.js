@@ -49,8 +49,8 @@ let UsersController = class UsersController {
         const userIds = await this.administradores.quienesAdministran(organizationId, empresa);
         return { clientId: empresa, userIds, sinAdministrador: userIds.length === 0 };
     }
-    async empresasQueAdministra(id, req) {
-        const alcance = await this.administracion.alcance(req);
+    async empresasQueAdministra(id, req, clientId) {
+        const alcance = await this.administracion.alcance(req, clientId);
         const organizationId = req.organizationId || req.user.organizationId;
         const empresas = await this.administradores.empresasQueAdministra(organizationId, id);
         return { clientIds: alcance.soloEmpresa ? empresas.filter((uno) => uno === alcance.soloEmpresa) : empresas };
@@ -158,8 +158,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Empresas cuyo equipo administra esta persona' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "empresasQueAdministra", null);
 __decorate([

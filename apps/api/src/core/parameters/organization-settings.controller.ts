@@ -180,7 +180,7 @@ export class OrganizationSettingsController {
   @Get('correos')
   @ApiOperation({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' })
   async correos(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    clientId = this.empresaDeLaSesion(request, clientId);
+    clientId = await this.empresaDeLaSesion(request, clientId);
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
     // Sólo las plantillas de los módulos que esta persona puede editar: las demás no se muestran.
@@ -233,9 +233,11 @@ export class OrganizationSettingsController {
      * accesos es quien escribe los correos: una sola cosa que entender, no dos.
      */
     if (request.user.role === UserRole.CLIENT) {
-      const suEmpresa = request.user.clientId;
-      const administra = suEmpresa
-        ? await this.permisos.can(organizationId, request.user.id, UserRole.CLIENT, 'users', 'manage', suEmpresa)
+      // La empresa que se está mirando, ya comprobada contra su alcance por quien llama. Con la
+      // de la cuenta, quien administra un segundo local no podía escribir sus correos.
+      const empresa = clientId ?? request.user.clientId;
+      const administra = empresa
+        ? await this.permisos.can(organizationId, request.user.id, UserRole.CLIENT, 'users', 'manage', empresa)
         : false;
       if (!administra) return new Set<ModuloDeCorreo>();
     }
@@ -243,7 +245,8 @@ export class OrganizationSettingsController {
     const puede = new Set<ModuloDeCorreo>();
     for (const modulo of ['reservations', 'surveys', 'crm'] as const) {
       if (contratados && contratados[modulo] !== true) continue;
-      if (await this.permisos.can(organizationId, request.user.id, request.user.role as UserRole, modulo, 'edit')) puede.add(modulo);
+      // Con la empresa: un nivel ajustado para ella manda sobre el del cargo, igual que en el resto del sistema.
+      if (await this.permisos.can(organizationId, request.user.id, request.user.role as UserRole, modulo, 'edit', clientId)) puede.add(modulo);
     }
     /*
      * Las plantillas de la agencia no son de ninguna empresa.
@@ -262,7 +265,7 @@ export class OrganizationSettingsController {
   @Put('correos')
   @ApiOperation({ summary: 'Guardar plantillas de correo' })
   async guardarCorreos(@Req() request: AuthenticatedRequest, @Body() dto: UpdateOrganizationSettingsDto, @Query('clientId') clientId?: string) {
-    clientId = this.empresaDeLaSesion(request, clientId);
+    clientId = await this.empresaDeLaSesion(request, clientId);
     const valores = dto.values ?? {};
     const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
     if (ajenas.length) throw new ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
@@ -305,7 +308,7 @@ export class OrganizationSettingsController {
   @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
   @ApiOperation({ summary: 'Estado del envío de correos' })
   async estadoDelCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+    await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
     const estado = this.correo.estado();
     return request.user.role === UserRole.DEV ? estado : { ...estado, faltan: [] };
   }
@@ -328,7 +331,7 @@ export class OrganizationSettingsController {
   @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
   @ApiOperation({ summary: 'Condiciones que necesita cada aviso además de su interruptor' })
   async requisitosDeCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+    await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
     const corridas = new Map((await this.corridas.find()).map((fila) => [fila.task, fila]));
     const limite = Date.now() - HORAS_SIN_CORRER_PARA_ALARMA * 3_600_000;
     const casilla = this.correo.estado().habilitado;
@@ -359,7 +362,7 @@ export class OrganizationSettingsController {
   @ApiOperation({ summary: 'Personas del equipo a las que se puede enviar una prueba' })
   async destinatariosDePrueba(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const organizationId = request.organizationId || request.user.organizationId;
-    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+    await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
     /*
      * Cada empresa prueba con su propia gente.
      *
@@ -371,7 +374,7 @@ export class OrganizationSettingsController {
      * El equipo interno sigue viendo a todos: es quien escribe las plantillas de varias empresas
      * y necesita poder mandarse la prueba a sí mismo.
      */
-    const empresa = this.empresaDeLaSesion(request, clientId);
+    const empresa = await this.empresaDeLaSesion(request, clientId);
     if (empresa) await this.accountAccess.assertClient(organizationId, request.user, empresa);
     const equipo = await this.usuarios.find({
       where: empresa
@@ -424,7 +427,7 @@ export class OrganizationSettingsController {
     @Req() request: AuthenticatedRequest,
     @Query('clientId') clientId?: string,
   ) {
-    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+    await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
     return componerCorreo(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), MUESTRA);
   }
 
@@ -442,9 +445,11 @@ export class OrganizationSettingsController {
   async probar(
     @Req() request: AuthenticatedRequest,
     @Body() dto: { asunto?: string; cuerpo?: string; destinatarioId?: string },
+    @Query('clientId') clientId?: string,
   ) {
-    await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request));
-    const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId);
+    const empresa = await this.empresaDeLaSesion(request, clientId);
+    await this.asegurarQuePuedeCorreos(request, empresa);
+    const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId, empresa);
 
     const { subject, html } = componerCorreo(
       String(dto?.asunto ?? 'Prueba'),
@@ -469,9 +474,17 @@ export class OrganizationSettingsController {
    * identificador no puede alcanzar a alguien de otra organización, ni siquiera para mandarle un
    * correo de prueba.
    */
+  /**
+   * @param empresa - Empresa sobre la que se trabaja. Para una cuenta de portal acota a quién
+   *   se le puede mandar: la lista de destinatarios ya ofrecía sólo su equipo, pero el envío
+   *   aceptaba el identificador de cualquiera de la organización —el equipo de la agencia, el de
+   *   otra empresa— y además devolvía su dirección en la respuesta. Conocer un identificador
+   *   bastaba para sacar el correo de alguien ajeno y escribirle con la marca de la agencia.
+   */
   private async direccionDelDestinatario(
     request: AuthenticatedRequest,
     destinatarioId?: string,
+    empresa?: string,
   ): Promise<string> {
     if (!destinatarioId) {
       const propio = request.user.email;
@@ -480,8 +493,13 @@ export class OrganizationSettingsController {
     }
 
     const organizationId = request.organizationId || request.user.organizationId;
+    // Mismo criterio que la lista de destinatarios: una cuenta de portal, sólo a su empresa.
+    const soloDeLaEmpresa = request.user.role === UserRole.CLIENT;
+    if (soloDeLaEmpresa && !empresa) throw new BadRequestException('Esa persona no está en tu equipo');
     const persona = await this.usuarios.findOne({
-      where: { id: destinatarioId, organizationId, isActive: true },
+      where: soloDeLaEmpresa
+        ? { id: destinatarioId, organizationId, isActive: true, clientId: empresa }
+        : { id: destinatarioId, organizationId, isActive: true },
       select: { id: true, email: true },
     });
     if (!persona) throw new BadRequestException('Esa persona no está en tu equipo');
@@ -493,13 +511,22 @@ export class OrganizationSettingsController {
   /**
    * La empresa sobre la que se trabaja.
    *
-   * Una cuenta de portal trabaja siempre sobre la suya: si la dirección pide otra, o no pide
-   * ninguna, manda la de la sesión. Para el equipo interno se respeta lo que pidió, que es lo
-   * que permite atender a varias empresas desde la misma pantalla.
+   * Una cuenta de portal trabaja sobre la que está mirando, no sobre la de su cuenta. Devolver
+   * siempre la segunda cruzaba las empresas de quien atiende dos locales: estando en el segundo
+   * se leían —y se guardaban— las plantillas del primero, así que el correo que salía con la
+   * marca de un local lo escribía la pantalla del otro.
+   *
+   * Lo pedido llega del navegador, de modo que se acepta sólo si esa cuenta lo alcanza de
+   * verdad; cualquier otra cosa cae en la de su cuenta. Para el equipo interno se respeta lo que
+   * pidió, que es lo que permite atender a varias empresas desde la misma pantalla.
    */
-  private empresaDeLaSesion(request: AuthenticatedRequest, pedido?: string): string | undefined {
-    if (request.user.role === UserRole.CLIENT) return request.user.clientId ?? undefined;
-    return pedido;
+  private async empresaDeLaSesion(request: AuthenticatedRequest, pedido?: string): Promise<string | undefined> {
+    if (request.user.role !== UserRole.CLIENT) return pedido;
+    const propia = request.user.clientId ?? undefined;
+    if (!pedido || pedido === propia) return propia;
+    const organizationId = request.organizationId || request.user.organizationId;
+    const alcanzables = await this.accountAccess.allowedClientIds(organizationId, request.user).catch(() => undefined);
+    return alcanzables?.includes(pedido) ? pedido : propia;
   }
 
 }

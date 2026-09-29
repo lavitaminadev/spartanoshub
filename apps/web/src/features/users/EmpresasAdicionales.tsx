@@ -21,28 +21,33 @@ interface AccesoEmpresa { clientId: string; source: 'pod' | 'assignment' | 'comm
  * @param empresaDeLaCuenta - La que define a quién pertenece: se muestra fija, no se quita acá.
  * @param empresas - Todas las empresas de la organización.
  * @param puedeEditar - Si quien mira puede cambiar asignaciones.
+ * @param empresaMirada - Para quien administra su empresa, la que está mirando. El servidor
+ *   filtra por ella; sin decirla filtraba por la de su cuenta y en un segundo local la casilla
+ *   de administración salía siempre vacía.
  * @param puedeAsignarEmpresas - Si además puede repartir otras empresas. Quien administra la
  *   suya no lo hace: sólo decide quién manda dentro de ella, y ofrecerle el resto sería ofrecer
  *   algo que el servidor rechaza.
  */
-export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, puedeEditar, puedeAsignarEmpresas = true }: {
+export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, puedeEditar, puedeAsignarEmpresas = true, empresaMirada = '' }: {
   usuarioId: string;
   empresaDeLaCuenta: string;
   empresas: Array<{ id: string; name: string }>;
   puedeEditar: boolean;
   puedeAsignarEmpresas?: boolean;
+  empresaMirada?: string;
 }) {
   const qc = useQueryClient();
-  const clave = ['empresas-de-usuario', usuarioId];
-  const claveManda = ['empresas-que-administra', usuarioId];
+  const qs = empresaMirada ? `?clientId=${encodeURIComponent(empresaMirada)}` : '';
+  const clave = ['empresas-de-usuario', usuarioId, empresaMirada];
+  const claveManda = ['empresas-que-administra', usuarioId, empresaMirada];
 
   const accesos = useQuery<{ access: AccesoEmpresa[] | 'unrestricted' }>({
     queryKey: clave,
-    queryFn: () => api.get(`/users/${usuarioId}/client-access`),
+    queryFn: () => api.get(`/users/${usuarioId}/client-access${qs}`),
   });
   const manda = useQuery<{ clientIds: string[] }>({
     queryKey: claveManda,
-    queryFn: () => api.get(`/users/${usuarioId}/administra`),
+    queryFn: () => api.get(`/users/${usuarioId}/administra${qs}`),
   });
 
   const cambiarAcceso = useMutation({

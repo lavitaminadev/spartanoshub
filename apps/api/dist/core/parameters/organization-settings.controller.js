@@ -86,7 +86,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null);
     }
     async correos(request, clientId) {
-        clientId = this.empresaDeLaSesion(request, clientId);
+        clientId = await this.empresaDeLaSesion(request, clientId);
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         const puede = await this.modulosQuePuedeEditar(request, clientId);
@@ -107,9 +107,9 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             ? { reservations: await this.capacidades.tiene(organizationId, clientId, 'reservations'), surveys: await this.capacidades.tiene(organizationId, clientId, 'surveys'), crm: await this.capacidades.tiene(organizationId, clientId, 'crm') }
             : null;
         if (request.user.role === user_role_enum_1.UserRole.CLIENT) {
-            const suEmpresa = request.user.clientId;
-            const administra = suEmpresa
-                ? await this.permisos.can(organizationId, request.user.id, user_role_enum_1.UserRole.CLIENT, 'users', 'manage', suEmpresa)
+            const empresa = clientId ?? request.user.clientId;
+            const administra = empresa
+                ? await this.permisos.can(organizationId, request.user.id, user_role_enum_1.UserRole.CLIENT, 'users', 'manage', empresa)
                 : false;
             if (!administra)
                 return new Set();
@@ -118,7 +118,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         for (const modulo of ['reservations', 'surveys', 'crm']) {
             if (contratados && contratados[modulo] !== true)
                 continue;
-            if (await this.permisos.can(organizationId, request.user.id, request.user.role, modulo, 'edit'))
+            if (await this.permisos.can(organizationId, request.user.id, request.user.role, modulo, 'edit', clientId))
                 puede.add(modulo);
         }
         if (request.user.role !== user_role_enum_1.UserRole.CLIENT && !clientId && puede.size > 0)
@@ -126,7 +126,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         return puede;
     }
     async guardarCorreos(request, dto, clientId) {
-        clientId = this.empresaDeLaSesion(request, clientId);
+        clientId = await this.empresaDeLaSesion(request, clientId);
         const valores = dto.values ?? {};
         const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
         if (ajenas.length)
@@ -145,12 +145,12 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);
     }
     async estadoDelCorreo(request, clientId) {
-        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+        await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
         const estado = this.correo.estado();
         return request.user.role === user_role_enum_1.UserRole.DEV ? estado : { ...estado, faltan: [] };
     }
     async requisitosDeCorreo(request, clientId) {
-        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+        await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
         const corridas = new Map((await this.corridas.find()).map((fila) => [fila.task, fila]));
         const limite = Date.now() - requisitos_de_correo_1.HORAS_SIN_CORRER_PARA_ALARMA * 3_600_000;
         const casilla = this.correo.estado().habilitado;
@@ -165,8 +165,8 @@ let OrganizationSettingsController = class OrganizationSettingsController {
     }
     async destinatariosDePrueba(request, clientId) {
         const organizationId = request.organizationId || request.user.organizationId;
-        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
-        const empresa = this.empresaDeLaSesion(request, clientId);
+        await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
+        const empresa = await this.empresaDeLaSesion(request, clientId);
         if (empresa)
             await this.accountAccess.assertClient(organizationId, request.user, empresa);
         const equipo = await this.usuarios.find({
@@ -179,12 +179,13 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         return equipo.filter((persona) => persona.email?.trim());
     }
     async vistaPreviaDeCorreo(dto, request, clientId) {
-        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request, clientId));
+        await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
         return (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
     }
-    async probar(request, dto) {
-        await this.asegurarQuePuedeCorreos(request, this.empresaDeLaSesion(request));
-        const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId);
+    async probar(request, dto, clientId) {
+        const empresa = await this.empresaDeLaSesion(request, clientId);
+        await this.asegurarQuePuedeCorreos(request, empresa);
+        const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId, empresa);
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? 'Prueba'), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
         const enviado = await this.correo.send(destino, `[Prueba] ${subject}`, html);
         return {
@@ -193,7 +194,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             motivo: enviado ? null : 'El envío de correo está apagado en el servidor (SMTP_ENABLED)',
         };
     }
-    async direccionDelDestinatario(request, destinatarioId) {
+    async direccionDelDestinatario(request, destinatarioId, empresa) {
         if (!destinatarioId) {
             const propio = request.user.email;
             if (!propio)
@@ -201,8 +202,13 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             return propio;
         }
         const organizationId = request.organizationId || request.user.organizationId;
+        const soloDeLaEmpresa = request.user.role === user_role_enum_1.UserRole.CLIENT;
+        if (soloDeLaEmpresa && !empresa)
+            throw new common_1.BadRequestException('Esa persona no está en tu equipo');
         const persona = await this.usuarios.findOne({
-            where: { id: destinatarioId, organizationId, isActive: true },
+            where: soloDeLaEmpresa
+                ? { id: destinatarioId, organizationId, isActive: true, clientId: empresa }
+                : { id: destinatarioId, organizationId, isActive: true },
             select: { id: true, email: true },
         });
         if (!persona)
@@ -211,10 +217,15 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             throw new common_1.BadRequestException('Esa persona no tiene correo registrado');
         return persona.email;
     }
-    empresaDeLaSesion(request, pedido) {
-        if (request.user.role === user_role_enum_1.UserRole.CLIENT)
-            return request.user.clientId ?? undefined;
-        return pedido;
+    async empresaDeLaSesion(request, pedido) {
+        if (request.user.role !== user_role_enum_1.UserRole.CLIENT)
+            return pedido;
+        const propia = request.user.clientId ?? undefined;
+        if (!pedido || pedido === propia)
+            return propia;
+        const organizationId = request.organizationId || request.user.organizationId;
+        const alcanzables = await this.accountAccess.allowedClientIds(organizationId, request.user).catch(() => undefined);
+        return alcanzables?.includes(pedido) ? pedido : propia;
     }
 };
 exports.OrganizationSettingsController = OrganizationSettingsController;
@@ -308,8 +319,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Enviar una plantilla de correo a alguien del equipo' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "probar", null);
 exports.OrganizationSettingsController = OrganizationSettingsController = __decorate([

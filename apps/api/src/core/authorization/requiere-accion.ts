@@ -26,7 +26,12 @@ export class AccionGuard implements CanActivate {
     const user = request.user;
     const organizationId: string | undefined = request.organizationId ?? user?.organizationId;
     if (!user?.id || !organizationId) throw new ForbiddenException('No se pudo determinar el usuario');
-    if (await this.acciones.puede(organizationId, user.id, user.role as UserRole, clave)) return true;
+    // La misma empresa que mira el guardia de módulo: una acción que cuelga de un nivel
+    // entregado por empresa no puede resolverse sin decir en cuál.
+    const pedida = request.params?.clientId ?? request.query?.clientId ?? request.body?.clientId
+      ?? (user.role === 'client' ? user.clientId : undefined);
+    const empresa = typeof pedida === 'string' && pedida ? pedida : undefined;
+    if (await this.acciones.puede(organizationId, user.id, user.role as UserRole, clave, empresa)) return true;
     throw new ForbiddenException(`No tienes permiso para ${definicionDeAccion(clave)?.nombre.toLowerCase() ?? 'esta acción'}`);
   }
 }
