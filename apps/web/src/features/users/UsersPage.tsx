@@ -469,7 +469,7 @@ export function UsersPage() {
         {createdPassword ? (
           <div className="modal-form">
             <div className="temporary-password-result">
-              <span>CLAVE TEMPORAL · 24 HORAS · SE MUESTRA UNA VEZ</span>
+              <span>CLAVE TEMPORAL · SE MUESTRA UNA VEZ</span>
               <strong>{createdPassword}</strong>
               <small>Usuario: {createdName}</small>
               <button className="btn btn-outline btn-sm" type="button" onClick={() => { navigator.clipboard.writeText(createdPassword); setFeedback({ tone: 'success', text: 'Clave copiada al portapapeles.' }); }}>Copiar clave</button>
