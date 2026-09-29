@@ -117,6 +117,9 @@ export function UsersPage() {
   const { data, isLoading, error } = useQuery<UserRow[]>({
     queryKey: ['users', query],
     queryFn: () => api.get(`/users${query ? `?${query}` : ''}`),
+    // Mientras llega el resultado de otra búsqueda o filtro sigue a la vista el anterior: la
+    // página no vuelve a «Cargando», y el buscador conserva el foco y lo escrito.
+    placeholderData: (anterior) => anterior,
   });
   const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = useMemo<ClientOption[]>(() => (clientsResp as { data: ClientOption[] } | undefined)?.data ?? [], [clientsResp]);
