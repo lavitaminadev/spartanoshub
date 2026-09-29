@@ -114,6 +114,8 @@ export function UsersPage() {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
   const [createdName, setCreatedName] = useState<string>('');
+  /** Lo que respondió el servidor de correo al crear la cuenta; `null` si no lo dijo. */
+  const [correoDeAcceso, setCorreoDeAcceso] = useState<boolean | null>(null);
   const [creatingClient, setCreatingClient] = useState(false);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
   const [pendingBulkAccess, setPendingBulkAccess] = useState<{ rows: UserRow[]; isActive: boolean } | null>(null);
@@ -157,15 +159,17 @@ export function UsersPage() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setCreatedPassword(null);
+    setCorreoDeAcceso(null);
     setCreatingClient(false);
     setFeedback(null);
   };
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.post(`/users${sufijoDeEmpresa}`, body),
-    onSuccess: async () => {
+    mutationFn: (body: Record<string, unknown>) => api.post<{ correoEnviado?: boolean }>(`/users${sufijoDeEmpresa}`, body),
+    onSuccess: async (creada: { correoEnviado?: boolean } | undefined) => {
       setCreatedPassword(String(form.password));
-      setCreatedName(form.name);
+      setCreatedName(form.email.trim().toLowerCase());
+      setCorreoDeAcceso(typeof creada?.correoEnviado === 'boolean' ? creada.correoEnviado : null);
       // Cuando la cuenta crea también su empresa, la tabla se refresca antes de que el caché
       // de clientes conozca ese id y mostraba falsamente «Empresa no disponible».
       await Promise.all([
@@ -230,6 +234,24 @@ export function UsersPage() {
     || currentUser?.role === 'dev'
     || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role);
   const canResetPassword = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
+  const puedeReenviarAcceso = ['dev', 'commercial_director'].includes(currentUser?.role ?? '');
+  /*
+   * Reenviar el acceso genera otra clave temporal y la manda por correo; la anterior deja de valer.
+   * Solo mientras la persona no haya elegido su propia contraseña. La clave no vuelve a esta
+   * pantalla: se sabe solo si el servidor de correo aceptó el envío.
+   */
+  const reenviarAcceso = useMutation<{ emailSent: boolean }, Error, UserRow>({
+    mutationFn: (row) => api.post(`/users/${row.id}/resend-access`, {}),
+    onSuccess: (resultado, row) => setFeedback(resultado.emailSent
+      ? { tone: 'success', text: `Se reenvió el acceso a ${row.email} con una clave nueva. La anterior ya no sirve.` }
+      : { tone: 'error', text: `No se pudo enviar el correo a ${row.email}. Revisa que la dirección esté bien escrita, o pide a administración que resetee la clave y la entregue a mano.` }),
+    onError: (error) => setFeedback({ tone: 'error', text: error.message }),
+  });
+  const motivoSinReenvio = (row: UserRow) => (!row.mustChangePassword
+    ? 'Ya eligió su propia contraseña: no hay acceso pendiente que reenviar.'
+    : currentUser?.role !== 'dev' && ['dev', 'admin'].includes(row.role)
+      ? 'El acceso de esta cuenta lo reenvía un dev.'
+      : null);
   // Administración, Desarrollo y Dirección de operaciones ajustan permisos; esta última sólo a su
   // equipo. Quien administra su empresa los ajusta dentro de ella: es el sentido del permiso.
   const puedeVerPermisos = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '') || administraSuEmpresa;
@@ -437,7 +459,7 @@ export function UsersPage() {
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
           { key: 'createdAt', label: 'Creado', sortable: true, render: (row) => new Date(row.createdAt).toLocaleDateString('es-CL') },
-          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}{puedeVerPermisos && (row.role !== 'dev' || currentUser?.role === 'dev') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setPermisosDe(row)}>Permisos</button>}</div> },
+          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}{puedeReenviarAcceso && <button type="button" className="btn btn-outline btn-sm" onClick={() => reenviarAcceso.mutate(row)} disabled={Boolean(motivoSinReenvio(row)) || reenviarAcceso.isPending} title={motivoSinReenvio(row) ?? `Genera una clave nueva y la envía a ${row.email}`}>{reenviarAcceso.isPending && reenviarAcceso.variables?.id === row.id ? 'Reenviando...' : 'Reenviar acceso'}</button>}{puedeVerPermisos && (row.role !== 'dev' || currentUser?.role === 'dev') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setPermisosDe(row)}>Permisos</button>}</div> },
         ]}
         data={users}
         emptyMessage="No hay usuarios para los filtros seleccionados"
@@ -452,7 +474,19 @@ export function UsersPage() {
               <small>Usuario: {createdName}</small>
               <button className="btn btn-outline btn-sm" type="button" onClick={() => { navigator.clipboard.writeText(createdPassword); setFeedback({ tone: 'success', text: 'Clave copiada al portapapeles.' }); }}>Copiar clave</button>
             </div>
-            <div className="alert alert-info">Comparte esta clave por un canal seguro (correo, WhatsApp, Slack). Al primer ingreso debera aceptar los terminos y crear su propia contraseña.</div>
+            {/*
+              Lo dice la respuesta del servidor de correo en el momento del alta, no el cron. «Se
+              envió» es que el servidor lo aceptó; si cayó en spam o la casilla no existe no se sabe.
+            */}
+            {correoDeAcceso === true && (
+              <div className="alert alert-success">Se envió el correo con el usuario y la clave a {createdName}. Si no lo ve en unos minutos, que revise spam.</div>
+            )}
+            {correoDeAcceso === false && (
+              <div className="alert alert-warning" role="alert"><strong>El correo no se pudo enviar.</strong> Entrégale tú el usuario y la clave por un canal seguro (WhatsApp, en persona). La cuenta ya quedó creada.</div>
+            )}
+            {correoDeAcceso === null && (
+              <div className="alert alert-info">Comparte esta clave por un canal seguro (correo, WhatsApp). Al primer ingreso deberá aceptar los términos y crear su propia contraseña.</div>
+            )}
             {feedback?.tone === 'success' && <div className="alert alert-success">{feedback.text}</div>}
             <button className="btn btn-primary btn-block" type="button" onClick={closeModal}>Cerrar</button>
           </div>

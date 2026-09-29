@@ -1196,9 +1196,9 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     key: 'email.access_temporary_password_body',
     category: 'email',
     label: 'Contraseña temporal · cuerpo',
-    description: 'Variables: {{nombre}}, {{clave}}, {{enlace}}. Tiene que llevar {{clave}} y {{enlace}}.',
+    description: 'Variables: {{nombre}}, {{usuario}}, {{clave}}, {{enlace}}. Tiene que llevar {{clave}} y {{enlace}}. Si no lleva {{usuario}}, se agrega al final.',
     valueType: 'text',
-    defaultValue: 'Hola {{nombre}}:\n\nTu contraseña temporal es: {{clave}}\n\nEntra en {{enlace}}. El sistema te pedirá crear una contraseña personal al iniciar sesión.',
+    defaultValue: 'Hola {{nombre}}:\n\nTu usuario: {{usuario}}\nTu contraseña temporal: {{clave}}\n\nEntra en {{enlace}}. El sistema te pedirá crear una contraseña personal al iniciar sesión.',
     masterStatus: 'master_defined',
   },
   {

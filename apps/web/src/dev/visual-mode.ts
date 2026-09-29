@@ -432,7 +432,7 @@ const PLANTILLAS_DE_CORREO: Array<{ prefijo: string; titulo: string; variables: 
   { prefijo: 'email.team_survey_message', titulo: 'Aviso al equipo: mensaje en una encuesta', variables: ['nombre', 'local', 'nota', 'mensaje', 'encuesta'], asunto: 'Mensaje de {{nombre}} sobre su visita', cuerpo: 'Calificó su visita a {{local}} con {{nota}} de 5:\n\n«{{mensaje}}»' },
   { prefijo: 'email.survey_invite', titulo: 'Encuesta enviada por correo', variables: ['encuesta'], asunto: '{{encuesta}}', cuerpo: 'Nos gustaría saber tu opinión. Responder toma menos de un minuto.' },
   { prefijo: 'email.idle_lead', titulo: 'Aviso de lead parado', variables: ['responsable', 'lead', 'etapa', 'dias'], asunto: '{{lead}} lleva {{dias}} días sin movimiento', cuerpo: 'Hola {{responsable}}:\n\n{{lead}} sigue en «{{etapa}}» hace {{dias}} días.' },
-  { prefijo: 'email.access_temporary_password', titulo: 'Contraseña temporal', variables: ['nombre', 'clave', 'enlace'], asunto: 'Tu acceso temporal', cuerpo: 'Hola {{nombre}}:\n\nTu contraseña temporal es: {{clave}}\n\nEntra en {{enlace}}.' },
+  { prefijo: 'email.access_temporary_password', titulo: 'Contraseña temporal', variables: ['nombre', 'usuario', 'clave', 'enlace'], asunto: 'Tu acceso temporal', cuerpo: 'Hola {{nombre}}:\n\nTu usuario: {{usuario}}\nTu contraseña temporal: {{clave}}\n\nEntra en {{enlace}}.' },
   { prefijo: 'email.access_password_reset', titulo: 'Recuperar el acceso', variables: ['nombre', 'enlace'], asunto: 'Recupera tu acceso', cuerpo: 'Hola {{nombre}}:\n\nPara crear una contraseña nueva entra en {{enlace}}' },
   { prefijo: 'email.coupon', titulo: 'Cupón de regalo', variables: ['nombre', 'local', 'cupon', 'vence'], asunto: 'Un regalo de {{local}} para ti', cuerpo: '{{nombre}}, gracias por venir a {{local}}.\n\nTe dejamos este código: {{cupon}}\n\nMuéstralo cuando vuelvas. Válido hasta el {{vence}}.' },
   { prefijo: 'email.birthday', titulo: 'Saludo de cumpleaños', variables: ['nombre'], asunto: '¡Feliz cumpleaños, {{nombre}}!', cuerpo: 'Hola {{nombre}}:\n\nQue lo pases muy bien. Te esperamos cuando quieras celebrarlo.' },
@@ -636,13 +636,17 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * que es cuando aparece el aviso.
    */
   [/\/users\/administran-equipo/, () => ({ clientId: VISUAL_USER.clientId, userIds: visualAdministranEquipo, sinAdministrador: visualAdministranEquipo.length === 0 })],
-  [/\/users(?:\?|$)/, () => {
+  // Sin servidor de correo el reenvío no sale, como en producción con SMTP apagado.
+  [/\/users\/[^/]+\/resend-access$/, (config) => ({ userId: config?.url?.split('/')[2], emailSent: false })],
+  [/\/users(?:\?|$)/, (config) => {
+    // Sin servidor de correo no sale nada: el alta responde lo mismo que producción con SMTP apagado.
+    if ((config?.method ?? 'get').toLowerCase() === 'post') return { id: `u-nuevo-${Date.now()}`, ...visualRequestBody(config), correoEnviado: false };
     const equipo = [
       // Los cuatro casos del alcance: muchas empresas (se pliega), todas, dos y una.
       { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z', empresaIds: ['visual-client', 'visual-client-2', 'visual-client-3', 'visual-client-4', 'visual-client-5'] },
       { id: 'u-ops', name: 'Rodrigo Pérez', email: 'rodrigo@espartanos.cl', role: 'operations_director', isActive: true, clientId: null, phone: '', createdAt: '2026-05-10T12:00:00.000Z', todasLasEmpresas: true },
       { id: 'u-cli', name: 'Ana Moya', email: 'ana@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-07-02T12:00:00.000Z', empresaIds: ['visual-client', 'visual-client-2'] },
-      { id: 'u-cli-2', name: 'Diego Ruiz', email: 'diego@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-08-14T12:00:00.000Z', empresaIds: ['visual-client'] },
+      { id: 'u-cli-2', name: 'Diego Ruiz', email: 'diego@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-08-14T12:00:00.000Z', empresaIds: ['visual-client'], mustChangePassword: true },
     ];
     /*
      * Revisando como empresa se ve lo que esa empresa ve.

@@ -309,6 +309,7 @@ const ETIQUETAS_DE_VARIABLE: Record<string, string> = {
   responsable: 'Quien lleva el lead',
   etapa: 'Etapa del lead',
   dias: 'Días sin movimiento',
+  usuario: 'Correo con que entra',
   clave: 'Contraseña temporal',
   enlace: 'Enlace para entrar',
 };

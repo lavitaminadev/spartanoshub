@@ -56,4 +56,28 @@ describe('EmailService', () => {
     }));
     expect(mocks.sendMail.mock.calls[0][0].html).not.toContain('<script>');
   });
+
+  it('el correo de clave temporal dice con qué usuario entrar', async () => {
+    Object.assign(process.env, { SMTP_ENABLED: 'true', SMTP_HOST: 'mail.example.com', SMTP_PORT: '465', SMTP_SECURE: 'true', SMTP_FROM: 'notifications@example.com' });
+    const service = new EmailService();
+
+    await expect(service.sendTemporaryPassword('Ana', 'ana@casa.cl', 'Temp-1234', 'https://cuartel.espartanos.cl/login')).resolves.toBe(true);
+    const html = mocks.sendMail.mock.calls[0][0].html as string;
+    expect(html).toContain('Tu usuario: ana@casa.cl');
+    expect(html).toContain('Temp-1234');
+    expect(html).toContain('https://cuartel.espartanos.cl/login');
+  });
+
+  it('un texto propio sin {{usuario}} lo recibe igual al final', async () => {
+    Object.assign(process.env, { SMTP_ENABLED: 'true', SMTP_HOST: 'mail.example.com', SMTP_PORT: '465', SMTP_SECURE: 'true', SMTP_FROM: 'notifications@example.com' });
+    const parametros = { get: vi.fn(async (clave: string) => (
+      clave.endsWith('_body') ? 'Texto propio: clave {{clave}} en {{enlace}}' : clave.endsWith('_subject') ? 'Acceso' : null
+    )) };
+    const service = new EmailService(parametros as never);
+
+    await service.sendTemporaryPassword('Ana', 'ana@casa.cl', 'Temp-1234', 'https://cuartel.espartanos.cl/login', 'org-1');
+    const html = mocks.sendMail.mock.calls[0][0].html as string;
+    expect(html).toContain('Texto propio');
+    expect(html).toContain('Tu usuario: ana@casa.cl');
+  });
 });

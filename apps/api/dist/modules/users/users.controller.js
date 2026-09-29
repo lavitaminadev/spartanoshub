@@ -133,6 +133,13 @@ let UsersController = class UsersController {
             sendEmail: dto.sendEmail,
         });
     }
+    resendAccess(id, req) {
+        return this.resetUserPassword.reenviarAcceso({
+            id,
+            organizationId: req.organizationId || req.user.organizationId,
+            actorRole: req.user.role,
+        });
+    }
 };
 exports.UsersController = UsersController;
 __decorate([
@@ -228,6 +235,17 @@ __decorate([
     __metadata("design:paramtypes", [String, reset_user_password_dto_1.ResetUserPasswordDto, Object]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "resetPassword", null);
+__decorate([
+    (0, common_1.Post)(':id/resend-access'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
+    (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('reenviar el acceso de otra persona'),
+    (0, swagger_1.ApiOperation)({ summary: 'Reenviar el correo de acceso a quien aún no eligió su contraseña' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "resendAccess", null);
 exports.UsersController = UsersController = __decorate([
     (0, swagger_1.ApiTags)('Usuarios'),
     (0, common_1.Controller)('users'),

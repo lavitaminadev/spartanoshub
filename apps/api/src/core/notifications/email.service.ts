@@ -148,12 +148,14 @@ export class EmailService {
   async sendTemporaryPassword(name: string, recipient: string, password: string, loginUrl: string, organizationId?: string | null): Promise<boolean> {
     const plantilla = await this.plantillaDeAcceso('email.access_temporary_password', organizationId, {
       asunto: `Acceso temporal a ${BRAND.name}`,
-      cuerpo: 'Hola {{nombre}}:\n\nUn administrador generó un acceso temporal para tu cuenta.\n\nContraseña temporal: {{clave}}\n\nEntra en {{enlace}}. El sistema te pedirá crear una contraseña personal al iniciar sesión.',
+      cuerpo: 'Hola {{nombre}}:\n\nUn administrador generó un acceso temporal para tu cuenta.\n\nTu usuario: {{usuario}}\nContraseña temporal: {{clave}}\n\nEntra en {{enlace}}. El sistema te pedirá crear una contraseña personal al iniciar sesión.',
     }, ['clave', 'enlace']);
+    // Con qué entrar va siempre: un texto propio escrito antes de existir {{usuario}} lo recibe al final.
+    const cuerpo = plantilla.cuerpo.includes('{{usuario}}') ? plantilla.cuerpo : `${plantilla.cuerpo}\n\nTu usuario: {{usuario}}`;
     const { subject, html } = componerCorreo(
       plantilla.asunto,
-      plantilla.cuerpo,
-      { nombre: name, clave: password, enlace: loginUrl },
+      cuerpo,
+      { nombre: name, usuario: recipient, clave: password, enlace: loginUrl },
       { texto: `Ingresar a ${BRAND.name}`, url: loginUrl },
     );
     return this.send(recipient, subject, html);
