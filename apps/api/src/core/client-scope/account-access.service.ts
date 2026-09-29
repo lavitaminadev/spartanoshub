@@ -158,6 +158,45 @@ export class AccountAccessService {
     return clientIds.filter((id) => corriendo.has(id));
   }
 
+  /**
+   * Las empresas que alcanza cada persona de una lista, en pocas consultas.
+   *
+   * Suma las mismas vías que `allowedClientIds`: la empresa propia de la cuenta, las
+   * asignaciones y, para el equipo interno, sus pods y las cuentas que maneja como community
+   * manager. `'todas'` para los cargos sin límite. La empresa propia va primero.
+   */
+  async empresasDe(organizationId: string, personas: Array<{ id: string; role: string; clientId?: string | null }>): Promise<Map<string, string[] | 'todas'>> {
+    const resultado = new Map<string, string[] | 'todas'>();
+    const acotadas = personas.filter((persona) => !UNRESTRICTED_ROLES.has(persona.role as UserRole));
+    for (const persona of personas) if (!acotadas.includes(persona)) resultado.set(persona.id, 'todas');
+    if (!acotadas.length) return resultado;
+
+    const ids = acotadas.map((persona) => persona.id);
+    const internas = acotadas.filter((persona) => (persona.role as UserRole) !== UserRole.CLIENT).map((persona) => persona.id);
+    const [asignaciones, membresias, manejadas] = await Promise.all([
+      this.assignments.find({ where: { organizationId, userId: In(ids) }, select: { userId: true, clientId: true } }),
+      internas.length ? this.podMembers.find({ where: { userId: In(internas) }, select: { userId: true, podId: true } }) : Promise.resolve<PodMember[]>([]),
+      internas.length ? this.clients.find({ where: { organizationId, communityManagerId: In(internas) }, select: { id: true, communityManagerId: true } }) : Promise.resolve<Client[]>([]),
+    ]);
+    const podIds = [...new Set(membresias.map((fila) => fila.podId))];
+    const deLosPods = podIds.length
+      ? await this.clients.find({ where: { organizationId, podId: In(podIds) }, select: { id: true, podId: true } })
+      : [];
+
+    for (const persona of acotadas) {
+      const propias = persona.clientId ? [persona.clientId] : [];
+      const pods = new Set(membresias.filter((fila) => fila.userId === persona.id).map((fila) => fila.podId));
+      const todas = [
+        ...propias,
+        ...deLosPods.filter((cliente) => cliente.podId && pods.has(cliente.podId)).map((cliente) => cliente.id),
+        ...asignaciones.filter((fila) => fila.userId === persona.id).map((fila) => fila.clientId),
+        ...manejadas.filter((cliente) => cliente.communityManagerId === persona.id).map((cliente) => cliente.id),
+      ];
+      resultado.set(persona.id, [...new Set(todas)]);
+    }
+    return resultado;
+  }
+
   /** Descarta lo memorizado de una persona tras cambiar sus pods o sus asignaciones. */
   invalidateUser(userId: string): void {
     for (const key of this.cache.keys()) {

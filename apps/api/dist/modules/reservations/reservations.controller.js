@@ -13,6 +13,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReservationsController = void 0;
+const permission_resolver_service_1 = require("../../core/authorization/permission-resolver.service");
 const common_1 = require("@nestjs/common");
 const datos_legales_de_empresa_1 = require("../clients/datos-legales-de-empresa");
 const typeorm_1 = require("typeorm");
@@ -32,13 +33,14 @@ const reservation_dto_1 = require("./dto/reservation.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
 let ReservationsController = class ReservationsController {
-    constructor(service, accountAccess, capabilities, bulkImport, audit, dataSource) {
+    constructor(service, accountAccess, capabilities, bulkImport, audit, dataSource, permisos) {
         this.service = service;
         this.accountAccess = accountAccess;
         this.capabilities = capabilities;
         this.bulkImport = bulkImport;
         this.audit = audit;
         this.dataSource = dataSource;
+        this.permisos = permisos;
     }
     publicOrigin() {
         return (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '') || undefined;
@@ -76,7 +78,9 @@ let ReservationsController = class ReservationsController {
         return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
     }
     async saveCompanyLegal(req, query, dto) {
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+        const empresa = await this.empresaLegal(req, query.clientId);
+        await (0, datos_legales_de_empresa_1.asegurarQueAdministraLaEmpresa)(this.permisos, req.organizationId, req.user, empresa);
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
     }
     async empresaLegal(req, pedida) {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
@@ -708,5 +712,6 @@ exports.ReservationsController = ReservationsController = __decorate([
         client_capability_service_1.ClientCapabilityService,
         bulk_import_service_1.ReservationsBulkImportService,
         audit_service_1.AuditService,
-        typeorm_1.DataSource])
+        typeorm_1.DataSource,
+        permission_resolver_service_1.PermissionResolverService])
 ], ReservationsController);

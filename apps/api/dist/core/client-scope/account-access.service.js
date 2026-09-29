@@ -89,6 +89,38 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
             .map((fila) => fila.id));
         return clientIds.filter((id) => corriendo.has(id));
     }
+    async empresasDe(organizationId, personas) {
+        const resultado = new Map();
+        const acotadas = personas.filter((persona) => !UNRESTRICTED_ROLES.has(persona.role));
+        for (const persona of personas)
+            if (!acotadas.includes(persona))
+                resultado.set(persona.id, 'todas');
+        if (!acotadas.length)
+            return resultado;
+        const ids = acotadas.map((persona) => persona.id);
+        const internas = acotadas.filter((persona) => persona.role !== user_role_enum_1.UserRole.CLIENT).map((persona) => persona.id);
+        const [asignaciones, membresias, manejadas] = await Promise.all([
+            this.assignments.find({ where: { organizationId, userId: (0, typeorm_2.In)(ids) }, select: { userId: true, clientId: true } }),
+            internas.length ? this.podMembers.find({ where: { userId: (0, typeorm_2.In)(internas) }, select: { userId: true, podId: true } }) : Promise.resolve([]),
+            internas.length ? this.clients.find({ where: { organizationId, communityManagerId: (0, typeorm_2.In)(internas) }, select: { id: true, communityManagerId: true } }) : Promise.resolve([]),
+        ]);
+        const podIds = [...new Set(membresias.map((fila) => fila.podId))];
+        const deLosPods = podIds.length
+            ? await this.clients.find({ where: { organizationId, podId: (0, typeorm_2.In)(podIds) }, select: { id: true, podId: true } })
+            : [];
+        for (const persona of acotadas) {
+            const propias = persona.clientId ? [persona.clientId] : [];
+            const pods = new Set(membresias.filter((fila) => fila.userId === persona.id).map((fila) => fila.podId));
+            const todas = [
+                ...propias,
+                ...deLosPods.filter((cliente) => cliente.podId && pods.has(cliente.podId)).map((cliente) => cliente.id),
+                ...asignaciones.filter((fila) => fila.userId === persona.id).map((fila) => fila.clientId),
+                ...manejadas.filter((cliente) => cliente.communityManagerId === persona.id).map((cliente) => cliente.id),
+            ];
+            resultado.set(persona.id, [...new Set(todas)]);
+        }
+        return resultado;
+    }
     invalidateUser(userId) {
         for (const key of this.cache.keys()) {
             if (key.endsWith(`:${userId}`))

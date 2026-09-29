@@ -25,6 +25,34 @@ interface UserRow {
   mustChangePassword?: boolean;
   weeklyCapacityUd?: number;
   createdAt: string;
+  /** Empresas que alcanza: la propia primero, luego pods y asignaciones. Solo en la vista de la agencia. */
+  empresaIds?: string[];
+  /** Cargos que alcanzan todas las empresas sin asignación. */
+  todasLasEmpresas?: boolean;
+}
+
+/** Con más de este número de empresas se muestran dos y el resto queda tras «+N más». */
+const EMPRESAS_SIN_PLEGAR = 3;
+const EMPRESAS_PLEGADAS = 2;
+
+function AlcanceEmpresas({ persona, nombreDe }: { persona: UserRow; nombreDe: (id: string) => string }) {
+  const [abierto, setAbierto] = useState(false);
+  if (persona.todasLasEmpresas) return <strong>Todas las empresas</strong>;
+  const ids = persona.empresaIds ?? (persona.clientId ? [persona.clientId] : []);
+  if (!ids.length) return <strong>{persona.role === 'client' ? 'Sin empresa' : 'Equipo interno'}</strong>;
+  if (ids.length === 1) return <strong>{nombreDe(ids[0])}</strong>;
+  const plegar = ids.length > EMPRESAS_SIN_PLEGAR;
+  const visibles = plegar && !abierto ? ids.slice(0, EMPRESAS_PLEGADAS) : ids;
+  return (
+    <span className="access-empresas">
+      {visibles.map((id) => <span key={id} className="access-empresa" title={nombreDe(id)}>{nombreDe(id)}</span>)}
+      {plegar && (
+        <button type="button" className="access-empresas-mas" aria-expanded={abierto} onClick={() => setAbierto((valor) => !valor)}>
+          {abierto ? 'Ver menos' : `+${ids.length - EMPRESAS_PLEGADAS} más`}
+        </button>
+      )}
+    </span>
+  );
 }
 
 interface ClientOption {
@@ -117,6 +145,9 @@ export function UsersPage() {
   const { data, isLoading, error } = useQuery<UserRow[]>({
     queryKey: ['users', query],
     queryFn: () => api.get(`/users${query ? `?${query}` : ''}`),
+    // Mientras llega el resultado de otra búsqueda o filtro sigue a la vista el anterior: la
+    // página no vuelve a «Cargando», y el buscador conserva el foco y lo escrito.
+    placeholderData: (anterior) => anterior,
   });
   const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = useMemo<ClientOption[]>(() => (clientsResp as { data: ClientOption[] } | undefined)?.data ?? [], [clientsResp]);
@@ -397,7 +428,12 @@ export function UsersPage() {
                   {administradores.has(row.id) && <small className="access-manda">Administra el equipo</small>}
                 </span>),
           },
-          ...(administraSuEmpresa ? [] : [{ key: 'clientId', label: 'Alcance', render: (row: UserRow) => <span className="access-scope"><strong>{row.clientId ? clientMap.get(row.clientId) ?? 'Empresa no disponible' : 'Equipo interno'}</strong><small>{row.role === 'client' ? 'Portal de cliente' : WORK_MODE_LABELS[row.workMode || 'hybrid']}</small></span> }]),
+          ...(administraSuEmpresa ? [] : [{ key: 'clientId', label: 'Alcance', render: (row: UserRow) => (
+            <span className="access-scope">
+              <AlcanceEmpresas persona={row} nombreDe={(id) => clientMap.get(id) ?? 'Empresa no disponible'} />
+              <small>{row.role === 'client' ? 'Portal de cliente' : WORK_MODE_LABELS[row.workMode || 'hybrid']}</small>
+            </span>
+          ) }]),
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
           { key: 'createdAt', label: 'Creado', sortable: true, render: (row) => new Date(row.createdAt).toLocaleDateString('es-CL') },

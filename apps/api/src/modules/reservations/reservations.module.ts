@@ -1,3 +1,4 @@
+import { AuthorizationModule } from '../../core/authorization/authorization.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReservationForm } from './domain/reservation-form.entity';
@@ -21,5 +22,5 @@ import { AuditModule } from '../../core/audit/audit.module';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { MarketingModule } from '../marketing/marketing.module';
 
-@Module({ imports: [TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
+@Module({ imports: [TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule, AuthorizationModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
 export class ReservationsModule {}

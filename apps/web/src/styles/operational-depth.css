@@ -31,8 +31,12 @@
 @keyframes commandFade { from { opacity: 0; } }
 @keyframes commandRise { from { opacity: 0; transform: translateY(-8px) scale(.985); } }
 @media (max-width: 650px) {
-  .workspace-command span { display: none; }
-  .workspace-command { min-width: 0; }
+  /* En el teléfono queda el ícono: se oculta el texto y el atajo de teclado, que ahí no existe. */
+  .workspace-command > span:not([aria-hidden]), .workspace-command kbd { display: none; }
+  .workspace-command { min-width: 0; width: 40px; height: 40px; flex-shrink: 0; justify-content: center; padding: 0 !important; font-size: 14px; font-weight: 800; color: var(--ink); }
+  .workspace-command svg { width: 18px; height: 18px; }
+  .workspace-heading { min-width: 0; overflow: hidden; }
+  .workspace-heading strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .command-palette-backdrop { padding: 9px; align-items: center; }
   .command-results > button em { display: none; }
   .command-results > button { grid-template-columns: 34px 1fr; }

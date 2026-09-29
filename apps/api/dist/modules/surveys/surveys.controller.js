@@ -13,6 +13,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SurveysController = exports.MAXIMO_ENVIO_POR_PEDIDO = void 0;
+const permission_resolver_service_1 = require("../../core/authorization/permission-resolver.service");
 const common_1 = require("@nestjs/common");
 const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
 const audit_service_1 = require("../../core/audit/audit.service");
@@ -45,7 +46,7 @@ function publicSurveyUrl(id) {
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
 }
 let SurveysController = class SurveysController {
-    constructor(surveys, responses, dataSource, accountAccess, correo, audit, parametros) {
+    constructor(surveys, responses, dataSource, accountAccess, correo, audit, parametros, permisos) {
         this.surveys = surveys;
         this.responses = responses;
         this.dataSource = dataSource;
@@ -53,6 +54,7 @@ let SurveysController = class SurveysController {
         this.correo = correo;
         this.audit = audit;
         this.parametros = parametros;
+        this.permisos = permisos;
     }
     toContract(survey) {
         return {
@@ -112,7 +114,9 @@ let SurveysController = class SurveysController {
         return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
     }
     async saveCompanyLegal(req, query, dto) {
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, await this.empresaLegal(req, query.clientId), { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+        const empresa = await this.empresaLegal(req, query.clientId);
+        await (0, datos_legales_de_empresa_1.asegurarQueAdministraLaEmpresa)(this.permisos, req.organizationId, req.user, empresa);
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
     }
     async empresaLegal(req, pedida) {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
@@ -503,5 +507,6 @@ exports.SurveysController = SurveysController = __decorate([
         account_access_service_1.AccountAccessService,
         email_service_1.EmailService,
         audit_service_1.AuditService,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        permission_resolver_service_1.PermissionResolverService])
 ], SurveysController);

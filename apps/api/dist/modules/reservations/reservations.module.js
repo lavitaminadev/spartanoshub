@@ -7,6 +7,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReservationsModule = void 0;
+const authorization_module_1 = require("../../core/authorization/authorization.module");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const reservation_form_entity_1 = require("./domain/reservation-form.entity");
@@ -33,5 +34,5 @@ let ReservationsModule = class ReservationsModule {
 };
 exports.ReservationsModule = ReservationsModule;
 exports.ReservationsModule = ReservationsModule = __decorate([
-    (0, common_1.Module)({ imports: [typeorm_1.TypeOrmModule.forFeature([reservation_form_entity_1.ReservationForm, reservation_entity_1.Reservation, availability_block_entity_1.AvailabilityBlock, reservation_event_entity_1.ReservationEvent, reservation_form_event_entity_1.ReservationFormEvent, reservation_coupon_entity_1.ReservationCoupon, survey_contact_request_entity_1.SurveyContactRequest, reservation_management_token_entity_1.ReservationManagementToken, reservation_hold_entity_1.ReservationHold, reservation_group_request_entity_1.ReservationGroupRequest]), google_module_1.GoogleModule, meta_module_1.MetaModule, notifications_module_1.NotificationsModule, audit_module_1.AuditModule, parameters_module_1.ParametersModule, marketing_module_1.MarketingModule], providers: [reservations_service_1.ReservationsService, bulk_import_service_1.ReservationsBulkImportService], controllers: [reservations_controller_1.ReservationsController, public_reservations_controller_1.PublicReservationsController], exports: [reservations_service_1.ReservationsService] })
+    (0, common_1.Module)({ imports: [typeorm_1.TypeOrmModule.forFeature([reservation_form_entity_1.ReservationForm, reservation_entity_1.Reservation, availability_block_entity_1.AvailabilityBlock, reservation_event_entity_1.ReservationEvent, reservation_form_event_entity_1.ReservationFormEvent, reservation_coupon_entity_1.ReservationCoupon, survey_contact_request_entity_1.SurveyContactRequest, reservation_management_token_entity_1.ReservationManagementToken, reservation_hold_entity_1.ReservationHold, reservation_group_request_entity_1.ReservationGroupRequest]), google_module_1.GoogleModule, meta_module_1.MetaModule, notifications_module_1.NotificationsModule, audit_module_1.AuditModule, parameters_module_1.ParametersModule, marketing_module_1.MarketingModule, authorization_module_1.AuthorizationModule], providers: [reservations_service_1.ReservationsService, bulk_import_service_1.ReservationsBulkImportService], controllers: [reservations_controller_1.ReservationsController, public_reservations_controller_1.PublicReservationsController], exports: [reservations_service_1.ReservationsService] })
 ], ReservationsModule);

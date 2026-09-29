@@ -335,3 +335,14 @@
 @media (max-width: 560px) {
   .empresa-de-persona { grid-template-columns: 1fr; gap: 6px; }
 }
+
+/* Empresas que alcanza una persona: etiquetas que bajan de línea, nunca desbordan la celda. */
+.access-empresas { display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-width:0; }
+.access-empresa { max-width:100%; padding:3px 8px; border-radius:999px; background:var(--soft); color:var(--ink); font-size:12px; font-weight:700; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.access-empresas-mas { padding:3px 8px; border:1px solid var(--surface-sage); border-radius:999px; background:var(--white); color:var(--primary, #cf1b60); font-size:12px; font-weight:800; cursor:pointer; }
+.access-empresas-mas:hover { border-color:currentColor; }
+@media (max-width: 650px) {
+  .access-scope { justify-items:end; text-align:right; }
+  .access-empresas { justify-content:flex-end; }
+  .access-empresa { max-width:180px; }
+}

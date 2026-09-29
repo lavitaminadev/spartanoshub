@@ -496,6 +496,10 @@ function modulosDeCorreoVisual(clave: string): Array<'reservations' | 'surveys' 
 const EMPRESAS_VISUALES = [
   { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } },
   { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false } },
+  // Tres más, sin servicios, para revisar en Usuarios a quien atiende muchas empresas.
+  { id: 'visual-client-3', name: 'Pastelería Alameda', capabilities: {} },
+  { id: 'visual-client-4', name: 'Hotel Mirador del Valle', capabilities: {} },
+  { id: 'visual-client-5', name: 'Café Plaza', capabilities: {} },
 ];
 
 /**
@@ -634,10 +638,11 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/users\/administran-equipo/, () => ({ clientId: VISUAL_USER.clientId, userIds: visualAdministranEquipo, sinAdministrador: visualAdministranEquipo.length === 0 })],
   [/\/users(?:\?|$)/, () => {
     const equipo = [
-      { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z' },
-      { id: 'u-ops', name: 'Rodrigo Pérez', email: 'rodrigo@espartanos.cl', role: 'operations_director', isActive: true, clientId: null, phone: '', createdAt: '2026-05-10T12:00:00.000Z' },
-      { id: 'u-cli', name: 'Ana Moya', email: 'ana@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-07-02T12:00:00.000Z' },
-      { id: 'u-cli-2', name: 'Diego Ruiz', email: 'diego@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-08-14T12:00:00.000Z' },
+      // Los cuatro casos del alcance: muchas empresas (se pliega), todas, dos y una.
+      { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z', empresaIds: ['visual-client', 'visual-client-2', 'visual-client-3', 'visual-client-4', 'visual-client-5'] },
+      { id: 'u-ops', name: 'Rodrigo Pérez', email: 'rodrigo@espartanos.cl', role: 'operations_director', isActive: true, clientId: null, phone: '', createdAt: '2026-05-10T12:00:00.000Z', todasLasEmpresas: true },
+      { id: 'u-cli', name: 'Ana Moya', email: 'ana@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-07-02T12:00:00.000Z', empresaIds: ['visual-client', 'visual-client-2'] },
+      { id: 'u-cli-2', name: 'Diego Ruiz', email: 'diego@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-08-14T12:00:00.000Z', empresaIds: ['visual-client'] },
     ];
     /*
      * Revisando como empresa se ve lo que esa empresa ve.

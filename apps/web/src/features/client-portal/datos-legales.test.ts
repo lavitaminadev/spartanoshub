@@ -3,8 +3,8 @@ import { datosLegalesCompletos, rutaDatosLegales } from './ClientLegalData';
 import { CLIENT_NAV, isClientNavItemVisible } from './client-portal-scope';
 import type { User } from '../../core/auth';
 
-function empresa(capabilities: Record<string, boolean>): User {
-  return { id: 'u', role: 'client', clientId: 'c', capabilities, permissions: {}, features: {}, moduleLifecycle: {} } as unknown as User;
+function empresa(capabilities: Record<string, boolean>, administra = true): User {
+  return { id: 'u', role: 'client', clientId: 'c', capabilities, permissions: administra ? { users: 'manage' } : {}, features: {}, moduleLifecycle: {} } as unknown as User;
 }
 
 describe('datos legales en el portal', () => {
@@ -14,6 +14,11 @@ describe('datos legales en el portal', () => {
     expect(isClientNavItemVisible(legal, empresa({ reservations: true }))).toBe(true);
     expect(isClientNavItemVisible(legal, empresa({ surveys: true }))).toBe(true);
     expect(isClientNavItemVisible(legal, empresa({ crm: true }))).toBe(false);
+  });
+
+  /* Guardarlos y aceptar el encargo de tratamiento es de quien administra la empresa. */
+  it('sólo los ve quien administra la empresa', () => {
+    expect(isClientNavItemVisible(legal, empresa({ reservations: true }, false))).toBe(false);
   });
 
   it('exigen razón social, RUT válido y correo; la política propia es opcional', () => {
