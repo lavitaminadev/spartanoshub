@@ -59,8 +59,9 @@ let CampaignsController = class CampaignsController {
     }
     async resolveScope(req, requested) {
         if (req.user.clientId) {
-            await this.accountAccess.assertClient(req.organizationId, req.user, req.user.clientId);
-            return req.user.clientId;
+            const empresa = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, requested) ?? req.user.clientId;
+            await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
+            return empresa;
         }
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         if (!requested && allowed !== undefined) {

@@ -27,6 +27,8 @@ interface UserRow {
   createdAt: string;
   /** Empresas que alcanza: la propia primero, luego pods y asignaciones. Solo en la vista de la agencia. */
   empresaIds?: string[];
+  /** Vista de una empresa: atiende esta empresa por asignación, pero su cuenta es de otra. */
+  asignada?: boolean;
   /** Cargos que alcanzan todas las empresas sin asignación. */
   todasLasEmpresas?: boolean;
 }
@@ -233,9 +235,11 @@ export function UsersPage() {
     ya viene fijada y el servidor no le devuelve nada más, así que aquí solo se quita lo que no
     tiene sentido ofrecerle.
   */
-  const canManage = (row: UserRow) => currentUser?.role === 'admin'
+  // A quien llega asignado desde otra empresa no se le edita ni pausa aquí: pausarlo lo apagaría
+  // también allá. Desde Permisos se le ajusta este local o se le quita de él.
+  const canManage = (row: UserRow) => !row.asignada && (currentUser?.role === 'admin'
     || currentUser?.role === 'dev'
-    || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role);
+    || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role));
   const canResetPassword = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
   const puedeReenviarAcceso = ['dev', 'commercial_director'].includes(currentUser?.role ?? '');
   /*
@@ -457,7 +461,7 @@ export function UsersPage() {
           ...(administraSuEmpresa ? [] : [{ key: 'clientId', label: 'Alcance', render: (row: UserRow) => (
             <span className="access-scope">
               <AlcanceEmpresas persona={row} nombreDe={(id) => clientMap.get(id) ?? 'Empresa no disponible'} />
-              <small>{row.role === 'client' ? 'Portal de cliente' : WORK_MODE_LABELS[row.workMode || 'hybrid']}</small>
+              <small>{row.asignada ? 'Asignada desde otra empresa' : row.role === 'client' ? 'Portal de cliente' : WORK_MODE_LABELS[row.workMode || 'hybrid']}</small>
             </span>
           ) }]),
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },

@@ -33,13 +33,21 @@ let CrmHomeController = class CrmHomeController {
     async assertPortalCrm(req) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
             return;
-        if (!req.user.clientId)
+        const pedida = req.query?.clientId;
+        if (typeof pedida !== 'string' || !pedida) {
+            const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+            const conCrm = await this.capacidades.filtrar(req.organizationId, alcanzables ?? [], 'crm');
+            if (conCrm.length)
+                return;
+        }
+        const empresa = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, typeof pedida === 'string' ? pedida : undefined);
+        if (!empresa)
             throw new common_1.ForbiddenException('La cuenta cliente no está asociada a una empresa');
-        await this.capacidades.assert(req.organizationId, req.user.clientId, 'crm');
+        await this.capacidades.assert(req.organizationId, empresa, 'crm');
     }
     async get(req, coolingDays, domain, clientId) {
         await this.assertPortalCrm(req);
-        const effectiveClientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : clientId;
+        const effectiveClientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, clientId);
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         const agencyOnly = (domain === undefined || domain === 'commercial')
             && !effectiveClientId
@@ -61,7 +69,7 @@ let CrmHomeController = class CrmHomeController {
     }
     async panel(req, days, domain, clientId) {
         await this.assertPortalCrm(req);
-        const effectiveClientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : clientId;
+        const effectiveClientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, clientId);
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         const agencyOnly = (domain === undefined || domain === 'commercial')
             && !effectiveClientId

@@ -274,6 +274,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('estado-del-correo'),
     (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Estado del envío de correos' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -284,6 +285,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('correos/requisitos'),
     (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Condiciones que necesita cada aviso además de su interruptor' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -294,6 +296,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('destinatarios-de-prueba'),
     (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Personas del equipo a las que se puede enviar una prueba' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -304,6 +307,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('correos/vista-previa'),
     (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Componer una plantilla para verla, sin enviarla' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -315,6 +319,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('probar'),
     (0, module_scope_decorator_1.ModuleExempt)('Correos no es de Reservas: la reja real es tener alguna plantilla que editar'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     (0, swagger_1.ApiOperation)({ summary: 'Enviar una plantilla de correo a alguien del equipo' }),
     __param(0, (0, common_1.Req)()),

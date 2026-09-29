@@ -100,9 +100,11 @@ let UsersController = class UsersController {
             clientId: alcance.soloEmpresa ?? clientId,
             q,
             isActive: normalizedIsActive,
+            incluirAsignados: true,
         });
-        if (alcance.soloEmpresa)
-            return personas;
+        if (alcance.soloEmpresa) {
+            return personas.map((persona) => ({ ...persona, asignada: persona.clientId !== alcance.soloEmpresa }));
+        }
         const empresas = await this.accesos.empresasDe(organizationId, personas);
         return personas.map((persona) => {
             const suyas = empresas.get(persona.id) ?? [];

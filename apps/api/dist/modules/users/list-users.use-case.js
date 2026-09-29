@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_entity_1 = require("./user.entity");
+const user_client_access_entity_1 = require("../../core/client-scope/user-client-access.entity");
 let ListUsersUseCase = class ListUsersUseCase {
     constructor(repo) {
         this.repo = repo;
@@ -31,10 +32,23 @@ let ListUsersUseCase = class ListUsersUseCase {
             where.clientId = filters.clientId;
         if (typeof filters.isActive === 'boolean')
             where.isActive = filters.isActive;
-        const users = await this.repo.find({
+        let users = await this.repo.find({
             where,
             order: { name: 'ASC' },
         });
+        if (filters.clientId && filters.incluirAsignados) {
+            const asignaciones = await this.repo.manager.getRepository(user_client_access_entity_1.UserClientAccess).find({
+                where: { organizationId: filters.organizationId, clientId: filters.clientId },
+                select: { userId: true },
+            });
+            const yaEstan = new Set(users.map((user) => user.id));
+            const faltan = asignaciones.map((fila) => fila.userId).filter((id) => !yaEstan.has(id));
+            if (faltan.length) {
+                const { clientId: _empresa, ...sinEmpresa } = where;
+                const asignados = await this.repo.find({ where: { ...sinEmpresa, id: (0, typeorm_2.In)(faltan) } });
+                users = [...users, ...asignados].sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'es'));
+            }
+        }
         const normalizeSearch = (value) => String(value ?? '')
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')

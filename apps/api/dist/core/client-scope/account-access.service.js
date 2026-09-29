@@ -56,6 +56,15 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
         this.cache.set(cacheKey, { clientIds, expiresAt: Date.now() + AccountAccessService_1.CACHE_TTL_MS });
         return clientIds;
     }
+    async empresaDeTrabajo(organizationId, user, pedida) {
+        if (user.role !== user_role_enum_1.UserRole.CLIENT)
+            return pedida || undefined;
+        const propia = user.clientId || undefined;
+        if (!pedida || pedida === propia)
+            return propia;
+        const alcanzables = await this.allowedClientIds(organizationId, user);
+        return alcanzables?.includes(pedida) ? pedida : propia;
+    }
     async assertClient(organizationId, user, clientId) {
         if (!clientId)
             return;
