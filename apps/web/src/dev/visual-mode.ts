@@ -636,6 +636,8 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * que es cuando aparece el aviso.
    */
   [/\/users\/administran-equipo/, () => ({ clientId: VISUAL_USER.clientId, userIds: visualAdministranEquipo, sinAdministrador: visualAdministranEquipo.length === 0 })],
+  // Sin servidor de correo el reenvío no sale, como en producción con SMTP apagado.
+  [/\/users\/[^/]+\/resend-access$/, (config) => ({ userId: config?.url?.split('/')[2], emailSent: false })],
   [/\/users(?:\?|$)/, (config) => {
     // Sin servidor de correo no sale nada: el alta responde lo mismo que producción con SMTP apagado.
     if ((config?.method ?? 'get').toLowerCase() === 'post') return { id: `u-nuevo-${Date.now()}`, ...visualRequestBody(config), correoEnviado: false };
@@ -644,7 +646,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { id: 'u-cm', name: 'Valentina Soto', email: 'valentina@espartanos.cl', role: 'community_manager', isActive: true, clientId: null, phone: '', createdAt: '2026-06-01T12:00:00.000Z', empresaIds: ['visual-client', 'visual-client-2', 'visual-client-3', 'visual-client-4', 'visual-client-5'] },
       { id: 'u-ops', name: 'Rodrigo Pérez', email: 'rodrigo@espartanos.cl', role: 'operations_director', isActive: true, clientId: null, phone: '', createdAt: '2026-05-10T12:00:00.000Z', todasLasEmpresas: true },
       { id: 'u-cli', name: 'Ana Moya', email: 'ana@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-07-02T12:00:00.000Z', empresaIds: ['visual-client', 'visual-client-2'] },
-      { id: 'u-cli-2', name: 'Diego Ruiz', email: 'diego@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-08-14T12:00:00.000Z', empresaIds: ['visual-client'] },
+      { id: 'u-cli-2', name: 'Diego Ruiz', email: 'diego@casacostanera.cl', role: 'client', isActive: true, clientId: 'visual-client', phone: '', createdAt: '2026-08-14T12:00:00.000Z', empresaIds: ['visual-client'], mustChangePassword: true },
     ];
     /*
      * Revisando como empresa se ve lo que esa empresa ve.

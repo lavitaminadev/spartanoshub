@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
@@ -17,6 +17,28 @@ export class ResetUserPasswordUseCase {
   async execute(params: { id: string; organizationId: string; actorRole: UserRole; sendEmail?: boolean }) {
     const user = await this.users.findOne({ where: { id: params.id, organizationId: params.organizationId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
+    return this.generarYEnviar(user, params);
+  }
+
+  /**
+   * Reenvía el correo de acceso a quien todavía no puso su propia contraseña.
+   *
+   * La clave no se puede reenviar tal cual —se guarda cifrada—, así que se genera otra y la
+   * anterior deja de valer. Solo con la temporal pendiente: a quien ya eligió la suya no se le
+   * cambia por aquí. No devuelve la clave: quien reenvía no la ve, solo sabe si salió el correo.
+   */
+  async reenviarAcceso(params: { id: string; organizationId: string; actorRole: UserRole }): Promise<{ userId: string; emailSent: boolean }> {
+    const user = await this.users.findOne({ where: { id: params.id, organizationId: params.organizationId } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    if (!user.mustChangePassword) throw new BadRequestException('Esta persona ya eligió su propia contraseña: no hay acceso pendiente que reenviar.');
+    if (params.actorRole !== UserRole.DEV && [UserRole.DEV, UserRole.ADMIN].includes(user.role)) {
+      throw new ForbiddenException('No puedes reenviar el acceso de esta cuenta');
+    }
+    const { emailSent } = await this.generarYEnviar(user, { ...params, sendEmail: true });
+    return { userId: user.id, emailSent };
+  }
+
+  private async generarYEnviar(user: User, params: { actorRole: UserRole; sendEmail?: boolean }) {
     if (params.actorRole === UserRole.OPERATIONS_DIRECTOR && [UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR].includes(user.role)) {
       throw new ForbiddenException('No puedes resetear esta cuenta');
     }

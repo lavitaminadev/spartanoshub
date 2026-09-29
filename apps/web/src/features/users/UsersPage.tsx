@@ -234,6 +234,24 @@ export function UsersPage() {
     || currentUser?.role === 'dev'
     || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role);
   const canResetPassword = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
+  const puedeReenviarAcceso = ['dev', 'commercial_director'].includes(currentUser?.role ?? '');
+  /*
+   * Reenviar el acceso genera otra clave temporal y la manda por correo; la anterior deja de valer.
+   * Solo mientras la persona no haya elegido su propia contraseña. La clave no vuelve a esta
+   * pantalla: se sabe solo si el servidor de correo aceptó el envío.
+   */
+  const reenviarAcceso = useMutation<{ emailSent: boolean }, Error, UserRow>({
+    mutationFn: (row) => api.post(`/users/${row.id}/resend-access`, {}),
+    onSuccess: (resultado, row) => setFeedback(resultado.emailSent
+      ? { tone: 'success', text: `Se reenvió el acceso a ${row.email} con una clave nueva. La anterior ya no sirve.` }
+      : { tone: 'error', text: `No se pudo enviar el correo a ${row.email}. Revisa que la dirección esté bien escrita, o pide a administración que resetee la clave y la entregue a mano.` }),
+    onError: (error) => setFeedback({ tone: 'error', text: error.message }),
+  });
+  const motivoSinReenvio = (row: UserRow) => (!row.mustChangePassword
+    ? 'Ya eligió su propia contraseña: no hay acceso pendiente que reenviar.'
+    : currentUser?.role !== 'dev' && ['dev', 'admin'].includes(row.role)
+      ? 'El acceso de esta cuenta lo reenvía un dev.'
+      : null);
   // Administración, Desarrollo y Dirección de operaciones ajustan permisos; esta última sólo a su
   // equipo. Quien administra su empresa los ajusta dentro de ella: es el sentido del permiso.
   const puedeVerPermisos = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '') || administraSuEmpresa;
@@ -441,7 +459,7 @@ export function UsersPage() {
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
           { key: 'createdAt', label: 'Creado', sortable: true, render: (row) => new Date(row.createdAt).toLocaleDateString('es-CL') },
-          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}{puedeVerPermisos && (row.role !== 'dev' || currentUser?.role === 'dev') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setPermisosDe(row)}>Permisos</button>}</div> },
+          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}{puedeReenviarAcceso && <button type="button" className="btn btn-outline btn-sm" onClick={() => reenviarAcceso.mutate(row)} disabled={Boolean(motivoSinReenvio(row)) || reenviarAcceso.isPending} title={motivoSinReenvio(row) ?? `Genera una clave nueva y la envía a ${row.email}`}>{reenviarAcceso.isPending && reenviarAcceso.variables?.id === row.id ? 'Reenviando...' : 'Reenviar acceso'}</button>}{puedeVerPermisos && (row.role !== 'dev' || currentUser?.role === 'dev') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setPermisosDe(row)}>Permisos</button>}</div> },
         ]}
         data={users}
         emptyMessage="No hay usuarios para los filtros seleccionados"

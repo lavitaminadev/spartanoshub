@@ -239,4 +239,16 @@ export class UsersController {
       sendEmail: dto.sendEmail,
     });
   }
+
+  @Post(':id/resend-access')
+  @Roles(UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR)
+  @RequiresRecentAuth('reenviar el acceso de otra persona')
+  @ApiOperation({ summary: 'Reenviar el correo de acceso a quien aún no eligió su contraseña' })
+  resendAccess(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.resetUserPassword.reenviarAcceso({
+      id,
+      organizationId: req.organizationId || req.user.organizationId,
+      actorRole: req.user.role as UserRole,
+    });
+  }
 }

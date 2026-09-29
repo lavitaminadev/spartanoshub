@@ -63,6 +63,21 @@ let ResetUserPasswordUseCase = class ResetUserPasswordUseCase {
         const user = await this.users.findOne({ where: { id: params.id, organizationId: params.organizationId } });
         if (!user)
             throw new common_1.NotFoundException('Usuario no encontrado');
+        return this.generarYEnviar(user, params);
+    }
+    async reenviarAcceso(params) {
+        const user = await this.users.findOne({ where: { id: params.id, organizationId: params.organizationId } });
+        if (!user)
+            throw new common_1.NotFoundException('Usuario no encontrado');
+        if (!user.mustChangePassword)
+            throw new common_1.BadRequestException('Esta persona ya eligió su propia contraseña: no hay acceso pendiente que reenviar.');
+        if (params.actorRole !== user_role_enum_1.UserRole.DEV && [user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN].includes(user.role)) {
+            throw new common_1.ForbiddenException('No puedes reenviar el acceso de esta cuenta');
+        }
+        const { emailSent } = await this.generarYEnviar(user, { ...params, sendEmail: true });
+        return { userId: user.id, emailSent };
+    }
+    async generarYEnviar(user, params) {
         if (params.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR && [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(user.role)) {
             throw new common_1.ForbiddenException('No puedes resetear esta cuenta');
         }
