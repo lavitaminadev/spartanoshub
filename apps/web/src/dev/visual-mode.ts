@@ -1198,7 +1198,15 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * Si el ejemplo aceptara cualquier cambio de zona, la pantalla parecería permitir mover gente a
    * una terraza llena y en producción fallaría recién al guardar.
    */
-  [/\/reservations\/[^/?]+$/, (config) => {
+  /*
+   * Una reserva por su id, y sólo eso.
+   *
+   * Sin el `(?<!\/public)` esta regla también atrapaba `/public/reservations/<slug>`, porque esa
+   * dirección termina igual. La página pública recibía una reserva vacía en vez de su formulario:
+   * sin diseño, sin ocasiones y sin píxel, así que no salía ni el aviso al entrar ni el de
+   * medición. Pasaba sólo acá; el servidor real distingue las dos rutas.
+   */
+  [/(?<!\/public)\/reservations\/[^/?]+$/, (config) => {
     const id = (config?.url?.match(/\/reservations\/([^/?]+)$/) ?? [])[1];
     const reserva = VISUAL_RESERVATIONS.find((item) => item.id === id);
     if (!reserva || config?.method?.toLowerCase() !== 'patch') return reserva ?? {};

@@ -967,8 +967,20 @@ export function PublicReservationPage() {
         <button type="button" className="btn btn-primary" autoFocus onClick={() => setFotoAmpliada(null)}>Cerrar</button>
       </figure>
     </DialogoModal>}
-    {ocasionesComoAviso && !avisoCerrado && vecesMostrado < limiteDeAvisos && !isSurvey && !bienvenidaPendiente && <DialogoModal etiqueta={design.ocasionesTitulo || 'Ocasiones'} className="booking-ocasiones-aviso" onCerrar={cerrarOcasiones} activo={!fotoAmpliada}>
+    {/*
+      * Un aviso a la vez, y el de medición primero.
+      *
+      * Los dos se dibujaban juntos: el de ocasiones quedaba encima y dejaba el de cookies visible
+      * por detrás pero imposible de tocar, así que no había forma de aceptar ni rechazar. La
+      * pregunta por las cookies va antes porque de ella depende qué se mide de esta visita.
+      */}
+    {ocasionesComoAviso && !avisoCerrado && vecesMostrado < limiteDeAvisos && !isSurvey && !bienvenidaPendiente
+      && eleccionMedicion !== '' && !avisoMedicionAbierto
+      && <DialogoModal etiqueta={design.ocasionesTitulo || 'Ocasiones'} className="booking-ocasiones-aviso" onCerrar={cerrarOcasiones} activo={!fotoAmpliada}>
       <section data-retiene-toque>
+        {/* Cerrar a la vista: el cuadro ocupa casi toda la pantalla y del fondo quedan 20 px que
+            nadie acierta, así que tocar fuera no alcanza como única salida. */}
+        <button type="button" className="booking-ocasiones-cerrar" aria-label="Cerrar" onClick={cerrarOcasiones}>×</button>
         <h2>{design.ocasionesTitulo || 'Para cada ocasión'}</h2>
         {design.ocasionesTexto && <p>{design.ocasionesTexto}</p>}
         <div className={`booking-ocasiones-grilla foto-${safeDesignChoice(design.ocasionesFoto, ['completa', 'horizontal', 'cuadrada', 'vertical'], 'completa')}`}>
