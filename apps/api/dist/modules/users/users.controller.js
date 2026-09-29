@@ -29,14 +29,16 @@ const reset_user_password_dto_1 = require("./dto/reset-user-password.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const administracion_del_equipo_service_1 = require("./administracion-del-equipo.service");
 const administradores_de_empresa_service_1 = require("./administradores-de-empresa.service");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 let UsersController = class UsersController {
-    constructor(createUser, listUsers, updateUser, resetUserPassword, administracion, administradores) {
+    constructor(createUser, listUsers, updateUser, resetUserPassword, administracion, administradores, accesos) {
         this.createUser = createUser;
         this.listUsers = listUsers;
         this.updateUser = updateUser;
         this.resetUserPassword = resetUserPassword;
         this.administracion = administracion;
         this.administradores = administradores;
+        this.accesos = accesos;
     }
     async administranEquipo(req, clientId) {
         const alcance = await this.administracion.alcance(req, clientId);
@@ -91,12 +93,20 @@ let UsersController = class UsersController {
                     ? false
                     : undefined;
         const alcance = await this.administracion.alcance(req, clientId);
-        return this.listUsers.execute({
-            organizationId: req.organizationId || req.user.organizationId,
+        const organizationId = req.organizationId || req.user.organizationId;
+        const personas = await this.listUsers.execute({
+            organizationId,
             role: alcance.soloEmpresa ? user_role_enum_1.UserRole.CLIENT : role,
             clientId: alcance.soloEmpresa ?? clientId,
             q,
             isActive: normalizedIsActive,
+        });
+        if (alcance.soloEmpresa)
+            return personas;
+        const empresas = await this.accesos.empresasDe(organizationId, personas);
+        return personas.map((persona) => {
+            const suyas = empresas.get(persona.id) ?? [];
+            return { ...persona, empresaIds: suyas === 'todas' ? [] : suyas, todasLasEmpresas: suyas === 'todas' };
         });
     }
     async update(id, dto, req, clientId) {
@@ -229,5 +239,6 @@ exports.UsersController = UsersController = __decorate([
         update_user_use_case_1.UpdateUserUseCase,
         reset_user_password_use_case_1.ResetUserPasswordUseCase,
         administracion_del_equipo_service_1.AdministracionDelEquipoService,
-        administradores_de_empresa_service_1.AdministradoresDeEmpresaService])
+        administradores_de_empresa_service_1.AdministradoresDeEmpresaService,
+        account_access_service_1.AccountAccessService])
 ], UsersController);

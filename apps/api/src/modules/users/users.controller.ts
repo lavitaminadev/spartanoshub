@@ -15,6 +15,7 @@ import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { AdministracionDelEquipoService } from './administracion-del-equipo.service';
 import { AdministradoresDeEmpresaService } from './administradores-de-empresa.service';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
 
 /**
  * Endpoints de administración de usuarios.
@@ -32,6 +33,7 @@ export class UsersController {
     private readonly resetUserPassword: ResetUserPasswordUseCase,
     private readonly administracion: AdministracionDelEquipoService,
     private readonly administradores: AdministradoresDeEmpresaService,
+    private readonly accesos: AccountAccessService,
   ) {}
 
   /**
@@ -173,13 +175,21 @@ export class UsersController {
           : undefined;
 
     const alcance = await this.administracion.alcance(req, clientId);
-    return this.listUsers.execute({
-      organizationId: req.organizationId || req.user.organizationId,
+    const organizationId = req.organizationId || req.user.organizationId;
+    const personas = await this.listUsers.execute({
+      organizationId,
       // Acotado a su empresa y a las cuentas de empresa: el equipo de la agencia no es suyo.
       role: alcance.soloEmpresa ? UserRole.CLIENT : role,
       clientId: alcance.soloEmpresa ?? clientId,
       q,
       isActive: normalizedIsActive,
+    });
+    // Quien administra su empresa ve solo esa empresa: las demás a las que llega su gente no son suyas.
+    if (alcance.soloEmpresa) return personas;
+    const empresas = await this.accesos.empresasDe(organizationId, personas);
+    return personas.map((persona) => {
+      const suyas = empresas.get(persona.id) ?? [];
+      return { ...persona, empresaIds: suyas === 'todas' ? [] : suyas, todasLasEmpresas: suyas === 'todas' };
     });
   }
 
