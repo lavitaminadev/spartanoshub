@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
 import {
   BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, Req, UseGuards,
@@ -77,6 +78,7 @@ export class SurveysController {
       distribution: survey.distribution ?? undefined,
       publicUrl: publicSurveyUrl(survey.id),
       ga4MeasurementId: survey.ga4MeasurementId ?? null,
+      anonymous: Boolean(survey.anonymous),
       responses: survey.responseCount,
       designConfig: survey.designConfig ?? undefined,
       googleReview: survey.googleReview ?? undefined,
@@ -190,6 +192,7 @@ export class SurveysController {
       recipients: dto.recipients ?? null,
       distribution: dto.distribution ?? null,
       ga4MeasurementId: dto.ga4MeasurementId?.trim() || null,
+      anonymous: dto.anonymous === true,
       responseCount: 0,
       designConfig: dto.designConfig ?? null,
       googleReview: dto.googleReview ?? null,
@@ -224,6 +227,20 @@ export class SurveysController {
     if (dto.ga4MeasurementId !== undefined && (dto.ga4MeasurementId?.trim() || null) !== (survey.ga4MeasurementId ?? null)) cambios.push('Medición de Google Analytics actualizada');
     if (dto.googleReview !== undefined && JSON.stringify(dto.googleReview ?? null) !== JSON.stringify(survey.googleReview ?? null)) cambios.push('Reseñas en Google actualizadas');
     if (dto.status !== undefined && dto.status !== survey.status) cambios.push(dto.status === 'active' ? 'Encuesta publicada' : dto.status === 'closed' ? 'Encuesta cerrada' : 'Encuesta pasada a borrador');
+    /*
+     * El anonimato no se puede quitar una vez que hay respuestas.
+     *
+     * Quien contestó lo hizo porque se le prometió que no se sabría quién; apagarlo después no
+     * revela las que ya están —no se guardó a nadie— pero sí volvería identificables las
+     * siguientes bajo el mismo título, que es engañar con la misma encuesta. Encenderlo sí se
+     * permite siempre: protege más, nunca menos.
+     */
+    if (dto.anonymous !== undefined && dto.anonymous !== survey.anonymous) {
+      if (!dto.anonymous && survey.responseCount > 0) {
+        throw new BadRequestException('Esta encuesta ya recibió respuestas anónimas. Para volver a pedir identidad, crea una encuesta nueva: quienes ya contestaron lo hicieron con la promesa de que no se sabría quiénes son.');
+      }
+      cambios.push(dto.anonymous ? 'Las respuestas pasan a ser anónimas' : 'Las respuestas pasan a quedar identificadas');
+    }
     if (cambios.length) {
       const autor = await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [req.user.id]).then((filas: Array<{ name?: string }>) => filas?.[0]?.name ?? null).catch(() => null);
       survey.changeLog = [{ fecha: ahora, autor, cambios }, ...(survey.changeLog ?? [])].slice(0, MAXIMO_HISTORIAL);
@@ -243,6 +260,7 @@ export class SurveysController {
     if (dto.recipients !== undefined) survey.recipients = dto.recipients;
     if (dto.distribution !== undefined) survey.distribution = dto.distribution;
     if (dto.ga4MeasurementId !== undefined) survey.ga4MeasurementId = dto.ga4MeasurementId?.trim() || null;
+    if (dto.anonymous !== undefined) survey.anonymous = dto.anonymous;
     if (dto.designConfig !== undefined) survey.designConfig = dto.designConfig;
     if (dto.googleReview !== undefined) survey.googleReview = dto.googleReview;
     return this.toContract(await this.surveys.save(survey));
@@ -304,15 +322,22 @@ export class SurveysController {
      * identifica a alguien entre visitas— y sólo dentro de la empresa de la encuesta: lo que la
      * misma persona haya contestado para otro negocio no es asunto de este.
      */
-    const historial = await this.historialPorCorreo(survey, rows.map((row) => row.respondentEmail));
+    /*
+     * En una encuesta anónima no se devuelve nada que lleve a una persona.
+     *
+     * Al guardar ya no se escribe quién, así que esto es la segunda reja y no la única: protege el
+     * caso de una encuesta que se marcó anónima después de recibir respuestas, donde las
+     * anteriores sí traen nombre. El historial se calcula sobre el correo, así que tampoco va.
+     */
+    const historial = survey.anonymous ? new Map() : await this.historialPorCorreo(survey, rows.map((row) => row.respondentEmail));
     const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
-      historial: row.respondentEmail ? historial.get(row.respondentEmail.trim().toLowerCase()) ?? null : null,
+      historial: !survey.anonymous && row.respondentEmail ? historial.get(row.respondentEmail.trim().toLowerCase()) ?? null : null,
       id: row.id,
       submittedAt: row.submittedAt.toISOString(),
       rating: row.rating ?? null,
-      respondentName: row.respondentName ?? null,
-      respondentEmail: row.respondentEmail ?? null,
-      reservationId: row.reservationId ?? null,
+      respondentName: survey.anonymous ? null : row.respondentName ?? null,
+      respondentEmail: survey.anonymous ? null : row.respondentEmail ?? null,
+      reservationId: survey.anonymous ? null : row.reservationId ?? null,
       teamMessage: row.teamMessage ?? null,
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
       privacyConsentAt: row.privacyConsentAt ? row.privacyConsentAt.toISOString() : null,
@@ -407,7 +432,15 @@ export class SurveysController {
       const response = await manager.save(manager.create(SurveyResponse, {
         organizationId: req.organizationId,
         surveyId: survey.id,
-        respondentId: dto.respondentId?.trim() || req.user.id,
+        /*
+         * Anónima significa que no se guarda quién.
+         *
+         * No basta con ocultar el nombre al mostrar los resultados: mientras la cuenta quede
+         * escrita en la fila, cualquiera con acceso a la base puede deshacerlo, y la promesa que
+         * se le hizo a esa persona no era esa. Se guarda un identificador al azar, que sirve para
+         * distinguir dos respuestas entre sí y no lleva a nadie.
+         */
+        respondentId: survey.anonymous ? `anon:${randomUUID()}` : (dto.respondentId?.trim() || req.user.id),
         answers: dto.answers ?? {},
       }));
       // El conteo se incrementa en la base y no sobre el valor leído: dos respuestas

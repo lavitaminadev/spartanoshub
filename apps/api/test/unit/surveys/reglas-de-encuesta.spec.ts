@@ -84,8 +84,14 @@ describe('aceptación de datos en encuestas', () => {
     await expect(aceptacionAGuardar(db, { clientId: 'c1', questions: PREGUNTAS }, { nota: 5 }, undefined)).resolves.toEqual({});
     await expect(aceptacionAGuardar(db, { clientId: 'c1', questions: PREGUNTAS }, { 'dato-correo': 'a@b.cl' }, false)).rejects.toThrow('aceptar');
     const guardado = await aceptacionAGuardar(db, { clientId: 'c1', questions: PREGUNTAS }, { 'dato-correo': 'a@b.cl' }, true);
-    expect(guardado.privacyConsentText).toMatch(/^\[survey-v2\] Acepto que Casa SpA/);
+    expect(guardado.privacyConsentText).toMatch(/^\[survey-v3\] Acepto que Casa SpA/);
     expect(guardado.privacyConsentAt).toBeInstanceOf(Date);
+  });
+
+  /* La ley obliga a informar que la autorización se puede retirar, y el texto no lo nombraba. */
+  it('el texto dice que se puede retirar la autorización', async () => {
+    const guardado = await aceptacionAGuardar(db, { clientId: 'c1', questions: PREGUNTAS }, { 'dato-correo': 'a@b.cl' }, true);
+    expect(guardado.privacyConsentText).toContain('Puedo retirar esta autorización cuando quiera');
   });
 
   it('lee nombre y correo escritos para identificar la respuesta', () => {

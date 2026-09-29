@@ -853,6 +853,8 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/notifications\/read-all$/, () => { visualNotifications.forEach((item) => { item.read = true; }); return { updated: visualNotifications.length }; }],
   [/\/notifications(?:\?|$)/, () => visualNotifications],
+  // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
+  [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
   [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],
   /*
    * Datos de ejemplo del CRM.

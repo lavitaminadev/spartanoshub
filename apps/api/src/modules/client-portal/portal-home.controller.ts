@@ -9,6 +9,8 @@ import { ModuleExempt } from '../../core/authorization/module-scope.decorator';
 import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { CrmHomeService } from '../crm/leads/crm-home.service';
 import { Reservation } from '../reservations/domain/reservation.entity';
+import { Client } from '../clients/client.entity';
+import { normalizeClientCapabilities } from '../clients/client-capabilities';
 import { UserRole } from '../organizations/user-role.enum';
 
 /**
@@ -44,6 +46,7 @@ export class PortalHomeController {
     private readonly capacidades: ClientCapabilityService,
     @InjectRepository(Reservation) private readonly reservas: Repository<Reservation>,
     private readonly accesos: AccountAccessService,
+    @InjectRepository(Client) private readonly clientes: Repository<Client>,
   ) {}
 
   /**
@@ -52,6 +55,39 @@ export class PortalHomeController {
    * @returns Un bloque por servicio contratado. Las claves ausentes significan «no contratado»,
    *   que es distinto de «contratado y en cero»: la pantalla puede decir cosas diferentes.
    */
+  /**
+   * Las empresas que esta cuenta de portal atiende.
+   *
+   * Existe porque `GET /clients` pertenece al módulo Clientes, que es de la agencia: una cuenta de
+   * portal lo pide y recibe un 403. La pantalla tomaba esa lista vacía como «tiene una sola
+   * empresa» y caía a la de su sesión, así que quien atendía dos locales nunca veía el segundo ni
+   * el selector para cambiar. Devuelve sólo id, nombre y servicios —lo justo para elegir— y nunca
+   * más de lo que `allowedClientIds` concede.
+   */
+  @Get('empresas')
+  @ApiOperation({ summary: 'Empresas que atiende esta cuenta de portal' })
+  async empresas(@Req() req: AuthenticatedRequest) {
+    if (req.user.role !== UserRole.CLIENT) {
+      throw new ForbiddenException('Esta lista es del portal de una empresa cliente');
+    }
+    const permitidas = await this.accesos.allowedClientIds(req.organizationId, req.user);
+    if (!permitidas?.length) return { data: [] };
+    const filas = await this.clientes.find({
+      where: { id: In(permitidas), organizationId: req.organizationId },
+      select: { id: true, name: true, capabilities: true } as never,
+      order: { name: 'ASC' },
+    });
+    // Se conserva el orden de `allowedClientIds`: la empresa de la cuenta va primero y es la que
+    // se elige por defecto cuando no hay ninguna guardada.
+    const porId = new Map(filas.map((fila) => [fila.id, fila]));
+    return {
+      data: permitidas
+        .map((id) => porId.get(id))
+        .filter((fila): fila is Client => Boolean(fila))
+        .map((fila) => ({ id: fila.id, name: fila.name, capabilities: normalizeClientCapabilities(fila.capabilities) })),
+    };
+  }
+
   @Get('inicio')
   @ApiOperation({ summary: 'Qué tiene que atender hoy esta empresa' })
   async inicio(@Req() req: AuthenticatedRequest, @Query('clientId') pedida?: string) {

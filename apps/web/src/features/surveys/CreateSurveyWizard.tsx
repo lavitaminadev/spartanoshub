@@ -81,6 +81,8 @@ interface WizardState {
   logoUrl: string;
   welcome: string;
   ga4MeasurementId: string;
+  /** Sin guardar quien responde: ni la cuenta, ni el nombre, ni el correo. */
+  anonymous: boolean;
   googleReviewUrl: string;
   /** Interruptor de la invitación a reseñar, para poder encenderla antes de tener el enlace. */
   pideResena: boolean;
@@ -111,6 +113,7 @@ function blankState(): WizardState {
     logoUrl: '',
     welcome: '',
     ga4MeasurementId: '',
+    anonymous: false,
     googleReviewUrl: '',
     pideResena: false,
     googleReviewMinRating: 4,
@@ -144,6 +147,7 @@ function stateFromSurvey(survey: Survey): WizardState {
     logoUrl: design.logoUrl ?? '',
     welcome: design.welcome ?? '',
     ga4MeasurementId: survey.ga4MeasurementId ?? '',
+    anonymous: Boolean(survey.anonymous),
     googleReviewUrl: survey.googleReview?.url ?? '',
     pideResena: Boolean(survey.googleReview?.url),
     googleReviewMinRating: survey.googleReview?.minRating ?? 4,
@@ -244,9 +248,37 @@ function PasoInicio({ state, setState, clients, conRespuestas, isEdit }: {
         <button type="button" role="radio" aria-checked={state.type === 'customer'} className={state.type === 'customer' ? 'active' : ''} onClick={() => setState((c) => ({ ...c, type: 'customer' }))}>
           <strong>Clientes</strong><span>Encuesta pública para clientes o asistentes.</span>
         </button>
-        <button type="button" role="radio" aria-checked={state.type === 'internal'} className={state.type === 'internal' ? 'active' : ''} onClick={() => setState((c) => ({ ...c, type: 'internal', clientId: '' }))}>
+        {/* Al equipo se le pregunta anónimo por defecto: identificado, la respuesta dice lo que
+            conviene decir y no lo que se piensa. Se puede apagar, pero es una decisión. */}
+        <button type="button" role="radio" aria-checked={state.type === 'internal'} className={state.type === 'internal' ? 'active' : ''} onClick={() => setState((c) => ({ ...c, type: 'internal', clientId: '', anonymous: true }))}>
           <strong>Equipo</strong><span>Encuesta interna, para las personas de Espartanos.</span>
         </button>
+      </div>
+      {/*
+        * Quién responde se guarda, o no se guarda.
+        *
+        * No es esconder el nombre al mostrar los resultados: con el interruptor encendido la
+        * cuenta no se escribe en ninguna parte, así que no hay nada que deshacer después. En las
+        * del equipo importa el doble: en una relación laboral la respuesta identificada condiciona
+        * lo que la persona se atreve a decir.
+        */}
+      <div className={`encuesta-anonima ${state.anonymous ? 'esta-activa' : ''}`}>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={state.anonymous}
+            disabled={conRespuestas && state.anonymous}
+            onChange={(event) => setState((c) => ({ ...c, anonymous: event.target.checked }))}
+          />
+          <span><strong>{state.anonymous ? 'No se guarda quién responde' : 'Se guarda quién responde'}</strong></span>
+        </label>
+        <small>{state.anonymous
+          ? 'No se guarda la cuenta, el nombre ni el correo de quien contesta. Los resultados muestran sólo los totales y no se puede saber después quién dijo qué.'
+          : state.type === 'internal'
+            ? 'Cada respuesta queda con el nombre de la persona. En una encuesta al equipo eso cambia lo que se atreven a contestar: piénsalo antes de dejarlo así.'
+            : 'Se guarda quien responde cuando deja su nombre o correo, o cuando llega por la invitación de una reserva.'}</small>
+        {conRespuestas && state.anonymous && <small className="encuesta-anonima-fijo">Ya recibió respuestas anónimas, así que no se puede volver atrás: quienes contestaron lo hicieron con esa promesa. Para pedir identidad, crea una encuesta nueva.</small>}
       </div>
       {state.type === 'customer' && <label>Empresa dueña de la encuesta
         <select className="input" value={state.clientId} onChange={(event) => setState((c) => ({ ...c, clientId: event.target.value }))} required>
@@ -659,7 +691,7 @@ export function CreateSurveyWizard(): JSX.Element {
     const comun = {
       title: state.title.trim(), type: state.type, clientId: state.type === 'customer' ? state.clientId : undefined,
       distribution: state.distribution, recipients: recipients.length ? recipients : undefined,
-      ga4MeasurementId: state.ga4MeasurementId.trim() || null, designConfig: designFromState(state), googleReview,
+      ga4MeasurementId: state.ga4MeasurementId.trim() || null, anonymous: state.anonymous, designConfig: designFromState(state), googleReview,
     };
 
     if (editId) {

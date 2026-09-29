@@ -12,7 +12,14 @@ import { OPERADOR_ESPARTANOS, PLAZOS_DE_CONSERVACION, faltantesDeIdentidadLegal,
 
 interface ConsultaSql { query(sql: string, parametros?: unknown[]): Promise<unknown> }
 
-export const VERSION_CONSENTIMIENTO_ENCUESTA = 'survey-v2';
+/**
+ * Versión del texto aceptado.
+ *
+ * Sube cada vez que cambia una palabra: lo guardado en cada respuesta lleva su versión, así que
+ * una aceptación antigua sigue diciendo exactamente lo que esa persona leyó. v3 agrega el derecho
+ * a retirar la autorización, que la ley obliga a informar y el texto no nombraba.
+ */
+export const VERSION_CONSENTIMIENTO_ENCUESTA = 'survey-v3';
 
 /** Texto de la aceptación para una encuesta, o `null` si no pide datos personales. */
 export async function consentimientoDeEncuesta(db: ConsultaSql, survey: { clientId?: string | null; questions?: SurveyQuestion[] | null }): Promise<SurveyConsent | null> {
@@ -34,7 +41,7 @@ export async function consentimientoDeEncuesta(db: ConsultaSql, survey: { client
   const sensibles = pideDatosSensibles(survey.questions ?? [])
     ? ` Autorizo expresamente el uso de la información de salud o alimentación que indique sólo para atender mi respuesta; no se usa para publicidad ni se comparte con terceros.`
     : '';
-  const texto = `Acepto que ${responsable} use los datos que dejo en esta encuesta para conocer mi opinión y, si corresponde, contactarme sobre ella. Se conservan hasta ${PLAZOS_DE_CONSERVACION.encuestasMeses} meses y luego se anonimizan. Puedo ejercer mis derechos de acceso, rectificación, supresión, oposición, portabilidad y bloqueo escribiendo a ${correo}, y reclamar ante la Agencia de Protección de Datos Personales.${sensibles}${porEncargo}`;
+  const texto = `Acepto que ${responsable} use los datos que dejo en esta encuesta para conocer mi opinión y, si corresponde, contactarme sobre ella. Se conservan hasta ${PLAZOS_DE_CONSERVACION.encuestasMeses} meses y luego se anonimizan. Puedo ejercer mis derechos de acceso, rectificación, supresión, oposición, portabilidad y bloqueo escribiendo a ${correo}, y reclamar ante la Agencia de Protección de Datos Personales. Puedo retirar esta autorización cuando quiera, escribiendo al mismo correo.${sensibles}${porEncargo}`;
   const modoTexto = empresa?.legal_mode === 'texto';
   return {
     texto,

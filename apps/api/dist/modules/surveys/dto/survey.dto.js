@@ -132,6 +132,11 @@ __decorate([
 ], CreateSurveyDto.prototype, "ga4MeasurementId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateSurveyDto.prototype, "anonymous", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], CreateSurveyDto.prototype, "designConfig", void 0);
@@ -191,6 +196,11 @@ __decorate([
     (0, class_validator_1.Matches)(/^(G-[A-Z0-9]{4,20})?$/i, { message: 'El ID de medición GA4 debe tener el formato G-XXXXXXXXXX' }),
     __metadata("design:type", String)
 ], UpdateSurveyDto.prototype, "ga4MeasurementId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateSurveyDto.prototype, "anonymous", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsObject)(),

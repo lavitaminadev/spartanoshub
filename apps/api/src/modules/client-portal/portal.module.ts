@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CrmModule } from '../crm/crm.module';
 import { AccountAccessModule } from '../../core/client-scope/account-access.module';
 import { Reservation } from '../reservations/domain/reservation.entity';
+import { Client } from '../clients/client.entity';
 import { PortalHomeController } from './portal-home.controller';
 
 /**
@@ -15,7 +16,7 @@ import { PortalHomeController } from './portal-home.controller';
  * Nadie lo importa, así que no puede crear un ciclo por más que crezca.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Reservation]), CrmModule, AccountAccessModule],
+  imports: [TypeOrmModule.forFeature([Reservation, Client]), CrmModule, AccountAccessModule],
   controllers: [PortalHomeController],
 })
 export class PortalModule {}

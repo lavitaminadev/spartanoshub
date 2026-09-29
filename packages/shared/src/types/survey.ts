@@ -92,6 +92,8 @@ export interface Survey {
   distribution?: SurveyDistributionChannel[];
   publicUrl?: string;
   ga4MeasurementId?: string | null;
+  /** Sin guardar quién respondió: ni la cuenta, ni el nombre, ni el correo. */
+  anonymous?: boolean;
   /** Ediciones hechas a la encuesta, la más reciente primero. */
   historial?: Array<{ fecha: string; autor: string | null; cambios: string[] }>;
   /** Sólo en la página pública, cuando la encuesta pide datos personales. */

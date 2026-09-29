@@ -17,6 +17,7 @@ import { BrandMark } from './Brand';
 import { CommandPalette } from './CommandPalette';
 import { PwaInstallButton } from './PwaInstallButton';
 import { NotificationBell } from '../features/notifications/NotificationBell';
+import { useEmpresaActiva } from './empresa-activa';
 import { ContextHelpDrawer } from './help/ContextHelpDrawer';
 import { useFocusTrap } from './useFocusTrap';
 import { VitaIcons } from './Icons';
@@ -48,6 +49,8 @@ const MOBILE_BREAKPOINT_QUERY = '(max-width: 768px)';
  */
 export function Layout(): JSX.Element {
   const { user, logout } = useAuth();
+  // Sólo tiene valor en una cuenta de empresa: en las demás no hay empresa activa.
+  const empresaActiva = useEmpresaActiva();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   /** Menú reducido a íconos en computador. Se recuerda en este navegador. */
@@ -184,10 +187,30 @@ export function Layout(): JSX.Element {
       {sidebarOpen && <button className="sidebar-backdrop" onClick={closeSidebar} aria-label="Cerrar navegación" />}
       <div className="app-workspace">
         <header className="workspace-header">
-          <div className="workspace-heading" aria-label="Vista actual">
-            <span>Espacio de trabajo</span>
-            <strong>{currentItem?.label ?? 'Espartanos'}</strong>
-          </div>
+          {/*
+            En qué empresa se está trabajando, también fuera del portal.
+
+            Una cuenta de empresa usa CRM, Equipo y Correos, que viven fuera de `/portal` y por
+            tanto con esta cabecera. Sin el selector acá, cambiar de local en el portal y pasar a
+            Correos dejaba la duda de sobre cuál se estaba escribiendo. Sólo con más de una
+            empresa; el resto de las cuentas ve el título de siempre.
+          */}
+          {empresaActiva.varias
+            ? <label className="workspace-empresa">
+                <span>Trabajando en</span>
+                <select
+                  className="input"
+                  aria-label="Empresa sobre la que se trabaja"
+                  value={empresaActiva.clientId}
+                  onChange={(evento) => empresaActiva.elegir(evento.target.value)}
+                >
+                  {empresaActiva.empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+                </select>
+              </label>
+            : <div className="workspace-heading" aria-label="Vista actual">
+                <span>Espacio de trabajo</span>
+                <strong>{currentItem?.label ?? 'Espartanos'}</strong>
+              </div>}
           <div className="workspace-header-actions">
             {/*
               La misma campanita, en la cabecera y solo en pantalla estrecha.

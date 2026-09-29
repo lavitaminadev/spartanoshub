@@ -47,7 +47,7 @@ describe('la empresa que se está mirando manda', () => {
     act(() => useAuth.setState({ user: portal, token: 'token-prueba', loading: false }));
     const consultas = new QueryClient();
     // La sesión dice CRM encendido; la lista del servidor dice que esta empresa lo tiene apagado.
-    consultas.setQueryData(['clients'], { data: [{ id: 'empresa-1', name: 'Local', capabilities: { crm: false } }] });
+    consultas.setQueryData(['portal-empresas'], { data: [{ id: 'empresa-1', name: 'Local', capabilities: { crm: false } }] });
     render(
       <QueryClientProvider client={consultas}>
         <MemoryRouter>
