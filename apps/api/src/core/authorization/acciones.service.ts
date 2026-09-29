@@ -32,9 +32,14 @@ export class AccionesService {
     private readonly permisos: PermissionResolverService,
   ) {}
 
-  async explicar(organizationId: string, userId: string, role: UserRole): Promise<AccionEfectiva[]> {
+  /**
+   * @param clientId - Empresa sobre la que se pregunta. Los niveles de los que cuelgan las
+   *   acciones se conceden empresa por empresa, así que sin ella una acción de un módulo
+   *   entregado sólo en un local se anunciaba como negada estando dentro de ese local.
+   */
+  async explicar(organizationId: string, userId: string, role: UserRole, clientId?: string): Promise<AccionEfectiva[]> {
     const [niveles, filas] = await Promise.all([
-      this.permisos.permissionsFor(organizationId, userId, role),
+      this.permisos.permissionsFor(organizationId, userId, role, clientId),
       this.ajustes.find({ where: { organizationId, userId } }),
     ]);
     const porAccion = new Map(filas.map((fila) => [fila.action, fila]));
@@ -47,10 +52,10 @@ export class AccionesService {
     });
   }
 
-  async puede(organizationId: string, userId: string, role: UserRole, clave: string): Promise<boolean> {
+  async puede(organizationId: string, userId: string, role: UserRole, clave: string, clientId?: string): Promise<boolean> {
     if (role === UserRole.DEV) return true;
     if (!definicionDeAccion(clave)) return false;
-    const acciones = await this.explicar(organizationId, userId, role);
+    const acciones = await this.explicar(organizationId, userId, role, clientId);
     return acciones.find((accion) => accion.clave === clave)?.permitida ?? false;
   }
 }

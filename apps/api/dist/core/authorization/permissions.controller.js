@@ -54,9 +54,11 @@ let PermissionsController = class PermissionsController {
         this.acciones = acciones;
         this.ajustesDeAccion = ajustesDeAccion;
     }
-    async accionesDeUsuario(id, req) {
+    async accionesDeUsuario(id, req, clientId) {
         const user = await this.findUser(id, req.organizationId);
-        return { userId: user.id, acciones: await this.acciones.explicar(req.organizationId, user.id, user.role) };
+        if (clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        return { userId: user.id, acciones: await this.acciones.explicar(req.organizationId, user.id, user.role, clientId || undefined) };
     }
     async ajustarAccion(id, accion, dto, req) {
         const definicion = (0, acciones_1.definicionDeAccion)(accion);
@@ -185,7 +187,7 @@ let PermissionsController = class PermissionsController {
             ? await this.empresaDelPortal(req, clientId)
             : clientId;
         const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role, empresa);
-        const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role)).map((accion) => [accion.clave, accion.permitida]));
+        const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role, empresa)).map((accion) => [accion.clave, accion.permitida]));
         return { permissions, acciones };
     }
     async empresaDelPortal(req, pedida) {
@@ -211,30 +213,32 @@ let PermissionsController = class PermissionsController {
     }
     async ofUser(id, req, clientId) {
         const user = await this.findUser(id, req.organizationId);
-        await this.assertCanManageUserPermissionException(req, user);
-        if (clientId)
-            await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        const encerrada = await this.assertCanManageUserPermissionException(req, user, undefined, undefined, clientId || undefined);
+        const empresa = encerrada ?? (clientId || undefined);
+        if (empresa)
+            await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
         return {
             userId: user.id,
             role: user.role,
-            clientId: clientId ?? null,
-            modules: await this.permissions.explain(req.organizationId, user.id, user.role, clientId || undefined),
+            clientId: empresa ?? null,
+            modules: await this.permissions.explain(req.organizationId, user.id, user.role, empresa),
         };
     }
     async upsert(id, module, dto, req) {
         if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
             throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
-        await this.assertCanManageUserPermissionException(req, user, module, dto.level);
-        if (dto.clientId)
-            await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
-        const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: dto.clientId ?? (0, typeorm_2.IsNull)() } });
+        const encerrada = await this.assertCanManageUserPermissionException(req, user, module, dto.level, dto.clientId || undefined);
+        const empresa = encerrada ?? (dto.clientId || undefined);
+        if (empresa)
+            await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
+        const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: empresa ?? (0, typeorm_2.IsNull)() } });
         const saved = await this.overrides.save({
             ...(existing ?? {}),
             organizationId: req.organizationId,
             userId: user.id,
             module,
-            clientId: dto.clientId ?? null,
+            clientId: empresa ?? null,
             level: dto.level,
             reason: dto.reason ?? null,
             expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
@@ -248,7 +252,7 @@ let PermissionsController = class PermissionsController {
             entityId: saved.id,
             action: existing ? 'updated' : 'created',
             before: existing ? { level: existing.level, reason: existing.reason } : undefined,
-            after: { module, level: dto.level, reason: dto.reason ?? null, expiresAt: dto.expiresAt ?? null },
+            after: { module, level: dto.level, clientId: empresa ?? null, reason: dto.reason ?? null, expiresAt: dto.expiresAt ?? null },
         });
         return saved;
     }
@@ -256,7 +260,8 @@ let PermissionsController = class PermissionsController {
         if (!(0, organization_features_1.isOrganizationFeatureKey)(module))
             throw new common_2.BadRequestException(`Módulo desconocido: ${module}`);
         const user = await this.findUser(id, req.organizationId);
-        await this.assertCanManageUserPermissionException(req, user, module);
+        const encerrada = await this.assertCanManageUserPermissionException(req, user, module, undefined, clientId || undefined);
+        clientId = encerrada ?? (clientId || undefined);
         if (clientId)
             await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         const existing = await this.overrides.findOne({ where: { userId: user.id, module, clientId: clientId ?? (0, typeorm_2.IsNull)() } });
@@ -274,9 +279,9 @@ let PermissionsController = class PermissionsController {
         });
         return { removed: true, module };
     }
-    async clientAccessOfUser(id, req) {
+    async clientAccessOfUser(id, req, clientId) {
         const user = await this.findUser(id, req.organizationId);
-        await this.assertCanManageUserPermissionException(req, user);
+        const encerrada = await this.assertCanManageUserPermissionException(req, user, undefined, undefined, clientId || undefined);
         const access = await this.accountAccess.explain(req.organizationId, {
             id: user.id,
             email: user.email,
@@ -286,6 +291,14 @@ let PermissionsController = class PermissionsController {
             clientId: user.clientId,
             tenantId: user.organizationId,
         });
+        if (encerrada && Array.isArray(access)) {
+            return {
+                userId: user.id,
+                role: user.role,
+                access: access.filter((item) => item.clientId === encerrada),
+                atiendeOtras: access.some((item) => item.clientId !== encerrada),
+            };
+        }
         return { userId: user.id, role: user.role, access };
     }
     async grantClientAccess(id, clientId, dto, req) {
@@ -320,10 +333,7 @@ let PermissionsController = class PermissionsController {
     }
     async revokeClientAccess(id, clientId, req) {
         const user = await this.findUser(id, req.organizationId);
-        await this.assertCanManageUserPermissionException(req, user);
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT && clientId !== req.user.clientId) {
-            throw new common_2.ForbiddenException('Solo puedes retirar el acceso a tu empresa');
-        }
+        await this.assertCanManageUserPermissionException(req, user, undefined, undefined, clientId);
         if (user.role === user_role_enum_1.UserRole.CLIENT && clientId === user.clientId) {
             throw new common_2.BadRequestException('Esa es la empresa de su cuenta: se cambia editando la persona');
         }
@@ -361,32 +371,45 @@ let PermissionsController = class PermissionsController {
             throw new common_2.NotFoundException('Usuario no encontrado');
         return user;
     }
-    async assertCanManageUserPermissionException(req, target, module, level) {
+    async assertCanManageUserPermissionException(req, target, module, level, empresa) {
         const actorRole = req.user.role;
         if (actorRole === user_role_enum_1.UserRole.DEV)
-            return;
+            return undefined;
         if (target.id === req.user.id)
             throw new common_2.ForbiddenException('No puedes ajustar tus propios accesos');
         if (actorRole === user_role_enum_1.UserRole.CLIENT) {
-            const suEmpresa = req.user.clientId;
-            const puede = suEmpresa
-                ? await this.permissions.can(req.organizationId, req.user.id, actorRole, 'users', 'manage', suEmpresa)
+            const enEmpresa = empresa ?? target.clientId ?? undefined;
+            const administra = enEmpresa
+                ? await this.permissions.can(req.organizationId, req.user.id, actorRole, 'users', 'manage', enEmpresa)
                 : false;
-            if (!puede)
+            if (!enEmpresa || !administra)
                 throw new common_2.ForbiddenException('Tu cuenta no administra personas');
-            if (target.clientId !== suEmpresa || target.role !== user_role_enum_1.UserRole.CLIENT) {
+            const alcanzaQuienAdministra = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+            if (!alcanzaQuienAdministra?.includes(enEmpresa))
+                throw new common_2.ForbiddenException('Tu cuenta no administra personas');
+            if (target.role !== user_role_enum_1.UserRole.CLIENT)
                 throw new common_2.ForbiddenException('Esa cuenta es de otra empresa');
-            }
+            const alcanzaElDestino = await this.accountAccess.allowedClientIds(req.organizationId, {
+                id: target.id,
+                email: target.email,
+                name: target.name,
+                role: target.role,
+                organizationId: target.organizationId,
+                clientId: target.clientId,
+                tenantId: target.organizationId,
+            });
+            if (!alcanzaElDestino?.includes(enEmpresa))
+                throw new common_2.ForbiddenException('Esa cuenta es de otra empresa');
             if (module && ['users', 'settings', 'integrations', 'clients', 'governance'].includes(module)) {
                 throw new common_2.ForbiddenException('Ese acceso lo entrega Espartanos');
             }
-            return;
+            return enEmpresa;
         }
         if (target.role === user_role_enum_1.UserRole.DEV) {
             throw new common_2.ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
         }
         if (actorRole !== user_role_enum_1.UserRole.OPERATIONS_DIRECTOR)
-            return;
+            return undefined;
         if ([user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(target.role)) {
             throw new common_2.ForbiddenException('Los accesos de Administración y de Dirección de operaciones los ajusta Administración');
         }
@@ -394,12 +417,13 @@ let PermissionsController = class PermissionsController {
             throw new common_2.ForbiddenException('Usuarios, Ajustes e Integraciones los ajusta Administración');
         }
         if (module && level) {
-            const propios = await this.permissions.permissionsFor(req.organizationId, req.user.id, actorRole);
+            const propios = await this.permissions.permissionsFor(req.organizationId, req.user.id, actorRole, empresa);
             const orden = ['none', 'view', 'edit', 'manage'];
             if (orden.indexOf(level) > orden.indexOf(String(propios[module] ?? 'none'))) {
                 throw new common_2.ForbiddenException('No puedes conceder más acceso del que tienes en ese módulo');
             }
         }
+        return undefined;
     }
 };
 exports.PermissionsController = PermissionsController;
@@ -409,8 +433,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Acciones permitidas de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, String]),
     __metadata("design:returntype", Promise)
 ], PermissionsController.prototype, "accionesDeUsuario", null);
 __decorate([
@@ -511,7 +536,7 @@ __decorate([
 ], PermissionsController.prototype, "upsert", null);
 __decorate([
     (0, common_1.Delete)('users/:id/permissions/:module'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Quitar una excepción de permiso' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),
@@ -527,8 +552,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Cuentas visibles de un usuario y por qué las ve' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, String]),
     __metadata("design:returntype", Promise)
 ], PermissionsController.prototype, "clientAccessOfUser", null);
 __decorate([

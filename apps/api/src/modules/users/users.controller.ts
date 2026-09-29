@@ -64,8 +64,10 @@ export class UsersController {
   @Get(':id/administra')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Empresas cuyo equipo administra esta persona' })
-  async empresasQueAdministra(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const alcance = await this.administracion.alcance(req);
+  async empresasQueAdministra(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    // Con la empresa que se está mirando: sin ella, quien administra un segundo local veía la
+    // ficha filtrada por el primero y la casilla de su propio local aparecía siempre vacía.
+    const alcance = await this.administracion.alcance(req, clientId);
     const organizationId = req.organizationId || req.user.organizationId;
     const empresas = await this.administradores.empresasQueAdministra(organizationId, id);
     // Quien administra una sola empresa no puede enterarse de las demás que atiende esa persona.

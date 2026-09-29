@@ -128,7 +128,19 @@ export class PermissionResolverService {
      */
     if (role === UserRole.CLIENT && !overrideByModule.has('users')) permissions.users = 'none';
 
-    this.cache.set(cacheKey, { permissions, expiresAt: Date.now() + PermissionResolverService.CACHE_TTL_MS });
+    /*
+     * Se barre lo vencido antes de guardar.
+     *
+     * La clave incluye la empresa, así que quien atiende varios locales deja una entrada por
+     * cada uno. Sin barrido, nada las sacaba nunca: vencían y seguían ocupando memoria hasta
+     * reiniciar el proceso. Recorrer un mapa de este tamaño una vez por resolución con la caché
+     * fría no se nota, y evita que crezca sin techo.
+     */
+    const ahora = Date.now();
+    for (const [clave, entrada] of this.cache) {
+      if (entrada.expiresAt <= ahora) this.cache.delete(clave);
+    }
+    this.cache.set(cacheKey, { permissions, expiresAt: ahora + PermissionResolverService.CACHE_TTL_MS });
     return permissions;
   }
 

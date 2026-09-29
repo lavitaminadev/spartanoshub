@@ -58,7 +58,12 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
         ]));
         if (role === user_role_enum_1.UserRole.CLIENT && !overrideByModule.has('users'))
             permissions.users = 'none';
-        this.cache.set(cacheKey, { permissions, expiresAt: Date.now() + PermissionResolverService_1.CACHE_TTL_MS });
+        const ahora = Date.now();
+        for (const [clave, entrada] of this.cache) {
+            if (entrada.expiresAt <= ahora)
+                this.cache.delete(clave);
+        }
+        this.cache.set(cacheKey, { permissions, expiresAt: ahora + PermissionResolverService_1.CACHE_TTL_MS });
         return permissions;
     }
     alcanzaElModulo(role, module, lifecycle, moduleEnabled) {

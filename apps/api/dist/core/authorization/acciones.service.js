@@ -26,9 +26,9 @@ let AccionesService = class AccionesService {
         this.ajustes = ajustes;
         this.permisos = permisos;
     }
-    async explicar(organizationId, userId, role) {
+    async explicar(organizationId, userId, role, clientId) {
         const [niveles, filas] = await Promise.all([
-            this.permisos.permissionsFor(organizationId, userId, role),
+            this.permisos.permissionsFor(organizationId, userId, role, clientId),
             this.ajustes.find({ where: { organizationId, userId } }),
         ]);
         const porAccion = new Map(filas.map((fila) => [fila.action, fila]));
@@ -39,12 +39,12 @@ let AccionesService = class AccionesService {
             return { clave: accion.clave, modulo: accion.modulo, nombre: accion.nombre, ayuda: accion.ayuda, permitida, porNivel, origen: ajuste ? 'ajuste' : 'nivel' };
         });
     }
-    async puede(organizationId, userId, role, clave) {
+    async puede(organizationId, userId, role, clave, clientId) {
         if (role === user_role_enum_1.UserRole.DEV)
             return true;
         if (!(0, acciones_1.definicionDeAccion)(clave))
             return false;
-        const acciones = await this.explicar(organizationId, userId, role);
+        const acciones = await this.explicar(organizationId, userId, role, clientId);
         return acciones.find((accion) => accion.clave === clave)?.permitida ?? false;
     }
 };

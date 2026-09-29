@@ -60,16 +60,19 @@ let PermissionGuard = PermissionGuard_1 = class PermissionGuard {
         if (!(0, shared_1.isModuleInInitialOperationScope)(required.module, user.role)) {
             throw new common_1.ForbiddenException('Este módulo aún no está disponible en la operación');
         }
-        const allowed = await this.permissions.can(organizationId, user.id, user.role, required.module, required.level);
+        const empresa = this.empresaDeLaPeticion(request, user);
+        const allowed = await this.permissions.can(organizationId, user.id, user.role, required.module, required.level, empresa);
         if (!allowed)
             throw new common_1.ForbiddenException('No tienes acceso a este módulo');
-        if (this.capacidades && MODULOS_CONTRATADOS.has(required.module)) {
-            const pedida = request.query?.clientId ?? request.body?.clientId ?? (user.role === 'client' ? user.clientId : undefined);
-            if (typeof pedida === 'string' && pedida) {
-                await this.capacidades.assert(organizationId, pedida, required.module);
-            }
+        if (this.capacidades && MODULOS_CONTRATADOS.has(required.module) && empresa) {
+            await this.capacidades.assert(organizationId, empresa, required.module);
         }
         return true;
+    }
+    empresaDeLaPeticion(request, user) {
+        const pedida = request.params?.clientId ?? request.query?.clientId ?? request.body?.clientId
+            ?? (user.role === 'client' ? user.clientId : undefined);
+        return typeof pedida === 'string' && pedida ? pedida : undefined;
     }
     resolveRequirement(context, targets) {
         const explicit = this.reflector.getAllAndOverride(requires_permission_decorator_1.REQUIRES_PERMISSION_KEY, targets);

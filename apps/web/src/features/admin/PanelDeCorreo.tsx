@@ -462,9 +462,19 @@ export function PanelDeCorreo(): JSX.Element {
     queryFn: () => api.get(`/settings/correos${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
   });
 
+  /*
+   * Para una cuenta de empresa, las rutas auxiliares van con la empresa que está mirando.
+   *
+   * Sin ella el servidor usaba la de su cuenta: en el segundo local, la lista de destinatarios de
+   * prueba era la gente del primero, y la vista previa y la prueba se negaban si sólo administra
+   * el segundo. Al equipo interno no se le agrega: con empresa, su lista se acota a la gente de
+   * esa empresa y deja de poder mandarse la prueba a sí mismo.
+   */
+  const sufijoPortal = soloSuEmpresa && empresa ? `?clientId=${encodeURIComponent(empresa)}` : '';
+
   const equipoQuery = useQuery<Destinatario[]>({
-    queryKey: ['destinatarios-de-prueba'],
-    queryFn: () => api.get('/settings/destinatarios-de-prueba'),
+    queryKey: ['destinatarios-de-prueba', sufijoPortal],
+    queryFn: () => api.get(`/settings/destinatarios-de-prueba${sufijoPortal}`),
   });
 
   const empresasQuery = useQuery<{ data: Empresa[] }>({
@@ -500,12 +510,12 @@ export function PanelDeCorreo(): JSX.Element {
    * llega. Manda el borrador, no lo guardado: se mira para decidir si guardar.
    */
   const vistaPrevia = useMutation({
-    mutationFn: (texto: { asunto: string; cuerpo: string }) => api.post<{ subject: string; html: string }>('/settings/correos/vista-previa', texto),
+    mutationFn: (texto: { asunto: string; cuerpo: string }) => api.post<{ subject: string; html: string }>(`/settings/correos/vista-previa${sufijoPortal}`, texto),
   });
 
   const probar = useMutation({
     mutationFn: (texto: { asunto: string; cuerpo: string; destinatarioId?: string }) =>
-      api.post<{ enviado: boolean; destino: string; motivo: string | null }>('/settings/probar', texto),
+      api.post<{ enviado: boolean; destino: string; motivo: string | null }>(`/settings/probar${sufijoPortal}`, texto),
     onSuccess: (respuesta) => setAviso(respuesta.enviado
       ? `Enviado a ${respuesta.destino}. Si no llega, revisa la carpeta de no deseados.`
       : respuesta.motivo ?? 'No se pudo enviar'),
@@ -635,13 +645,13 @@ export function PanelDeCorreo(): JSX.Element {
    * tarea inexistente no sale nunca y hasta ahora se veía igual que uno funcionando.
    */
   const requisitosQuery = useQuery<{ casilla: boolean; tareas: Record<string, { ultima: string | null; corriendo: boolean }>; avisos: Record<string, Array<{ clave: string; tarea?: string }>> }>({
-    queryKey: ['requisitos-de-correo'],
-    queryFn: () => api.get('/settings/correos/requisitos'),
+    queryKey: ['requisitos-de-correo', sufijoPortal],
+    queryFn: () => api.get(`/settings/correos/requisitos${sufijoPortal}`),
   });
 
   const estadoQuery = useQuery({
-    queryKey: ['estado-del-correo'],
-    queryFn: () => api.get<{ habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[] }>('/settings/estado-del-correo'),
+    queryKey: ['estado-del-correo', sufijoPortal],
+    queryFn: () => api.get<{ habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[] }>(`/settings/estado-del-correo${sufijoPortal}`),
   });
 
   // Los servicios de la empresa elegida deciden qué grupos se muestran: ver `agruparAvisos`.

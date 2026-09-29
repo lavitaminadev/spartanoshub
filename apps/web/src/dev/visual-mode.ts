@@ -685,7 +685,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     else ajustes[accion] = Boolean(visualRequestBody(config).allowed);
     return { accion };
   }],
-  [/\/users\/[^/]+\/actions$/, (config) => {
+  [/\/users\/[^/]+\/actions(\?.*)?$/, (config) => {
     const usuario = (config?.url?.match(/\/users\/([^/]+)\/actions/) ?? [])[1];
     const ajustes = visualAjustesDeAccion[usuario] ?? {};
     const base = [
@@ -722,7 +722,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     else if (!lista.includes(empresa)) lista.push(empresa);
     return { clientId: empresa, administra: !quita };
   }],
-  [/\/users\/[^/]+\/administra$/, (config) => {
+  [/\/users\/[^/]+\/administra(\?.*)?$/, (config) => {
     const usuario = (config?.url?.match(/\/users\/([^/]+)\/administra/) ?? [])[1];
     const inicial = visualAdministranEquipo.includes(String(usuario)) ? [VISUAL_USER.clientId] : [];
     return { clientIds: visualAdministraPorUsuario[usuario] ??= inicial };
@@ -734,7 +734,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     else if (!lista.some((item) => item.clientId === empresa)) lista.push({ clientId: empresa, source: 'assignment' });
     return { ok: true };
   }],
-  [/\/users\/[^/]+\/client-access$/, (config) => {
+  [/\/users\/[^/]+\/client-access(\?.*)?$/, (config) => {
     const usuario = (config?.url?.match(/\/users\/([^/]+)\/client-access/) ?? [])[1];
     /*
      * Las cuentas de portal parten con la empresa de su cuenta, no con un pod.
@@ -1027,7 +1027,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
   [/\/uploads\/images\/status/, () => ({ configured: true })],
   [/\/public\/reservations\/manage\/[^/]+\/beneficios$/, () => ({ aceptado: true })],
-  [/\/settings\/estado-del-correo$/, () => ({ habilitado: true, remitente: 'reservas@espartanos.cl', servidor: 'mail.espartanos.cl', puerto: 465, respuestasA: null, faltan: [] })],
+  [/\/settings\/estado-del-correo(\?.*)?$/, () => ({ habilitado: true, remitente: 'reservas@espartanos.cl', servidor: 'mail.espartanos.cl', puerto: 465, respuestasA: null, faltan: [] })],
   [/\/(reservations|surveys)\/company-legal/, (config) => {
     const clave = 'vh.visual.companyLegal';
     let actual: Record<string, unknown> = { legalName: 'Casa Costanera SpA', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace', privacyText: '', termsText: '' };
@@ -1616,7 +1616,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   // poder revisar en pantalla los tres estados posibles.
   // Vista previa: un armazón parecido al real, suficiente para revisar el marco, el asunto y
   // cómo quedan las variables ya rellenadas.
-  [/\/settings\/correos\/vista-previa$/, (config: any) => {
+  [/\/settings\/correos\/vista-previa(\?.*)?$/, (config: any) => {
     // Axios entrega el cuerpo ya serializado: aquí llega como texto, no como objeto.
     const enviado = typeof config?.data === 'string' ? JSON.parse(config.data) : (config?.data ?? {});
     const cuerpo = String(enviado?.cuerpo ?? '');
@@ -1638,7 +1638,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       ].join(''),
     };
   }],
-  [/\/settings\/correos\/requisitos$/, () => ({
+  [/\/settings\/correos\/requisitos(\?.*)?$/, () => ({
     casilla: true,
     tareas: {
       'recordatorio-reservas': { ultima: new Date().toISOString(), corriendo: true },
@@ -1661,7 +1661,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       'email.team_waitlist': [{ clave: 'equipo' }],
     },
   })],
-  [/\/settings\/destinatarios-de-prueba$/, () => [{ id: 'visual-user', name: 'Modo Visual', email: 'visual@espartanos.local' }]],
+  [/\/settings\/destinatarios-de-prueba(\?.*)?$/, () => [{ id: 'visual-user', name: 'Modo Visual', email: 'visual@espartanos.local' }]],
   [/\/settings\?prefix=security\.password$/, () => ({
     'security.password.minLength': '8',
     'security.password.requireUppercase': 'true',
