@@ -126,9 +126,10 @@ let EmailService = EmailService_1 = class EmailService {
     async sendTemporaryPassword(name, recipient, password, loginUrl, organizationId) {
         const plantilla = await this.plantillaDeAcceso('email.access_temporary_password', organizationId, {
             asunto: `Acceso temporal a ${brand_1.BRAND.name}`,
-            cuerpo: 'Hola {{nombre}}:\n\nUn administrador generó un acceso temporal para tu cuenta.\n\nContraseña temporal: {{clave}}\n\nEntra en {{enlace}}. El sistema te pedirá crear una contraseña personal al iniciar sesión.',
+            cuerpo: 'Hola {{nombre}}:\n\nUn administrador generó un acceso temporal para tu cuenta.\n\nTu usuario: {{usuario}}\nContraseña temporal: {{clave}}\n\nEntra en {{enlace}}. El sistema te pedirá crear una contraseña personal al iniciar sesión.',
         }, ['clave', 'enlace']);
-        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, plantilla.cuerpo, { nombre: name, clave: password, enlace: loginUrl }, { texto: `Ingresar a ${brand_1.BRAND.name}`, url: loginUrl });
+        const cuerpo = plantilla.cuerpo.includes('{{usuario}}') ? plantilla.cuerpo : `${plantilla.cuerpo}\n\nTu usuario: {{usuario}}`;
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, cuerpo, { nombre: name, usuario: recipient, clave: password, enlace: loginUrl }, { texto: `Ingresar a ${brand_1.BRAND.name}`, url: loginUrl });
         return this.send(recipient, subject, html);
     }
     async sendPasswordReset(name, recipient, resetUrl, organizationId) {

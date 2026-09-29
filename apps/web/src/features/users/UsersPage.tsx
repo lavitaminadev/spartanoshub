@@ -114,6 +114,8 @@ export function UsersPage() {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
   const [createdName, setCreatedName] = useState<string>('');
+  /** Lo que respondió el servidor de correo al crear la cuenta; `null` si no lo dijo. */
+  const [correoDeAcceso, setCorreoDeAcceso] = useState<boolean | null>(null);
   const [creatingClient, setCreatingClient] = useState(false);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
   const [pendingBulkAccess, setPendingBulkAccess] = useState<{ rows: UserRow[]; isActive: boolean } | null>(null);
@@ -157,15 +159,17 @@ export function UsersPage() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setCreatedPassword(null);
+    setCorreoDeAcceso(null);
     setCreatingClient(false);
     setFeedback(null);
   };
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.post(`/users${sufijoDeEmpresa}`, body),
-    onSuccess: async () => {
+    mutationFn: (body: Record<string, unknown>) => api.post<{ correoEnviado?: boolean }>(`/users${sufijoDeEmpresa}`, body),
+    onSuccess: async (creada: { correoEnviado?: boolean } | undefined) => {
       setCreatedPassword(String(form.password));
-      setCreatedName(form.name);
+      setCreatedName(form.email.trim().toLowerCase());
+      setCorreoDeAcceso(typeof creada?.correoEnviado === 'boolean' ? creada.correoEnviado : null);
       // Cuando la cuenta crea también su empresa, la tabla se refresca antes de que el caché
       // de clientes conozca ese id y mostraba falsamente «Empresa no disponible».
       await Promise.all([
@@ -452,7 +456,19 @@ export function UsersPage() {
               <small>Usuario: {createdName}</small>
               <button className="btn btn-outline btn-sm" type="button" onClick={() => { navigator.clipboard.writeText(createdPassword); setFeedback({ tone: 'success', text: 'Clave copiada al portapapeles.' }); }}>Copiar clave</button>
             </div>
-            <div className="alert alert-info">Comparte esta clave por un canal seguro (correo, WhatsApp, Slack). Al primer ingreso debera aceptar los terminos y crear su propia contraseña.</div>
+            {/*
+              Lo dice la respuesta del servidor de correo en el momento del alta, no el cron. «Se
+              envió» es que el servidor lo aceptó; si cayó en spam o la casilla no existe no se sabe.
+            */}
+            {correoDeAcceso === true && (
+              <div className="alert alert-success">Se envió el correo con el usuario y la clave a {createdName}. Si no lo ve en unos minutos, que revise spam.</div>
+            )}
+            {correoDeAcceso === false && (
+              <div className="alert alert-warning" role="alert"><strong>El correo no se pudo enviar.</strong> Entrégale tú el usuario y la clave por un canal seguro (WhatsApp, en persona). La cuenta ya quedó creada.</div>
+            )}
+            {correoDeAcceso === null && (
+              <div className="alert alert-info">Comparte esta clave por un canal seguro (correo, WhatsApp). Al primer ingreso deberá aceptar los términos y crear su propia contraseña.</div>
+            )}
             {feedback?.tone === 'success' && <div className="alert alert-success">{feedback.text}</div>}
             <button className="btn btn-primary btn-block" type="button" onClick={closeModal}>Cerrar</button>
           </div>
