@@ -171,9 +171,35 @@ if (typeof document !== 'undefined') {
 }
 
 /**
+ * Si la sesión es de una cuenta de empresa.
+ *
+ * Vive acá y no se lee del store de sesión para no crear un ciclo: el store ya importa este
+ * módulo. Lo fija `auth` al cargar el perfil y al cerrar sesión, igual que el token.
+ */
+let esCuentaDePortal = false;
+
+/** @param role - Cargo de la sesión, o `null` al cerrarla. */
+export function setApiRole(role: string | null): void {
+  esCuentaDePortal = role === 'client';
+}
+
+/**
+ * La ruta del portal cuando esta petición es «dame mis empresas» hecha por una cuenta de empresa.
+ *
+ * @returns La ruta a usar en su lugar, o `null` para dejar la petición como está.
+ */
+export function rutaDeEmpresasSegunCargo(url: string | undefined, metodo: string | undefined, esPortal: boolean): string | null {
+  if (!esPortal || !url) return null;
+  if ((metodo ?? 'get').toLowerCase() !== 'get') return null;
+  // Sólo el listado: `/clients/<id>/...` tiene su propia comprobación, y `/clients-min` es otra ruta.
+  return /^\/clients(\?|$)/.test(url) ? '/portal/empresas' : null;
+}
+
+/**
  * @param t - Access token JWT, o `null` para limpiar la sesión.
  */
 export function setApiToken(t: string | null): void {
+  if (t === null) esCuentaDePortal = false;
   if (t === null) {
     sessionGeneration += 1;
     // No se puede cancelar una petición que el navegador ya envió, pero sí impedir que su
@@ -222,6 +248,23 @@ function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
 apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  /*
+   * Una cuenta de empresa pide sus empresas por la ruta del portal.
+   *
+   * `/clients` pertenece al modulo Clientes, que es de la agencia: una cuenta de portal lo pide y
+   * recibe 403. Doce pantallas —Correos, CRM, Equipo, Encuestas, Reservas, el buscador— lo
+   * llamaban cada una por su cuenta, asi que corregirlas una por una dejaba siempre alguna fuera:
+   * eso fue exactamente lo que paso. Se traduce en un solo lugar, donde ninguna se puede escapar.
+   *
+   * `/portal/empresas` devuelve lo mismo acotado a lo que esa cuenta alcanza, con la misma forma
+   * —`{ data }`— asi que ninguna pantalla nota el cambio. Las rutas de una empresa concreta,
+   * `/clients/<id>/...`, no se tocan: tienen su propia comprobacion.
+   */
+  const enPortal = rutaDeEmpresasSegunCargo(config.url, config.method, esCuentaDePortal);
+  if (enPortal) {
+    config.url = enPortal;
+    config.params = undefined;
   }
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     config.headers.delete('Content-Type');
