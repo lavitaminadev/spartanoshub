@@ -26,6 +26,14 @@ export interface EmpresaActiva {
   elegir: (clientId: string) => void;
   /** Si hay más de una: con una sola no hay nada que elegir ni que advertir. */
   varias: boolean;
+  /**
+   * Todavía no se sabe qué empresas alcanza.
+   *
+   * Lo usan las rejas de ruta para esperar en vez de decidir con la empresa de la sesión: quien
+   * tiene dos locales y recarga estando en el segundo veía «Sin acceso» un instante si el primero
+   * no tenía ese servicio.
+   */
+  cargando: boolean;
 }
 
 /**
@@ -49,6 +57,30 @@ let version = 0;
 function suscribir(avisar: () => void): () => void {
   oyentes.add(avisar);
   return () => { oyentes.delete(avisar); };
+}
+
+/**
+ * Qué empresa vale, con o sin la lista resuelta.
+ *
+ * Aparte para poder probarla: es la regla que decide sobre qué empresa opera cada pantalla, y
+ * equivocarse un instante basta para pedir —o escribir— en el local que no era.
+ *
+ * @param guardada - Lo elegido la vez anterior, leído del navegador.
+ * @param suEmpresa - La empresa escrita en su cuenta, que no se le quita.
+ * @param alcanzables - Las que el servidor le concede. Vacío mientras la lista viaja.
+ * @param listaLista - Si `alcanzables` ya es la respuesta del servidor y no un vacío provisorio.
+ */
+export function empresaVigente({ guardada, suEmpresa, alcanzables, listaLista }: {
+  guardada: string;
+  suEmpresa: string;
+  alcanzables: string[];
+  listaLista: boolean;
+}): string {
+  // Sin lista todavía se prefiere lo guardado: es la última decisión explícita de esa persona, y
+  // el servidor vuelve a comprobar la empresa en cada petición, así que esto elige qué se pide,
+  // nunca qué se concede.
+  if (!listaLista) return guardada || suEmpresa;
+  return alcanzables.includes(guardada) ? guardada : suEmpresa;
 }
 
 export function useEmpresaActiva(): EmpresaActiva {
@@ -79,9 +111,20 @@ export function useEmpresaActiva(): EmpresaActiva {
   const guardada = readStoredJson<string>(clave, '');
   const alcanzables = empresas.map((empresa) => empresa.id);
 
-  const clientId = esPortal
-    ? (alcanzables.includes(guardada) ? guardada : suEmpresa)
-    : '';
+  /*
+   * Mientras la lista viaja, vale lo elegido la vez anterior.
+   *
+   * Antes se caía a la empresa de la sesión hasta que la lista llegaba, y recién entonces
+   * cambiaba a la guardada. Con red real ese hueco dura lo que tarde la respuesta, y en él cada
+   * pantalla ya pidió sus datos con la empresa equivocada: quien dejó abierto el segundo local lo
+   * veía abrir en el primero y saltar solo. Se prefiere lo guardado, que es la última decisión
+   * explícita de esa persona; si al llegar la lista resulta que ya no la alcanza, se descarta.
+   *
+   * No relaja ninguna reja: el servidor comprueba la empresa en cada petición y responde 404 si
+   * no le corresponde. Esto decide qué se pide, nunca qué se concede.
+   */
+  const listaLista = !esPortal || Boolean(data);
+  const clientId = esPortal ? empresaVigente({ guardada, suEmpresa, alcanzables, listaLista }) : '';
 
   return {
     clientId,
@@ -102,6 +145,7 @@ export function useEmpresaActiva(): EmpresaActiva {
       void qc.invalidateQueries();
     },
     varias: empresas.length > 1,
+    cargando: !listaLista,
   };
 }
 

@@ -252,25 +252,16 @@ export function CrmLayout(): JSX.Element {
               más la propia agencia. Con eso, qué CRM ve cada quien sale de las cuentas que
               maneja, sin una regla aparte que mantener de acuerdo.
             */}
-            {esPortalCliente && alcanzables.length > 1 ? (
-              /*
-               * Con más de una empresa, elegir cuál se mira.
-               *
-               * La lista trae solo las que el servidor le concede, y una empresa que no esté en
-               * ella se descarta: la protección es esa, no esconder el control.
-               */
-              <label className="crm-nav-cuenta">
-                <span className="crm-nav-cuenta-label">Empresa</span>
-                <select
-                  className="input"
-                  aria-label="Empresa cuyo CRM se está mirando"
-                  value={clientId}
-                  onChange={(event) => setClientId(event.target.value)}
-                >
-                  {clients.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
-                </select>
-              </label>
-            ) : esPortalCliente ? (
+            {/*
+              * En el portal el selector vive en la cabecera, no acá.
+              *
+              * Desde que la cabecera lo muestra en todas las pantallas, tener otro en esta barra
+              * eran dos controles para lo mismo a un palmo de distancia, y además con listas
+              * distintas: éste sólo ofrece las empresas con CRM. Dos selectores que no coinciden
+              * obligan a adivinar cuál manda. Se conserva el nombre a secas, que sí dice sobre
+              * qué empresa son los datos de esta pantalla.
+              */}
+            {esPortalCliente ? (
               /*
                * El nombre de su empresa, no «Empresa asignada».
                *
