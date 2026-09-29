@@ -78,7 +78,7 @@ define(['./workbox-3d8c9f1b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "a10e8f4e4ae99e44968122ab166d4a28"
+    "revision": "1a297f8d97ff138aee45d7a7b2cdd06a"
   }, {
     "url": "manifest.webmanifest",
     "revision": "5e4ebab5a95e7df65224bbb2f0fb66e7"
@@ -86,7 +86,7 @@ define(['./workbox-3d8c9f1b'], (function (workbox) { 'use strict';
     "url": "assets/index-MwEitPZY.css",
     "revision": null
   }, {
-    "url": "assets/index-BUBROMqA.js",
+    "url": "assets/index-D1PGTwc4.js",
     "revision": null
   }, {
     "url": "assets/vendor-router-D4R7niJZ.js",

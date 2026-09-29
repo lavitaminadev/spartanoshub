@@ -5,7 +5,7 @@
 import { Navigate } from 'react-router-dom';
 import type { JSX } from 'react';
 import { useAuth } from './auth';
-import { useUsuarioEnEmpresaActiva } from '../shared/empresa-activa';
+import { useEmpresaActiva, useUsuarioEnEmpresaActiva } from '../shared/empresa-activa';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { AccessDenied } from './AccessDenied';
 
@@ -28,7 +28,10 @@ export function ClientRoute({ children, capability, anyCapability }: ClientRoute
   const { loading } = useAuth();
   // Los servicios de la empresa que se está mirando: la URL directa no abre lo que esa empresa no tiene.
   const user = useUsuarioEnEmpresaActiva();
-  if (loading) return <LoadingSpinner />;
+  const { cargando } = useEmpresaActiva();
+  // Se espera a saber qué empresas alcanza antes de negar: decidir con la de la sesión mostraba
+  // «Sin acceso» un instante a quien recarga estando en su segundo local.
+  if (loading || cargando) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'client') return <Navigate to="/dashboard" replace />;
   // El cambio de clave temporal es obligatorio antes de operar el portal, con el mismo

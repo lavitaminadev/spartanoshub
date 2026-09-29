@@ -16,8 +16,11 @@ const portal: User = {
 
 function dibujar(capability: 'crm' | 'reservations') {
   act(() => useAuth.setState({ user: portal, token: 'token-prueba', loading: false }));
+  const consultas = new QueryClient();
+  // La reja espera a saber qué empresas alcanza antes de negar; sin esto se quedaría cargando.
+  consultas.setQueryData(['portal-empresas'], { data: [{ id: 'empresa-1', name: 'Local', capabilities: { crm: true, reservations: false } }] });
   return render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={consultas}>
     <MemoryRouter>
       <ClientRoute capability={capability}><div>Servicio visible</div></ClientRoute>
     </MemoryRouter>
