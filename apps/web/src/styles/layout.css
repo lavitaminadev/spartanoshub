@@ -183,3 +183,38 @@
   padding: 0 8px;
   font-size: 13px;
 }
+
+/*
+ * El mismo selector en la cabecera, sobre fondo claro.
+ *
+ * En el teléfono el menú lateral está cerrado, así que el del menú no basta para saber sobre qué
+ * empresa se está operando. Ocupa el lugar del título, que no dice nada que no se sepa.
+ */
+.workspace-empresa {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 260px;
+}
+
+.workspace-empresa > span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.workspace-empresa .input {
+  height: 34px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 650px) {
+  .workspace-empresa { max-width: none; }
+  .workspace-empresa > span { display: none; }
+}

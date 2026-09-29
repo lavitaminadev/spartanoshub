@@ -4,6 +4,9 @@ import { ParameterResolver } from '../parameters/parameter-resolver.service';
 import { leerPlantilla } from '../parameters/plantilla-resuelta';
 import { componerCorreo } from './plantilla-de-correo';
 import nodemailer, { SendMailOptions, Transporter } from 'nodemailer';
+import { InjectRepository } from '@nestjs/typeorm';
+import { LessThan, Repository } from 'typeorm';
+import { RegistroDeCorreo } from './registro-de-correo.entity';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -24,7 +27,10 @@ export class EmailService {
 
   // Opcional: las pruebas y los usos sin base de datos siguen construyéndolo sin argumentos, y
   // entonces los correos de acceso usan su texto de fábrica.
-  constructor(@Optional() private readonly parametros?: ParameterResolver) {
+  constructor(
+    @Optional() private readonly parametros?: ParameterResolver,
+    @Optional() @InjectRepository(RegistroDeCorreo) private readonly registro?: Repository<RegistroDeCorreo>,
+  ) {
     const enabled = process.env.SMTP_ENABLED === 'true';
     this.from = process.env.SMTP_FROM?.trim() || '';
     this.replyTo = process.env.SMTP_REPLY_TO?.trim() || undefined;
@@ -71,12 +77,15 @@ export class EmailService {
 
   async send(to: string, subject: string, html: string, options?: Pick<SendMailOptions, 'attachments' | 'replyTo'>): Promise<boolean> {
     const recipient = to.trim().toLowerCase();
+    const asunto = subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255);
     if (!validRecipient(recipient)) {
       this.logger.warn('Email skipped because the recipient is invalid');
+      this.anotar(recipient, asunto, 'omitido', 'Dirección de correo no válida');
       return false;
     }
     if (!this.transporter) {
       this.logger.warn('Email not sent because SMTP_ENABLED is false');
+      this.anotar(recipient, asunto, 'omitido', 'El correo de salida está apagado (SMTP_ENABLED)');
       return false;
     }
 
@@ -85,18 +94,41 @@ export class EmailService {
         from: this.from,
         to: recipient,
         replyTo: options?.replyTo ?? this.replyTo,
-        subject: subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255),
+        subject: asunto,
         html,
         attachments: options?.attachments,
       });
       const accepted = Array.isArray(result.accepted) ? result.accepted.length : 0;
       if (!accepted) this.logger.warn(`SMTP rejected message ${result.messageId}`);
+      this.anotar(recipient, asunto, accepted > 0 ? 'enviado' : 'rechazado', accepted > 0 ? null : 'El servidor de correo no lo aceptó');
       return accepted > 0;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown SMTP error';
       this.logger.error(`SMTP delivery failed: ${message}`);
+      this.anotar(recipient, asunto, 'fallido', message);
       return false;
     }
+  }
+
+  private ultimaLimpieza = 0;
+
+  /**
+   * Deja constancia del intento, sin el cuerpo del correo.
+   *
+   * No espera ni lanza: anotar nunca puede demorar ni impedir un envío. De paso, como mucho una
+   * vez por hora, borra lo que tenga más de 90 días.
+   */
+  private anotar(destinatario: string, asunto: string, resultado: RegistroDeCorreo['resultado'], motivo: string | null): void {
+    if (!this.registro) return;
+    const registro = this.registro;
+    void registro
+      .insert({ destinatario: destinatario.slice(0, 320) || '(vacío)', asunto: asunto || '(sin asunto)', resultado, motivo: motivo?.slice(0, 255) ?? null })
+      .catch((error: unknown) => this.logger.warn(`No se pudo anotar el correo: ${error instanceof Error ? error.message : error}`));
+    if (Date.now() - this.ultimaLimpieza < 60 * 60_000) return;
+    this.ultimaLimpieza = Date.now();
+    void registro
+      .delete({ createdAt: LessThan(new Date(Date.now() - 90 * 24 * 60 * 60_000)) })
+      .catch(() => undefined);
   }
 
   async sendCollectionEmail(clientName: string, clientEmail: string, invoiceNumber: string, amount: number, dueDate: string): Promise<boolean> {

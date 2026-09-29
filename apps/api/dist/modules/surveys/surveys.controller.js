@@ -13,6 +13,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SurveysController = exports.MAXIMO_ENVIO_POR_PEDIDO = void 0;
+const crypto_1 = require("crypto");
 const permission_resolver_service_1 = require("../../core/authorization/permission-resolver.service");
 const common_1 = require("@nestjs/common");
 const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
@@ -70,6 +71,7 @@ let SurveysController = class SurveysController {
             distribution: survey.distribution ?? undefined,
             publicUrl: publicSurveyUrl(survey.id),
             ga4MeasurementId: survey.ga4MeasurementId ?? null,
+            anonymous: Boolean(survey.anonymous),
             responses: survey.responseCount,
             designConfig: survey.designConfig ?? undefined,
             googleReview: survey.googleReview ?? undefined,
@@ -151,6 +153,7 @@ let SurveysController = class SurveysController {
             recipients: dto.recipients ?? null,
             distribution: dto.distribution ?? null,
             ga4MeasurementId: dto.ga4MeasurementId?.trim() || null,
+            anonymous: dto.anonymous === true,
             responseCount: 0,
             designConfig: dto.designConfig ?? null,
             googleReview: dto.googleReview ?? null,
@@ -188,6 +191,12 @@ let SurveysController = class SurveysController {
             cambios.push('Reseñas en Google actualizadas');
         if (dto.status !== undefined && dto.status !== survey.status)
             cambios.push(dto.status === 'active' ? 'Encuesta publicada' : dto.status === 'closed' ? 'Encuesta cerrada' : 'Encuesta pasada a borrador');
+        if (dto.anonymous !== undefined && dto.anonymous !== survey.anonymous) {
+            if (!dto.anonymous && survey.responseCount > 0) {
+                throw new common_1.BadRequestException('Esta encuesta ya recibió respuestas anónimas. Para volver a pedir identidad, crea una encuesta nueva: quienes ya contestaron lo hicieron con la promesa de que no se sabría quiénes son.');
+            }
+            cambios.push(dto.anonymous ? 'Las respuestas pasan a ser anónimas' : 'Las respuestas pasan a quedar identificadas');
+        }
         if (cambios.length) {
             const autor = await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [req.user.id]).then((filas) => filas?.[0]?.name ?? null).catch(() => null);
             survey.changeLog = [{ fecha: ahora, autor, cambios }, ...(survey.changeLog ?? [])].slice(0, shared_2.MAXIMO_HISTORIAL);
@@ -216,6 +225,8 @@ let SurveysController = class SurveysController {
             survey.distribution = dto.distribution;
         if (dto.ga4MeasurementId !== undefined)
             survey.ga4MeasurementId = dto.ga4MeasurementId?.trim() || null;
+        if (dto.anonymous !== undefined)
+            survey.anonymous = dto.anonymous;
         if (dto.designConfig !== undefined)
             survey.designConfig = dto.designConfig;
         if (dto.googleReview !== undefined)
@@ -248,15 +259,15 @@ let SurveysController = class SurveysController {
         }
         const visitas = await this.dataSource.query('SELECT COALESCE(NULLIF(origen, \'\'), \'link\') origen, DATE(created_at) dia, COUNT(*) total FROM survey_visits WHERE survey_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 365 DAY) GROUP BY origen, dia', [survey.id]).catch(() => []);
         const visitasPorDia = visitas.map((fila) => ({ origen: fila.origen, dia: (fila.dia instanceof Date ? fila.dia.toISOString() : String(fila.dia)).slice(0, 10), total: Number(fila.total) }));
-        const historial = await this.historialPorCorreo(survey, rows.map((row) => row.respondentEmail));
+        const historial = survey.anonymous ? new Map() : await this.historialPorCorreo(survey, rows.map((row) => row.respondentEmail));
         const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
-            historial: row.respondentEmail ? historial.get(row.respondentEmail.trim().toLowerCase()) ?? null : null,
+            historial: !survey.anonymous && row.respondentEmail ? historial.get(row.respondentEmail.trim().toLowerCase()) ?? null : null,
             id: row.id,
             submittedAt: row.submittedAt.toISOString(),
             rating: row.rating ?? null,
-            respondentName: row.respondentName ?? null,
-            respondentEmail: row.respondentEmail ?? null,
-            reservationId: row.reservationId ?? null,
+            respondentName: survey.anonymous ? null : row.respondentName ?? null,
+            respondentEmail: survey.anonymous ? null : row.respondentEmail ?? null,
+            reservationId: survey.anonymous ? null : row.reservationId ?? null,
             teamMessage: row.teamMessage ?? null,
             completedAt: row.completedAt ? row.completedAt.toISOString() : null,
             privacyConsentAt: row.privacyConsentAt ? row.privacyConsentAt.toISOString() : null,
@@ -317,7 +328,7 @@ let SurveysController = class SurveysController {
             const response = await manager.save(manager.create(survey_response_entity_1.SurveyResponse, {
                 organizationId: req.organizationId,
                 surveyId: survey.id,
-                respondentId: dto.respondentId?.trim() || req.user.id,
+                respondentId: survey.anonymous ? `anon:${(0, crypto_1.randomUUID)()}` : (dto.respondentId?.trim() || req.user.id),
                 answers: dto.answers ?? {},
             }));
             await manager.increment(survey_entity_1.Survey, { id: survey.id }, 'responseCount', 1);

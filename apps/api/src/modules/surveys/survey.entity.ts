@@ -32,6 +32,17 @@ export class Survey {
 
   @Column({ name: 'created_by', length: 36 }) createdBy: string;
 
+  /**
+   * No se guarda quién respondió.
+   *
+   * Pensado para las encuestas al equipo: en una relación laboral la respuesta identificada
+   * condiciona lo que la persona se atreve a decir, y su consentimiento no se considera libre
+   * porque hay subordinación. Con esto activo no se guarda su cuenta, ni su nombre, ni su correo,
+   * y los resultados sólo muestran totales. No se puede deshacer sobre lo ya respondido: lo que se
+   * guardó sin identidad no se puede volver a atribuir, que es justamente lo que se promete.
+   */
+  @Column({ name: 'anonymous', type: 'boolean', default: false }) anonymous: boolean;
+
   /** Destinatarios explícitos; nulo cuando se distribuye por enlace o QR abierto. */
   @Column({ type: 'json', nullable: true }) recipients?: string[] | null;
 

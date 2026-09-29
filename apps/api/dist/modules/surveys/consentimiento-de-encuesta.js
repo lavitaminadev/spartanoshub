@@ -7,7 +7,7 @@ exports.contactoEscrito = contactoEscrito;
 exports.exigirIdentidadLegalDeEncuesta = exigirIdentidadLegalDeEncuesta;
 const common_1 = require("@nestjs/common");
 const shared_1 = require("@espartanos/shared");
-exports.VERSION_CONSENTIMIENTO_ENCUESTA = 'survey-v2';
+exports.VERSION_CONSENTIMIENTO_ENCUESTA = 'survey-v3';
 async function consentimientoDeEncuesta(db, survey) {
     if (!(0, shared_1.pideDatosPersonales)(survey.questions ?? []))
         return null;
@@ -24,7 +24,7 @@ async function consentimientoDeEncuesta(db, survey) {
     const sensibles = (0, shared_1.pideDatosSensibles)(survey.questions ?? [])
         ? ` Autorizo expresamente el uso de la información de salud o alimentación que indique sólo para atender mi respuesta; no se usa para publicidad ni se comparte con terceros.`
         : '';
-    const texto = `Acepto que ${responsable} use los datos que dejo en esta encuesta para conocer mi opinión y, si corresponde, contactarme sobre ella. Se conservan hasta ${shared_1.PLAZOS_DE_CONSERVACION.encuestasMeses} meses y luego se anonimizan. Puedo ejercer mis derechos de acceso, rectificación, supresión, oposición, portabilidad y bloqueo escribiendo a ${correo}, y reclamar ante la Agencia de Protección de Datos Personales.${sensibles}${porEncargo}`;
+    const texto = `Acepto que ${responsable} use los datos que dejo en esta encuesta para conocer mi opinión y, si corresponde, contactarme sobre ella. Se conservan hasta ${shared_1.PLAZOS_DE_CONSERVACION.encuestasMeses} meses y luego se anonimizan. Puedo ejercer mis derechos de acceso, rectificación, supresión, oposición, portabilidad y bloqueo escribiendo a ${correo}, y reclamar ante la Agencia de Protección de Datos Personales. Puedo retirar esta autorización cuando quiera, escribiendo al mismo correo.${sensibles}${porEncargo}`;
     const modoTexto = empresa?.legal_mode === 'texto';
     return {
         texto,

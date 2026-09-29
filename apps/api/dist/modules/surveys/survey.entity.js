@@ -47,6 +47,10 @@ __decorate([
     __metadata("design:type", String)
 ], Survey.prototype, "createdBy", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'anonymous', type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], Survey.prototype, "anonymous", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'json', nullable: true }),
     __metadata("design:type", Object)
 ], Survey.prototype, "recipients", void 0);

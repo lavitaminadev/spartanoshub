@@ -73,6 +73,10 @@ export class CreateSurveyDto {
   @IsOptional() @Matches(/^(G-[A-Z0-9]{4,20})?$/i, { message: 'El ID de medición GA4 debe tener el formato G-XXXXXXXXXX' })
   ga4MeasurementId?: string;
 
+  /** Sin guardar quien respondio. Pensado para las encuestas al equipo. */
+  @IsOptional() @IsBoolean()
+  anonymous?: boolean;
+
   @IsOptional() @IsObject()
   designConfig?: Record<string, string>;
 
@@ -111,6 +115,10 @@ export class UpdateSurveyDto {
 
   @IsOptional() @Matches(/^(G-[A-Z0-9]{4,20})?$/i, { message: 'El ID de medición GA4 debe tener el formato G-XXXXXXXXXX' })
   ga4MeasurementId?: string;
+
+  /** Sin guardar quien respondio. Pensado para las encuestas al equipo. */
+  @IsOptional() @IsBoolean()
+  anonymous?: boolean;
 
   @IsOptional() @IsObject()
   designConfig?: Record<string, string>;

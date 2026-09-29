@@ -21,7 +21,10 @@ import { camposVisibles } from '@espartanos/shared';
 
 const FIELD_LIBRARY = [
   ['text', 'Texto corto'], ['textarea', 'Texto largo'], ['email', 'Correo'],
-  ['phone', 'Teléfono'], ['document', 'Documento de identidad'], ['rut', 'RUT'], ['select', 'Elegir una opción'], ['multi_select', 'Elegir varias opciones'],
+  // «RUT» ya no se ofrece: «Documento de identidad» hace lo mismo y además acepta pasaporte, así
+  // que tener los dos sólo llevaba a elegir el que deja fuera a un extranjero. Los formularios que
+  // ya tienen un campo RUT siguen funcionando igual: el servidor sigue aceptando ese tipo.
+  ['phone', 'Teléfono'], ['document', 'Documento de identidad'], ['select', 'Elegir una opción'], ['multi_select', 'Elegir varias opciones'],
   ['number', 'Número'], ['date', 'Fecha'], ['birthdate', 'Fecha de nacimiento'], ['consent', 'Casilla para confirmar'],
   ['rating', 'Calificación'], ['coupon', 'Cupón promocional'],
 ] as const;
@@ -29,7 +32,8 @@ const FIELD_LIBRARY = [
 /** Qué hace cada campo, en palabras de quien arma el formulario. */
 const FIELD_HINTS: Record<string, string> = {
   text: 'Una línea: nombre de empresa, patente…', textarea: 'Un comentario o detalle largo',
-  email: 'Ayuda a medir campañas', phone: 'Ayuda a medir campañas', rut: 'Sólo RUT chileno: un extranjero no podrá completarlo',
+  email: 'Ayuda a medir campañas', phone: 'Ayuda a medir campañas',
+  rut: 'Sólo RUT chileno: un extranjero no podrá completarlo',
   document: 'RUT o pasaporte con su país. Pídelo sólo si lo necesitas: es un dato personal',
   select: 'Botones o lista: marca sólo una', multi_select: 'Casillas: puede marcar varias',
   number: 'Sólo números', date: 'Calendario para elegir un día', consent: 'Obligatoria al agregarla',
@@ -614,7 +618,7 @@ export function ReservationBuilderPage() {
             <small>Nómbralos como tu local. Cada uno cuenta en una categoría para los reportes. {draft.designConfig?.ocasionesPreguntaId ? 'Como la grilla de ocasiones está conectada, la página usa esas ocasiones en lugar de esta lista.' : ''}</small>
             {leerTiposDeEvento(draft.designConfig?.tiposDeEvento, true).map((tipo, indice, lista) => (
               <div className="tipo-de-evento" key={indice}>
-                <input className="input" value={tipo.nombre} maxLength={60} aria-label={`Nombre del tipo ${indice + 1}`} onChange={(e) => { const nueva = [...lista]; nueva[indice] = { ...tipo, nombre: e.target.value }; cambiarAjuste('tiposDeEvento', JSON.stringify(nueva)); }} />
+                <input className="input" value={tipo.nombre} maxLength={60} placeholder="Ej. Cumpleaños, After office, Matrimonio" aria-label={`Nombre del tipo ${indice + 1}`} onChange={(e) => { const nueva = [...lista]; nueva[indice] = { ...tipo, nombre: e.target.value }; cambiarAjuste('tiposDeEvento', JSON.stringify(nueva)); }} />
                 <select className="input" value={tipo.categoria} aria-label="Categoría" onChange={(e) => { const nueva = [...lista]; nueva[indice] = { ...tipo, categoria: e.target.value as CategoriaDeEvento }; cambiarAjuste('tiposDeEvento', JSON.stringify(nueva)); }}>
                   {CATEGORIAS_DE_EVENTO.map((categoria) => <option key={categoria.valor} value={categoria.valor}>{categoria.nombre}</option>)}
                 </select>
@@ -899,7 +903,7 @@ export function ReservationBuilderPage() {
         * El calendario aparece únicamente si Google está conectado en la organización; activarlo
         * sin conexión dejaba reservas esperando un evento que nunca se creaba.
         */}
-      <section className="reservation-readiness correos-del-local"><div><span className="page-eyebrow">CORREOS</span><h2>Quién envía, quién responde y a quién se avisa</h2><p className="page-subtitle">Tres casillas con tres funciones distintas.</p></div>
+      <section className="reservation-readiness correos-del-local"><div><span className="page-eyebrow">CORREOS</span><h2>Quién envía, quién responde y a quién se avisa</h2><p className="page-subtitle">Cada casilla cumple una función distinta.</p></div>
         <div className="correo-rol"><strong>1. Quién envía y qué dice</strong><small>La casilla que envía y el texto de confirmación, recordatorio y encuesta se configuran en {clientMode ? 'Espartanos, por el equipo que lleva tu cuenta' : <Link to="/correos">Correos</Link>}. Aquí sólo se definen las dos casillas del local.</small></div>
         <label className="correo-rol"><strong>2. A dónde llegan las respuestas del cliente</strong><small>Si quien reserva contesta un correo, le llega a esta casilla. También se muestra en la página para cambios y cancelaciones.</small><input className="input" type="email" value={String(draft.designConfig?.supportEmail || '')} onChange={(e) => cambiarAjuste('supportEmail', e.target.value)} placeholder={draft.datosLegalesEmpresa?.privacyEmail || 'contacto@local.cl'} /></label>
         {/*
@@ -909,13 +913,14 @@ export function ReservationBuilderPage() {
           * preguntar cosas distintas. Vacío hereda la que su empresa tenga puesta en Correos, que
           * es como funcionó hasta ahora. El texto del correo sigue siendo común.
           */}
+        <label className="correo-rol"><strong>3. A quién se avisa de cada reserva nueva</strong><small>Casillas del equipo, separadas por coma. También reciben los comentarios de encuestas con nota baja. No las ve quien reserva.</small><input className="input" value={teamEmails} onChange={(e) => change({ teamNotifications: e.target.value.split(/[,;\s]+/).map((email) => email.trim()).filter(Boolean) })} placeholder="reservas@local.cl, gerente@local.cl" /></label>
         {!clientMode && <label className="correo-rol"><strong>4. Qué encuesta se envía después de la visita</strong><small>Se manda unas horas después de una visita marcada como asistida, si el aviso está encendido en <Link to="/correos">Correos</Link>.</small>
           <select className="input" value={String(draft.designConfig?.encuestaPostVisita || '')} onChange={(e) => cambiarAjuste('encuestaPostVisita', e.target.value)}>
             <option value="">La que tenga su empresa</option>
             {(encuestasDeLaEmpresa ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer').map((encuesta) => <option key={encuesta.id} value={encuesta.id}>{encuesta.title}</option>)}
           </select>
         </label>}
-        <label className="correo-rol"><strong>3. A quién se avisa de cada reserva nueva</strong><small>Casillas del equipo, separadas por coma. También reciben los comentarios de encuestas con nota baja. No las ve quien reserva.</small><input className="input" value={teamEmails} onChange={(e) => change({ teamNotifications: e.target.value.split(/[,;\s]+/).map((email) => email.trim()).filter(Boolean) })} placeholder="reservas@local.cl, gerente@local.cl" /></label>{draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}</section>
+        {draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}</section>
       {/*
         * Tres finalidades distintas, tres casillas separadas.
         *
@@ -1017,6 +1022,15 @@ function DesignStudioControls({
         <label>Título público<input className="input" value={design.title || ''} onChange={(event) => update({ title: event.target.value })} /></label>
         <label>Frase bajo el título<textarea className="input" rows={3} value={design.welcome || ''} onChange={(event) => update({ welcome: event.target.value })} /></label>
         <ImageUpload label="Logo de la empresa" value={design.logoUrl} onChange={(url) => onAsset('logoUrl', url)} placeholder="https://empresa.cl/logo.png" maxSizeMB={3} maxWidth={480} clientId={clientId} />
+        {/* El tamaño va junto al logo: plegado en «Qué se muestra arriba» nadie lo encontraba, y la
+            pregunta que sigue a subirlo es siempre cómo agrandarlo. */}
+        {design.logoUrl && <div className="logo-medida">
+          <label>Tamaño del logo ({design.logoSize || '96'}px de alto)<input type="range" min="32" max="240" value={design.logoSize || '96'} onChange={(event) => update({ logoSize: event.target.value })} /></label>
+          <div className="segmented-control">
+            <span>Dónde va</span>
+            <div>{LOGO_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLogo === value ? 'active' : ''} onClick={() => update({ logoPosition: value })}>{label}</button>)}</div>
+          </div>
+        </div>}
         <div className="color-controls"><label>Principal<input type="color" value={design.primaryColor || '#0ec6b8'} onChange={(event) => update({ primaryColor: event.target.value })} /></label><label>Acento<input type="color" value={design.accentColor || '#ea0f63'} onChange={(event) => update({ accentColor: event.target.value })} /></label><label>Fondo<input type="color" value={design.backgroundColor || '#f6f4f5'} onChange={(event) => update({ backgroundColor: event.target.value })} /></label><label>Letras<input type="color" value={design.textColor || '#3f4e49'} onChange={(event) => update({ textColor: event.target.value })} /></label></div>
         <div className="fondo-modos-campo"><span>Tipo de fondo</span>
           <div className="fondo-modos" role="radiogroup" aria-label="Tipo de fondo">
@@ -1102,12 +1116,8 @@ function DesignStudioControls({
       <details className="design-section">
         <summary>Qué se muestra arriba: logo, título y sellos</summary>
         <div className="design-section-body">
+          {/* El tamaño y la alineación del logo están arriba, junto a donde se sube. */}
           <label className="toggle-row"><input type="checkbox" checked={visible(design.showLogo)} onChange={(event) => update({ showLogo: String(event.target.checked) })} /> Mostrar logo</label>
-          <label>Tamaño del logo ({design.logoSize || '96'}px de alto)<input type="range" min="32" max="240" value={design.logoSize || '96'} onChange={(event) => update({ logoSize: event.target.value })} /></label>
-          <div className="segmented-control">
-            <span>Alineación del logo</span>
-            <div>{LOGO_POSITIONS.map(([value, label]) => <button type="button" key={value} className={activeLogo === value ? 'active' : ''} onClick={() => update({ logoPosition: value })}>{label}</button>)}</div>
-          </div>
           <label className="toggle-row"><input type="checkbox" checked={visible(design.showEyebrow)} onChange={(event) => update({ showEyebrow: String(event.target.checked) })} /> Mostrar etiqueta superior</label>
           <label>Texto de la etiqueta<input className="input" value={design.eyebrowText || 'AGENDA EN LÍNEA'} onChange={(event) => update({ eyebrowText: event.target.value })} /></label>
           <label>Tamaño del título ({design.titleSize || '72'}px)<input type="range" min="32" max="96" value={design.titleSize || '72'} onChange={(event) => update({ titleSize: event.target.value })} /></label>

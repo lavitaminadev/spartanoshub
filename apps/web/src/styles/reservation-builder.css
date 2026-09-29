@@ -117,10 +117,13 @@
 }.preview-public-intro h2{
   margin: 12px 0;color: var(--booking-primary-page-text);font-size: clamp(28px,4vw,var(--booking-title-size,54px));line-height: .98;letter-spacing: -.06em;
 }
-.public-booking-intro>p,.preview-public-intro p { font-size:var(--booking-welcome-size,16px); }.reservation-logo-preview,.public-booking-logo{
-  margin-inline-start: 0;margin-inline-end: auto;width: auto;max-width: min(100%,260px);max-height: var(--booking-logo-size,64px);
+.public-booking-intro>p,.preview-public-intro p { font-size:var(--booking-welcome-size,16px); }
+/* El alto sale de `--booking-logo-size` y el ancho lo acompaña, para que un logo horizontal no se
+   recorte al agrandarlo. La alineación la decide `--booking-logo-align`, no un margen fijo. */
+.reservation-logo-preview,.public-booking-logo{
+  width:auto;height:auto;max-width:min(100%,calc(var(--booking-logo-size,96px) * 4));max-height:var(--booking-logo-size,96px);object-fit:contain;
 }
-@media(max-width:700px){.design-mini-grid{grid-template-columns:1fr}.public-booking-intro h1{font-size:clamp(26px,7.5vw,var(--booking-title-size,72px))}.public-booking-facts,.preview-public-facts{gap:12px;justify-content:flex-start}.reservation-logo-preview,.public-booking-logo{max-width:min(100%,220px)}}
+@media(max-width:700px){.design-mini-grid{grid-template-columns:1fr}.public-booking-intro h1{font-size:clamp(26px,7.5vw,var(--booking-title-size,72px))}.public-booking-facts,.preview-public-facts{gap:12px;justify-content:flex-start}.reservation-logo-preview,.public-booking-logo{max-width:min(100%,calc(var(--booking-logo-size,96px) * 3))}}
 
 /* Reservation builder usability pass: whole canvas drop zone + clearer weekly agenda */
 .builder-canvas { position:relative; overflow:hidden; border:2px dashed var(--surface-sage); background:linear-gradient(180deg,var(--white) 0%,var(--soft) 100%); }
@@ -199,6 +202,10 @@
 .design-templates { display:flex; flex-wrap:wrap; gap:7px; }
 
 .design-essentials { display:flex; flex-direction:column; }
+/* Tamaño y posición del logo, junto a donde se sube: es lo primero que se pregunta al verlo. */
+.logo-medida { display:grid; gap:8px; margin:-4px 0 10px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--soft); }
+.logo-medida label { margin:0; font-size:11px; font-weight:800; color:var(--muted); }
+.logo-medida input[type="range"] { width:100%; }
 
 .design-section { border:1px solid var(--border); border-radius: var(--radius-md); background:var(--white); }
 .design-section > summary { padding:12px 14px; font-size:12px; font-weight:800; cursor:pointer; list-style:none; }
@@ -467,12 +474,21 @@
 @media (max-width: 700px) {
   .field-library { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .field-library > button { min-width: 0; }
-  .field-library > button small { overflow-wrap: anywhere; }
+  /* `anywhere` partía «Documento» a mitad de palabra; así sólo se corta lo que de verdad no cabe. */
+  .field-library > button small { overflow-wrap: break-word; }
 }
-/* Dos columnas de campos en 375 px dejan cada botón con el texto partido en cuatro líneas. */
-@media (max-width: 440px) {
+/*
+ * Una sola columna en el teléfono.
+ *
+ * Dos columnas dejaban cada tarjeta tan angosta que «Documento de identidad» salía en cuatro
+ * líneas cortadas. El corte estaba en 440 px y a 470 px seguía viéndose partido.
+ */
+@media (max-width: 560px) {
   .field-library { grid-template-columns: minmax(0, 1fr); }
   .builder-grid { padding: 0 4px 90px; }
+  /* Nombre, categoría y «Quitar» uno bajo otro ocupan tres alturas por fila: el nombre manda. */
+  .tipo-de-evento { grid-template-columns: minmax(0, 1fr) auto; }
+  .tipo-de-evento > .input:first-child { grid-column: 1 / -1; }
 }
 
 /*

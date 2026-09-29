@@ -637,6 +637,12 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * que es cuando aparece el aviso.
    */
   [/\/users\/administran-equipo/, () => ({ clientId: VISUAL_USER.clientId, userIds: visualAdministranEquipo, sinAdministrador: visualAdministranEquipo.length === 0 })],
+  // Tres envíos de ejemplo para revisar la pantalla de diagnóstico de correo.
+  [/\/registro-de-correos/, () => ([
+    { id: 'rc-1', destinatario: 'ana@casacostanera.cl', asunto: 'Acceso temporal a Espartanos', resultado: 'enviado', motivo: null, createdAt: new Date(Date.now() - 3 * 60_000).toISOString() },
+    { id: 'rc-2', destinatario: 'test3@gmail.com', asunto: 'Lead nuevo: Javi Meza (meta lead ads)', resultado: 'rechazado', motivo: 'El servidor de correo no lo aceptó', createdAt: new Date(Date.now() - 90 * 60_000).toISOString() },
+    { id: 'rc-3', destinatario: 'diego@casacostanera.cl', asunto: 'Tu reserva en Casa Costanera', resultado: 'omitido', motivo: 'El correo de salida está apagado (SMTP_ENABLED)', createdAt: new Date(Date.now() - 26 * 60 * 60_000).toISOString() },
+  ])],
   // Sin servidor de correo el reenvío no sale, como en producción con SMTP apagado.
   [/\/users\/[^/]+\/resend-access$/, (config) => ({ userId: config?.url?.split('/')[2], emailSent: false })],
   [/\/users(?:\?|$)/, (config) => {
@@ -847,6 +853,8 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/notifications\/read-all$/, () => { visualNotifications.forEach((item) => { item.read = true; }); return { updated: visualNotifications.length }; }],
   [/\/notifications(?:\?|$)/, () => visualNotifications],
+  // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
+  [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
   [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],
   /*
    * Datos de ejemplo del CRM.
@@ -1192,7 +1200,15 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * Si el ejemplo aceptara cualquier cambio de zona, la pantalla parecería permitir mover gente a
    * una terraza llena y en producción fallaría recién al guardar.
    */
-  [/\/reservations\/[^/?]+$/, (config) => {
+  /*
+   * Una reserva por su id, y sólo eso.
+   *
+   * Sin el `(?<!\/public)` esta regla también atrapaba `/public/reservations/<slug>`, porque esa
+   * dirección termina igual. La página pública recibía una reserva vacía en vez de su formulario:
+   * sin diseño, sin ocasiones y sin píxel, así que no salía ni el aviso al entrar ni el de
+   * medición. Pasaba sólo acá; el servidor real distingue las dos rutas.
+   */
+  [/(?<!\/public)\/reservations\/[^/?]+$/, (config) => {
     const id = (config?.url?.match(/\/reservations\/([^/?]+)$/) ?? [])[1];
     const reserva = VISUAL_RESERVATIONS.find((item) => item.id === id);
     if (!reserva || config?.method?.toLowerCase() !== 'patch') return reserva ?? {};

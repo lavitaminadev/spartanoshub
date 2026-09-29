@@ -102,7 +102,27 @@ export function ClientLayout() {
       {open && <button className="sidebar-backdrop" onClick={() => setOpen(false)} aria-label="Cerrar navegacion" />}
       <div className="app-workspace client-workspace">
         <header className="workspace-header">
-          <div className="workspace-heading"><span>Portal cliente</span><strong>Tu marca, en un solo lugar</strong></div>
+          {/*
+            En qué empresa se está trabajando, a la vista.
+
+            El selector del menú lateral se mantiene, pero en el teléfono el menú está cerrado y no
+            hay forma de saber sobre qué empresa se opera sin abrirlo. Quien atiende dos locales
+            puede creer que está en el otro, y eso no se nota hasta que algo ya quedó guardado en
+            la empresa equivocada. Con una sola empresa no aparece: no habría nada que elegir.
+          */}
+          {empresaActiva.varias
+            ? <label className="workspace-empresa">
+                <span>Trabajando en</span>
+                <select
+                  className="input"
+                  aria-label="Empresa sobre la que se trabaja"
+                  value={empresaActiva.clientId}
+                  onChange={(evento) => empresaActiva.elegir(evento.target.value)}
+                >
+                  {empresaActiva.empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+                </select>
+              </label>
+            : <div className="workspace-heading"><span>Portal cliente</span><strong>Tu marca, en un solo lugar</strong></div>}
           {/*
             El buscador, visible y no solo por atajo.
 

@@ -58,9 +58,16 @@ export function useEmpresaActiva(): EmpresaActiva {
   useSyncExternalStore(suscribir, () => version, () => version);
   const esPortal = user?.role === 'client';
 
+  /*
+   * La lista sale del portal y no de `/clients`.
+   *
+   * `/clients` pertenece al módulo Clientes, que es de la agencia: una cuenta de portal lo pide y
+   * recibe un 403. La lista llegaba vacía, esto lo leía como «tiene una sola empresa» y caía a la
+   * de su sesión, así que quien atendía dos locales nunca veía el segundo ni el selector.
+   */
   const { data } = useQuery<{ data: Array<{ id: string; name: string }> }>({
-    queryKey: ['clients'],
-    queryFn: () => api.get('/clients'),
+    queryKey: ['portal-empresas'],
+    queryFn: () => api.get('/portal/empresas'),
     enabled: esPortal,
     staleTime: 5 * 60 * 1000,
   });
@@ -113,8 +120,8 @@ export function useUsuarioEnEmpresaActiva() {
   const { user } = useAuth();
   const { clientId } = useEmpresaActiva();
   const { data } = useQuery<{ data: Array<{ id: string; name: string; capabilities?: Partial<Record<string, boolean>> | null }> }>({
-    queryKey: ['clients'],
-    queryFn: () => api.get('/clients'),
+    queryKey: ['portal-empresas'],
+    queryFn: () => api.get('/portal/empresas'),
     enabled: user?.role === 'client',
     staleTime: 5 * 60 * 1000,
   });
