@@ -185,9 +185,19 @@ export class UsersController {
       clientId: alcance.soloEmpresa ?? clientId,
       q,
       isActive: normalizedIsActive,
+      // También quienes atienden esa empresa por asignación: son parte de su equipo.
+      incluirAsignados: true,
     });
-    // Quien administra su empresa ve solo esa empresa: las demás a las que llega su gente no son suyas.
-    if (alcance.soloEmpresa) return personas;
+    /*
+     * Quien administra su empresa ve solo esa empresa: las demás a las que llega su gente no son suyas.
+     *
+     * Se marca a quien llega por asignación. Su cuenta es de otra empresa, así que desde aquí no
+     * se edita ni se pausa —pausarla la apagaría también allá—; se le ajusta el acceso a este
+     * local o se le quita de él.
+     */
+    if (alcance.soloEmpresa) {
+      return personas.map((persona) => ({ ...persona, asignada: persona.clientId !== alcance.soloEmpresa }));
+    }
     const empresas = await this.accesos.empresasDe(organizationId, personas);
     return personas.map((persona) => {
       const suyas = empresas.get(persona.id) ?? [];

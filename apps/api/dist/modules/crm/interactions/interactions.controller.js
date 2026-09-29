@@ -31,13 +31,12 @@ let InteractionsController = class InteractionsController {
     async create(dto, req) {
         const deLaReferencia = await this.service.referenceClientId(dto, req.organizationId);
         const clientId = deLaReferencia
-            ?? (req.user.role === 'client' ? req.user.clientId : dto.clientId)
-            ?? undefined;
+            ?? await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
         await this.assertClientScope(req, clientId);
         return this.service.create({ ...dto, clientId }, req.organizationId, req.user.id);
     }
     async findAll(query, req) {
-        const clientId = req.user.role === 'client' ? req.user.clientId : query.clientId;
+        const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, query.clientId);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         await this.capabilities.assert(req.organizationId, clientId, 'crm');
         if (query.leadId) {

@@ -37,8 +37,7 @@ export class InteractionsController {
      */
     const deLaReferencia = await this.service.referenceClientId(dto, req.organizationId);
     const clientId = deLaReferencia
-      ?? (req.user.role === 'client' ? req.user.clientId : dto.clientId)
-      ?? undefined;
+      ?? await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
     await this.assertClientScope(req, clientId);
     return this.service.create({ ...dto, clientId }, req.organizationId, req.user.id);
   }
@@ -47,7 +46,8 @@ export class InteractionsController {
   async findAll(@Query() query: ListInteractionsDto, @Req() req: AuthenticatedRequest) {
     // El portal toma la empresa de la sesión. El query string es controlable por el navegador y
     // no puede bloquear su propio calendario ni utilizarse para consultar la empresa vecina.
-    const clientId = req.user.role === 'client' ? req.user.clientId : query.clientId;
+    // La empresa elegida en el portal si la alcanza; una ajena cae en la de su cuenta.
+    const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, query.clientId);
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     await this.capabilities.assert(req.organizationId, clientId, 'crm');
     if (query.leadId) {

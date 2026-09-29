@@ -306,6 +306,10 @@ export class OrganizationSettingsController {
     propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
   */
   @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
+  // Con el cargo cliente, como las plantillas: heredaban los cargos de la clase, que no lo
+  // incluyen, y en el portal la pantalla abría pero su estado, prueba y vista previa daban 403.
+  // La reja de verdad es `asegurarQuePuedeCorreos`: administrar esa empresa.
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Estado del envío de correos' })
   async estadoDelCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
@@ -329,6 +333,10 @@ export class OrganizationSettingsController {
     propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
   */
   @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
+  // Con el cargo cliente, como las plantillas: heredaban los cargos de la clase, que no lo
+  // incluyen, y en el portal la pantalla abría pero su estado, prueba y vista previa daban 403.
+  // La reja de verdad es `asegurarQuePuedeCorreos`: administrar esa empresa.
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Condiciones que necesita cada aviso además de su interruptor' })
   async requisitosDeCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
@@ -359,6 +367,10 @@ export class OrganizationSettingsController {
     propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
   */
   @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
+  // Con el cargo cliente, como las plantillas: heredaban los cargos de la clase, que no lo
+  // incluyen, y en el portal la pantalla abría pero su estado, prueba y vista previa daban 403.
+  // La reja de verdad es `asegurarQuePuedeCorreos`: administrar esa empresa.
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Personas del equipo a las que se puede enviar una prueba' })
   async destinatariosDePrueba(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const organizationId = request.organizationId || request.user.organizationId;
@@ -421,6 +433,10 @@ export class OrganizationSettingsController {
     propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
   */
   @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
+  // Con el cargo cliente, como las plantillas: heredaban los cargos de la clase, que no lo
+  // incluyen, y en el portal la pantalla abría pero su estado, prueba y vista previa daban 403.
+  // La reja de verdad es `asegurarQuePuedeCorreos`: administrar esa empresa.
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Componer una plantilla para verla, sin enviarla' })
   async vistaPreviaDeCorreo(
     @Body() dto: { asunto?: string; cuerpo?: string },
@@ -440,6 +456,10 @@ export class OrganizationSettingsController {
     propias plantillas. La reja de verdad es tener algun modulo editable, y se comprueba dentro.
   */
   @ModuleExempt('Correos no es de Reservas: la reja real es tener alguna plantilla que editar')
+  // Con el cargo cliente, como las plantillas: heredaban los cargos de la clase, que no lo
+  // incluyen, y en el portal la pantalla abría pero su estado, prueba y vista previa daban 403.
+  // La reja de verdad es `asegurarQuePuedeCorreos`: administrar esa empresa.
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Enviar una plantilla de correo a alguien del equipo' })
   async probar(

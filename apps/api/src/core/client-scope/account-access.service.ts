@@ -108,6 +108,25 @@ export class AccountAccessService {
    *
    * @param clientId - Cuenta a verificar; sin valor no hay nada que comprobar.
    */
+  /**
+   * La empresa sobre la que trabaja esta petición.
+   *
+   * Una cuenta de portal que atiende varios locales elige uno en el menú, y cada pantalla manda el
+   * elegido. Varias rutas lo descartaban y usaban siempre la empresa de la cuenta: al cambiar de
+   * local, el CRM seguía mostrando los leads del primero —o ninguno—. Lo pedido se acepta sólo si
+   * la cuenta lo alcanza; cualquier otra cosa cae en la suya, así que escribir una empresa ajena en
+   * la dirección no abre nada.
+   *
+   * Para el equipo interno devuelve lo pedido tal cual: su alcance lo comprueba `assertClient`.
+   */
+  async empresaDeTrabajo(organizationId: string, user: AuthUser, pedida?: string | null): Promise<string | undefined> {
+    if ((user.role as UserRole) !== UserRole.CLIENT) return pedida || undefined;
+    const propia = user.clientId || undefined;
+    if (!pedida || pedida === propia) return propia;
+    const alcanzables = await this.allowedClientIds(organizationId, user);
+    return alcanzables?.includes(pedida) ? pedida : propia;
+  }
+
   async assertClient(organizationId: string, user: AuthUser, clientId?: string): Promise<void> {
     if (!clientId) return;
 

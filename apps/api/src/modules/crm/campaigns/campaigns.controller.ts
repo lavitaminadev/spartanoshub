@@ -94,8 +94,11 @@ export class CampaignsController {
    */
   private async resolveScope(req: AuthenticatedRequest, requested?: string): Promise<string | undefined> {
     if (req.user.clientId) {
-      await this.accountAccess.assertClient(req.organizationId, req.user, req.user.clientId);
-      return req.user.clientId;
+      // La empresa elegida en el portal si la alcanza; si no, la de su cuenta. Con la de la cuenta
+      // siempre, las campañas del segundo local no aparecían al cambiar de empresa.
+      const empresa = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, requested) ?? req.user.clientId;
+      await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
+      return empresa;
     }
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     if (!requested && allowed !== undefined) {

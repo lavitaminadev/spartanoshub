@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { User } from './user.entity';
+import { UserClientAccess } from '../../core/client-scope/user-client-access.entity';
 import { UserRole } from '../organizations/user-role.enum';
 
 interface ListUsersFilters {
@@ -10,6 +11,13 @@ interface ListUsersFilters {
   clientId?: string;
   isActive?: boolean;
   q?: string;
+  /**
+   * Con empresa, sumar a quienes la atienden por asignación aunque su cuenta sea de otra.
+   *
+   * Sin esto el equipo de un local mostraba sólo las cuentas creadas en él: quien atiende dos
+   * locales aparecía en uno y en el otro no, aunque entrara y trabajara en los dos.
+   */
+  incluirAsignados?: boolean;
 }
 
 /**
@@ -36,10 +44,24 @@ export class ListUsersUseCase {
     if (filters.clientId) where.clientId = filters.clientId;
     if (typeof filters.isActive === 'boolean') where.isActive = filters.isActive;
 
-    const users = await this.repo.find({
+    let users = await this.repo.find({
       where,
       order: { name: 'ASC' },
     });
+
+    if (filters.clientId && filters.incluirAsignados) {
+      const asignaciones = await this.repo.manager.getRepository(UserClientAccess).find({
+        where: { organizationId: filters.organizationId, clientId: filters.clientId },
+        select: { userId: true },
+      });
+      const yaEstan = new Set(users.map((user) => user.id));
+      const faltan = asignaciones.map((fila) => fila.userId).filter((id) => !yaEstan.has(id));
+      if (faltan.length) {
+        const { clientId: _empresa, ...sinEmpresa } = where;
+        const asignados = await this.repo.find({ where: { ...sinEmpresa, id: In(faltan) } });
+        users = [...users, ...asignados].sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'es'));
+      }
+    }
 
     const normalizeSearch = (value: unknown) => String(value ?? '')
       .normalize('NFD')

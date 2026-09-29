@@ -59,7 +59,7 @@ let LeadController = class LeadController {
         this.responsablesDelCrm = responsablesDelCrm;
     }
     async create(dto, req) {
-        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : dto.clientId;
+        const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         await this.capacidades.assert(req.organizationId, clientId, 'crm');
         return this.createLead.execute({
@@ -70,7 +70,7 @@ let LeadController = class LeadController {
         });
     }
     async import(dto, req) {
-        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : dto.clientId;
+        const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         await this.capacidades.assert(req.organizationId, clientId, 'crm');
         return this.importLeads.execute(req.organizationId, {
@@ -82,7 +82,7 @@ let LeadController = class LeadController {
     async list(query, req) {
         await this.assertPortalCrm(req);
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : query.clientId;
+        const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, query.clientId);
         if (clientId) {
             await this.capacidades.assert(req.organizationId, clientId, 'crm');
         }
@@ -130,7 +130,7 @@ let LeadController = class LeadController {
     }
     async responsables(req, solicitado) {
         await this.assertPortalCrm(req);
-        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : solicitado;
+        const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, solicitado);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         if (clientId)
             await this.capacidades.assert(req.organizationId, clientId, 'crm');
@@ -153,7 +153,7 @@ let LeadController = class LeadController {
     async update(id, dto, req) {
         await this.assertPortalCrm(req);
         const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== req.user.clientId) {
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== lead.clientId) {
             throw new common_1.ForbiddenException('El portal no puede mover contactos fuera de su empresa');
         }
         if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.excludedFromMeta !== undefined) {
@@ -162,7 +162,7 @@ let LeadController = class LeadController {
         const clientIdDestino = dto.clientId !== undefined ? (dto.clientId ?? undefined) : (lead.clientId ?? undefined);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
         await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
-        return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.clientId ?? null);
+        return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? lead.clientId ?? null : req.user.clientId ?? null);
     }
     async assertLeadAccess(req, lead) {
         if (!lead)
@@ -181,9 +181,17 @@ let LeadController = class LeadController {
     async assertPortalCrm(req) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
             return;
-        if (!req.user.clientId)
+        const pedida = req.query?.clientId;
+        if (typeof pedida !== 'string' || !pedida) {
+            const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+            const conCrm = await this.capacidades.filtrar(req.organizationId, alcanzables ?? [], 'crm');
+            if (conCrm.length)
+                return;
+        }
+        const empresa = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, typeof pedida === 'string' ? pedida : undefined);
+        if (!empresa)
             throw new common_1.ForbiddenException('La cuenta cliente no está asociada a una empresa');
-        await this.capacidades.assert(req.organizationId, req.user.clientId, 'crm');
+        await this.capacidades.assert(req.organizationId, empresa, 'crm');
     }
     async reservations(id, req) {
         await this.assertPortalCrm(req);
