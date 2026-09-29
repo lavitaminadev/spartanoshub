@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger, Optional } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
 import { REQUIRES_PERMISSION_KEY, RequiredPermission } from './requires-permission.decorator';
@@ -8,6 +8,11 @@ import type { OrganizationFeatureKey } from '../../modules/organizations/organiz
 import { PermissionResolverService } from './permission-resolver.service';
 import { PermissionLevel } from './permission-level';
 import { isModuleInInitialOperationScope } from '@espartanos/shared';
+import { ClientCapabilityService } from '../client-scope/client-capability.service';
+import type { ClientCapabilityKey } from '../../modules/clients/client-capabilities';
+
+/** Módulos que son un servicio contratado por empresa: sin el servicio, la empresa no entra. */
+const MODULOS_CONTRATADOS = new Set<string>(['crm', 'reservations', 'surveys']);
 
 /**
  * Nivel que exige cada verbo cuando el endpoint no declara uno propio.
@@ -42,6 +47,7 @@ export class PermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly permissions: PermissionResolverService,
+    @Optional() private readonly capacidades?: ClientCapabilityService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -74,6 +80,20 @@ export class PermissionGuard implements CanActivate {
 
     const allowed = await this.permissions.can(organizationId, user.id, user.role, required.module, required.level);
     if (!allowed) throw new ForbiddenException('No tienes acceso a este módulo');
+
+    /*
+     * La empresa pedida tiene que tener contratado el servicio del módulo.
+     *
+     * Varias rutas lo comprobaban una por una y otras no —campañas, etapas, reglas,
+     * oportunidades—: una empresa sin CRM se podía elegir y configurar igual. Aquí queda una sola
+     * vez para todas. La empresa sale de la consulta, del cuerpo o, en el portal, de la cuenta.
+     */
+    if (this.capacidades && MODULOS_CONTRATADOS.has(required.module)) {
+      const pedida = request.query?.clientId ?? request.body?.clientId ?? (user.role === 'client' ? user.clientId : undefined);
+      if (typeof pedida === 'string' && pedida) {
+        await this.capacidades.assert(organizationId, pedida, required.module as ClientCapabilityKey);
+      }
+    }
     return true;
   }
 

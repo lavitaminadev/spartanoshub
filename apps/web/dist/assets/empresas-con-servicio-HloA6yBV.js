@@ -1,0 +1,1 @@
+function e(e,t,n){return e.filter(e=>e.capabilities?.[t]!==!1||n!=null&&e.id===n)}export{e as t};

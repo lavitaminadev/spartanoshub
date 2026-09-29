@@ -496,10 +496,11 @@ function modulosDeCorreoVisual(clave: string): Array<'reservations' | 'surveys' 
 const EMPRESAS_VISUALES = [
   { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } },
   { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false } },
-  // Tres más, sin servicios, para revisar en Usuarios a quien atiende muchas empresas.
-  { id: 'visual-client-3', name: 'Pastelería Alameda', capabilities: {} },
-  { id: 'visual-client-4', name: 'Hotel Mirador del Valle', capabilities: {} },
-  { id: 'visual-client-5', name: 'Café Plaza', capabilities: {} },
+  // Tres más para revisar a quien atiende muchas empresas y los servicios apagados: solo Reservas,
+  // solo CRM y ninguno. Apagado es «false» explícito; sin la clave, el servidor lo da por encendido.
+  { id: 'visual-client-3', name: 'Pastelería Alameda', capabilities: { reservations: true, crm: false, surveys: false } },
+  { id: 'visual-client-4', name: 'Hotel Mirador del Valle', capabilities: { reservations: false, crm: true, surveys: false } },
+  { id: 'visual-client-5', name: 'Café Plaza', capabilities: { reservations: false, crm: false, surveys: false } },
 ];
 
 /**

@@ -70,6 +70,15 @@ export class NotificationService {
     return this.repo.save(notif);
   }
 
+  /** Las no leídas, para contarlas después de filtrar las que ya no le corresponden. */
+  async unreadByUser(organizationId: string, userId: string, includeSystem = true): Promise<Notification[]> {
+    return this.repo.find({
+      where: includeSystem ? { organizationId, userId, read: false } : { organizationId, userId, read: false, type: Not('system') },
+      order: { createdAt: 'DESC' },
+      take: 500,
+    });
+  }
+
   async unreadCount(organizationId: string, userId: string, includeSystem = true): Promise<number> {
     return this.repo.count({ where: includeSystem ? { organizationId, userId, read: false } : { organizationId, userId, read: false, type: Not('system') } });
   }

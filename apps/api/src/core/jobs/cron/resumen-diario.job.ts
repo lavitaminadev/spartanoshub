@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ClientCapabilityService } from '../../client-scope/client-capability.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, IsNull, Not, Repository } from 'typeorm';
 import { Lead } from '../../../modules/crm/leads/lead.entity';
@@ -36,6 +37,7 @@ export class ResumenDiarioJob {
     @InjectRepository(User) private readonly usuarios: Repository<User>,
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
+    @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
   async handle(): Promise<void> {
@@ -70,6 +72,10 @@ export class ResumenDiarioJob {
           encendido = Boolean(await this.parametros.get(
             'email.daily_digest_enabled', persona.clientId ?? null, null, persona.organizationId,
           ));
+          // El resumen es de CRM: a una empresa sin CRM, o pausada, no se le manda.
+          if (encendido && this.servicios && persona.clientId) {
+            encendido = await this.servicios.enServicio(persona.organizationId, persona.clientId, 'crm');
+          }
           encendidoPorEmpresa.set(clave, encendido);
         }
         if (!encendido) continue;

@@ -51,6 +51,13 @@ let NotificationService = class NotificationService {
         notif.read = true;
         return this.repo.save(notif);
     }
+    async unreadByUser(organizationId, userId, includeSystem = true) {
+        return this.repo.find({
+            where: includeSystem ? { organizationId, userId, read: false } : { organizationId, userId, read: false, type: (0, typeorm_2.Not)('system') },
+            order: { createdAt: 'DESC' },
+            take: 500,
+        });
+    }
     async unreadCount(organizationId, userId, includeSystem = true) {
         return this.repo.count({ where: includeSystem ? { organizationId, userId, read: false } : { organizationId, userId, read: false, type: (0, typeorm_2.Not)('system') } });
     }

@@ -35,6 +35,7 @@ import type { Reservation, ReservationForm, GroupRequest } from './types';
 import { localDateBoundsUtc } from './local-time';
 import './AgendaPage.css';
 import { useAutoSeleccionUnica } from './use-auto-seleccion';
+import { empresasConServicio } from '../../shared/empresas-con-servicio';
 
 interface Client { id: string; name: string }
 /** Página de reservas. `data` es el nombre con que responden todas las listas del sistema. */
@@ -94,7 +95,7 @@ export function AgendaPage() {
     queryKey: ['clients'],
     queryFn: () => api.get('/clients'), enabled: !clientMode,
   });
-  const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : Array.isArray(clientsResp?.data) ? clientsResp!.data : [];
+  const clients = clientMode ? [{ id: clientId, name: 'Mi empresa' }] : Array.isArray(clientsResp?.data) ? empresasConServicio(clientsResp!.data, 'reservations') : [];
   useAutoSeleccionUnica(clients, clientId, setClientId);
 
   const { data: formsArray = [], isLoading: loadingForms } = useQuery<ReservationForm[]>({

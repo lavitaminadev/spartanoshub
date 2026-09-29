@@ -15,6 +15,7 @@ var RecordatorioDeReservasJob_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RecordatorioDeReservasJob = void 0;
 const common_1 = require("@nestjs/common");
+const client_capability_service_1 = require("../../client-scope/client-capability.service");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const reservation_entity_1 = require("../../../modules/reservations/domain/reservation.entity");
@@ -28,12 +29,13 @@ const UNA_HORA = 3_600_000;
 const HORAS_POR_DEFECTO = 24;
 const CERRADAS = ['cancelled', 'no_show', 'attended', 'completed'];
 let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class RecordatorioDeReservasJob {
-    constructor(reservas, formularios, correo, parametros, enlaces) {
+    constructor(reservas, formularios, correo, parametros, enlaces, servicios) {
         this.reservas = reservas;
         this.formularios = formularios;
         this.correo = correo;
         this.parametros = parametros;
         this.enlaces = enlaces;
+        this.servicios = servicios;
         this.logger = new common_1.Logger(RecordatorioDeReservasJob_1.name);
     }
     async handle() {
@@ -109,8 +111,9 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
             this.parametros.get('email.reservation_reminder_enabled', form.clientId, null, form.organizationId),
             this.parametros.get('email.reservation_reminder_hours', form.clientId, null, form.organizationId),
         ]);
+        const enServicio = !this.servicios || !form.clientId || await this.servicios.enServicio(form.organizationId, form.clientId, 'reservations');
         return {
-            encendido: Boolean(encendido),
+            encendido: Boolean(encendido) && enServicio,
             horas: Number(horas ?? HORAS_POR_DEFECTO),
         };
     }
@@ -150,9 +153,11 @@ exports.RecordatorioDeReservasJob = RecordatorioDeReservasJob = RecordatorioDeRe
     __param(0, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
     __param(4, (0, typeorm_1.InjectRepository)(reservation_management_token_entity_1.ReservationManagementToken)),
+    __param(5, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
         parameter_resolver_service_1.ParameterResolver,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        client_capability_service_1.ClientCapabilityService])
 ], RecordatorioDeReservasJob);

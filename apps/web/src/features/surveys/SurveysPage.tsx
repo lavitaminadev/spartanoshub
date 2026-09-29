@@ -27,6 +27,7 @@ import { useAuth } from '../../core/auth';
 import type { Survey, SurveyType } from '@espartanos/shared';
 import './surveys.css';
 import { puedeAccion } from '../../core/acciones';
+import { empresasConServicio } from '../../shared/empresas-con-servicio';
 
 const TYPE_LABELS: Record<SurveyType, string> = { internal: 'Equipo', customer: 'Clientes' };
 const TYPE_FILTERS: Array<{ value: 'all' | SurveyType; label: string }> = [
@@ -210,7 +211,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
         onSearchChange={filtros.setSearch}
         searchPlaceholder="Buscar por título..."
         filters={[
-          ...(soloLectura ? [] : [{ key: 'empresa', label: 'Empresa', options: [{ value: 'equipo', label: 'Equipo interno' }, ...empresas.map((empresa) => ({ value: empresa.id, label: empresa.name }))], allLabel: 'Todas las empresas' }]),
+          ...(soloLectura ? [] : [{ key: 'empresa', label: 'Empresa', options: [{ value: 'equipo', label: 'Equipo interno' }, ...empresasConServicio(empresas, 'surveys').map((empresa) => ({ value: empresa.id, label: empresa.name }))], allLabel: 'Todas las empresas' }]),
           { key: 'estado', label: 'Estado', options: STATUS_FILTER_OPTIONS, allLabel: 'Todos los estados' },
         ]}
         values={filtros.values}

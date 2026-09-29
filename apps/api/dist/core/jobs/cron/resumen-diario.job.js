@@ -15,6 +15,7 @@ var ResumenDiarioJob_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ResumenDiarioJob = void 0;
 const common_1 = require("@nestjs/common");
+const client_capability_service_1 = require("../../client-scope/client-capability.service");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("../../../modules/crm/leads/lead.entity");
@@ -27,12 +28,13 @@ const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo")
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 const CERRADAS = ['won', 'lost', 'attended', 'no_show'];
 let ResumenDiarioJob = ResumenDiarioJob_1 = class ResumenDiarioJob {
-    constructor(leads, tareas, usuarios, correo, parametros) {
+    constructor(leads, tareas, usuarios, correo, parametros, servicios) {
         this.leads = leads;
         this.tareas = tareas;
         this.usuarios = usuarios;
         this.correo = correo;
         this.parametros = parametros;
+        this.servicios = servicios;
         this.logger = new common_1.Logger(ResumenDiarioJob_1.name);
     }
     async handle() {
@@ -56,6 +58,9 @@ let ResumenDiarioJob = ResumenDiarioJob_1 = class ResumenDiarioJob {
                 let encendido = encendidoPorEmpresa.get(clave);
                 if (encendido === undefined) {
                     encendido = Boolean(await this.parametros.get('email.daily_digest_enabled', persona.clientId ?? null, null, persona.organizationId));
+                    if (encendido && this.servicios && persona.clientId) {
+                        encendido = await this.servicios.enServicio(persona.organizationId, persona.clientId, 'crm');
+                    }
                     encendidoPorEmpresa.set(clave, encendido);
                 }
                 if (!encendido)
@@ -130,9 +135,11 @@ exports.ResumenDiarioJob = ResumenDiarioJob = ResumenDiarioJob_1 = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __param(1, (0, typeorm_1.InjectRepository)(approval_request_entity_1.ApprovalRequest)),
     __param(2, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(5, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        client_capability_service_1.ClientCapabilityService])
 ], ResumenDiarioJob);

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ClientCapabilityService } from '../../client-scope/client-capability.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { encuestasHabilitadas } from '../../../modules/surveys/encuestas-de-la-empresa';
@@ -46,6 +47,7 @@ export class EncuestaPostVisitaJob {
     @InjectRepository(Survey) private readonly encuestas: Repository<Survey>,
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
+    @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
   async handle(): Promise<{ enviados: number; revisados: number }> {
@@ -99,6 +101,8 @@ export class EncuestaPostVisitaJob {
         }
         if (!encuesta || !encuestaUtil(encuesta, form)) continue;
         if (!(await encuestasHabilitadas(this.reservas, form.clientId))) continue;
+        // Además, la empresa en servicio: pausada no se le escribe a sus clientes en su nombre.
+        if (this.servicios && form.clientId && !(await this.servicios.enServicio(form.organizationId, form.clientId, 'surveys'))) continue;
 
         // Quien viene seguido no recibe una encuesta por visita: con una por semana por local basta.
         // La visita se marca igual para no volver a revisarla en cada pasada.
