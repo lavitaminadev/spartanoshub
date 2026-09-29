@@ -120,6 +120,83 @@
   gap: 8px;
 }
 
+/*
+ * Los mismos estilos dentro del modal.
+ *
+ * El asistente de «Agregar una reserva» vive en una ventana que se dibuja fuera de
+ * `.reservation-module`, así que no heredaba nada: los pasos y el resumen salían como botones
+ * grises con la letra negra. Se repiten acá acotados al modal, en vez de quitarle el alcance a
+ * las reglas de arriba, que `.reservation-flow-switch` también usa en Administración.
+ */
+.modal-content .reservation-create-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.modal-content .reservation-create-steps button,
+.modal-content .reservation-create-summary .reservation-flow-switch button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--blanco);
+  padding: 12px;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+  color: var(--txt);
+}
+
+.modal-content .reservation-create-steps button strong {
+  color: var(--txt);
+  font-size: 15px;
+}
+
+.modal-content .reservation-create-steps button span,
+.modal-content .reservation-create-summary .reservation-flow-switch span {
+  color: var(--txt-secondary);
+  font-size: 12px;
+}
+
+.modal-content .reservation-create-steps button.active {
+  border-color: var(--cian);
+  box-shadow: inset 0 0 0 1px var(--cian);
+}
+
+.modal-content .reservation-create-steps button.done {
+  background: color-mix(in srgb, var(--cian) 8%, var(--blanco));
+}
+
+.modal-content .reservation-create-summary {
+  display: grid;
+  gap: 14px;
+}
+
+.modal-content .reservation-create-summary .reservation-flow-switch {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.modal-content .reservation-create-summary .reservation-flow-switch strong {
+  color: var(--txt);
+  font-size: 15px;
+}
+
+.modal-content .reservation-create-checklist {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--txt-secondary);
+  display: grid;
+  gap: 8px;
+}
+
+/* En el teléfono los tres pasos no caben en una fila sin partir cada palabra. */
+@media (max-width: 560px) {
+  .modal-content .reservation-create-steps { grid-template-columns: 1fr; }
+  .modal-content .reservation-create-steps button { display: flex; align-items: baseline; gap: 8px; padding: 10px 12px; }
+  .modal-content .reservation-create-summary .reservation-flow-switch { grid-template-columns: 1fr; }
+}
+
 /* ===== Pestañas ===== */
 .reservation-module .reservation-tabs {
   border-color: var(--line);

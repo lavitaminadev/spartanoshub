@@ -177,9 +177,9 @@
 .reservation-logo-preview { margin-bottom: 17px; }
 .public-booking-logo { margin-bottom: 20px; }
 .preview-public-intro,
-.public-booking-intro { text-align: var(--booking-logo-align, left); }.reservation-logo-preview, .public-booking-logo{
-  display: inline-block;max-width: 160px;max-height: 64px;object-fit: contain;object-position: left center;
-}
+.public-booking-intro { text-align: var(--booking-logo-align, left); }
+/* El tamaño del logo lo manda `--booking-logo-size` en pulse-reservations-intro.css: acá se topaba
+   en 64px de alto y 160px de ancho, así que subir el control no agrandaba nada. */
 
 @media (max-width: 760px) {
   .reservation-status-summary { grid-template-columns: 1fr 1fr; }

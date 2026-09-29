@@ -105,6 +105,15 @@
  * why these used to be two separate popup systems.
  */
 .toast-container { position: fixed; z-index: 1400; top: 22px; right: 24px; display: flex; flex-direction: column; gap: 10px; max-width: min(420px, calc(100vw - 32px)); pointer-events: none; }
+/*
+ * En el teléfono los avisos bajan debajo de la cabecera.
+ *
+ * Anclados a 22 px tapaban el botón del menú, el buscador y la ayuda: dos avisos seguidos dejaban
+ * la cabecera entera inalcanzable hasta que se cerraban solos.
+ */
+@media (max-width: 700px) {
+  .toast-container { top: 68px; right: 10px; left: 10px; max-width: none; }
+}
 .toast {
   pointer-events: auto;
   display: flex;

@@ -23,6 +23,9 @@ const parameter_resolver_service_1 = require("../parameters/parameter-resolver.s
 const plantilla_resuelta_1 = require("../parameters/plantilla-resuelta");
 const plantilla_de_correo_1 = require("./plantilla-de-correo");
 const nodemailer_1 = __importDefault(require("nodemailer"));
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
+const registro_de_correo_entity_1 = require("./registro-de-correo.entity");
 function escapeHtml(value) {
     return value.replace(/[&<>"']/g, (character) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -32,9 +35,11 @@ function validRecipient(value) {
     return value.length <= 320 && !/[\r\n]/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 let EmailService = EmailService_1 = class EmailService {
-    constructor(parametros) {
+    constructor(parametros, registro) {
         this.parametros = parametros;
+        this.registro = registro;
         this.logger = new common_1.Logger(EmailService_1.name);
+        this.ultimaLimpieza = 0;
         const enabled = process.env.SMTP_ENABLED === 'true';
         this.from = process.env.SMTP_FROM?.trim() || '';
         this.replyTo = process.env.SMTP_REPLY_TO?.trim() || undefined;
@@ -70,12 +75,15 @@ let EmailService = EmailService_1 = class EmailService {
     }
     async send(to, subject, html, options) {
         const recipient = to.trim().toLowerCase();
+        const asunto = subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255);
         if (!validRecipient(recipient)) {
             this.logger.warn('Email skipped because the recipient is invalid');
+            this.anotar(recipient, asunto, 'omitido', 'Dirección de correo no válida');
             return false;
         }
         if (!this.transporter) {
             this.logger.warn('Email not sent because SMTP_ENABLED is false');
+            this.anotar(recipient, asunto, 'omitido', 'El correo de salida está apagado (SMTP_ENABLED)');
             return false;
         }
         try {
@@ -83,20 +91,36 @@ let EmailService = EmailService_1 = class EmailService {
                 from: this.from,
                 to: recipient,
                 replyTo: options?.replyTo ?? this.replyTo,
-                subject: subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255),
+                subject: asunto,
                 html,
                 attachments: options?.attachments,
             });
             const accepted = Array.isArray(result.accepted) ? result.accepted.length : 0;
             if (!accepted)
                 this.logger.warn(`SMTP rejected message ${result.messageId}`);
+            this.anotar(recipient, asunto, accepted > 0 ? 'enviado' : 'rechazado', accepted > 0 ? null : 'El servidor de correo no lo aceptó');
             return accepted > 0;
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown SMTP error';
             this.logger.error(`SMTP delivery failed: ${message}`);
+            this.anotar(recipient, asunto, 'fallido', message);
             return false;
         }
+    }
+    anotar(destinatario, asunto, resultado, motivo) {
+        if (!this.registro)
+            return;
+        const registro = this.registro;
+        void registro
+            .insert({ destinatario: destinatario.slice(0, 320) || '(vacío)', asunto: asunto || '(sin asunto)', resultado, motivo: motivo?.slice(0, 255) ?? null })
+            .catch((error) => this.logger.warn(`No se pudo anotar el correo: ${error instanceof Error ? error.message : error}`));
+        if (Date.now() - this.ultimaLimpieza < 60 * 60_000)
+            return;
+        this.ultimaLimpieza = Date.now();
+        void registro
+            .delete({ createdAt: (0, typeorm_2.LessThan)(new Date(Date.now() - 90 * 24 * 60 * 60_000)) })
+            .catch(() => undefined);
     }
     async sendCollectionEmail(clientName, clientEmail, invoiceNumber, amount, dueDate) {
         const safeName = escapeHtml(clientName);
@@ -155,5 +179,8 @@ exports.EmailService = EmailService;
 exports.EmailService = EmailService = EmailService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Optional)()),
-    __metadata("design:paramtypes", [parameter_resolver_service_1.ParameterResolver])
+    __param(1, (0, common_1.Optional)()),
+    __param(1, (0, typeorm_1.InjectRepository)(registro_de_correo_entity_1.RegistroDeCorreo)),
+    __metadata("design:paramtypes", [parameter_resolver_service_1.ParameterResolver,
+        typeorm_2.Repository])
 ], EmailService);
