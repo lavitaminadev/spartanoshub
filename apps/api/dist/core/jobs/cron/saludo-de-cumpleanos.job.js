@@ -23,6 +23,7 @@ const suscriptor_entity_1 = require("../../../modules/marketing/suscriptor.entit
 const edad_1 = require("../../../modules/marketing/edad");
 const email_service_1 = require("../../notifications/email.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
+const enlace_de_baja_1 = require("../../notifications/enlace-de-baja");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 let SaludoDeCumpleanosJob = SaludoDeCumpleanosJob_1 = class SaludoDeCumpleanosJob {
     constructor(suscriptores, correo, parametros, servicios) {
@@ -81,17 +82,9 @@ let SaludoDeCumpleanosJob = SaludoDeCumpleanosJob_1 = class SaludoDeCumpleanosJo
             this.parametros.get('email.birthday_subject', suscriptor.clientId ?? null, null, suscriptor.organizationId),
             this.parametros.get('email.birthday_body', suscriptor.clientId ?? null, null, suscriptor.organizationId),
         ]);
-        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? '¡Feliz cumpleaños, {{nombre}}!'), String(cuerpo ?? 'Que tengas un gran día.'), { nombre: suscriptor.name ?? '' }, this.enlaceDeBaja(suscriptor));
-        await this.correo.send(suscriptor.email, subject, html);
-    }
-    enlaceDeBaja(suscriptor) {
-        const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '');
-        if (!base)
-            return undefined;
-        return {
-            texto: 'No quiero recibir más correos',
-            url: `${base}/api/marketing/suscriptores/baja/${suscriptor.unsubscribeToken}`,
-        };
+        const baja = await (0, enlace_de_baja_1.enlaceDeBaja)(this.parametros, 'email.birthday', suscriptor.unsubscribeToken, suscriptor);
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(asunto ?? '¡Feliz cumpleaños, {{nombre}}!'), String(cuerpo ?? 'Que tengas un gran día.'), { nombre: suscriptor.name ?? '' }, undefined, undefined, undefined, baja);
+        await this.correo.send(suscriptor.email, subject, html, baja ? { bajaUrl: baja } : undefined);
     }
 };
 exports.SaludoDeCumpleanosJob = SaludoDeCumpleanosJob;

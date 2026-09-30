@@ -7,6 +7,7 @@ import { EstadoDeSuscripcion, Suscriptor } from '../../../modules/marketing/susc
 import { cumpleHoy, diaDelAnoEn } from '../../../modules/marketing/edad';
 import { EmailService } from '../../notifications/email.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
+import { enlaceDeBaja } from '../../notifications/enlace-de-baja';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
 
 /**
@@ -118,30 +119,21 @@ export class SaludoDeCumpleanosJob {
       this.parametros.get('email.birthday_body', suscriptor.clientId ?? null, null, suscriptor.organizationId),
     ]);
 
+    const baja = await enlaceDeBaja(this.parametros, 'email.birthday', suscriptor.unsubscribeToken, suscriptor);
     const { subject, html } = componerCorreo(
       String(asunto ?? '¡Feliz cumpleaños, {{nombre}}!'),
       String(cuerpo ?? 'Que tengas un gran día.'),
       // Sin nombre se saluda igual, sin el hueco: «Hola ,» delata que el sistema no sabía a quién
       // escribía, y en un correo de felicitación eso es peor que no mandarlo.
       { nombre: suscriptor.name ?? '' },
-      this.enlaceDeBaja(suscriptor),
+      undefined,
+      undefined,
+      undefined,
+      baja,
     );
 
-    await this.correo.send(suscriptor.email, subject, html);
+    // La misma dirección en la cabecera: es la que Gmail y Yahoo usan para su botón de baja.
+    await this.correo.send(suscriptor.email, subject, html, baja ? { bajaUrl: baja } : undefined);
   }
 
-  /**
-   * El enlace de baja va en **todo** correo comercial, incluido el de cumpleaños.
-   *
-   * Es amable, pero sigue siendo comunicación comercial, y una felicitación de la que no se puede
-   * uno bajar es exactamente lo que la normativa persigue.
-   */
-  private enlaceDeBaja(suscriptor: Suscriptor): { texto: string; url: string } | undefined {
-    const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '');
-    if (!base) return undefined;
-    return {
-      texto: 'No quiero recibir más correos',
-      url: `${base}/api/marketing/suscriptores/baja/${suscriptor.unsubscribeToken}`,
-    };
-  }
 }
