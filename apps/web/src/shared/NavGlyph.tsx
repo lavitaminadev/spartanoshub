@@ -67,6 +67,9 @@ const GLYPHS: Record<string, string> = {
   'Accesos y seguridad': 'AS',
   Usuarios: 'US',
   'Correos enviados': 'CE',
+  Suscriptores: 'SU',
+  // 'CA' ya es de Catálogo, y el respaldo `label.slice(0, 2)` daría justo ése.
+  'Campañas': 'CP',
   'Operación y cuentas': 'OC',
   'Gobierno del producto': 'GP',
   'Configuración técnica': 'TC',

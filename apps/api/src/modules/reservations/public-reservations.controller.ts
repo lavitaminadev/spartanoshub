@@ -56,9 +56,15 @@ export class PublicReservationsController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   vistaPrevia(@Param('slug') slug: string) { return this.service.vistaPreviaDelEnlace(slug); }
 
+  /**
+   * `reactivar` sólo lo manda la pantalla después de haberle advertido que había pedido no
+   * recibir: es el segundo sí, el que la ley exige que sea inequívoco.
+   */
   @Post('manage/:token/beneficios')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  aceptarBeneficios(@Param('token') token: string) { return this.service.aceptarBeneficiosPublic(token); }
+  aceptarBeneficios(@Param('token') token: string, @Body() body?: { reactivar?: boolean }) {
+    return this.service.aceptarBeneficiosPublic(token, body?.reactivar === true);
+  }
 
   @Post('manage/:token/confirm')
   @Throttle({ default: { limit: 5, ttl: 60000 } })

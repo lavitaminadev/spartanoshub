@@ -1310,14 +1310,28 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         void this.avisarCambioDelCliente(saved, 'cancelada');
         return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
     }
-    async aceptarBeneficiosPublic(token) {
+    async aceptarBeneficiosPublic(token, reactivar = false) {
         const { reservation } = await this.managementReservation(token);
+        const form = await this.forms.findOne({ where: { id: reservation.formId } });
+        if (!form)
+            throw new common_1.NotFoundException('El local ya no está disponible');
+        await this.completarDatosLegales(form);
+        const texto = this.consentTexts(form).marketing;
+        const resultado = await this.altaEnLaLista.registrar({
+            organizationId: reservation.organizationId,
+            clientId: reservation.clientId,
+            email: reservation.guestEmail,
+            name: reservation.guestName,
+            birthDate: reservation.birthDate ?? null,
+            origen: form.name,
+            consentText: texto,
+            consentAt: new Date(),
+        }, reactivar);
+        if (resultado === 'local' || resultado === 'todas') {
+            return { aceptado: false, requiereConfirmacion: true, alcance: resultado };
+        }
         if (!reservation.marketingConsentAt) {
-            const form = await this.forms.findOne({ where: { id: reservation.formId } });
-            if (!form)
-                throw new common_1.NotFoundException('El local ya no está disponible');
-            await this.completarDatosLegales(form);
-            await this.reservations.update(reservation.id, { marketingConsentAt: new Date(), marketingConsentVersion: shared_1.VERSION_BENEFICIOS, marketingConsentText: this.consentTexts(form).marketing });
+            await this.reservations.update(reservation.id, { marketingConsentAt: new Date(), marketingConsentVersion: shared_1.VERSION_BENEFICIOS, marketingConsentText: texto });
             await this.events.save(this.events.create({ organizationId: reservation.organizationId, clientId: reservation.clientId, reservationId: reservation.id, type: 'marketing_consent', fromStatus: reservation.status, toStatus: reservation.status, actorType: 'guest' }));
         }
         return { aceptado: true };

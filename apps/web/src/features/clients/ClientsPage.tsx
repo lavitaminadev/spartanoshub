@@ -38,12 +38,21 @@ interface ClientRecord {
   createdAt: string;
 }
 
+/**
+ * Los servicios que una empresa tiene contratados.
+ *
+ * Se declara acá y no se importa del backend porque el portal no comparte tipos con la API. La
+ * consecuencia es que hay que acordarse de las dos: una clave que exista allá y falte acá no da
+ * error de compilación, simplemente no aparece la casilla y nadie puede encender el servicio.
+ */
 interface ClientCapabilities {
   reservations: boolean;
   crm: boolean;
   surveys: boolean;
+  marketing: boolean;
   metaConversions: boolean;
   googleConversions: boolean;
+  budgetVisibility: boolean;
 }
 
 interface MetaPixelCatalog {
@@ -99,7 +108,9 @@ const EMPTY_FORM: ClientFormState = {
   driveFolderId: '',
   logoUrl: '',
   logoPublicId: '',
-  capabilities: { reservations: true, crm: true, surveys: true, metaConversions: false, googleConversions: false },
+  // `marketing` nace apagada, igual que en el servidor: entregar una lista de direcciones con el
+  // respaldo de cada permiso se decide cuenta por cuenta, no al crearla.
+  capabilities: { reservations: true, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false },
   pixelMode: 'none',
   pixelId: '',
   pixelName: '',
@@ -111,8 +122,10 @@ const CAPABILITY_OPTIONS: Array<{ key: keyof ClientCapabilities; label: string; 
   { key: 'reservations', label: 'Reservas', description: 'Agenda pública, disponibilidad, bloqueos y asistencia.' },
   { key: 'crm', label: 'CRM', description: 'Contactos, leads, tablero, seguimiento e importación de esta empresa.' },
   { key: 'surveys', label: 'Encuestas', description: 'Encuestas a sus clientes: enlace, QR, correo y la encuesta después de la visita.' },
+  { key: 'marketing', label: 'Suscriptores', description: 'Ve quién aceptó recibir su correo y descarga esa lista. Enviar campañas sigue siendo de la agencia.' },
   { key: 'metaConversions', label: 'Meta Pixel + CAPI', description: 'Envía Schedule y Reserva_Asistida al Pixel de esta empresa.' },
   { key: 'googleConversions', label: 'Google Ads (conversiones)', description: 'Sube la reserva y la asistencia como conversiones offline a Google Ads.' },
+  { key: 'budgetVisibility', label: 'Saldo de presupuesto', description: 'Esta empresa ve en su portal cuántas UD lleva consumidas y cuántas le quedan.' },
 ];
 
 export function ClientsPage() {
@@ -315,8 +328,10 @@ export function ClientsPage() {
         reservations: client.capabilities?.reservations ?? true,
         crm: client.capabilities?.crm ?? true,
         surveys: client.capabilities?.surveys ?? true,
+        marketing: client.capabilities?.marketing ?? false,
         metaConversions: client.capabilities?.metaConversions ?? Boolean(binding?.pixelId),
         googleConversions: client.capabilities?.googleConversions ?? false,
+        budgetVisibility: client.capabilities?.budgetVisibility ?? false,
       },
       pixelMode: binding?.pixelId ? 'existing' : 'none',
       pixelId: binding?.pixelId || '',

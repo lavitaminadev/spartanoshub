@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'node:crypto';
-import { type FindOptionsWhere, IsNull, Repository } from 'typeorm';
+import { type FindOptionsWhere, IsNull, Like, Repository } from 'typeorm';
 import { EstadoDeSuscripcion, Suscriptor } from './suscriptor.entity';
 import { ExclusionDeCorreo } from './exclusion.entity';
 import { type FilaImportada, interpretarCsv } from './importar-suscriptores';
@@ -12,6 +12,14 @@ export interface ResultadoDeImportacion {
   actualizados: number;
   /** Ya estaban de baja: no se tocan ni se cuentan como actualizados. */
   respetadosDeBaja: number;
+  /**
+   * Pidieron no recibir nunca más, así que el archivo no los vuelve a meter.
+   *
+   * Se cuenta aparte de `respetadosDeBaja` porque no es lo mismo: aquella es la ficha de esta
+   * empresa, y ésta es una petición que alcanza aunque aquí no hubiera ficha ninguna. Quien sube
+   * el archivo tiene que ver el número: si son muchos, esa lista viene de donde no debería.
+   */
+  excluidos: number;
   descartados: Array<{ linea: number; motivo: string }>;
 }
 
@@ -60,12 +68,33 @@ export class SuscriptoresService {
   ): Promise<ResultadoDeImportacion> {
     const { filas, descartadas } = interpretarCsv(contenido);
     const resultado: ResultadoDeImportacion = {
-      creados: 0, actualizados: 0, respetadosDeBaja: 0, descartados: descartadas,
+      creados: 0, actualizados: 0, respetadosDeBaja: 0, excluidos: 0, descartados: descartadas,
     };
+    const empresa = clientId ?? null;
 
     for (const fila of filas) {
+      /*
+       * Un archivo no levanta lo que una persona pidió.
+       *
+       * El alta desde una reserva ya consultaba la exclusión; importar no, y era el camino más
+       * fácil para deshacerla sin querer: basta con que esa dirección siga en el Excel de donde
+       * salió la lista. El artículo 28 B no distingue por cómo vuelve a entrar.
+       */
+      if (await this.exclusionDe(organizationId, fila.email, empresa)) {
+        resultado.excluidos += 1;
+        continue;
+      }
+
+      /*
+       * La ficha se busca por empresa, no sólo por organización.
+       *
+       * Sin el `clientId` la búsqueda encontraba la ficha de otro local: importar la lista de un
+       * local pisaba la del vecino y el local importado se quedaba sin fila. Peor, una baja en un
+       * local bloqueaba el alta en otro, justo al revés de lo que dice la ficha —una dirección por
+       * empresa, porque cada una es responsable distinto y el permiso se dio por separado—.
+       */
       const existente = await this.repo.findOne({
-        where: { organizationId, email: fila.email },
+        where: { organizationId, clientId: empresa ?? IsNull(), email: fila.email },
       });
 
       if (existente?.status === EstadoDeSuscripcion.BAJA) {
@@ -87,7 +116,7 @@ export class SuscriptoresService {
 
       const nuevo = this.repo.create({
         organizationId,
-        clientId: clientId ?? null,
+        clientId: empresa,
         email: fila.email,
         name: fila.name ?? null,
         source: origen,
@@ -102,7 +131,7 @@ export class SuscriptoresService {
 
     this.logger.log(
       `Importación desde «${origen}»: ${resultado.creados} nuevos, ${resultado.actualizados} actualizados, `
-      + `${resultado.respetadosDeBaja} de baja respetados, ${descartadas.length} descartados`,
+      + `${resultado.respetadosDeBaja} de baja respetados, ${resultado.excluidos} excluidos, ${descartadas.length} descartados`,
     );
     return resultado;
   }
@@ -240,11 +269,136 @@ export class SuscriptoresService {
   }
 
   /** La lista completa, para la pantalla. Incluye pendientes y bajas, con su procedencia. */
-  listar(organizationId: string, limite = 200): Promise<Suscriptor[]> {
-    return this.repo.find({
-      where: { organizationId },
+  /**
+   * La lista, acotada a lo que se pida.
+   *
+   * Antes sólo aceptaba un tope de filas: no se podía mirar una empresa, ni separar a quien está
+   * suscrito de quien se dio de baja, ni buscar a alguien. Con varios locales en la misma
+   * organización, una lista sin filtros no se puede leer.
+   *
+   * @param empresa - Id de la empresa, o `agencia` para la lista propia —la que no tiene empresa—.
+   * @param encerradoEn - Empresa de la que no puede salir la consulta, cuando quien pregunta es
+   *   una cuenta de empresa. Manda sobre `empresa`: la dirección puede pedir otra, y no se le da.
+   */
+  async listar(organizationId: string, filtros: {
+    limite?: number;
+    empresa?: string;
+    encerradoEn?: string;
+    estado?: EstadoDeSuscripcion;
+    origen?: string;
+    busqueda?: string;
+  } = {}): Promise<{
+    data: Suscriptor[];
+    total: number;
+    resumen: Array<{ clientId: string | null; suscritos: number; bajas: number; pendientes: number }>;
+    /** Las procedencias que existen de verdad, para que el filtro no ofrezca lo que no hay. */
+    origenes: string[];
+  }> {
+    const where: FindOptionsWhere<Suscriptor> = { organizationId };
+    const empresa = filtros.encerradoEn ?? filtros.empresa;
+    if (empresa === 'agencia') where.clientId = IsNull();
+    else if (empresa) where.clientId = empresa;
+    if (filtros.estado) where.status = filtros.estado;
+    if (filtros.origen) where.source = filtros.origen;
+
+    const texto = filtros.busqueda?.trim();
+    // El nombre y el correo, con la misma búsqueda: se busca a una persona, no un campo.
+    const condiciones = texto
+      ? [{ ...where, email: Like(`%${texto.toLowerCase()}%`) }, { ...where, name: Like(`%${texto}%`) }]
+      : where;
+
+    const [data, total] = await this.repo.findAndCount({
+      where: condiciones,
       order: { createdAt: 'DESC' },
-      take: Math.min(Math.max(limite, 1), 1000),
+      take: Math.min(Math.max(filtros.limite ?? 200, 1), 1000),
+    });
+
+    /*
+     * El recuento por empresa sale de la base y no de las filas traídas.
+     *
+     * Contar sobre la página mostraría «12 suscritos» cuando hay trescientos, que es peor que no
+     * mostrar nada: el número se usa para decidir si vale la pena una campaña.
+     */
+    const consulta = this.repo
+      .createQueryBuilder('s')
+      .select('s.client_id', 'clientId')
+      .addSelect('s.status', 'status')
+      .addSelect('COUNT(*)', 'cuantos')
+      .where('s.organization_id = :organizationId', { organizationId });
+
+    /*
+     * El recuento respeta el mismo encierro que las filas.
+     *
+     * Sin esto, una cuenta de empresa recibía en la misma respuesta cuántos suscritos, bajas y
+     * pendientes tiene cada una de las demás. La pantalla no dibuja esas tarjetas, pero los
+     * números viajan en el JSON, y ahí ya se fueron.
+     */
+    if (filtros.encerradoEn) consulta.andWhere('s.client_id = :encerradoEn', { encerradoEn: filtros.encerradoEn });
+
+    const filas = await consulta
+      .groupBy('s.client_id')
+      .addGroupBy('s.status')
+      .getRawMany<{ clientId: string | null; status: string; cuantos: string }>()
+      .catch((error) => {
+        // Se devuelve la lista sin las tarjetas, pero queda dicho por qué faltan: un recuento
+        // que desaparece en silencio se lee como «no hay nadie», que es lo contrario del dato.
+        this.logger.warn(`No se pudo contar por empresa: ${error instanceof Error ? error.message : error}`);
+        return [];
+      });
+
+    /*
+     * Las procedencias salen de la base, no de una lista escrita a mano.
+     *
+     * `source` es texto libre —lo escribe quien importa: `google_forms`, `landing_verano`— así que
+     * un selector con valores fijos ofreceria filtros que no devuelven nada y ocultaría los que sí
+     * existen. Se acota igual que todo lo demás: una empresa ve de dónde salió su lista, no la de
+     * las otras.
+     */
+    const consultaDeOrigenes = this.repo
+      .createQueryBuilder('s')
+      .select('DISTINCT s.source', 'source')
+      .where('s.organization_id = :organizationId', { organizationId });
+    if (filtros.encerradoEn) consultaDeOrigenes.andWhere('s.client_id = :encerradoEn', { encerradoEn: filtros.encerradoEn });
+
+    const origenes = await consultaDeOrigenes
+      .getRawMany<{ source: string | null }>()
+      .then((filas) => filas.map((fila) => fila.source).filter((valor): valor is string => Boolean(valor)).sort())
+      .catch((error) => {
+        this.logger.warn(`No se pudieron listar las procedencias: ${error instanceof Error ? error.message : error}`);
+        return [];
+      });
+
+    const resumen = new Map<string | null, { clientId: string | null; suscritos: number; bajas: number; pendientes: number }>();
+    for (const fila of filas) {
+      const clave = fila.clientId ?? null;
+      const actual = resumen.get(clave) ?? { clientId: clave, suscritos: 0, bajas: 0, pendientes: 0 };
+      const cuantos = Number(fila.cuantos) || 0;
+      if (fila.status === EstadoDeSuscripcion.SUSCRITO) actual.suscritos += cuantos;
+      else if (fila.status === EstadoDeSuscripcion.BAJA) actual.bajas += cuantos;
+      else actual.pendientes += cuantos;
+      resumen.set(clave, actual);
+    }
+
+    return { data, total, resumen: [...resumen.values()], origenes };
+  }
+
+  /**
+   * Los que una empresa puede descargar para escribirles por su cuenta.
+   *
+   * **Nunca la lista cruda.** Sólo quien está suscrito ahora mismo: incluir a quien se dio de baja
+   * pondría esa dirección en un archivo que sale del sistema, donde el enlace de baja ya no
+   * funciona y la baja no se puede hacer cumplir. Desde que el archivo se descarga, esa copia es
+   * responsabilidad de quien la tiene, y por eso hay que volver a bajarla antes de cada envío.
+   */
+  async paraDescargar(organizationId: string, empresa: string): Promise<Suscriptor[]> {
+    return this.repo.find({
+      where: {
+        organizationId,
+        clientId: empresa === 'agencia' ? IsNull() : empresa,
+        status: EstadoDeSuscripcion.SUSCRITO,
+      },
+      order: { createdAt: 'DESC' },
+      take: 5000,
     });
   }
 }

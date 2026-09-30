@@ -21,6 +21,7 @@ import { OperationalAlertsJob } from './cron/operational-alerts.job';
 import { AutomationRunnerService } from '../../modules/automations/automation-runner.service';
 import { AutomationScheduleJob } from '../../modules/automations/automation-schedule.job';
 import { WebhookDeliveryService } from '../../modules/automations/webhook-delivery.service';
+import { EnviosDeCampanaService } from '../../modules/marketing/envios-de-campana.service';
 import { AutoCloseReservationsJob } from './cron/auto-close-reservations.job';
 
 @Injectable()
@@ -50,6 +51,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly automations: AutomationRunnerService,
     private readonly automationSchedule: AutomationScheduleJob,
     private readonly webhooks: WebhookDeliveryService,
+    private readonly campanas: EnviosDeCampanaService,
     @InjectRepository(CronRun) private readonly corridas: Repository<CronRun>,
   ) {}
 
@@ -81,6 +83,18 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     this.schedule('google-ads-outbox', 2 * 60_000, () => this.googleOutbox.processPending(100));
     // Cada minuto: es la resolución de las esperas. Una automatización que dice "esperar dos
     // horas" no puede reanudarse con un margen mayor que el intervalo de este trabajo.
+    /*
+     * Las campañas encoladas, como red de seguridad.
+     *
+     * El cron del hosting es el mecanismo principal —corre cada cinco minutos y no depende de que
+     * el proceso esté despierto— pero una cola sin quien la vacíe desde dentro se queda callada el
+     * día que esa línea del crontab se pierda al migrar de servidor. Se cierran las terminadas en
+     * la misma pasada, que es donde se sabe que ya no queda nada pendiente.
+     */
+    // En una línea a propósito: el contrato `outbox-drained` comprueba que la cola se vacíe de
+    // verdad buscando `processPending` dentro de la llamada a `schedule`, y partirla lo burlaría.
+    this.schedule('campanas-outbox', 2 * 60_000, async () => { await this.campanas.processPending(100); await this.campanas.cerrarTerminadas(); });
+
     this.schedule('automation-runs', 60_000, () => this.automations.processPending());
     this.schedule('automation-cleanup', 24 * 60 * 60_000, () => this.automations.cleanup());
     // Cada hora basta: los disparadores de tiempo se limitan a un aviso por registro y por día,

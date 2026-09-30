@@ -853,6 +853,28 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/notifications\/read-all$/, () => { visualNotifications.forEach((item) => { item.read = true; }); return { updated: visualNotifications.length }; }],
   [/\/notifications(?:\?|$)/, () => visualNotifications],
+  // Suscriptores: dos locales y la agencia, para ver los filtros y el recuento.
+  [/\/marketing\/suscriptores\/importar$/, () => ({
+    creados: 12, actualizados: 3, respetadosDeBaja: 2, excluidos: 1,
+    descartados: [{ linea: 7, motivo: 'La dirección no tiene forma de correo' }],
+  })],
+  [/\/marketing\/suscriptores\/descargar/, () => ({ empresa: 'visual-client', total: 2, data: [{ email: 'ana@correo.cl', nombre: 'Ana Moya', aceptoEl: '2026-08-01', origen: 'reserva', detalle: 'Casa Costanera' }, { email: 'diego@correo.cl', nombre: 'Diego Ruiz', aceptoEl: '2026-09-12', origen: 'reserva', detalle: 'Casa Costanera' }] })],
+  [/\/marketing\/suscriptores/, () => ({
+    data: [
+      { id: 's1', clientId: 'visual-client', email: 'ana@correo.cl', name: 'Ana Moya', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera - Providencia', consentAt: '2026-08-01T12:00:00.000Z', createdAt: '2026-08-01T12:00:00.000Z' },
+      { id: 's2', clientId: 'visual-client', email: 'diego@correo.cl', name: 'Diego Ruiz', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera - Providencia', consentAt: '2026-09-12T12:00:00.000Z', createdAt: '2026-09-12T12:00:00.000Z' },
+      { id: 's3', clientId: 'visual-client-2', email: 'ana@correo.cl', name: 'Ana Moya', status: 'unsubscribed', source: 'reserva', sourceDetail: 'Bar Ruperto', consentAt: '2026-07-02T12:00:00.000Z', unsubscribedAt: '2026-09-20T12:00:00.000Z', unsubscribedScope: 'local', createdAt: '2026-07-02T12:00:00.000Z' },
+      { id: 's4', clientId: null, email: 'fernanda@correo.cl', name: 'Fernanda Riquelme', status: 'subscribed', source: 'import', sourceDetail: 'Feria gastronomica', consentAt: '2026-06-10T12:00:00.000Z', createdAt: '2026-06-10T12:00:00.000Z' },
+    ],
+    total: 4,
+    resumen: [
+      { clientId: 'visual-client', suscritos: 2, bajas: 0, pendientes: 1 },
+      { clientId: 'visual-client-2', suscritos: 0, bajas: 1, pendientes: 0 },
+      { clientId: null, suscritos: 1, bajas: 0, pendientes: 0 },
+    ],
+    // Las procedencias que existen: es de donde sale el selector de «de cualquier parte».
+    origenes: ['import', 'reserva'],
+  })],
   // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
   [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
   [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],
@@ -1026,7 +1048,50 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
   [/\/uploads\/images\/status/, () => ({ configured: true })],
-  [/\/public\/reservations\/manage\/[^/]+\/beneficios$/, () => ({ aceptado: true })],
+  /*
+   * Beneficios desde la pantalla de éxito, con las dos salidas.
+   *
+   * Sin `reactivar` responde como quien alguna vez pidió no recibir, que es el caso que hay que
+   * poder mirar: es el que dibuja el aviso y la casilla. Con `reactivar` acepta. Devolver siempre
+   * `aceptado` dejaba ese camino sin forma de verse.
+   */
+  [/\/public\/reservations\/manage\/[^/]+\/beneficios$/, (config) => (
+    visualRequestBody(config).reactivar === true
+      ? { aceptado: true }
+      : { aceptado: false, requiereConfirmacion: true, alcance: 'local' }
+  )],
+
+  // — Marketing: campañas —
+  [/\/marketing\/campanas\/destinatarios/, () => ({ total: 184 })],
+  // El pie con el enlace de baja es lo que distingue una campaña, así que la muestra lo lleva.
+  [/\/marketing\/campanas\/vista-previa$/, (config) => {
+    const { asunto = '', cuerpo = '' } = visualRequestBody(config);
+    const texto = String(cuerpo).replace(/\{\{\s*nombre\s*\}\}/g, 'Ana');
+    return {
+      subject: String(asunto).replace(/\{\{\s*nombre\s*\}\}/g, 'Ana'),
+      text: texto,
+      html: `<!doctype html><meta charset="utf-8"><body style="margin:0;padding:24px;font:15px/1.6 system-ui;color:#1c1c1c;background:#f6f6f6">`
+        + `<div style="max-width:560px;margin:0 auto;padding:24px;background:#fff;border-radius:12px">`
+        + `<p>${texto.replace(/\n/g, '<br>')}</p>`
+        + `<hr style="margin:24px 0;border:0;border-top:1px solid #e6e6e6">`
+        + `<p style="font-size:12px;color:#6b6b6b">Recibes esto porque aceptaste recibir novedades. `
+        + `<a href="#" style="color:#6b6b6b">Darse de baja</a>.</p></div></body>`,
+    };
+  }],
+  // Encola, no manda: es lo que hace de verdad el boton desde que el envio va por tandas.
+  [/\/marketing\/campanas\/[^/]+\/enviar$/, () => ({ destinatarios: 184, enviados: 0, fallidos: 0, enCola: true })],
+  [/\/marketing\/campanas\/[^/]+\/avance$/, () => ({ estado: 'sending', enviados: 142, pendientes: 40, fallidos: 2 })],
+  [/\/marketing\/campanas(\?.*)?$/, (config) => {
+    const metodo = config?.method?.toLowerCase();
+    if (metodo === 'post') return { id: 'camp-nueva', ...visualRequestBody(config), estado: 'draft', destinatarios: 0, enviados: 0, createdAt: new Date().toISOString() };
+    if (metodo === 'patch' || metodo === 'delete') return { borrada: true };
+    return [
+      { id: 'camp-1', clientId: 'visual-client', asunto: 'Vuelve este fin de semana, {{nombre}}', cuerpo: 'Tenemos algo para ti.', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-28T12:00:00Z' },
+      { id: 'camp-2', clientId: null, asunto: 'Novedades de Espartanos', cuerpo: 'Lo que hicimos este mes.', estado: 'sent', destinatarios: 200, enviados: 197, sentAt: '2026-09-10T12:00:00Z', createdAt: '2026-09-09T12:00:00Z' },
+      // Una saliendo, para poder mirar el avance sin esperar a que el cron haga nada.
+      { id: 'camp-3', clientId: 'visual-client', asunto: 'Menu de primavera', cuerpo: 'Ya esta disponible.', estado: 'sending', destinatarios: 184, enviados: 0, createdAt: '2026-09-30T12:00:00Z' },
+    ];
+  }],
   [/\/settings\/estado-del-correo(\?.*)?$/, () => ({ habilitado: true, remitente: 'reservas@espartanos.cl', servidor: 'mail.espartanos.cl', puerto: 465, respuestasA: null, faltan: [] })],
   [/\/(reservations|surveys)\/company-legal/, (config) => {
     const clave = 'vh.visual.companyLegal';

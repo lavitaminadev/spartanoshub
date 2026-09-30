@@ -161,7 +161,7 @@ export function useEmpresaActiva(): EmpresaActiva {
 }
 
 /** Servicios que se venden por empresa. Sin la clave cuentan como encendidos, igual que en el servidor. */
-const SERVICIOS_POR_EMPRESA = ['crm', 'reservations', 'surveys'] as const;
+const SERVICIOS_POR_EMPRESA = ['crm', 'reservations', 'surveys', 'marketing'] as const;
 
 /**
  * La persona con los servicios de la empresa que está mirando, no los de la suya.

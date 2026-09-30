@@ -41,7 +41,9 @@ let PublicReservationsController = class PublicReservationsController {
         return this.service.reschedulePublicManagement(token, dto.startsAt, dto.partySize);
     }
     vistaPrevia(slug) { return this.service.vistaPreviaDelEnlace(slug); }
-    aceptarBeneficios(token) { return this.service.aceptarBeneficiosPublic(token); }
+    aceptarBeneficios(token, body) {
+        return this.service.aceptarBeneficiosPublic(token, body?.reactivar === true);
+    }
     confirmManagement(token) { return this.service.confirmPublicManagement(token); }
     lookup(slug, dto) {
         return this.service.lookupPublicReservation(slug, dto.referenceCode, dto.contact);
@@ -121,8 +123,9 @@ __decorate([
     (0, common_1.Post)('manage/:token/beneficios'),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     __param(0, (0, common_1.Param)('token')),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "aceptarBeneficios", null);
 __decorate([

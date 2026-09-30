@@ -11,9 +11,26 @@ import type { ParameterResolver } from '../parameters/parameter-resolver.service
 const COMERCIALES = new Set([
   'email.birthday',
   'email.coupon',
-  'email.survey_invite',
-
+  /*
+   * La campaña es el caso más claro de todos.
+   *
+   * Es la única comunicación del sistema que nadie pidió individualmente: las demás responden a
+   * algo que esa persona hizo —reservó, cumple años, se le dio acceso—. Si alguna vez hubo duda
+   * sobre si el saludo de cumpleaños es publicidad, aquí no la hay.
+   */
+  'email.campaign',
 ]);
+
+/*
+ * Por qué la invitación a una encuesta no está en la lista.
+ *
+ * El artículo 28 B habla de comunicación «promocional o publicitaria», y preguntarle a alguien qué
+ * le pareció su visita no promociona ni publicita nada: es calidad de servicio sobre algo que esa
+ * persona contrató. Y la misma plantilla sirve para las encuestas al equipo, donde un enlace de
+ * baja sería absurdo: nadie se da de baja de que su trabajo le pregunte cómo está.
+ *
+ * Si algún día una encuesta se usa para promocionar, deja de ser una encuesta y entra acá.
+ */
 
 /** Si esa plantilla nace con el enlace encendido. Lo usa el catálogo y la pantalla de Correos. */
 export function esCorreoComercial(prefijo: string): boolean {

@@ -26,13 +26,16 @@ let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDe
         this.suscriptores2 = suscriptores2;
         this.logger = new common_1.Logger(AltaDeSuscriptorDesdeReserva_1.name);
     }
-    async registrar(datos) {
+    async registrar(datos, reactivar = false) {
         const email = datos.email?.trim().toLowerCase();
         if (!email)
-            return;
+            return 'omitida';
         try {
-            if (await this.suscriptores2.exclusionDe(datos.organizationId, email, datos.clientId ?? null))
-                return;
+            const exclusion = await this.suscriptores2.exclusionDe(datos.organizationId, email, datos.clientId ?? null);
+            if (exclusion && !reactivar)
+                return exclusion;
+            if (exclusion)
+                await this.suscriptores2.levantarExclusion(datos.organizationId, email, datos.clientId ?? null);
             const existente = await this.suscriptores.findOne({
                 where: { organizationId: datos.organizationId, clientId: datos.clientId ?? (0, typeorm_2.IsNull)(), email },
             });
@@ -41,13 +44,17 @@ let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDe
                     existente.birthDate = new Date(`${datos.birthDate}T00:00:00Z`);
                 if (!existente.name && datos.name)
                     existente.name = datos.name;
-                if (existente.status === suscriptor_entity_1.EstadoDeSuscripcion.PENDIENTE) {
+                if (existente.status === suscriptor_entity_1.EstadoDeSuscripcion.PENDIENTE || reactivar) {
                     existente.status = suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO;
                     existente.consentAt = datos.consentAt ?? new Date();
                     existente.consentText = datos.consentText ?? existente.consentText ?? null;
+                    if (reactivar) {
+                        existente.unsubscribedAt = null;
+                        existente.unsubscribedScope = null;
+                    }
                 }
                 await this.suscriptores.save(existente);
-                return;
+                return 'alta';
             }
             await this.suscriptores.save(this.suscriptores.create({
                 organizationId: datos.organizationId,
@@ -62,9 +69,11 @@ let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDe
                 consentText: datos.consentText ?? null,
                 unsubscribeToken: (0, node_crypto_1.randomBytes)(24).toString('base64url'),
             }));
+            return 'alta';
         }
         catch (error) {
             this.logger.warn(`No se pudo sumar a la lista a quien reservó: ${error instanceof Error ? error.message : error}`);
+            return 'omitida';
         }
     }
 };

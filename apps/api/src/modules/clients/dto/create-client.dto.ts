@@ -15,6 +15,7 @@ export class ClientCapabilitiesDto {
   @IsOptional() @IsBoolean() reservations?: boolean;
   @IsOptional() @IsBoolean() crm?: boolean;
   @IsOptional() @IsBoolean() surveys?: boolean;
+  @IsOptional() @IsBoolean() marketing?: boolean;
   @IsOptional() @IsBoolean() metaConversions?: boolean;
   @IsOptional() @IsBoolean() googleConversions?: boolean;
   @IsOptional() @IsBoolean() budgetVisibility?: boolean;

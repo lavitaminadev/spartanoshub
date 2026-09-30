@@ -710,6 +710,11 @@
 .oferta-beneficios > div span, .oferta-beneficios.is-lista span { font-size: 13px; opacity: .85; }
 .oferta-beneficios .consent-detalle { grid-column: 1 / -1; font-size: 12px; }
 .oferta-beneficios.is-lista { grid-template-columns: 1fr; background: #e7f5ec; border-color: #cbe8d5; }
+/* Volver a suscribirse tras haber pedido la baja: en ámbar, porque es una advertencia y no una
+   oferta, y en una sola columna para que la casilla y el aviso se lean antes que el botón. */
+.oferta-beneficios.is-aviso { grid-template-columns: 1fr; background: #fef6e7; border-color: #f0dcb4; }
+.oferta-beneficios .consent-reactivar { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.4; }
+.oferta-beneficios .consent-reactivar input { margin-top: 2px; flex: 0 0 auto; }
 @media (max-width: 420px) { .oferta-beneficios { grid-template-columns: 1fr; } .oferta-beneficios .btn { width: 100%; } }
 .toggle-row .toggle-nota.bloque { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; }
 

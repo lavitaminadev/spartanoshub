@@ -1,13 +1,15 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { SuscriptoresService } from './suscriptores.service';
+import { EstadoDeSuscripcion } from './suscriptor.entity';
 import { paginaDeBaja } from './pagina-de-baja';
 
 /** Lo que se necesita para importar una lista sin dejarla sin procedencia. */
@@ -33,16 +35,77 @@ class ImportarSuscriptoresDto {
 @Controller('marketing/suscriptores')
 @ModuleScope('marketing')
 export class SuscriptoresController {
-  constructor(private readonly suscriptores: SuscriptoresService) {}
+  constructor(
+    private readonly suscriptores: SuscriptoresService,
+    private readonly capacidades: ClientCapabilityService,
+  ) {}
+
+  /**
+   * La empresa a cuya lista queda encerrada la consulta, o `undefined` si puede verlas todas.
+   *
+   * Una cuenta de empresa ve la suya y ninguna otra, diga lo que diga la dirección. Si no tiene
+   * empresa asignada se la rechaza en vez de darle la de la agencia por descarte: caer hacia la
+   * lista propia de Espartanos ante un dato que falta es exactamente al revés de lo prudente.
+   *
+   * La capacidad se afirma también acá y no sólo en el menú: esconder una pantalla no es
+   * cerrarla, y el resto del portal —Contactos, Interacciones— afirma la suya del mismo modo.
+   */
+  private async encierroDe(req: AuthenticatedRequest): Promise<string | undefined> {
+    if (req.user.role !== UserRole.CLIENT) return undefined;
+    if (!req.user.clientId) throw new ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
+    await this.capacidades.assert(req.organizationId || req.user.organizationId, req.user.clientId, 'marketing');
+    return req.user.clientId;
+  }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Lista de suscriptores con su procedencia y estado' })
-  listar(@Req() req: AuthenticatedRequest, @Query('limit') limit?: string) {
-    return this.suscriptores.listar(
-      req.organizationId || req.user.organizationId,
-      limit ? Number(limit) : undefined,
-    );
+  async listar(
+    @Req() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+    @Query('empresa') empresa?: string,
+    @Query('estado') estado?: string,
+    @Query('origen') origen?: string,
+    @Query('q') busqueda?: string,
+  ) {
+    return this.suscriptores.listar(req.organizationId || req.user.organizationId, {
+      limite: limit ? Number(limit) : undefined,
+      empresa,
+      encerradoEn: await this.encierroDe(req),
+      // Sólo los tres estados que existen: un valor inventado en la dirección no filtra nada.
+      estado: Object.values(EstadoDeSuscripcion).includes(estado as EstadoDeSuscripcion) ? estado as EstadoDeSuscripcion : undefined,
+      origen,
+      busqueda,
+    });
+  }
+
+  /**
+   * La lista de una empresa, para que la descargue y escriba por su cuenta.
+   *
+   * Sólo quien está suscrito ahora mismo: incluir a quien se dio de baja pondría esa dirección en
+   * un archivo que sale del sistema, donde el enlace de baja ya no funciona y la baja no se puede
+   * hacer cumplir. Queda anotado quién descargó y cuántas filas, porque desde ese momento esa
+   * copia es responsabilidad de quien la tiene.
+   */
+  @Get('descargar')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Descargar los suscritos de una empresa' })
+  async descargar(@Req() req: AuthenticatedRequest, @Query('empresa') empresa: string) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    // Una cuenta de empresa descarga la suya y ninguna otra, diga lo que diga la dirección.
+    const alcance = (await this.encierroDe(req)) || empresa || 'agencia';
+    const filas = await this.suscriptores.paraDescargar(organizationId, alcance);
+    return {
+      empresa: alcance,
+      total: filas.length,
+      data: filas.map((fila) => ({
+        email: fila.email,
+        nombre: fila.name,
+        aceptoEl: fila.consentAt,
+        origen: fila.source,
+        detalle: fila.sourceDetail,
+      })),
+    };
   }
 
   @Post('importar')

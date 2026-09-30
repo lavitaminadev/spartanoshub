@@ -188,6 +188,16 @@ export const INITIAL_OPERATION_MODULES = new Set<string>([
   'reservations',
   'integrations',
   'surveys',
+  /*
+   * Suscriptores y Campañas.
+   *
+   * Se libera porque ya está completo y porque sin esto no lo ve nadie salvo Desarrollo: el menú
+   * no lo ofrece y la ruta responde «no tienes acceso», por más permisos y capacidad que tenga la
+   * cuenta. Las tres rejas de siempre siguen puestas debajo —el permiso del cargo, la capacidad
+   * contratada por empresa y el alcance por cuenta— así que abrir esta no entrega la lista a
+   * nadie que no la tuviera ya concedida.
+   */
+  'marketing',
 ]);
 
 /** Desarrollo conserva visibilidad total; los demás parten con CRM/Reservas mínimos. */

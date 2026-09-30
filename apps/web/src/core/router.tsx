@@ -32,6 +32,8 @@ const PipelineBoardPage = lazy(() => import('../features/crm/PipelineBoardPage')
 const AutomationsPage = lazy(() => import('../features/automations/AutomationsPage').then(m => ({ default: m.AutomationsPage })));
 const AutomationEditorPage = lazy(() => import('../features/automations/AutomationEditorPage').then(m => ({ default: m.AutomationEditorPage })));
 const AutomationRunsPage = lazy(() => import('../features/automations/AutomationRunsPage').then(m => ({ default: m.AutomationRunsPage })));
+const SuscriptoresPage = lazy(() => import('../features/marketing/SuscriptoresPage').then(m => ({ default: m.SuscriptoresPage })));
+const CampanasPage = lazy(() => import('../features/marketing/CampanasPage').then(m => ({ default: m.CampanasPage })));
 const RegistroDeCorreosPage = lazy(() => import('../features/registro-de-correos/RegistroDeCorreosPage').then(m => ({ default: m.RegistroDeCorreosPage })));
 const ContactsPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.ContactsPage })));
 const InteractionsPage = lazy(() => import('../features/crm/CrmRecordsPage').then(m => ({ default: m.InteractionsPage })));
@@ -150,6 +152,8 @@ export function AppRouter() {
           </Route>
           <Route path="/automations" element={<ProtectedRoute path="/automations"><SafeSuspense><AutomationsPage /></SafeSuspense></ProtectedRoute>} />
           {/* Diagnóstico de correo: el cargo permitido sale del manifiesto, que la declara sólo para dev. */}
+          <Route path="/suscriptores" element={<ProtectedRoute path="/suscriptores"><SafeSuspense><SuscriptoresPage /></SafeSuspense></ProtectedRoute>} />
+          <Route path="/campanas" element={<ProtectedRoute path="/campanas"><SafeSuspense><CampanasPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/registro-de-correos" element={<ProtectedRoute path="/registro-de-correos"><SafeSuspense><RegistroDeCorreosPage /></SafeSuspense></ProtectedRoute>} />
           {/* El editor y el historial cuelgan de la misma ruta de permiso que el listado: se
               declaran con `path="/automations"` para no tener que repetir la regla por cada
@@ -238,6 +242,7 @@ import '../features/catalog/feature.manifest';
 import '../features/crm/feature.manifest';
 import '../features/automations/feature.manifest';
 import '../features/registro-de-correos/feature.manifest';
+import '../features/marketing/feature.manifest';
 import '../features/briefs/feature.manifest';
 import '../features/intake/feature.manifest';
 import '../features/production/feature.manifest';

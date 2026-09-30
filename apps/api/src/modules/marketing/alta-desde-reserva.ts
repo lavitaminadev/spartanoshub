@@ -45,10 +45,16 @@ export class AltaDeSuscriptorDesdeReserva {
    *
    * A quien ya está en la lista sólo se le completan los huecos: si se dio de baja, sigue de baja
    * —una reserva nueva no revierte una baja—, y si ya tenía fecha de nacimiento no se pisa.
+   *
+   * @param reactivar - Que esta persona pidió volver, a propósito y sabiendo que había pedido no
+   *   recibir. Sólo lo pone quien ya se lo advirtió y recibió un sí; no se deduce de reservar.
+   * @returns `alta` si quedó en la lista; el alcance de la exclusión que lo impidió —`local` o
+   *   `todas`— para que la pantalla pueda advertirlo; u `omitida` si no entró por cualquier otro
+   *   motivo (sin dirección, o un fallo al escribir, que no se propaga).
    */
-  async registrar(datos: AltaDesdeReserva): Promise<void> {
+  async registrar(datos: AltaDesdeReserva, reactivar = false): Promise<'alta' | 'omitida' | 'local' | 'todas'> {
     const email = datos.email?.trim().toLowerCase();
-    if (!email) return;
+    if (!email) return 'omitida';
 
     try {
       /*
@@ -57,9 +63,12 @@ export class AltaDeSuscriptorDesdeReserva {
        * Si esta persona pidió no recibir más, no se le crea ficha ni se le reactiva la que tenga:
        * el artículo 28 B de la Ley 19.496 dice que tras la solicitud los envíos «quedarán desde
        * entonces prohibidos», sin excepción por una reserva posterior. Sólo una casilla marcada a
-       * propósito —un acto nuevo y voluntario— levanta la exclusión, y eso pasa por otro camino.
+       * propósito —un acto nuevo y voluntario— levanta la exclusión, y ése es el camino que abre
+       * `reactivar`: quien lo pasa ya le advirtió que había pedido no recibir y le dijo que sí.
        */
-      if (await this.suscriptores2.exclusionDe(datos.organizationId, email, datos.clientId ?? null)) return;
+      const exclusion = await this.suscriptores2.exclusionDe(datos.organizationId, email, datos.clientId ?? null);
+      if (exclusion && !reactivar) return exclusion;
+      if (exclusion) await this.suscriptores2.levantarExclusion(datos.organizationId, email, datos.clientId ?? null);
 
       // Por empresa: la misma persona puede estar suscrita en un local y de baja en otro.
       const existente = await this.suscriptores.findOne({
@@ -69,14 +78,21 @@ export class AltaDeSuscriptorDesdeReserva {
       if (existente) {
         if (!existente.birthDate && datos.birthDate) existente.birthDate = new Date(`${datos.birthDate}T00:00:00Z`);
         if (!existente.name && datos.name) existente.name = datos.name;
-        // Una baja es definitiva: sólo se reactiva a quien nunca dijo que sí.
-        if (existente.status === EstadoDeSuscripcion.PENDIENTE) {
+        /*
+         * Una baja es definitiva: sólo se reactiva a quien nunca dijo que sí.
+         *
+         * La excepción es `reactivar`, y no se la salta: es la misma persona diciendo que vuelve,
+         * después de que se le recordara que había pedido no recibir. Se guarda el texto y la
+         * fecha nuevos, porque el permiso que vale ahora es ése y no el de la primera vez.
+         */
+        if (existente.status === EstadoDeSuscripcion.PENDIENTE || reactivar) {
           existente.status = EstadoDeSuscripcion.SUSCRITO;
           existente.consentAt = datos.consentAt ?? new Date();
           existente.consentText = datos.consentText ?? existente.consentText ?? null;
+          if (reactivar) { existente.unsubscribedAt = null; existente.unsubscribedScope = null; }
         }
         await this.suscriptores.save(existente);
-        return;
+        return 'alta';
       }
 
       await this.suscriptores.save(this.suscriptores.create({
@@ -92,8 +108,10 @@ export class AltaDeSuscriptorDesdeReserva {
         consentText: datos.consentText ?? null,
         unsubscribeToken: randomBytes(24).toString('base64url'),
       }));
+      return 'alta';
     } catch (error) {
       this.logger.warn(`No se pudo sumar a la lista a quien reservó: ${error instanceof Error ? error.message : error}`);
+      return 'omitida';
     }
   }
 }

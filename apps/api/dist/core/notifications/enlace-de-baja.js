@@ -5,7 +5,7 @@ exports.enlaceDeBaja = enlaceDeBaja;
 const COMERCIALES = new Set([
     'email.birthday',
     'email.coupon',
-    'email.survey_invite',
+    'email.campaign',
 ]);
 function esCorreoComercial(prefijo) {
     return COMERCIALES.has(prefijo);
