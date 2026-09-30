@@ -53,6 +53,30 @@ Sin estas seis, Reservas queda a medias.
 | `cupon-post-visita` | cada hora | No sale el cupón automático, aunque esté encendido y con cupón elegido en Reservas → Cupones. |
 | `cierre-asistencia` | cada hora | Las reservas pasadas quedan abiertas para siempre y la asistencia nunca se informa. |
 | `data-retention` | diaria, de madrugada | No se anonimiza lo vencido. Es una obligación de la ley 21.719, no una comodidad. |
+| `campanas` | cada 5 min | **Las campañas no salen.** Quedan encoladas y en pantalla como «Enviando» para siempre. Ver abajo. |
+
+## Campañas: por qué necesita su propio cron
+
+Cuando alguien aprieta «Enviar» en Marketing → Campañas **no sale ningún correo todavía**. Lo que
+hace el botón es encolar un destinatario por fila y dejar la campaña en «Enviando». Los correos los
+manda esta tarea, por tandas.
+
+No es un rodeo: doscientos correos no caben en una petición. El `curl` del crontab corta al minuto
+y Passenger antes, así que enviando en el propio botón la lista se cortaba a la mitad y la campaña
+quedaba marcada como «Enviando» sin forma de reanudarla.
+
+Con la tarea puesta, una campaña de doscientos sale en dos o tres pasadas —unos diez minutos— y la
+pantalla muestra el avance mientras tanto. **Sin la tarea puesta, no sale ni uno.**
+
+El lote por pasada se controla con `limit` (100 por omisión). Si el servidor de correo del hosting
+tiene un tope por hora, bajarlo es la forma de respetarlo sin tocar código.
+
+Dos detalles que conviene saber:
+
+- **Una baja a mitad de envío se respeta.** Quien se da de baja después de encolarse y antes de que
+  salga su correo no lo recibe: la comprobación va pegada al envío, no al botón.
+- **La constancia no se borra.** A diferencia de las otras colas, ésta no tiene tarea de limpieza a
+  propósito: es la respuesta a «¿a mí me escribieron, y cuándo?».
 
 ## Recomendadas
 

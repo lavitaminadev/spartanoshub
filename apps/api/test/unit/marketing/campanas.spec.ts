@@ -34,12 +34,15 @@ function servicio(opciones: {
       { id: 's-2', email: 'bea@correo.cl', name: null, unsubscribeToken: 't-2', clientId: 'c-casa', organizationId: 'org-1' },
     ]),
   };
-  const correo = { send: vi.fn(async () => opciones.enviaBien ?? true) };
+  const envios = {
+    encolar: vi.fn(async (_campana: unknown, destinatarios: unknown[]) => destinatarios.length),
+    avanceDe: vi.fn(async () => ({ enviados: 0, pendientes: 0, fallidos: 0 })),
+  };
   // Ningún interruptor apagado: el resolutor devuelve el valor por defecto.
   const parametros = { get: vi.fn(async () => true) };
   return {
-    srv: new CampanasService(repo as never, suscriptores as never, correo as never, parametros as never),
-    repo, correo, suscriptores,
+    srv: new CampanasService(repo as never, suscriptores as never, envios as never, parametros as never),
+    repo, envios, suscriptores,
   };
 }
 
@@ -49,71 +52,54 @@ describe('campañas de correo', () => {
     process.env.APP_PUBLIC_URL = 'https://cuartel.espartanos.cl';
   });
 
-  it('escribe a cada suscrito y cuenta los que salieron', async () => {
-    const { srv, correo } = servicio();
+  /*
+   * El botón encola, no manda.
+   *
+   * Doscientos correos no caben en una petición: el `curl` del cron corta al minuto y Passenger
+   * antes, así que mandando aquí la lista se cortaba a la mitad y la campaña quedaba en «enviando»
+   * sin forma de reanudarla. Quien manda es la bandeja, por tandas.
+   */
+  it('encola a los suscritos y no manda ni un correo', async () => {
+    const { srv, envios } = servicio();
 
     const resultado = await srv.enviar('camp-1', 'org-1');
 
-    expect(correo.send).toHaveBeenCalledTimes(2);
-    expect(resultado).toEqual({ destinatarios: 2, enviados: 2, fallidos: 0 });
+    expect(envios.encolar).toHaveBeenCalledTimes(1);
+    expect(resultado).toEqual({ destinatarios: 2, enviados: 0, fallidos: 0, enCola: true });
   });
 
-  it('cada correo lleva su enlace de baja, que es individual', async () => {
-    const { srv, correo } = servicio();
+  it('guarda cuántos quedaron en cola, que es a cuántos se le escribirá', async () => {
+    const { srv, repo } = servicio();
 
     await srv.enviar('camp-1', 'org-1');
 
-    const [, , , opcionesDeAna] = correo.send.mock.calls[0];
-    const [, , , opcionesDeBea] = correo.send.mock.calls[1];
-    expect(opcionesDeAna.bajaUrl).toContain('t-1');
-    expect(opcionesDeBea.bajaUrl).toContain('t-2');
-    expect(opcionesDeAna.bajaUrl).not.toEqual(opcionesDeBea.bajaUrl);
+    expect(repo.update).toHaveBeenLastCalledWith('camp-1', { destinatarios: 2 });
   });
 
-  it('a quien no tiene token no se le escribe: sería un correo sin salida', async () => {
-    const { srv, correo } = servicio({
-      suscritos: [{ id: 's-3', email: 'sin@token.cl', name: 'Sin', unsubscribeToken: null, organizationId: 'org-1' }],
-    });
+  it('con la lista vacía no se encola nada ni se marca como enviando', async () => {
+    const { srv, repo, envios } = servicio({ suscritos: [] });
 
-    const resultado = await srv.enviar('camp-1', 'org-1');
+    await expect(srv.enviar('camp-1', 'org-1')).rejects.toBeInstanceOf(ConflictException);
 
-    expect(correo.send).not.toHaveBeenCalled();
-    expect(resultado.enviados).toBe(0);
+    expect(envios.encolar).not.toHaveBeenCalled();
+    expect(repo.update).not.toHaveBeenCalled();
   });
 
-  it('rellena el nombre en el asunto, y sin nombre no deja el hueco', async () => {
-    const { srv, correo } = servicio();
-
-    await srv.enviar('camp-1', 'org-1');
-
-    expect(correo.send.mock.calls[0][1]).toBe('Hola Ana');
-    expect(correo.send.mock.calls[1][1]).toBe('Hola');
-  });
-
-  it('una campaña ya enviada no se vuelve a mandar', async () => {
-    const { srv, correo } = servicio({
+  it('una campaña ya enviada no se vuelve a encolar', async () => {
+    const { srv, envios } = servicio({
       campana: { id: 'camp-1', organizationId: 'org-1', estado: EstadoDeCampana.ENVIADA, asunto: 'a', cuerpo: 'b' },
     });
 
     await expect(srv.enviar('camp-1', 'org-1')).rejects.toBeInstanceOf(ConflictException);
-    expect(correo.send).not.toHaveBeenCalled();
+    expect(envios.encolar).not.toHaveBeenCalled();
   });
 
-  it('si otra petición ganó la carrera, ésta no escribe un solo correo', async () => {
+  it('si otra petición ganó la carrera, ésta no encola nada', async () => {
     // `update` no afectó ninguna fila: alguien más ya la pasó a «enviando».
-    const { srv, correo } = servicio({ tomada: false });
+    const { srv, envios } = servicio({ tomada: false });
 
     await expect(srv.enviar('camp-1', 'org-1')).rejects.toBeInstanceOf(ConflictException);
-    expect(correo.send).not.toHaveBeenCalled();
-  });
-
-  it('un fallo con una dirección no detiene al resto, y queda en la cuenta', async () => {
-    const { srv, correo } = servicio();
-    correo.send.mockRejectedValueOnce(new Error('rebotó'));
-
-    const resultado = await srv.enviar('camp-1', 'org-1');
-
-    expect(resultado).toEqual({ destinatarios: 2, enviados: 1, fallidos: 1 });
+    expect(envios.encolar).not.toHaveBeenCalled();
   });
 
   it('la cuenta previa sale de la misma consulta que arma los destinatarios', async () => {
@@ -138,14 +124,13 @@ describe('campañas de correo', () => {
    * pie de baja: es lo que distingue una campaña de cualquier otro correo, y enseñarla sin él
    * mostraría algo que no existe.
    */
-  it('la vista previa lleva el pie de baja, rellena el nombre y no manda nada', async () => {
-    const { srv, correo } = servicio();
+  it('la vista previa lleva el pie de baja y rellena el nombre', () => {
+    const { srv } = servicio();
 
     const previa = srv.vistaPrevia('Hola {{nombre}}', 'Tenemos algo para ti.');
 
     expect(previa.subject).toBe('Hola Ana');
     expect(previa.html).toContain('/marketing/suscriptores/baja/');
-    expect(correo.send).not.toHaveBeenCalled();
   });
 
   it('el texto de una campaña enviada no se corrige: es la constancia de lo que salió', async () => {

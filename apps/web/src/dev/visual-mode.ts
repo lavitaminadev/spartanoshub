@@ -1097,7 +1097,9 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
         + `<a href="#" style="color:#6b6b6b">Darse de baja</a>.</p></div></body>`,
     };
   }],
-  [/\/marketing\/campanas\/[^/]+\/enviar$/, () => ({ destinatarios: 184, enviados: 181, fallidos: 3 })],
+  // Encola, no manda: es lo que hace de verdad el boton desde que el envio va por tandas.
+  [/\/marketing\/campanas\/[^/]+\/enviar$/, () => ({ destinatarios: 184, enviados: 0, fallidos: 0, enCola: true })],
+  [/\/marketing\/campanas\/[^/]+\/avance$/, () => ({ estado: 'sending', enviados: 142, pendientes: 40, fallidos: 2 })],
   [/\/marketing\/campanas(\?.*)?$/, (config) => {
     const metodo = config?.method?.toLowerCase();
     if (metodo === 'post') return { id: 'camp-nueva', ...visualRequestBody(config), estado: 'draft', destinatarios: 0, enviados: 0, createdAt: new Date().toISOString() };
@@ -1105,6 +1107,8 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return [
       { id: 'camp-1', clientId: 'c-casa', asunto: 'Vuelve este fin de semana, {{nombre}}', cuerpo: 'Tenemos algo para ti.', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-28T12:00:00Z' },
       { id: 'camp-2', clientId: null, asunto: 'Novedades de Espartanos', cuerpo: 'Lo que hicimos este mes.', estado: 'sent', destinatarios: 200, enviados: 197, sentAt: '2026-09-10T12:00:00Z', createdAt: '2026-09-09T12:00:00Z' },
+      // Una saliendo, para poder mirar el avance sin esperar a que el cron haga nada.
+      { id: 'camp-3', clientId: 'c-casa', asunto: 'Menu de primavera', cuerpo: 'Ya esta disponible.', estado: 'sending', destinatarios: 184, enviados: 0, createdAt: '2026-09-30T12:00:00Z' },
     ];
   }],
   [/\/settings\/estado-del-correo(\?.*)?$/, () => ({ habilitado: true, remitente: 'reservas@espartanos.cl', servidor: 'mail.espartanos.cl', puerto: 465, respuestasA: null, faltan: [] })],

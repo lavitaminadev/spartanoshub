@@ -3,9 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Campana, EstadoDeCampana } from './campana.entity';
 import { SuscriptoresService } from './suscriptores.service';
-import { EmailService } from '../../core/notifications/email.service';
+import { EnviosDeCampanaService } from './envios-de-campana.service';
 import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
-import { enlaceDeBaja } from '../../core/notifications/enlace-de-baja';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 
 /** Cómo quedó un envío, para decírselo a quien lo mandó sin que tenga que ir a buscarlo. */
@@ -13,6 +12,8 @@ export interface ResultadoDeEnvio {
   destinatarios: number;
   enviados: number;
   fallidos: number;
+  /** Verdadero cuando quedó en cola: los correos salen en las siguientes pasadas del cron. */
+  enCola?: boolean;
 }
 
 /**
@@ -30,7 +31,7 @@ export class CampanasService {
   constructor(
     @InjectRepository(Campana) private readonly repo: Repository<Campana>,
     private readonly suscriptores: SuscriptoresService,
-    private readonly correo: EmailService,
+    private readonly envios: EnviosDeCampanaService,
     private readonly parametros: ParameterResolver,
   ) {}
 
@@ -116,15 +117,18 @@ export class CampanasService {
   }
 
   /**
-   * Manda la campaña, una vez.
+   * Deja la campaña lista para salir. **No manda ningún correo.**
    *
-   * El estado se mueve a `ENVIANDO` **antes** de escribir el primer correo y con una condición
-   * sobre el estado anterior: es lo que impide que dos clics, dos pestañas o un reintento del
-   * navegador manden la misma campaña dos veces. De los errores de este sistema, ése es el que no
-   * se puede deshacer —un correo enviado no vuelve— así que se paga con una escritura de más.
+   * Mandar aquí era el error. Doscientos correos no caben en una petición: el `curl` del cron
+   * corta al minuto y Passenger antes, así que la lista se enviaba a medias y la campaña quedaba
+   * en «enviando» para siempre —la misma guarda que impide el doble envío impedía reanudarla—.
    *
-   * Un fallo con una dirección no detiene al resto: se cuenta y se sigue. La cuenta de enviados
-   * queda guardada, de modo que «salieron 180 de 200» es una respuesta que se puede dar.
+   * Ahora se encolan los destinatarios y el cron los despacha por tandas. Lo que se gana no es
+   * sólo que quepa: un rebote reintenta a esa persona y no a la campaña, una ejecución que muere
+   * a medias la recoge la siguiente pasada, y queda constancia de a quién le llegó.
+   *
+   * El estado se mueve a `ENVIANDO` con una condición sobre el anterior: si otra petición ganó la
+   * carrera, aquí no se afecta ninguna fila y no se encola nada.
    */
   async enviar(id: string, organizationId: string): Promise<ResultadoDeEnvio> {
     const campana = await this.buscar(id, organizationId);
@@ -132,59 +136,28 @@ export class CampanasService {
       throw new ConflictException('Esta campaña ya se envió');
     }
 
-    // Condicionado al estado anterior: si otra petición ganó la carrera, aquí no se afecta ninguna
-    // fila y este envío se detiene sin haber escrito un solo correo.
+    const destinatarios = await this.suscriptores.suscritos(organizationId, campana.clientId ?? null);
+    if (!destinatarios.length) {
+      throw new ConflictException('No hay nadie suscrito en esta lista ahora mismo');
+    }
+
     const tomada = await this.repo.update(
       { id: campana.id, estado: EstadoDeCampana.BORRADOR },
       { estado: EstadoDeCampana.ENVIANDO },
     );
     if (!tomada.affected) throw new ConflictException('Esta campaña ya se está enviando');
 
-    const destinatarios = await this.suscriptores.suscritos(organizationId, campana.clientId ?? null);
-    let enviados = 0;
+    const encolados = await this.envios.encolar(campana, destinatarios);
+    await this.repo.update(campana.id, { destinatarios: encolados });
 
-    for (const suscriptor of destinatarios) {
-      try {
-        /*
-         * Sin token no se escribe.
-         *
-         * El enlace de baja es individual —se resuelve por el token de la ficha— así que una ficha
-         * sin token no puede recibir un correo del que se pueda dar de baja. Antes que mandarlo sin
-         * salida, no se manda: es una fila a arreglar, no una persona a la que escribir igual.
-         */
-        if (!suscriptor.unsubscribeToken) {
-          this.logger.warn(`Suscriptor ${suscriptor.id} sin token de baja: no se le envía la campaña`);
-          continue;
-        }
+    this.logger.log(`Campaña ${campana.id}: ${encolados} destinatarios en cola`);
+    return { destinatarios: encolados, enviados: 0, fallidos: 0, enCola: true };
+  }
 
-        const baja = await enlaceDeBaja(this.parametros, 'email.campaign', suscriptor.unsubscribeToken, suscriptor);
-        const { subject, html } = componerCorreo(
-          campana.asunto,
-          campana.cuerpo,
-          // Sin nombre se escribe igual y sin el hueco: «Hola ,» delata que no se sabía a quién.
-          { nombre: suscriptor.name ?? '' },
-          undefined,
-          undefined,
-          undefined,
-          baja,
-        );
-
-        const salio = await this.correo.send(suscriptor.email, subject, html, baja ? { bajaUrl: baja } : undefined);
-        if (salio) enviados += 1;
-      } catch (error) {
-        this.logger.error(`No se pudo enviar la campaña ${campana.id} a ${suscriptor.id}: ${error instanceof Error ? error.message : error}`);
-      }
-    }
-
-    await this.repo.update(campana.id, {
-      estado: EstadoDeCampana.ENVIADA,
-      destinatarios: destinatarios.length,
-      enviados,
-      sentAt: new Date(),
-    });
-
-    this.logger.log(`Campaña ${campana.id}: ${enviados} de ${destinatarios.length} enviados`);
-    return { destinatarios: destinatarios.length, enviados, fallidos: destinatarios.length - enviados };
+  /** Cómo va una campaña que está saliendo. */
+  async avance(id: string, organizationId: string) {
+    const campana = await this.buscar(id, organizationId);
+    return { estado: campana.estado, ...await this.envios.avanceDe(campana.id) };
   }
 
   private async buscar(id: string, organizationId: string): Promise<Campana> {

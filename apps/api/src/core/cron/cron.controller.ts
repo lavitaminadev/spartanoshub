@@ -5,6 +5,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CronRun } from './cron-run.entity';
+import { EnviosDeCampanaService } from '../../modules/marketing/envios-de-campana.service';
 import { MetaConversionOutboxService } from '../../modules/integrations/meta/meta-conversion-outbox.service';
 import { GoogleConversionOutboxService } from '../../modules/integrations/google/google-conversion-outbox.service';
 import { DetectStalePiecesJob } from '../jobs/cron/detect-stale-pieces.job';
@@ -34,6 +35,7 @@ export class CronController {
 
   constructor(
     private readonly capiOutbox: MetaConversionOutboxService,
+    private readonly campanas: EnviosDeCampanaService,
     private readonly googleOutbox: GoogleConversionOutboxService,
     private readonly stale: DetectStalePiecesJob,
     private readonly leadsParados: LeadsParadosJob,
@@ -113,6 +115,32 @@ export class CronController {
     try {
       const result = await this.capiOutbox.processPending(limit ?? 50);
       return { ok: true, processed: result.processed, failed: result.failed, timestamp: new Date().toISOString() };
+    } finally {
+      this.running.delete(lockKey);
+    }
+  }
+
+  /**
+   * Despacha las campañas encoladas.
+   *
+   * Cada pasada manda un lote acotado y vuelve: el `curl` del crontab corta al minuto, así que lo
+   * que no cabe queda para la siguiente. Una campaña de doscientos sale en dos o tres pasadas.
+   *
+   * Al final cierra las que ya no tienen nada pendiente. Va aquí y no dentro del lote porque cuál
+   * es el último correo no se sabe desde dentro, y preguntarlo por fila sería una consulta por
+   * destinatario.
+   */
+  @Post('campanas')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async procesarCampanas(@Headers('x-cron-secret') secret: string, @Body('limit') limit?: number) {
+    this.verifySecret(secret);
+    const lockKey = 'campanas';
+    if (this.running.has(lockKey)) return { ok: true, skipped: 'already_running' };
+    this.running.add(lockKey);
+    try {
+      const resultado = await this.campanas.processPending(limit ?? 100);
+      const cerradas = await this.campanas.cerrarTerminadas();
+      return { ok: true, processed: resultado.processed, failed: resultado.failed, cerradas, timestamp: new Date().toISOString() };
     } finally {
       this.running.delete(lockKey);
     }

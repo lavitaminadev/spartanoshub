@@ -49,6 +49,11 @@ echo "Instalando tareas para $CRON_URL..."
 # Spartanoshub - Meta CAPI outbox (cada 5 minutos)
 */5 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/meta-capi" -H "Content-Type: application/json" -d '{"limit":50}' -m 60 >> $APP_DIR/logs/cron-meta-capi.log 2>&1
 
+# Spartanoshub - Campanas de correo (cada 5 minutos)
+# Sin esta linea las campanas quedan encoladas y no sale ni un correo. El lote va acotado para que
+# cada pasada quepa en el minuto que da el -m 60; una campana grande sale en varias pasadas.
+*/5 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/campanas" -H "Content-Type: application/json" -d '{"limit":100}' -m 60 >> $APP_DIR/logs/cron-campanas.log 2>&1
+
 # Spartanoshub - Meta CAPI diagnostics (cada hora)
 0 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - "$CRON_URL/meta-capi/diagnostics" -m 30 >> $APP_DIR/logs/cron-meta-capi-diag.log 2>&1
 

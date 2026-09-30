@@ -84,7 +84,11 @@ export function CampanasPage() {
             {
               key: 'enviados',
               label: 'Llegó a',
-              render: (fila) => (fila.estado === 'sent' ? `${fila.enviados} de ${fila.destinatarios}` : '—'),
+              render: (fila) => {
+                if (fila.estado === 'sent') return `${fila.enviados} de ${fila.destinatarios}`;
+                if (fila.estado === 'sending') return <AvanceDelEnvio campanaId={fila.id} total={fila.destinatarios} />;
+                return '—';
+              },
             },
             {
               key: 'sentAt',
@@ -99,7 +103,9 @@ export function CampanasPage() {
                 <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditando(fila)}>Editar</button>
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => setPorEnviar(fila)}>Enviar</button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => borrar.mutate(fila.id)}>Descartar</button>
-              </div> : <span className="tabla-nota">Enviada: su texto es la constancia</span>),
+              </div> : fila.estado === 'sending'
+                ? <span className="tabla-nota">Saliendo: el cron la despacha por tandas</span>
+                : <span className="tabla-nota">Enviada: su texto es la constancia</span>),
             },
           ]}
         />
@@ -233,14 +239,13 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
     queryFn: () => api.get(`/marketing/campanas/destinatarios?empresa=${encodeURIComponent(campana.clientId ?? 'agencia')}`),
   });
 
-  const enviar = useMutation<{ destinatarios: number; enviados: number; fallidos: number }>({
+  const enviar = useMutation<{ destinatarios: number; enCola?: boolean }>({
     mutationFn: () => api.post(`/marketing/campanas/${campana.id}/enviar`, {}),
     onSuccess: (resultado) => {
+      // Encolada, no enviada: decir «enviada» aquí sería mentir durante los minutos que tarda.
       triggerToast(
-        resultado.fallidos > 0
-          ? `Enviada a ${resultado.enviados} de ${resultado.destinatarios}. ${resultado.fallidos} no salieron.`
-          : `Enviada a ${resultado.enviados} personas.`,
-        resultado.fallidos > 0 ? 'info' : 'success',
+        `En cola para ${resultado.destinatarios} personas. Los correos salen en los próximos minutos; verás el avance en la lista.`,
+        'success',
       );
       onEnviada();
     },
@@ -275,16 +280,41 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
           </label>
         )}
 
-        <p className="form-hint">Un correo enviado no se puede recuperar. Cada uno llevará su enlace de baja.</p>
+        <p className="form-hint">
+          Un correo enviado no se puede recuperar. Cada uno llevará su enlace de baja. Los correos
+          salen por tandas en los próximos minutos, no de golpe: quien se dé de baja mientras tanto
+          ya no recibe el suyo.
+        </p>
 
         {enviar.isError && <p className="error-text">No se pudo enviar. Vuelve a mirar la campaña antes de reintentar.</p>}
         <div className="modal-actions">
           <button type="button" className="btn btn-outline" onClick={onCerrar}>Cancelar</button>
           <button type="button" className="btn btn-primary" disabled={!cuadra || enviar.isPending} onClick={() => enviar.mutate()}>
-            {enviar.isPending ? 'Enviando…' : `Enviar a ${total}`}
+            {enviar.isPending ? 'Poniendo en cola…' : `Enviar a ${total}`}
           </button>
         </div>
       </div>
     </Modal>
   );
+}
+
+/**
+ * El avance de una campaña que está saliendo.
+ *
+ * Se refresca sola cada diez segundos mientras dura. El cron despacha cada cinco minutos, así que
+ * preguntar más seguido no adelanta nada; se consulta a este ritmo para que el número se mueva
+ * poco después de cada pasada y no parezca que la pantalla se quedó colgada.
+ */
+function AvanceDelEnvio({ campanaId, total }: { campanaId: string; total: number }) {
+  const { data } = useQuery<{ enviados: number; pendientes: number; fallidos: number }>({
+    queryKey: ['campana-avance', campanaId],
+    queryFn: () => api.get(`/marketing/campanas/${campanaId}/avance`),
+    refetchInterval: 10_000,
+  });
+
+  if (!data) return <span className="tabla-nota">Contando…</span>;
+  return <span className="campana-avance">
+    <strong>{data.enviados}</strong> de {total}
+    {data.fallidos > 0 && <small> · {data.fallidos} sin entregar</small>}
+  </span>;
 }

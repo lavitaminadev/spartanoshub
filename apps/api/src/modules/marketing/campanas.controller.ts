@@ -93,8 +93,15 @@ export class CampanasController {
    */
   @Post(':id/enviar')
   @RequiresPermission('marketing', 'manage')
-  @ApiOperation({ summary: 'Enviar la campaña a los suscritos de esa lista' })
+  @ApiOperation({ summary: 'Poner la campaña en cola para salir' })
   enviar(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.campanas.enviar(id, req.organizationId || req.user.organizationId);
+  }
+
+  /** Cómo va una campaña que está saliendo. La pantalla lo pregunta mientras dura. */
+  @Get(':id/avance')
+  @ApiOperation({ summary: 'Avance del envío de una campaña' })
+  avance(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.campanas.avance(id, req.organizationId || req.user.organizationId);
   }
 }
