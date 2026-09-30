@@ -28,8 +28,10 @@ function trabajo(opciones: { ajustes: Record<string, unknown>; cupon?: Record<st
   const cupones = { findOne: vi.fn().mockResolvedValue(opciones.cupon === undefined ? cuponBueno : opciones.cupon) };
   const correo = { send: vi.fn().mockResolvedValue(true) };
   const parametros = { get: vi.fn(async (clave: string) => opciones.ajustes[clave] ?? null) };
-  const job = new CuponPostVisitaJob(reservas as never, formularios as never, cupones as never, correo as never, parametros as never);
-  return { job, correo, reservas };
+  // Quien pidió beneficios está en la lista, así que tiene de dónde darse de baja.
+  const suscriptores = { findOne: vi.fn().mockResolvedValue({ id: 's-1', unsubscribeToken: 'tok-123' }) };
+  const job = new CuponPostVisitaJob(reservas as never, formularios as never, cupones as never, correo as never, parametros as never, suscriptores as never);
+  return { job, correo, reservas, suscriptores };
 }
 
 const encendido = { 'email.coupon_enabled': true, 'email.coupon_code': 'bienvenida10', 'email.coupon_days_valid': 30 };
@@ -40,7 +42,52 @@ describe('cupón automático', () => {
   it('tras la asistencia, lo envía a quien vino', async () => {
     const { job, correo } = trabajo({ ajustes: encendido, porAsistencia: [reserva] });
     await expect(job.handle()).resolves.toMatchObject({ enviados: 1 });
-    expect(correo.send).toHaveBeenCalledWith('ana@correo.cl', expect.any(String), expect.stringContaining('BIENVENIDA10'), undefined);
+    expect(correo.send).toHaveBeenCalledWith('ana@correo.cl', expect.any(String), expect.stringContaining('BIENVENIDA10'), expect.any(Object));
+  });
+
+  /*
+   * El cupon sale solo a quien pidio beneficios.
+   *
+   * Salia a todo el que asistiera, hubiera aceptado o no: un descuento es publicidad, y mandarla
+   * a quien no la pidio es lo que la ley no permite. La condicion vive en la consulta, asi que se
+   * comprueba ahi: una prueba sobre el resultado no distinguiria un filtro de una coincidencia.
+   */
+  it('sólo lo pide para quien aceptó recibir beneficios', async () => {
+    const { job, reservas } = trabajo({ ajustes: encendido, porAsistencia: [reserva] });
+    await job.handle();
+    expect(reservas.find).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ marketingConsentAt: expect.anything() }),
+    }));
+  });
+
+  it('lleva el enlace de baja en el pie y en la cabecera del mensaje', async () => {
+    // El enlace se arma sobre la dirección pública: sin ella no hay a dónde mandar a nadie.
+    const antes = process.env.APP_PUBLIC_URL;
+    process.env.APP_PUBLIC_URL = 'https://cuartel.espartanos.cl';
+    const { job, correo } = trabajo({ ajustes: encendido, porAsistencia: [reserva] });
+    await job.handle();
+    if (antes === undefined) delete process.env.APP_PUBLIC_URL; else process.env.APP_PUBLIC_URL = antes;
+    const [, , html, opciones] = correo.send.mock.calls[0] as [string, string, string, { bajaUrl?: string }];
+    expect(html).toContain('Dejar de recibir estos correos');
+    expect(opciones.bajaUrl).toContain('tok-123');
+    // Lleva de qué correo salió, para dejar constancia de desde dónde se pidió la baja.
+    expect(opciones.bajaUrl).toContain('email.coupon');
+  });
+
+  it('si su ficha no aparece, el cupón sale igual sin el enlace', async () => {
+    const { job, correo, suscriptores } = trabajo({ ajustes: encendido, porAsistencia: [reserva] });
+    suscriptores.findOne.mockResolvedValue(null);
+    await expect(job.handle()).resolves.toMatchObject({ enviados: 1 });
+    const [, , , opciones] = correo.send.mock.calls[0] as [string, string, string, { bajaUrl?: string }];
+    expect(opciones.bajaUrl).toBeUndefined();
+  });
+
+  it('con el interruptor apagado no lleva enlace, pero el cupón llega', async () => {
+    const { job, correo } = trabajo({ ajustes: { ...encendido, 'email.coupon_unsubscribe': false }, porAsistencia: [reserva] });
+    await expect(job.handle()).resolves.toMatchObject({ enviados: 1 });
+    const [, , html, opciones] = correo.send.mock.calls[0] as [string, string, string, { bajaUrl?: string }];
+    expect(opciones.bajaUrl).toBeUndefined();
+    expect(html).not.toContain('Dejar de recibir estos correos');
   });
 
   it('con el cupón desactivado no envía nada', async () => {

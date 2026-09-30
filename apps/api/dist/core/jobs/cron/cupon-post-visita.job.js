@@ -24,6 +24,8 @@ const reservation_coupon_entity_1 = require("../../../modules/reservations/domai
 const encuestas_de_la_empresa_1 = require("../../../modules/surveys/encuestas-de-la-empresa");
 const email_service_1 = require("../../notifications/email.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
+const enlace_de_baja_1 = require("../../notifications/enlace-de-baja");
+const suscriptor_entity_1 = require("../../../modules/marketing/suscriptor.entity");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 const UNA_HORA = 60 * 60 * 1000;
 const HORAS_DE_ESPERA = 24;
@@ -31,12 +33,13 @@ const DIAS_HACIA_ATRAS = 7;
 const DIAS_ENTRE_CUPONES = 60;
 const TOPE_POR_PASADA = 300;
 let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
-    constructor(reservas, formularios, cupones, correo, parametros, servicios) {
+    constructor(reservas, formularios, cupones, correo, parametros, suscriptores, servicios) {
         this.reservas = reservas;
         this.formularios = formularios;
         this.cupones = cupones;
         this.correo = correo;
         this.parametros = parametros;
+        this.suscriptores = suscriptores;
         this.servicios = servicios;
         this.logger = new common_1.Logger(CuponPostVisitaJob_1.name);
     }
@@ -49,6 +52,7 @@ let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
                 endsAt: (0, typeorm_2.Between)(desde, new Date(ahora - HORAS_DE_ESPERA * UNA_HORA)),
                 guestEmail: (0, typeorm_2.Not)((0, typeorm_2.IsNull)()),
                 cuponEnviadoEn: (0, typeorm_2.IsNull)(),
+                marketingConsentAt: (0, typeorm_2.Not)((0, typeorm_2.IsNull)()),
             },
             take: TOPE_POR_PASADA,
             order: { endsAt: 'ASC' },
@@ -95,16 +99,21 @@ let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
                 }
                 const porDias = new Date(ahora + ajustes.diasValidez * 24 * UNA_HORA);
                 const vence = ajustes.vigenteHasta && ajustes.vigenteHasta < porDias ? ajustes.vigenteHasta : porDias;
+                const suscriptor = await this.suscriptores.findOne({
+                    where: { organizationId: form.organizationId, clientId: form.clientId ?? (0, typeorm_2.IsNull)(), email: reserva.guestEmail.trim().toLowerCase() },
+                    select: { id: true, unsubscribeToken: true },
+                }).catch(() => null);
+                const baja = await (0, enlace_de_baja_1.enlaceDeBaja)(this.parametros, 'email.coupon', suscriptor?.unsubscribeToken, form);
                 const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(ajustes.asunto, ajustes.cuerpo, {
                     nombre: reserva.guestName?.trim().split(/\s+/)[0] || '',
                     local: form.name,
                     cupon: ajustes.codigo,
                     vence: vence.toLocaleDateString('es-CL', { dateStyle: 'long', timeZone: form.timezone }),
-                });
+                }, undefined, undefined, undefined, baja);
                 const soporte = typeof form.designConfig?.supportEmail === 'string'
                     ? String(form.designConfig.supportEmail)
                     : undefined;
-                const salio = await this.correo.send(reserva.guestEmail, subject, html, soporte ? { replyTo: soporte } : undefined);
+                const salio = await this.correo.send(reserva.guestEmail, subject, html, { ...(soporte ? { replyTo: soporte } : {}), ...(baja ? { bajaUrl: baja } : {}) });
                 if (!salio)
                     continue;
                 await this.reservas.update(reserva.id, { cuponEnviadoEn: new Date() });
@@ -124,6 +133,8 @@ let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
           AND s.completed_at >= ?
           AND r.guest_email IS NOT NULL
           AND r.cupon_enviado_en IS NULL
+          -- Misma condición que por asistencia: el cupón es publicidad y sólo va a quien la pidió.
+          AND r.marketing_consent_at IS NOT NULL
         LIMIT ${TOPE_POR_PASADA}`, [desde]).catch(() => []);
         if (filas.length === 0)
             return [];
@@ -182,11 +193,13 @@ exports.CuponPostVisitaJob = CuponPostVisitaJob = CuponPostVisitaJob_1 = __decor
     __param(0, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
     __param(2, (0, typeorm_1.InjectRepository)(reservation_coupon_entity_1.ReservationCoupon)),
-    __param(5, (0, common_1.Optional)()),
+    __param(5, (0, typeorm_1.InjectRepository)(suscriptor_entity_1.Suscriptor)),
+    __param(6, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
         parameter_resolver_service_1.ParameterResolver,
+        typeorm_2.Repository,
         client_capability_service_1.ClientCapabilityService])
 ], CuponPostVisitaJob);
