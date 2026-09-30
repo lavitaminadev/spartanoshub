@@ -1069,6 +1069,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   })],
   [/\/marketing\/suscriptores(\?.*)?$/, () => ({
     total: 3,
+    origenes: ['formulario', 'import', 'reserva'],
     resumen: [
       { clientId: 'c-casa', suscritos: 184, bajas: 12, pendientes: 31 },
       { clientId: 'c-bar', suscritos: 77, bajas: 4, pendientes: 9 },
@@ -1081,6 +1082,21 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     ],
   })],
   [/\/marketing\/campanas\/destinatarios/, () => ({ total: 184 })],
+  // El pie con el enlace de baja es lo que distingue una campaña, así que la muestra lo lleva.
+  [/\/marketing\/campanas\/vista-previa$/, (config) => {
+    const { asunto = '', cuerpo = '' } = visualRequestBody(config);
+    const texto = String(cuerpo).replace(/\{\{\s*nombre\s*\}\}/g, 'Ana');
+    return {
+      subject: String(asunto).replace(/\{\{\s*nombre\s*\}\}/g, 'Ana'),
+      text: texto,
+      html: `<!doctype html><meta charset="utf-8"><body style="margin:0;padding:24px;font:15px/1.6 system-ui;color:#1c1c1c;background:#f6f6f6">`
+        + `<div style="max-width:560px;margin:0 auto;padding:24px;background:#fff;border-radius:12px">`
+        + `<p>${texto.replace(/\n/g, '<br>')}</p>`
+        + `<hr style="margin:24px 0;border:0;border-top:1px solid #e6e6e6">`
+        + `<p style="font-size:12px;color:#6b6b6b">Recibes esto porque aceptaste recibir novedades. `
+        + `<a href="#" style="color:#6b6b6b">Darse de baja</a>.</p></div></body>`,
+    };
+  }],
   [/\/marketing\/campanas\/[^/]+\/enviar$/, () => ({ destinatarios: 184, enviados: 181, fallidos: 3 })],
   [/\/marketing\/campanas(\?.*)?$/, (config) => {
     const metodo = config?.method?.toLowerCase();

@@ -88,6 +88,27 @@ export class CampanasService {
     await this.repo.remove(campana);
   }
 
+  /**
+   * El correo compuesto, para mirarlo antes de mandarlo.
+   *
+   * Usa la misma función que el envío, así que lo que se ve es lo que sale. Y **con el pie de
+   * baja puesto**: es lo que distingue una campaña de cualquier otro correo, y una vista previa
+   * que lo omitiera enseñaría algo que no existe. El enlace es de muestra —el real lleva el token
+   * de cada persona— y por eso no lleva a ninguna parte.
+   */
+  vistaPrevia(asunto: string, cuerpo: string): { subject: string; html: string; text: string } {
+    const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '') ?? '';
+    return componerCorreo(
+      asunto ?? '',
+      cuerpo ?? '',
+      { nombre: 'Ana' },
+      undefined,
+      undefined,
+      undefined,
+      `${base}/api/marketing/suscriptores/baja/de-muestra`,
+    );
+  }
+
   /** A cuántos le llegaría si se enviara ahora. Lo que se muestra antes de apretar el botón. */
   async destinatarios(organizationId: string, empresa?: string | null): Promise<number> {
     const lista = await this.suscriptores.suscritos(organizationId, this.empresaDe(empresa));

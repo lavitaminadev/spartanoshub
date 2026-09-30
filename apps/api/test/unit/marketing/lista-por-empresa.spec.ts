@@ -70,6 +70,34 @@ describe('la lista de suscriptores por empresa', () => {
     expect(where.clientId).toEqual(IsNull());
   });
 
+  /*
+   * Las procedencias del selector.
+   *
+   * `source` es texto libre —lo escribe quien importa— así que una lista fija ofreceria filtros
+   * vacíos y escondería los que sí existen. Y se acotan igual que las filas: una empresa no tiene
+   * por qué saber de dónde saca la lista otra.
+   */
+  it('devuelve las procedencias que existen, ordenadas y sin vacíos', async () => {
+    const { srv, consulta } = servicio();
+    consulta.getRawMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ source: 'reserva' }, { source: null }, { source: 'import' }]);
+
+    const resultado = await srv.listar('org-1', {});
+
+    expect(resultado.origenes).toEqual(['import', 'reserva']);
+  });
+
+  it('las procedencias respetan el encierro de la empresa', async () => {
+    const { srv, consulta } = servicio();
+
+    await srv.listar('org-1', { encerradoEn: 'c-casa' });
+
+    // Dos consultas encerradas: la del recuento y la de las procedencias.
+    expect(consulta.andWhere).toHaveBeenCalledTimes(2);
+    expect(consulta.andWhere).toHaveBeenLastCalledWith('s.client_id = :encerradoEn', { encerradoEn: 'c-casa' });
+  });
+
   it('devuelve la lista sin tarjetas si el recuento falla, en vez de caerse entera', async () => {
     const { srv, consulta } = servicio();
     consulta.getRawMany.mockRejectedValueOnce(new Error('columna inventada'));

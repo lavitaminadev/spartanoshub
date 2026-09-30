@@ -48,6 +48,18 @@ export class CampanasController {
     return { total };
   }
 
+  /**
+   * Componer el correo para verlo, sin guardarlo ni enviarlo.
+   *
+   * Recibe el texto que se está escribiendo y no un id: sirve para mirar un borrador antes de
+   * guardarlo, que es justo cuando hace falta.
+   */
+  @Post('vista-previa')
+  @ApiOperation({ summary: 'Ver cómo queda la campaña, sin enviarla' })
+  vistaPrevia(@Body() dto: EditarCampanaDto) {
+    return this.campanas.vistaPrevia(dto.asunto ?? '', dto.cuerpo ?? '');
+  }
+
   @Post()
   @ApiOperation({ summary: 'Escribir una campaña, en borrador' })
   crear(@Req() req: AuthenticatedRequest, @Body() dto: CrearCampanaDto) {

@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
@@ -25,6 +25,8 @@ interface Respuesta {
   data: Suscriptor[];
   total: number;
   resumen: Array<{ clientId: string | null; suscritos: number; bajas: number; pendientes: number }>;
+  /** Las procedencias que existen; el selector no ofrece las que no hay. */
+  origenes?: string[];
 }
 
 const ESTADO: Record<Suscriptor['status'], string> = {
@@ -56,6 +58,7 @@ export function SuscriptoresPage() {
   const esEmpresa = user?.role === 'client';
   const [empresa, setEmpresa] = useState(esEmpresa ? (user?.clientId ?? '') : '');
   const [estado, setEstado] = useState('subscribed');
+  const [origen, setOrigen] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const q = useDeferredValue(busqueda.trim());
 
@@ -73,14 +76,27 @@ export function SuscriptoresPage() {
   const parametros = new URLSearchParams();
   if (empresa) parametros.set('empresa', empresa);
   if (estado) parametros.set('estado', estado);
+  if (origen) parametros.set('origen', origen);
   if (q) parametros.set('q', q);
   const filtro = parametros.toString();
 
   const { data, isLoading, error, refetch } = useQuery<Respuesta>({
-    queryKey: ['suscriptores', empresa, estado, q],
+    queryKey: ['suscriptores', empresa, estado, origen, q],
     queryFn: () => api.get(`/marketing/suscriptores${filtro ? `?${filtro}` : ''}`),
     placeholderData: (anterior) => anterior,
   });
+
+  /*
+   * Las procedencias se recuerdan entre consultas.
+   *
+   * Vienen en la misma respuesta que la lista, así que al filtrar por una el servidor devuelve
+   * sólo esa y el selector se quedaría con una única opción: la que acabas de elegir, sin forma
+   * de volver. Se conserva el último juego completo, que es el de «de cualquier parte».
+   */
+  const [origenes, setOrigenes] = useState<string[]>([]);
+  useEffect(() => {
+    if (!origen && data?.origenes) setOrigenes(data.origenes);
+  }, [origen, data?.origenes]);
 
   /*
    * La descarga sale del servidor ya acotada a quien está suscrito ahora.
@@ -155,7 +171,14 @@ export function SuscriptoresPage() {
           <option value="">Todos los estados</option>
           {Object.entries(ESTADO).map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
         </select>
-        <button type="button" className="btn btn-outline btn-sm" disabled={!busqueda && !empresa && estado === 'subscribed'} onClick={() => { setBusqueda(''); setEmpresa(esEmpresa ? (user?.clientId ?? '') : ''); setEstado('subscribed'); }}>Limpiar</button>
+        {/* Sólo las procedencias que existen: las trae el servidor con la misma consulta. */}
+        {origenes.length > 0 && (
+          <select className="input" aria-label="Filtrar por procedencia" value={origen} onChange={(evento) => setOrigen(evento.target.value)}>
+            <option value="">De cualquier parte</option>
+            {origenes.map((valor) => <option key={valor} value={valor}>{ORIGEN[valor] ?? valor}</option>)}
+          </select>
+        )}
+        <button type="button" className="btn btn-outline btn-sm" disabled={!busqueda && !empresa && !origen && estado === 'subscribed'} onClick={() => { setBusqueda(''); setEmpresa(esEmpresa ? (user?.clientId ?? '') : ''); setEstado('subscribed'); setOrigen(''); }}>Limpiar</button>
         <span className="filter-result-count">{data?.total ?? 0} personas</span>
       </div>
 

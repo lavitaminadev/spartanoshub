@@ -287,7 +287,13 @@ export class SuscriptoresService {
     estado?: EstadoDeSuscripcion;
     origen?: string;
     busqueda?: string;
-  } = {}): Promise<{ data: Suscriptor[]; total: number; resumen: Array<{ clientId: string | null; suscritos: number; bajas: number; pendientes: number }> }> {
+  } = {}): Promise<{
+    data: Suscriptor[];
+    total: number;
+    resumen: Array<{ clientId: string | null; suscritos: number; bajas: number; pendientes: number }>;
+    /** Las procedencias que existen de verdad, para que el filtro no ofrezca lo que no hay. */
+    origenes: string[];
+  }> {
     const where: FindOptionsWhere<Suscriptor> = { organizationId };
     const empresa = filtros.encerradoEn ?? filtros.empresa;
     if (empresa === 'agencia') where.clientId = IsNull();
@@ -340,6 +346,28 @@ export class SuscriptoresService {
         return [];
       });
 
+    /*
+     * Las procedencias salen de la base, no de una lista escrita a mano.
+     *
+     * `source` es texto libre —lo escribe quien importa: `google_forms`, `landing_verano`— así que
+     * un selector con valores fijos ofreceria filtros que no devuelven nada y ocultaría los que sí
+     * existen. Se acota igual que todo lo demás: una empresa ve de dónde salió su lista, no la de
+     * las otras.
+     */
+    const consultaDeOrigenes = this.repo
+      .createQueryBuilder('s')
+      .select('DISTINCT s.source', 'source')
+      .where('s.organization_id = :organizationId', { organizationId });
+    if (filtros.encerradoEn) consultaDeOrigenes.andWhere('s.client_id = :encerradoEn', { encerradoEn: filtros.encerradoEn });
+
+    const origenes = await consultaDeOrigenes
+      .getRawMany<{ source: string | null }>()
+      .then((filas) => filas.map((fila) => fila.source).filter((valor): valor is string => Boolean(valor)).sort())
+      .catch((error) => {
+        this.logger.warn(`No se pudieron listar las procedencias: ${error instanceof Error ? error.message : error}`);
+        return [];
+      });
+
     const resumen = new Map<string | null, { clientId: string | null; suscritos: number; bajas: number; pendientes: number }>();
     for (const fila of filas) {
       const clave = fila.clientId ?? null;
@@ -351,7 +379,7 @@ export class SuscriptoresService {
       resumen.set(clave, actual);
     }
 
-    return { data, total, resumen: [...resumen.values()] };
+    return { data, total, resumen: [...resumen.values()], origenes };
   }
 
   /**

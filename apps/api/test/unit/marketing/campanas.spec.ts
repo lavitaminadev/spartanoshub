@@ -131,6 +131,23 @@ describe('campañas de correo', () => {
     expect(suscriptores.suscritos).toHaveBeenCalledWith('org-1', null);
   });
 
+  /*
+   * La vista previa.
+   *
+   * Compone con la misma función que el envío, así que lo que se ve es lo que sale. Y lleva el
+   * pie de baja: es lo que distingue una campaña de cualquier otro correo, y enseñarla sin él
+   * mostraría algo que no existe.
+   */
+  it('la vista previa lleva el pie de baja, rellena el nombre y no manda nada', async () => {
+    const { srv, correo } = servicio();
+
+    const previa = srv.vistaPrevia('Hola {{nombre}}', 'Tenemos algo para ti.');
+
+    expect(previa.subject).toBe('Hola Ana');
+    expect(previa.html).toContain('/marketing/suscriptores/baja/');
+    expect(correo.send).not.toHaveBeenCalled();
+  });
+
   it('el texto de una campaña enviada no se corrige: es la constancia de lo que salió', async () => {
     const { srv } = servicio({
       campana: { id: 'camp-1', organizationId: 'org-1', estado: EstadoDeCampana.ENVIADA, asunto: 'a', cuerpo: 'b' },

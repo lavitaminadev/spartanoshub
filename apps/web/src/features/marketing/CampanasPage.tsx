@@ -144,6 +144,17 @@ function EditorDeCampana({ campana, empresas, onCerrar, onGuardada }: {
     onSuccess: onGuardada,
   });
 
+  /*
+   * Ver el correo compuesto antes de mandarlo.
+   *
+   * Lo compone el servidor con la misma función que el envío, así que lo que se ve es lo que
+   * sale, con el pie de baja incluido. Es el único momento en que se puede corregir: enviado no
+   * se deshace, y el texto de una campaña enviada ya no se toca.
+   */
+  const vistaPrevia = useMutation<{ subject: string; html: string }>({
+    mutationFn: () => api.post('/marketing/campanas/vista-previa', { asunto, cuerpo }),
+  });
+
   return (
     <Modal open onClose={onCerrar} title={campana ? 'Corregir la campaña' : 'Escribir una campaña'}>
       <form className="form-grid" onSubmit={(evento) => { evento.preventDefault(); guardar.mutate(); }}>
@@ -172,9 +183,26 @@ function EditorDeCampana({ campana, empresas, onCerrar, onGuardada }: {
           sistema en el pie: no hace falta escribirlo, y no se puede quitar.
         </p>
 
+        {vistaPrevia.data && <div className="campana-vista-previa">
+          <p><span>Asunto</span><strong>{vistaPrevia.data.subject}</strong></p>
+          <iframe title="Vista previa de la campaña" srcDoc={vistaPrevia.data.html} sandbox="" />
+          <small>
+            El nombre va con un dato de ejemplo; el correo real usa el de cada persona. El enlace
+            de baja del pie es de muestra y no lleva a ninguna parte: el que sale es el de cada uno.
+          </small>
+        </div>}
+
         {guardar.isError && <p className="error-text">No se pudo guardar. Revisa el asunto y el texto.</p>}
         <div className="modal-actions">
           <button type="button" className="btn btn-outline" onClick={onCerrar}>Cancelar</button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            disabled={!asunto.trim() || !cuerpo.trim() || vistaPrevia.isPending}
+            onClick={() => vistaPrevia.mutate()}
+          >
+            {vistaPrevia.isPending ? 'Componiendo…' : 'Ver cómo queda'}
+          </button>
           <button type="submit" className="btn btn-primary" disabled={!asunto.trim() || !cuerpo.trim() || guardar.isPending}>
             {guardar.isPending ? 'Guardando…' : 'Guardar borrador'}
           </button>
