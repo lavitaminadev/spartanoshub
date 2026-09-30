@@ -10,6 +10,7 @@ exports.MarketingModule = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const suscriptor_entity_1 = require("./suscriptor.entity");
+const exclusion_entity_1 = require("./exclusion.entity");
 const suscriptores_service_1 = require("./suscriptores.service");
 const suscriptores_controller_1 = require("./suscriptores.controller");
 const alta_desde_reserva_1 = require("./alta-desde-reserva");
@@ -18,7 +19,7 @@ let MarketingModule = class MarketingModule {
 exports.MarketingModule = MarketingModule;
 exports.MarketingModule = MarketingModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([suscriptor_entity_1.Suscriptor])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([suscriptor_entity_1.Suscriptor, exclusion_entity_1.ExclusionDeCorreo])],
         controllers: [suscriptores_controller_1.SuscriptoresController],
         providers: [suscriptores_service_1.SuscriptoresService, alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva],
         exports: [suscriptores_service_1.SuscriptoresService, alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva],

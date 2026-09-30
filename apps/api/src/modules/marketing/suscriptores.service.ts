@@ -1,8 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { type FindOptionsWhere, IsNull, Repository } from 'typeorm';
 import { EstadoDeSuscripcion, Suscriptor } from './suscriptor.entity';
+import { ExclusionDeCorreo } from './exclusion.entity';
 import { type FilaImportada, interpretarCsv } from './importar-suscriptores';
 
 /** Cómo quedó una importación, para poder decírselo a quien subió el archivo. */
@@ -20,6 +21,7 @@ export class SuscriptoresService {
 
   constructor(
     @InjectRepository(Suscriptor) private readonly repo: Repository<Suscriptor>,
+    @InjectRepository(ExclusionDeCorreo) private readonly exclusiones: Repository<ExclusionDeCorreo>,
   ) {}
 
   /**
@@ -124,16 +126,96 @@ export class SuscriptoresService {
    * Y es idempotente —darse de baja dos veces no falla— porque quien pulsa el enlace otra vez
    * merece la misma confirmación tranquilizadora, no un error.
    */
-  async darDeBaja(token: string): Promise<{ email: string }> {
+  /**
+   * Huella de un correo, para la lista de exclusión.
+   *
+   * Va hacia un solo lado: de la huella no se vuelve a la dirección. Eso es lo que permite seguir
+   * respetando una baja después de borrar los datos de esa persona.
+   *
+   * Lleva la organización dentro para que la misma dirección dé huellas distintas en cada una: sin
+   * eso, quien viera la tabla podría comprobar si un correo concreto está en la lista probándolo.
+   */
+  private huellaDe(organizationId: string, email: string): string {
+    return createHash('sha256').update(`${organizationId}:${email.trim().toLowerCase()}`).digest('hex');
+  }
+
+  /**
+   * Da de baja desde el enlace de un correo.
+   *
+   * El artículo 28 B de la Ley 19.496 dice que, pedida la suspensión, los envíos siguientes
+   * «quedarán desde entonces prohibidos»: por eso es inmediata y no queda pendiente de nada.
+   *
+   * @param alcance - `local` saca sólo de la empresa de ese correo. `todas` la saca de todas las
+   *   del sistema y la deja en la lista de exclusión, que se respeta aunque después reserve en un
+   *   local nuevo: sin eso, el botón «darme de baja de todos» prometería algo que no cumple.
+   * @param origen - Plantilla del correo desde el que se pidió, para reconstruir el caso.
+   */
+  async darDeBaja(token: string, alcance: 'local' | 'todas' = 'local', origen?: string): Promise<{ email: string; alcance: 'local' | 'todas'; empresa: string | null }> {
     const suscriptor = await this.repo.findOne({ where: { unsubscribeToken: token } });
     if (!suscriptor) throw new NotFoundException('Este enlace de baja no es válido');
 
-    if (suscriptor.status !== EstadoDeSuscripcion.BAJA) {
-      suscriptor.status = EstadoDeSuscripcion.BAJA;
-      suscriptor.unsubscribedAt = new Date();
-      await this.repo.save(suscriptor);
+    const email = suscriptor.email;
+    const huella = this.huellaDe(suscriptor.organizationId, email);
+    const ahora = new Date();
+
+    const bajar = (fila: Suscriptor) => {
+      if (fila.status === EstadoDeSuscripcion.BAJA && fila.unsubscribedScope) return null;
+      fila.status = EstadoDeSuscripcion.BAJA;
+      fila.unsubscribedAt = fila.unsubscribedAt ?? ahora;
+      fila.unsubscribedScope = alcance;
+      fila.unsubscribedFrom = origen?.slice(0, 80) ?? fila.unsubscribedFrom ?? null;
+      return fila;
+    };
+
+    if (alcance === 'todas') {
+      // Todas sus fichas de esta organización, sea cual sea la empresa, y la propia agencia.
+      const todas = await this.repo.find({ where: { organizationId: suscriptor.organizationId, email } });
+      const cambiadas = todas.map(bajar).filter((fila): fila is Suscriptor => fila !== null);
+      if (cambiadas.length) await this.repo.save(cambiadas);
+    } else {
+      const cambiada = bajar(suscriptor);
+      if (cambiada) await this.repo.save(cambiada);
     }
-    return { email: suscriptor.email };
+
+    await this.anotarExclusion(suscriptor.organizationId, huella, alcance === 'todas' ? null : suscriptor.clientId ?? null, alcance, origen);
+    return { email, alcance, empresa: alcance === 'todas' ? null : suscriptor.clientId ?? null };
+  }
+
+  /** Deja la petición en la lista de exclusión. Repetirla no la duplica ni falla. */
+  private async anotarExclusion(organizationId: string, huella: string, clientId: string | null, alcance: 'local' | 'todas', origen?: string): Promise<void> {
+    const yaEsta = await this.exclusiones.findOne({ where: { organizationId, huella, clientId: clientId ?? IsNull() } });
+    if (yaEsta) return;
+    await this.exclusiones.save(this.exclusiones.create({ organizationId, huella, clientId, alcance, origen: origen?.slice(0, 80) ?? null }));
+  }
+
+  /**
+   * Si a esta dirección se le prohibió escribir, y con qué alcance.
+   *
+   * Se consulta **antes de crear o reactivar** una suscripción. Una reserva no es un permiso para
+   * mandar publicidad, así que no puede resucitar a quien pidió no recibir más; sólo una casilla
+   * marcada a propósito, que es un acto nuevo y voluntario.
+   *
+   * @returns `todas` si pidió no recibir de ninguna, `local` si fue sólo de esa empresa, o `null`.
+   */
+  async exclusionDe(organizationId: string, email: string, clientId: string | null): Promise<'local' | 'todas' | null> {
+    const huella = this.huellaDe(organizationId, email);
+    const filas = await this.exclusiones.find({ where: { organizationId, huella } });
+    if (filas.some((fila) => fila.clientId === null)) return 'todas';
+    return filas.some((fila) => fila.clientId === clientId) ? 'local' : null;
+  }
+
+  /**
+   * Levanta la exclusión porque volvió a darlo, explícitamente y para esa empresa.
+   *
+   * Sólo desde una casilla marcada a propósito. La de «todas» se levanta igual, pero la pantalla
+   * tiene que haberle advertido antes que había pedido no recibir: un permiso nuevo vale, pero
+   * tiene que ser inequívoco.
+   */
+  async levantarExclusion(organizationId: string, email: string, clientId: string | null): Promise<void> {
+    const huella = this.huellaDe(organizationId, email);
+    const filas = await this.exclusiones.find({ where: { organizationId, huella } });
+    const quitar = filas.filter((fila) => fila.clientId === clientId || fila.clientId === null);
+    if (quitar.length) await this.exclusiones.remove(quitar);
   }
 
   /**

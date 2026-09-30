@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../core/auth/decorators/public.decorator';
@@ -7,6 +8,7 @@ import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { SuscriptoresService } from './suscriptores.service';
+import { paginaDeBaja } from './pagina-de-baja';
 
 /** Lo que se necesita para importar una lista sin dejarla sin procedencia. */
 class ImportarSuscriptoresDto {
@@ -71,8 +73,24 @@ export class SuscriptoresController {
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('baja/:token')
   @ApiOperation({ summary: 'Darse de baja de la lista de correo' })
-  async baja(@Param('token') token: string) {
-    const { email } = await this.suscriptores.darDeBaja(token);
-    return { ok: true, email, mensaje: 'Ya no recibirás más correos comerciales nuestros.' };
+  async baja(
+    @Param('token') token: string,
+    @Query('alcance') alcance: string | undefined,
+    @Query('origen') origen: string | undefined,
+    @Res() res: Response,
+  ) {
+    /*
+     * Responde una página, no un dato.
+     *
+     * Quien hace clic en el enlace de un correo abre el navegador, así que devolver
+     * `{"ok":true,...}` le muestra algo que parece roto justo cuando está ejerciendo un derecho.
+     * Se arma acá y no en la aplicación web porque esta dirección es pública y sin sesión: cargar
+     * la aplicación entera para una frase sería pedirle que espere por nada.
+     */
+    const todas = alcance === 'todas';
+    const resultado = await this.suscriptores
+      .darDeBaja(token, todas ? 'todas' : 'local', origen)
+      .catch(() => null);
+    res.type('html').send(paginaDeBaja(resultado, token, origen));
   }
 }

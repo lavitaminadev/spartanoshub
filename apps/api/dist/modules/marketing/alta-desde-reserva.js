@@ -19,9 +19,11 @@ const typeorm_1 = require("@nestjs/typeorm");
 const node_crypto_1 = require("node:crypto");
 const typeorm_2 = require("typeorm");
 const suscriptor_entity_1 = require("./suscriptor.entity");
+const suscriptores_service_1 = require("./suscriptores.service");
 let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDeSuscriptorDesdeReserva {
-    constructor(suscriptores) {
+    constructor(suscriptores, suscriptores2) {
         this.suscriptores = suscriptores;
+        this.suscriptores2 = suscriptores2;
         this.logger = new common_1.Logger(AltaDeSuscriptorDesdeReserva_1.name);
     }
     async registrar(datos) {
@@ -29,8 +31,10 @@ let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDe
         if (!email)
             return;
         try {
+            if (await this.suscriptores2.exclusionDe(datos.organizationId, email, datos.clientId ?? null))
+                return;
             const existente = await this.suscriptores.findOne({
-                where: { organizationId: datos.organizationId, email },
+                where: { organizationId: datos.organizationId, clientId: datos.clientId ?? (0, typeorm_2.IsNull)(), email },
             });
             if (existente) {
                 if (!existente.birthDate && datos.birthDate)
@@ -68,5 +72,6 @@ exports.AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva;
 exports.AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(suscriptor_entity_1.Suscriptor)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        suscriptores_service_1.SuscriptoresService])
 ], AltaDeSuscriptorDesdeReserva);

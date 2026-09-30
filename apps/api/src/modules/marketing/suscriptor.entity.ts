@@ -33,9 +33,17 @@ export enum EstadoDeSuscripcion {
  * se le manda nada.
  */
 @Entity('email_subscribers')
-// Una dirección por organización. El correo es la identidad acá: la misma persona en dos filas
-// recibiría la campaña dos veces y podría estar suscrita en una y de baja en la otra.
-@Index('UQ_email_subscribers_org_email', ['organizationId', 'email'], { unique: true })
+/*
+ * Una dirección por empresa, no por organización.
+ *
+ * Antes era una fila por organización, y con eso quien reservaba en dos locales tenía una sola
+ * ficha, asignada al primero: darse de baja desde el correo de uno la sacaba también del otro, y
+ * el segundo probablemente no la alcanzaba nunca.
+ *
+ * Cada empresa es responsable distinto de esos datos, así que el permiso se le da a cada una por
+ * separado y la baja tiene que ser por separado. La fila sin empresa es la lista de la agencia.
+ */
+@Index('UQ_email_subscribers_org_client_email', ['organizationId', 'clientId', 'email'], { unique: true })
 // El envío pregunta «quién está suscrito en esta organización», y es la consulta de cada campaña.
 @Index('IDX_email_subscribers_org_status', ['organizationId', 'status'])
 // La baja se resuelve por el token del enlace, sin sesión.
@@ -118,6 +126,22 @@ export class Suscriptor {
 
   @Column({ name: 'unsubscribed_at', type: 'timestamp', nullable: true })
   unsubscribedAt?: Date | null;
+
+  /**
+   * Constancia de la baja: de qué alcance y desde qué correo se pidió.
+   *
+   * Del alta se guardaba todo —origen, texto aceptado, fecha e IP— y de la baja sólo la fecha. Si
+   * alguien reclama que siguió recibiendo, hay que poder demostrar qué se pidió y cuándo.
+   *
+   * `local` sale sólo de esta empresa; `todas` es el botón que la saca de todas y además la deja
+   * en la lista de exclusión.
+   */
+  @Column({ name: 'unsubscribed_scope', type: 'varchar', length: 10, nullable: true })
+  unsubscribedScope?: 'local' | 'todas' | null;
+
+  /** La plantilla del correo desde el que se dio de baja, para poder reconstruir el caso. */
+  @Column({ name: 'unsubscribed_from', type: 'varchar', length: 80, nullable: true })
+  unsubscribedFrom?: string | null;
 
   /**
    * Token del enlace de baja.

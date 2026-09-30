@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'node:crypto';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { EstadoDeSuscripcion, Suscriptor } from './suscriptor.entity';
+import { SuscriptoresService } from './suscriptores.service';
 
 /** Lo que una reserva sabe de quien la hizo y hace falta para la lista. */
 export interface AltaDesdeReserva {
@@ -33,7 +34,10 @@ export interface AltaDesdeReserva {
 export class AltaDeSuscriptorDesdeReserva {
   private readonly logger = new Logger(AltaDeSuscriptorDesdeReserva.name);
 
-  constructor(@InjectRepository(Suscriptor) private readonly suscriptores: Repository<Suscriptor>) {}
+  constructor(
+    @InjectRepository(Suscriptor) private readonly suscriptores: Repository<Suscriptor>,
+    private readonly suscriptores2: SuscriptoresService,
+  ) {}
 
   /**
    * Crea o completa la ficha. Nunca falla hacia afuera: la reserva ya está hecha y confirmada, y
@@ -47,8 +51,19 @@ export class AltaDeSuscriptorDesdeReserva {
     if (!email) return;
 
     try {
+      /*
+       * Reservar no es pedir publicidad.
+       *
+       * Si esta persona pidió no recibir más, no se le crea ficha ni se le reactiva la que tenga:
+       * el artículo 28 B de la Ley 19.496 dice que tras la solicitud los envíos «quedarán desde
+       * entonces prohibidos», sin excepción por una reserva posterior. Sólo una casilla marcada a
+       * propósito —un acto nuevo y voluntario— levanta la exclusión, y eso pasa por otro camino.
+       */
+      if (await this.suscriptores2.exclusionDe(datos.organizationId, email, datos.clientId ?? null)) return;
+
+      // Por empresa: la misma persona puede estar suscrita en un local y de baja en otro.
       const existente = await this.suscriptores.findOne({
-        where: { organizationId: datos.organizationId, email },
+        where: { organizationId: datos.organizationId, clientId: datos.clientId ?? IsNull(), email },
       });
 
       if (existente) {

@@ -19,10 +19,12 @@ const typeorm_1 = require("@nestjs/typeorm");
 const node_crypto_1 = require("node:crypto");
 const typeorm_2 = require("typeorm");
 const suscriptor_entity_1 = require("./suscriptor.entity");
+const exclusion_entity_1 = require("./exclusion.entity");
 const importar_suscriptores_1 = require("./importar-suscriptores");
 let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
-    constructor(repo) {
+    constructor(repo, exclusiones) {
         this.repo = repo;
+        this.exclusiones = exclusiones;
         this.logger = new common_1.Logger(SuscriptoresService_1.name);
     }
     nuevoToken() {
@@ -75,16 +77,58 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         suscriptor.consentText = texto
             ?? (fila.respuestaCruda ? `Respuesta en el archivo: «${fila.respuestaCruda}»` : null);
     }
-    async darDeBaja(token) {
+    huellaDe(organizationId, email) {
+        return (0, node_crypto_1.createHash)('sha256').update(`${organizationId}:${email.trim().toLowerCase()}`).digest('hex');
+    }
+    async darDeBaja(token, alcance = 'local', origen) {
         const suscriptor = await this.repo.findOne({ where: { unsubscribeToken: token } });
         if (!suscriptor)
             throw new common_1.NotFoundException('Este enlace de baja no es válido');
-        if (suscriptor.status !== suscriptor_entity_1.EstadoDeSuscripcion.BAJA) {
-            suscriptor.status = suscriptor_entity_1.EstadoDeSuscripcion.BAJA;
-            suscriptor.unsubscribedAt = new Date();
-            await this.repo.save(suscriptor);
+        const email = suscriptor.email;
+        const huella = this.huellaDe(suscriptor.organizationId, email);
+        const ahora = new Date();
+        const bajar = (fila) => {
+            if (fila.status === suscriptor_entity_1.EstadoDeSuscripcion.BAJA && fila.unsubscribedScope)
+                return null;
+            fila.status = suscriptor_entity_1.EstadoDeSuscripcion.BAJA;
+            fila.unsubscribedAt = fila.unsubscribedAt ?? ahora;
+            fila.unsubscribedScope = alcance;
+            fila.unsubscribedFrom = origen?.slice(0, 80) ?? fila.unsubscribedFrom ?? null;
+            return fila;
+        };
+        if (alcance === 'todas') {
+            const todas = await this.repo.find({ where: { organizationId: suscriptor.organizationId, email } });
+            const cambiadas = todas.map(bajar).filter((fila) => fila !== null);
+            if (cambiadas.length)
+                await this.repo.save(cambiadas);
         }
-        return { email: suscriptor.email };
+        else {
+            const cambiada = bajar(suscriptor);
+            if (cambiada)
+                await this.repo.save(cambiada);
+        }
+        await this.anotarExclusion(suscriptor.organizationId, huella, alcance === 'todas' ? null : suscriptor.clientId ?? null, alcance, origen);
+        return { email, alcance, empresa: alcance === 'todas' ? null : suscriptor.clientId ?? null };
+    }
+    async anotarExclusion(organizationId, huella, clientId, alcance, origen) {
+        const yaEsta = await this.exclusiones.findOne({ where: { organizationId, huella, clientId: clientId ?? (0, typeorm_2.IsNull)() } });
+        if (yaEsta)
+            return;
+        await this.exclusiones.save(this.exclusiones.create({ organizationId, huella, clientId, alcance, origen: origen?.slice(0, 80) ?? null }));
+    }
+    async exclusionDe(organizationId, email, clientId) {
+        const huella = this.huellaDe(organizationId, email);
+        const filas = await this.exclusiones.find({ where: { organizationId, huella } });
+        if (filas.some((fila) => fila.clientId === null))
+            return 'todas';
+        return filas.some((fila) => fila.clientId === clientId) ? 'local' : null;
+    }
+    async levantarExclusion(organizationId, email, clientId) {
+        const huella = this.huellaDe(organizationId, email);
+        const filas = await this.exclusiones.find({ where: { organizationId, huella } });
+        const quitar = filas.filter((fila) => fila.clientId === clientId || fila.clientId === null);
+        if (quitar.length)
+            await this.exclusiones.remove(quitar);
     }
     async suscritos(organizationId, clientId) {
         const where = { organizationId, status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO };
@@ -105,5 +149,7 @@ exports.SuscriptoresService = SuscriptoresService;
 exports.SuscriptoresService = SuscriptoresService = SuscriptoresService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(suscriptor_entity_1.Suscriptor)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __param(1, (0, typeorm_1.InjectRepository)(exclusion_entity_1.ExclusionDeCorreo)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository])
 ], SuscriptoresService);
