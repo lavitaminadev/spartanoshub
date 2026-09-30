@@ -24,9 +24,33 @@ describe('alta en la lista de correo desde una reserva', () => {
     consentAt: new Date('2026-09-16T12:00:00Z'),
   };
 
+  /** Nadie pidió no recibir, salvo que una prueba diga lo contrario. */
+  const listaDeExclusion = { exclusionDe: vi.fn().mockResolvedValue(null) };
+
   beforeEach(() => {
     vi.clearAllMocks();
-    alta = new AltaDeSuscriptorDesdeReserva(suscriptores as never);
+    listaDeExclusion.exclusionDe.mockResolvedValue(null);
+    alta = new AltaDeSuscriptorDesdeReserva(suscriptores as never, listaDeExclusion as never);
+  });
+
+  /*
+   * Reservar no es pedir publicidad.
+   *
+   * El articulo 28 B de la Ley 19.496 dice que tras pedir la suspension los envios «quedaran desde
+   * entonces prohibidos», sin excepcion por una reserva posterior. Solo una casilla marcada a
+   * proposito levanta la exclusion, y eso pasa por otro camino.
+   */
+  it('no crea ficha a quien pidió no recibir de esta empresa', async () => {
+    listaDeExclusion.exclusionDe.mockResolvedValue('local');
+    await alta.registrar({ organizationId: 'org-1', clientId: 'c-1', email: 'ana@casa.cl', origen: 'reserva' } as never);
+    expect(suscriptores.save).not.toHaveBeenCalled();
+    expect(suscriptores.findOne).not.toHaveBeenCalled();
+  });
+
+  it('tampoco a quien pidió no recibir de ninguna', async () => {
+    listaDeExclusion.exclusionDe.mockResolvedValue('todas');
+    await alta.registrar({ organizationId: 'org-1', clientId: 'c-2', email: 'ana@casa.cl', origen: 'reserva' } as never);
+    expect(suscriptores.save).not.toHaveBeenCalled();
   });
 
   it('crea la ficha con el texto aceptado y la fecha de nacimiento', async () => {

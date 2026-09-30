@@ -89,6 +89,14 @@ __decorate([
     __metadata("design:type", Object)
 ], Suscriptor.prototype, "unsubscribedAt", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'unsubscribed_scope', type: 'varchar', length: 10, nullable: true }),
+    __metadata("design:type", Object)
+], Suscriptor.prototype, "unsubscribedScope", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'unsubscribed_from', type: 'varchar', length: 80, nullable: true }),
+    __metadata("design:type", Object)
+], Suscriptor.prototype, "unsubscribedFrom", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'unsubscribe_token', type: 'varchar', length: 64, unique: true }),
     __metadata("design:type", String)
 ], Suscriptor.prototype, "unsubscribeToken", void 0);
@@ -113,7 +121,7 @@ __decorate([
 ], Suscriptor.prototype, "normalizar", null);
 exports.Suscriptor = Suscriptor = __decorate([
     (0, typeorm_1.Entity)('email_subscribers'),
-    (0, typeorm_1.Index)('UQ_email_subscribers_org_email', ['organizationId', 'email'], { unique: true }),
+    (0, typeorm_1.Index)('UQ_email_subscribers_org_client_email', ['organizationId', 'clientId', 'email'], { unique: true }),
     (0, typeorm_1.Index)('IDX_email_subscribers_org_status', ['organizationId', 'status']),
     (0, typeorm_1.Index)('IDX_email_subscribers_token', ['unsubscribeToken'])
 ], Suscriptor);

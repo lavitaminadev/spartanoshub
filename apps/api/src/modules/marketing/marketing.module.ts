@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Suscriptor } from './suscriptor.entity';
+import { ExclusionDeCorreo } from './exclusion.entity';
 import { SuscriptoresService } from './suscriptores.service';
 import { SuscriptoresController } from './suscriptores.controller';
 import { AltaDeSuscriptorDesdeReserva } from './alta-desde-reserva';
@@ -14,7 +15,7 @@ import { AltaDeSuscriptorDesdeReserva } from './alta-desde-reserva';
  * campañas, con la constancia de por qué.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Suscriptor])],
+  imports: [TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo])],
   controllers: [SuscriptoresController],
   providers: [SuscriptoresService, AltaDeSuscriptorDesdeReserva],
   exports: [SuscriptoresService, AltaDeSuscriptorDesdeReserva],
