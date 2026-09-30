@@ -5,6 +5,7 @@ import { useAuth } from '../../core/auth';
 import { DataTable } from '../../shared/DataTable';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { triggerToast } from '../../shared/toast-events';
+import { ImportarSuscriptores } from './ImportarSuscriptores';
 
 interface Suscriptor {
   id: string;
@@ -116,7 +117,11 @@ export function SuscriptoresPage() {
             Cada empresa tiene su propia lista y su propio permiso: alguien puede estar suscrito en un local y de baja en otro.
           </p>
         </div>
-        <button type="button" className="btn btn-outline" onClick={() => void descargar()}>Descargar los suscritos</button>
+        <div className="page-header-actions">
+          {/* Importar es de la agencia: es quien responde por el respaldo de cada dirección. */}
+          {!esEmpresa && <ImportarSuscriptores empresas={empresas} />}
+          <button type="button" className="btn btn-outline" onClick={() => void descargar()}>Descargar los suscritos</button>
+        </div>
       </div>
 
       {/* Los números salen de la base entera, no de las filas que se ven: sirven para decidir. */}

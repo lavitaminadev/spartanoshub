@@ -2,10 +2,15 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Suscriptor } from './suscriptor.entity';
 import { ExclusionDeCorreo } from './exclusion.entity';
+import { Campana } from './campana.entity';
 import { SuscriptoresService } from './suscriptores.service';
 import { SuscriptoresController } from './suscriptores.controller';
+import { CampanasService } from './campanas.service';
+import { CampanasController } from './campanas.controller';
 import { AltaDeSuscriptorDesdeReserva } from './alta-desde-reserva';
 import { AccountAccessModule } from '../../core/client-scope/account-access.module';
+import { EmailModule } from '../../core/notifications/email.module';
+import { ParametersModule } from '../../core/parameters/parameters.module';
 
 /**
  * La lista de correo comercial, separada de todo lo demás.
@@ -16,10 +21,16 @@ import { AccountAccessModule } from '../../core/client-scope/account-access.modu
  * campañas, con la constancia de por qué.
  */
 @Module({
-  // `AccountAccessModule` trae la capacidad por empresa: el portal sólo ve su lista si la tiene.
-  imports: [TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo]), AccountAccessModule],
-  controllers: [SuscriptoresController],
-  providers: [SuscriptoresService, AltaDeSuscriptorDesdeReserva],
-  exports: [SuscriptoresService, AltaDeSuscriptorDesdeReserva],
+  imports: [
+    TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo, Campana]),
+    // `AccountAccessModule` trae la capacidad por empresa: el portal sólo ve su lista si la tiene.
+    AccountAccessModule,
+    // Enviar campañas necesita el transporte y los interruptores del enlace de baja.
+    EmailModule,
+    ParametersModule,
+  ],
+  controllers: [SuscriptoresController, CampanasController],
+  providers: [SuscriptoresService, AltaDeSuscriptorDesdeReserva, CampanasService],
+  exports: [SuscriptoresService, AltaDeSuscriptorDesdeReserva, CampanasService],
 })
 export class MarketingModule {}

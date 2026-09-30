@@ -355,3 +355,21 @@
 .suscriptores-tarjeta strong { font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .suscriptores-tarjeta span { font-size:19px; font-weight:800; color:var(--ink); }
 .suscriptores-tarjeta small { font-size:11px; color:var(--muted); }
+
+/* Resultado de importar una lista: las cifras primero, y los avisos que hay que leer. */
+.importacion-resultado { display:grid; gap:10px; }
+.importacion-cifras { margin:0; font-size:15px; }
+.importacion-cifras strong { font-size:19px; font-weight:800; }
+.importacion-nota { margin:0; font-size:13px; color:var(--muted); }
+/* Lo excluido va en ámbar: no es un dato de la importación, es una señal sobre el archivo. */
+.importacion-nota.es-aviso { padding:8px 10px; border:1px solid #f0dcb4; border-radius:var(--radius-md); background:#fef6e7; color:var(--ink); }
+.importacion-descartes { font-size:13px; }
+.importacion-descartes ul { margin:6px 0 0; padding-left:18px; display:grid; gap:2px; }
+
+/* Campañas: la cifra de destinatarios manda en la confirmación, así que se ve como un dato. */
+.tabla-acciones { display:flex; flex-wrap:wrap; gap:6px; }
+.tabla-nota { font-size:12px; color:var(--muted); }
+.envio-resumen { display:grid; gap:2px; margin:0; }
+.envio-resumen span { font-size:13px; color:var(--muted); }
+.envio-cifra { margin:0; font-size:15px; }
+.envio-cifra strong { font-size:23px; font-weight:800; }

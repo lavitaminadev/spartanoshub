@@ -46,6 +46,7 @@ const PATH_CONTROLLER: Record<string, string | null> = {
   '/crm/pipeline': 'crm/opportunities/opportunities.controller.ts',
   '/crm/interactions': 'crm/interactions/interactions.controller.ts',
   '/automations': 'automations/automations.controller.ts',
+  '/campanas': 'marketing/campanas.controller.ts',
   '/registro-de-correos': '../core/notifications/registro-de-correos.controller.ts',
   '/documents': 'documents/documents.controller.ts',
   '/gamification': 'gamification/gamification.controller.ts',

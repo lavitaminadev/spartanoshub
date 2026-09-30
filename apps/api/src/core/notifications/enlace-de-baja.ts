@@ -11,6 +11,14 @@ import type { ParameterResolver } from '../parameters/parameter-resolver.service
 const COMERCIALES = new Set([
   'email.birthday',
   'email.coupon',
+  /*
+   * La campaña es el caso más claro de todos.
+   *
+   * Es la única comunicación del sistema que nadie pidió individualmente: las demás responden a
+   * algo que esa persona hizo —reservó, cumple años, se le dio acceso—. Si alguna vez hubo duda
+   * sobre si el saludo de cumpleaños es publicidad, aquí no la hay.
+   */
+  'email.campaign',
 ]);
 
 /*
