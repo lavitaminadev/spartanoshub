@@ -33,11 +33,16 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
     async importarCsv(organizationId, contenido, origen, detalle, textoConsentimiento, clientId) {
         const { filas, descartadas } = (0, importar_suscriptores_1.interpretarCsv)(contenido);
         const resultado = {
-            creados: 0, actualizados: 0, respetadosDeBaja: 0, descartados: descartadas,
+            creados: 0, actualizados: 0, respetadosDeBaja: 0, excluidos: 0, descartados: descartadas,
         };
+        const empresa = clientId ?? null;
         for (const fila of filas) {
+            if (await this.exclusionDe(organizationId, fila.email, empresa)) {
+                resultado.excluidos += 1;
+                continue;
+            }
             const existente = await this.repo.findOne({
-                where: { organizationId, email: fila.email },
+                where: { organizationId, clientId: empresa ?? (0, typeorm_2.IsNull)(), email: fila.email },
             });
             if (existente?.status === suscriptor_entity_1.EstadoDeSuscripcion.BAJA) {
                 resultado.respetadosDeBaja += 1;
@@ -54,7 +59,7 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
             }
             const nuevo = this.repo.create({
                 organizationId,
-                clientId: clientId ?? null,
+                clientId: empresa,
                 email: fila.email,
                 name: fila.name ?? null,
                 source: origen,
@@ -68,7 +73,7 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
             resultado.creados += 1;
         }
         this.logger.log(`Importación desde «${origen}»: ${resultado.creados} nuevos, ${resultado.actualizados} actualizados, `
-            + `${resultado.respetadosDeBaja} de baja respetados, ${descartadas.length} descartados`);
+            + `${resultado.respetadosDeBaja} de baja respetados, ${resultado.excluidos} excluidos, ${descartadas.length} descartados`);
         return resultado;
     }
     aplicarConsentimiento(suscriptor, fila, texto) {
@@ -137,11 +142,79 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         const candidatos = await this.repo.find({ where, order: { createdAt: 'DESC' } });
         return candidatos.filter((suscriptor) => suscriptor.puedeRecibirCampana());
     }
-    listar(organizationId, limite = 200) {
-        return this.repo.find({
-            where: { organizationId },
+    async listar(organizationId, filtros = {}) {
+        const where = { organizationId };
+        const empresa = filtros.encerradoEn ?? filtros.empresa;
+        if (empresa === 'agencia')
+            where.clientId = (0, typeorm_2.IsNull)();
+        else if (empresa)
+            where.clientId = empresa;
+        if (filtros.estado)
+            where.status = filtros.estado;
+        if (filtros.origen)
+            where.source = filtros.origen;
+        const texto = filtros.busqueda?.trim();
+        const condiciones = texto
+            ? [{ ...where, email: (0, typeorm_2.Like)(`%${texto.toLowerCase()}%`) }, { ...where, name: (0, typeorm_2.Like)(`%${texto}%`) }]
+            : where;
+        const [data, total] = await this.repo.findAndCount({
+            where: condiciones,
             order: { createdAt: 'DESC' },
-            take: Math.min(Math.max(limite, 1), 1000),
+            take: Math.min(Math.max(filtros.limite ?? 200, 1), 1000),
+        });
+        const consulta = this.repo
+            .createQueryBuilder('s')
+            .select('s.client_id', 'clientId')
+            .addSelect('s.status', 'status')
+            .addSelect('COUNT(*)', 'cuantos')
+            .where('s.organization_id = :organizationId', { organizationId });
+        if (filtros.encerradoEn)
+            consulta.andWhere('s.client_id = :encerradoEn', { encerradoEn: filtros.encerradoEn });
+        const filas = await consulta
+            .groupBy('s.client_id')
+            .addGroupBy('s.status')
+            .getRawMany()
+            .catch((error) => {
+            this.logger.warn(`No se pudo contar por empresa: ${error instanceof Error ? error.message : error}`);
+            return [];
+        });
+        const consultaDeOrigenes = this.repo
+            .createQueryBuilder('s')
+            .select('DISTINCT s.source', 'source')
+            .where('s.organization_id = :organizationId', { organizationId });
+        if (filtros.encerradoEn)
+            consultaDeOrigenes.andWhere('s.client_id = :encerradoEn', { encerradoEn: filtros.encerradoEn });
+        const origenes = await consultaDeOrigenes
+            .getRawMany()
+            .then((filas) => filas.map((fila) => fila.source).filter((valor) => Boolean(valor)).sort())
+            .catch((error) => {
+            this.logger.warn(`No se pudieron listar las procedencias: ${error instanceof Error ? error.message : error}`);
+            return [];
+        });
+        const resumen = new Map();
+        for (const fila of filas) {
+            const clave = fila.clientId ?? null;
+            const actual = resumen.get(clave) ?? { clientId: clave, suscritos: 0, bajas: 0, pendientes: 0 };
+            const cuantos = Number(fila.cuantos) || 0;
+            if (fila.status === suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO)
+                actual.suscritos += cuantos;
+            else if (fila.status === suscriptor_entity_1.EstadoDeSuscripcion.BAJA)
+                actual.bajas += cuantos;
+            else
+                actual.pendientes += cuantos;
+            resumen.set(clave, actual);
+        }
+        return { data, total, resumen: [...resumen.values()], origenes };
+    }
+    async paraDescargar(organizationId, empresa) {
+        return this.repo.find({
+            where: {
+                organizationId,
+                clientId: empresa === 'agencia' ? (0, typeorm_2.IsNull)() : empresa,
+                status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO,
+            },
+            order: { createdAt: 'DESC' },
+            take: 5000,
         });
     }
 };

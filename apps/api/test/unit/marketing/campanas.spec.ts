@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CampanasService } from '../../../src/modules/marketing/campanas.service';
 import { EstadoDeCampana } from '../../../src/modules/marketing/campana.entity';
@@ -15,6 +15,8 @@ function servicio(opciones: {
   suscritos?: Array<Record<string, unknown>>;
   enviaBien?: boolean;
   tomada?: boolean;
+  cupon?: Record<string, unknown> | null;
+  administradores?: Array<Record<string, unknown>>;
 } = {}) {
   const campana = opciones.campana ?? {
     id: 'camp-1', organizationId: 'org-1', clientId: 'c-casa',
@@ -40,9 +42,22 @@ function servicio(opciones: {
   };
   // Ningún interruptor apagado: el resolutor devuelve el valor por defecto.
   const parametros = { get: vi.fn(async () => true) };
+  const cupones = {
+    findOne: vi.fn(async () => (opciones.cupon === undefined
+      ? { code: 'VUELVE20', clientId: 'c-casa', active: true, validUntil: new Date('2030-01-01') }
+      : opciones.cupon)),
+  };
+  const usuarios = {
+    find: vi.fn(async () => opciones.administradores ?? [
+      { id: 'u-1', email: 'jefe@casa.cl', name: 'Jefe' },
+    ]),
+  };
   return {
-    srv: new CampanasService(repo as never, suscriptores as never, envios as never, parametros as never),
-    repo, envios, suscriptores,
+    srv: new CampanasService(
+      repo as never, suscriptores as never, envios as never, parametros as never,
+      cupones as never, usuarios as never,
+    ),
+    repo, envios, suscriptores, cupones, usuarios,
   };
 }
 
@@ -105,8 +120,77 @@ describe('campañas de correo', () => {
   it('la cuenta previa sale de la misma consulta que arma los destinatarios', async () => {
     const { srv, suscriptores } = servicio();
 
-    await expect(srv.destinatarios('org-1', 'c-casa')).resolves.toBe(2);
+    await expect(srv.destinatarios('org-1', 'c-casa')).resolves.toMatchObject({ total: 2 });
     expect(suscriptores.suscritos).toHaveBeenCalledWith('org-1', 'c-casa');
+  });
+
+  /*
+   * A cuántos, y a quiénes.
+   *
+   * «312 personas» no dice si son las que uno cree, y esto no se deshace. La muestra va corta a
+   * propósito: sirve para reconocer la lista, no para leerla entera.
+   */
+  it('la cuenta previa trae unos nombres y dice de qué lista son', async () => {
+    const { srv } = servicio();
+
+    const resumen = await srv.destinatarios('org-1', 'c-casa');
+
+    expect(resumen.muestra.length).toBeLessThanOrEqual(5);
+    expect(resumen.muestra[0]).toEqual({ email: 'ana@correo.cl', nombre: 'Ana' });
+    expect(resumen.deQuienes).toContain('empresa');
+  });
+
+  it('a los administradores no se les pregunta la lista de marketing', async () => {
+    const { srv, suscriptores, usuarios } = servicio();
+
+    const resumen = await srv.destinatarios('org-1', 'c-casa', 'administradores');
+
+    expect(suscriptores.suscritos).not.toHaveBeenCalled();
+    expect(usuarios.find).toHaveBeenCalled();
+    expect(resumen.total).toBe(1);
+    expect(resumen.deQuienes).toContain('administran');
+  });
+
+  /*
+   * Escribirle a quien ya no trabaja ahí es filtrarle a un tercero lo que pasa en esa empresa.
+   */
+  it('a los administradores sólo se les escribe si su cuenta está activa y es de esa empresa', async () => {
+    const { srv, usuarios } = servicio();
+
+    await srv.destinatarios('org-1', 'c-casa', 'administradores');
+
+    expect(usuarios.find).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ organizationId: 'org-1', clientId: 'c-casa', isActive: true }),
+    }));
+  });
+
+  /*
+   * El cupón se comprueba al guardar y no al enviar: un código que la caja rechaza delante del
+   * cliente es peor que no ofrecer ninguno, y quien escribe la campaña tiene que enterarse
+   * mientras todavía puede corregirlo.
+   */
+  it('acepta un cupón que existe, es de esa empresa, está activo y no ha vencido', async () => {
+    const { srv } = servicio();
+
+    const creada = await srv.crear({
+      organizationId: 'org-1', clientId: 'c-casa', asunto: 'Hola', cuerpo: 'Texto', cupon: 'vuelve20',
+    });
+
+    expect(creada.cupon).toBe('VUELVE20');
+    expect(creada.cuponVence).toEqual(new Date('2030-01-01'));
+  });
+
+  it.each([
+    ['no existe', null],
+    ['es de otra empresa', { code: 'X', clientId: 'c-otra', active: true, validUntil: null }],
+    ['está desactivado', { code: 'X', clientId: 'c-casa', active: false, validUntil: null }],
+    ['ya venció', { code: 'X', clientId: 'c-casa', active: true, validUntil: new Date('2020-01-01') }],
+  ])('rechaza el cupón que %s', async (_motivo, cupon) => {
+    const { srv } = servicio({ cupon });
+
+    await expect(srv.crear({
+      organizationId: 'org-1', clientId: 'c-casa', asunto: 'Hola', cuerpo: 'Texto', cupon: 'X',
+    })).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('«agencia» significa la lista sin empresa, también al contar', async () => {

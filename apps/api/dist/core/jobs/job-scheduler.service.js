@@ -37,9 +37,10 @@ const operational_alerts_job_1 = require("./cron/operational-alerts.job");
 const automation_runner_service_1 = require("../../modules/automations/automation-runner.service");
 const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
+const envios_de_campana_service_1 = require("../../modules/marketing/envios-de-campana.service");
 const auto_close_reservations_job_1 = require("./cron/auto-close-reservations.job");
 let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
-    constructor(xp, cycles, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, cuponPostVisita, autoCloseReservations, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks, corridas) {
+    constructor(xp, cycles, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, cuponPostVisita, autoCloseReservations, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks, campanas, corridas) {
         this.xp = xp;
         this.cycles = cycles;
         this.stale = stale;
@@ -60,6 +61,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.automations = automations;
         this.automationSchedule = automationSchedule;
         this.webhooks = webhooks;
+        this.campanas = campanas;
         this.corridas = corridas;
         this.logger = new common_1.Logger(JobSchedulerService_1.name);
         this.timers = [];
@@ -73,6 +75,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.schedule('meta-lead-recovery', 15 * 60_000, () => this.metaRecovery.handle());
         this.schedule('meta-capi-outbox', 2 * 60_000, () => this.capiOutbox.processPending(100));
         this.schedule('google-ads-outbox', 2 * 60_000, () => this.googleOutbox.processPending(100));
+        this.schedule('campanas-outbox', 2 * 60_000, async () => { await this.campanas.processPending(100); await this.campanas.cerrarTerminadas(); });
         this.schedule('automation-runs', 60_000, () => this.automations.processPending());
         this.schedule('automation-cleanup', 24 * 60 * 60_000, () => this.automations.cleanup());
         this.schedule('automation-schedule', 60 * 60_000, () => this.automationSchedule.handle());
@@ -130,7 +133,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
 exports.JobSchedulerService = JobSchedulerService;
 exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __param(20, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
+    __param(21, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
     __metadata("design:paramtypes", [close_xp_periods_job_1.CloseXpPeriodsJob,
         create_monthly_cycles_job_1.CreateMonthlyCyclesJob,
         detect_stale_pieces_job_1.DetectStalePiecesJob,
@@ -151,5 +154,6 @@ exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __de
         automation_runner_service_1.AutomationRunnerService,
         automation_schedule_job_1.AutomationScheduleJob,
         webhook_delivery_service_1.WebhookDeliveryService,
+        envios_de_campana_service_1.EnviosDeCampanaService,
         typeorm_2.Repository])
 ], JobSchedulerService);

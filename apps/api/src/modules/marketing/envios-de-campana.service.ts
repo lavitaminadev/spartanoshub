@@ -59,17 +59,22 @@ export class EnviosDeCampanaService extends OutboxProcessor<EnvioDeCampana> {
    *
    * @returns Cuántos destinatarios quedaron en cola.
    */
-  async encolar(campana: Campana, destinatarios: Suscriptor[]): Promise<number> {
+  async encolar(campana: Campana, destinatarios: Array<Pick<Suscriptor, 'email'> & Partial<Pick<Suscriptor, 'id' | 'name' | 'unsubscribeToken'>>>): Promise<number> {
     /*
-     * Sin token no se encola.
+     * Sin token no se encola, salvo que el correo no lo necesite.
      *
-     * El enlace de baja es individual —se resuelve por el token de la ficha— así que una ficha sin
-     * token no puede recibir un correo del que se pueda dar de baja. Antes que mandarlo sin salida,
-     * no se manda: es una fila que arreglar, no una persona a la que escribir igual.
+     * En una campaña a la lista, el enlace de baja es individual —se resuelve por el token de la
+     * ficha—, así que una ficha sin token recibiría un correo del que no se puede dar de baja.
+     * Antes que mandarlo sin salida, no se manda: es una fila que arreglar, no una persona a la
+     * que escribir igual.
+     *
+     * A quienes administran una empresa se les escribe igual sin token: es aviso de servicio a
+     * quien contrató, no publicidad, y nadie se da de baja de que le cuenten cómo va lo que paga.
      */
+    const exigeToken = (campana.destino ?? 'lista') === 'lista';
     const conToken = destinatarios.filter((suscriptor) => {
-      if (suscriptor.unsubscribeToken) return true;
-      this.logger.warn(`Suscriptor ${suscriptor.id} sin token de baja: queda fuera de la campaña ${campana.id}`);
+      if (!exigeToken || suscriptor.unsubscribeToken) return true;
+      this.logger.warn(`Suscriptor ${suscriptor.id ?? suscriptor.email} sin token de baja: queda fuera de la campaña ${campana.id}`);
       return false;
     });
     if (!conToken.length) return 0;
@@ -141,14 +146,31 @@ export class EnviosDeCampanaService extends OutboxProcessor<EnvioDeCampana> {
     if (!suscriptor?.unsubscribeToken) throw new Error('La ficha ya no tiene token de baja');
 
     const baja = await enlaceDeBaja(this.parametros, 'email.campaign', suscriptor.unsubscribeToken, suscriptor);
+    /*
+     * El cupón se muestra aparte, no metido en el texto.
+     *
+     * Escrito a mano dentro del cuerpo se pierde entre las frases, y quien lo lee en el teléfono
+     * tiene que buscarlo para copiarlo. En su propia fila se ve de una y se puede seleccionar. La
+     * fecha va al lado porque un código sin plazo no dice si todavía sirve.
+     */
+    const detalle = campana.cupon
+      ? [
+          { etiqueta: 'Tu código', valor: campana.cupon },
+          ...(campana.cuponVence
+            ? [{ etiqueta: 'Válido hasta', valor: campana.cuponVence.toLocaleDateString('es-CL', { dateStyle: 'long' }) }]
+            : []),
+        ]
+      : undefined;
+
     const { subject, html } = componerCorreo(
       campana.asunto,
       campana.cuerpo,
       // Sin nombre se escribe igual y sin el hueco: «Hola ,» delata que no se sabía a quién.
-      { nombre: suscriptor.name ?? '' },
+      // El cupón también como variable: quien quiera nombrarlo dentro de la frase puede.
+      { nombre: suscriptor.name ?? '', cupon: campana.cupon ?? '' },
       undefined,
       undefined,
-      undefined,
+      detalle,
       baja,
     );
 

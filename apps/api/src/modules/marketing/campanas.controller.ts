@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
@@ -13,11 +13,17 @@ class CrearCampanaDto {
   @IsString() @MinLength(3) cuerpo: string;
   /** Vacío o `agencia` es la lista propia de Espartanos. */
   @IsOptional() @IsString() clientId?: string | null;
+  /** Código de un cupón que ya exista en Cupones: de esta misma empresa, activo y sin vencer. */
+  @IsOptional() @IsString() @MaxLength(40) cupon?: string | null;
+  /** `lista` son los suscritos de la empresa; `administradores`, las cuentas que la administran. */
+  @IsOptional() @IsIn(['lista', 'administradores']) destino?: 'lista' | 'administradores';
 }
 
 class EditarCampanaDto {
   @IsOptional() @IsString() @MinLength(3) @MaxLength(200) asunto?: string;
   @IsOptional() @IsString() @MinLength(3) cuerpo?: string;
+  @IsOptional() @IsString() @MaxLength(40) cupon?: string | null;
+  @IsOptional() @IsIn(['lista', 'administradores']) destino?: 'lista' | 'administradores';
 }
 
 /**
@@ -43,9 +49,16 @@ export class CampanasController {
 
   @Get('destinatarios')
   @ApiOperation({ summary: 'A cuántos llegaría la campaña si se enviara ahora' })
-  async destinatarios(@Req() req: AuthenticatedRequest, @Query('empresa') empresa?: string) {
-    const total = await this.campanas.destinatarios(req.organizationId || req.user.organizationId, empresa);
-    return { total };
+  async destinatarios(
+    @Req() req: AuthenticatedRequest,
+    @Query('empresa') empresa?: string,
+    @Query('destino') destino?: string,
+  ) {
+    return this.campanas.destinatarios(
+      req.organizationId || req.user.organizationId,
+      empresa,
+      destino === 'administradores' ? 'administradores' : 'lista',
+    );
   }
 
   /**
@@ -68,6 +81,8 @@ export class CampanasController {
       clientId: dto.clientId,
       asunto: dto.asunto,
       cuerpo: dto.cuerpo,
+      cupon: dto.cupon,
+      destino: dto.destino,
       createdBy: req.user.id,
     });
   }

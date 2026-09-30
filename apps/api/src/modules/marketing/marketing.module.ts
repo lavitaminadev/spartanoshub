@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Suscriptor } from './suscriptor.entity';
 import { ExclusionDeCorreo } from './exclusion.entity';
 import { Campana } from './campana.entity';
+import { ReservationCoupon } from '../reservations/domain/reservation-coupon.entity';
+import { User } from '../users/user.entity';
 import { EnvioDeCampana } from './envio-de-campana.entity';
 import { SuscriptoresService } from './suscriptores.service';
 import { SuscriptoresController } from './suscriptores.controller';
@@ -24,7 +26,7 @@ import { ParametersModule } from '../../core/parameters/parameters.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo, Campana, EnvioDeCampana]),
+    TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo, Campana, EnvioDeCampana, ReservationCoupon, User]),
     // `AccountAccessModule` trae la capacidad por empresa: el portal sólo ve su lista si la tiene.
     AccountAccessModule,
     // Enviar campañas necesita el transporte y los interruptores del enlace de baja.

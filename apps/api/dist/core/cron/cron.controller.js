@@ -20,6 +20,7 @@ const public_decorator_1 = require("../auth/decorators/public.decorator");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const cron_run_entity_1 = require("./cron-run.entity");
+const envios_de_campana_service_1 = require("../../modules/marketing/envios-de-campana.service");
 const meta_conversion_outbox_service_1 = require("../../modules/integrations/meta/meta-conversion-outbox.service");
 const google_conversion_outbox_service_1 = require("../../modules/integrations/google/google-conversion-outbox.service");
 const detect_stale_pieces_job_1 = require("../jobs/cron/detect-stale-pieces.job");
@@ -42,8 +43,9 @@ const automation_runner_service_1 = require("../../modules/automations/automatio
 const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 let CronController = class CronController {
-    constructor(capiOutbox, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks, corridas, cuponPostVisita) {
+    constructor(capiOutbox, campanas, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks, corridas, cuponPostVisita) {
         this.capiOutbox = capiOutbox;
+        this.campanas = campanas;
         this.googleOutbox = googleOutbox;
         this.stale = stale;
         this.leadsParados = leadsParados;
@@ -97,6 +99,21 @@ let CronController = class CronController {
         try {
             const result = await this.capiOutbox.processPending(limit ?? 50);
             return { ok: true, processed: result.processed, failed: result.failed, timestamp: new Date().toISOString() };
+        }
+        finally {
+            this.running.delete(lockKey);
+        }
+    }
+    async procesarCampanas(secret, limit) {
+        this.verifySecret(secret);
+        const lockKey = 'campanas';
+        if (this.running.has(lockKey))
+            return { ok: true, skipped: 'already_running' };
+        this.running.add(lockKey);
+        try {
+            const resultado = await this.campanas.processPending(limit ?? 100);
+            const cerradas = await this.campanas.cerrarTerminadas();
+            return { ok: true, processed: resultado.processed, failed: resultado.failed, cerradas, timestamp: new Date().toISOString() };
         }
         finally {
             this.running.delete(lockKey);
@@ -325,6 +342,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], CronController.prototype, "processMetaCapi", null);
+__decorate([
+    (0, common_1.Post)('campanas'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __param(1, (0, common_1.Body)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "procesarCampanas", null);
 __decorate([
     (0, common_1.Get)('meta-capi/diagnostics'),
     (0, throttler_1.Throttle)({ default: { limit: 12, ttl: 60000 } }),
@@ -658,8 +684,9 @@ __decorate([
 exports.CronController = CronController = __decorate([
     (0, common_1.Controller)('cron'),
     (0, public_decorator_1.Public)(),
-    __param(20, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
+    __param(21, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
     __metadata("design:paramtypes", [meta_conversion_outbox_service_1.MetaConversionOutboxService,
+        envios_de_campana_service_1.EnviosDeCampanaService,
         google_conversion_outbox_service_1.GoogleConversionOutboxService,
         detect_stale_pieces_job_1.DetectStalePiecesJob,
         leads_parados_job_1.LeadsParadosJob,
