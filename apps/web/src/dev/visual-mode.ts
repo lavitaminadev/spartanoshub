@@ -1042,7 +1042,55 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/uploads\/images\/cloudinary\//, () => ({ deleted: true })],
   [/\/uploads\/images\/status/, () => ({ configured: true })],
-  [/\/public\/reservations\/manage\/[^/]+\/beneficios$/, () => ({ aceptado: true })],
+  /*
+   * Beneficios desde la pantalla de éxito, con las dos salidas.
+   *
+   * Sin `reactivar` responde como quien alguna vez pidió no recibir, que es el caso que hay que
+   * poder mirar: es el que dibuja el aviso y la casilla. Con `reactivar` acepta. Devolver siempre
+   * `aceptado` dejaba ese camino sin forma de verse.
+   */
+  [/\/public\/reservations\/manage\/[^/]+\/beneficios$/, (config) => (
+    visualRequestBody(config).reactivar === true
+      ? { aceptado: true }
+      : { aceptado: false, requiereConfirmacion: true, alcance: 'local' }
+  )],
+
+  // — Marketing: suscriptores y campañas —
+  [/\/marketing\/suscriptores\/descargar/, () => ({
+    empresa: 'c-casa', total: 2,
+    data: [
+      { email: 'ana@correo.cl', nombre: 'Ana Rojas', aceptoEl: '2026-08-14T12:00:00Z', origen: 'reserva', detalle: 'Casa Costanera' },
+      { email: 'bea@correo.cl', nombre: 'Bea Soto', aceptoEl: '2026-09-02T12:00:00Z', origen: 'import', detalle: 'Formulario de marzo' },
+    ],
+  })],
+  [/\/marketing\/suscriptores\/importar$/, () => ({
+    creados: 12, actualizados: 3, respetadosDeBaja: 2, excluidos: 1,
+    descartados: [{ linea: 7, motivo: 'La dirección no tiene forma de correo' }],
+  })],
+  [/\/marketing\/suscriptores(\?.*)?$/, () => ({
+    total: 3,
+    resumen: [
+      { clientId: 'c-casa', suscritos: 184, bajas: 12, pendientes: 31 },
+      { clientId: 'c-bar', suscritos: 77, bajas: 4, pendientes: 9 },
+      { clientId: null, suscritos: 23, bajas: 1, pendientes: 0 },
+    ],
+    data: [
+      { id: 's-1', clientId: 'c-casa', email: 'ana@correo.cl', name: 'Ana Rojas', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera', consentAt: '2026-08-14T12:00:00Z', createdAt: '2026-08-14T12:00:00Z' },
+      { id: 's-2', clientId: 'c-casa', email: 'bea@correo.cl', name: 'Bea Soto', status: 'pending', source: 'import', sourceDetail: 'Formulario de marzo', createdAt: '2026-09-02T12:00:00Z' },
+      { id: 's-3', clientId: 'c-bar', email: 'cris@correo.cl', name: null, status: 'unsubscribed', source: 'reserva', sourceDetail: 'El Bar', consentAt: '2026-07-01T12:00:00Z', unsubscribedAt: '2026-09-20T12:00:00Z', unsubscribedScope: 'local', createdAt: '2026-07-01T12:00:00Z' },
+    ],
+  })],
+  [/\/marketing\/campanas\/destinatarios/, () => ({ total: 184 })],
+  [/\/marketing\/campanas\/[^/]+\/enviar$/, () => ({ destinatarios: 184, enviados: 181, fallidos: 3 })],
+  [/\/marketing\/campanas(\?.*)?$/, (config) => {
+    const metodo = config?.method?.toLowerCase();
+    if (metodo === 'post') return { id: 'camp-nueva', ...visualRequestBody(config), estado: 'draft', destinatarios: 0, enviados: 0, createdAt: new Date().toISOString() };
+    if (metodo === 'patch' || metodo === 'delete') return { borrada: true };
+    return [
+      { id: 'camp-1', clientId: 'c-casa', asunto: 'Vuelve este fin de semana, {{nombre}}', cuerpo: 'Tenemos algo para ti.', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-28T12:00:00Z' },
+      { id: 'camp-2', clientId: null, asunto: 'Novedades de Espartanos', cuerpo: 'Lo que hicimos este mes.', estado: 'sent', destinatarios: 200, enviados: 197, sentAt: '2026-09-10T12:00:00Z', createdAt: '2026-09-09T12:00:00Z' },
+    ];
+  }],
   [/\/settings\/estado-del-correo(\?.*)?$/, () => ({ habilitado: true, remitente: 'reservas@espartanos.cl', servidor: 'mail.espartanos.cl', puerto: 465, respuestasA: null, faltan: [] })],
   [/\/(reservations|surveys)\/company-legal/, (config) => {
     const clave = 'vh.visual.companyLegal';
