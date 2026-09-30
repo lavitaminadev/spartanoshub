@@ -854,6 +854,10 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/notifications\/read-all$/, () => { visualNotifications.forEach((item) => { item.read = true; }); return { updated: visualNotifications.length }; }],
   [/\/notifications(?:\?|$)/, () => visualNotifications],
   // Suscriptores: dos locales y la agencia, para ver los filtros y el recuento.
+  [/\/marketing\/suscriptores\/importar$/, () => ({
+    creados: 12, actualizados: 3, respetadosDeBaja: 2, excluidos: 1,
+    descartados: [{ linea: 7, motivo: 'La dirección no tiene forma de correo' }],
+  })],
   [/\/marketing\/suscriptores\/descargar/, () => ({ empresa: 'visual-client', total: 2, data: [{ email: 'ana@correo.cl', nombre: 'Ana Moya', aceptoEl: '2026-08-01', origen: 'reserva', detalle: 'Casa Costanera' }, { email: 'diego@correo.cl', nombre: 'Diego Ruiz', aceptoEl: '2026-09-12', origen: 'reserva', detalle: 'Casa Costanera' }] })],
   [/\/marketing\/suscriptores/, () => ({
     data: [
@@ -868,6 +872,8 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { clientId: 'visual-client-2', suscritos: 0, bajas: 1, pendientes: 0 },
       { clientId: null, suscritos: 1, bajas: 0, pendientes: 0 },
     ],
+    // Las procedencias que existen: es de donde sale el selector de «de cualquier parte».
+    origenes: ['import', 'reserva'],
   })],
   // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
   [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
@@ -1055,32 +1061,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       : { aceptado: false, requiereConfirmacion: true, alcance: 'local' }
   )],
 
-  // — Marketing: suscriptores y campañas —
-  [/\/marketing\/suscriptores\/descargar/, () => ({
-    empresa: 'c-casa', total: 2,
-    data: [
-      { email: 'ana@correo.cl', nombre: 'Ana Rojas', aceptoEl: '2026-08-14T12:00:00Z', origen: 'reserva', detalle: 'Casa Costanera' },
-      { email: 'bea@correo.cl', nombre: 'Bea Soto', aceptoEl: '2026-09-02T12:00:00Z', origen: 'import', detalle: 'Formulario de marzo' },
-    ],
-  })],
-  [/\/marketing\/suscriptores\/importar$/, () => ({
-    creados: 12, actualizados: 3, respetadosDeBaja: 2, excluidos: 1,
-    descartados: [{ linea: 7, motivo: 'La dirección no tiene forma de correo' }],
-  })],
-  [/\/marketing\/suscriptores(\?.*)?$/, () => ({
-    total: 3,
-    origenes: ['formulario', 'import', 'reserva'],
-    resumen: [
-      { clientId: 'c-casa', suscritos: 184, bajas: 12, pendientes: 31 },
-      { clientId: 'c-bar', suscritos: 77, bajas: 4, pendientes: 9 },
-      { clientId: null, suscritos: 23, bajas: 1, pendientes: 0 },
-    ],
-    data: [
-      { id: 's-1', clientId: 'c-casa', email: 'ana@correo.cl', name: 'Ana Rojas', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera', consentAt: '2026-08-14T12:00:00Z', createdAt: '2026-08-14T12:00:00Z' },
-      { id: 's-2', clientId: 'c-casa', email: 'bea@correo.cl', name: 'Bea Soto', status: 'pending', source: 'import', sourceDetail: 'Formulario de marzo', createdAt: '2026-09-02T12:00:00Z' },
-      { id: 's-3', clientId: 'c-bar', email: 'cris@correo.cl', name: null, status: 'unsubscribed', source: 'reserva', sourceDetail: 'El Bar', consentAt: '2026-07-01T12:00:00Z', unsubscribedAt: '2026-09-20T12:00:00Z', unsubscribedScope: 'local', createdAt: '2026-07-01T12:00:00Z' },
-    ],
-  })],
+  // — Marketing: campañas —
   [/\/marketing\/campanas\/destinatarios/, () => ({ total: 184 })],
   // El pie con el enlace de baja es lo que distingue una campaña, así que la muestra lo lleva.
   [/\/marketing\/campanas\/vista-previa$/, (config) => {
@@ -1105,10 +1086,10 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     if (metodo === 'post') return { id: 'camp-nueva', ...visualRequestBody(config), estado: 'draft', destinatarios: 0, enviados: 0, createdAt: new Date().toISOString() };
     if (metodo === 'patch' || metodo === 'delete') return { borrada: true };
     return [
-      { id: 'camp-1', clientId: 'c-casa', asunto: 'Vuelve este fin de semana, {{nombre}}', cuerpo: 'Tenemos algo para ti.', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-28T12:00:00Z' },
+      { id: 'camp-1', clientId: 'visual-client', asunto: 'Vuelve este fin de semana, {{nombre}}', cuerpo: 'Tenemos algo para ti.', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-28T12:00:00Z' },
       { id: 'camp-2', clientId: null, asunto: 'Novedades de Espartanos', cuerpo: 'Lo que hicimos este mes.', estado: 'sent', destinatarios: 200, enviados: 197, sentAt: '2026-09-10T12:00:00Z', createdAt: '2026-09-09T12:00:00Z' },
       // Una saliendo, para poder mirar el avance sin esperar a que el cron haga nada.
-      { id: 'camp-3', clientId: 'c-casa', asunto: 'Menu de primavera', cuerpo: 'Ya esta disponible.', estado: 'sending', destinatarios: 184, enviados: 0, createdAt: '2026-09-30T12:00:00Z' },
+      { id: 'camp-3', clientId: 'visual-client', asunto: 'Menu de primavera', cuerpo: 'Ya esta disponible.', estado: 'sending', destinatarios: 184, enviados: 0, createdAt: '2026-09-30T12:00:00Z' },
     ];
   }],
   [/\/settings\/estado-del-correo(\?.*)?$/, () => ({ habilitado: true, remitente: 'reservas@espartanos.cl', servidor: 'mail.espartanos.cl', puerto: 465, respuestasA: null, faltan: [] })],
