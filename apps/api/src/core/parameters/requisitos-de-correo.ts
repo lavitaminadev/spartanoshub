@@ -42,6 +42,7 @@ export const REQUISITOS_POR_AVISO: Record<string, RequisitoDeAviso[]> = {
   'email.team_new_reservation': [{ clave: 'equipo' }],
   'email.team_group_request': [{ clave: 'equipo' }],
   'email.team_waitlist': [{ clave: 'equipo' }],
+  'email.team_operation': [{ clave: 'equipo' }],
 };
 
 /**

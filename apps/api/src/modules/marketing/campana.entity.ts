@@ -53,7 +53,12 @@ export class Campana {
    *
    * Tampoco hay «todas las listas»: quien aceptó promociones de Casa Costanera se las dio **a Casa
    * Costanera**, no a Espartanos ni a Bar Ruperto. Mandarle a todas de una vez usaría un permiso
-   * dado para una cosa en otra. Hace falta antes una casilla propia para eso.
+   * dado para una cosa en otra.
+   *
+   * Para escribirle a quien sí quiere saber de toda la red está la lista de la agencia —`clientId`
+   * vacío—, que ya no se llena a mano: quien marca la casilla «beneficios de los demás locales» al
+   * reservar entra ahí con su propio texto aceptado y su propia baja. Ésa es la lista con el
+   * permiso correcto para hablar en nombre de la red, y se elige como cualquier otra.
    */
   @Column({ type: 'varchar', length: 20, default: 'lista' })
   destino: 'lista' | 'administradores';

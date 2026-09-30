@@ -55,6 +55,15 @@ export declare const PLAZOS_DE_CONSERVACION: {
 };
 /** Versión del permiso de beneficios y novedades. */
 export declare const VERSION_BENEFICIOS = "beneficios-v1";
+/**
+ * Versión del permiso para recibir beneficios de los **demás** locales de la red.
+ *
+ * Separado del anterior porque es otro permiso: quien acepta beneficios de un local no autoriza
+ * con eso que le escriba otro. Antes los dos viajaban en la misma casilla —«beneficios de este
+ * local y sus locales»— y quedaba un solo registro, así que no había forma de demostrar cuál de
+ * los dos había aceptado ni de retirar uno sin el otro.
+ */
+export declare const VERSION_BENEFICIOS_RED = "beneficios-red-v1";
 /** Días corridos para responder una solicitud de derechos, prorrogables una vez por el mismo plazo. */
 export declare const PLAZO_RESPUESTA_DERECHOS_DIAS = 30;
 /** Horas máximas para que Espartanos avise al local de una vulneración que afecte sus datos. */
@@ -134,18 +143,35 @@ export declare function textosDeAceptacionDeReserva(identidad: IdentidadLegal, o
     /** Casilla obligatoria: aceptación de condiciones e información, no un consentimiento. */
     reserva: string;
     novedades: string;
+    redBeneficios: string;
     red: string;
     sensibles: string;
 };
 /**
- * Permiso de beneficios y novedades: un solo permiso, específico en canales, contenidos y uso de
- * historial, para no multiplicar casillas sin perder validez.
+ * Permiso de beneficios y novedades **de este local**: un solo permiso, específico en canales,
+ * contenidos y uso de historial, para no multiplicar casillas sin perder validez.
  *
- * @param opciones.grupo Si el local lo ofrece, incluye beneficios de los demás locales de su red.
+ * Ya no menciona a los demás locales de la red aunque el local los ofrezca. Eso es otra finalidad,
+ * con otro responsable, y va en su propia casilla —`textoDeBeneficiosDeLaRed`—: metido aquí, quien
+ * quería promociones de un solo local tenía que aceptar las de todos o quedarse sin ninguna, y del
+ * conjunto quedaba un único registro que no permitía retirar uno sin el otro.
+ *
+ * `opciones` se mantiene por compatibilidad con quien ya lo llamaba; el texto no lo usa.
  */
-export declare function textoDeBeneficios(identidad: IdentidadLegal, opciones?: {
+export declare function textoDeBeneficios(identidad: IdentidadLegal, _opciones?: {
     red?: string;
     grupo?: boolean;
+}): string;
+/**
+ * Permiso para recibir beneficios de los **demás** locales de la red. Casilla aparte.
+ *
+ * Distinto del anterior en las tres cosas que la ley mira: la finalidad (que le escriba otro
+ * local, no éste), quién trata los datos (cada local responde de lo suyo) y cómo se retira (su
+ * propia baja, sin tocar la del local donde reservó). Por eso dice con qué se comparte y qué pasa
+ * si se retira: quien acepta tiene que poder entender a quién le está abriendo la puerta.
+ */
+export declare function textoDeBeneficiosDeLaRed(identidad: IdentidadLegal, opciones?: {
+    red?: string;
 }): string;
 /** Versión del texto de consentimiento para datos sensibles. */
 export declare const VERSION_DATOS_SENSIBLES = "sensibles-v1";

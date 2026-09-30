@@ -115,6 +115,41 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         await this.anotarExclusion(suscriptor.organizationId, huella, alcance === 'todas' ? null : suscriptor.clientId ?? null, alcance, origen);
         return { email, alcance, empresa: alcance === 'todas' ? null : suscriptor.clientId ?? null };
     }
+    async aQuienPertenece(token) {
+        const suscriptor = await this.repo.findOne({ where: { unsubscribeToken: token } });
+        if (!suscriptor)
+            return null;
+        return {
+            email: suscriptor.email,
+            empresa: suscriptor.clientId ?? null,
+            yaDeBaja: suscriptor.status === suscriptor_entity_1.EstadoDeSuscripcion.BAJA,
+        };
+    }
+    async consultarExclusion(organizationId, email) {
+        const limpio = email?.trim().toLowerCase();
+        if (!limpio)
+            return { alcance: null, empresas: [] };
+        const filas = await this.exclusiones.find({
+            where: { organizationId, huella: this.huellaDe(organizationId, limpio) },
+            order: { createdAt: 'DESC' },
+        });
+        return {
+            alcance: filas.length === 0 ? null : filas.some((fila) => fila.clientId === null) ? 'todas' : 'local',
+            empresas: filas.map((fila) => ({
+                clientId: fila.clientId ?? null,
+                alcance: fila.alcance,
+                origen: fila.origen ?? null,
+                cuando: fila.createdAt,
+            })),
+        };
+    }
+    async cuantasExclusiones(organizationId) {
+        const [total, deTodas] = await Promise.all([
+            this.exclusiones.count({ where: { organizationId } }),
+            this.exclusiones.count({ where: { organizationId, clientId: (0, typeorm_2.IsNull)() } }),
+        ]);
+        return { total, deTodas };
+    }
     async anotarExclusion(organizationId, huella, clientId, alcance, origen) {
         const yaEsta = await this.exclusiones.findOne({ where: { organizationId, huella, clientId: clientId ?? (0, typeorm_2.IsNull)() } });
         if (yaEsta)

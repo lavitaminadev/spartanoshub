@@ -57,6 +57,36 @@ describe('EmailService', () => {
     expect(mocks.sendMail.mock.calls[0][0].html).not.toContain('<script>');
   });
 
+  /*
+   * El botón de baja de Gmail y Yahoo.
+   *
+   * Con `List-Unsubscribe` sola no aparece: la cabecera dice dónde, pero sin `List-Unsubscribe-Post`
+   * no hay permiso para hacerlo sin preguntar, así que el cliente de correo la ignora y la persona
+   * acaba usando «marcar como spam», que es lo que hunde la reputación del servidor y arrastra a
+   * los demás correos. Desde 2024 ambas lo exigen a quien manda en volumen.
+   */
+  it('el correo comercial lleva las dos cabeceras del un clic', async () => {
+    Object.assign(process.env, { SMTP_ENABLED: 'true', SMTP_HOST: 'mail.example.com', SMTP_FROM: 'n@example.com' });
+    const service = new EmailService();
+
+    await service.send('a@b.cl', 'Promo', '<p>Hola</p>', { bajaUrl: 'https://cuartel.espartanos.cl/api/marketing/suscriptores/baja/tok' });
+
+    expect(mocks.sendMail).toHaveBeenCalledWith(expect.objectContaining({
+      list: { unsubscribe: { url: expect.stringContaining('/baja/tok'), comment: expect.any(String) } },
+      headers: { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
+    }));
+  });
+
+  /* Un aviso de servicio no lleva baja, y sin ella tampoco puede llevar la cabecera. */
+  it('el correo que no es comercial no lleva ninguna de las dos', async () => {
+    Object.assign(process.env, { SMTP_ENABLED: 'true', SMTP_HOST: 'mail.example.com', SMTP_FROM: 'n@example.com' });
+    const service = new EmailService();
+
+    await service.send('a@b.cl', 'Tu reserva', '<p>Confirmada</p>');
+
+    expect(mocks.sendMail).toHaveBeenCalledWith(expect.objectContaining({ list: undefined, headers: undefined }));
+  });
+
   it('el correo de clave temporal dice con qué usuario entrar', async () => {
     Object.assign(process.env, { SMTP_ENABLED: 'true', SMTP_HOST: 'mail.example.com', SMTP_PORT: '465', SMTP_SECURE: 'true', SMTP_FROM: 'notifications@example.com' });
     const service = new EmailService();

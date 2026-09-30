@@ -786,3 +786,24 @@
 /* Los filtros que hay que copiar en Meta: legibles y seleccionables, no decorativos. */
 .meta-conversiones { margin:8px 0 0; padding-left:16px; display:grid; gap:6px; font-size:11px; line-height:1.5; }
 .meta-conversiones code { font-family:var(--font-mono); font-size:11px; overflow-wrap:anywhere; }
+
+/* Las casillas del equipo del local: quién recibe cada aviso.
+   Tabla y no una lista de fichas porque la pregunta que se hace aquí es de doble entrada —persona
+   por aviso— y en fichas hay que abrir cada una para responderla. */
+.casillas-equipo { display:grid; gap:10px; padding:12px 0; border-top:1px solid var(--line, #eee8ec); }
+.casillas-equipo-intro { display:grid; gap:3px; }
+.casillas-equipo-intro small { color:var(--muted); line-height:1.5; }
+.casillas-equipo-tabla { width:100%; border-collapse:collapse; font-size:12px; }
+.casillas-equipo-tabla th, .casillas-equipo-tabla td { padding:6px 8px; border-bottom:1px solid var(--line, #eee8ec); text-align:left; vertical-align:middle; }
+.casillas-equipo-tabla th { color:var(--muted); font-weight:600; font-size:11px; }
+.casillas-equipo-tabla td.centrada, .casillas-equipo-tabla th.vertical { text-align:center; }
+.casillas-equipo-tabla td strong { display:block; }
+.casillas-equipo-tabla td small { color:var(--muted); }
+.casillas-equipo-nueva { display:grid; gap:8px; padding:10px; border:1px dashed var(--line, #eee8ec); border-radius:var(--radius-md, 10px); }
+.casillas-equipo-nueva .btn { justify-self:start; }
+.casillas-equipo-tipos { display:flex; flex-wrap:wrap; gap:10px; font-size:12px; }
+.casillas-equipo-tipos label { display:flex; align-items:center; gap:5px; }
+/* En el teléfono la tabla no cabe: se desplaza sola en vez de encogerse hasta ser ilegible. */
+@media (max-width: 720px) {
+  .casillas-equipo-tabla { display:block; overflow-x:auto; white-space:nowrap; }
+}

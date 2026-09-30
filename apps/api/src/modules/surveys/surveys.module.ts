@@ -8,11 +8,12 @@ import { SurveysController } from './surveys.controller';
 import { PublicSurveysController } from './public-surveys.controller';
 import { AccountAccessModule } from '../../core/client-scope/account-access.module';
 import { EmailModule } from '../../core/notifications/email.module';
+import { NotificationsModule } from '../../core/notifications/notifications.module';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { PublicSurveyFlowService } from './public-survey-flow.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Survey, SurveyResponse]), AccountAccessModule, EmailModule, AuditModule, ParametersModule, AuthorizationModule],
+  imports: [TypeOrmModule.forFeature([Survey, SurveyResponse]), AccountAccessModule, EmailModule, AuditModule, ParametersModule, AuthorizationModule, NotificationsModule],
   controllers: [SurveysController, PublicSurveysController],
   providers: [PublicSurveyFlowService],
   exports: [PublicSurveyFlowService],

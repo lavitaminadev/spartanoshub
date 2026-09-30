@@ -49,6 +49,7 @@ export interface Reservation { id: string; formId: string; referenceCode: string
   reservationConsentAt?: string | null; reservationConsentText?: string | null;
   marketingConsentAt?: string | null; marketingConsentText?: string | null; marketingConsentVersion?: string | null;
   networkConsentAt?: string | null; networkConsentText?: string | null; networkConsentVersion?: string | null;
+  groupMarketingConsentAt?: string | null; groupMarketingConsentText?: string | null; groupMarketingConsentVersion?: string | null;
   measurementConsentAt?: string | null; adultDeclaredAt?: string | null; guestConfirmedAt?: string | null }
 
 /** Veces que quien reserva ya estuvo en la misma empresa. */

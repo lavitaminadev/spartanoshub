@@ -24,6 +24,7 @@ const survey_response_entity_1 = require("./survey-response.entity");
 const invitacion_a_encuesta_1 = require("./invitacion-a-encuesta");
 const flujo_de_encuesta_1 = require("./flujo-de-encuesta");
 const email_service_1 = require("../../core/notifications/email.service");
+const destinatarios_de_avisos_service_1 = require("../../core/notifications/destinatarios-de-avisos.service");
 const shared_1 = require("@espartanos/shared");
 const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
@@ -45,12 +46,13 @@ function secretoDeInvitaciones() {
     return process.env.JWT_SECRET || '';
 }
 let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlowService {
-    constructor(surveys, responses, dataSource, correo, parametros) {
+    constructor(surveys, responses, dataSource, correo, parametros, avisos) {
         this.surveys = surveys;
         this.responses = responses;
         this.dataSource = dataSource;
         this.correo = correo;
         this.parametros = parametros;
+        this.avisos = avisos;
         this.logger = new common_1.Logger(PublicSurveyFlowService_1.name);
     }
     async activa(surveyId) {
@@ -183,14 +185,12 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
         return { completed: Boolean(datos.terminar) };
     }
     async avisarAlEquipo(survey, respuesta) {
-        if (!respuesta.reservationId)
-            return;
-        const filas = await this.dataSource.query(`SELECT f.name, f.team_notifications, f.design_config
-         FROM reservations r JOIN reservation_forms f ON f.id = r.form_id
-        WHERE r.id = ? AND r.organization_id = ? LIMIT 1`, [respuesta.reservationId, survey.organizationId]);
+        const filas = respuesta.reservationId
+            ? await this.dataSource.query(`SELECT f.name, f.team_notifications, f.design_config
+           FROM reservations r JOIN reservation_forms f ON f.id = r.form_id
+          WHERE r.id = ? AND r.organization_id = ? LIMIT 1`, [respuesta.reservationId, survey.organizationId])
+            : [];
         const local = filas[0];
-        if (!local)
-            return;
         const parsear = (valor) => {
             if (typeof valor !== 'string')
                 return valor;
@@ -201,14 +201,15 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
                 return undefined;
             }
         };
-        const equipo = parsear(local.team_notifications);
-        const diseno = parsear(local.design_config);
-        const destinatarios = new Set((Array.isArray(equipo) ? equipo : []).filter((correo) => typeof correo === 'string' && correo.includes('@')));
+        const equipo = parsear(local?.team_notifications);
+        const diseno = parsear(local?.design_config);
+        const destinatarios = new Set(await this.avisos.para(survey.organizationId, survey.clientId ?? null, 'encuestas', (Array.isArray(equipo) ? equipo : []).filter((correo) => typeof correo === 'string' && correo.includes('@'))));
         if (destinatarios.size === 0 && typeof diseno?.supportEmail === 'string' && diseno.supportEmail.includes('@')) {
             destinatarios.add(diseno.supportEmail);
         }
         if (destinatarios.size === 0)
             return;
+        const nombreDelLocal = local?.name || survey.title;
         const quien = respuesta.respondentName?.trim() || 'Una persona que los visitó';
         const plantilla = await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, 'email.team_survey_message', { clientId: survey.clientId ?? null, organizationId: survey.organizationId }, {
             asunto: 'Mensaje de {{nombre}} sobre su visita',
@@ -218,7 +219,7 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
             return;
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, `${plantilla.cuerpo}${respuesta.respondentEmail ? '\n\nPueden responderle directo a este correo.' : ''}`, {
             nombre: quien,
-            local: local.name,
+            local: nombreDelLocal,
             nota: respuesta.rating ?? '—',
             mensaje: respuesta.teamMessage ?? '',
             encuesta: survey.title,
@@ -242,5 +243,6 @@ exports.PublicSurveyFlowService = PublicSurveyFlowService = PublicSurveyFlowServ
         typeorm_2.Repository,
         typeorm_2.DataSource,
         email_service_1.EmailService,
-        parameter_resolver_service_1.ParameterResolver])
+        parameter_resolver_service_1.ParameterResolver,
+        destinatarios_de_avisos_service_1.DestinatariosDeAvisosService])
 ], PublicSurveyFlowService);

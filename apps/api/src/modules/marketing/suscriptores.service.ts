@@ -210,6 +210,67 @@ export class SuscriptoresService {
     return { email, alcance, empresa: alcance === 'todas' ? null : suscriptor.clientId ?? null };
   }
 
+  /**
+   * A quién pertenece un enlace de baja, **sin dar de baja a nadie**.
+   *
+   * Existe porque el enlace llega dentro de un correo, y los antivirus de correo y los
+   * previsualizadores de Outlook visitan los enlaces para revisarlos. Con la baja colgada del GET,
+   * eso daba de baja a gente que nunca hizo clic —y la baja es definitiva—. Así que el GET sólo
+   * pregunta con esto, y quien da de baja es el POST del botón.
+   *
+   * @returns El correo y la empresa del enlace, o `null` si el enlace ya no sirve.
+   */
+  async aQuienPertenece(token: string): Promise<{ email: string; empresa: string | null; yaDeBaja: boolean } | null> {
+    const suscriptor = await this.repo.findOne({ where: { unsubscribeToken: token } });
+    if (!suscriptor) return null;
+    return {
+      email: suscriptor.email,
+      empresa: suscriptor.clientId ?? null,
+      yaDeBaja: suscriptor.status === EstadoDeSuscripcion.BAJA,
+    };
+  }
+
+  /**
+   * Qué dice la lista de exclusión sobre una dirección concreta.
+   *
+   * La lista guarda huellas y no correos —para poder cumplir la prohibición del artículo 28 B sin
+   * conservar la dirección de quien pidió que la borraran—, y por eso no se puede listar ni mirar:
+   * sólo se puede preguntar por una dirección que ya se conoce. Y hacía falta poder preguntar:
+   * cuando alguien llama diciendo «sigo recibiendo correos», la respuesta estaba guardada donde
+   * nadie podía consultarla.
+   *
+   * @returns El alcance de lo que pidió y de qué empresas, o `null` si no pidió nada.
+   */
+  async consultarExclusion(organizationId: string, email: string): Promise<{
+    alcance: 'local' | 'todas' | null;
+    empresas: Array<{ clientId: string | null; alcance: string; origen: string | null; cuando: Date }>;
+  }> {
+    const limpio = email?.trim().toLowerCase();
+    if (!limpio) return { alcance: null, empresas: [] };
+    const filas = await this.exclusiones.find({
+      where: { organizationId, huella: this.huellaDe(organizationId, limpio) },
+      order: { createdAt: 'DESC' },
+    });
+    return {
+      alcance: filas.length === 0 ? null : filas.some((fila) => fila.clientId === null) ? 'todas' : 'local',
+      empresas: filas.map((fila) => ({
+        clientId: fila.clientId ?? null,
+        alcance: fila.alcance,
+        origen: fila.origen ?? null,
+        cuando: fila.createdAt,
+      })),
+    };
+  }
+
+  /** Cuántas peticiones de no recibir hay anotadas. El número sí se puede mostrar; las huellas no. */
+  async cuantasExclusiones(organizationId: string): Promise<{ total: number; deTodas: number }> {
+    const [total, deTodas] = await Promise.all([
+      this.exclusiones.count({ where: { organizationId } }),
+      this.exclusiones.count({ where: { organizationId, clientId: IsNull() } }),
+    ]);
+    return { total, deTodas };
+  }
+
   /** Deja la petición en la lista de exclusión. Repetirla no la duplica ni falla. */
   private async anotarExclusion(organizationId: string, huella: string, clientId: string | null, alcance: 'local' | 'todas', origen?: string): Promise<void> {
     const yaEsta = await this.exclusiones.findOne({ where: { organizationId, huella, clientId: clientId ?? IsNull() } });

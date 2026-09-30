@@ -8,7 +8,8 @@ import { SuscriptoresService } from './suscriptores.service';
 /** Lo que una reserva sabe de quien la hizo y hace falta para la lista. */
 export interface AltaDesdeReserva {
   organizationId: string;
-  clientId: string;
+  /** Vacio es la lista de la agencia: la de quienes aceptaron los beneficios de la red. */
+  clientId: string | null;
   email?: string | null;
   name?: string | null;
   birthDate?: string | null;

@@ -49,6 +49,13 @@ let SuscriptoresController = class SuscriptoresController {
             busqueda,
         });
     }
+    async exclusiones(req, correo) {
+        const organizationId = req.organizationId || req.user.organizationId;
+        const cuantas = await this.suscriptores.cuantasExclusiones(organizationId);
+        if (!correo?.trim())
+            return { ...cuantas, consulta: null };
+        return { ...cuantas, consulta: await this.suscriptores.consultarExclusion(organizationId, correo) };
+    }
     async descargar(req, empresa) {
         const organizationId = req.organizationId || req.user.organizationId;
         const alcance = (await this.encierroDe(req)) || empresa || 'agencia';
@@ -68,11 +75,14 @@ let SuscriptoresController = class SuscriptoresController {
     importar(req, dto) {
         return this.suscriptores.importarCsv(req.organizationId || req.user.organizationId, dto.contenido, dto.origen, dto.detalle, dto.textoConsentimiento, dto.clientId ?? null);
     }
-    async baja(token, alcance, origen, res) {
-        const todas = alcance === 'todas';
-        const resultado = await this.suscriptores
-            .darDeBaja(token, todas ? 'todas' : 'local', origen)
-            .catch(() => null);
+    async confirmarBaja(token, origen, res) {
+        const quien = await this.suscriptores.aQuienPertenece(token).catch(() => null);
+        res.type('html').send((0, pagina_de_baja_1.paginaDeConfirmarBaja)(quien, token, origen));
+    }
+    async baja(token, cuerpo, alcanceEnLaUrl, origenEnLaUrl, res) {
+        const alcance = String(cuerpo?.alcance ?? alcanceEnLaUrl ?? 'local') === 'todas' ? 'todas' : 'local';
+        const origen = typeof cuerpo?.origen === 'string' ? cuerpo.origen : origenEnLaUrl;
+        const resultado = await this.suscriptores.darDeBaja(token, alcance, origen).catch(() => null);
         res.type('html').send((0, pagina_de_baja_1.paginaDeBaja)(resultado, token, origen));
     }
 };
@@ -91,6 +101,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], SuscriptoresController.prototype, "listar", null);
+__decorate([
+    (0, common_1.Get)('exclusiones'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, swagger_1.ApiOperation)({ summary: 'Si a una dirección se le pidió no escribir más' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('correo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], SuscriptoresController.prototype, "exclusiones", null);
 __decorate([
     (0, common_1.Get)('descargar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
@@ -115,13 +135,26 @@ __decorate([
     (0, public_decorator_1.Public)(),
     (0, throttler_1.Throttle)({ default: { limit: 20, ttl: 60000 } }),
     (0, common_1.Get)('baja/:token'),
+    (0, swagger_1.ApiOperation)({ summary: 'Confirmar la baja de la lista de correo' }),
+    __param(0, (0, common_1.Param)('token')),
+    __param(1, (0, common_1.Query)('origen')),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], SuscriptoresController.prototype, "confirmarBaja", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, throttler_1.Throttle)({ default: { limit: 20, ttl: 60000 } }),
+    (0, common_1.Post)('baja/:token'),
     (0, swagger_1.ApiOperation)({ summary: 'Darse de baja de la lista de correo' }),
     __param(0, (0, common_1.Param)('token')),
-    __param(1, (0, common_1.Query)('alcance')),
-    __param(2, (0, common_1.Query)('origen')),
-    __param(3, (0, common_1.Res)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Query)('alcance')),
+    __param(3, (0, common_1.Query)('origen')),
+    __param(4, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, Object, Object]),
+    __metadata("design:paramtypes", [String, Object, Object, Object, Object]),
     __metadata("design:returntype", Promise)
 ], SuscriptoresController.prototype, "baja", null);
 exports.SuscriptoresController = SuscriptoresController = __decorate([

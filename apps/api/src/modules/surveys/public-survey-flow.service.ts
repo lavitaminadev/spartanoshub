@@ -10,6 +10,7 @@ import {
   LARGO_MAXIMO_MENSAJE, notaValida, obligatoriasPendientes, preguntaDeNota, siguientePaso, unirRespuestas, type SiguientePaso,
 } from './flujo-de-encuesta';
 import { EmailService } from '../../core/notifications/email.service';
+import { DestinatariosDeAvisosService } from '../../core/notifications/destinatarios-de-avisos.service';
 import { problemasDeRespuesta } from '@espartanos/shared';
 import { aceptacionAGuardar, contactoEscrito } from './consentimiento-de-encuesta';
 import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
@@ -69,6 +70,7 @@ export class PublicSurveyFlowService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
+    private readonly avisos: DestinatariosDeAvisosService,
   ) {}
 
   private async activa(surveyId: string): Promise<Survey> {
@@ -263,29 +265,50 @@ export class PublicSurveyFlowService {
    * La respuesta va dirigida a la persona, para que el local le conteste directo desde su correo.
    */
   private async avisarAlEquipo(survey: Survey, respuesta: SurveyResponse): Promise<void> {
-    if (!respuesta.reservationId) return;
-    const filas = await this.dataSource.query(
-      `SELECT f.name, f.team_notifications, f.design_config
-         FROM reservations r JOIN reservation_forms f ON f.id = r.form_id
-        WHERE r.id = ? AND r.organization_id = ? LIMIT 1`,
-      [respuesta.reservationId, survey.organizationId],
-    ) as Array<{ name: string; team_notifications: unknown; design_config: unknown }>;
+    /*
+     * Ya no hace falta que la respuesta venga de una reserva.
+     *
+     * Antes empezaba con `if (!respuesta.reservationId) return;` y sacaba las direcciones del
+     * formulario de esa reserva: una encuesta abierta por QR —la del mesón, la del código en la
+     * carta— no le avisaba a nadie, y el mensaje quedaba en Resultados esperando que alguien
+     * abriera la pantalla. Las casillas son del **local**, así que con la empresa de la encuesta
+     * ya se sabe a quién escribirle, haya reserva o no.
+     */
+    const filas = respuesta.reservationId
+      ? await this.dataSource.query(
+        `SELECT f.name, f.team_notifications, f.design_config
+           FROM reservations r JOIN reservation_forms f ON f.id = r.form_id
+          WHERE r.id = ? AND r.organization_id = ? LIMIT 1`,
+        [respuesta.reservationId, survey.organizationId],
+      ) as Array<{ name: string; team_notifications: unknown; design_config: unknown }>
+      : [];
     const local = filas[0];
-    if (!local) return;
 
     const parsear = (valor: unknown): unknown => {
       if (typeof valor !== 'string') return valor;
       try { return JSON.parse(valor); } catch { return undefined; }
     };
-    const equipo = parsear(local.team_notifications);
-    const diseno = parsear(local.design_config) as Record<string, unknown> | undefined;
-    const destinatarios = new Set<string>(
+    const equipo = parsear(local?.team_notifications);
+    const diseno = parsear(local?.design_config) as Record<string, unknown> | undefined;
+    const destinatarios = new Set<string>(await this.avisos.para(
+      survey.organizationId,
+      survey.clientId ?? null,
+      'encuestas',
       (Array.isArray(equipo) ? equipo : []).filter((correo): correo is string => typeof correo === 'string' && correo.includes('@')),
-    );
+    ));
+    /*
+     * La casilla de soporte, sólo si no hay nadie más.
+     *
+     * Es el último recurso para que un mensaje con nota baja no se quede sin leer, no el destino
+     * normal: en cuanto el local anota a alguien del equipo, deja de usarse.
+     */
     if (destinatarios.size === 0 && typeof diseno?.supportEmail === 'string' && diseno.supportEmail.includes('@')) {
       destinatarios.add(diseno.supportEmail);
     }
     if (destinatarios.size === 0) return;
+
+    // Sin reserva no hay nombre de formulario: sirve el de la encuesta, que es lo que la persona vio.
+    const nombreDelLocal = local?.name || survey.title;
 
     const quien = respuesta.respondentName?.trim() || 'Una persona que los visitó';
     // El texto sale de su plantilla, editable en Correos. El mensaje queda igual guardado en los
@@ -305,7 +328,7 @@ export class PublicSurveyFlowService {
       `${plantilla.cuerpo}${respuesta.respondentEmail ? '\n\nPueden responderle directo a este correo.' : ''}`,
       {
         nombre: quien,
-        local: local.name,
+        local: nombreDelLocal,
         nota: respuesta.rating ?? '—',
         mensaje: respuesta.teamMessage ?? '',
         encuesta: survey.title,

@@ -10,7 +10,7 @@ import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { SuscriptoresService } from './suscriptores.service';
 import { EstadoDeSuscripcion } from './suscriptor.entity';
-import { paginaDeBaja } from './pagina-de-baja';
+import { paginaDeBaja, paginaDeConfirmarBaja } from './pagina-de-baja';
 
 /** Lo que se necesita para importar una lista sin dejarla sin procedencia. */
 class ImportarSuscriptoresDto {
@@ -80,6 +80,28 @@ export class SuscriptoresController {
   }
 
   /**
+   * Preguntar si a una dirección se le prohibió escribir, y desde cuándo.
+   *
+   * La lista de exclusión guarda huellas y no correos, para poder cumplir la prohibición sin
+   * conservar la dirección de quien pidió que la borraran. Por eso no se puede listar: sólo
+   * preguntar por una dirección que ya se conoce, que es justo lo que hace falta cuando alguien
+   * llama diciendo «sigo recibiendo correos». Sin esto, esa respuesta estaba guardada donde nadie
+   * podía consultarla.
+   *
+   * Sólo la agencia: es la que responde de la prohibición y la que atiende el reclamo. Una cuenta
+   * de empresa preguntando por una dirección cualquiera sabría si esa persona está en el sistema.
+   */
+  @Get('exclusiones')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
+  @ApiOperation({ summary: 'Si a una dirección se le pidió no escribir más' })
+  async exclusiones(@Req() req: AuthenticatedRequest, @Query('correo') correo?: string) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const cuantas = await this.suscriptores.cuantasExclusiones(organizationId);
+    if (!correo?.trim()) return { ...cuantas, consulta: null };
+    return { ...cuantas, consulta: await this.suscriptores.consultarExclusion(organizationId, correo) };
+  }
+
+  /**
    * La lista de una empresa, para que la descargue y escriba por su cuenta.
    *
    * Sólo quien está suscrito ahora mismo: incluir a quien se dio de baja pondría esa dirección en
@@ -123,11 +145,16 @@ export class SuscriptoresController {
   }
 
   /**
-   * Baja desde el enlace del correo.
+   * El enlace del correo: pregunta, no da de baja.
    *
    * **Pública y sin sesión a propósito.** Quien recibe un correo comercial no tiene por qué tener
    * cuenta en el sistema, y una baja que exige iniciar sesión no es una baja: es un obstáculo, y
    * los obstáculos a la baja son exactamente lo que la normativa persigue.
+   *
+   * Y no ejecuta nada, que es el cambio: los antivirus de correo y la previsualización de Outlook
+   * abren los enlaces de un mensaje para revisarlos, así que con la baja colgada del GET se daba de
+   * baja a gente que nunca hizo clic. Como la baja es definitiva —el artículo 28 B no admite
+   * deshacerla sola— eso no se arregla después. El botón de la página hace el POST.
    *
    * Con límite de frecuencia porque el token va en un correo y acaba en sitios donde lo ven
    * terceros; sin límite, alguien podría probar tokens al azar.
@@ -135,25 +162,47 @@ export class SuscriptoresController {
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('baja/:token')
-  @ApiOperation({ summary: 'Darse de baja de la lista de correo' })
-  async baja(
+  @ApiOperation({ summary: 'Confirmar la baja de la lista de correo' })
+  async confirmarBaja(
     @Param('token') token: string,
-    @Query('alcance') alcance: string | undefined,
     @Query('origen') origen: string | undefined,
     @Res() res: Response,
   ) {
-    /*
-     * Responde una página, no un dato.
-     *
-     * Quien hace clic en el enlace de un correo abre el navegador, así que devolver
-     * `{"ok":true,...}` le muestra algo que parece roto justo cuando está ejerciendo un derecho.
-     * Se arma acá y no en la aplicación web porque esta dirección es pública y sin sesión: cargar
-     * la aplicación entera para una frase sería pedirle que espere por nada.
-     */
-    const todas = alcance === 'todas';
-    const resultado = await this.suscriptores
-      .darDeBaja(token, todas ? 'todas' : 'local', origen)
-      .catch(() => null);
+    const quien = await this.suscriptores.aQuienPertenece(token).catch(() => null);
+    res.type('html').send(paginaDeConfirmarBaja(quien, token, origen));
+  }
+
+  /**
+   * La baja de verdad.
+   *
+   * Dos caminos llegan acá y los dos son intención expresa: el botón de la página, y el «Anular
+   * suscripción» que Gmail y Yahoo muestran junto al remitente, que manda un POST a esta misma
+   * dirección (RFC 8058). Que el cliente de correo lo haga sin abrir nada no es un problema: la
+   * persona apretó su botón, y esa es la alternativa a que marque el mensaje como spam.
+   *
+   * Responde una página y no un dato: quien viene del botón abre el navegador, y ver
+   * `{"ok":true}` parece roto justo cuando está ejerciendo un derecho. A Gmail le da igual el
+   * cuerpo, así que la misma respuesta sirve para los dos.
+   */
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Post('baja/:token')
+  @ApiOperation({ summary: 'Darse de baja de la lista de correo' })
+  async baja(
+    @Param('token') token: string,
+    // Sin DTO a propósito: el `ValidationPipe` rechaza lo que no declara, y el clic de Gmail manda
+    // su propio campo (`List-Unsubscribe=One-Click`). Un cuerpo declarado devolvería 400 y la
+    // persona seguiría suscrita creyendo que se dio de baja.
+    @Body() cuerpo: Record<string, unknown> | undefined,
+    @Query('alcance') alcanceEnLaUrl: string | undefined,
+    @Query('origen') origenEnLaUrl: string | undefined,
+    @Res() res: Response,
+  ) {
+    // El alcance puede venir del formulario o de la dirección: la cabecera de un clic no manda
+    // formulario, y un enlace antiguo lo trae en la consulta.
+    const alcance = String(cuerpo?.alcance ?? alcanceEnLaUrl ?? 'local') === 'todas' ? 'todas' : 'local';
+    const origen = typeof cuerpo?.origen === 'string' ? cuerpo.origen : origenEnLaUrl;
+    const resultado = await this.suscriptores.darDeBaja(token, alcance, origen).catch(() => null);
     res.type('html').send(paginaDeBaja(resultado, token, origen));
   }
 }

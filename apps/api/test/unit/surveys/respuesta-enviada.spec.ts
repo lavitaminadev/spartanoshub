@@ -46,8 +46,14 @@ function servicio(respuesta: Record<string, unknown>) {
   const correo = { send: vi.fn().mockResolvedValue(true) };
   // Sin plantilla guardada: se usa el texto de fábrica y el aviso está encendido.
   const parametros = { get: vi.fn().mockResolvedValue(null) };
-  const flujo = new PublicSurveyFlowService(surveys as never, responses as never, dataSource as never, correo as never, parametros as never);
-  return { flujo, responses, correo };
+  /*
+   * Las casillas del equipo se piden por local y por tipo de aviso. Aqui devuelve lo heredado del
+   * formulario, que es lo que hacia el codigo anterior: el aviso tiene que seguir saliendo igual
+   * para un local que todavia no ha pasado sus direcciones a la tabla nueva.
+   */
+  const avisos = { para: vi.fn(async (_org, _cliente, _tipo, heredadas) => heredadas) };
+  const flujo = new PublicSurveyFlowService(surveys as never, responses as never, dataSource as never, correo as never, parametros as never, avisos as never);
+  return { flujo, responses, correo, avisos };
 }
 
 /** El aviso al local sale fuera de la respuesta: se deja correr antes de mirar. */
@@ -107,5 +113,35 @@ describe('aviso al local por el mensaje de una encuesta', () => {
 
     expect(correo.send).not.toHaveBeenCalled();
     expect(responses.update).toHaveBeenCalledWith({ id: 'r-1' }, expect.objectContaining({ teamMessage: 'La mesa estaba fría y tardaron' }));
+  });
+
+  /*
+   * El caso que no avisaba a nadie.
+   *
+   * Sin reserva —la encuesta del QR en la carta, la del mesón— la función salía en la primera línea
+   * y el mensaje se quedaba en Resultados esperando que alguien abriera la pantalla. Las casillas
+   * son del local, así que con la empresa de la encuesta ya se sabe a quién escribirle.
+   */
+  it('una encuesta abierta por QR, sin reserva, también avisa al equipo del local', async () => {
+    const { flujo, correo, avisos } = servicio({ id: 'r-1', editTokenHash: hash, completedAt: null, reservationId: null, teamMessage: null, answers: { nota: 2 } });
+    avisos.para.mockResolvedValue(['garzon@local.cl']);
+
+    await flujo.completar('enc-1', 'r-1', TOKEN, { teamMessage: 'Faltaba una silla' });
+    await esperarAvisos();
+
+    expect(avisos.para).toHaveBeenCalledWith('org-1', null, 'encuestas', []);
+    expect(correo.send).toHaveBeenCalledTimes(1);
+    expect(correo.send).toHaveBeenCalledWith('garzon@local.cl', expect.any(String), expect.any(String), undefined);
+  });
+
+  /* Sin nadie anotado no se manda nada: no hay destinatario por descarte al que escribirle. */
+  it('sin casillas del equipo ni correo de soporte no sale ningún aviso', async () => {
+    const { flujo, correo, avisos } = servicio({ id: 'r-1', editTokenHash: hash, completedAt: null, reservationId: null, teamMessage: null, answers: { nota: 2 } });
+    avisos.para.mockResolvedValue([]);
+
+    await flujo.completar('enc-1', 'r-1', TOKEN, { teamMessage: 'Nada grave' });
+    await esperarAvisos();
+
+    expect(correo.send).not.toHaveBeenCalled();
   });
 });

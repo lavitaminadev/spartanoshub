@@ -151,6 +151,18 @@ __decorate([
     __metadata("design:type", Object)
 ], Reservation.prototype, "networkConsentText", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'group_marketing_consent_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "groupMarketingConsentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'group_marketing_consent_version', type: 'varchar', length: 30, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "groupMarketingConsentVersion", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'group_marketing_consent_text', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "groupMarketingConsentText", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'post_visit_survey_sent_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "postVisitSurveySentAt", void 0);

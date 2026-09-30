@@ -96,6 +96,7 @@ let EmailService = EmailService_1 = class EmailService {
                 text: options?.text ?? (0, plantilla_de_correo_1.textoDesdeHtml)(html),
                 attachments: options?.attachments,
                 list: options?.bajaUrl ? { unsubscribe: { url: options.bajaUrl, comment: 'Dejar de recibir estos correos' } } : undefined,
+                headers: options?.bajaUrl ? { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined,
             });
             const accepted = Array.isArray(result.accepted) ? result.accepted.length : 0;
             if (!accepted)
