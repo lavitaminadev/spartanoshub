@@ -1409,16 +1409,48 @@ function renderField(field: FormField, value: unknown, onChange: (v: string | bo
   return <div className={`public-field ${error ? 'has-error' : ''}`}><label>{field.label} {field.required ? <span className="required-star">*</span> : null}<input className={error ? 'input-error' : ''} type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : field.type === 'date' || field.type === 'birthdate' ? 'date' : field.type === 'number' ? 'number' : 'text'} required={field.required} placeholder={field.placeholder} value={String(value || '')} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
 }
 
+/** Lo que responde el servidor al aceptar: o quedó, o hay que preguntarle de nuevo. */
+interface RespuestaBeneficios {
+  aceptado: boolean;
+  requiereConfirmacion?: boolean;
+  alcance?: 'local' | 'todas';
+}
+
 /**
  * Segunda oportunidad de aceptar beneficios, en la pantalla de éxito: el mismo permiso y texto de
  * la casilla, sin condicionar nada, con un toque.
+ *
+ * Con una parada. A quien alguna vez pidió no recibir no se le vuelve a suscribir de un botonazo:
+ * el servidor no guarda nada y devuelve qué había pedido, y aquí se le recuerda antes de pedirle
+ * el sí otra vez. La ley pide que el permiso nuevo sea inequívoco, y no lo es si quien lo da no
+ * sabe que está deshaciendo algo que pidió él mismo.
  */
 function OfertaDeBeneficios({ token, texto, nombre }: { token: string; texto: string; nombre: string }) {
-  const aceptar = useMutation({ mutationFn: () => api.post(`/public/reservations/manage/${encodeURIComponent(token)}/beneficios`, {}) });
-  if (aceptar.isSuccess) return <div className="oferta-beneficios is-lista" role="status"><strong>¡Listo!</strong><span>Te avisaremos de beneficios y novedades de {nombre}.</span></div>;
+  const [confirmado, setConfirmado] = useState(false);
+  const aceptar = useMutation<RespuestaBeneficios, Error, boolean>({
+    mutationFn: (reactivar: boolean) => api.post(`/public/reservations/manage/${encodeURIComponent(token)}/beneficios`, { reactivar }),
+  });
+  const aviso = aceptar.data?.requiereConfirmacion ? aceptar.data : null;
+
+  if (aceptar.data?.aceptado) return <div className="oferta-beneficios is-lista" role="status"><strong>¡Listo!</strong><span>Te avisaremos de beneficios y novedades de {nombre}.</span></div>;
+
+  if (aviso) return <div className="oferta-beneficios is-aviso">
+    <div>
+      <strong>Nos pediste no recibir más correos {aviso.alcance === 'todas' ? 'de ninguno de estos locales' : `de ${nombre}`}.</strong>
+      <span>Podemos volver a escribirte, pero sólo si nos lo confirmas ahora. Puedes darte de baja otra vez cuando quieras, desde cualquier correo.</span>
+    </div>
+    <label className="consent-reactivar">
+      <input type="checkbox" checked={confirmado} onChange={(evento) => setConfirmado(evento.target.checked)} />
+      <span>Sí, quiero volver a recibir beneficios y novedades de {nombre}.</span>
+    </label>
+    <button type="button" className="btn btn-primary btn-sm" disabled={!confirmado || aceptar.isPending} onClick={() => aceptar.mutate(true)}>{aceptar.isPending ? 'Guardando…' : 'Confirmar'}</button>
+    <details className="consent-detalle"><summary>Qué acepto</summary><p>{texto}</p></details>
+    {aceptar.isError && <small className="error-text">No se pudo guardar. Inténtalo de nuevo.</small>}
+  </div>;
+
   return <div className="oferta-beneficios">
     <div><strong>¿Quieres beneficios de {nombre}?</strong><span>Promociones, beneficios de cumpleaños y eventos, cuando el local los ofrezca.</span></div>
-    <button type="button" className="btn btn-primary btn-sm" disabled={aceptar.isPending} onClick={() => aceptar.mutate()}>{aceptar.isPending ? 'Guardando…' : 'Sí, quiero beneficios'}</button>
+    <button type="button" className="btn btn-primary btn-sm" disabled={aceptar.isPending} onClick={() => aceptar.mutate(false)}>{aceptar.isPending ? 'Guardando…' : 'Sí, quiero beneficios'}</button>
     <details className="consent-detalle"><summary>Qué acepto</summary><p>{texto}</p></details>
     {aceptar.isError && <small className="error-text">No se pudo guardar. Inténtalo de nuevo.</small>}
   </div>;

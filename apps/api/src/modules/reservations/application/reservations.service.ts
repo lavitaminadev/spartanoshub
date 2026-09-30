@@ -1661,14 +1661,45 @@ export class ReservationsService {
   /**
    * Quien ya reservó acepta después beneficios y novedades desde la pantalla de éxito o su enlace.
    * Guarda el mismo texto y versión que la casilla del formulario; si ya lo había aceptado, no cambia nada.
+   *
+   * Y lo suma a la lista de correo, que antes no hacía: aceptar por aquí quedaba anotado en la
+   * reserva y en ninguna parte más, así que el saludo de cumpleaños —que lee la lista— no le
+   * llegaba. Aceptar en el formulario y aceptar aquí son el mismo permiso y tienen que valer igual.
+   *
+   * @param reactivar - Que ya se le advirtió que había pedido no recibir y aun así dijo que sí.
    */
-  async aceptarBeneficiosPublic(token: string) {
+  async aceptarBeneficiosPublic(token: string, reactivar = false) {
     const { reservation } = await this.managementReservation(token);
+    const form = await this.forms.findOne({ where: { id: reservation.formId } });
+    if (!form) throw new NotFoundException('El local ya no está disponible');
+    await this.completarDatosLegales(form);
+    const texto = this.consentTexts(form).marketing;
+
+    /*
+     * Primero la lista, porque es la que puede decir que no.
+     *
+     * Si esta persona pidió no recibir más, no se guarda nada todavía: se le devuelve el alcance
+     * de lo que pidió para que la pantalla se lo recuerde y le pregunte de nuevo. Anotar el
+     * consentimiento en la reserva y dejar la lista sin tocar sería la peor de las dos: constaría
+     * un permiso que no se puede ejercer.
+     */
+    const resultado = await this.altaEnLaLista.registrar({
+      organizationId: reservation.organizationId,
+      clientId: reservation.clientId,
+      email: reservation.guestEmail,
+      name: reservation.guestName,
+      birthDate: reservation.birthDate ?? null,
+      origen: form.name,
+      consentText: texto,
+      consentAt: new Date(),
+    }, reactivar);
+
+    if (resultado === 'local' || resultado === 'todas') {
+      return { aceptado: false, requiereConfirmacion: true, alcance: resultado };
+    }
+
     if (!reservation.marketingConsentAt) {
-      const form = await this.forms.findOne({ where: { id: reservation.formId } });
-      if (!form) throw new NotFoundException('El local ya no está disponible');
-      await this.completarDatosLegales(form);
-      await this.reservations.update(reservation.id, { marketingConsentAt: new Date(), marketingConsentVersion: VERSION_BENEFICIOS, marketingConsentText: this.consentTexts(form).marketing } as never);
+      await this.reservations.update(reservation.id, { marketingConsentAt: new Date(), marketingConsentVersion: VERSION_BENEFICIOS, marketingConsentText: texto } as never);
       await this.events.save(this.events.create({ organizationId: reservation.organizationId, clientId: reservation.clientId, reservationId: reservation.id, type: 'marketing_consent', fromStatus: reservation.status, toStatus: reservation.status, actorType: 'guest' } as never));
     }
     return { aceptado: true };

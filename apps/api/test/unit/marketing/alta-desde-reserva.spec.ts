@@ -25,7 +25,7 @@ describe('alta en la lista de correo desde una reserva', () => {
   };
 
   /** Nadie pidió no recibir, salvo que una prueba diga lo contrario. */
-  const listaDeExclusion = { exclusionDe: vi.fn().mockResolvedValue(null) };
+  const listaDeExclusion = { exclusionDe: vi.fn().mockResolvedValue(null), levantarExclusion: vi.fn() };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -94,6 +94,60 @@ describe('alta en la lista de correo desde una reserva', () => {
 
   it('un fallo al escribir la lista no se propaga: la reserva ya está hecha', async () => {
     suscriptores.findOne.mockRejectedValue(new Error('base caída'));
-    await expect(alta.registrar(datos)).resolves.toBeUndefined();
+    // Se cuenta como omitida y no como exclusión: no entró, pero no fue porque lo pidiera nadie.
+    await expect(alta.registrar(datos)).resolves.toBe('omitida');
+  });
+
+  /*
+   * Volver después de haberse dado de baja.
+   *
+   * El permiso nuevo vale —nadie queda excluido de por vida contra su voluntad— pero tiene que ser
+   * inequívoco: la pantalla le recuerda que él lo pidió y le pregunta otra vez. Sin ese segundo sí
+   * no se toca nada, y por eso el primer intento devuelve qué había pedido en vez de suscribirlo.
+   */
+  describe('cuando pidió no recibir más', () => {
+    it('no lo suscribe ni levanta nada: devuelve el alcance para que se lo recuerden', async () => {
+      listaDeExclusion.exclusionDe.mockResolvedValue('local');
+
+      await expect(alta.registrar(datos)).resolves.toBe('local');
+
+      expect(listaDeExclusion.levantarExclusion).not.toHaveBeenCalled();
+      expect(suscriptores.save).not.toHaveBeenCalled();
+    });
+
+    it('distingue «de este local» de «de ninguno», porque el aviso no dice lo mismo', async () => {
+      listaDeExclusion.exclusionDe.mockResolvedValue('todas');
+      await expect(alta.registrar(datos)).resolves.toBe('todas');
+    });
+
+    it('con el segundo sí levanta la exclusión y lo vuelve a suscribir', async () => {
+      listaDeExclusion.exclusionDe.mockResolvedValue('local');
+      const ficha = {
+        status: EstadoDeSuscripcion.BAJA,
+        unsubscribedAt: new Date('2026-01-02T00:00:00Z'),
+        unsubscribedScope: 'local',
+        consentText: 'el texto viejo',
+      };
+      suscriptores.findOne.mockResolvedValue(ficha);
+
+      await expect(alta.registrar(datos, true)).resolves.toBe('alta');
+
+      expect(listaDeExclusion.levantarExclusion).toHaveBeenCalledWith('org-1', 'camila@correo.cl', 'client-1');
+      expect(ficha.status).toBe(EstadoDeSuscripcion.SUSCRITO);
+      expect(ficha.unsubscribedAt).toBeNull();
+      expect(ficha.unsubscribedScope).toBeNull();
+      // El permiso que vale es el de ahora, no el que dio antes de darse de baja.
+      expect(ficha.consentText).toBe(datos.consentText);
+      expect(ficha.consentAt).toBe(datos.consentAt);
+    });
+
+    it('sin el segundo sí, una baja sigue siendo definitiva aunque vuelva a reservar', async () => {
+      suscriptores.findOne.mockResolvedValue({ status: EstadoDeSuscripcion.BAJA, consentText: 'el texto viejo' });
+
+      await expect(alta.registrar(datos)).resolves.toBe('alta');
+
+      expect(suscriptores.save).toHaveBeenCalled();
+      expect(suscriptores.save.mock.calls[0][0].status).toBe(EstadoDeSuscripcion.BAJA);
+    });
   });
 });
