@@ -4,6 +4,7 @@ exports.escaparHtml = escaparHtml;
 exports.rellenar = rellenar;
 exports.armazonDeCorreo = armazonDeCorreo;
 exports.componerCorreo = componerCorreo;
+exports.textoDesdeHtml = textoDesdeHtml;
 const brand_1 = require("../../shared/brand");
 function escaparHtml(valor) {
     return valor
@@ -60,12 +61,12 @@ function detalleDeCorreo(filas) {
     </tr>`).join('');
     return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 2px;border-top:1px solid #ececf0;padding-top:10px;">${celdas}</table>`;
 }
-function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle) {
+function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader) {
     const boton = accion
         ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px;">
          <tr><td style="border-radius:8px;background:#ea0f63;">
            <a href="${escaparHtml(accion.url)}"
-              style="display:inline-block;padding:11px 22px;font-family:Helvetica,Arial,sans-serif;
+              class="boton" style="display:inline-block;padding:11px 22px;font-family:Helvetica,Arial,sans-serif;
                      font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">
              ${escaparHtml(accion.texto)}
            </a>
@@ -77,25 +78,71 @@ function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <title>${escaparHtml(titulo)}</title>
+<style>
+  /*
+   * Lo único que va en una hoja de estilos: lo que no se puede escribir dentro de una etiqueta.
+   *
+   * El resto sigue dentro de cada etiqueta, que es lo que Outlook interpreta. Gmail y Outlook
+   * ignoran estas reglas o las aplican según el caso, y el correo se lee igual sin ellas: son una
+   * mejora, nunca un requisito.
+   */
+  @media (max-width: 600px) {
+    .cuerpo { padding: 18px 16px 22px !important; }
+    .cabecera { padding: 18px 16px 4px !important; }
+    .pie { padding: 14px 16px 18px !important; }
+    .titulo { font-size: 21px !important; }
+    /* El botón a lo ancho: en un teléfono un botón angosto se falla al tocarlo. */
+    .boton { display: block !important; text-align: center !important; }
+  }
+  /*
+   * Modo oscuro.
+   *
+   * Cada vez más gente lee con el teléfono en oscuro. Sin esto el cliente de correo invierte los
+   * colores por su cuenta y el resultado es impredecible: texto gris sobre gris, o el logo
+   * desaparecido. Se declaran los colores a propósito en vez de dejar que los adivine.
+   */
+  @media (prefers-color-scheme: dark) {
+    .fondo { background: #17181c !important; }
+    .tarjeta { background: #212329 !important; }
+    .cuerpo, .titulo { color: #e9eaee !important; }
+    .pie { color: #a0a3ad !important; border-top-color: #31343c !important; }
+    .detalle-etiqueta { color: #a0a3ad !important; }
+    .detalle-valor { color: #e9eaee !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#f4f4f6;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;">
+<body class="fondo" style="margin:0;padding:0;background:#f4f4f6;">
+  ${preheader ? `<!--
+    El primer renglón que muestra la bandeja, junto al asunto.
+
+    Sin él, Gmail rellena ese espacio con lo primero que encuentre en el código. Es lo que más
+    influye en que abran el correo. Va oculto: se lee en la lista, no dentro del mensaje. Los
+    caracteres invisibles del final empujan fuera cualquier resto de HTML que el cliente quisiera
+    añadir detrás.
+  -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">
+    ${escaparHtml(preheader)}
+    ${'&#8199;&#65279;&#847; '.repeat(30)}
+  </div>` : ''}
+  <table role="presentation" class="fondo" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;">
     <tr>
       <td align="center" style="padding:24px 12px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-               style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;">
+               class="tarjeta" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;">
           <tr>
-            <td style="padding:22px 26px 6px;">
+            <td class="cabecera" style="padding:22px 26px 6px;">
               <img src="${escaparHtml(urlDelLogo())}" alt="${escaparHtml(brand_1.BRAND.name)}" width="36" height="36"
                    style="display:block;border:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;
                           font-weight:700;color:#ea0f63;">
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 26px 26px;font-family:Helvetica,Arial,sans-serif;font-size:15px;
+            <td class="cuerpo" style="padding:8px 26px 26px;font-family:Helvetica,Arial,sans-serif;font-size:15px;
                        line-height:1.55;color:#22242a;">
-              <h1 style="margin:0 0 14px;font-size:19px;line-height:1.3;color:#101114;">
+              <h1 class="titulo" style="margin:0 0 14px;font-size:19px;line-height:1.3;color:#101114;">
                 ${escaparHtml(titulo)}
               </h1>
               ${comoParrafos(cuerpo)}
@@ -105,7 +152,7 @@ function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle) {
             </td>
           </tr>
           <tr>
-            <td style="padding:16px 26px 22px;border-top:1px solid #ececf0;
+            <td class="pie" style="padding:16px 26px 22px;border-top:1px solid #ececf0;
                        font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a7d87;">
               ${escaparHtml(brand_1.BRAND.teamSignature)}
             </td>
@@ -122,5 +169,42 @@ function componerCorreo(asunto, cuerpo, variables, accion, extra, detalle) {
         const valor = variables[nombre];
         return valor === null || valor === undefined ? '' : String(valor);
     }).replace(/\s+/g, ' ').trim();
-    return { subject, html: armazonDeCorreo(subject, rellenar(cuerpo, variables), accion, extra, detalle) };
+    const cuerpoEnTexto = rellenar(cuerpo, variables);
+    const preheader = cuerpoEnTexto.split('\n').map((linea) => linea.trim()).find(Boolean)?.slice(0, 140);
+    return {
+        subject,
+        html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader),
+        text: comoTextoPlano(subject, cuerpoEnTexto, accion, detalle),
+    };
+}
+function textoDesdeHtml(html) {
+    return html
+        .replace(/<div style="display:none[\s\S]*?<\/div>/gi, '')
+        .replace(/<(head|style|title)[\s\S]*?<\/\1>/gi, '')
+        .replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_todo, url, texto) => {
+        const limpio = texto.replace(/<[^>]+>/g, '').trim();
+        return limpio && !url.startsWith('mailto:') ? `${limpio}: ${url}` : limpio;
+    })
+        .replace(/<\/(p|h1|h2|h3|tr|div|li)>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/td>/gi, ' ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;|&#8199;|&#65279;|&#847;/g, ' ')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .split('\n')
+        .map((linea) => linea.replace(/[ \t]+/g, ' ').trim())
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+function comoTextoPlano(titulo, cuerpo, accion, detalle) {
+    const partes = [titulo, '', cuerpo.trim()];
+    if (detalle?.length) {
+        partes.push('', ...detalle.map((fila) => `${fila.etiqueta}: ${fila.valor}`));
+    }
+    if (accion)
+        partes.push('', `${accion.texto}: ${accion.url}`);
+    partes.push('', brand_1.BRAND.teamSignature);
+    return partes.join('\n').replace(/\n{3,}/g, '\n\n');
 }
