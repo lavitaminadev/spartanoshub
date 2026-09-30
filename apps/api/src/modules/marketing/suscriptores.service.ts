@@ -248,17 +248,21 @@ export class SuscriptoresService {
    * organización, una lista sin filtros no se puede leer.
    *
    * @param empresa - Id de la empresa, o `agencia` para la lista propia —la que no tiene empresa—.
+   * @param encerradoEn - Empresa de la que no puede salir la consulta, cuando quien pregunta es
+   *   una cuenta de empresa. Manda sobre `empresa`: la dirección puede pedir otra, y no se le da.
    */
   async listar(organizationId: string, filtros: {
     limite?: number;
     empresa?: string;
+    encerradoEn?: string;
     estado?: EstadoDeSuscripcion;
     origen?: string;
     busqueda?: string;
   } = {}): Promise<{ data: Suscriptor[]; total: number; resumen: Array<{ clientId: string | null; suscritos: number; bajas: number; pendientes: number }> }> {
     const where: FindOptionsWhere<Suscriptor> = { organizationId };
-    if (filtros.empresa === 'agencia') where.clientId = IsNull();
-    else if (filtros.empresa) where.clientId = filtros.empresa;
+    const empresa = filtros.encerradoEn ?? filtros.empresa;
+    if (empresa === 'agencia') where.clientId = IsNull();
+    else if (empresa) where.clientId = empresa;
     if (filtros.estado) where.status = filtros.estado;
     if (filtros.origen) where.source = filtros.origen;
 
@@ -280,16 +284,32 @@ export class SuscriptoresService {
      * Contar sobre la página mostraría «12 suscritos» cuando hay trescientos, que es peor que no
      * mostrar nada: el número se usa para decidir si vale la pena una campaña.
      */
-    const filas = await this.repo
+    const consulta = this.repo
       .createQueryBuilder('s')
       .select('s.client_id', 'clientId')
       .addSelect('s.status', 'status')
       .addSelect('COUNT(*)', 'cuantos')
-      .where('s.organization_id = :organizationId', { organizationId })
+      .where('s.organization_id = :organizationId', { organizationId });
+
+    /*
+     * El recuento respeta el mismo encierro que las filas.
+     *
+     * Sin esto, una cuenta de empresa recibía en la misma respuesta cuántos suscritos, bajas y
+     * pendientes tiene cada una de las demás. La pantalla no dibuja esas tarjetas, pero los
+     * números viajan en el JSON, y ahí ya se fueron.
+     */
+    if (filtros.encerradoEn) consulta.andWhere('s.client_id = :encerradoEn', { encerradoEn: filtros.encerradoEn });
+
+    const filas = await consulta
       .groupBy('s.client_id')
       .addGroupBy('s.status')
       .getRawMany<{ clientId: string | null; status: string; cuantos: string }>()
-      .catch(() => []);
+      .catch((error) => {
+        // Se devuelve la lista sin las tarjetas, pero queda dicho por qué faltan: un recuento
+        // que desaparece en silencio se lee como «no hay nadie», que es lo contrario del dato.
+        this.logger.warn(`No se pudo contar por empresa: ${error instanceof Error ? error.message : error}`);
+        return [];
+      });
 
     const resumen = new Map<string | null, { clientId: string | null; suscritos: number; bajas: number; pendientes: number }>();
     for (const fila of filas) {

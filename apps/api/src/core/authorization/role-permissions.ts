@@ -292,6 +292,18 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
      * Crear, publicar y enviar lo sigue haciendo el equipo que lleva la cuenta.
      */
     surveys: 'view',
+    /*
+     * Su propia lista de correo, en lectura.
+     *
+     * `view` y no `edit`: mira quién aceptó recibir de su local y descarga esa lista para
+     * escribir por su cuenta. Importar direcciones sigue siendo de la agencia, que es quien
+     * responde por el respaldo de cada permiso —con `view` el POST de importar ya queda fuera,
+     * y además su `@Roles` no la nombra: hacen falta las dos y ninguna depende de la otra—.
+     *
+     * Las tres rejas de siempre: el alcance por cuenta la limita a su empresa, la capacidad
+     * `marketing` a que esa empresa lo tenga contratado, y esto al nivel de lectura.
+     */
+    marketing: 'view',
   },
 };
 

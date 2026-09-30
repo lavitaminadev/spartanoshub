@@ -5,6 +5,7 @@ import { ExclusionDeCorreo } from './exclusion.entity';
 import { SuscriptoresService } from './suscriptores.service';
 import { SuscriptoresController } from './suscriptores.controller';
 import { AltaDeSuscriptorDesdeReserva } from './alta-desde-reserva';
+import { AccountAccessModule } from '../../core/client-scope/account-access.module';
 
 /**
  * La lista de correo comercial, separada de todo lo demás.
@@ -15,7 +16,8 @@ import { AltaDeSuscriptorDesdeReserva } from './alta-desde-reserva';
  * campañas, con la constancia de por qué.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo])],
+  // `AccountAccessModule` trae la capacidad por empresa: el portal sólo ve su lista si la tiene.
+  imports: [TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo]), AccountAccessModule],
   controllers: [SuscriptoresController],
   providers: [SuscriptoresService, AltaDeSuscriptorDesdeReserva],
   exports: [SuscriptoresService, AltaDeSuscriptorDesdeReserva],

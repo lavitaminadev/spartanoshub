@@ -63,7 +63,7 @@ export function SuscriptoresPage() {
     queryFn: () => api.get('/clients'),
     enabled: !esEmpresa,
   });
-  const empresas = empresasResp?.data ?? [];
+  const empresas = useMemo(() => empresasResp?.data ?? [], [empresasResp?.data]);
   const nombreDe = useMemo(() => {
     const mapa = new Map(empresas.map((cliente) => [cliente.id, cliente.name]));
     return (id: string | null | undefined) => (id ? mapa.get(id) ?? 'Empresa no disponible' : 'Espartanos (agencia)');
