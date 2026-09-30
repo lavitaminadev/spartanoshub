@@ -259,7 +259,15 @@ export function CrmAdminPage(): JSX.Element {
     queryKey: ['meta-client-pixels'],
     queryFn: () => api.get('/integrations/meta/client-pixels/catalog'),
     retry: false,
-    enabled: !scope.esAgencia,
+    /*
+     * Sólo el equipo de la agencia.
+     *
+     * El catálogo pertenece a Integraciones, que ningún cargo de empresa alcanza: una cuenta de
+     * portal lo pedía en cada visita y recibía 403 sin falta. Es informativo, así que no pedirlo
+     * no le quita nada; lo que quitaba era la confianza en la consola, donde ese error tapaba a
+     * los que sí importan.
+     */
+    enabled: !scope.esAgencia && user?.role !== 'client',
   });
   const estadoMeta = scope.clientId
     ? metaCatalogo.data?.bindings.find((fila) => fila.clientId === scope.clientId)

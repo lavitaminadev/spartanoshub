@@ -436,12 +436,7 @@ export function PanelDeCorreo(): JSX.Element {
    * Sólo las activas y de clientes, de la empresa elegida o generales. Ofrecer una cerrada, o una
    * de otra empresa, dejaría elegir algo que el envío después descarta sin decir nada.
    */
-  const encuestasQuery = useQuery<Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }>>({
-    queryKey: ['encuestas-para-correo', empresa],
-    queryFn: () => api.get(`/surveys${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
-    enabled: alcanzaEncuestas,
-  });
-  const encuestasElegibles = (encuestasQuery.data ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer' && (!encuesta.clientId || encuesta.clientId === empresa));
+  // La consulta vive más abajo: necesita saber qué servicios tiene contratados la empresa elegida.
   const [borrador, setBorrador] = useState<Record<string, string | number | boolean | null> | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   /** Aviso cuya vista previa está abierta. Sólo una a la vez: son pesadas y se comparan de a una. */
@@ -483,6 +478,25 @@ export function PanelDeCorreo(): JSX.Element {
     // desplegable con cien opciones ya es incómodo mucho antes de llegar a ese límite.
     queryFn: () => api.get('/clients?limit=100'),
   });
+
+  /*
+   * Encuestas que se pueden enviar después de la visita.
+   *
+   * Sólo las activas y de clientes, de la empresa elegida o generales. Ofrecer una cerrada, o una
+   * de otra empresa, dejaría elegir algo que el envío después descarta sin decir nada.
+   *
+   * No basta con tener permiso en Encuestas: la empresa elegida tiene que tenerlo contratado. Sin
+   * esa condición, mirar un local sin Encuestas pedía igual la lista y el servidor respondía 403
+   * —correctamente— llenando la consola de errores en una pantalla que funcionaba.
+   */
+  const empresaTieneEncuestas = !empresa
+    || (empresasQuery.data?.data ?? []).find((cliente) => cliente.id === empresa)?.capabilities?.surveys !== false;
+  const encuestasQuery = useQuery<Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }>>({
+    queryKey: ['encuestas-para-correo', empresa],
+    queryFn: () => api.get(`/surveys${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
+    enabled: alcanzaEncuestas && empresaTieneEncuestas && Boolean(empresasQuery.data),
+  });
+  const encuestasElegibles = (encuestasQuery.data ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer' && (!encuesta.clientId || encuesta.clientId === empresa));
 
   const guardar = useMutation({
     mutationFn: (values: Record<string, unknown>) => api.put(
