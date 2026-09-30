@@ -853,6 +853,22 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   }],
   [/\/notifications\/read-all$/, () => { visualNotifications.forEach((item) => { item.read = true; }); return { updated: visualNotifications.length }; }],
   [/\/notifications(?:\?|$)/, () => visualNotifications],
+  // Suscriptores: dos locales y la agencia, para ver los filtros y el recuento.
+  [/\/marketing\/suscriptores\/descargar/, () => ({ empresa: 'visual-client', total: 2, data: [{ email: 'ana@correo.cl', nombre: 'Ana Moya', aceptoEl: '2026-08-01', origen: 'reserva', detalle: 'Casa Costanera' }, { email: 'diego@correo.cl', nombre: 'Diego Ruiz', aceptoEl: '2026-09-12', origen: 'reserva', detalle: 'Casa Costanera' }] })],
+  [/\/marketing\/suscriptores/, () => ({
+    data: [
+      { id: 's1', clientId: 'visual-client', email: 'ana@correo.cl', name: 'Ana Moya', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera - Providencia', consentAt: '2026-08-01T12:00:00.000Z', createdAt: '2026-08-01T12:00:00.000Z' },
+      { id: 's2', clientId: 'visual-client', email: 'diego@correo.cl', name: 'Diego Ruiz', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera - Providencia', consentAt: '2026-09-12T12:00:00.000Z', createdAt: '2026-09-12T12:00:00.000Z' },
+      { id: 's3', clientId: 'visual-client-2', email: 'ana@correo.cl', name: 'Ana Moya', status: 'unsubscribed', source: 'reserva', sourceDetail: 'Bar Ruperto', consentAt: '2026-07-02T12:00:00.000Z', unsubscribedAt: '2026-09-20T12:00:00.000Z', unsubscribedScope: 'local', createdAt: '2026-07-02T12:00:00.000Z' },
+      { id: 's4', clientId: null, email: 'fernanda@correo.cl', name: 'Fernanda Riquelme', status: 'subscribed', source: 'import', sourceDetail: 'Feria gastronomica', consentAt: '2026-06-10T12:00:00.000Z', createdAt: '2026-06-10T12:00:00.000Z' },
+    ],
+    total: 4,
+    resumen: [
+      { clientId: 'visual-client', suscritos: 2, bajas: 0, pendientes: 1 },
+      { clientId: 'visual-client-2', suscritos: 0, bajas: 1, pendientes: 0 },
+      { clientId: null, suscritos: 1, bajas: 0, pendientes: 0 },
+    ],
+  })],
   // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
   [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
   [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],

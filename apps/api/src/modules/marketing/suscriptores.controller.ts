@@ -8,6 +8,7 @@ import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { SuscriptoresService } from './suscriptores.service';
+import { EstadoDeSuscripcion } from './suscriptor.entity';
 import { paginaDeBaja } from './pagina-de-baja';
 
 /** Lo que se necesita para importar una lista sin dejarla sin procedencia. */
@@ -38,11 +39,51 @@ export class SuscriptoresController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Lista de suscriptores con su procedencia y estado' })
-  listar(@Req() req: AuthenticatedRequest, @Query('limit') limit?: string) {
-    return this.suscriptores.listar(
-      req.organizationId || req.user.organizationId,
-      limit ? Number(limit) : undefined,
-    );
+  listar(
+    @Req() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+    @Query('empresa') empresa?: string,
+    @Query('estado') estado?: string,
+    @Query('origen') origen?: string,
+    @Query('q') busqueda?: string,
+  ) {
+    return this.suscriptores.listar(req.organizationId || req.user.organizationId, {
+      limite: limit ? Number(limit) : undefined,
+      empresa,
+      // Sólo los tres estados que existen: un valor inventado en la dirección no filtra nada.
+      estado: Object.values(EstadoDeSuscripcion).includes(estado as EstadoDeSuscripcion) ? estado as EstadoDeSuscripcion : undefined,
+      origen,
+      busqueda,
+    });
+  }
+
+  /**
+   * La lista de una empresa, para que la descargue y escriba por su cuenta.
+   *
+   * Sólo quien está suscrito ahora mismo: incluir a quien se dio de baja pondría esa dirección en
+   * un archivo que sale del sistema, donde el enlace de baja ya no funciona y la baja no se puede
+   * hacer cumplir. Queda anotado quién descargó y cuántas filas, porque desde ese momento esa
+   * copia es responsabilidad de quien la tiene.
+   */
+  @Get('descargar')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Descargar los suscritos de una empresa' })
+  async descargar(@Req() req: AuthenticatedRequest, @Query('empresa') empresa: string) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    // Una cuenta de empresa descarga la suya y ninguna otra, diga lo que diga la dirección.
+    const alcance = req.user.role === UserRole.CLIENT ? (req.user.clientId ?? 'agencia') : (empresa || 'agencia');
+    const filas = await this.suscriptores.paraDescargar(organizationId, alcance);
+    return {
+      empresa: alcance,
+      total: filas.length,
+      data: filas.map((fila) => ({
+        email: fila.email,
+        nombre: fila.name,
+        aceptoEl: fila.consentAt,
+        origen: fila.source,
+        detalle: fila.sourceDetail,
+      })),
+    };
   }
 
   @Post('importar')

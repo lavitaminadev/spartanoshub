@@ -1158,15 +1158,6 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     masterStatus: 'direction_required',
   },
   {
-    key: 'email.team_survey_message_unsubscribe',
-    category: 'email',
-    label: 'Mensaje al equipo del local · enlace para darse de baja',
-    description: 'Pone en el pie el enlace para dejar de recibir estos correos, y la cabecera que Gmail y Yahoo usan para su propio boton de baja. **Apagarlo es arriesgado**: los dos lo exigen en el correo comercial desde 2024, y sin el terminan rechazando lo que enviamos, incluidas las confirmaciones de reserva. Quien lo usa se da de baja en vez de marcar spam, que es lo que dana la reputacion del servidor y arrastra a todos los locales.',
-    valueType: 'boolean',
-    defaultValue: true,
-    masterStatus: 'master_defined',
-  },
-  {
     key: 'email.team_survey_message_subject',
     category: 'email',
     label: 'Aviso al equipo: mensaje en una encuesta · asunto',
@@ -1192,15 +1183,6 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     description: 'Variables: {{encuesta}}.',
     valueType: 'text',
     defaultValue: '{{encuesta}}',
-    masterStatus: 'master_defined',
-  },
-  {
-    key: 'email.survey_invite_unsubscribe',
-    category: 'email',
-    label: 'Invitacion a la encuesta · enlace para darse de baja',
-    description: 'Pone en el pie el enlace para dejar de recibir estos correos, y la cabecera que Gmail y Yahoo usan para su propio boton de baja. **Apagarlo es arriesgado**: los dos lo exigen en el correo comercial desde 2024, y sin el terminan rechazando lo que enviamos, incluidas las confirmaciones de reserva. Quien lo usa se da de baja en vez de marcar spam, que es lo que dana la reputacion del servidor y arrastra a todos los locales.',
-    valueType: 'boolean',
-    defaultValue: true,
     masterStatus: 'master_defined',
   },
   {

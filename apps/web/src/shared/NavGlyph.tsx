@@ -67,6 +67,7 @@ const GLYPHS: Record<string, string> = {
   'Accesos y seguridad': 'AS',
   Usuarios: 'US',
   'Correos enviados': 'CE',
+  Suscriptores: 'SU',
   'Operación y cuentas': 'OC',
   'Gobierno del producto': 'GP',
   'Configuración técnica': 'TC',

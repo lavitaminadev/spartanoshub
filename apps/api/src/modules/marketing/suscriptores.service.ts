@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'node:crypto';
-import { type FindOptionsWhere, IsNull, Repository } from 'typeorm';
+import { type FindOptionsWhere, IsNull, Like, Repository } from 'typeorm';
 import { EstadoDeSuscripcion, Suscriptor } from './suscriptor.entity';
 import { ExclusionDeCorreo } from './exclusion.entity';
 import { type FilaImportada, interpretarCsv } from './importar-suscriptores';
@@ -240,11 +240,88 @@ export class SuscriptoresService {
   }
 
   /** La lista completa, para la pantalla. Incluye pendientes y bajas, con su procedencia. */
-  listar(organizationId: string, limite = 200): Promise<Suscriptor[]> {
-    return this.repo.find({
-      where: { organizationId },
+  /**
+   * La lista, acotada a lo que se pida.
+   *
+   * Antes sólo aceptaba un tope de filas: no se podía mirar una empresa, ni separar a quien está
+   * suscrito de quien se dio de baja, ni buscar a alguien. Con varios locales en la misma
+   * organización, una lista sin filtros no se puede leer.
+   *
+   * @param empresa - Id de la empresa, o `agencia` para la lista propia —la que no tiene empresa—.
+   */
+  async listar(organizationId: string, filtros: {
+    limite?: number;
+    empresa?: string;
+    estado?: EstadoDeSuscripcion;
+    origen?: string;
+    busqueda?: string;
+  } = {}): Promise<{ data: Suscriptor[]; total: number; resumen: Array<{ clientId: string | null; suscritos: number; bajas: number; pendientes: number }> }> {
+    const where: FindOptionsWhere<Suscriptor> = { organizationId };
+    if (filtros.empresa === 'agencia') where.clientId = IsNull();
+    else if (filtros.empresa) where.clientId = filtros.empresa;
+    if (filtros.estado) where.status = filtros.estado;
+    if (filtros.origen) where.source = filtros.origen;
+
+    const texto = filtros.busqueda?.trim();
+    // El nombre y el correo, con la misma búsqueda: se busca a una persona, no un campo.
+    const condiciones = texto
+      ? [{ ...where, email: Like(`%${texto.toLowerCase()}%`) }, { ...where, name: Like(`%${texto}%`) }]
+      : where;
+
+    const [data, total] = await this.repo.findAndCount({
+      where: condiciones,
       order: { createdAt: 'DESC' },
-      take: Math.min(Math.max(limite, 1), 1000),
+      take: Math.min(Math.max(filtros.limite ?? 200, 1), 1000),
+    });
+
+    /*
+     * El recuento por empresa sale de la base y no de las filas traídas.
+     *
+     * Contar sobre la página mostraría «12 suscritos» cuando hay trescientos, que es peor que no
+     * mostrar nada: el número se usa para decidir si vale la pena una campaña.
+     */
+    const filas = await this.repo
+      .createQueryBuilder('s')
+      .select('s.client_id', 'clientId')
+      .addSelect('s.status', 'status')
+      .addSelect('COUNT(*)', 'cuantos')
+      .where('s.organization_id = :organizationId', { organizationId })
+      .groupBy('s.client_id')
+      .addGroupBy('s.status')
+      .getRawMany<{ clientId: string | null; status: string; cuantos: string }>()
+      .catch(() => []);
+
+    const resumen = new Map<string | null, { clientId: string | null; suscritos: number; bajas: number; pendientes: number }>();
+    for (const fila of filas) {
+      const clave = fila.clientId ?? null;
+      const actual = resumen.get(clave) ?? { clientId: clave, suscritos: 0, bajas: 0, pendientes: 0 };
+      const cuantos = Number(fila.cuantos) || 0;
+      if (fila.status === EstadoDeSuscripcion.SUSCRITO) actual.suscritos += cuantos;
+      else if (fila.status === EstadoDeSuscripcion.BAJA) actual.bajas += cuantos;
+      else actual.pendientes += cuantos;
+      resumen.set(clave, actual);
+    }
+
+    return { data, total, resumen: [...resumen.values()] };
+  }
+
+  /**
+   * Los que una empresa puede descargar para escribirles por su cuenta.
+   *
+   * **Nunca la lista cruda.** Sólo quien está suscrito ahora mismo: incluir a quien se dio de baja
+   * pondría esa dirección en un archivo que sale del sistema, donde el enlace de baja ya no
+   * funciona y la baja no se puede hacer cumplir. Desde que el archivo se descarga, esa copia es
+   * responsabilidad de quien la tiene, y por eso hay que volver a bajarla antes de cada envío.
+   */
+  async paraDescargar(organizationId: string, empresa: string): Promise<Suscriptor[]> {
+    return this.repo.find({
+      where: {
+        organizationId,
+        clientId: empresa === 'agencia' ? IsNull() : empresa,
+        status: EstadoDeSuscripcion.SUSCRITO,
+      },
+      order: { createdAt: 'DESC' },
+      take: 5000,
     });
   }
 }
