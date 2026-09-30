@@ -142,7 +142,7 @@ function detalleDeCorreo(filas: DetalleDeCorreo[]): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 2px;border-top:1px solid #ececf0;padding-top:10px;">${celdas}</table>`;
 }
 
-export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionDeCorreo, extra?: { titulo: string; tarjetas: TarjetaDeCorreo[] }, detalle?: DetalleDeCorreo[], preheader?: string): string {
+export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionDeCorreo, extra?: { titulo: string; tarjetas: TarjetaDeCorreo[] }, detalle?: DetalleDeCorreo[], preheader?: string, baja?: string): string {
   const boton = accion
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px;">
          <tr><td style="border-radius:8px;background:#ea0f63;">
@@ -237,6 +237,20 @@ export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionD
             <td class="pie" style="padding:16px 26px 22px;border-top:1px solid #ececf0;
                        font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a7d87;">
               ${escaparHtml(BRAND.teamSignature)}
+              ${baja ? `<!--
+                El enlace de baja, en el pie y discreto.
+
+                Iba como botón principal del correo: en una felicitación de cumpleaños, lo más
+                grande y lo único con color decía «no quiero recibir más correos». Su sitio es el
+                pie, que es donde se busca, y el botón queda libre para lo que el correo quiera
+                pedir. La cabecera de baja del mensaje lleva la misma dirección, así que quien usa
+                el botón de Gmail llega al mismo lugar.
+              -->
+              <div style="margin-top:10px;">
+                <a href="${escaparHtml(baja)}" style="color:#7a7d87;font-size:12px;">
+                  Dejar de recibir estos correos
+                </a>
+              </div>` : ''}
             </td>
           </tr>
         </table>
@@ -265,6 +279,8 @@ export function componerCorreo(
   accion?: AccionDeCorreo,
   extra?: { titulo: string; tarjetas: TarjetaDeCorreo[] },
   detalle?: DetalleDeCorreo[],
+  /** Dirección de baja, sólo en el correo comercial. Va en el pie, no como botón. */
+  baja?: string,
 ): { subject: string; html: string; text: string } {
   // El asunto se rellena sin escapar y luego se limpia: no es HTML, y un `&amp;` en la bandeja
   // de entrada se lee como el error que es.
@@ -291,7 +307,7 @@ export function componerCorreo(
   const preheader = cuerpoEnTexto.split('\n').map((linea) => linea.trim()).find(Boolean)?.slice(0, 140);
   return {
     subject,
-    html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader),
+    html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader, baja),
     text: comoTextoPlano(subject, cuerpoEnTexto, accion, detalle),
   };
 }

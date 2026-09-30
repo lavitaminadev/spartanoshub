@@ -61,7 +61,7 @@ function detalleDeCorreo(filas) {
     </tr>`).join('');
     return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 2px;border-top:1px solid #ececf0;padding-top:10px;">${celdas}</table>`;
 }
-function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader) {
+function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader, baja) {
     const boton = accion
         ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px;">
          <tr><td style="border-radius:8px;background:#ea0f63;">
@@ -155,6 +155,20 @@ function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader) {
             <td class="pie" style="padding:16px 26px 22px;border-top:1px solid #ececf0;
                        font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a7d87;">
               ${escaparHtml(brand_1.BRAND.teamSignature)}
+              ${baja ? `<!--
+                El enlace de baja, en el pie y discreto.
+
+                Iba como botón principal del correo: en una felicitación de cumpleaños, lo más
+                grande y lo único con color decía «no quiero recibir más correos». Su sitio es el
+                pie, que es donde se busca, y el botón queda libre para lo que el correo quiera
+                pedir. La cabecera de baja del mensaje lleva la misma dirección, así que quien usa
+                el botón de Gmail llega al mismo lugar.
+              -->
+              <div style="margin-top:10px;">
+                <a href="${escaparHtml(baja)}" style="color:#7a7d87;font-size:12px;">
+                  Dejar de recibir estos correos
+                </a>
+              </div>` : ''}
             </td>
           </tr>
         </table>
@@ -164,7 +178,7 @@ function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader) {
 </body>
 </html>`;
 }
-function componerCorreo(asunto, cuerpo, variables, accion, extra, detalle) {
+function componerCorreo(asunto, cuerpo, variables, accion, extra, detalle, baja) {
     const subject = asunto.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (_todo, nombre) => {
         const valor = variables[nombre];
         return valor === null || valor === undefined ? '' : String(valor);
@@ -173,7 +187,7 @@ function componerCorreo(asunto, cuerpo, variables, accion, extra, detalle) {
     const preheader = cuerpoEnTexto.split('\n').map((linea) => linea.trim()).find(Boolean)?.slice(0, 140);
     return {
         subject,
-        html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader),
+        html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader, baja),
         text: comoTextoPlano(subject, cuerpoEnTexto, accion, detalle),
     };
 }
