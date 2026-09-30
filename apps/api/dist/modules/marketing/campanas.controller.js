@@ -39,6 +39,17 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", Object)
 ], CrearCampanaDto.prototype, "clientId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", Object)
+], CrearCampanaDto.prototype, "cupon", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['lista', 'administradores']),
+    __metadata("design:type", String)
+], CrearCampanaDto.prototype, "destino", void 0);
 class EditarCampanaDto {
 }
 __decorate([
@@ -54,6 +65,17 @@ __decorate([
     (0, class_validator_1.MinLength)(3),
     __metadata("design:type", String)
 ], EditarCampanaDto.prototype, "cuerpo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", Object)
+], EditarCampanaDto.prototype, "cupon", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['lista', 'administradores']),
+    __metadata("design:type", String)
+], EditarCampanaDto.prototype, "destino", void 0);
 let CampanasController = class CampanasController {
     constructor(campanas) {
         this.campanas = campanas;
@@ -61,9 +83,8 @@ let CampanasController = class CampanasController {
     listar(req) {
         return this.campanas.listar(req.organizationId || req.user.organizationId);
     }
-    async destinatarios(req, empresa) {
-        const total = await this.campanas.destinatarios(req.organizationId || req.user.organizationId, empresa);
-        return { total };
+    async destinatarios(req, empresa, destino) {
+        return this.campanas.destinatarios(req.organizationId || req.user.organizationId, empresa, destino === 'administradores' ? 'administradores' : 'lista');
     }
     vistaPrevia(dto) {
         return this.campanas.vistaPrevia(dto.asunto ?? '', dto.cuerpo ?? '');
@@ -74,6 +95,8 @@ let CampanasController = class CampanasController {
             clientId: dto.clientId,
             asunto: dto.asunto,
             cuerpo: dto.cuerpo,
+            cupon: dto.cupon,
+            destino: dto.destino,
             createdBy: req.user.id,
         });
     }
@@ -105,8 +128,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'A cuántos llegaría la campaña si se enviara ahora' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('empresa')),
+    __param(2, (0, common_1.Query)('destino')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], CampanasController.prototype, "destinatarios", null);
 __decorate([

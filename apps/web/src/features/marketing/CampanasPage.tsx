@@ -11,11 +11,21 @@ interface Campana {
   clientId?: string | null;
   asunto: string;
   cuerpo: string;
+  cupon?: string | null;
+  cuponVence?: string | null;
+  destino?: 'lista' | 'administradores';
   estado: 'draft' | 'sending' | 'sent';
   destinatarios: number;
   enviados: number;
   sentAt?: string | null;
   createdAt: string;
+}
+
+/** Lo que el servidor contesta al preguntar a cuántos llegaría: la cifra y a quiénes son. */
+interface DestinatariosResumen {
+  total: number;
+  muestra: Array<{ email: string; nombre: string | null }>;
+  deQuienes: string;
 }
 
 const ESTADO: Record<Campana['estado'], string> = {
@@ -79,7 +89,21 @@ export function CampanasPage() {
           emptyMessage="Ninguna por ahora. Escribe una y verás a cuántas personas llegaría antes de enviarla."
           columns={[
             { key: 'asunto', label: 'Asunto' },
-            { key: 'clientId', label: 'Lista', render: (fila) => nombreDe(fila.clientId) },
+            {
+              key: 'clientId',
+              label: 'A quién',
+              // La empresa y el grupo, en dos líneas: la empresa sola no dice si fue a su lista de
+              // clientes o a quienes la administran, que son dos correos muy distintos.
+              render: (fila) => <span className="campana-destino">
+                <strong>{nombreDe(fila.clientId)}</strong>
+                <small>{fila.destino === 'administradores' ? 'Quienes administran' : 'Lista de marketing'}</small>
+              </span>,
+            },
+            {
+              key: 'cupon',
+              label: 'Cupón',
+              render: (fila) => (fila.cupon ? <code>{fila.cupon}</code> : '—'),
+            },
             { key: 'estado', label: 'Estado', render: (fila) => ESTADO[fila.estado] ?? fila.estado },
             {
               key: 'enviados',
@@ -142,12 +166,31 @@ function EditorDeCampana({ campana, empresas, onCerrar, onGuardada }: {
   const [asunto, setAsunto] = useState(campana?.asunto ?? '');
   const [cuerpo, setCuerpo] = useState(campana?.cuerpo ?? '');
   const [empresa, setEmpresa] = useState(campana?.clientId ?? '');
+  const [cupon, setCupon] = useState(campana?.cupon ?? '');
+  const [destino, setDestino] = useState<'lista' | 'administradores'>(campana?.destino ?? 'lista');
 
   const guardar = useMutation({
     mutationFn: () => (campana
-      ? api.patch(`/marketing/campanas/${campana.id}`, { asunto, cuerpo })
-      : api.post('/marketing/campanas', { asunto, cuerpo, clientId: empresa || null })),
+      ? api.patch(`/marketing/campanas/${campana.id}`, { asunto, cuerpo, cupon: cupon.trim() || null, destino })
+      : api.post('/marketing/campanas', {
+        asunto, cuerpo, clientId: empresa || null, cupon: cupon.trim() || null, destino,
+      })),
     onSuccess: onGuardada,
+  });
+
+  /*
+   * A cuántos, y a quiénes, mientras se escribe.
+   *
+   * Se pide con el destino y la empresa que están elegidos en el formulario, no con los de la
+   * campaña guardada: la pregunta es sobre lo que se va a mandar. Un cupón mal escrito lo rechaza
+   * el servidor al guardar, pero el número de destinatarios conviene verlo antes, porque es lo que
+   * hace pensárselo dos veces.
+   */
+  const { data: aQuienes } = useQuery<DestinatariosResumen>({
+    queryKey: ['campana-destinatarios', (campana?.clientId ?? empresa) || 'agencia', destino],
+    queryFn: () => api.get(
+      `/marketing/campanas/destinatarios?empresa=${encodeURIComponent((campana?.clientId ?? empresa) || 'agencia')}&destino=${destino}`,
+    ),
   });
 
   /*
@@ -176,6 +219,27 @@ function EditorDeCampana({ campana, empresas, onCerrar, onGuardada }: {
         {campana && <p className="form-hint">La lista no se cambia después de escrita: el texto está pensado para ésa.</p>}
 
         <label>
+          A quiénes de esa empresa
+          <select className="input" value={destino} onChange={(evento) => setDestino(evento.target.value as 'lista' | 'administradores')}>
+            <option value="lista">Su lista de marketing (quienes aceptaron recibir promociones)</option>
+            <option value="administradores">Quienes administran la empresa (aviso de servicio)</option>
+          </select>
+        </label>
+        <p className="form-hint">
+          {destino === 'administradores'
+            ? 'Va a las cuentas activas que administran la empresa. Es aviso de servicio a quien contrató, así que no lleva enlace de baja: nadie se da de baja de que le cuenten cómo va lo que paga. Si lo que vas a mandar es publicidad, éste no es el destino.'
+            : 'Va a quienes aceptaron recibir promociones de esta empresa, y sólo de ésta. No hay «todas las listas» a propósito: el permiso que alguien le dio a un local no vale para otro.'}
+        </p>
+
+        {aQuienes && <p className="envio-cifra">
+          Ahora mismo llegaría a <strong>{aQuienes.total}</strong> {aQuienes.total === 1 ? 'persona' : 'personas'}
+          {' · '}<span>{aQuienes.deQuienes}</span>
+          {aQuienes.muestra.length > 0 && <small>
+            {' '}Por ejemplo: {aQuienes.muestra.map((fila) => fila.nombre || fila.email).join(', ')}…
+          </small>}
+        </p>}
+
+        <label>
           Asunto <span className="required-star">*</span>
           <input className="input" required maxLength={200} value={asunto} onChange={(evento) => setAsunto(evento.target.value)} />
         </label>
@@ -189,6 +253,23 @@ function EditorDeCampana({ campana, empresas, onCerrar, onGuardada }: {
           sistema en el pie: no hace falta escribirlo, y no se puede quitar.
         </p>
 
+        <label>
+          Cupón (opcional)
+          <input
+            className="input"
+            maxLength={40}
+            value={cupon}
+            placeholder="Por ejemplo, VUELVE20"
+            onChange={(evento) => setCupon(evento.target.value.toUpperCase())}
+          />
+        </label>
+        <p className="form-hint">
+          El código tiene que existir ya en Cupones, ser de esta misma empresa, estar activo y no
+          haber vencido; si no, al guardar se te dice qué pasa. Sale en su propia fila del correo
+          junto a la fecha hasta la que vale, para que se vea y se pueda copiar desde el teléfono.
+          También puedes nombrarlo dentro del texto con <code>{'{{cupon}}'}</code>.
+        </p>
+
         {vistaPrevia.data && <div className="campana-vista-previa">
           <p><span>Asunto</span><strong>{vistaPrevia.data.subject}</strong></p>
           <iframe title="Vista previa de la campaña" srcDoc={vistaPrevia.data.html} sandbox="" />
@@ -198,7 +279,10 @@ function EditorDeCampana({ campana, empresas, onCerrar, onGuardada }: {
           </small>
         </div>}
 
-        {guardar.isError && <p className="error-text">No se pudo guardar. Revisa el asunto y el texto.</p>}
+        {/* El mensaje del servidor y no uno genérico: cuando el problema es el cupón, dice cuál. */}
+        {guardar.isError && <p className="error-text">
+          {(guardar.error as Error)?.message || 'No se pudo guardar. Revisa el asunto y el texto.'}
+        </p>}
         <div className="modal-actions">
           <button type="button" className="btn btn-outline" onClick={onCerrar}>Cancelar</button>
           <button
@@ -234,9 +318,12 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
 }) {
   const [escrito, setEscrito] = useState('');
 
-  const { data: cuenta, isLoading } = useQuery<{ total: number }>({
-    queryKey: ['campana-destinatarios', campana.clientId ?? 'agencia'],
-    queryFn: () => api.get(`/marketing/campanas/destinatarios?empresa=${encodeURIComponent(campana.clientId ?? 'agencia')}`),
+  const destino = campana.destino ?? 'lista';
+  const { data: cuenta, isLoading } = useQuery<DestinatariosResumen>({
+    queryKey: ['campana-destinatarios', campana.clientId ?? 'agencia', destino],
+    queryFn: () => api.get(
+      `/marketing/campanas/destinatarios?empresa=${encodeURIComponent(campana.clientId ?? 'agencia')}&destino=${destino}`,
+    ),
   });
 
   const enviar = useMutation<{ destinatarios: number; enCola?: boolean }>({
@@ -259,7 +346,11 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
       <div className="form-grid">
         <p className="envio-resumen">
           <strong>{campana.asunto}</strong>
-          <span>a la lista de {nombreDeLista}</span>
+          <span>{nombreDeLista}</span>
+          <span>{cuenta?.deQuienes ?? (destino === 'administradores' ? 'Quienes administran cada empresa' : 'La lista de esta empresa')}</span>
+          {campana.cupon && <span>Con el cupón <code>{campana.cupon}</code>{campana.cuponVence
+            ? ` · válido hasta el ${new Date(campana.cuponVence).toLocaleDateString('es-CL')}`
+            : ''}</span>}
         </p>
 
         {isLoading ? <p>Contando destinatarios…</p> : (
@@ -268,10 +359,19 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
           </p>
         )}
 
+        {/* Unos nombres, no la lista entera: sirven para reconocerla, que es de lo que se trata. */}
+        {(cuenta?.muestra?.length ?? 0) > 0 && <ul className="envio-muestra">
+          {cuenta!.muestra.map((fila) => (
+            <li key={fila.email}>{fila.nombre ? `${fila.nombre} · ${fila.email}` : fila.email}</li>
+          ))}
+          {total > cuenta!.muestra.length && <li className="tabla-nota">y {total - cuenta!.muestra.length} más</li>}
+        </ul>}
+
         {total === 0 ? (
           <p className="form-hint">
-            No hay nadie suscrito en esta lista ahora mismo. Los que están en «pendiente» o se dieron
-            de baja no cuentan.
+            {destino === 'administradores'
+              ? 'No hay cuentas activas que administren esta empresa.'
+              : 'No hay nadie suscrito en esta lista ahora mismo. Los que están en «pendiente» o se dieron de baja no cuentan.'}
           </p>
         ) : (
           <label>
@@ -281,9 +381,9 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
         )}
 
         <p className="form-hint">
-          Un correo enviado no se puede recuperar. Cada uno llevará su enlace de baja. Los correos
-          salen por tandas en los próximos minutos, no de golpe: quien se dé de baja mientras tanto
-          ya no recibe el suyo.
+          Un correo enviado no se puede recuperar. {destino === 'administradores'
+            ? 'Éste no lleva enlace de baja: es aviso de servicio a quien contrató. Si lo que mandas es publicidad, cámbialo a la lista de marketing antes de enviar.'
+            : 'Cada uno llevará su enlace de baja. Los correos salen por tandas en los próximos minutos, no de golpe: quien se dé de baja mientras tanto ya no recibe el suyo.'}
         </p>
 
         {enviar.isError && <p className="error-text">No se pudo enviar. Vuelve a mirar la campaña antes de reintentar.</p>}

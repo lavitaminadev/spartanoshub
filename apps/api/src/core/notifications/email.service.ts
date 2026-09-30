@@ -118,6 +118,16 @@ export class EmailService {
          * es lo que daña la reputación del servidor y arrastra al resto de los correos.
          */
         list: options?.bajaUrl ? { unsubscribe: { url: options.bajaUrl, comment: 'Dejar de recibir estos correos' } } : undefined,
+        /*
+         * El «un clic» que Gmail y Yahoo exigen de verdad (RFC 8058).
+         *
+         * Con `List-Unsubscribe` sola no aparece su botón: la cabecera dice dónde, pero sin esta
+         * segunda no hay permiso para hacerlo sin preguntar, así que el cliente de correo la
+         * ignora y la persona acaba usando «marcar como spam». La dirección acepta POST para esto
+         * —el mismo camino que usa el botón de la página— y por eso la comprobación de que no fue
+         * un rastreador vive en el GET y no acá: aquí la intención consta en la cabecera.
+         */
+        headers: options?.bajaUrl ? { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined,
       });
       const accepted = Array.isArray(result.accepted) ? result.accepted.length : 0;
       if (!accepted) this.logger.warn(`SMTP rejected message ${result.messageId}`);

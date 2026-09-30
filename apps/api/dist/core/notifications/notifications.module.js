@@ -13,14 +13,17 @@ const notification_entity_1 = require("./notification.entity");
 const notification_service_1 = require("./notification.service");
 const notifications_controller_1 = require("./notifications.controller");
 const email_module_1 = require("./email.module");
+const destinatario_de_avisos_entity_1 = require("./destinatario-de-avisos.entity");
+const destinatarios_de_avisos_service_1 = require("./destinatarios-de-avisos.service");
+const destinatarios_de_avisos_controller_1 = require("./destinatarios-de-avisos.controller");
 let NotificationsModule = class NotificationsModule {
 };
 exports.NotificationsModule = NotificationsModule;
 exports.NotificationsModule = NotificationsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([notification_entity_1.Notification]), email_module_1.EmailModule],
-        controllers: [notifications_controller_1.NotificationsController],
-        providers: [notification_service_1.NotificationService],
-        exports: [notification_service_1.NotificationService, typeorm_1.TypeOrmModule, email_module_1.EmailModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([notification_entity_1.Notification, destinatario_de_avisos_entity_1.DestinatarioDeAvisos]), email_module_1.EmailModule],
+        controllers: [notifications_controller_1.NotificationsController, destinatarios_de_avisos_controller_1.DestinatariosDeAvisosController],
+        providers: [notification_service_1.NotificationService, destinatarios_de_avisos_service_1.DestinatariosDeAvisosService],
+        exports: [notification_service_1.NotificationService, destinatarios_de_avisos_service_1.DestinatariosDeAvisosService, typeorm_1.TypeOrmModule, email_module_1.EmailModule],
     })
 ], NotificationsModule);

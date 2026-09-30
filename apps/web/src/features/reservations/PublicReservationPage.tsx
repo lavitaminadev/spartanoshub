@@ -118,6 +118,7 @@ export function PublicReservationPage() {
     if (!valor) retirarMedicion();
   };
   const [networkConsent, setNetworkConsent] = useState(false);
+  const [groupMarketingConsent, setGroupMarketingConsent] = useState(false);
   /** Elegir el día tiene que dejar los horarios a la vista, no debajo del pliegue. */
   const slotPickerRef = useRef<HTMLDivElement>(null);
   const [groupEventType, setGroupEventType] = useState('');
@@ -448,7 +449,7 @@ export function PublicReservationPage() {
         guestName: guest.guestName, guestEmail: guest.guestEmail || undefined, guestPhone: guest.guestPhone || undefined,
         partySize: pedidoPorFaltaDeCupo.current ? guest.partySize : Math.max(groupThreshold + 1, guest.partySize), eventType: tipoDeEvento || (pedidoPorFaltaDeCupo.current ? 'otro' : tipoDeEvento), notes: groupEventNotes.trim() || undefined,
         preferredDate: requestPreference.date || undefined, preferredTime: requestPreference.time || undefined,
-        reservationConsent, sensitiveConsent: hayDatosSensibles && sensitiveConsent, marketingConsent, networkConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent, origenDetectado,
+        reservationConsent, sensitiveConsent: hayDatosSensibles && sensitiveConsent, marketingConsent, groupMarketingConsent, networkConsent, idempotencyKey, website, renderedAt, utmSource, utmMedium, utmCampaign, utmContent, origenDetectado,
         measurementConsent, ...(measurementConsent ? { fbc: meta.fbc, fbp: meta.fbp, fbclid: meta.fbclid, eventSourceUrl: window.location.href, measurementConsentVersion: VERSION_MEDICION } : {}),
         details: {
           answers: reservationAnswers,
@@ -477,7 +478,7 @@ export function PublicReservationPage() {
         firstVisit: visitNeeds.firstVisit || undefined,
         howFound: visitNeeds.howFound || undefined,
         ...baseBody, renderedAt, consentVersion: 'reservation-v3', reservationConsent,
-        marketingConsent, marketingConsentVersion: VERSION_BENEFICIOS,
+        marketingConsent, marketingConsentVersion: VERSION_BENEFICIOS, groupMarketingConsent,
         couponCode: couponCode.trim() || undefined, measurementConsent,
         networkConsent, networkConsentVersion: String(form?.designConfig?.networkConsentVersion || 'red-v1'),
       });
@@ -487,7 +488,7 @@ export function PublicReservationPage() {
   const waitlist = useMutation({
     mutationFn: () => api.post<Created>(`/public/reservations/${slug}/waitlist`, {
       startsAt: selected, serviceId: serviceId || undefined, resourceId: resourceId || undefined,
-      ...guest, answers: respuestasParaEnviar(), idempotencyKey, reservationConsent, sensitiveConsent: hayDatosSensibles && sensitiveConsent, marketingConsent, measurementConsent, networkConsent,
+      ...guest, answers: respuestasParaEnviar(), idempotencyKey, reservationConsent, sensitiveConsent: hayDatosSensibles && sensitiveConsent, marketingConsent, groupMarketingConsent, measurementConsent, networkConsent,
       accessibilityNeed: visitNeeds.accessibilityNeed.trim() || undefined, dietaryNotes: visitNeeds.dietaryNotes.trim() || undefined,
       ...(measurementConsent ? (() => { const meta = readMetaMatchData(); return { fbc: meta.fbc, fbp: meta.fbp, fbclid: meta.fbclid, gclid: params.get('gclid') || undefined, gbraid: params.get('gbraid') || undefined, wbraid: params.get('wbraid') || undefined }; })() : {}),
       consentVersion: 'reservation-v3', marketingConsentVersion: VERSION_BENEFICIOS,
@@ -1230,8 +1231,19 @@ export function PublicReservationPage() {
                 {errors.sensitiveConsent && <span className="field-error" role="alert">{errors.sensitiveConsent}</span>}
               </div>}
               {!isSurvey && <div className="public-consent public-marketing-consent">
-                <label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Quiero beneficios y novedades de {identidadLegal.nombreComercial || responsableLegal}{design.beneficiosDelGrupo === 'true' ? ` y sus locales` : ''} <small>(opcional)</small></strong><small className="consent-beneficio">Promociones, beneficios de cumpleaños y eventos, cuando el local los ofrezca.</small></span></label>
+                <label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Quiero beneficios y novedades de {identidadLegal.nombreComercial || responsableLegal} <small>(opcional)</small></strong><small className="consent-beneficio">Promociones, beneficios de cumpleaños y eventos, cuando el local los ofrezca.</small></span></label>
                 <details className="consent-detalle"><summary>Ver detalle</summary><p>{marketingConsentText}</p></details>
+              </div>}
+              {/*
+                Los beneficios de los demás locales, en su propia casilla.
+                Antes eran una frase añadida a la de arriba —«de este local y sus locales»—: quien
+                sólo quería los de acá tenía que aceptar los de todos, quedaba un único registro y
+                no había forma de retirar uno sin el otro. Es otra finalidad y otro responsable
+                —la lista la administra la agencia—, así que es otra casilla, con su propia baja.
+              */}
+              {!isSurvey && design.beneficiosDelGrupo === 'true' && <div className="public-consent public-marketing-consent">
+                <label><input type="checkbox" checked={groupMarketingConsent} onChange={(event) => setGroupMarketingConsent(event.target.checked)} /><span><strong>Quiero además beneficios de los demás locales de {networkBrand} <small>(opcional)</small></strong><small className="consent-beneficio">Aparte del anterior: puedes marcar uno y no el otro, y darte de baja de uno sin perder el otro.</small></span></label>
+                <details className="consent-detalle"><summary>Ver detalle</summary><p>{textosBase.redBeneficios}</p></details>
               </div>}
               {!isSurvey && design.networkConsentEnabled === 'true' && <div className="public-consent public-marketing-consent">
                 <label><input type="checkbox" checked={networkConsent} onChange={(event) => setNetworkConsent(event.target.checked)} /><span><strong>Recordar mis datos en los locales de {networkBrand} <small>(opcional)</small></strong></span></label>

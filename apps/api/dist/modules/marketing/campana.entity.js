@@ -33,6 +33,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Campana.prototype, "clientId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 20, default: 'lista' }),
+    __metadata("design:type", String)
+], Campana.prototype, "destino", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 200 }),
     __metadata("design:type", String)
 ], Campana.prototype, "asunto", void 0);
@@ -40,6 +44,14 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'text' }),
     __metadata("design:type", String)
 ], Campana.prototype, "cuerpo", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], Campana.prototype, "cupon", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'cupon_vence', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], Campana.prototype, "cuponVence", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 20, default: EstadoDeCampana.BORRADOR }),
     __metadata("design:type", String)

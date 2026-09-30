@@ -61,6 +61,16 @@ export const PLAZOS_DE_CONSERVACION = {
 /** Versión del permiso de beneficios y novedades. */
 export const VERSION_BENEFICIOS = 'beneficios-v1';
 
+/**
+ * Versión del permiso para recibir beneficios de los **demás** locales de la red.
+ *
+ * Separado del anterior porque es otro permiso: quien acepta beneficios de un local no autoriza
+ * con eso que le escriba otro. Antes los dos viajaban en la misma casilla —«beneficios de este
+ * local y sus locales»— y quedaba un solo registro, así que no había forma de demostrar cuál de
+ * los dos había aceptado ni de retirar uno sin el otro.
+ */
+export const VERSION_BENEFICIOS_RED = 'beneficios-red-v1';
+
 /** Días corridos para responder una solicitud de derechos, prorrogables una vez por el mismo plazo. */
 export const PLAZO_RESPUESTA_DERECHOS_DIAS = 30;
 
@@ -771,22 +781,42 @@ export function textosDeAceptacionDeReserva(identidad: IdentidadLegal, opciones:
     /** Casilla obligatoria: aceptación de condiciones e información, no un consentimiento. */
     reserva: `Acepto las condiciones de la reserva y declaro haber leído la política de privacidad. ${local} usará mi nombre, teléfono, correo y los datos de esta reserva para gestionarla, confirmarla, modificarla o cancelarla y contactarme por ese motivo, porque son necesarios para el servicio que pido. Se conservan hasta ${PLAZOS_DE_CONSERVACION.reservasMeses} meses después de la visita y luego se anonimizan. La plataforma ${OPERADOR_ESPARTANOS.marca} los trata por encargo de ${local}. Puedo ejercer mis derechos de ${DERECHOS} escribiendo a ${correo}, y reclamar ante la ${AGENCIA}.`,
     novedades: textoDeBeneficios(identidad, opciones),
+    redBeneficios: textoDeBeneficiosDeLaRed(identidad, opciones),
     red: `Autorizo a ${local} a compartir mi nombre, datos de contacto y preferencias de visita con los demás locales de ${red}, para no repetirlos al reservar en ellos. Es opcional, no condiciona esta reserva, cada local responde por el uso que haga de esos datos y puedo retirarla cuando quiera escribiendo a ${correo}.`,
     sensibles: textoDeDatosSensibles(identidad),
   };
 }
 
 /**
- * Permiso de beneficios y novedades: un solo permiso, específico en canales, contenidos y uso de
- * historial, para no multiplicar casillas sin perder validez.
+ * Permiso de beneficios y novedades **de este local**: un solo permiso, específico en canales,
+ * contenidos y uso de historial, para no multiplicar casillas sin perder validez.
  *
- * @param opciones.grupo Si el local lo ofrece, incluye beneficios de los demás locales de su red.
+ * Ya no menciona a los demás locales de la red aunque el local los ofrezca. Eso es otra finalidad,
+ * con otro responsable, y va en su propia casilla —`textoDeBeneficiosDeLaRed`—: metido aquí, quien
+ * quería promociones de un solo local tenía que aceptar las de todos o quedarse sin ninguna, y del
+ * conjunto quedaba un único registro que no permitía retirar uno sin el otro.
+ *
+ * `opciones` se mantiene por compatibilidad con quien ya lo llamaba; el texto no lo usa.
  */
-export function textoDeBeneficios(identidad: IdentidadLegal, opciones: { red?: string; grupo?: boolean } = {}): string {
+export function textoDeBeneficios(identidad: IdentidadLegal, _opciones: { red?: string; grupo?: boolean } = {}): string {
   const local = nombreLegalDelLocal(identidad);
   const correo = identidad.correo?.trim() || OPERADOR_ESPARTANOS.correo;
-  const grupo = opciones.grupo ? ` y de los locales de ${opciones.red?.trim() || OPERADOR_ESPARTANOS.marca}` : '';
-  return `Quiero recibir beneficios y novedades de ${local}${grupo}: promociones, beneficio de cumpleaños, invitaciones a eventos y encuestas, por correo, WhatsApp o SMS. Autorizo usar mis visitas y preferencias, nunca datos de salud, para ofrecerme lo que me interese, y conservarlas mientras mantenga este permiso, hasta ${PLAZOS_DE_CONSERVACION.clientesConBeneficiosMeses} meses desde mi última visita. Es opcional, no condiciona mi reserva y puedo retirarlo cuando quiera, sin costo, desde cada mensaje o escribiendo a ${correo}.`;
+  return `Quiero recibir beneficios y novedades de ${local}: promociones, beneficio de cumpleaños, invitaciones a eventos y encuestas, por correo, WhatsApp o SMS. Autorizo usar mis visitas y preferencias, nunca datos de salud, para ofrecerme lo que me interese, y conservarlas mientras mantenga este permiso, hasta ${PLAZOS_DE_CONSERVACION.clientesConBeneficiosMeses} meses desde mi última visita. Es opcional, no condiciona mi reserva y puedo retirarlo cuando quiera, sin costo, desde cada mensaje o escribiendo a ${correo}.`;
+}
+
+/**
+ * Permiso para recibir beneficios de los **demás** locales de la red. Casilla aparte.
+ *
+ * Distinto del anterior en las tres cosas que la ley mira: la finalidad (que le escriba otro
+ * local, no éste), quién trata los datos (cada local responde de lo suyo) y cómo se retira (su
+ * propia baja, sin tocar la del local donde reservó). Por eso dice con qué se comparte y qué pasa
+ * si se retira: quien acepta tiene que poder entender a quién le está abriendo la puerta.
+ */
+export function textoDeBeneficiosDeLaRed(identidad: IdentidadLegal, opciones: { red?: string } = {}): string {
+  const local = nombreLegalDelLocal(identidad);
+  const correo = identidad.correo?.trim() || OPERADOR_ESPARTANOS.correo;
+  const red = opciones.red?.trim() || OPERADOR_ESPARTANOS.marca;
+  return `Quiero recibir además beneficios y novedades de los demás locales de ${red}: promociones, invitaciones a eventos y aperturas, por correo. Para eso autorizo a ${local} a entregar mi nombre y correo a ${OPERADOR_ESPARTANOS.marca}, que administra esa lista y responde de ella. Es un permiso aparte del anterior: puedo aceptar uno y no el otro, no condiciona mi reserva, y puedo retirarlo cuando quiera desde el enlace de cualquiera de esos correos o escribiendo a ${correo}, sin que eso afecte los correos de ${local}. Se conserva mientras lo mantenga, hasta ${PLAZOS_DE_CONSERVACION.clientesConBeneficiosMeses} meses desde mi última visita.`;
 }
 
 /** Versión del texto de consentimiento para datos sensibles. */

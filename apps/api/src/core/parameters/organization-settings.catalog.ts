@@ -1000,6 +1000,40 @@ export const ORGANIZATION_SETTINGS: readonly OrganizationSettingDefinition[] = [
     defaultValue: "{{nombre}} se anotó en la lista de espera de {{local}} para el {{fecha}}, {{personas}} personas.\n\nNo toma cupo hasta que el equipo lo resuelva desde la lista de espera.",
     masterStatus: 'master_defined',
   },
+  /*
+   * Aviso de operación: el local dejó de recibir reservas, o vuelve a recibirlas.
+   *
+   * Existía sólo como campana dentro de la aplicación, así que quien no tiene cuenta —un garzón,
+   * una cajera— no se enteraba de que esa noche no entraba nadie hasta que la noche pasó. Va a
+   * quienes tengan marcado «Reservas pausadas o día cerrado» en las casillas del equipo del local.
+   */
+  {
+    key: 'email.team_operation_enabled',
+    category: 'email',
+    label: 'Aviso al equipo: reservas pausadas o día cerrado',
+    description: 'Al equipo del local cuando se pausan las reservas, se reanudan o se cierra un día.',
+    valueType: 'boolean',
+    defaultValue: true,
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.team_operation_subject',
+    category: 'email',
+    label: 'Aviso al equipo: reservas pausadas o día cerrado · asunto',
+    description: 'Variables: {{titulo}}, {{local}}, {{detalle}}, {{quien}}.',
+    valueType: 'text',
+    defaultValue: '{{titulo}} - {{local}}',
+    masterStatus: 'master_defined',
+  },
+  {
+    key: 'email.team_operation_body',
+    category: 'email',
+    label: 'Aviso al equipo: reservas pausadas o día cerrado · cuerpo',
+    description: 'Variables: {{titulo}}, {{local}}, {{detalle}}, {{quien}}.',
+    valueType: 'text',
+    defaultValue: '{{detalle}}\n\nLo hizo {{quien}}.',
+    masterStatus: 'master_defined',
+  },
   {
     key: 'email.collection_overdue_enabled',
     category: 'email',

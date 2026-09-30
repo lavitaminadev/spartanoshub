@@ -18,5 +18,6 @@ exports.REQUISITOS_POR_AVISO = {
     'email.team_new_reservation': [{ clave: 'equipo' }],
     'email.team_group_request': [{ clave: 'equipo' }],
     'email.team_waitlist': [{ clave: 'equipo' }],
+    'email.team_operation': [{ clave: 'equipo' }],
 };
 exports.HORAS_SIN_CORRER_PARA_ALARMA = 36;

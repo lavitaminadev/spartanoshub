@@ -373,6 +373,13 @@
 .envio-resumen span { font-size:13px; color:var(--muted); }
 .envio-cifra { margin:0; font-size:15px; }
 .envio-cifra strong { font-size:23px; font-weight:800; }
+.envio-cifra small { display:block; font-size:12px; color:var(--muted); }
+/* Unos pocos nombres para reconocer la lista. Sin viñeta: no es una enumeración que se lea, es
+   una muestra que se mira de reojo antes de apretar el botón. */
+.envio-muestra { display:grid; gap:2px; margin:0; padding:0; list-style:none; font-size:13px; color:var(--muted); }
+/* La empresa y el grupo en dos líneas dentro de la celda: la empresa sola no dice a quiénes fue. */
+.campana-destino { display:grid; gap:1px; }
+.campana-destino small { font-size:11px; color:var(--muted); }
 
 /* Vista previa del correo de una campaña. Clase propia y no la de Correos: aquella vive en una
    hoja que carga su pantalla al importarse, y aquí llegaría sin estilo. */
@@ -383,3 +390,26 @@
 .campana-vista-previa small { font-size:12px; color:var(--muted); }
 .campana-avance { display:inline-flex; align-items:baseline; gap:5px; }
 .campana-avance small { color:var(--muted); font-size:11px; }
+
+/* La ficha del suscriptor: todo lo que respalda una dirección.
+   Dos columnas en escritorio y una en el teléfono; el texto aceptado va aparte y a todo el ancho,
+   porque es un párrafo legal que hay que poder leer entero, no un dato. */
+.ficha-suscriptor { display:grid; gap:8px; margin:0 0 14px; }
+.ficha-suscriptor > div { display:grid; grid-template-columns:minmax(150px,38%) 1fr; gap:10px; align-items:baseline; }
+.ficha-suscriptor dt { margin:0; color:var(--muted); font-size:12px; }
+.ficha-suscriptor dd { margin:0; font-size:13px; }
+.ficha-suscriptor-texto { display:grid; gap:5px; }
+.ficha-suscriptor-texto p {
+  margin:0; padding:10px 12px; border-radius:var(--radius-md); background:var(--soft);
+  font-size:12px; line-height:1.6;
+}
+@media (max-width: 560px) {
+  .ficha-suscriptor > div { grid-template-columns:1fr; gap:2px; }
+}
+
+/* Quienes pidieron no recibir más. No se listan —se guarda una huella, no el correo— así que la
+   pantalla es una pregunta y no una tabla. */
+.exclusiones { margin-top:22px; padding-top:16px; border-top:1px solid var(--border-light); }
+.exclusiones-intro p { margin:4px 0 10px; color:var(--muted); font-size:13px; line-height:1.55; max-width:70ch; }
+.exclusiones-respuesta { margin:6px 0 0; padding:10px 12px; border-radius:var(--radius-md); background:var(--soft); font-size:13px; line-height:1.55; }
+.exclusiones-respuesta ul { margin:6px 0 0; padding-left:18px; color:var(--muted); font-size:12px; }

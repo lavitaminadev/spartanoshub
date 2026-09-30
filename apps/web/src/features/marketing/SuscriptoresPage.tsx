@@ -6,6 +6,7 @@ import { DataTable } from '../../shared/DataTable';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { triggerToast } from '../../shared/toast-events';
 import { ImportarSuscriptores } from './ImportarSuscriptores';
+import { Modal } from '../../shared/Modal';
 
 interface Suscriptor {
   id: string;
@@ -16,6 +17,12 @@ interface Suscriptor {
   source: string;
   sourceDetail?: string | null;
   consentAt?: string | null;
+  consentText?: string | null;
+  consentIp?: string | null;
+  adultDeclaredAt?: string | null;
+  birthDate?: string | null;
+  lastSentAt?: string | null;
+  unsubscribedFrom?: string | null;
   unsubscribedAt?: string | null;
   unsubscribedScope?: 'local' | 'todas' | null;
   createdAt: string;
@@ -60,6 +67,7 @@ export function SuscriptoresPage() {
   const [estado, setEstado] = useState('subscribed');
   const [origen, setOrigen] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [ficha, setFicha] = useState<Suscriptor | null>(null);
   const q = useDeferredValue(busqueda.trim());
 
   const { data: empresasResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
@@ -208,9 +216,149 @@ export function SuscriptoresPage() {
                 ? `${new Date(fila.unsubscribedAt).toLocaleDateString('es-CL')}${fila.unsubscribedScope === 'todas' ? ' · de todas' : ''}`
                 : '—'),
             },
+            {
+              key: 'id',
+              label: 'Prueba',
+              render: (fila) => <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFicha(fila)}>Ver ficha</button>,
+            },
           ]}
         />
       )}
+
+      {ficha && <FichaDelSuscriptor suscriptor={ficha} empresa={nombreDe(ficha.clientId)} onCerrar={() => setFicha(null)} />}
+
+      {!esEmpresa && <ConsultarExclusion />}
     </div>
+  );
+}
+
+/**
+ * Todo lo que respalda una dirección, en un sitio.
+ *
+ * La tabla contesta «quién está en la lista»; esto contesta «y con qué derecho». Se guardaba todo
+ * —el texto exacto que leyó, la dirección desde la que aceptó, si declaró ser mayor de edad— y no
+ * se mostraba en ninguna parte, así que el día que alguien reclamara la prueba estaba en la base
+ * de datos y fuera de alcance de quien tiene que responder.
+ *
+ * El texto va entero y sin resumir: lo que hay que poder mostrar es exactamente lo que se leyó.
+ */
+function FichaDelSuscriptor({ suscriptor, empresa, onCerrar }: {
+  suscriptor: Suscriptor;
+  empresa: string;
+  onCerrar: () => void;
+}) {
+  const fecha = (valor?: string | null) => (valor ? new Date(valor).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+
+  return (
+    <Modal open onClose={onCerrar} title={suscriptor.email}>
+      <dl className="ficha-suscriptor">
+        <div><dt>Empresa</dt><dd>{empresa}</dd></div>
+        <div><dt>Nombre</dt><dd>{suscriptor.name || '—'}</dd></div>
+        <div><dt>Estado</dt><dd>{ESTADO[suscriptor.status] ?? suscriptor.status}</dd></div>
+        <div><dt>De dónde salió</dt><dd>{ORIGEN[suscriptor.source] ?? suscriptor.source}{suscriptor.sourceDetail ? ` · ${suscriptor.sourceDetail}` : ''}</dd></div>
+        <div><dt>Dijo que sí</dt><dd>{fecha(suscriptor.consentAt)}</dd></div>
+        {/* La IP convierte «dijo que sí» en algo comprobable. Vacía en las importaciones, donde el
+            respaldo es el archivo declarado y no una petición. */}
+        <div><dt>Desde qué dirección</dt><dd>{suscriptor.consentIp || 'No consta (no vino por web)'}</dd></div>
+        <div><dt>Declaró ser mayor de edad</dt><dd>{fecha(suscriptor.adultDeclaredAt)}</dd></div>
+        <div><dt>Fecha de nacimiento declarada</dt><dd>{suscriptor.birthDate ? new Date(suscriptor.birthDate).toLocaleDateString('es-CL') : '—'}</dd></div>
+        <div><dt>Último correo enviado</dt><dd>{fecha(suscriptor.lastSentAt)}</dd></div>
+        {suscriptor.unsubscribedAt && <div>
+          <dt>Se dio de baja</dt>
+          <dd>
+            {fecha(suscriptor.unsubscribedAt)}
+            {suscriptor.unsubscribedScope === 'todas' ? ' · de todos los locales' : ' · sólo de esta empresa'}
+            {suscriptor.unsubscribedFrom ? ` · desde el correo «${suscriptor.unsubscribedFrom}»` : ''}
+          </dd>
+        </div>}
+      </dl>
+
+      <div className="ficha-suscriptor-texto">
+        <strong>El texto que aceptó</strong>
+        {suscriptor.consentText
+          ? <p>{suscriptor.consentText}</p>
+          : <p className="form-hint">
+              No consta ningún texto. Pasa con las direcciones importadas sin declarar qué aceptaron:
+              esa dirección no se puede defender ante «¿de dónde sacaron mi correo?», y por eso queda
+              en «pendiente» y no recibe campañas.
+            </p>}
+      </div>
+
+      <div className="modal-actions">
+        <button type="button" className="btn btn-outline" onClick={onCerrar}>Cerrar</button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Preguntar si a una dirección se le prohibió escribir.
+ *
+ * La lista de exclusión guarda huellas y no correos, para poder cumplir la prohibición del
+ * artículo 28 B sin conservar la dirección de quien pidió que la borraran. Eso la hace imposible
+ * de listar —y está bien— pero también la hacía imposible de consultar, y la pregunta que llega por
+ * teléfono es siempre la misma: «sigo recibiendo correos, ¿qué dice el sistema de mí?».
+ */
+function ConsultarExclusion() {
+  const [correo, setCorreo] = useState('');
+  const [preguntado, setPreguntado] = useState('');
+
+  const { data, isFetching } = useQuery<{
+    total: number;
+    deTodas: number;
+    consulta: { alcance: 'local' | 'todas' | null; empresas: Array<{ clientId: string | null; alcance: string; origen: string | null; cuando: string }> } | null;
+  }>({
+    queryKey: ['exclusiones', preguntado],
+    queryFn: () => api.get(`/marketing/suscriptores/exclusiones${preguntado ? `?correo=${encodeURIComponent(preguntado)}` : ''}`),
+  });
+
+  return (
+    <section className="exclusiones">
+      <div className="exclusiones-intro">
+        <span className="page-eyebrow">PIDIERON NO RECIBIR MÁS</span>
+        <p>
+          Hay <strong>{data?.total ?? 0}</strong> peticiones anotadas
+          {data?.deTodas ? <> · <strong>{data.deTodas}</strong> de todos los locales</> : null}.
+          No se pueden listar: se guarda una huella y no el correo, para poder cumplir la petición
+          sin quedarse con la dirección de quien pidió que la borráramos. Sí se puede preguntar por
+          una dirección concreta.
+        </p>
+      </div>
+      <form
+        className="filters"
+        onSubmit={(evento) => { evento.preventDefault(); setPreguntado(correo.trim().toLowerCase()); }}
+      >
+        <input
+          className="input"
+          type="email"
+          aria-label="Correo a consultar"
+          placeholder="correo@ejemplo.cl"
+          value={correo}
+          onChange={(evento) => setCorreo(evento.target.value)}
+        />
+        <button type="submit" className="btn btn-outline btn-sm" disabled={!correo.includes('@') || isFetching}>
+          {isFetching ? 'Consultando…' : 'Consultar'}
+        </button>
+      </form>
+
+      {preguntado && data?.consulta && (data.consulta.alcance === null
+        ? <p className="exclusiones-respuesta">
+            <strong>No consta</strong> ninguna petición de esta dirección. Si dice que sigue
+            recibiendo correos, búscala arriba en la lista: puede estar suscrita y no haber pedido
+            la baja nunca.
+          </p>
+        : <div className="exclusiones-respuesta">
+            <strong>{data.consulta.alcance === 'todas' ? 'Pidió no recibir de ningún local.' : 'Pidió no recibir de una empresa.'}</strong>
+            <ul>
+              {data.consulta.empresas.map((fila) => (
+                <li key={`${fila.clientId ?? 'todas'}-${fila.cuando}`}>
+                  {fila.clientId ? 'Una empresa en concreto' : 'Todos los locales'}
+                  {' · '}{new Date(fila.cuando).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
+                  {fila.origen ? ` · desde el correo «${fila.origen}»` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>)}
+    </section>
   );
 }

@@ -847,17 +847,29 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       <div className="booking-detail-extra">
         <span className="page-eyebrow">LO QUE ACEPTÓ</span>
         <ul className="booking-consentimientos">
+          {/*
+            Con el texto que leyó, no sólo la fecha.
+            El texto exacto se guarda entero a propósito —«aceptó la v3» no le dice nada a nadie
+            dentro de dos años— y no se mostraba en ninguna parte: guardar la prueba sin poder
+            leerla no sirve para el día en que alguien reclame. Va plegado para que la ficha siga
+            leyéndose de un vistazo.
+          */}
           {([
-            ['Condiciones de la reserva', selectedBooking.reservationConsentAt],
-            ['Comunicaciones de marketing', selectedBooking.marketingConsentAt],
-            ['Compartir con otros locales de la red', selectedBooking.networkConsentAt],
-            ['Medición y campañas', selectedBooking.measurementConsentAt],
-            ['Declaró ser mayor de edad', selectedBooking.adultDeclaredAt],
-            ['Confirmó que asistiría', selectedBooking.guestConfirmedAt],
-          ] as Array<[string, string | null | undefined]>).map(([etiqueta, cuando]) => (
+            ['Condiciones de la reserva', selectedBooking.reservationConsentAt, selectedBooking.reservationConsentText],
+            ['Beneficios de este local', selectedBooking.marketingConsentAt, selectedBooking.marketingConsentText],
+            ['Beneficios de los demás locales de la red', selectedBooking.groupMarketingConsentAt, selectedBooking.groupMarketingConsentText],
+            ['Reconocer sus datos en otros locales de la red', selectedBooking.networkConsentAt, selectedBooking.networkConsentText],
+            ['Medición y campañas', selectedBooking.measurementConsentAt, null],
+            ['Declaró ser mayor de edad', selectedBooking.adultDeclaredAt, null],
+            ['Confirmó que asistiría', selectedBooking.guestConfirmedAt, null],
+          ] as Array<[string, string | null | undefined, string | null | undefined]>).map(([etiqueta, cuando, texto]) => (
             <li key={etiqueta} className={cuando ? 'es-si' : 'es-no'}>
               <strong>{cuando ? 'Sí' : 'No'}</strong> {etiqueta}
               {cuando ? <small>{new Date(cuando).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</small> : null}
+              {cuando && texto ? <details className="consentimiento-texto">
+                <summary>Ver el texto que aceptó</summary>
+                <p>{texto}</p>
+              </details> : null}
             </li>
           ))}
         </ul>

@@ -30,6 +30,9 @@ export class ReservationGroupRequest {
   @Column({ name: 'reservation_consent_text', type: 'text', nullable: true }) reservationConsentText?: string | null;
   @Column({ name: 'marketing_consent_at', type: 'timestamp', nullable: true }) marketingConsentAt?: Date | null;
   @Column({ name: 'marketing_consent_text', type: 'text', nullable: true }) marketingConsentText?: string | null;
+  /** Beneficios de los demas locales: casilla y permiso aparte del de este local. */
+  @Column({ name: 'group_marketing_consent_at', type: 'timestamp', nullable: true }) groupMarketingConsentAt?: Date | null;
+  @Column({ name: 'group_marketing_consent_text', type: 'text', nullable: true }) groupMarketingConsentText?: string | null;
   @Column({ name: 'network_consent_at', type: 'timestamp', nullable: true }) networkConsentAt?: Date | null;
   @Column({ name: 'network_consent_text', type: 'text', nullable: true }) networkConsentText?: string | null;
   @Column({ name: 'utm_source', type: 'varchar', length: 120, nullable: true }) utmSource?: string | null;

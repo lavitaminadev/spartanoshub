@@ -41,10 +41,11 @@ let EnviosDeCampanaService = EnviosDeCampanaService_1 = class EnviosDeCampanaSer
         this.maxAttempts = 3;
     }
     async encolar(campana, destinatarios) {
+        const exigeToken = (campana.destino ?? 'lista') === 'lista';
         const conToken = destinatarios.filter((suscriptor) => {
-            if (suscriptor.unsubscribeToken)
+            if (!exigeToken || suscriptor.unsubscribeToken)
                 return true;
-            this.logger.warn(`Suscriptor ${suscriptor.id} sin token de baja: queda fuera de la campaña ${campana.id}`);
+            this.logger.warn(`Suscriptor ${suscriptor.id ?? suscriptor.email} sin token de baja: queda fuera de la campaña ${campana.id}`);
             return false;
         });
         if (!conToken.length)
@@ -104,7 +105,15 @@ let EnviosDeCampanaService = EnviosDeCampanaService_1 = class EnviosDeCampanaSer
         if (!suscriptor?.unsubscribeToken)
             throw new Error('La ficha ya no tiene token de baja');
         const baja = await (0, enlace_de_baja_1.enlaceDeBaja)(this.parametros, 'email.campaign', suscriptor.unsubscribeToken, suscriptor);
-        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(campana.asunto, campana.cuerpo, { nombre: suscriptor.name ?? '' }, undefined, undefined, undefined, baja);
+        const detalle = campana.cupon
+            ? [
+                { etiqueta: 'Tu código', valor: campana.cupon },
+                ...(campana.cuponVence
+                    ? [{ etiqueta: 'Válido hasta', valor: campana.cuponVence.toLocaleDateString('es-CL', { dateStyle: 'long' }) }]
+                    : []),
+            ]
+            : undefined;
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(campana.asunto, campana.cuerpo, { nombre: suscriptor.name ?? '', cupon: campana.cupon ?? '' }, undefined, undefined, detalle, baja);
         const salio = await this.correo.send(suscriptor.email, subject, html, baja ? { bajaUrl: baja } : undefined);
         if (!salio)
             throw new Error('El servidor de correo no aceptó el mensaje');

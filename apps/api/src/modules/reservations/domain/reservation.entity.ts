@@ -78,6 +78,16 @@ export class Reservation {
   @Column({ name: 'network_consent_at', type: 'timestamp', nullable: true }) networkConsentAt?: Date | null;
   @Column({ name: 'network_consent_version', type: 'varchar', length: 30, nullable: true }) networkConsentVersion?: string | null;
   @Column({ name: 'network_consent_text', type: 'text', nullable: true }) networkConsentText?: string | null;
+  /**
+   * Recibir beneficios de los **demás** locales de la red. Otra casilla, otro permiso.
+   *
+   * No se confunde con `networkConsent`, que autoriza reconocer a la persona en los demás locales
+   * para no repetirle los datos al reservar: eso es comodidad y no publicidad. Éste es el que
+   * permite que otro local le escriba, y por eso tiene su propio registro y su propia baja.
+   */
+  @Column({ name: 'group_marketing_consent_at', type: 'timestamp', nullable: true }) groupMarketingConsentAt?: Date | null;
+  @Column({ name: 'group_marketing_consent_version', type: 'varchar', length: 30, nullable: true }) groupMarketingConsentVersion?: string | null;
+  @Column({ name: 'group_marketing_consent_text', type: 'text', nullable: true }) groupMarketingConsentText?: string | null;
   /** Cuándo se envió la encuesta posterior a la visita. Cada visita se encuesta una sola vez. */
   @Column({ name: 'post_visit_survey_sent_at', type: 'timestamp', nullable: true }) postVisitSurveySentAt?: Date | null;
 

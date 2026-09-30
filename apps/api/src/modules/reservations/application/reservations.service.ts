@@ -1,7 +1,7 @@
 import { normalizarCorreo, normalizarTelefono } from '../../integrations/meta/identificadores-meta';
 import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
-import { VERSION_BENEFICIOS, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
+import { VERSION_BENEFICIOS, VERSION_BENEFICIOS_RED, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -39,6 +39,8 @@ import { leerPlantilla } from '../../../core/parameters/plantilla-resuelta';
 import { AuditService } from '../../../core/audit/audit.service';
 import { MetaClientPixelService } from '../../integrations/meta/meta-client-pixel.service';
 import { AltaDeSuscriptorDesdeReserva } from '../../marketing/alta-desde-reserva';
+import { DestinatariosDeAvisosService } from '../../../core/notifications/destinatarios-de-avisos.service';
+import type { TipoDeAviso } from '../../../core/notifications/destinatario-de-avisos.entity';
 import { inferLocationFromPhone } from '../../../shared/geo-inference';
 import { GoogleConversionOutboxService } from '../../integrations/google/google-conversion-outbox.service';
 import { normalizeClientCapabilities } from '../../clients/client-capabilities';
@@ -224,6 +226,7 @@ export class ReservationsService {
     @InjectRepository(ReservationHold) private readonly holds: Repository<ReservationHold>,
     // Al final por el mismo motivo: las pruebas construyen este servicio por posición.
     private readonly altaEnLaLista: AltaDeSuscriptorDesdeReserva,
+    private readonly destinatariosDeAvisos: DestinatariosDeAvisosService,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -622,13 +625,30 @@ export class ReservationsService {
    */
   private async avisarAlEquipo(form: ReservationForm, actorId: string | undefined, tipo: string, titulo: string, texto: string): Promise<void> {
     try {
-      const equipo = await this.equipoDelLocal(form);
+      const equipo = await this.equipoDelLocal(form, 'operacion');
       const destinatarios = equipo.userIds.filter((id) => id !== actorId);
-      if (!destinatarios.length) return;
       const quien = actorId
         ? ((await this.dataSource.query('SELECT name FROM users WHERE id = ? LIMIT 1', [actorId])) as Array<{ name?: string }>)[0]?.name
         : undefined;
-      await this.notifications.notifyMultiple(form.organizationId, destinatarios, tipo, titulo, quien ? `${texto} Lo hizo ${quien}.` : texto, { formId: form.id, clientId: form.clientId });
+      if (destinatarios.length) {
+        await this.notifications.notifyMultiple(form.organizationId, destinatarios, tipo, titulo, quien ? `${texto} Lo hizo ${quien}.` : texto, { formId: form.id, clientId: form.clientId });
+      }
+
+      /*
+       * Y por correo a quien no tiene cuenta.
+       *
+       * Esto era sólo una campana dentro de la aplicación, así que el turno que atiende —garzones,
+       * cajera, barra— no se enteraba de que esa noche no entraba nadie hasta que la noche pasó.
+       * Es el aviso que más cuesta no recibir y era el único que no salía del sistema.
+       */
+      if (!equipo.correos.length) return;
+      const plantilla = await this.plantillaDeAviso(form, 'email.team_operation');
+      if (!plantilla.encendido) return;
+      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+        titulo, local: form.name, detalle: texto, quien: quien ?? 'alguien del equipo',
+      });
+      void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
+        .catch((err) => this.logger.warn(`Aviso de operación de ${form.id} no enviado: ${err instanceof Error ? err.message : err}`));
     } catch (err) {
       this.logger.warn(`No se pudo avisar al equipo de ${form.id}: ${err instanceof Error ? err.message : err}`);
     }
@@ -1122,6 +1142,9 @@ export class ReservationsService {
     return {
       reservation: String(design.reservationConsentText || base.reserva),
       marketing: String(design.marketingConsentText || base.novedades),
+      // No se puede sustituir con un texto del local: el permiso es para que le escriba **otro**,
+      // y quien responde de esa lista es la agencia. Un local no redacta lo que autoriza a terceros.
+      redBeneficios: base.redBeneficios,
       network: String(design.networkConsentText || base.red),
       sensibles: base.sensibles,
     };
@@ -1725,11 +1748,24 @@ export class ReservationsService {
    * Es el mismo criterio del aviso de reserva nueva: quien pertenece a la empresa, mas su
    * responsable de cuenta, y los correos anotados en los ajustes del local.
    */
-  private async equipoDelLocal(form: ReservationForm): Promise<{ userIds: string[]; correos: string[] }> {
+  private async equipoDelLocal(form: ReservationForm, tipo: TipoDeAviso): Promise<{ userIds: string[]; correos: string[] }> {
     const rows = await this.dataSource.query(`SELECT DISTINCT id FROM users WHERE organization_id = ? AND is_active = 1 AND (client_id = ? OR id = (SELECT community_manager_id FROM clients WHERE id = ? AND organization_id = ?))`, [form.organizationId, form.clientId, form.clientId, form.organizationId]);
     return {
       userIds: (rows as Array<{ id: string }>).map((row) => row.id).filter(Boolean),
-      correos: (form.teamNotifications || []).filter((email) => typeof email === 'string' && email.includes('@')),
+      /*
+       * Las casillas se piden por tipo de aviso, no todas para todo.
+       *
+       * Antes era una sola lista y recibía los seis avisos, así que el correo de una solicitud de
+       * grupo —con el teléfono, el correo y lo que contó quien la pidió— llegaba también a quien
+       * sólo necesita saber que a las nueve entran seis personas. Las del campo antiguo del
+       * formulario siguen recibiendo todo: apagarles avisos sin avisar sería peor.
+       */
+      correos: await this.destinatariosDeAvisos.para(
+        form.organizationId,
+        form.clientId,
+        tipo,
+        form.teamNotifications || [],
+      ),
     };
   }
 
@@ -1763,7 +1799,7 @@ export class ReservationsService {
       notas: datos.notas ?? '',
     };
     try {
-      const equipo = await this.equipoDelLocal(form);
+      const equipo = await this.equipoDelLocal(form, tipo === 'grupo' ? 'grupos' : 'espera');
       if (equipo.userIds.length) {
         await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, tipo === 'grupo' ? 'reservation_group_request' : 'reservation_waitlist', tipo === 'grupo' ? 'Nueva solicitud de grupo' : 'Nueva persona en lista de espera', `${datos.guestName} · ${datos.partySize} personas · ${datos.cuando} · ${form.name}.`, { formId: form.id, clientId: form.clientId, requestId: datos.id });
       }
@@ -2001,7 +2037,7 @@ export class ReservationsService {
       const detalle = cambio === 'cancelada'
         ? `${booking.guestName} canceló su reserva ${booking.referenceCode} del ${fecha(booking.startsAt)} (${booking.partySize} personas) en ${form.name}.`
         : `${booking.guestName} cambió su reserva ${booking.referenceCode} en ${form.name}: ahora ${fecha(booking.startsAt)}, ${booking.partySize} personas${horaAnterior ? ` (antes ${fecha(horaAnterior)})` : ''}.`;
-      const equipo = await this.equipoDelLocal(form);
+      const equipo = await this.equipoDelLocal(form, 'cambios');
       // Con el id, tocar el aviso abre esa reserva y no la portada del módulo.
       if (equipo.userIds.length) await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, cambio === 'cancelada' ? 'reservation_cancelled' : 'reservation_rescheduled', titulo, detalle, { reservationId: booking.id, formId: form.id, clientId: form.clientId });
       /*
@@ -2119,6 +2155,7 @@ export class ReservationsService {
       details: { ...(dto.details ?? {}), ...(hayDatosSensibles ? { datosSensibles: { aceptadoEn: new Date().toISOString(), texto: `[${VERSION_DATOS_SENSIBLES}] ${consent.sensibles}` } } : {}), ...(dto.measurementConsent ? { medicion: { aceptadaEn: new Date().toISOString(), version: dto.measurementConsentVersion || VERSION_MEDICION, texto: TEXTO_MEDICION, fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined), fbp: dto.fbp, ip: ipAddress, userAgent } } : {}) },
       reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
       marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
+      groupMarketingConsentAt: dto.groupMarketingConsent ? new Date() : null, groupMarketingConsentText: dto.groupMarketingConsent ? consent.redBeneficios : null,
       networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentText: dto.networkConsent ? consent.network : null,
       utmSource: dto.utmSource || null, utmMedium: dto.utmMedium || null, utmCampaign: dto.utmCampaign || null, utmContent: dto.utmContent || null, originDetected: Boolean(dto.origenDetectado), status: 'pending',
     }));
@@ -2166,6 +2203,9 @@ export class ReservationsService {
         marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
         measurementConsentVersion: dto.measurementConsent ? dto.measurementConsentVersion || VERSION_MEDICION : null, measurementConsentText: dto.measurementConsent ? TEXTO_MEDICION : null,
+        groupMarketingConsentAt: dto.groupMarketingConsent ? new Date() : null,
+        groupMarketingConsentVersion: dto.groupMarketingConsent ? VERSION_BENEFICIOS_RED : null,
+        groupMarketingConsentText: dto.groupMarketingConsent ? consent.redBeneficios : null,
         networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentVersion: dto.networkConsent ? dto.networkConsentVersion || null : null,
         networkConsentText: dto.networkConsent ? consent.network : null,
         ...this.evidenciaSensible(form, dto.answers, dto, consent.sensibles),
@@ -2257,6 +2297,7 @@ export class ReservationsService {
       if (request.originDetected) heredado.originDetected = request.originDetected;
       if (request.reservationConsentAt) { heredado.reservationConsentAt = request.reservationConsentAt; heredado.reservationConsentText = request.reservationConsentText ?? null; }
       if (request.marketingConsentAt) { heredado.marketingConsentAt = request.marketingConsentAt; heredado.marketingConsentText = request.marketingConsentText ?? null; }
+      if (request.groupMarketingConsentAt) { heredado.groupMarketingConsentAt = request.groupMarketingConsentAt; heredado.groupMarketingConsentText = request.groupMarketingConsentText ?? null; }
       if (request.networkConsentAt) { heredado.networkConsentAt = request.networkConsentAt; heredado.networkConsentText = request.networkConsentText ?? null; }
       if (Object.keys(heredado).length > 0) await this.reservations.update(reservationId, heredado);
     }
@@ -2424,6 +2465,9 @@ export class ReservationsService {
         measurementConsentAt: dto.measurementConsent ? new Date() : null,
         measurementConsentVersion: dto.measurementConsent ? dto.measurementConsentVersion || VERSION_MEDICION : null,
         measurementConsentText: dto.measurementConsent ? TEXTO_MEDICION : null,
+        groupMarketingConsentAt: dto.groupMarketingConsent ? new Date() : null,
+        groupMarketingConsentVersion: dto.groupMarketingConsent ? VERSION_BENEFICIOS_RED : null,
+        groupMarketingConsentText: dto.groupMarketingConsent ? consent.redBeneficios : null,
         networkConsentAt: dto.networkConsent ? new Date() : null,
         networkConsentVersion: dto.networkConsent ? dto.networkConsentVersion || null : null,
         networkConsentText: dto.networkConsent ? consent.network : null,
@@ -2541,6 +2585,30 @@ export class ReservationsService {
         origen: result.form.name,
         consentText: result.booking.marketingConsentText ?? null,
         consentAt: result.booking.marketingConsentAt,
+      });
+    }
+
+    /*
+     * Y quien además aceptó los beneficios de los demás locales entra a la lista de la agencia.
+     *
+     * Ficha aparte, con `clientId` vacío, que es la lista de la agencia: su propio token, su propia
+     * baja y su propio texto aceptado. No es un detalle de implementación sino la razón de ser de
+     * la casilla: darse de baja de las promociones de la red no puede sacar a nadie de las del
+     * local donde reservó, ni al revés, y con una sola ficha eso era imposible.
+     *
+     * Sin la casilla no entra nunca, ni siquiera habiendo aceptado los beneficios del local: ése
+     * es el permiso que antes se daba por incluido y es exactamente lo que se vino a corregir.
+     */
+    if (result.created && result.booking.groupMarketingConsentAt) {
+      void this.altaEnLaLista.registrar({
+        organizationId: result.booking.organizationId,
+        clientId: null,
+        email: result.booking.guestEmail,
+        name: result.booking.guestName,
+        birthDate: result.booking.birthDate ?? null,
+        origen: `red · ${result.form.name}`,
+        consentText: result.booking.groupMarketingConsentText ?? null,
+        consentAt: result.booking.groupMarketingConsentAt,
       });
     }
 
@@ -2830,7 +2898,7 @@ export class ReservationsService {
     // que falle el de dentro no puede impedir el de fuera.
     void this.enviarComprobante(form, booking, managementToken);
     try {
-      const equipo = await this.equipoDelLocal(form);
+      const equipo = await this.equipoDelLocal(form, 'reservas');
       if (equipo.userIds.length) {
         await this.notifications.notifyMultiple(form.organizationId, equipo.userIds, 'reservation_created', 'Nueva reserva recibida', `${booking.guestName} reservó ${form.name} para el ${booking.startsAt.toLocaleString('es-CL', { timeZone: form.timezone })}.`, { reservationId: booking.id, formId: form.id, clientId: form.clientId, referenceCode: booking.referenceCode });
       }

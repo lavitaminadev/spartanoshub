@@ -69,6 +69,39 @@ describe('alta en la lista de correo desde una reserva', () => {
     expect(suscriptores.save.mock.calls[0][0].unsubscribeToken).toBeTruthy();
   });
 
+  /*
+   * La casilla de los demás locales crea su propia ficha, en la lista de la agencia.
+   *
+   * Es la razón de ser de esa casilla: con una sola ficha, darse de baja de las promociones de la
+   * red sacaba a la persona también de las del local donde reservó. Ficha aparte significa token
+   * aparte, texto aceptado aparte y baja aparte.
+   */
+  it('con la empresa vacía entra a la lista de la agencia, con su propio token', async () => {
+    suscriptores.findOne.mockResolvedValue(null);
+
+    await alta.registrar({
+      ...datos,
+      clientId: null,
+      origen: 'red · Casa Costanera',
+      consentText: 'Quiero además beneficios de los demás locales de Espartanos.',
+    });
+
+    const guardada = suscriptores.save.mock.calls[0][0];
+    expect(guardada.clientId).toBeNull();
+    expect(guardada.consentText).toContain('los demás locales');
+    expect(guardada.sourceDetail).toBe('red · Casa Costanera');
+    expect(guardada.unsubscribeToken).toBeTruthy();
+  });
+
+  /* Cada lista tiene su propia exclusión: la del local no decide sobre la de la red. */
+  it('la exclusión se consulta contra la lista a la que entraría, no contra otra', async () => {
+    suscriptores.findOne.mockResolvedValue(null);
+
+    await alta.registrar({ ...datos, clientId: null });
+
+    expect(listaDeExclusion.exclusionDe).toHaveBeenCalledWith('org-1', 'camila@correo.cl', null);
+  });
+
   it('sin correo no hace nada: no hay a quién escribirle', async () => {
     await alta.registrar({ ...datos, email: '   ' });
     expect(suscriptores.save).not.toHaveBeenCalled();

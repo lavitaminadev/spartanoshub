@@ -12,6 +12,8 @@ const typeorm_1 = require("@nestjs/typeorm");
 const suscriptor_entity_1 = require("./suscriptor.entity");
 const exclusion_entity_1 = require("./exclusion.entity");
 const campana_entity_1 = require("./campana.entity");
+const reservation_coupon_entity_1 = require("../reservations/domain/reservation-coupon.entity");
+const user_entity_1 = require("../users/user.entity");
 const envio_de_campana_entity_1 = require("./envio-de-campana.entity");
 const suscriptores_service_1 = require("./suscriptores.service");
 const suscriptores_controller_1 = require("./suscriptores.controller");
@@ -28,7 +30,7 @@ exports.MarketingModule = MarketingModule;
 exports.MarketingModule = MarketingModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([suscriptor_entity_1.Suscriptor, exclusion_entity_1.ExclusionDeCorreo, campana_entity_1.Campana, envio_de_campana_entity_1.EnvioDeCampana]),
+            typeorm_1.TypeOrmModule.forFeature([suscriptor_entity_1.Suscriptor, exclusion_entity_1.ExclusionDeCorreo, campana_entity_1.Campana, envio_de_campana_entity_1.EnvioDeCampana, reservation_coupon_entity_1.ReservationCoupon, user_entity_1.User]),
             account_access_module_1.AccountAccessModule,
             email_module_1.EmailModule,
             parameters_module_1.ParametersModule,

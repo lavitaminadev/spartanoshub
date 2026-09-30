@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Campana, EstadoDeCampana } from './campana.entity';
 import { SuscriptoresService } from './suscriptores.service';
+import { ReservationCoupon } from '../reservations/domain/reservation-coupon.entity';
+import { User } from '../users/user.entity';
+import { UserRole } from '../organizations/user-role.enum';
 import { EnviosDeCampanaService } from './envios-de-campana.service';
 import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
@@ -33,6 +36,8 @@ export class CampanasService {
     private readonly suscriptores: SuscriptoresService,
     private readonly envios: EnviosDeCampanaService,
     private readonly parametros: ParameterResolver,
+    @InjectRepository(ReservationCoupon) private readonly cupones: Repository<ReservationCoupon>,
+    @InjectRepository(User) private readonly usuarios: Repository<User>,
   ) {}
 
   /** `agencia` y vacío significan la lista sin empresa; en la base eso es `null`. */
@@ -53,30 +58,45 @@ export class CampanasService {
     clientId?: string | null;
     asunto: string;
     cuerpo: string;
+    cupon?: string | null;
+    destino?: 'lista' | 'administradores';
     createdBy?: string | null;
   }): Promise<Campana> {
     const asunto = datos.asunto?.trim();
     const cuerpo = datos.cuerpo?.trim();
     if (!asunto || !cuerpo) throw new BadRequestException('La campaña necesita asunto y texto');
 
+    const clientId = this.empresaDe(datos.clientId);
+    const cupon = datos.cupon?.trim().toUpperCase() || null;
+    const cuponVence = cupon ? await this.comprobarCupon(datos.organizationId, clientId, cupon) : null;
+
     return this.repo.save(this.repo.create({
       organizationId: datos.organizationId,
-      clientId: this.empresaDe(datos.clientId),
+      clientId,
       asunto,
       cuerpo,
+      cupon,
+      cuponVence,
+      destino: datos.destino ?? 'lista',
       estado: EstadoDeCampana.BORRADOR,
       createdBy: datos.createdBy ?? null,
     }));
   }
 
   /** Editar sólo mientras es borrador: cambiar el texto de algo ya enviado falsea la constancia. */
-  async editar(id: string, organizationId: string, cambios: { asunto?: string; cuerpo?: string }): Promise<Campana> {
+  async editar(id: string, organizationId: string, cambios: { asunto?: string; cuerpo?: string; cupon?: string | null; destino?: 'lista' | 'administradores' }): Promise<Campana> {
     const campana = await this.buscar(id, organizationId);
     if (campana.estado !== EstadoDeCampana.BORRADOR) {
       throw new ConflictException('Esta campaña ya se envió: su texto es la constancia de lo que salió');
     }
     if (cambios.asunto !== undefined) campana.asunto = cambios.asunto.trim();
     if (cambios.cuerpo !== undefined) campana.cuerpo = cambios.cuerpo.trim();
+    if (cambios.destino !== undefined) campana.destino = cambios.destino;
+    if (cambios.cupon !== undefined) {
+      const cupon = cambios.cupon?.trim().toUpperCase() || null;
+      campana.cuponVence = cupon ? await this.comprobarCupon(campana.organizationId, campana.clientId ?? null, cupon) : null;
+      campana.cupon = cupon;
+    }
     if (!campana.asunto || !campana.cuerpo) throw new BadRequestException('La campaña necesita asunto y texto');
     return this.repo.save(campana);
   }
@@ -111,9 +131,92 @@ export class CampanasService {
   }
 
   /** A cuántos le llegaría si se enviara ahora. Lo que se muestra antes de apretar el botón. */
-  async destinatarios(organizationId: string, empresa?: string | null): Promise<number> {
-    const lista = await this.suscriptores.suscritos(organizationId, this.empresaDe(empresa));
-    return lista.length;
+  /**
+   * A cuántos llegaría, y a quiénes.
+   *
+   * El número solo no basta para decidir: «312 personas» no dice si son las que uno cree. Una
+   * muestra de los primeros permite reconocer la lista antes de mandar algo que no se puede
+   * deshacer. Van pocos a propósito: esto es para reconocer, no para leer la lista entera, que
+   * está en su propia pantalla con sus filtros.
+   */
+  async destinatarios(
+    organizationId: string,
+    empresa?: string | null,
+    destino: 'lista' | 'administradores' = 'lista',
+  ): Promise<{ total: number; muestra: Array<{ email: string; nombre: string | null }>; deQuienes: string }> {
+    const lista = await this.aQuienes(organizationId, empresa, destino);
+    return {
+      total: lista.length,
+      muestra: lista.slice(0, 5).map((fila) => ({ email: fila.email, nombre: fila.name ?? null })),
+      // En palabras: «312 personas» no dice si son las que uno cree, y esto no se puede deshacer.
+      deQuienes: destino === 'administradores'
+        ? 'Quienes administran cada empresa'
+        : this.empresaDe(empresa) === null
+          ? 'La lista propia de Espartanos'
+          : 'La lista de esta empresa',
+    };
+  }
+
+  /**
+   * De dónde salen las direcciones de una campaña.
+   *
+   * Un solo lugar, para que lo que se muestra antes de enviar y lo que sale después sean lo mismo:
+   * dos consultas parecidas terminan dando números distintos, y ahí ya nadie confía en la pantalla.
+   */
+  async aQuienes(
+    organizationId: string,
+    empresa: string | null | undefined,
+    destino: 'lista' | 'administradores',
+  ): Promise<Array<{ id?: string; email: string; name?: string; unsubscribeToken?: string }>> {
+    if (destino === 'administradores') {
+      /*
+       * Quienes administran cada empresa, no sus suscriptores.
+       *
+       * Es aviso de servicio a quien contrató —un cambio en su plan, una funcionalidad nueva—, no
+       * publicidad: por eso no exige permiso de marketing. Si alguna vez se usa para venderles
+       * algo, deja de ser esto y necesita su propio respaldo.
+       *
+       * Sólo cuentas activas: escribirle a quien ya no trabaja ahí es filtrar a un tercero lo que
+       * pasa en esa empresa.
+       */
+      const donde: Record<string, unknown> = { organizationId, role: UserRole.CLIENT, isActive: true };
+      const soloUna = this.empresaDe(empresa);
+      if (soloUna) donde.clientId = soloUna;
+      const cuentas = await this.usuarios.find({ where: donde, select: { id: true, email: true, name: true } });
+      return cuentas.map((cuenta) => ({ id: cuenta.id, email: cuenta.email, name: cuenta.name ?? undefined }));
+    }
+
+    const fichas = await this.suscriptores.suscritos(organizationId, this.empresaDe(empresa));
+    return fichas.map((ficha) => ({
+      id: ficha.id,
+      email: ficha.email,
+      name: ficha.name ?? undefined,
+      unsubscribeToken: ficha.unsubscribeToken ?? undefined,
+    }));
+  }
+
+  /**
+   * Comprueba el cupón con las mismas reglas que el de después de la visita.
+   *
+   * Un código que no existe, de otra empresa, desactivado o vencido es un descuento que la caja va
+   * a rechazar delante del cliente: es peor que no ofrecer ninguno. Se comprueba al guardar y no
+   * al enviar, para que quien escribe la campaña se entere mientras puede corregirlo.
+   *
+   * @returns Hasta cuándo vale, para que el correo pueda decirlo. `null` si no vence.
+   * @throws BadRequestException con lo que pasa, en palabras de quien escribe la campaña.
+   */
+  private async comprobarCupon(organizationId: string, clientId: string | null, codigo: string): Promise<Date | null> {
+    const cupon = await this.cupones.findOne({ where: { organizationId, code: codigo } });
+    const ahora = new Date();
+    const problema = !cupon ? 'no existe'
+      : (cupon.clientId ?? null) !== clientId ? 'es de otra empresa'
+        : !cupon.active ? 'está desactivado'
+          : cupon.validUntil && cupon.validUntil <= ahora ? 'ya venció'
+            : null;
+    if (problema) {
+      throw new BadRequestException(`El cupón ${codigo} ${problema}. Revísalo en Cupones antes de mandar la campaña: un código que la caja rechaza delante del cliente es peor que no ofrecer ninguno.`);
+    }
+    return cupon!.validUntil ?? null;
   }
 
   /**
@@ -136,9 +239,17 @@ export class CampanasService {
       throw new ConflictException('Esta campaña ya se envió');
     }
 
-    const destinatarios = await this.suscriptores.suscritos(organizationId, campana.clientId ?? null);
+    // La misma consulta que mostró la pantalla antes de apretar: si dieran distinto, el número que
+    // se vio al decidir no sería el que salió.
+    const destinatarios = await this.aQuienes(
+      organizationId,
+      campana.clientId ?? null,
+      campana.destino ?? 'lista',
+    );
     if (!destinatarios.length) {
-      throw new ConflictException('No hay nadie suscrito en esta lista ahora mismo');
+      throw new ConflictException(campana.destino === 'administradores'
+          ? 'No hay cuentas activas que administren esta empresa'
+          : 'No hay nadie suscrito en esta lista ahora mismo');
     }
 
     const tomada = await this.repo.update(

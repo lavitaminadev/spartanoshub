@@ -247,6 +247,13 @@
 .booking-consentimientos li.es-si strong { background:var(--success-bg); color:#087e79; }
 .booking-consentimientos li.es-no strong { background:var(--soft); color:var(--muted); }
 .booking-consentimientos li small { color:var(--muted); }
+/* El texto aceptado, plegado: ocupa toda la fila para que se lea como el párrafo que es. */
+.consentimiento-texto { flex-basis:100%; }
+.consentimiento-texto summary { cursor:pointer; color:var(--muted); font-size:11px; }
+.consentimiento-texto p {
+  margin:6px 0 0; padding:8px 10px; border-radius:var(--radius-sm); background:var(--soft);
+  color:var(--text); font-size:11px; line-height:1.55;
+}
 
 /* Salida por WhatsApp cuando la agenda no tiene nada que ofrecer. */
 .sin-cupo-whatsapp { display:grid; gap:8px; justify-items:center; margin-top:14px; border-style:solid; border-color:var(--surface-sage); }

@@ -57,7 +57,32 @@ describe('beneficios y novedades', () => {
     const texto = textosDeAceptacionDeReserva(LOCAL).novedades;
     for (const parte of ['correo, WhatsApp o SMS', 'cumpleaños', 'visitas y preferencias', 'nunca datos de salud', '60 meses', 'no condiciona mi reserva', 'retirarlo']) expect(texto).toContain(parte);
     expect(texto).not.toContain('locales de');
-    expect(textosDeAceptacionDeReserva(LOCAL, { grupo: true, red: 'Grupo Costa' }).novedades).toContain('y de los locales de Grupo Costa');
+  });
+
+  /*
+   * Los beneficios de los demás locales van en su propia casilla, no dentro de la anterior.
+   *
+   * Antes el permiso del local decía «de este local y sus locales» cuando la red estaba activada:
+   * quien sólo quería los de acá tenía que aceptar los de todos, del conjunto quedaba un único
+   * registro y no se podía retirar uno sin el otro. Que el texto del local siga sin mencionarlos
+   * —lo comprueba la línea de arriba— es la mitad de la garantía; ésta es la otra.
+   */
+  it('el permiso de la red es un texto aparte y dice que se puede aceptar uno y no el otro', () => {
+    const textos = textosDeAceptacionDeReserva(LOCAL, { grupo: true, red: 'Grupo Costa' });
+
+    expect(textos.novedades).not.toContain('locales de');
+    expect(textos.redBeneficios).toContain('los demás locales de Grupo Costa');
+    for (const parte of ['permiso aparte', 'uno y no el otro', 'no condiciona mi reserva', 'retirarlo']) {
+      expect(textos.redBeneficios).toContain(parte);
+    }
+  });
+
+  /* Quien acepta tiene que poder saber a quién le abre la puerta y quién responde de esa lista. */
+  it('el permiso de la red dice a quién se entregan los datos', () => {
+    const texto = textosDeAceptacionDeReserva(LOCAL, { red: 'Grupo Costa' }).redBeneficios;
+
+    expect(texto).toContain('Casa SpA');
+    expect(texto).toContain('administra esa lista y responde de ella');
   });
   it('la medición informa remarketing y audiencias', () => {
     expect(TEXTO_MEDICION).toContain('audiencias');
