@@ -8,6 +8,8 @@ import { ReservationCoupon } from '../../../modules/reservations/domain/reservat
 import { encuestasHabilitadas } from '../../../modules/surveys/encuestas-de-la-empresa';
 import { EmailService } from '../../notifications/email.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
+import { enlaceDeBaja } from '../../notifications/enlace-de-baja';
+import { Suscriptor } from '../../../modules/marketing/suscriptor.entity';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
 
 const UNA_HORA = 60 * 60 * 1000;
@@ -68,6 +70,7 @@ export class CuponPostVisitaJob {
     @InjectRepository(ReservationCoupon) private readonly cupones: Repository<ReservationCoupon>,
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
+    @InjectRepository(Suscriptor) private readonly suscriptores: Repository<Suscriptor>,
     @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
@@ -87,6 +90,15 @@ export class CuponPostVisitaJob {
         endsAt: Between(desde, new Date(ahora - HORAS_DE_ESPERA * UNA_HORA)),
         guestEmail: Not(IsNull()),
         cuponEnviadoEn: IsNull(),
+        /*
+         * Sólo a quien pidió beneficios.
+         *
+         * El cupón salía a todo el que asistiera, hubiera aceptado o no: un descuento es
+         * publicidad, y mandarla a quien no la pidió es precisamente lo que la ley no permite.
+         * Quien aceptó está además en la lista de correo, así que tiene de dónde darse de baja;
+         * sin esta condición el correo salía sin enlace posible.
+         */
+        marketingConsentAt: Not(IsNull()),
       },
       take: TOPE_POR_PASADA,
       order: { endsAt: 'ASC' },
@@ -138,13 +150,26 @@ export class CuponPostVisitaJob {
         // El correo no promete más plazo que el que tiene el cupón de verdad.
         const porDias = new Date(ahora + ajustes.diasValidez * 24 * UNA_HORA);
         const vence = ajustes.vigenteHasta && ajustes.vigenteHasta < porDias ? ajustes.vigenteHasta : porDias;
+        /*
+         * El enlace de baja sale de la ficha de esa persona en la lista de este local.
+         *
+         * Existe porque el cupón sólo va a quien pidió beneficios, y pedirlos la puso en la
+         * lista: son la misma decisión. Si no apareciera —una ficha borrada, por ejemplo— el
+         * correo sale igual sin el enlace, porque un cupón que no llega es peor que uno sin pie.
+         */
+        const suscriptor = await this.suscriptores.findOne({
+          where: { organizationId: form.organizationId, clientId: form.clientId ?? IsNull(), email: (reserva.guestEmail as string).trim().toLowerCase() },
+          select: { id: true, unsubscribeToken: true },
+        }).catch(() => null);
+        const baja = await enlaceDeBaja(this.parametros, 'email.coupon', suscriptor?.unsubscribeToken, form);
+
         const { subject, html } = componerCorreo(ajustes.asunto, ajustes.cuerpo, {
           nombre: reserva.guestName?.trim().split(/\s+/)[0] || '',
           // El local y no la agencia: quien vino no conoce a Espartanos.
           local: form.name,
           cupon: ajustes.codigo,
           vence: vence.toLocaleDateString('es-CL', { dateStyle: 'long', timeZone: form.timezone }),
-        });
+        }, undefined, undefined, undefined, baja);
 
         const soporte = typeof (form.designConfig as Record<string, unknown>)?.supportEmail === 'string'
           ? String((form.designConfig as Record<string, unknown>).supportEmail)
@@ -153,7 +178,7 @@ export class CuponPostVisitaJob {
           reserva.guestEmail as string,
           subject,
           html,
-          soporte ? { replyTo: soporte } : undefined,
+          { ...(soporte ? { replyTo: soporte } : {}), ...(baja ? { bajaUrl: baja } : {}) },
         );
         // Solo se marca lo que salió: si el correo está apagado o falla, se reintenta.
         if (!salio) continue;
@@ -183,6 +208,8 @@ export class CuponPostVisitaJob {
           AND s.completed_at >= ?
           AND r.guest_email IS NOT NULL
           AND r.cupon_enviado_en IS NULL
+          -- Misma condición que por asistencia: el cupón es publicidad y sólo va a quien la pidió.
+          AND r.marketing_consent_at IS NOT NULL
         LIMIT ${TOPE_POR_PASADA}`,
       [desde],
     ).catch(() => []) as Array<{ id: string }>;

@@ -12,7 +12,7 @@ const COMERCIALES = new Set([
   'email.birthday',
   'email.coupon',
   'email.survey_invite',
-  'email.team_survey_message',
+
 ]);
 
 /** Si esa plantilla nace con el enlace encendido. Lo usa el catálogo y la pantalla de Correos. */

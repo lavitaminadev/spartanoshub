@@ -6,7 +6,6 @@ const COMERCIALES = new Set([
     'email.birthday',
     'email.coupon',
     'email.survey_invite',
-    'email.team_survey_message',
 ]);
 function esCorreoComercial(prefijo) {
     return COMERCIALES.has(prefijo);
