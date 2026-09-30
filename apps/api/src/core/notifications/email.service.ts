@@ -2,7 +2,7 @@ import { BRAND } from '../../shared/brand';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ParameterResolver } from '../parameters/parameter-resolver.service';
 import { leerPlantilla } from '../parameters/plantilla-resuelta';
-import { componerCorreo } from './plantilla-de-correo';
+import { componerCorreo, textoDesdeHtml } from './plantilla-de-correo';
 import nodemailer, { SendMailOptions, Transporter } from 'nodemailer';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
@@ -75,7 +75,12 @@ export class EmailService {
     };
   }
 
-  async send(to: string, subject: string, html: string, options?: Pick<SendMailOptions, 'attachments' | 'replyTo'>): Promise<boolean> {
+  async send(to: string, subject: string, html: string, options?: Pick<SendMailOptions, 'attachments' | 'replyTo'> & {
+    /** La carta en texto. Sin ella se deriva del HTML, que es lo que hace el caso corriente. */
+    text?: string;
+    /** Dirección de baja del correo comercial. Sólo en los que la llevan. */
+    bajaUrl?: string;
+  }): Promise<boolean> {
     const recipient = to.trim().toLowerCase();
     const asunto = subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255);
     if (!validRecipient(recipient)) {
@@ -96,7 +101,23 @@ export class EmailService {
         replyTo: options?.replyTo ?? this.replyTo,
         subject: asunto,
         html,
+        /*
+         * La misma carta en texto, siempre.
+         *
+         * Mandar sólo HTML es de las causas más comunes de caer en spam o en «Promociones», y es
+         * lo que hacíamos en todos los correos. Va acá porque es el único punto por el que pasan
+         * todos: armarla en cada sitio que compone un correo habría dejado alguno fuera.
+         */
+        text: options?.text ?? textoDesdeHtml(html),
         attachments: options?.attachments,
+        /*
+         * Cabecera de baja, cuando el correo la lleva.
+         *
+         * Gmail y Yahoo la exigen en el correo comercial desde 2024, y muestran el botón «Anular
+         * suscripción» junto al remitente: quien la usa se da de baja en vez de marcar spam, que
+         * es lo que daña la reputación del servidor y arrastra al resto de los correos.
+         */
+        list: options?.bajaUrl ? { unsubscribe: { url: options.bajaUrl, comment: 'Dejar de recibir estos correos' } } : undefined,
       });
       const accepted = Array.isArray(result.accepted) ? result.accepted.length : 0;
       if (!accepted) this.logger.warn(`SMTP rejected message ${result.messageId}`);
