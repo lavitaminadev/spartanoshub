@@ -143,6 +143,33 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
             })),
         };
     }
+    async anotarPeticionExterna(organizationId, email, alcance, clientId, origen) {
+        const limpio = email?.trim().toLowerCase();
+        if (!limpio || !limpio.includes('@'))
+            throw new common_1.BadRequestException('Falta una dirección de correo válida');
+        const motivo = origen?.trim();
+        if (!motivo)
+            throw new common_1.BadRequestException('Hay que decir de dónde vino la petición: es lo que se muestra si alguien reclama');
+        if (alcance === 'local' && !clientId)
+            throw new common_1.BadRequestException('Para una baja de una sola empresa hay que decir cuál');
+        const ahora = new Date();
+        const donde = alcance === 'todas'
+            ? { organizationId, email: limpio }
+            : { organizationId, email: limpio, clientId: clientId };
+        const fichas = await this.repo.find({ where: donde });
+        const cambiadas = fichas.filter((fila) => !(fila.status === suscriptor_entity_1.EstadoDeSuscripcion.BAJA && fila.unsubscribedScope));
+        for (const fila of cambiadas) {
+            fila.status = suscriptor_entity_1.EstadoDeSuscripcion.BAJA;
+            fila.unsubscribedAt = fila.unsubscribedAt ?? ahora;
+            fila.unsubscribedScope = alcance;
+            fila.unsubscribedFrom = motivo.slice(0, 80);
+        }
+        if (cambiadas.length)
+            await this.repo.save(cambiadas);
+        await this.anotarExclusion(organizationId, this.huellaDe(organizationId, limpio), alcance === 'todas' ? null : clientId, alcance, motivo);
+        this.logger.log(`Petición externa anotada (${motivo}): ${cambiadas.length} fichas de baja, alcance ${alcance}`);
+        return { fichasDeBaja: cambiadas.length, email: limpio };
+    }
     async cuantasExclusiones(organizationId) {
         const [total, deTodas] = await Promise.all([
             this.exclusiones.count({ where: { organizationId } }),

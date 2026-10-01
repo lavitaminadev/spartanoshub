@@ -596,6 +596,38 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return (0, vista_previa_de_enlace_1.htmlDeVistaPrevia)({ titulo: 'Reserva en línea', descripcion: 'Reserva en línea con Espartanos.', url });
         }
     }
+    async datosDeCaptacion(slug) {
+        const form = await this.publishedForm(slug);
+        await this.completarDatosLegales(form);
+        const consent = this.consentTexts(form);
+        const design = form.designConfig;
+        return {
+            local: form.name,
+            texto: consent.marketing,
+            red: design.beneficiosDelGrupo === 'true' ? (design.networkBrandName || 'Espartanos') : undefined,
+        };
+    }
+    async suscribirDesdeCaptacion(slug, datos, ipAddress) {
+        const form = await this.publishedForm(slug);
+        if (datos.website)
+            return { estado: 'alta', local: form.name };
+        await this.completarDatosLegales(form);
+        const texto = this.consentTexts(form).marketing;
+        const estado = await this.altaEnLaLista.registrar({
+            organizationId: form.organizationId,
+            clientId: form.clientId,
+            email: datos.email,
+            name: datos.name ?? null,
+            birthDate: datos.birthDate ?? null,
+            origen: `captación · ${form.name}`,
+            consentText: texto,
+            consentAt: new Date(),
+            consentIp: ipAddress ?? null,
+            adultDeclared: Boolean(datos.adultDeclared),
+            source: 'captacion',
+        });
+        return { estado, local: form.name };
+    }
     async publicForm(slug) {
         const form = await this.publishedForm(slug);
         const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);

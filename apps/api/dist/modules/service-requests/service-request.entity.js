@@ -67,6 +67,14 @@ __decorate([
     __metadata("design:type", Object)
 ], ServiceRequest.prototype, "resolvedAt", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'extended_until', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], ServiceRequest.prototype, "extendedUntil", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'extended_reason', type: 'varchar', length: 300, nullable: true }),
+    __metadata("design:type", Object)
+], ServiceRequest.prototype, "extendedReason", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], ServiceRequest.prototype, "createdAt", void 0);

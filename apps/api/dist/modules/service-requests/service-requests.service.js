@@ -16,6 +16,7 @@ exports.ServiceRequestsService = exports.SERVICE_REQUEST_STATUSES = exports.SERV
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const shared_1 = require("@espartanos/shared");
 const service_request_entity_1 = require("./service-request.entity");
 const audit_service_1 = require("../../core/audit/audit.service");
 const data_protection_service_1 = require("../../core/data-protection/data-protection.service");
@@ -108,7 +109,52 @@ let ServiceRequestsService = class ServiceRequestsService {
             where.status = filter.status;
         if (filter?.type && exports.SERVICE_REQUEST_TYPES.includes(filter.type))
             where.type = filter.type;
-        return this.requests.find({ where, order: { createdAt: 'DESC' }, take: 200 });
+        const filas = await this.requests.find({ where, order: { createdAt: 'DESC' }, take: 200 });
+        return filas
+            .map((fila) => Object.assign(fila, { plazo: this.plazoDe(fila) }))
+            .sort((uno, otro) => uno.plazo.vence.getTime() - otro.plazo.vence.getTime());
+    }
+    plazoDe(fila) {
+        return (0, shared_1.plazoDeSolicitud)(fila.createdAt, { resuelta: fila.resolvedAt, prorrogadaHasta: fila.extendedUntil });
+    }
+    async prorrogar(organizationId, id, motivo, actor) {
+        const fila = await this.getOne(organizationId, id);
+        if (fila.resolvedAt)
+            throw new common_1.BadRequestException('Esta solicitud ya se respondió: no hay plazo que prorrogar');
+        if (fila.extendedUntil)
+            throw new common_1.BadRequestException('Esta solicitud ya se prorrogó una vez, y la ley permite sólo una');
+        const texto = motivo?.trim();
+        if (!texto)
+            throw new common_1.BadRequestException('La prórroga tiene que decir por qué: sin motivo fundado no vale');
+        const plazo = this.plazoDe(fila);
+        if (plazo.estado === 'vencida') {
+            throw new common_1.BadRequestException('El plazo ya venció, así que no se puede prorrogar. Responde cuanto antes y deja constancia del retraso en la nota.');
+        }
+        fila.extendedUntil = (0, shared_1.vencimientoConProrroga)(fila.createdAt);
+        fila.extendedReason = texto.slice(0, 300);
+        const guardada = await this.requests.save(fila);
+        await this.audit.log({
+            organizationId, actorId: actor.id, entityType: 'service_request', entityId: fila.id,
+            action: 'extend', after: { extendedUntil: fila.extendedUntil }, reason: fila.extendedReason,
+        });
+        return guardada;
+    }
+    async porVencer(organizationId) {
+        const abiertas = await this.requests.find({
+            where: { organizationId, resolvedAt: (0, typeorm_2.IsNull)() },
+            order: { createdAt: 'ASC' },
+            take: 200,
+        });
+        const porVencer = [];
+        const vencidas = [];
+        for (const fila of abiertas) {
+            const estado = this.plazoDe(fila).estado;
+            if (estado === 'vencida')
+                vencidas.push(fila);
+            else if (estado === 'por vencer')
+                porVencer.push(fila);
+        }
+        return { porVencer, vencidas };
     }
     async getOne(organizationId, id) {
         const row = await this.requests.findOne({ where: { id, organizationId } });

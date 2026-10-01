@@ -35,6 +35,10 @@ let PublicReservationsController = class PublicReservationsController {
             return fallback;
         }
     }
+    captacion(slug) { return this.service.datosDeCaptacion(slug); }
+    suscribirse(slug, dto, ip) {
+        return this.service.suscribirDesdeCaptacion(slug, dto, ip);
+    }
     management(token) { return this.service.publicManagement(token); }
     cancelManagement(token) { return this.service.cancelPublicManagement(token); }
     rescheduleManagement(token, dto) {
@@ -84,6 +88,24 @@ let PublicReservationsController = class PublicReservationsController {
     }
 };
 exports.PublicReservationsController = PublicReservationsController;
+__decorate([
+    (0, common_1.Get)(':slug/captacion'),
+    (0, throttler_1.Throttle)({ default: { limit: 60, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('slug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "captacion", null);
+__decorate([
+    (0, common_1.Post)(':slug/suscribirse'),
+    (0, throttler_1.Throttle)({ default: { limit: 3, ttl: 60000 } }),
+    __param(0, (0, common_1.Param)('slug')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Ip)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, reservation_dto_1.CaptacionPublicaDto, String]),
+    __metadata("design:returntype", void 0)
+], PublicReservationsController.prototype, "suscribirse", null);
 __decorate([
     (0, common_1.Get)('manage/:token'),
     (0, throttler_1.Throttle)({ default: { limit: 20, ttl: 60000 } }),

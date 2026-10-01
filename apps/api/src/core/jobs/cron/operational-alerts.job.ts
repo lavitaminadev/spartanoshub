@@ -3,6 +3,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Notification } from '../../notifications/notification.entity';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
+import { plazoDeSolicitud } from '@espartanos/shared';
 
 interface RecipientRow { id: string }
 
@@ -27,6 +28,7 @@ export class OperationalAlertsJob {
         created += await this.actionItemAlerts(organization.id);
         created += await this.budgetAlerts(organization.id);
         created += await this.cycleAlerts(organization.id);
+        created += await this.solicitudesDeDerechos(organization.id);
       } catch (error) {
         this.logger.error(`Failed to scan alerts for organization ${organization.id}: ${error instanceof Error ? error.message : error}`);
       }
@@ -46,6 +48,49 @@ export class OperationalAlertsJob {
       const overdue = new Date(piece.deadlineAt).getTime() < Date.now();
       const recipients = piece.assignedTo ? [piece.assignedTo, ...fallback] : fallback;
       total += await this.notifyOnce(organizationId, [...new Set(recipients)], overdue ? 'deadline.overdue' : 'deadline.upcoming', `${piece.id}:${overdue ? 'overdue' : 'upcoming'}`, overdue ? 'Entrega vencida' : 'Entrega próxima', `La pieza "${piece.title}" ${overdue ? 'superó su fecha de entrega' : `vence dentro de ${hours} horas`}.`, { pieceId: piece.id, clientId: piece.clientId, deadlineAt: piece.deadlineAt });
+    }
+    return total;
+  }
+
+  /**
+   * Las solicitudes de derechos que están por vencer o ya vencieron.
+   *
+   * El plazo es de treinta días corridos desde que entra la solicitud, prorrogable una sola vez.
+   * Estaba escrito en las políticas que el comensal lee y en ninguna parte del sistema: nadie lo
+   * calculaba y nadie avisaba, así que una solicitud podía vencer sin que se enterara nadie. Lo
+   * que se incumple no es «no responder», es «no responder a tiempo».
+   *
+   * Avisa a la dirección y no a quien la tomó: responder una solicitud de derechos no es una tarea
+   * asignable que se pueda quedar en la bandeja de alguien que está de vacaciones. `notifyOnce`
+   * evita repetir el mismo aviso cada día; la clave lleva el estado para que, cuando una que
+   * estaba por vencer pase a vencida, sí se vuelva a avisar.
+   */
+  private async solicitudesDeDerechos(organizationId: string): Promise<number> {
+    const abiertas = await this.dataSource.query<Array<{ id: string; type: string; createdAt: Date; extendedUntil?: Date | null }>>(
+      'SELECT id, type, created_at createdAt, extended_until extendedUntil FROM service_requests WHERE organization_id = ? AND resolved_at IS NULL ORDER BY created_at ASC LIMIT 200',
+      [organizationId],
+    );
+    if (!abiertas.length) return 0;
+
+    const destinatarios = await this.directors(organizationId);
+    if (!destinatarios.length) return 0;
+
+    let total = 0;
+    for (const fila of abiertas) {
+      const plazo = plazoDeSolicitud(fila.createdAt, { prorrogadaHasta: fila.extendedUntil });
+      if (plazo.estado !== 'vencida' && plazo.estado !== 'por vencer') continue;
+
+      const vencida = plazo.estado === 'vencida';
+      total += await this.notifyOnce(
+        organizationId, destinatarios,
+        vencida ? 'derechos.vencida' : 'derechos.por_vencer',
+        `${fila.id}:${plazo.estado}`,
+        vencida ? 'Solicitud de derechos vencida' : 'Solicitud de derechos por vencer',
+        vencida
+          ? `Una solicitud de ${fila.type} superó el plazo legal de respuesta hace ${Math.abs(plazo.diasRestantes)} día(s). Respóndela cuanto antes y deja constancia del retraso.`
+          : `Una solicitud de ${fila.type} vence en ${plazo.diasRestantes} día(s)${plazo.prorrogada ? ' (plazo ya prorrogado, no se puede prorrogar otra vez)' : ''}.`,
+        { serviceRequestId: fila.id, vence: plazo.vence },
+      );
     }
     return total;
   }

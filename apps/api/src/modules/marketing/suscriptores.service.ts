@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'node:crypto';
 import { type FindOptionsWhere, IsNull, Like, Repository } from 'typeorm';
@@ -260,6 +260,66 @@ export class SuscriptoresService {
         cuando: fila.createdAt,
       })),
     };
+  }
+
+  /**
+   * Anota una petición de no recibir que llegó por fuera del enlace del correo.
+   *
+   * Hacía falta y no existía: la única forma de entrar a la lista de exclusión era hacer clic en
+   * el enlace de un correo. Pero las peticiones llegan por otros tres caminos, y los tres obligan
+   * igual:
+   *
+   * - **El SERNAC.** Su sistema «No Molestar» no es un registro que uno consulte: el consumidor
+   *   elige la empresa, el SERNAC le reenvía la solicitud, y hay **siete días** para cumplir. Sin
+   *   esto, cumplir significaba editar la base a mano.
+   * - Un correo o una llamada a soporte diciendo «sáquenme de la lista».
+   * - Un reclamo, donde la prueba de cuándo se aplicó es justamente lo que se va a pedir.
+   *
+   * Funciona aunque la dirección no esté en ninguna lista, y es a propósito: la petición vale
+   * igual, y la exclusión impide que entre después por una reserva. Quien pide no recibir antes de
+   * estar no tiene por qué volver a pedirlo.
+   *
+   * @param origen De dónde vino. Se exige porque es lo que hay que poder mostrar después.
+   * @returns Cuántas fichas se dieron de baja; cero es un resultado válido, no un fallo.
+   */
+  async anotarPeticionExterna(
+    organizationId: string,
+    email: string,
+    alcance: 'local' | 'todas',
+    clientId: string | null,
+    origen: string,
+  ): Promise<{ fichasDeBaja: number; email: string }> {
+    const limpio = email?.trim().toLowerCase();
+    if (!limpio || !limpio.includes('@')) throw new BadRequestException('Falta una dirección de correo válida');
+    const motivo = origen?.trim();
+    if (!motivo) throw new BadRequestException('Hay que decir de dónde vino la petición: es lo que se muestra si alguien reclama');
+    if (alcance === 'local' && !clientId) throw new BadRequestException('Para una baja de una sola empresa hay que decir cuál');
+
+    const ahora = new Date();
+    const donde = alcance === 'todas'
+      ? { organizationId, email: limpio }
+      : { organizationId, email: limpio, clientId: clientId as string };
+    const fichas = await this.repo.find({ where: donde });
+
+    const cambiadas = fichas.filter((fila) => !(fila.status === EstadoDeSuscripcion.BAJA && fila.unsubscribedScope));
+    for (const fila of cambiadas) {
+      fila.status = EstadoDeSuscripcion.BAJA;
+      fila.unsubscribedAt = fila.unsubscribedAt ?? ahora;
+      fila.unsubscribedScope = alcance;
+      fila.unsubscribedFrom = motivo.slice(0, 80);
+    }
+    if (cambiadas.length) await this.repo.save(cambiadas);
+
+    await this.anotarExclusion(
+      organizationId,
+      this.huellaDe(organizationId, limpio),
+      alcance === 'todas' ? null : clientId,
+      alcance,
+      motivo,
+    );
+
+    this.logger.log(`Petición externa anotada (${motivo}): ${cambiadas.length} fichas de baja, alcance ${alcance}`);
+    return { fichasDeBaja: cambiadas.length, email: limpio };
   }
 
   /** Cuántas peticiones de no recibir hay anotadas. El número sí se puede mostrar; las huellas no. */

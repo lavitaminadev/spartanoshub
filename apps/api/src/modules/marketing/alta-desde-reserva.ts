@@ -18,6 +18,23 @@ export interface AltaDesdeReserva {
   /** El texto exacto que aceptó, tal como se le mostró. */
   consentText?: string | null;
   consentAt?: Date | null;
+  /**
+   * Desde qué dirección aceptó, cuando se capturó por web.
+   *
+   * Es lo que convierte «dijo que sí» en algo comprobable, y por eso llega hasta acá en vez de
+   * quedarse en quien atiende la petición. Vacío en lo que no viene de una petición web.
+   */
+  consentIp?: string | null;
+  /** Si marcó la casilla de ser mayor de 18. Se guarda el instante, no el sí/no. */
+  adultDeclared?: boolean;
+  /**
+   * De dónde salió, cuando no es una reserva.
+   *
+   * Por defecto `reserva`, que es de donde venía todo. Una página de captación o un QR declaran
+   * el suyo: la procedencia es lo que permite defender una dirección, y «estaba en la lista» no
+   * es una procedencia.
+   */
+  source?: string;
 }
 
 /**
@@ -79,6 +96,7 @@ export class AltaDeSuscriptorDesdeReserva {
       if (existente) {
         if (!existente.birthDate && datos.birthDate) existente.birthDate = new Date(`${datos.birthDate}T00:00:00Z`);
         if (!existente.name && datos.name) existente.name = datos.name;
+        if (!existente.adultDeclaredAt && datos.adultDeclared) existente.adultDeclaredAt = new Date();
         /*
          * Una baja es definitiva: sólo se reactiva a quien nunca dijo que sí.
          *
@@ -102,11 +120,13 @@ export class AltaDeSuscriptorDesdeReserva {
         email,
         name: datos.name ?? null,
         birthDate: datos.birthDate ? new Date(`${datos.birthDate}T00:00:00Z`) : null,
-        source: 'reserva',
+        source: datos.source ?? 'reserva',
         sourceDetail: datos.origen,
         status: EstadoDeSuscripcion.SUSCRITO,
         consentAt: datos.consentAt ?? new Date(),
         consentText: datos.consentText ?? null,
+        consentIp: datos.consentIp ?? null,
+        adultDeclaredAt: datos.adultDeclared ? new Date() : null,
         unsubscribeToken: randomBytes(24).toString('base64url'),
       }));
       return 'alta';

@@ -140,6 +140,21 @@ export class ServiceRequestsController {
     return this.service.update(req.organizationId!, id, { id: req.user.id, name: req.user.name }, dto);
   }
 
+  /**
+   * Prorrogar el plazo de respuesta. Una sola vez, con motivo y antes de que venza.
+   *
+   * Exige `manage` y no el `edit` del verbo: la prórroga es la única decisión de esta pantalla que
+   * cambia una obligación legal frente a quien hizo la solicitud. Quien puede anotar el avance no
+   * decide por eso cuánto se tarda en responder.
+   */
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
+  @RequiresPermission('settings', 'manage')
+  @Post(':id/prorrogar')
+  prorrogar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { motivo?: string }) {
+    return this.service.prorrogar(req.organizationId!, id, dto?.motivo ?? '', { id: req.user.id });
+  }
+
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
   @RequiresPermission('settings', 'manage')
