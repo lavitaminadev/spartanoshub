@@ -259,6 +259,17 @@ let SurveysController = class SurveysController {
         }
         const visitas = await this.dataSource.query('SELECT COALESCE(NULLIF(origen, \'\'), \'link\') origen, DATE(created_at) dia, COUNT(*) total FROM survey_visits WHERE survey_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 365 DAY) GROUP BY origen, dia', [survey.id]).catch(() => []);
         const visitasPorDia = visitas.map((fila) => ({ origen: fila.origen, dia: (fila.dia instanceof Date ? fila.dia.toISOString() : String(fila.dia)).slice(0, 10), total: Number(fila.total) }));
+        const porCampana = await this.dataSource.query(`SELECT campana, COUNT(*) visitas, COUNT(DISTINCT session_id) sesiones, MIN(created_at) desde, MAX(created_at) hasta
+         FROM survey_visits
+        WHERE survey_id = ? AND campana IS NOT NULL AND campana <> ''
+        GROUP BY campana ORDER BY visitas DESC LIMIT 50`, [survey.id]).catch(() => []);
+        const campanas = porCampana.map((fila) => ({
+            campana: fila.campana,
+            visitas: Number(fila.visitas),
+            sesiones: Number(fila.sesiones),
+            desde: fila.desde instanceof Date ? fila.desde.toISOString() : String(fila.desde),
+            hasta: fila.hasta instanceof Date ? fila.hasta.toISOString() : String(fila.hasta),
+        }));
         const historial = survey.anonymous ? new Map() : await this.historialPorCorreo(survey, rows.map((row) => row.respondentEmail));
         const detalle = rows.slice().reverse().slice(0, 500).map((row) => ({
             historial: !survey.anonymous && row.respondentEmail ? historial.get(row.respondentEmail.trim().toLowerCase()) ?? null : null,
@@ -276,7 +287,7 @@ let SurveysController = class SurveysController {
             origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
             answers: row.answers ?? {},
         }));
-        return { ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses), respuestas: detalle, visitasPorDia };
+        return { ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses), respuestas: detalle, visitasPorDia, campanas };
     }
     async attend(req, id, responseId, dto) {
         const survey = await this.findOwned(id, req);

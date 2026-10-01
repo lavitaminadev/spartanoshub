@@ -196,6 +196,22 @@ export interface SurveyResultsSummary {
         dia: string;
         total: number;
     }>;
+    /**
+     * Visitas por campaña, sólo de los enlaces que llevaban una escrita.
+     *
+     * Aparte de las de por canal: una campaña se reparte por varios canales a la vez —el QR de la
+     * carta y el cartel del mesón llevan la misma— y cruzarlas daría una fila por cada par.
+     */
+    campanas?: CampanaDeEncuesta[];
+}
+/** Lo que una campaña trajo a una encuesta. */
+export interface CampanaDeEncuesta {
+    campana: string;
+    visitas: number;
+    /** Personas distintas: la misma que abre el QR tres veces cuenta una. */
+    sesiones: number;
+    desde: string;
+    hasta: string;
 }
 /** Una respuesta tal como se lee en los resultados, con su autor si llegó por una reserva. */
 export interface SurveyIndividualResponse {

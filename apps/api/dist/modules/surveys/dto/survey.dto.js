@@ -291,6 +291,13 @@ __decorate([
     (0, class_validator_1.Matches)(/^[A-Za-z0-9._-]*$/),
     __metadata("design:type", String)
 ], SurveyVisitDto.prototype, "origen", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9._-]*$/),
+    __metadata("design:type", String)
+], SurveyVisitDto.prototype, "campana", void 0);
 class SubmitSurveyResponseDto {
 }
 exports.SubmitSurveyResponseDto = SubmitSurveyResponseDto;

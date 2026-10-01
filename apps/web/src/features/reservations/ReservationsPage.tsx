@@ -191,7 +191,17 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * angostas.
    */
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
-  const [filters, setFilters] = useState({ search: searchParams.get('search') ?? '', status: '', formId: searchParams.get('formId') ?? '', from: '', to: '', resourceId: '' });
+  /*
+   * Todos los filtros existen siempre, aunque estén vacíos.
+   *
+   * Una vista guardada trae sólo las claves que tenía puestas, y aplicarla reemplazando el objeto
+   * entero dejaba fuera las demás: `filters.search` quedaba sin definir y la pantalla se caía
+   * entera al leerlo. Una vista guardada es un dato que viene de fuera —del equipo, de otra
+   * versión de la pantalla—, así que se combina sobre estos valores en vez de confiar en que
+   * venga completa.
+   */
+  const FILTROS_VACIOS = { search: '', status: '', formId: '', from: '', to: '', resourceId: '' };
+  const [filters, setFilters] = useState({ ...FILTROS_VACIOS, search: searchParams.get('search') ?? '', formId: searchParams.get('formId') ?? '' });
   const search = useDeferredValue(filters.search.trim());
 
   const clientQuery = clientFilter ? `?clientId=${encodeURIComponent(clientFilter)}` : '';
@@ -575,7 +585,11 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         ambito="reservas.lista"
         filtrosActuales={filters}
         hayFiltros={Boolean(filters.search || filters.status || filters.formId || filters.from || filters.to)}
-        onAplicar={(guardados) => { setFilters(guardados); setPage(1); }}
+        onAplicar={(guardados) => {
+          // Se combina sobre los vacíos: una vista con sólo «estado» no puede borrar el resto.
+          setFilters({ ...FILTROS_VACIOS, ...guardados });
+          setPage(1);
+        }}
       />
       <button type="button" className="btn btn-outline btn-sm filtros-movil" aria-expanded={filtrosAbiertos} onClick={() => setFiltrosAbiertos((abiertos) => !abiertos)}>
         {filtrosAbiertos ? 'Ocultar filtros' : `Filtros${[filters.search, filters.status, filters.formId, filters.from, filters.to, clientFilter].filter(Boolean).length ? ` (${[filters.search, filters.status, filters.formId, filters.from, filters.to, clientFilter].filter(Boolean).length})` : ''}`}

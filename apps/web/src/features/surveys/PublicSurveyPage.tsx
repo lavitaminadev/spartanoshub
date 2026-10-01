@@ -25,6 +25,19 @@ function numericAnswer(answers: Answers, questions: SurveyQuestion[]): number | 
   return Number.isFinite(value) ? value : null;
 }
 
+/**
+ * La campaña del enlace, si venía una.
+ *
+ * Se perdía: la visita anotaba el canal y nada más, así que se podía repartir un QR por campaña y
+ * después no había forma de saber cuál había traído gente. El alfabeto se limpia aquí y otra vez
+ * en el servidor, porque esto llega por la dirección y lo escribe cualquiera.
+ */
+function campaignFromParams(searchParams: URLSearchParams): string | undefined {
+  const bruta = searchParams.get('utm_campaign') || searchParams.get('campaign') || '';
+  const limpia = bruta.slice(0, 60).replace(/[^A-Za-z0-9._-]/g, '-');
+  return limpia || undefined;
+}
+
 function sourceFromParams(searchParams: URLSearchParams): string {
   return searchParams.get('src') || searchParams.get('utm_source') || searchParams.get('source') || searchParams.get('via') || origenDeEstaVisita()?.source || 'link';
 }
@@ -46,6 +59,7 @@ export function PublicSurveyPage(): JSX.Element {
   const [aceptada, setAceptada] = useState(false);
   const [intentoEnviar, setIntentoEnviar] = useState(false);
   const source = useMemo(() => sourceFromParams(searchParams), [searchParams]);
+  const campana = useMemo(() => campaignFromParams(searchParams), [searchParams]);
 
   const { data: survey, isLoading, error } = useQuery<Survey>({
     queryKey: ['public-survey', id],
@@ -87,8 +101,8 @@ export function PublicSurveyPage(): JSX.Element {
       sesion = sessionStorage.getItem(clave) || '';
       if (!sesion) { sesion = crypto.randomUUID().replace(/-/g, ''); sessionStorage.setItem(clave, sesion); }
     } catch { sesion = crypto.randomUUID().replace(/-/g, ''); }
-    void api.post(`/public/surveys/${encodeURIComponent(survey.id)}/visit`, { sesion, origen: source.slice(0, 60).replace(/[^A-Za-z0-9._-]/g, '-') }).catch(() => undefined);
-  }, [survey?.id, survey?.status, source]);
+    void api.post(`/public/surveys/${encodeURIComponent(survey.id)}/visit`, { sesion, origen: source.slice(0, 60).replace(/[^A-Za-z0-9._-]/g, '-'), campana }).catch(() => undefined);
+  }, [survey?.id, survey?.status, source, campana]);
 
   useEffect(() => {
     if (!survey?.ga4MeasurementId) return;
