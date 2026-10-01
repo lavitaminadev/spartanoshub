@@ -786,13 +786,29 @@ export function PublicReservationPage() {
       <strong>{ocasion.titulo}</strong>
       {ocasion.texto && <small>{ocasion.texto}</small>}
     </>;
+    /*
+     * La tarjeta elige; la foto se abre con su propio botón.
+     *
+     * Son dos cosas distintas y por eso son dos controles: apretar la tarjeta marca esa ocasión en
+     * el formulario —es lo que el local necesita saber— y la lupa amplía la foto. El problema no
+     * era ése sino que ninguna de las dos se notaba: la tarjeta elegida sólo cambiaba de borde, y
+     * la lupa era un icono suelto sin palabras. Quien apretaba creía que no pasaba nada.
+     *
+     * Así que la elegida lo dice con palabras, y la lupa lleva la suya. Un control que no se
+     * explica es un control que no existe.
+     */
     const tarjeta = elegible
-      ? <button type="button" className={`booking-ocasion-elegible ${elegida ? 'is-elegida' : ''}`} aria-pressed={elegida} onClick={(event) => { event.stopPropagation(); elegirOcasion(ocasion.titulo); alElegir?.(); }}>{contenido}</button>
+      ? <button type="button" className={`booking-ocasion-elegible ${elegida ? 'is-elegida' : ''}`} aria-pressed={elegida} onClick={(event) => { event.stopPropagation(); elegirOcasion(ocasion.titulo); alElegir?.(); }}>
+        {contenido}
+        <span className="booking-ocasion-marca" aria-hidden="true">{elegida ? '✓ Elegida' : 'Elegir'}</span>
+      </button>
       : <article>{contenido}</article>;
     return (
       <div className="booking-ocasion" key={ocasion.titulo}>
         {tarjeta}
-        {ocasion.imagen && <button type="button" className="booking-ocasion-ampliar" aria-label={`Ver foto de ${ocasion.titulo}`} onClick={(event) => { event.stopPropagation(); setFotoAmpliada({ src: ocasion.imagen!, titulo: ocasion.titulo }); }}>⤢</button>}
+        {ocasion.imagen && <button type="button" className="booking-ocasion-ampliar" onClick={(event) => { event.stopPropagation(); setFotoAmpliada({ src: ocasion.imagen!, titulo: ocasion.titulo }); }}>
+          <span aria-hidden="true">⤢</span> Ver foto<span className="solo-lectores"> de {ocasion.titulo}</span>
+        </button>}
       </div>
     );
   };

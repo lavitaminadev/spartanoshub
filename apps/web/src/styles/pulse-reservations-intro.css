@@ -577,7 +577,16 @@
 /* Ocasiones: tarjeta con botón para ampliar la foto sin elegir la ocasión. */
 .booking-ocasion { position: relative; display: grid; min-width: 0; }
 .booking-ocasion > article, .booking-ocasion > button:first-child { height: 100%; }
-.booking-ocasion-ampliar { position: absolute; top: 16px; right: 16px; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: rgba(21, 19, 23, .72); color: #fff; font-size: 16px; line-height: 1; cursor: zoom-in; }
+/* La lupa dice lo que hace. Sola, como icono, nadie la relacionaba con abrir la foto: se
+   apretaba la tarjeta, que elige la ocasion, y parecia que no pasaba nada. */
+.booking-ocasion-ampliar { position: absolute; top: 12px; right: 12px; z-index: 1; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 11px; border: 0; border-radius: 999px; background: rgba(21, 19, 23, .78); color: #fff; font-size: 12px; font-weight: 600; line-height: 1; cursor: zoom-in; }
+.booking-ocasion-ampliar:hover { background: rgba(21, 19, 23, .92); }
+/* Para lectores de pantalla: en la pagina basta "Ver foto", pero fuera de contexto hace falta
+   saber de cual, y la lista de botones de un lector es justo ese fuera de contexto. */
+.solo-lectores { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Que elegir se note en palabras y no solo en el borde. */
+.booking-ocasion-marca { justify-self: start; margin-top: 2px; padding: 3px 9px; border-radius: 999px; background: var(--soft, #f2f2f4); color: var(--muted, #6b6e78); font-size: 11px; font-weight: 700; }
+.booking-ocasion-elegible.is-elegida .booking-ocasion-marca { background: #0f766e; color: #fff; }
 .booking-ocasion-ampliar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .booking-foto-ampliada { position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; overscroll-behavior: contain; z-index: 40; display: grid; place-items: center; padding: 16px; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); background: rgba(12, 12, 14, .86); }
 .booking-foto-ampliada { cursor: zoom-out; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -691,7 +700,7 @@
 .schedule-capacity .tipos-de-evento .input { min-height: 40px; padding: 8px 12px; font-size: 14px !important; font-weight: 400; }
 .schedule-capacity .tipos-de-evento .btn { min-height: 36px; }
 
-@media (pointer: coarse) { .booking-ocasion-ampliar { width: 44px; height: 44px; top: 10px; right: 10px; } }
+@media (pointer: coarse) { .booking-ocasion-ampliar { min-height: 44px; top: 10px; right: 10px; } }
 
 .pie-legal { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin: 24px auto 72px; padding: 0 16px; font-size: 12px; }
 .pie-legal a { color: inherit; opacity: .75; text-decoration: underline; text-underline-offset: 2px; }
