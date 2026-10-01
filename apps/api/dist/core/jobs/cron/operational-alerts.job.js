@@ -19,6 +19,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const notification_entity_1 = require("../../notifications/notification.entity");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
+const shared_1 = require("@espartanos/shared");
 let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
     constructor(dataSource, notifications, parameters) {
         this.dataSource = dataSource;
@@ -35,6 +36,7 @@ let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
                 created += await this.actionItemAlerts(organization.id);
                 created += await this.budgetAlerts(organization.id);
                 created += await this.cycleAlerts(organization.id);
+                created += await this.solicitudesDeDerechos(organization.id);
             }
             catch (error) {
                 this.logger.error(`Failed to scan alerts for organization ${organization.id}: ${error instanceof Error ? error.message : error}`);
@@ -51,6 +53,25 @@ let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
             const overdue = new Date(piece.deadlineAt).getTime() < Date.now();
             const recipients = piece.assignedTo ? [piece.assignedTo, ...fallback] : fallback;
             total += await this.notifyOnce(organizationId, [...new Set(recipients)], overdue ? 'deadline.overdue' : 'deadline.upcoming', `${piece.id}:${overdue ? 'overdue' : 'upcoming'}`, overdue ? 'Entrega vencida' : 'Entrega próxima', `La pieza "${piece.title}" ${overdue ? 'superó su fecha de entrega' : `vence dentro de ${hours} horas`}.`, { pieceId: piece.id, clientId: piece.clientId, deadlineAt: piece.deadlineAt });
+        }
+        return total;
+    }
+    async solicitudesDeDerechos(organizationId) {
+        const abiertas = await this.dataSource.query('SELECT id, type, created_at createdAt, extended_until extendedUntil FROM service_requests WHERE organization_id = ? AND resolved_at IS NULL ORDER BY created_at ASC LIMIT 200', [organizationId]);
+        if (!abiertas.length)
+            return 0;
+        const destinatarios = await this.directors(organizationId);
+        if (!destinatarios.length)
+            return 0;
+        let total = 0;
+        for (const fila of abiertas) {
+            const plazo = (0, shared_1.plazoDeSolicitud)(fila.createdAt, { prorrogadaHasta: fila.extendedUntil });
+            if (plazo.estado !== 'vencida' && plazo.estado !== 'por vencer')
+                continue;
+            const vencida = plazo.estado === 'vencida';
+            total += await this.notifyOnce(organizationId, destinatarios, vencida ? 'derechos.vencida' : 'derechos.por_vencer', `${fila.id}:${plazo.estado}`, vencida ? 'Solicitud de derechos vencida' : 'Solicitud de derechos por vencer', vencida
+                ? `Una solicitud de ${fila.type} superó el plazo legal de respuesta hace ${Math.abs(plazo.diasRestantes)} día(s). Respóndela cuanto antes y deja constancia del retraso.`
+                : `Una solicitud de ${fila.type} vence en ${plazo.diasRestantes} día(s)${plazo.prorrogada ? ' (plazo ya prorrogado, no se puede prorrogar otra vez)' : ''}.`, { serviceRequestId: fila.id, vence: plazo.vence });
         }
         return total;
     }

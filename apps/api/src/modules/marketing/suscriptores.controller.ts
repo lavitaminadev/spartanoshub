@@ -26,6 +26,21 @@ class ImportarSuscriptoresDto {
 }
 
 /**
+ * Una petición de baja que llegó por fuera del enlace del correo.
+ *
+ * El origen es obligatorio y no es burocracia: es lo único que explica por qué esta dirección
+ * quedó excluida sin que nadie hiciera clic en ningún enlace. «Aviso del SERNAC del 12 de marzo»
+ * es una respuesta; un campo vacío no lo es.
+ */
+class PeticionExternaDto {
+  email: string;
+  /** `todas` saca de todos los locales; `local` exige decir de cuál. */
+  alcance?: 'local' | 'todas';
+  clientId?: string | null;
+  origen: string;
+}
+
+/**
  * La lista de correo comercial: quién está, de dónde salió y quién dijo que sí.
  *
  * Importar y ver la lista es de Dirección Comercial y Administración: es comunicación de la
@@ -99,6 +114,30 @@ export class SuscriptoresController {
     const cuantas = await this.suscriptores.cuantasExclusiones(organizationId);
     if (!correo?.trim()) return { ...cuantas, consulta: null };
     return { ...cuantas, consulta: await this.suscriptores.consultarExclusion(organizationId, correo) };
+  }
+
+  /**
+   * Anotar una petición de no recibir que llegó por fuera del enlace del correo.
+   *
+   * El caso que la hizo falta es el del SERNAC: su sistema «No Molestar» no es un registro que uno
+   * consulte sino un aviso que llega —el consumidor elige la empresa, el SERNAC le reenvía la
+   * solicitud— y hay **siete días** para cumplir. También sirve para quien lo pide por teléfono o
+   * escribiendo a soporte. Hasta ahora, cumplir cualquiera de los tres significaba editar la base
+   * de datos a mano, o no cumplir.
+   *
+   * Sólo la agencia: es la que recibe el aviso y la que responde de haberlo aplicado.
+   */
+  @Post('exclusiones')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
+  @ApiOperation({ summary: 'Anotar una petición de baja recibida por fuera (SERNAC, teléfono, correo)' })
+  async anotarPeticion(@Req() req: AuthenticatedRequest, @Body() dto: PeticionExternaDto) {
+    return this.suscriptores.anotarPeticionExterna(
+      req.organizationId || req.user.organizationId,
+      dto.email,
+      dto.alcance === 'local' ? 'local' : 'todas',
+      dto.clientId ?? null,
+      dto.origen,
+    );
   }
 
   /**

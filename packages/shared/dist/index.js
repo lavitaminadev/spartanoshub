@@ -42,6 +42,7 @@ __exportStar(require("./documento-de-identidad"), exports);
 __exportStar(require("./survey-edits"), exports);
 __exportStar(require("./measurement-consent"), exports);
 __exportStar(require("./documentos-legales"), exports);
+__exportStar(require("./plazo-de-solicitud"), exports);
 __exportStar(require("./enums"), exports);
 __exportStar(require("./constants"), exports);
 __exportStar(require("./reglas-de-campo"), exports);

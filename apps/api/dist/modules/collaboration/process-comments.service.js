@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var ProcessCommentsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcessCommentsService = exports.ANONYMIZED_BODY = void 0;
 const common_1 = require("@nestjs/common");
@@ -20,10 +21,11 @@ const process_comment_entity_1 = require("./process-comment.entity");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const audit_service_1 = require("../../core/audit/audit.service");
 exports.ANONYMIZED_BODY = '[Contenido eliminado por política de retención]';
-let ProcessCommentsService = class ProcessCommentsService {
+let ProcessCommentsService = ProcessCommentsService_1 = class ProcessCommentsService {
     constructor(comments, audit) {
         this.comments = comments;
         this.audit = audit;
+        this.logger = new common_1.Logger(ProcessCommentsService_1.name);
     }
     async list(organizationId, subjectType, subjectId, viewer) {
         const visibles = viewer.role === user_role_enum_1.UserRole.CLIENT
@@ -105,6 +107,32 @@ let ProcessCommentsService = class ProcessCommentsService {
         });
         return vencidos.length;
     }
+    async anonimizarComentariosDeTrabajosCerrados(retentionDays) {
+        if (retentionDays <= 0)
+            return 0;
+        const cerrados = [
+            [process_comment_entity_1.CommentSubject.PIECE, 'pieces', ['delivered', 'approved', 'cancelled']],
+            [process_comment_entity_1.CommentSubject.SESSION, 'av_sessions', ['done', 'completed', 'cancelled']],
+            [process_comment_entity_1.CommentSubject.WORK_REQUEST, 'work_requests', ['converted', 'rejected']],
+        ];
+        let total = 0;
+        for (const [tipo, tabla, estados] of cerrados) {
+            try {
+                const filas = await this.comments.manager.query(`SELECT DISTINCT c.subject_id AS id
+             FROM process_comments c
+             JOIN ${tabla} t ON t.id = c.subject_id
+            WHERE c.subject_type = ? AND c.anonymized_at IS NULL AND t.status IN (${estados.map(() => '?').join(',')})
+            LIMIT 500`, [tipo, ...estados]);
+                const ids = filas.map((fila) => fila.id).filter(Boolean);
+                if (ids.length)
+                    total += await this.anonymizeFor(ids, retentionDays, 'Retención cumplida: trabajo cerrado');
+            }
+            catch (error) {
+                this.logger.warn(`No se pudieron despersonalizar los comentarios de ${tabla}: ${error instanceof Error ? error.message : error}`);
+            }
+        }
+        return total;
+    }
     async countsFor(organizationId, subjectType, subjectId) {
         const rows = await this.comments.find({
             where: { organizationId, subjectType, subjectId },
@@ -118,7 +146,7 @@ let ProcessCommentsService = class ProcessCommentsService {
     }
 };
 exports.ProcessCommentsService = ProcessCommentsService;
-exports.ProcessCommentsService = ProcessCommentsService = __decorate([
+exports.ProcessCommentsService = ProcessCommentsService = ProcessCommentsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(process_comment_entity_1.ProcessComment)),
     __metadata("design:paramtypes", [typeorm_2.Repository,

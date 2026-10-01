@@ -199,6 +199,28 @@ export class PublicLookupReservationDto {
   @IsString() @Matches(/^[A-Za-z0-9-]{4,20}$/, { message: 'El código no es válido' }) referenceCode: string;
   @IsString() @MinLength(5) @MaxLength(180) contact: string;
 }
+/**
+ * Alta en la lista desde una pagina o un QR, sin reservar.
+ *
+ * No lleva el texto aceptado: lo pone el servidor con la identidad legal del local. Un texto que
+ * viaja desde el navegador no prueba nada, porque lo puede cambiar quien lo manda, y el texto es
+ * justamente la prueba.
+ */
+export class CaptacionPublicaDto {
+  @IsEmail({}, { message: 'El correo no es valido' }) @MaxLength(190) email: string;
+  @IsOptional() @IsString() @MaxLength(180) name?: string;
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) birthDate?: string;
+  /** Casilla de mayoria de edad. Llega como booleano y se guarda como instante. */
+  @IsOptional() @IsBoolean() adultDeclared?: boolean;
+  /**
+   * Campo trampa: invisible para una persona, irresistible para un robot.
+   *
+   * Lleno significa robot. Se responde que si igual y no se guarda nada: decirle que fue
+   * rechazado le ensena a reintentar de otra forma.
+   */
+  @IsOptional() @IsString() @MaxLength(200) website?: string;
+}
+
 export class PublicRescheduleReservationDto {
   @IsDateString() startsAt: string;
   /** Cuantos vienen. Sin enviarlo se mantiene el de la reserva. */

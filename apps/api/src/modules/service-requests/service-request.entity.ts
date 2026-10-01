@@ -28,6 +28,19 @@ export class ServiceRequest {
   @Column({ name: 'resolution_note', type: 'text', nullable: true }) resolutionNote?: string | null;
   @Column({ name: 'resolved_by', type: 'uuid', nullable: true }) resolvedBy?: string | null;
   @Column({ name: 'resolved_at', type: 'timestamp', nullable: true }) resolvedAt?: Date | null;
+  /**
+   * Hasta cuándo se prorrogó el plazo de respuesta, si se hizo.
+   *
+   * La ley permite una sola prórroga, por hasta el mismo plazo, avisando antes del vencimiento y
+   * explicando el motivo. Se guarda la fecha y no un sí/no porque lo que hay que poder demostrar
+   * es hasta cuándo se dijo que se respondía, y eso es una fecha.
+   *
+   * Nunca se la concede el sistema solo: una prórroga que nadie avisó no es una prórroga, es un
+   * incumplimiento con mejor cara.
+   */
+  @Column({ name: 'extended_until', type: 'timestamp', nullable: true }) extendedUntil?: Date | null;
+  /** Por que se prorrogo. Sin motivo la prorroga no vale, asi que se exige al anotarla. */
+  @Column({ name: 'extended_reason', type: 'varchar', length: 300, nullable: true }) extendedReason?: string | null;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;
 }

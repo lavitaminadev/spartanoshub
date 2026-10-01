@@ -44,6 +44,8 @@ let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDe
                     existente.birthDate = new Date(`${datos.birthDate}T00:00:00Z`);
                 if (!existente.name && datos.name)
                     existente.name = datos.name;
+                if (!existente.adultDeclaredAt && datos.adultDeclared)
+                    existente.adultDeclaredAt = new Date();
                 if (existente.status === suscriptor_entity_1.EstadoDeSuscripcion.PENDIENTE || reactivar) {
                     existente.status = suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO;
                     existente.consentAt = datos.consentAt ?? new Date();
@@ -62,11 +64,13 @@ let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDe
                 email,
                 name: datos.name ?? null,
                 birthDate: datos.birthDate ? new Date(`${datos.birthDate}T00:00:00Z`) : null,
-                source: 'reserva',
+                source: datos.source ?? 'reserva',
                 sourceDetail: datos.origen,
                 status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO,
                 consentAt: datos.consentAt ?? new Date(),
                 consentText: datos.consentText ?? null,
+                consentIp: datos.consentIp ?? null,
+                adultDeclaredAt: datos.adultDeclared ? new Date() : null,
                 unsubscribeToken: (0, node_crypto_1.randomBytes)(24).toString('base64url'),
             }));
             return 'alta';

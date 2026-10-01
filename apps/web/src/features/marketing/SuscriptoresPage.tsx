@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { DataTable } from '../../shared/DataTable';
@@ -341,6 +341,8 @@ function ConsultarExclusion() {
         </button>
       </form>
 
+      <AnotarPeticionExterna />
+
       {preguntado && data?.consulta && (data.consulta.alcance === null
         ? <p className="exclusiones-respuesta">
             <strong>No consta</strong> ninguna petición de esta dirección. Si dice que sigue
@@ -360,5 +362,78 @@ function ConsultarExclusion() {
             </ul>
           </div>)}
     </section>
+  );
+}
+
+/**
+ * Anotar una petición de baja que llegó por fuera del enlace del correo.
+ *
+ * El caso que la hizo falta es el del SERNAC. Su sistema «No Molestar» no es un registro que uno
+ * consulte: el consumidor elige la empresa, el SERNAC le reenvía la solicitud y hay **siete días**
+ * para cumplirla. Hasta que esto existió, cumplir un aviso del SERNAC —o a quien lo pedía por
+ * teléfono— significaba editar la base de datos a mano, o no cumplir.
+ *
+ * Funciona aunque la dirección no esté en ninguna lista, y es a propósito: la petición vale igual
+ * y evita que entre después por una reserva.
+ */
+function AnotarPeticionExterna() {
+  const clienteDeConsultas = useQueryClient();
+  const [abierto, setAbierto] = useState(false);
+  const [correo, setCorreo] = useState('');
+  const [origen, setOrigen] = useState('');
+
+  const anotar = useMutation<{ fichasDeBaja: number; email: string }>({
+    mutationFn: () => api.post('/marketing/suscriptores/exclusiones', { email: correo.trim(), alcance: 'todas', origen: origen.trim() }),
+    onSuccess: (resultado) => {
+      triggerToast(
+        resultado.fichasDeBaja > 0
+          ? `Anotado. ${resultado.fichasDeBaja} ficha(s) de baja; no recibirá más correos comerciales.`
+          : 'Anotado. No estaba en ninguna lista, y con esto tampoco va a entrar por una reserva.',
+        'success',
+      );
+      setCorreo(''); setOrigen(''); setAbierto(false);
+      void clienteDeConsultas.invalidateQueries({ queryKey: ['exclusiones'] });
+      void clienteDeConsultas.invalidateQueries({ queryKey: ['suscriptores'] });
+    },
+  });
+
+  if (!abierto) {
+    return (
+      <button type="button" className="btn btn-outline btn-sm" onClick={() => setAbierto(true)}>
+        Anotar una petición recibida por fuera
+      </button>
+    );
+  }
+
+  return (
+    <form
+      className="exclusiones-anotar"
+      onSubmit={(evento) => { evento.preventDefault(); anotar.mutate(); }}
+    >
+      <p className="form-hint">
+        Para un aviso del SERNAC («No Molestar»), una llamada o un correo a soporte. El SERNAC no
+        publica un registro que se pueda consultar: te reenvía la solicitud y tienes <strong>siete
+        días</strong> para cumplirla. Se aplica a todos los locales, que es lo que pide quien lo
+        pide por estas vías.
+      </p>
+      <label>
+        Correo
+        <input className="input" type="email" required value={correo} onChange={(evento) => setCorreo(evento.target.value)} placeholder="correo@ejemplo.cl" />
+      </label>
+      <label>
+        De dónde vino <span className="required-star">*</span>
+        <input className="input" required maxLength={120} value={origen} onChange={(evento) => setOrigen(evento.target.value)} placeholder="Aviso SERNAC 12-03-2026" />
+      </label>
+      {/* El origen es lo único que explica por qué esta dirección quedó excluida sin que nadie
+          hiciera clic en ningún enlace. Un campo vacío no es una respuesta ante un reclamo. */}
+      <p className="form-hint">Queda guardado tal como lo escribas: es lo que se muestra si alguien pregunta por qué.</p>
+      {anotar.isError && <p className="error-text">{(anotar.error as Error)?.message || 'No se pudo anotar.'}</p>}
+      <div className="modal-actions">
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => setAbierto(false)}>Cancelar</button>
+        <button type="submit" className="btn btn-primary btn-sm" disabled={!correo.includes('@') || !origen.trim() || anotar.isPending}>
+          {anotar.isPending ? 'Anotando…' : 'Anotar la petición'}
+        </button>
+      </div>
+    </form>
   );
 }

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThan, Repository } from 'typeorm';
 import { CommentSubject, CommentVisibility, ProcessComment } from './process-comment.entity';
@@ -32,6 +32,8 @@ export const ANONYMIZED_BODY = '[Contenido eliminado por política de retención
  */
 @Injectable()
 export class ProcessCommentsService {
+  private readonly logger = new Logger(ProcessCommentsService.name);
+
   constructor(
     @InjectRepository(ProcessComment) private readonly comments: Repository<ProcessComment>,
     private readonly audit: AuditService,
@@ -181,6 +183,60 @@ export class ProcessCommentsService {
       action: 'anonymize', after: { count: vencidos.length, retentionDays }, reason,
     });
     return vencidos.length;
+  }
+
+  /**
+   * Busca los trabajos cerrados y despersonaliza sus comentarios vencidos.
+   *
+   * `anonymizeFor` existía desde hacía meses y **no la llamaba nadie**: el ajuste de retención se
+   * podía cambiar en pantalla y no tenía ningún efecto, que es peor que no tenerlo —quien lo
+   * configura cree que quedó cubierto—. Esto es lo que faltaba: decidir qué trabajos cuentan.
+   *
+   * Sólo los cerrados, y es la parte que no se puede saltar. Un trabajo abierto puede llevar
+   * meses y su hilo sigue siendo la conversación viva sobre algo que todavía se está haciendo;
+   * vaciarlo por antigüedad borraría el porqué de lo que el equipo está mirando hoy. El plazo
+   * corre desde que el trabajo terminó, no desde que se escribió el comentario, y por eso hace
+   * falta mirar el estado del trabajo y no sólo la fecha de la fila.
+   *
+   * Cada tipo se consulta por separado y los fallos no se propagan: un tipo que falle no puede
+   * impedir que los otros cumplan su plazo.
+   *
+   * @param retentionDays Días desde el cierre. Cero o menos no hace nada: es «sin plazo fijado».
+   */
+  async anonimizarComentariosDeTrabajosCerrados(retentionDays: number): Promise<number> {
+    if (retentionDays <= 0) return 0;
+
+    /*
+     * Qué cuenta como cerrado en cada área.
+     *
+     * Entregado, aprobado o cancelado en producción; una sesión realizada o cancelada; una
+     * solicitud convertida o rechazada. Lo demás sigue abierto aunque lleve tiempo quieto:
+     * «parado» no es «terminado», y confundirlos vacía hilos que alguien va a volver a leer.
+     */
+    const cerrados: Array<[CommentSubject, string, string[]]> = [
+      [CommentSubject.PIECE, 'pieces', ['delivered', 'approved', 'cancelled']],
+      [CommentSubject.SESSION, 'av_sessions', ['done', 'completed', 'cancelled']],
+      [CommentSubject.WORK_REQUEST, 'work_requests', ['converted', 'rejected']],
+    ];
+
+    let total = 0;
+    for (const [tipo, tabla, estados] of cerrados) {
+      try {
+        const filas = await this.comments.manager.query(
+          `SELECT DISTINCT c.subject_id AS id
+             FROM process_comments c
+             JOIN ${tabla} t ON t.id = c.subject_id
+            WHERE c.subject_type = ? AND c.anonymized_at IS NULL AND t.status IN (${estados.map(() => '?').join(',')})
+            LIMIT 500`,
+          [tipo, ...estados],
+        ) as Array<{ id: string }>;
+        const ids = filas.map((fila) => fila.id).filter(Boolean);
+        if (ids.length) total += await this.anonymizeFor(ids, retentionDays, 'Retención cumplida: trabajo cerrado');
+      } catch (error) {
+        this.logger.warn(`No se pudieron despersonalizar los comentarios de ${tabla}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+    return total;
   }
 
   /** Cuántas observaciones acumuló un trabajo por flujo, que sobrevive a la despersonalización. */

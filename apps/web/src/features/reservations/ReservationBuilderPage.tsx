@@ -832,6 +832,31 @@ export function ReservationBuilderPage() {
           </div>
           <small>{publicPreviewReady ? 'Comparte este único enlace. Las etiquetas de campaña no cambian la dirección.' : 'El enlace estará disponible cuando publiques.'}</small>
 
+          {/*
+            El enlace para suscribirse sin reservar.
+            Es otra puerta y por eso va aparte: la de arriba lleva a tomar una mesa, ésta sólo
+            recoge el correo de quien quiere enterarse. Sirve para el QR de la carta o el cartel
+            del mesón, donde pedirle a alguien que reserve no viene a cuento porque ya está dentro.
+          */}
+          {publicPreviewReady && draft?.publicSlug && <div className="publish-link-secundario">
+            <span>ENLACE PARA SUSCRIBIRSE SIN RESERVAR</span>
+            <strong>{`${window.location.origin}/novedades/${draft.publicSlug}`}</strong>
+            <div>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/novedades/${draft.publicSlug}`)}
+              >
+                Copiar
+              </button>
+              <a className="btn btn-outline btn-sm" href={`/novedades/${draft.publicSlug}`} target="_blank" rel="noreferrer">Abrir</a>
+            </div>
+            <small>
+              Para un QR en la carta o en el mesón. Guarda el texto que la persona aceptó, la fecha
+              y la dirección desde la que lo hizo, y respeta a quien pidió no recibir más.
+            </small>
+          </div>}
+
           <button className="btn reservation-cta" disabled={saveMutation.isPending || windows.length === 0} onClick={() => saveMutation.mutate({ ...draft, status: 'published' })}>
             {saveMutation.isPending ? 'Publicando...' : draft.status === 'published' ? 'Guardar cambios' : surveyMode ? 'Publicar encuesta' : 'Publicar formulario'}
           </button>

@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { ReservationsService } from './application/reservations.service';
-import { CouponValidateDto, PublicFormEventDto, PublicGroupRequestDto, PublicLookupReservationDto, PublicRecoverReservationDto, PublicReservationDto, PublicReservationHoldDto, PublicRescheduleReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
+import { CaptacionPublicaDto, CouponValidateDto, PublicFormEventDto, PublicGroupRequestDto, PublicLookupReservationDto, PublicRecoverReservationDto, PublicReservationDto, PublicReservationHoldDto, PublicRescheduleReservationDto, PublicSurveyResponseDto } from './dto/reservation.dto';
 
 @Public()
 @ApiTags('Reservas publicas')
@@ -32,6 +32,33 @@ export class PublicReservationsController {
     } catch {
       return fallback;
     }
+  }
+
+  /**
+   * Lo que la página de captación necesita mostrar: el local y el texto que se acepta.
+   *
+   * Lo da el servidor y no lo escribe la página: el texto es la prueba de qué se consintió, y uno
+   * escrito en el navegador no prueba nada porque lo puede cambiar cualquiera.
+   */
+  @Get(':slug/captacion')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  captacion(@Param('slug') slug: string) { return this.service.datosDeCaptacion(slug); }
+
+  /**
+   * Suscribirse a la lista sin reservar: el QR de la carta, el cartel del mesón.
+   *
+   * Con el límite más estricto de este controlador. Es el único endpoint público que crea un dato
+   * personal a partir de una sola dirección de correo, así que sin freno sirve para averiguar si
+   * una persona está en el sistema, o para llenar la lista de direcciones ajenas.
+   */
+  @Post(':slug/suscribirse')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  suscribirse(
+    @Param('slug') slug: string,
+    @Body() dto: CaptacionPublicaDto,
+    @Ip() ip: string,
+  ) {
+    return this.service.suscribirDesdeCaptacion(slug, dto, ip);
   }
 
   /** Enlace opaco enviado sólo a quien hizo la reserva. */

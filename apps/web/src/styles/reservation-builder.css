@@ -807,3 +807,11 @@
 @media (max-width: 720px) {
   .casillas-equipo-tabla { display:block; overflow-x:auto; white-space:nowrap; }
 }
+
+/* El segundo enlace del paso de publicar: suscribirse sin reservar. Más discreto que el principal
+   a propósito — es otra puerta, no una alternativa a la de reservar. */
+.publish-link-secundario { display:grid; gap:6px; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line, #eee8ec); }
+.publish-link-secundario span { color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.04em; }
+.publish-link-secundario strong { overflow-wrap:anywhere; font-size:13px; font-weight:600; }
+.publish-link-secundario div { display:flex; flex-wrap:wrap; gap:6px; }
+.publish-link-secundario small { color:var(--muted); line-height:1.5; }

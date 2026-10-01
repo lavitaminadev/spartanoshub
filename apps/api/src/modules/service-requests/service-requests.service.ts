@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
+import { plazoDeSolicitud, vencimientoConProrroga, type PlazoDeSolicitud } from '@espartanos/shared';
 import { ServiceRequest } from './service-request.entity';
 import { AuditService } from '../../core/audit/audit.service';
 import { DataProtectionService } from '../../core/data-protection/data-protection.service';
@@ -127,12 +128,84 @@ export class ServiceRequestsService {
     }];
   }
 
-  /** Lista de solicitudes para el panel de administración. */
-  async list(organizationId: string, filter?: { status?: string; type?: string }): Promise<ServiceRequest[]> {
+  /**
+   * Lista de solicitudes para el panel de administración, con el plazo legal calculado.
+   *
+   * El plazo —treinta días corridos, prorrogables una vez— estaba escrito en las políticas que el
+   * comensal lee y en ninguna parte del sistema: una solicitud podía vencer sin que nadie se
+   * enterara. Se calcula al leer y no se guarda, porque depende de la fecha de hoy y un valor
+   * guardado quedaría viejo al día siguiente.
+   *
+   * Se ordena por vencimiento y no por fecha de entrada: lo que hay que mirar primero es lo que
+   * está por vencer, no lo último que llegó.
+   */
+  async list(organizationId: string, filter?: { status?: string; type?: string }): Promise<Array<ServiceRequest & { plazo: PlazoDeSolicitud }>> {
     const where: Record<string, unknown> = { organizationId };
     if (filter?.status && SERVICE_REQUEST_STATUSES.includes(filter.status as ServiceRequestStatus)) where.status = filter.status;
     if (filter?.type && SERVICE_REQUEST_TYPES.includes(filter.type as ServiceRequestType)) where.type = filter.type;
-    return this.requests.find({ where, order: { createdAt: 'DESC' }, take: 200 });
+    const filas = await this.requests.find({ where, order: { createdAt: 'DESC' }, take: 200 });
+    return filas
+      .map((fila) => Object.assign(fila, { plazo: this.plazoDe(fila) }))
+      .sort((uno, otro) => uno.plazo.vence.getTime() - otro.plazo.vence.getTime());
+  }
+
+  /** El plazo de una solicitud, con su prórroga si la tiene. */
+  private plazoDe(fila: ServiceRequest): PlazoDeSolicitud {
+    return plazoDeSolicitud(fila.createdAt, { resuelta: fila.resolvedAt, prorrogadaHasta: fila.extendedUntil });
+  }
+
+  /**
+   * Anota la prórroga. Una sola vez, con motivo, y antes de que venza.
+   *
+   * Las tres condiciones son de la ley y por eso se comprueban acá y no en la pantalla: una
+   * segunda prórroga no existe, una sin motivo no vale, y una pedida después del vencimiento no
+   * es una prórroga sino un incumplimiento ya ocurrido. Dejarla pasar daría un papel que dice que
+   * se cumplió cuando no se cumplió, que es peor que no tener papel.
+   */
+  async prorrogar(organizationId: string, id: string, motivo: string, actor: { id: string }): Promise<ServiceRequest> {
+    const fila = await this.getOne(organizationId, id);
+    if (fila.resolvedAt) throw new BadRequestException('Esta solicitud ya se respondió: no hay plazo que prorrogar');
+    if (fila.extendedUntil) throw new BadRequestException('Esta solicitud ya se prorrogó una vez, y la ley permite sólo una');
+    const texto = motivo?.trim();
+    if (!texto) throw new BadRequestException('La prórroga tiene que decir por qué: sin motivo fundado no vale');
+
+    const plazo = this.plazoDe(fila);
+    if (plazo.estado === 'vencida') {
+      throw new BadRequestException('El plazo ya venció, así que no se puede prorrogar. Responde cuanto antes y deja constancia del retraso en la nota.');
+    }
+
+    fila.extendedUntil = vencimientoConProrroga(fila.createdAt);
+    fila.extendedReason = texto.slice(0, 300);
+    const guardada = await this.requests.save(fila);
+
+    await this.audit.log({
+      organizationId, actorId: actor.id, entityType: 'service_request', entityId: fila.id,
+      action: 'extend', after: { extendedUntil: fila.extendedUntil }, reason: fila.extendedReason,
+    });
+    return guardada;
+  }
+
+  /**
+   * Las que están por vencer o ya vencieron, para el aviso diario.
+   *
+   * Sin esto el plazo sólo se veía entrando a la pantalla, y una solicitud vence igual aunque
+   * nadie entre. Se devuelven las dos juntas porque el aviso tiene que decir ambas cosas: lo que
+   * urge y lo que ya se pasó.
+   */
+  async porVencer(organizationId: string): Promise<{ porVencer: ServiceRequest[]; vencidas: ServiceRequest[] }> {
+    const abiertas = await this.requests.find({
+      where: { organizationId, resolvedAt: IsNull() },
+      order: { createdAt: 'ASC' },
+      take: 200,
+    });
+    const porVencer: ServiceRequest[] = [];
+    const vencidas: ServiceRequest[] = [];
+    for (const fila of abiertas) {
+      const estado = this.plazoDe(fila).estado;
+      if (estado === 'vencida') vencidas.push(fila);
+      else if (estado === 'por vencer') porVencer.push(fila);
+    }
+    return { porVencer, vencidas };
   }
 
   async getOne(organizationId: string, id: string): Promise<ServiceRequest> {

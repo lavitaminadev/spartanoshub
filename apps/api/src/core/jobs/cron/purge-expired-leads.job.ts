@@ -4,6 +4,8 @@ import { In, LessThan, Not, Repository } from 'typeorm';
 import { PLAZOS_DE_CONSERVACION } from '@espartanos/shared';
 import { Lead } from '../../../modules/crm/leads/lead.entity';
 import { DataProtectionService } from '../../data-protection/data-protection.service';
+import { ProcessCommentsService } from '../../../modules/collaboration/process-comments.service';
+import { ParameterResolver } from '../../parameters/parameter-resolver.service';
 
 /**
  * Dias que se conservan los datos personales de una reserva despues de ocurrida.
@@ -43,6 +45,8 @@ export class PurgeExpiredLeadsJob {
   constructor(
     @InjectRepository(Lead) private readonly leadRepo: Repository<Lead>,
     private readonly dataProtection: DataProtectionService,
+    private readonly comentarios: ProcessCommentsService,
+    private readonly parametros: ParameterResolver,
   ) {}
 
   async handle(): Promise<void> {
@@ -86,6 +90,23 @@ export class PurgeExpiredLeadsJob {
       ['measurement identifiers cleared', () => this.dataProtection.borrarIdentificadoresDeMedicionVencidos(PLAZOS_DE_CONSERVACION.medicionMeses)],
       ['group requests anonymized', () => this.dataProtection.anonimizarSolicitudesDeGrupoVencidas(PLAZOS_DE_CONSERVACION.solicitudesDeGrupoMeses)],
       ['survey responses anonymized', () => this.dataProtection.anonimizarRespuestasDeEncuestaVencidas(PLAZOS_DE_CONSERVACION.encuestasMeses)],
+      /*
+       * Los comentarios de los trabajos ya cerrados.
+       *
+       * El ajuste `compliance.work_comment_retention_days` existía, se podía cambiar en pantalla
+       * y no lo leía nadie: la función que despersonaliza estaba escrita desde hacía meses y
+       * ningún trabajo la llamaba. Un ajuste que no hace nada es peor que uno que falta, porque
+       * quien lo configura cree que quedó cubierto.
+       *
+       * El plazo sale de la organización y no de `PLAZOS_DE_CONSERVACION` como los de arriba:
+       * éste no se publica en la política de privacidad del comensal —son conversaciones del
+       * equipo sobre su trabajo— y lo fija cada organización. Sin valor no se hace nada, que es
+       * lo correcto: «sin plazo fijado» no significa «bórralo ya».
+       */
+      ['work comments anonymized', async () => {
+        const dias = Number(await this.parametros.get('compliance.work_comment_retention_days') ?? 0);
+        return this.comentarios.anonimizarComentariosDeTrabajosCerrados(dias);
+      }],
     ];
     for (const [nombre, paso] of pasos) {
       try {

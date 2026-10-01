@@ -729,6 +729,71 @@ export class ReservationsService {
     }
   }
 
+  /**
+   * Lo que necesita una página de captación: el nombre del local y el texto que hay que aceptar.
+   *
+   * Vive acá, pegado al formulario de reservas, porque la identidad legal del local —razón social,
+   * RUT, correo de privacidad— es la que ese formulario ya tiene completa, y es la que el texto de
+   * consentimiento tiene que nombrar. Montar una página de captación con su propia copia de esos
+   * datos sería tener dos versiones de la misma verdad legal, y la segunda se queda vieja.
+   */
+  async datosDeCaptacion(slug: string): Promise<{ local: string; texto: string; red?: string }> {
+    const form = await this.publishedForm(slug);
+    await this.completarDatosLegales(form);
+    const consent = this.consentTexts(form);
+    const design = form.designConfig as DesignConfig;
+    return {
+      local: form.name,
+      texto: consent.marketing,
+      red: design.beneficiosDelGrupo === 'true' ? (design.networkBrandName || 'Espartanos') : undefined,
+    };
+  }
+
+  /**
+   * Alta en la lista desde una página o un QR, sin reservar.
+   *
+   * Era el tercer camino que faltaba. Hasta ahora una dirección sólo entraba marcando la casilla
+   * al reservar, o importando un archivo que obliga a declarar su procedencia; no había forma de
+   * que alguien se suscribiera por su cuenta —el QR de la carta, el cartel del mesón— y eso dejaba
+   * fuera justo a quien lo pide sin que nadie se lo pregunte.
+   *
+   * Pasa por el mismo camino que la casilla de la reserva, y eso es lo importante: se guarda el
+   * texto exacto que se mostró, la fecha y la IP, y se consulta antes la lista de exclusión. Una
+   * página de captación que se saltara eso sería la forma más rápida de llenar la lista de
+   * direcciones que no se pueden defender.
+   *
+   * El campo trampa va vacío para una persona y lleno para un robot: se responde que sí igual, sin
+   * guardar nada. Decirle que fue rechazado le enseña a reintentar de otra forma.
+   *
+   * @returns `alta`, o el alcance de la exclusión que lo impidió, para que la página lo explique.
+   */
+  async suscribirDesdeCaptacion(
+    slug: string,
+    datos: { email: string; name?: string; birthDate?: string; adultDeclared?: boolean; website?: string },
+    ipAddress?: string,
+  ): Promise<{ estado: 'alta' | 'omitida' | 'local' | 'todas'; local: string }> {
+    const form = await this.publishedForm(slug);
+    if (datos.website) return { estado: 'alta', local: form.name };
+
+    await this.completarDatosLegales(form);
+    const texto = this.consentTexts(form).marketing;
+
+    const estado = await this.altaEnLaLista.registrar({
+      organizationId: form.organizationId,
+      clientId: form.clientId,
+      email: datos.email,
+      name: datos.name ?? null,
+      birthDate: datos.birthDate ?? null,
+      origen: `captación · ${form.name}`,
+      consentText: texto,
+      consentAt: new Date(),
+      consentIp: ipAddress ?? null,
+      adultDeclared: Boolean(datos.adultDeclared),
+      source: 'captacion',
+    });
+    return { estado, local: form.name };
+  }
+
   async publicForm(slug: string) {
     const form = await this.publishedForm(slug);
     const capabilities = await this.clientCapabilities(form.organizationId, form.clientId);

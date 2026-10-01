@@ -26,6 +26,8 @@ const suscriptor_entity_1 = require("./suscriptor.entity");
 const pagina_de_baja_1 = require("./pagina-de-baja");
 class ImportarSuscriptoresDto {
 }
+class PeticionExternaDto {
+}
 let SuscriptoresController = class SuscriptoresController {
     constructor(suscriptores, capacidades) {
         this.suscriptores = suscriptores;
@@ -55,6 +57,9 @@ let SuscriptoresController = class SuscriptoresController {
         if (!correo?.trim())
             return { ...cuantas, consulta: null };
         return { ...cuantas, consulta: await this.suscriptores.consultarExclusion(organizationId, correo) };
+    }
+    async anotarPeticion(req, dto) {
+        return this.suscriptores.anotarPeticionExterna(req.organizationId || req.user.organizationId, dto.email, dto.alcance === 'local' ? 'local' : 'todas', dto.clientId ?? null, dto.origen);
     }
     async descargar(req, empresa) {
         const organizationId = req.organizationId || req.user.organizationId;
@@ -111,6 +116,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], SuscriptoresController.prototype, "exclusiones", null);
+__decorate([
+    (0, common_1.Post)('exclusiones'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
+    (0, swagger_1.ApiOperation)({ summary: 'Anotar una petición de baja recibida por fuera (SERNAC, teléfono, correo)' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, PeticionExternaDto]),
+    __metadata("design:returntype", Promise)
+], SuscriptoresController.prototype, "anotarPeticion", null);
 __decorate([
     (0, common_1.Get)('descargar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),

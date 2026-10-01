@@ -1321,6 +1321,23 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     },
   })],
   [/\/public\/reservations\/[^/?]+\/group-request$/, () => ({ id: 'visual-group-1', status: 'pending', kind: 'group_request' })],
+  /*
+   * La página para suscribirse sin reservar.
+   *
+   * El texto lo da el servidor con la identidad legal del local, así que acá va uno de muestra:
+   * sin él la pantalla se ve a medias y el «Ver qué estoy aceptando» queda vacío, que es justo lo
+   * que no se puede revisar a ojo.
+   */
+  [/\/public\/reservations\/[^/?]+\/captacion$/, (config) => {
+    const slug = (config?.url?.match(/\/public\/reservations\/([^/?]+)/) ?? [])[1];
+    const local = visualReservationForms.find((form) => form.publicSlug === slug) || VISUAL_RESERVATION_LOCAL;
+    return {
+      local: local.name,
+      texto: 'Quiero recibir beneficios y novedades de Casa SpA («Casa Costanera»): promociones, beneficio de cumpleaños, invitaciones a eventos y encuestas, por correo, WhatsApp o SMS. Es opcional y puedo retirarlo cuando quiera, sin costo, desde cada mensaje.',
+      red: 'Espartanos',
+    };
+  }],
+  [/\/public\/reservations\/[^/?]+\/suscribirse$/, () => ({ estado: 'alta', local: 'Casa Costanera - Providencia' })],
   [/\/public\/reservations\/[^/?]+$/, (config) => {
     const slug = (config?.url?.match(/\/public\/reservations\/([^/?]+)/) ?? [])[1];
     if (config?.method?.toLowerCase() !== 'post') return visualReservationForms.find((form) => form.publicSlug === slug) || VISUAL_RESERVATION_LOCAL;

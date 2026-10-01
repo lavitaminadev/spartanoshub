@@ -72,6 +72,9 @@ let ServiceRequestsController = class ServiceRequestsController {
     update(req, id, dto) {
         return this.service.update(req.organizationId, id, { id: req.user.id, name: req.user.name }, dto);
     }
+    prorrogar(req, id, dto) {
+        return this.service.prorrogar(req.organizationId, id, dto?.motivo ?? '', { id: req.user.id });
+    }
     anonymize(req, id) {
         return this.service.anonymizeByIdentity(req.organizationId, id, { id: req.user.id, name: req.user.name });
     }
@@ -135,6 +138,18 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, service_request_dto_1.UpdateServiceRequestDto]),
     __metadata("design:returntype", void 0)
 ], ServiceRequestsController.prototype, "update", null);
+__decorate([
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, requires_permission_decorator_1.RequiresPermission)('settings', 'manage'),
+    (0, common_1.Post)(':id/prorrogar'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], ServiceRequestsController.prototype, "prorrogar", null);
 __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

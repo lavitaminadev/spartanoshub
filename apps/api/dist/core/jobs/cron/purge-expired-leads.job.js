@@ -20,12 +20,16 @@ const typeorm_2 = require("typeorm");
 const shared_1 = require("@espartanos/shared");
 const lead_entity_1 = require("../../../modules/crm/leads/lead.entity");
 const data_protection_service_1 = require("../../data-protection/data-protection.service");
+const process_comments_service_1 = require("../../../modules/collaboration/process-comments.service");
+const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 const RESERVATION_RETENTION_DAYS = Math.round(shared_1.PLAZOS_DE_CONSERVACION.reservasMeses * 30.44);
 const ETAPAS_CON_FUNDAMENTO = ['won'];
 let PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = class PurgeExpiredLeadsJob {
-    constructor(leadRepo, dataProtection) {
+    constructor(leadRepo, dataProtection, comentarios, parametros) {
         this.leadRepo = leadRepo;
         this.dataProtection = dataProtection;
+        this.comentarios = comentarios;
+        this.parametros = parametros;
         this.logger = new common_1.Logger(PurgeExpiredLeadsJob_1.name);
     }
     async handle() {
@@ -58,6 +62,10 @@ let PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = class PurgeExpiredLeadsJob {
             ['measurement identifiers cleared', () => this.dataProtection.borrarIdentificadoresDeMedicionVencidos(shared_1.PLAZOS_DE_CONSERVACION.medicionMeses)],
             ['group requests anonymized', () => this.dataProtection.anonimizarSolicitudesDeGrupoVencidas(shared_1.PLAZOS_DE_CONSERVACION.solicitudesDeGrupoMeses)],
             ['survey responses anonymized', () => this.dataProtection.anonimizarRespuestasDeEncuestaVencidas(shared_1.PLAZOS_DE_CONSERVACION.encuestasMeses)],
+            ['work comments anonymized', async () => {
+                    const dias = Number(await this.parametros.get('compliance.work_comment_retention_days') ?? 0);
+                    return this.comentarios.anonimizarComentariosDeTrabajosCerrados(dias);
+                }],
         ];
         for (const [nombre, paso] of pasos) {
             try {
@@ -74,5 +82,7 @@ exports.PurgeExpiredLeadsJob = PurgeExpiredLeadsJob = PurgeExpiredLeadsJob_1 = _
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        data_protection_service_1.DataProtectionService])
+        data_protection_service_1.DataProtectionService,
+        process_comments_service_1.ProcessCommentsService,
+        parameter_resolver_service_1.ParameterResolver])
 ], PurgeExpiredLeadsJob);
