@@ -20,6 +20,7 @@ const roles_decorator_1 = require("../authorization/roles.decorator");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const account_access_service_1 = require("../client-scope/account-access.service");
+const client_capability_service_1 = require("../client-scope/client-capability.service");
 const destinatarios_de_avisos_service_1 = require("./destinatarios-de-avisos.service");
 const destinatario_de_avisos_entity_1 = require("./destinatario-de-avisos.entity");
 class GuardarDestinatarioDto {
@@ -48,11 +49,18 @@ __decorate([
     __metadata("design:type", Array)
 ], GuardarDestinatarioDto.prototype, "tipos", void 0);
 let DestinatariosDeAvisosController = class DestinatariosDeAvisosController {
-    constructor(destinatarios, acceso) {
+    constructor(destinatarios, acceso, capacidades) {
         this.destinatarios = destinatarios;
         this.acceso = acceso;
+        this.capacidades = capacidades;
     }
     async empresaDe(req, pedida) {
+        const organizationId = req.organizationId || req.user.organizationId;
+        const clientId = await this.cualEmpresa(req, pedida);
+        await this.capacidades.assert(organizationId, clientId, 'reservations');
+        return clientId;
+    }
+    async cualEmpresa(req, pedida) {
         const organizationId = req.organizationId || req.user.organizationId;
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
             if (!req.user.clientId)
@@ -130,5 +138,6 @@ exports.DestinatariosDeAvisosController = DestinatariosDeAvisosController = __de
     (0, module_scope_decorator_1.ModuleScope)('reservations'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     __metadata("design:paramtypes", [destinatarios_de_avisos_service_1.DestinatariosDeAvisosService,
-        account_access_service_1.AccountAccessService])
+        account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService])
 ], DestinatariosDeAvisosController);
