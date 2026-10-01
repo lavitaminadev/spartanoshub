@@ -18,6 +18,28 @@ que sepas lo que es un token o una migración, el manual está mal escrito.
 | [08 · Solicitudes de derechos](08-solicitudes-de-derechos.md) | Los plazos legales, la prórroga y los avisos | Administración → Solicitudes |
 | [09 · La página pública de reserva](09-pagina-publica-de-reserva.md) | Qué ve quien reserva, en qué orden y por qué | Reservas → Diseño público |
 
+## Cómo leerlos
+
+**Con un doble clic, sin nada instalado:** abre **`manual.html`**, en esta misma carpeta. Es un
+archivo único con los nueve manuales y las imágenes dentro, así que funciona sin conexión, sin el
+repositorio al lado y aunque lo mandes por correo. Lleva su propio índice a la izquierda.
+
+**Para tenerlo en PDF:** ábrelo y usa Imprimir → Guardar como PDF. Está preparado para eso: cada
+manual empieza en una hoja nueva, el menú no se imprime y no se parte una imagen ni una tabla por
+la mitad.
+
+**Si cambias un `.md`,** vuelve a generarlo:
+
+```
+npm run manual
+```
+
+Los correos de ejemplo se rehacen con `npm run manual:correos` —los compone la misma función que
+manda los de verdad— y se capturan desde `http://localhost:5176/_correos/`.
+
+Los `.md` sueltos también se ven bien en GitHub y en el editor; lo que no funciona es abrirlos
+desde el escritorio, porque ahí las rutas de las imágenes quedan rotas. Para eso está el HTML.
+
 ## Qué trae cada manual
 
 Todos siguen la misma estructura, y ninguna parte sobra:
