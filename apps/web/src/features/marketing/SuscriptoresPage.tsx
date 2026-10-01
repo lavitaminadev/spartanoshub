@@ -48,6 +48,8 @@ const ORIGEN: Record<string, string> = {
   import: 'Importado',
   importacion: 'Importado',
   formulario: 'Formulario',
+  // Se suscribió por su cuenta, desde el QR o el enlace del local, sin reservar.
+  captacion: 'Se suscribió',
 };
 
 /**

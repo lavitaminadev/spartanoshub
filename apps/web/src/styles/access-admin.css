@@ -155,3 +155,11 @@
   display: block; margin-top: 10px; color: var(--txt-muted); font-size: 12px;
 }
 .privacy-notice .privacy-version.is-provisional { color: var(--warn, #9a6a12); font-weight: 600; }
+
+/* El plazo legal de una solicitud de derechos, junto a su estado.
+   Treinta dias corridos desde que entra, prorrogable una sola vez. Se muestra acá y no escondido
+   porque es lo que decide qué solicitud se mira primero. */
+.solicitud-plazo { margin-left: auto; padding: 3px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.solicitud-plazo.es-a-tiempo { background: var(--soft); color: var(--muted); }
+.solicitud-plazo.es-por-vencer { background: #fff4d6; color: #6b4d00; }
+.solicitud-plazo.es-vencida { background: var(--danger-bg, #fde8e8); color: var(--danger-deep, #9b1c1c); }
