@@ -153,7 +153,57 @@ function emptyPayload(depth = 0): unknown {
  * se agrega su patron aca y no hay que tocar nada mas.
  */
 /** Bandeja de solicitudes en memoria para el modo visual. */
-const visualRequests: any[] = [];
+/**
+ * Solicitudes de derechos con los tres estados de plazo.
+ *
+ * El plazo lo calcula el servidor, así que acá va calculado a mano sobre fechas relativas a hoy:
+ * con una lista vacía no se puede revisar si la insignia de «vencida» se lee, ni si el botón de
+ * prorrogar desaparece cuando ya no corresponde, que es justo lo que hay que mirar.
+ */
+const diasAtras = (dias: number) => new Date(Date.now() - dias * 86_400_000).toISOString();
+const plazoDe = (diasDesdeQueEntro: number, prorrogada = false) => {
+  const restantes = (prorrogada ? 60 : 30) - diasDesdeQueEntro;
+  return {
+    vence: new Date(Date.now() + restantes * 86_400_000).toISOString(),
+    diasRestantes: restantes,
+    estado: restantes < 0 ? 'vencida' : restantes <= 7 ? 'por vencer' : 'a tiempo',
+    prorrogada,
+  };
+};
+
+const visualRequests: any[] = [
+  {
+    id: 'visual-request-1', type: 'anonymization', status: 'received',
+    requesterName: 'Ana Moya', requesterEmail: 'ana@correo.cl', requesterRut: '15.432.876-1', requesterPhone: '+56 9 8765 4321',
+    message: 'Quiero que borren todos mis datos. Ya no voy a ese restaurante.',
+    resolutionNote: null, resolvedBy: null, resolvedAt: null,
+    createdAt: diasAtras(26), updatedAt: diasAtras(26), plazo: plazoDe(26),
+  },
+  {
+    id: 'visual-request-2', type: 'portability', status: 'in_review',
+    requesterName: 'Diego Ruiz', requesterEmail: 'diego@correo.cl', requesterRut: '18.221.009-K', requesterPhone: null,
+    message: 'Necesito una copia de mis reservas de los ultimos dos anos.',
+    resolutionNote: null, resolvedBy: null, resolvedAt: null,
+    extendedUntil: new Date(Date.now() + 22 * 86_400_000).toISOString(),
+    extendedReason: 'Los datos estan repartidos en tres locales y hay que revisarlos uno por uno.',
+    createdAt: diasAtras(38), updatedAt: diasAtras(10), plazo: plazoDe(38, true),
+  },
+  {
+    id: 'visual-request-3', type: 'rectification', status: 'received',
+    requesterName: 'Carmen Soto', requesterEmail: 'carmen@correo.cl', requesterRut: '12.888.444-2', requesterPhone: '+56 9 1111 2222',
+    message: 'Mi apellido esta mal escrito, es Soto y no Sotto.',
+    resolutionNote: null, resolvedBy: null, resolvedAt: null,
+    createdAt: diasAtras(34), updatedAt: diasAtras(34), plazo: plazoDe(34),
+  },
+  {
+    id: 'visual-request-4', type: 'support', status: 'resolved',
+    requesterName: 'Luis Carcamo', requesterEmail: 'luis@correo.cl', requesterRut: '9.332.118-7', requesterPhone: null,
+    message: 'No me llego el correo de confirmacion.',
+    resolutionNote: 'Se reenvio el comprobante el mismo dia. La direccion tenia un error de tipeo.',
+    resolvedBy: 'visual-user', resolvedAt: diasAtras(3),
+    createdAt: diasAtras(5), updatedAt: diasAtras(3), plazo: plazoDe(5),
+  },
+];
 
 /** Un local realista permite revisar Reservas sin confundir una pantalla vacía con un flujo listo. */
 const VISUAL_RESERVATION_LOCAL = {
@@ -854,6 +904,19 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/notifications\/read-all$/, () => { visualNotifications.forEach((item) => { item.read = true; }); return { updated: visualNotifications.length }; }],
   [/\/notifications(?:\?|$)/, () => visualNotifications],
   // Suscriptores: dos locales y la agencia, para ver los filtros y el recuento.
+  /* La lista de exclusión: se pregunta por una dirección, no se lista. */
+  [/\/marketing\/suscriptores\/exclusiones/, (config) => {
+    if ((config?.method ?? 'get').toLowerCase() === 'post') return { fichasDeBaja: 1, email: 'ejemplo@correo.cl' };
+    const correo = new URLSearchParams((config?.url ?? '').split('?')[1] ?? '').get('correo');
+    if (!correo) return { total: 37, deTodas: 12, consulta: null };
+    return {
+      total: 37,
+      deTodas: 12,
+      consulta: correo.includes('ana')
+        ? { alcance: 'local', empresas: [{ clientId: 'visual-client-2', alcance: 'local', origen: 'email.campaign', cuando: '2026-09-20T12:00:00Z' }] }
+        : { alcance: null, empresas: [] },
+    };
+  }],
   [/\/marketing\/suscriptores\/importar$/, () => ({
     creados: 12, actualizados: 3, respetadosDeBaja: 2, excluidos: 1,
     descartados: [{ linea: 7, motivo: 'La dirección no tiene forma de correo' }],
@@ -861,10 +924,12 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/marketing\/suscriptores\/descargar/, () => ({ empresa: 'visual-client', total: 2, data: [{ email: 'ana@correo.cl', nombre: 'Ana Moya', aceptoEl: '2026-08-01', origen: 'reserva', detalle: 'Casa Costanera' }, { email: 'diego@correo.cl', nombre: 'Diego Ruiz', aceptoEl: '2026-09-12', origen: 'reserva', detalle: 'Casa Costanera' }] })],
   [/\/marketing\/suscriptores/, () => ({
     data: [
-      { id: 's1', clientId: 'visual-client', email: 'ana@correo.cl', name: 'Ana Moya', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera - Providencia', consentAt: '2026-08-01T12:00:00.000Z', createdAt: '2026-08-01T12:00:00.000Z' },
+      { id: 's1', clientId: 'visual-client', email: 'ana@correo.cl', name: 'Ana Moya', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera - Providencia', consentAt: '2026-08-01T12:00:00.000Z', consentText: 'Quiero recibir beneficios y novedades de Casa SpA, RUT 76.086.428-5 (Casa Costanera): promociones, beneficio de cumpleanos, invitaciones a eventos y encuestas, por correo, WhatsApp o SMS. Es opcional, no condiciona mi reserva y puedo retirarlo cuando quiera, sin costo, desde cada mensaje.', consentIp: '190.44.12.8', adultDeclaredAt: '2026-08-01T12:00:00.000Z', birthDate: '1991-04-22', lastSentAt: '2026-09-28T09:00:00.000Z', createdAt: '2026-08-01T12:00:00.000Z' },
       { id: 's2', clientId: 'visual-client', email: 'diego@correo.cl', name: 'Diego Ruiz', status: 'subscribed', source: 'reserva', sourceDetail: 'Casa Costanera - Providencia', consentAt: '2026-09-12T12:00:00.000Z', createdAt: '2026-09-12T12:00:00.000Z' },
-      { id: 's3', clientId: 'visual-client-2', email: 'ana@correo.cl', name: 'Ana Moya', status: 'unsubscribed', source: 'reserva', sourceDetail: 'Bar Ruperto', consentAt: '2026-07-02T12:00:00.000Z', unsubscribedAt: '2026-09-20T12:00:00.000Z', unsubscribedScope: 'local', createdAt: '2026-07-02T12:00:00.000Z' },
+      { id: 's3', clientId: 'visual-client-2', email: 'ana@correo.cl', name: 'Ana Moya', status: 'unsubscribed', source: 'reserva', sourceDetail: 'Bar Ruperto', consentAt: '2026-07-02T12:00:00.000Z', unsubscribedAt: '2026-09-20T12:00:00.000Z', unsubscribedScope: 'local', unsubscribedFrom: 'email.campaign', consentText: 'Quiero recibir beneficios y novedades de Bar Ruperto SpA.', consentIp: '190.44.12.8', createdAt: '2026-07-02T12:00:00.000Z' },
       { id: 's4', clientId: null, email: 'fernanda@correo.cl', name: 'Fernanda Riquelme', status: 'subscribed', source: 'import', sourceDetail: 'Feria gastronomica', consentAt: '2026-06-10T12:00:00.000Z', createdAt: '2026-06-10T12:00:00.000Z' },
+      { id: 's5', clientId: null, email: 'luis@correo.cl', name: 'Luis Carcamo', status: 'subscribed', source: 'reserva', sourceDetail: 'red - Casa Costanera - Providencia', consentAt: '2026-09-25T12:00:00.000Z', consentText: 'Quiero recibir ademas beneficios y novedades de los demas locales de Espartanos.', consentIp: '191.112.4.90', createdAt: '2026-09-25T12:00:00.000Z' },
+      { id: 's6', clientId: 'visual-client', email: 'carmen@correo.cl', name: 'Carmen Soto', status: 'subscribed', source: 'captacion', sourceDetail: 'captacion - Casa Costanera - Providencia', consentAt: '2026-09-29T19:30:00.000Z', consentText: 'Quiero recibir beneficios y novedades de Casa SpA (Casa Costanera).', consentIp: '186.11.30.4', adultDeclaredAt: '2026-09-29T19:30:00.000Z', createdAt: '2026-09-29T19:30:00.000Z' },
     ],
     total: 4,
     resumen: [
@@ -873,7 +938,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { clientId: null, suscritos: 1, bajas: 0, pendientes: 0 },
     ],
     // Las procedencias que existen: es de donde sale el selector de «de cualquier parte».
-    origenes: ['import', 'reserva'],
+    origenes: ['import', 'reserva', 'captacion'],
   })],
   // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
   [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
@@ -1062,7 +1127,57 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   )],
 
   // — Marketing: campañas —
-  [/\/marketing\/campanas\/destinatarios/, () => ({ total: 184 })],
+  /*
+   * A cuántos llegaría la campaña, y a quiénes.
+   *
+   * Con el total solo no se puede revisar la pantalla: lo que hay que ver es si la muestra de
+   * nombres cabe y si la frase de qué lista es se lee junto a la cifra.
+   */
+  [/\/marketing\/campanas\/destinatarios/, (config) => {
+    const administradores = /destino=administradores/.test(config?.url ?? '');
+    return administradores
+      ? {
+        total: 3,
+        deQuienes: 'Quienes administran cada empresa',
+        muestra: [
+          { email: 'gerente@casacostanera.cl', nombre: 'Paula Navarro' },
+          { email: 'jefe@barruperto.cl', nombre: 'Tomás Leiva' },
+          { email: 'admin@lafabrica.cl', nombre: null },
+        ],
+      }
+      : {
+        total: 184,
+        deQuienes: 'La lista de esta empresa',
+        muestra: [
+          { email: 'ana@correo.cl', nombre: 'Ana Moya' },
+          { email: 'diego@correo.cl', nombre: 'Diego Ruiz' },
+          { email: 'fernanda@correo.cl', nombre: 'Fernanda Riquelme' },
+          { email: 'luis@correo.cl', nombre: null },
+          { email: 'carmen@correo.cl', nombre: 'Carmen Soto' },
+        ],
+      };
+  }],
+  /* Las casillas del equipo de un local, repartidas por tipo de aviso. */
+  [/\/avisos\/destinatarios\/tipos/, () => ({
+    data: [
+      { clave: 'reservas', etiqueta: 'Reserva nueva' },
+      { clave: 'grupos', etiqueta: 'Solicitud de grupo o evento' },
+      { clave: 'espera', etiqueta: 'Lista de espera' },
+      { clave: 'cambios', etiqueta: 'El cliente canceló o cambió la hora' },
+      { clave: 'encuestas', etiqueta: 'Mensaje en una encuesta' },
+      { clave: 'operacion', etiqueta: 'Reservas pausadas o día cerrado' },
+    ],
+  })],
+  [/\/avisos\/destinatarios/, (config) => {
+    if ((config?.method ?? 'get').toLowerCase() !== 'get') return { ok: true };
+    return {
+      data: [
+        { id: 'd1', email: 'gerente@casacostanera.cl', name: 'Paula Navarro', cargo: 'Encargada de turno', tipos: ['reservas', 'grupos', 'espera', 'cambios', 'encuestas', 'operacion'], createdAt: '2026-09-01T12:00:00Z' },
+        { id: 'd2', email: 'mesones@casacostanera.cl', name: 'Mesones', cargo: 'Garzones', tipos: ['reservas', 'cambios', 'operacion'], createdAt: '2026-09-02T12:00:00Z' },
+        { id: 'd3', email: 'caja@casacostanera.cl', name: 'Daniela Pino', cargo: 'Cajera', tipos: ['operacion'], createdAt: '2026-09-03T12:00:00Z' },
+      ],
+    };
+  }],
   // El pie con el enlace de baja es lo que distingue una campaña, así que la muestra lo lleva.
   [/\/marketing\/campanas\/vista-previa$/, (config) => {
     const { asunto = '', cuerpo = '' } = visualRequestBody(config);
@@ -1086,7 +1201,8 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     if (metodo === 'post') return { id: 'camp-nueva', ...visualRequestBody(config), estado: 'draft', destinatarios: 0, enviados: 0, createdAt: new Date().toISOString() };
     if (metodo === 'patch' || metodo === 'delete') return { borrada: true };
     return [
-      { id: 'camp-1', clientId: 'visual-client', asunto: 'Vuelve este fin de semana, {{nombre}}', cuerpo: 'Tenemos algo para ti.', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-28T12:00:00Z' },
+      { id: 'camp-1', clientId: 'visual-client', asunto: 'Vuelve este fin de semana, {{nombre}}', cuerpo: 'Tenemos algo para ti.', cupon: 'VUELVE20', cuponVence: '2026-12-31T00:00:00Z', destino: 'lista', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-28T12:00:00Z' },
+      { id: 'camp-4', clientId: null, asunto: 'Cambios en tu plan', cuerpo: 'Les contamos lo que viene.', destino: 'administradores', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-29T12:00:00Z' },
       { id: 'camp-2', clientId: null, asunto: 'Novedades de Espartanos', cuerpo: 'Lo que hicimos este mes.', estado: 'sent', destinatarios: 200, enviados: 197, sentAt: '2026-09-10T12:00:00Z', createdAt: '2026-09-09T12:00:00Z' },
       // Una saliendo, para poder mirar el avance sin esperar a que el cron haga nada.
       { id: 'camp-3', clientId: 'visual-client', asunto: 'Menu de primavera', cuerpo: 'Ya esta disponible.', estado: 'sending', destinatarios: 184, enviados: 0, createdAt: '2026-09-30T12:00:00Z' },
@@ -1792,6 +1908,17 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return visualRequests
       .filter((r) => r.requesterEmail === email && r.requesterRut === rut)
       .map((r) => ({ id: r.id, type: r.type, status: r.status, message: r.message, resolutionNote: r.resolutionNote, createdAt: r.createdAt, resolvedAt: r.resolvedAt }));
+  }],
+  /* La prorroga: una sola vez, con motivo, y antes de que venza. */
+  [/\/service-requests\/([^/?]+)\/prorrogar$/i, (config) => {
+    const id = config.url.split('/').filter(Boolean).slice(-2)[0];
+    const row = visualRequests.find((r) => r.id === id);
+    if (row) {
+      row.extendedUntil = new Date(new Date(row.plazo.vence).getTime() + 30 * 86_400_000).toISOString();
+      row.extendedReason = (visualRequestBody(config)?.motivo as string) ?? 'Sin motivo';
+      row.plazo = { ...row.plazo, vence: row.extendedUntil, diasRestantes: row.plazo.diasRestantes + 30, estado: 'a tiempo', prorrogada: true };
+    }
+    return row ?? { id };
   }],
   [/\/service-requests\/([^/?]+)\/anonymize$/i, (config) => {
     const id = config.url.split('/').filter(Boolean).pop();

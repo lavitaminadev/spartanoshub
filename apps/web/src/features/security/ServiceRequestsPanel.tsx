@@ -20,7 +20,35 @@ interface ServiceRequestRow {
   resolvedBy?: string | null;
   resolvedAt?: string | null;
   createdAt: string;
+  extendedUntil?: string | null;
+  extendedReason?: string | null;
+  /**
+   * El plazo legal, calculado por el servidor.
+   *
+   * Llega calculado y no se calcula acá porque depende de la fecha de hoy —un valor guardado
+   * quedaría viejo al día siguiente— y porque el reloj del navegador lo puede tener cualquiera.
+   */
+  plazo?: {
+    vence: string;
+    diasRestantes: number;
+    estado: 'respondida' | 'a tiempo' | 'por vencer' | 'vencida';
+    prorrogada: boolean;
+  };
 }
+
+/**
+ * Cómo se dice en pantalla en qué punto del plazo está una solicitud.
+ *
+ * El plazo legal es de treinta días corridos desde que entra, prorrogable una sola vez. Lo que se
+ * incumple no es «no responder», es «no responder a tiempo», y hasta ahora el plazo estaba escrito
+ * en las políticas que el comensal lee y en ninguna parte de esta pantalla.
+ */
+const PLAZO_TEXTO: Record<string, (dias: number) => string> = {
+  'a tiempo': (dias) => `Quedan ${dias} días`,
+  'por vencer': (dias) => (dias <= 0 ? 'Vence hoy' : `Vence en ${dias} día${dias === 1 ? '' : 's'}`),
+  vencida: (dias) => `Vencida hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`,
+  respondida: () => 'Respondida',
+};
 
 const TYPE_LABELS: Record<string, string> = {
   account: 'Crear cuenta o acceso',
@@ -47,6 +75,8 @@ export function ServiceRequestsPanel(): JSX.Element {
   const [note, setNote] = useState('');
   const [editing, setEditing] = useState<ServiceRequestRow | null>(null);
   const [draft, setDraft] = useState({ type: '', requesterName: '', requesterEmail: '', requesterRut: '', requesterPhone: '', message: '', status: '', resolutionNote: '' });
+  const [prorroga, setProrroga] = useState<{ id: string; vence: string } | null>(null);
+  const [motivo, setMotivo] = useState('');
 
   const { data: rows = [], isLoading, error, refetch, isFetching } = useQuery<ServiceRequestRow[]>({
     queryKey: ['service-requests', statusFilter],
@@ -56,6 +86,23 @@ export function ServiceRequestsPanel(): JSX.Element {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) => api.put(`/service-requests/${id}`, payload),
     onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['service-requests'] }); setPendingAction(null); setEditing(null); setNote(''); triggerToast('Solicitud actualizada'); },
+    onError: (err: Error) => triggerToast(err.message, 'error'),
+  });
+
+  /*
+   * La prórroga.
+   *
+   * El servidor la rechaza si ya hubo una, si no trae motivo o si el plazo ya venció, y el mensaje
+   * de ese rechazo se muestra tal cual: son las tres condiciones de la ley y explicarlas con
+   * palabras propias acá sería tener la misma regla escrita en dos sitios.
+   */
+  const prorrogarMutation = useMutation({
+    mutationFn: ({ id, motivo: razon }: { id: string; motivo: string }) => api.post(`/service-requests/${id}/prorrogar`, { motivo: razon }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['service-requests'] });
+      setProrroga(null); setMotivo('');
+      triggerToast('Plazo prorrogado. Avísale al titular antes del vencimiento original, explicando el motivo.', 'success');
+    },
     onError: (err: Error) => triggerToast(err.message, 'error'),
   });
 
@@ -97,6 +144,13 @@ export function ServiceRequestsPanel(): JSX.Element {
                 <span className={`solicitud-status is-${row.status}`}>{STATUS_LABELS[row.status] ?? row.status}</span>
                 <strong>{TYPE_LABELS[row.type] ?? row.type}</strong>
                 <small>{new Date(row.createdAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</small>
+                {/* El plazo, junto al estado y no escondido: es lo que decide qué se mira primero. */}
+                {row.plazo && row.plazo.estado !== 'respondida' && (
+                  <span className={`solicitud-plazo es-${row.plazo.estado.replace(/ /g, '-')}`}>
+                    {PLAZO_TEXTO[row.plazo.estado]?.(row.plazo.diasRestantes)}
+                    {row.plazo.prorrogada ? ' · prorrogada' : ''}
+                  </span>
+                )}
               </header>
               <div className="admin-solicitud-facts">
                 <span><small>Solicitante</small><strong>{row.requesterName}</strong></span>
@@ -120,8 +174,26 @@ export function ServiceRequestsPanel(): JSX.Element {
                 {(row.status === 'resolved' || row.status === 'rejected') && (
                   <button className="btn btn-outline btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: row.id, payload: { status: 'received' } })}>Reabrir</button>
                 )}
+                {/*
+                  Prorrogar: una sola vez, con motivo, y antes de que venza.
+                  Las tres condiciones las comprueba el servidor porque son de la ley; acá el botón
+                  sólo deja de ofrecerse cuando ya no tiene sentido, para no prometer algo que va a
+                  ser rechazado. Avisarle al titular, con la explicación, se hace por fuera: la ley
+                  exige que se le informe antes del vencimiento y de forma fundada.
+                */}
+                {row.plazo && !row.resolvedAt && !row.extendedUntil && row.plazo.estado !== 'vencida' && (
+                  <button className="btn btn-outline btn-sm" onClick={() => setProrroga({ id: row.id, vence: row.plazo!.vence })}>
+                    Prorrogar el plazo
+                  </button>
+                )}
                 <button className="btn btn-outline btn-sm" onClick={() => openEdit(row)}>Editar</button>
               </footer>
+              {row.extendedUntil && (
+                <small className="page-subtitle">
+                  Prorrogada hasta el {new Date(row.extendedUntil).toLocaleDateString('es-CL', { dateStyle: 'long' })}
+                  {row.extendedReason ? ` · ${row.extendedReason}` : ''}
+                </small>
+              )}
               {row.type === 'account' && row.status === 'resolved' && <small className="page-subtitle">Crea la cuenta desde Usuarios con el correo del solicitante para completar el acceso.</small>}
             </article>
           ))}
@@ -132,6 +204,34 @@ export function ServiceRequestsPanel(): JSX.Element {
           <label>Nota de resolución<textarea className="input" rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder={pendingAction?.status === 'more_info' ? 'Indica qué información falta…' : 'Registra qué se hizo para dejar constancia…'} /></label>
           {pendingAction?.status === 'rejected' && <div className="alert alert-error">Rechazará la solicitud. La persona verá el motivo en su consulta de estado.</div>}
           <div className="modal-actions"><button type="button" className="btn btn-outline" onClick={() => setPendingAction(null)}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Guardando...' : 'Confirmar'}</button></div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(prorroga)} onClose={() => { setProrroga(null); setMotivo(''); }} title="Prorrogar el plazo">
+        <form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (prorroga) prorrogarMutation.mutate({ id: prorroga.id, motivo }); }}>
+          <p className="form-hint">
+            La ley permite <strong>una sola prórroga</strong>, por treinta días corridos más, contados
+            desde el vencimiento original
+            {prorroga ? ` (${new Date(prorroga.vence).toLocaleDateString('es-CL', { dateStyle: 'long' })})` : ''}.
+            Hay que avisarle al titular <strong>antes</strong> de esa fecha, explicándole el motivo.
+          </p>
+          <label>
+            Motivo <span className="required-star">*</span>
+            <textarea
+              className="input" rows={3} required value={motivo}
+              onChange={(event) => setMotivo(event.target.value)}
+              placeholder="Por ejemplo: los datos están repartidos en reservas de tres locales y hay que revisarlos uno por uno."
+            />
+          </label>
+          {/* Queda guardado tal cual: es lo que hay que poder mostrar si alguien pregunta por qué
+              se tardó el doble. Un motivo vago hoy es un problema dentro de seis meses. */}
+          <p className="form-hint">Se guarda tal como lo escribas, junto a la fecha. Es la constancia de por qué se prorrogó.</p>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-outline" onClick={() => { setProrroga(null); setMotivo(''); }}>Cancelar</button>
+            <button className="btn btn-primary" type="submit" disabled={!motivo.trim() || prorrogarMutation.isPending}>
+              {prorrogarMutation.isPending ? 'Guardando...' : 'Prorrogar'}
+            </button>
+          </div>
         </form>
       </Modal>
 

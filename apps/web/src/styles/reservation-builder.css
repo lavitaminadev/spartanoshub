@@ -810,8 +810,15 @@
 
 /* El segundo enlace del paso de publicar: suscribirse sin reservar. Más discreto que el principal
    a propósito — es otra puerta, no una alternativa a la de reservar. */
-.publish-link-secundario { display:grid; gap:6px; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line, #eee8ec); }
-.publish-link-secundario span { color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.04em; }
-.publish-link-secundario strong { overflow-wrap:anywhere; font-size:13px; font-weight:600; }
-.publish-link-secundario div { display:flex; flex-wrap:wrap; gap:6px; }
-.publish-link-secundario small { color:var(--muted); line-height:1.5; }
+/* El selector lleva el padre a proposito: `.publish-link > div` ya declara `display:flex` en
+   fila y gana por especificidad, asi que sin esto el bloque se arma en horizontal y el enlace, los
+   botones y la explicacion quedan apretados uno al lado del otro. El panel es oscuro, de modo que
+   los colores salen del mismo blanco translucido que usa el enlace principal. */
+.publish-link > .publish-link-secundario {
+  display:grid; gap:7px; margin-top:4px; padding-top:15px;
+  border-top:1px dashed rgba(255,255,255,.2);
+}
+.publish-link-secundario > span { color:rgba(255,255,255,.55); font-size:9px; font-weight:900; letter-spacing:.13em; }
+.publish-link-secundario > strong { overflow-wrap:anywhere; font-family:var(--font-mono); font-size:12px; font-weight:500; }
+.publish-link-secundario > div { display:flex; flex-wrap:wrap; gap:7px; }
+.publish-link-secundario > small { color:rgba(255,255,255,.5); line-height:1.5; }
