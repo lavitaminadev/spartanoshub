@@ -59,6 +59,7 @@ const destinatarios_de_avisos_service_1 = require("../../../core/notifications/d
 const geo_inference_1 = require("../../../shared/geo-inference");
 const google_conversion_outbox_service_1 = require("../../integrations/google/google-conversion-outbox.service");
 const client_capabilities_1 = require("../../clients/client-capabilities");
+const planilla_xlsx_1 = require("../../../shared/planilla-xlsx");
 const DEFAULT_VENUE_TIPS = [
     'Te esperamos 10 minutos antes para acomodarte con calma.',
     'Estamos en la esquina; si llegas en auto, hay estacionamiento a media cuadra.',
@@ -2872,6 +2873,22 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             party_size: (item) => item.partySize,
         };
         const allowedFields = includeInternalNotes ? fields : fields.filter((field) => field !== 'notes');
+        const TITULOS = {
+            name: 'Nombre', phone: 'Teléfono', email: 'Correo', date: 'Fecha y hora',
+            status: 'Estado', attendance: 'Asistió', notes: 'Notas internas',
+            origin: 'Canal', medium: 'Medio', campaign: 'Campaña', content: 'Contenido',
+            code: 'Código', coupon: 'Cupón', party_size: 'Personas',
+        };
+        const tituloDe = (campo) => TITULOS[campo] ?? campo;
+        const cabeceras = [...allowedFields.map(tituloDe), ...clavesRespuesta.map(etiquetaDe)];
+        const valores = (item) => [
+            ...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'),
+            ...clavesRespuesta.map((clave) => valorDe(item, clave)),
+        ];
+        if (format === 'xlsx') {
+            const fecha = (valor) => (valor instanceof Date ? valor.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : valor);
+            return (0, planilla_xlsx_1.planillaXlsx)(cabeceras, items.map((item) => valores(item).map(fecha)), form?.name ?? 'Reservas');
+        }
         if (format === 'json') {
             return items.map((item) => {
                 const record = {};
@@ -2885,9 +2902,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         else if (format === 'csv') {
             const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
-            const headers = [...allowedFields, ...clavesRespuesta.map(etiquetaDe)];
-            const filas = items.map((item) => [...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'), ...clavesRespuesta.map((clave) => valorDe(item, clave))]);
-            return [headers, ...filas].map((row) => row.map(escape).join(',')).join('\r\n');
+            const filas = items.map((item) => valores(item));
+            return `﻿${[cabeceras, ...filas].map((row) => row.map(escape).join(',')).join('\r\n')}`;
         }
         throw new common_1.BadRequestException('Formato no soportado');
     }

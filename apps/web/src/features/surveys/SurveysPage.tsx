@@ -7,9 +7,10 @@
  */
 
 import { useState, type JSX } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useEmpresaActiva } from '../../shared/empresa-activa';
+import { EnviarEncuestaPorCorreo } from './EnviarEncuestaPorCorreo';
 import { CompartirEncuesta } from './CompartirEncuesta';
 import { Link } from 'react-router-dom';
 import { DataTable, type Column } from '../../shared/DataTable';
@@ -64,13 +65,6 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
   const [compartir, setCompartir] = useState<Survey | null>(null);
   const [confirmarCierre, setConfirmarCierre] = useState<Survey | null>(null);
   const [correoDe, setCorreoDe] = useState<Survey | null>(null);
-  const enviarCorreo = useMutation({
-    mutationFn: (survey: Survey) => api.post<{ enviados: number; fallidos: number; invalidos: number }>(`/surveys/${encodeURIComponent(survey.id)}/send-email`, {}),
-    onSuccess: (resultado) => {
-      setCorreoDe(null);
-      triggerToast(`Enviada a ${resultado.enviados} persona${resultado.enviados === 1 ? '' : 's'}${resultado.fallidos ? ` · ${resultado.fallidos} ${resultado.fallidos === 1 ? 'no salió' : 'no salieron'}` : ''}${resultado.invalidos ? ` · ${resultado.invalidos} ${resultado.invalidos === 1 ? 'correo inválido omitido' : 'correos inválidos omitidos'}` : ''}`);
-    },
-  });
   // Los filtros viven en la dirección: volver desde una encuesta conserva lo filtrado, recargar
   // no borra el trabajo y la vista se puede mandar por mensaje.
   const filtros = useUrlFilters(FILTER_KEYS);
@@ -266,17 +260,12 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
         }}
       />
 
-      {/* Se confirma antes de enviar: sale un correo por persona y no se puede deshacer. */}
-      <ConfirmDialog
-        open={Boolean(correoDe)}
-        title="Enviar la encuesta por correo"
-        description={`Se enviará «${correoDe?.title ?? ''}» a ${correoDe?.recipients?.length ?? 0} destinatario${correoDe?.recipients?.length === 1 ? '' : 's'}, un correo a cada uno. Envíala solo a personas que aceptaron recibir comunicaciones de la empresa.`}
-        confirmLabel="Enviar"
-        pending={enviarCorreo.isPending}
-        error={enviarCorreo.error?.message}
-        onClose={() => setCorreoDe(null)}
-        onConfirm={() => { if (correoDe) enviarCorreo.mutate(correoDe); }}
-      />
+      {/*
+        Enviar por correo: a quiénes, y poder agregar a alguien ahí mismo.
+        Era un aviso con una cifra y un botón; para sumar a un garzón había que salir, editar la
+        encuesta, escribir el correo entre comas, guardar y volver.
+      */}
+      <EnviarEncuestaPorCorreo survey={correoDe} onCerrar={() => setCorreoDe(null)} />
 
       <ConfirmDialog
         open={Boolean(confirmarCierre)}
@@ -289,7 +278,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
         onConfirm={() => { if (confirmarCierre) cambiarEstado(confirmarCierre); }}
       />
 
-      <CompartirEncuesta survey={compartir} onCerrar={() => setCompartir(null)} puedeEnviarCorreo={puedeEnviar} onEnviarCorreo={(survey) => { setCompartir(null); enviarCorreo.reset(); setCorreoDe(survey); }} />
+      <CompartirEncuesta survey={compartir} onCerrar={() => setCompartir(null)} puedeEnviarCorreo={puedeEnviar} onEnviarCorreo={(survey) => { setCompartir(null); setCorreoDe(survey); }} />
     </div>
   );
 }

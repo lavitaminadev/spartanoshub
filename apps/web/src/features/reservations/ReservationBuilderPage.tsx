@@ -882,25 +882,22 @@ export function ReservationBuilderPage() {
         {(!draft.datosLegalesEmpresa?.legalName || !draft.datosLegalesEmpresa?.taxId || !draft.datosLegalesEmpresa?.privacyEmail) && <p className="datos-heredados-nota">Faltan datos de la empresa. Los completa la empresa en su portal («Datos legales») o el equipo desde Clientes → Editar cliente.</p>}
         <div className="form-row"><label>WhatsApp del local<small>Para grupos, eventos y cuando no hay horarios.</small><input className="input" value={String(draft.designConfig?.whatsappBusinessNumber || '')} onChange={(e) => cambiarAjuste('whatsappBusinessNumber', e.target.value)} placeholder="+56 9 1234 5678" /></label></div>
         {/*
-          * Cuánto espera el local a quien se atrasa.
+          * La tolerancia se edita en Ajustes del día, no aquí.
           *
-          * Sin decirlo, quien llega tarde no sabe si su mesa sigue guardada y llama; y el local
-          * no tiene en qué apoyarse para darla por perdida. Cero lo deja fuera de la página.
+          * Estaba en los dos sitios y era el mismo valor —`toleranciaMinutos`—, así que no se
+          * corrompía nada, pero eran dos pantallas para lo mismo. Ésta se tocaba una vez al montar
+          * el local; la otra se usa en caliente, que es cuando de verdad se cambia. Se deja dicho
+          * dónde está y cuánto vale ahora, para no esconderla al quitarla.
           */}
         <div className="form-row">
-          <label>Tolerancia de llegada
-            <small>Minutos que se espera antes de liberar la mesa. Cero no lo muestra.</small>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              max="120"
-              step="5"
-              placeholder="15"
-              value={String(draft.designConfig?.toleranciaMinutos || '')}
-              onChange={(e) => cambiarAjuste('toleranciaMinutos', e.target.value)}
-            />
-          </label>
+          <p className="form-hint">
+            La <strong>tolerancia de llegada</strong> —los minutos que se espera antes de liberar la
+            mesa— se cambia en <strong>Ajustes del día</strong>, que es donde se toca cuando hace
+            falta. Ahora mismo:{' '}
+            {draft.designConfig?.toleranciaMinutos
+              ? `${draft.designConfig.toleranciaMinutos} minutos`
+              : 'sin tolerancia, no se muestra en la página'}.
+          </p>
         </div>
         <div className="form-row">
           <label>Aviso antes de reservar
@@ -940,7 +937,7 @@ export function ReservationBuilderPage() {
           * es como funcionó hasta ahora. El texto del correo sigue siendo común.
           */}
         <label className="correo-rol"><strong>3. A quién se avisa de cada reserva nueva</strong><small>Casillas del equipo, separadas por coma. <strong>Reciben todos los avisos del local.</strong> Para repartirlos por persona —y no mandarle a todos el teléfono de quien pide un evento— usa la tabla de abajo. No las ve quien reserva.</small><input className="input" value={teamEmails} onChange={(e) => change({ teamNotifications: e.target.value.split(/[,;\s]+/).map((email) => email.trim()).filter(Boolean) })} placeholder="reservas@local.cl, gerente@local.cl" /></label>
-        {data?.clientId ? <CasillasDelEquipo empresa={clientMode ? null : data.clientId} /> : null}
+        {data?.clientId ? <CasillasDelEquipo empresa={clientMode ? null : data.clientId} heredadas={(draft.teamNotifications || []).filter(Boolean)} /> : null}
         {!clientMode && <label className="correo-rol"><strong>4. Qué encuesta se envía después de la visita</strong><small>Se manda unas horas después de una visita marcada como asistida, si el aviso está encendido en <Link to="/correos">Correos</Link>.</small>
           <select className="input" value={String(draft.designConfig?.encuestaPostVisita || '')} onChange={(e) => cambiarAjuste('encuestaPostVisita', e.target.value)}>
             <option value="">La que tenga su empresa</option>

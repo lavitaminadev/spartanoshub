@@ -295,7 +295,12 @@ let ReservationsController = class ReservationsController {
         else if (body.format === 'csv') {
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
-            res.send(`\uFEFF${result}`);
+            res.send(result);
+        }
+        else if (body.format === 'xlsx') {
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.xlsx"`);
+            res.end(result);
         }
     }
     async operationalHome(req, query) {
