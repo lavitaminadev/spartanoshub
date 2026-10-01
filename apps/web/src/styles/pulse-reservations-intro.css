@@ -997,3 +997,10 @@
 .captacion-nota { margin-top: 18px; color: var(--muted, #6b6e78); font-size: 13px; line-height: 1.55; }
 /* El campo trampa: fuera de la vista y del lector de pantalla, pero rellenable por un robot. */
 .captacion-trampa { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+/* Una columna más alta que la pantalla no puede quedarse pegada.
+   La columna de la izquierda es `sticky`, y eso funciona mientras quepa: cuando no cabe, al
+   desplazar la página su contenido pasa por encima de lo que viene debajo —el pie legal acababa
+   escrito encima de la última tarjeta de ocasiones—. Con las ocasiones dentro casi nunca cabe,
+   así que ahí se desactiva. Sin ellas sigue pegada, que es cuando aporta. */
+.public-booking-intro:has(.booking-ocasiones) { position: static; }
