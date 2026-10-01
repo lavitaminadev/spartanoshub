@@ -17,6 +17,23 @@ que sepas lo que es un token o una migración, el manual está mal escrito.
 | [07 · Avisos de las encuestas](07-encuestas-y-avisos.md) | Qué pasa cuando alguien escribe un mensaje en una encuesta | Encuestas |
 | [08 · Solicitudes de derechos](08-solicitudes-de-derechos.md) | Los plazos legales, la prórroga y los avisos | Administración → Solicitudes |
 
+## Qué trae cada manual
+
+Todos siguen la misma estructura, y ninguna parte sobra:
+
+1. **Qué hace**, en una frase.
+2. **Paso a paso**, con una captura por paso.
+3. **Qué correo llega**, cuando llega alguno. Compuesto con la misma función que los manda, no
+   dibujado: un manual que enseña un correo inventado envejece el día que alguien toca la plantilla.
+4. **Las ramas que fallan**, con el mensaje exacto que verás.
+5. **Quién puede qué**, por cargo.
+6. **Dónde queda cada cosa**: la tabla, la columna, el endpoint, el cron y el interruptor de Correos.
+7. **A qué ley responde**, con el artículo.
+8. **Preguntas que van a salir.**
+
+Las capturas salen de la instancia de pruebas que se levanta con `npm run dev:visual`. Los correos
+se componen con `node scripts/quality/generar-correos-de-ejemplo.cjs`.
+
 ## Lo que todos tienen en común
 
 Tres ideas atraviesan todo lo que sigue. Si las entiendes, el resto se explica solo.

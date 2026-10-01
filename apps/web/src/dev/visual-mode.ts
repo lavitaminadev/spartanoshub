@@ -1198,6 +1198,19 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/marketing\/campanas\/[^/]+\/avance$/, () => ({ estado: 'sending', enviados: 142, pendientes: 40, fallidos: 2 })],
   [/\/marketing\/campanas(\?.*)?$/, (config) => {
     const metodo = config?.method?.toLowerCase();
+    /*
+     * El cupon se comprueba al guardar, y el rechazo es parte de lo que hay que poder revisar.
+     *
+     * Con un codigo cualquiera la pantalla guarda; con CADUCADO responde lo mismo que el servidor
+     * de verdad. Sin esto, el unico camino que no se puede mirar es justo el que explica por que
+     * la comprobacion existe.
+     */
+    if (metodo === 'post' || metodo === 'patch') {
+      const cuerpo = visualRequestBody(config) as { cupon?: string };
+      if (typeof cuerpo?.cupon === 'string' && cuerpo.cupon.toUpperCase() === 'CADUCADO') {
+        throw new Error('El cupón CADUCADO ya venció. Revísalo en Cupones antes de mandar la campaña: un código que la caja rechaza delante del cliente es peor que no ofrecer ninguno.');
+      }
+    }
     if (metodo === 'post') return { id: 'camp-nueva', ...visualRequestBody(config), estado: 'draft', destinatarios: 0, enviados: 0, createdAt: new Date().toISOString() };
     if (metodo === 'patch' || metodo === 'delete') return { borrada: true };
     return [
@@ -1453,7 +1466,16 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       red: 'Espartanos',
     };
   }],
-  [/\/public\/reservations\/[^/?]+\/suscribirse$/, () => ({ estado: 'alta', local: 'Casa Costanera - Providencia' })],
+  /*
+   * Con un correo que lleve «baja», responde lo que responde el servidor a quien pidió no recibir
+   * más. Ése es el camino que hay que poder mirar: es el único en que la página no hace lo que la
+   * persona acaba de pedir, y tiene que explicárselo en vez de fingir que la sumó.
+   */
+  [/\/public\/reservations\/[^/?]+\/suscribirse$/, (config) => {
+    const cuerpo = visualRequestBody(config) as { email?: string };
+    const excluido = typeof cuerpo?.email === 'string' && cuerpo.email.includes('baja');
+    return { estado: excluido ? 'todas' : 'alta', local: 'Casa Costanera - Providencia' };
+  }],
   [/\/public\/reservations\/[^/?]+$/, (config) => {
     const slug = (config?.url?.match(/\/public\/reservations\/([^/?]+)/) ?? [])[1];
     if (config?.method?.toLowerCase() !== 'post') return visualReservationForms.find((form) => form.publicSlug === slug) || VISUAL_RESERVATION_LOCAL;
@@ -1942,13 +1964,30 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
 const visualAdapter: AxiosAdapter = async (config) => {
   const url = config.url ?? '';
   const route = ROUTES.find(([pattern]) => pattern.test(url));
-  return {
-    data: route ? route[1](config) : emptyPayload(),
-    status: 200,
-    statusText: 'OK',
-    headers: {},
-    config,
-  } as never;
+  /*
+   * Un rechazo del servidor se devuelve como tal, no como un fallo de red.
+   *
+   * Una regla que lanza —el cupón vencido, la zona apagada— es un 400 con su mensaje, y eso es lo
+   * que la pantalla tiene que mostrar. Dejando escapar el `Error` a secas, axios lo trataba como
+   * «sin conexión» y el modo visual enseñaba un aviso genérico en lugar del texto que escribió
+   * quien programó la regla: justo el que hay que poder revisar.
+   */
+  try {
+    return {
+      data: route ? route[1](config) : emptyPayload(),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    } as never;
+  } catch (error) {
+    const mensaje = error instanceof Error ? error.message : 'No se pudo completar';
+    return Promise.reject(Object.assign(new Error(mensaje), {
+      isAxiosError: true,
+      config,
+      response: { status: 400, statusText: 'Bad Request', headers: {}, config, data: { success: false, message: mensaje } },
+    }));
+  }
 };
 
 if (VISUAL_MODE) {

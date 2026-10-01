@@ -1,13 +1,13 @@
 # Solicitudes de derechos
 
-Los plazos legales, la prórroga y los avisos. Administración → **Solicitudes**.
+Los plazos legales, la prórroga y los avisos. **Administración → Seguridad y privacidad.**
 
 Cuando alguien pide acceder a sus datos, corregirlos o que los borren, empieza a correr un plazo
 legal. **Lo que se incumple no es «no responder»: es «no responder a tiempo».**
 
 ---
 
-## Los plazos, verificados contra el texto oficial
+## 1 · Los plazos, verificados contra el texto oficial
 
 | Qué | Cuánto |
 |---|---|
@@ -16,97 +16,132 @@ legal. **Lo que se incumple no es «no responder»: es «no responder a tiempo»
 | Condición de la prórroga | Avisar **antes** del vencimiento, explicando el motivo |
 | Plazo del titular para reclamar ante la Agencia | 30 días **hábiles** desde la respuesta |
 
-**Corridos, no hábiles.** Cuentan sábados, domingos y festivos. Varias guías comerciales publican
-«15 días hábiles» o «3 días hábiles»; **no coinciden con la ley** y no se siguieron.
+**Corridos, no hábiles.** Cuentan sábados, domingos y festivos.
+
+> Varias guías comerciales publican «15 días hábiles» o «3 días hábiles». **No coinciden con la
+> ley** y no se siguieron. El plazo se verificó contra el texto en la Biblioteca del Congreso
+> Nacional.
 
 ---
 
-## Cómo se ve ahora
-
-La lista se ordena **por vencimiento, no por fecha de entrada**: lo que hay que mirar primero es lo
-que está por vencer, no lo último que llegó.
-
-Cada solicitud muestra en qué punto del plazo está:
-
-| Estado | Qué significa |
-|---|---|
-| **A tiempo** | Queda más de una semana |
-| **Por vencer** | Queda una semana o menos |
-| **Vencida** | Se pasó el plazo |
-| **Respondida** | Se cerró. El plazo dejó de correr |
-
----
+## 2 · La bandeja
 
 ![Los plazos en la bandeja](img/08-solicitudes-plazos.jpg)
-*Ordenadas por vencimiento. La insignia cambia de color al entrar en «por vencer» y otra vez al vencer. El botón de prorrogar sólo aparece donde todavía corresponde.*
+
+Se ordena **por vencimiento, no por fecha de entrada**: lo que hay que mirar primero es lo que está
+por vencer, no lo último que llegó.
+
+### Los cuatro estados del plazo
+
+| Insignia | Cuándo | Color |
+|---|---|---|
+| **Quedan N días** | Queda más de una semana | Gris |
+| **Vence en N días** / **Vence hoy** | Queda una semana o menos | Ámbar |
+| **Vencida hace N días** | Se pasó | Rojo |
+| *(no aparece)* | Ya se respondió. El plazo dejó de correr | — |
+
+Si se prorrogó, la insignia lo dice: **«Quedan 22 días · prorrogada»**, y debajo de la tarjeta
+aparece hasta cuándo y por qué.
+
+El plazo **se calcula al leer, no se guarda**: depende de la fecha de hoy, y un valor guardado
+quedaría viejo al día siguiente. Lo calcula el servidor y no el navegador, porque el reloj del
+navegador lo puede tener cualquiera.
 
 ---
 
-## Los avisos
+## 3 · Los avisos
 
-La dirección recibe un aviso cuando una solicitud entra en **por vencer**, y otro distinto cuando
-**vence**.
+La dirección recibe un aviso cuando una solicitud entra en **por vencer**, y **otro distinto**
+cuando vence.
 
-**Una semana antes, no la víspera.** Responder bien una solicitud de acceso toma días: hay que
-buscar los datos en reservas, en el CRM, en la lista de correo y en los registros de envío.
-Avisar el día antes no sirve de nada.
+| Decisión | Por qué |
+|---|---|
+| **Una semana antes**, no la víspera | Responder una solicitud de acceso toma días: hay que buscar los datos en reservas, en el CRM, en la lista de correo y en los registros de envío |
+| **A la dirección**, no a quien la tomó | Responder una solicitud de derechos no es una tarea asignable que pueda quedarse en la bandeja de alguien que está de vacaciones |
+| **No se repite** cada día | Pero cuando una «por vencer» pasa a «vencida», **vuelve a avisar**: es información nueva |
 
-**Va a la dirección, no a quien la tomó.** Responder una solicitud de derechos no es una tarea
-asignable que pueda quedarse en la bandeja de alguien que está de vacaciones.
-
-**No se repite todos los días**, pero cuando una que estaba «por vencer» pasa a «vencida», vuelve a
-avisar: es información nueva.
-
-Antes de esto, el plazo estaba escrito en las políticas que el comensal lee y **en ninguna parte
-del sistema**. Nadie lo calculaba y nadie avisaba.
+Antes de esto, el plazo estaba escrito en las políticas que el comensal lee y **en ninguna parte del
+sistema**. Nadie lo calculaba y nadie avisaba.
 
 ---
 
-## La prórroga
-
-Botón **Prorrogar** en la solicitud. Pide el **motivo** y da 30 días corridos más.
+## 4 · La prórroga, paso a paso
 
 ![El diálogo de la prórroga](img/08-solicitudes-prorroga.jpg)
-*Dice la fecha del vencimiento original, porque es desde ahí que se cuentan los treinta días.*
 
-Tres condiciones, y las tres las comprueba el servidor porque son de la ley:
+1. En la tarjeta de la solicitud, pulsa **Prorrogar el plazo**.
+2. El diálogo dice **la fecha del vencimiento original**: es desde ahí que se cuentan los treinta
+   días, no desde hoy.
+3. Escribe el **motivo**. Es obligatorio.
+4. **Prorrogar**.
 
-| Condición | Qué pasa si no se cumple |
+Al guardar, el aviso recuerda lo que falta: *«Avísale al titular antes del vencimiento original,
+explicando el motivo»*.
+
+### Las tres condiciones, y qué dice si fallan
+
+| Condición | El mensaje |
 |---|---|
 | **Una sola vez** | «Esta solicitud ya se prorrogó una vez, y la ley permite sólo una» |
 | **Con motivo** | «La prórroga tiene que decir por qué: sin motivo fundado no vale» |
 | **Antes de que venza** | «El plazo ya venció, así que no se puede prorrogar. Responde cuanto antes y deja constancia del retraso en la nota» |
+| Ya respondida | «Esta solicitud ya se respondió: no hay plazo que prorrogar» |
 
-La tercera es la que importa. Una prórroga pedida después del vencimiento no es una prórroga: es un
-incumplimiento ya ocurrido, con mejor cara. Dejarla pasar daría un papel que dice que se cumplió
+Las comprueba **el servidor**, no la pantalla: son de la ley. El botón deja de ofrecerse cuando ya
+no corresponde, para no prometer algo que va a ser rechazado.
+
+La tercera es la que importa. Una prórroga pedida después del vencimiento **no es una prórroga**: es
+un incumplimiento ya ocurrido con mejor cara. Dejarla pasar daría un papel que dice que se cumplió
 cuando no se cumplió, y eso es peor que no tener papel.
 
-**El plazo de la prórroga se cuenta desde el vencimiento original**, no desde el día en que te
-acordaste. Prorrogar el día 29 no da más tiempo que prorrogar el día 2: la ley dice «treinta días
-más», no «treinta desde ahora».
+**El plazo se cuenta desde el vencimiento original.** Prorrogar el día 29 no da más tiempo que
+prorrogar el día 2: la ley dice «treinta días más», no «treinta desde ahora».
 
-**Avisarle al titular es tuyo.** El sistema guarda la fecha y el motivo; mandarle el aviso, con la
-explicación, lo haces tú. La ley exige que se le informe antes del vencimiento y de forma fundada.
-
----
-
-## Una solicitud vencida
-
-No deja de haber que responderla: se responde igual, cuanto antes, y se deja constancia del retraso
-en la nota de resolución. Una respuesta tardía es mejor que ninguna, y la constancia de por qué se
-retrasó es lo que hay que poder mostrar.
+**Avisarle al titular es tuyo.** El sistema guarda la fecha y el motivo; el aviso, con la
+explicación, lo mandas tú.
 
 ---
 
-## Lo que esta pantalla no hace sola
+## 5 · Una solicitud vencida
+
+No deja de haber que responderla: se responde igual, cuanto antes, y se deja **constancia del
+retraso en la nota de resolución**. Una respuesta tardía es mejor que ninguna, y la constancia de
+por qué se retrasó es lo que hay que poder mostrar.
+
+---
+
+![La tarjeta prorrogada](img/08-solicitudes-plazos.jpg)
+*La segunda tarjeta ya está prorrogada: la insignia lo dice y debajo aparece hasta cuándo y por qué. Su botón de prorrogar ya no aparece.*
+
+---
+
+## 6 · El resto de la bandeja
+
+| Acción | Qué hace |
+|---|---|
+| **Aprobar / Resolver** | Cierra la solicitud. Pide una nota de resolución |
+| **Más información** | La deja esperando datos del solicitante. **El plazo sigue corriendo** |
+| **Rechazar** | La cierra rechazada. La persona verá el motivo en su consulta de estado |
+| **Anonimizar datos** | Sólo en solicitudes de anonimización o baja. Ejecuta el borrado |
+| **Reabrir** | Vuelve una cerrada a «recibida» |
+| **Editar** | Corrige los datos del solicitante, el tipo y el mensaje |
+
+Todo cambio queda **auditado** con el estado anterior y el nuevo.
+
+> **Ojo con «Más información».** El plazo no se detiene. Si estás esperando datos y el plazo
+> aprieta, prorroga.
+
+---
+
+## 7 · Lo que esta pantalla no hace sola
 
 **No busca los datos de la persona.** Eso lo hace quien responde: mirar reservas, CRM, lista de
 correo y registro de envíos.
 
 **No borra nada automáticamente.** Hay una acción de anonimizar, y se usa a conciencia.
 
-**No manda la respuesta.** La respuesta se escribe y se manda por fuera, y después se anota aquí
-con su nota de resolución.
+**No manda la respuesta.** Se escribe y se manda por fuera, y después se anota aquí con su nota de
+resolución.
 
 Es a propósito: una solicitud de derechos la contesta una persona que entendió qué le están
 pidiendo. Un sistema que responda solo contestaría mal las que no son estándar, que son justo las
@@ -114,7 +149,32 @@ que importan.
 
 ---
 
-## A qué ley responde
+## 8 · Dónde queda cada cosa
+
+| Qué | Dónde |
+|---|---|
+| La solicitud | `service_requests`: tipo, estado, solicitante, mensaje, nota de resolución |
+| La prórroga | `extended_until` y `extended_reason` |
+| El plazo | **No se guarda**: se calcula al leer |
+| Los cambios | Bitácora de auditoría |
+
+| Acción | Endpoint | Permiso |
+|---|---|---|
+| Listar | `GET /service-requests` | `settings` · ver |
+| Editar | `PUT /service-requests/:id` | `settings` · editar |
+| **Prorrogar** | `POST /service-requests/:id/prorrogar` | `settings` · **manage** |
+| Anonimizar | `POST /service-requests/:id/anonymize` | `settings` · **manage** |
+
+La prórroga exige `manage` y no el `editar` del verbo: es la única decisión de esta pantalla que
+**cambia una obligación legal** frente a quien hizo la solicitud. Quien puede anotar el avance no
+decide por eso cuánto se tarda en responder.
+
+**Cron:** los avisos de «por vencer» y «vencida» los emite el trabajo de alertas operativas. Sin ese
+cron, los plazos se siguen calculando y viendo en pantalla, pero **nadie recibe el aviso**.
+
+---
+
+## 9 · A qué ley responde
 
 **Ley 21.719, derechos del titular.** Acceso, rectificación, supresión, oposición y portabilidad,
 más el derecho a pedir revisión humana de decisiones automatizadas.
@@ -132,22 +192,29 @@ hábiles** para reclamar ante la Agencia de Protección de Datos Personales.
 
 ---
 
-## Preguntas que van a salir
+## 10 · Preguntas que van a salir
 
 **Alguien pide que le borremos todo. ¿Se borra también que pidió no recibir correos?**
-No, y es la única cosa que no se borra. Si se borrara, la siguiente reserva volvería a meterlo en
-la lista y se incumpliría el art. 28 B. Lo que queda es una huella irreversible de la que no se
-puede volver a su dirección. Ver [el manual 04](04-darse-de-baja.md).
+No, y es lo único que no se borra. Si se borrara, la siguiente reserva volvería a meterlo en la
+lista y se incumpliría el art. 28 B. Lo que queda es una huella irreversible
+([manual 04](04-darse-de-baja.md)).
 
 **¿Darse de baja de los correos es una solicitud de derechos?**
 No. La baja se hace sola desde el enlace del correo y no abre ningún procedimiento. Son dos puertas
-distintas y la página de baja lo explica.
+distintas, y la página de baja lo explica.
 
 **¿Y si la solicitud llega por WhatsApp o por teléfono?**
-Anótala igual en esta pantalla. El plazo corre desde que la persona la hizo, no desde que alguien
-la escribió en el sistema, así que conviene anotarla el mismo día.
+Anótala igual en esta pantalla. El plazo corre **desde que la persona la hizo**, no desde que
+alguien la escribió en el sistema: conviene anotarla el mismo día.
+
+**Una solicitud lleva 29 días y no tengo los datos listos.**
+Prorroga hoy. Mañana ya no podrás.
 
 **¿Cuánto hay que guardar la constancia de haber respondido?**
-La recomendación del sistema es **cinco años**, y está fundamentada en
+La recomendación del sistema es **cinco años**, fundamentada en
 [docs/PENDIENTES-PROTECCION-DE-DATOS.md](../PENDIENTES-PROTECCION-DE-DATOS.md). **Falta que un
 abogado lo firme** y que el plazo se escriba en la política de privacidad.
+
+**¿Quién recibe los avisos?**
+La dirección de la organización. Si no hay nadie con ese cargo, no sale ningún aviso: el plazo se
+sigue viendo en pantalla, pero hay que entrar a mirarlo.
