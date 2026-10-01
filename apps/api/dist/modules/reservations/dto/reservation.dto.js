@@ -1487,7 +1487,7 @@ class ExportFormReservationsDto {
 }
 exports.ExportFormReservationsDto = ExportFormReservationsDto;
 __decorate([
-    (0, class_validator_1.IsIn)(['csv', 'json']),
+    (0, class_validator_1.IsIn)(['csv', 'json', 'xlsx']),
     __metadata("design:type", String)
 ], ExportFormReservationsDto.prototype, "format", void 0);
 __decorate([

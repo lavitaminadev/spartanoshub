@@ -822,3 +822,5 @@
 .publish-link-secundario > strong { overflow-wrap:anywhere; font-family:var(--font-mono); font-size:12px; font-weight:500; }
 .publish-link-secundario > div { display:flex; flex-wrap:wrap; gap:7px; }
 .publish-link-secundario > small { color:rgba(255,255,255,.5); line-height:1.5; }
+/* El campo antiguo manda sobre la tabla: se avisa donde se equivoca la gente, no en general. */
+.casillas-equipo-aviso { margin:0; padding:9px 11px; border-radius:var(--radius-md, 10px); background:#fff4d6; color:#6b4d00; font-size:12px; line-height:1.55; }

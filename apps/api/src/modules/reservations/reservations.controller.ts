@@ -469,7 +469,12 @@ export class ReservationsController {
     } else if (body.format === 'csv') {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
-      res.send(`\uFEFF${result}`);
+      // La marca de orden de bytes la pone quien arma el texto: aqu\u00ED se env\u00EDa tal cual.
+      res.send(result);
+    } else if (body.format === 'xlsx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.xlsx"`);
+      res.end(result as Buffer);
     }
   }
 

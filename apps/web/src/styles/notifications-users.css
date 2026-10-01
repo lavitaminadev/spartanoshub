@@ -416,3 +416,10 @@
 /* Anotar una petición recibida por fuera (SERNAC, teléfono, soporte). */
 .exclusiones-anotar { display:grid; gap:10px; max-width:520px; margin-top:10px; padding:14px; border:1px dashed var(--border-light); border-radius:var(--radius-md); }
 .exclusiones-anotar label { display:grid; gap:4px; font-size:13px; }
+
+/* Los destinatarios de una encuesta: la lista entera, porque aquí la pregunta es «¿a quién?». */
+.destinatarios-encuesta { display:grid; gap:2px; margin:0; padding:0; list-style:none; }
+.destinatarios-encuesta li { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0; border-bottom:1px solid var(--border-light); font-size:13px; }
+.destinatarios-agregar { display:flex; gap:8px; align-items:center; }
+.destinatarios-agregar .input { flex:1; }
+.destinatarios-encuesta li.es-invalido span { color:var(--danger-deep, #9b1c1c); }

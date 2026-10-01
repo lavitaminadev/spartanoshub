@@ -29,7 +29,11 @@ interface TipoDeAviso { clave: string; etiqueta: string }
  *
  * @param empresa El local. Vacío en el portal, donde el servidor usa la empresa de la cuenta.
  */
-export function CasillasDelEquipo({ empresa }: { empresa?: string | null }) {
+export function CasillasDelEquipo({ empresa, heredadas = [] }: {
+  empresa?: string | null;
+  /** Las direcciones del campo antiguo del formulario. Reciben todos los avisos, y hay que decirlo. */
+  heredadas?: string[];
+}) {
   const clienteDeConsultas = useQueryClient();
   const sufijo = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
 
@@ -84,6 +88,19 @@ export function CasillasDelEquipo({ empresa }: { empresa?: string | null }) {
 
       {error ? <p className="error-text">No se pudieron cargar las casillas del equipo.</p> : null}
       {isLoading ? <p className="tabla-nota">Cargando…</p> : null}
+
+      {/*
+        Arriba manda, y hay que decirlo donde se equivoca la gente.
+        El campo antiguo del formulario reparte los seis avisos. Si una dirección está en los dos
+        sitios, recibe todo aunque aquí abajo tenga una sola casilla marcada, y entonces esta tabla
+        parece rota. Se avisa nombrando a quién le pasa, no en general.
+      */}
+      {heredadas.length > 0 && <p className="casillas-equipo-aviso">
+        <strong>Ojo:</strong> {heredadas.length === 1 ? 'esta dirección está' : 'estas direcciones están'} también
+        en el campo de arriba, así que {heredadas.length === 1 ? 'recibe' : 'reciben'} <strong>todos</strong> los
+        avisos aunque aquí marques sólo uno: {heredadas.join(', ')}. Para repartirlos, quítala{heredadas.length === 1 ? '' : 's'} de
+        arriba y déjala{heredadas.length === 1 ? '' : 's'} sólo en esta tabla.
+      </p>}
 
       {lista.length > 0 && <table className="casillas-equipo-tabla">
         <thead>

@@ -6,7 +6,7 @@ import { VitaIcons } from '../../shared/Icons';
 import { triggerToast } from '../../shared/toast-events';
 
 interface ExportOptions {
-  format: 'csv' | 'json' | 'imprimir';
+  format: 'xlsx' | 'csv' | 'imprimir';
   dateFrom: string;
   dateTo: string;
   fields: string[];
@@ -65,10 +65,21 @@ function abrirHojaImprimible(titulo: string, registros: Array<Record<string, unk
   header small { color:#706a73; }
   table { width:100%; border-collapse:collapse; font-size:12px; }
   th, td { padding:7px 9px; text-align:left; vertical-align:top; border-bottom:1px solid #e7e1e5; }
-  th { background:#f4f7f5; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#4a4247; }
-  tbody tr:nth-child(even) td { background:#fafbfa; }
+  th { background:#0e8c82; color:#fff; font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
+  /* La primera columna es el nombre: en una hoja que se lee de reojo, conviene que pese. */
+  tbody td:first-child { font-weight:600; }
+  tbody tr:nth-child(even) td { background:#f7faf9; }
   tfoot { color:#706a73; font-size:11px; }
-  @media print { body { padding:0; } thead { display:table-header-group; } tr { break-inside:avoid; } .no-imprimir { display:none; } }
+  @media print {
+    body { padding:0; }
+    /* La cabecera se repite en cada hoja: sin esto, a partir de la segunda no se sabe qué es cada columna. */
+    thead { display:table-header-group; }
+    tr { break-inside:avoid; }
+    /* Los navegadores quitan los fondos al imprimir, y con ellos se va la cabecera verde. */
+    th, tbody tr:nth-child(even) td { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .no-imprimir { display:none; }
+    @page { margin:14mm 10mm; }
+  }
   @media (max-width:640px) {
     thead { display:none; }
     tbody tr { display:block; margin-bottom:10px; border:1px solid #e7e1e5; border-radius:8px; padding:6px; }
@@ -88,7 +99,7 @@ function abrirHojaImprimible(titulo: string, registros: Array<Record<string, unk
 
 export function ExportModal({ open, onClose, formId, clientView = false }: ExportModalProps) {
   const [options, setOptions] = useState<ExportOptions>({
-    format: 'csv',
+    format: 'xlsx',
     dateFrom: '',
     dateTo: '',
     fields: ['name', 'phone', 'email', 'date', 'status', 'attendance'],
@@ -148,11 +159,11 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
       a.download = `reservas-${new Date().toISOString().slice(0, 10)}.${options.format}`;
       a.click();
       URL.revokeObjectURL(url);
-      triggerToast('Archivo descargado exitosamente', 'success');
+      triggerToast(options.format === 'xlsx' ? 'Planilla descargada.' : 'Archivo descargado.', 'success');
       onClose();
     },
     onError: (error: Error) => {
-      triggerToast(error.message || 'Error al descargar el archivo', 'error');
+      triggerToast(error.message || 'No se pudo descargar el archivo', 'error');
     }
   });
 
@@ -201,10 +212,17 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
               value={options.format}
               onChange={(e) => setOptions({ ...options, format: e.target.value as ExportOptions['format'] })}
             >
-              <option value="csv">CSV (Excel)</option>
+              <option value="xlsx">Excel (.xlsx)</option>
+              <option value="csv">CSV</option>
               <option value="imprimir">Hoja imprimible (PDF)</option>
-              <option value="json">JSON</option>
             </select>
+            {/*
+              JSON se quitó de la lista: nadie del local abre un JSON, y quien lo necesita de
+              verdad —la hoja imprimible— lo pide por dentro sin pasar por aquí. Una opción que
+              sólo sirve para equivocarse es una opción de menos.
+            */}
+            {options.format === 'xlsx' && <small>Se abre en Excel tal cual: cabecera fija, columnas al ancho de su contenido y todo como texto, así que un teléfono con «+» no se convierte en fórmula.</small>}
+            {options.format === 'csv' && <small>Texto separado por comas, para subirlo a otra herramienta. Excel también lo abre, pero la planilla de arriba se ve mejor.</small>}
             {options.format === 'imprimir' && <small>Se abre una hoja lista para imprimir. En el diálogo del navegador elige «Guardar como PDF».</small>}
           </label>
 

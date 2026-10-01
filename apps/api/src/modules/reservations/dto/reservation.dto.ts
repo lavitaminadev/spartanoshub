@@ -433,7 +433,7 @@ export class UpdateCouponDto {
 }
 
 export class ExportFormReservationsDto {
-  @IsIn(['csv', 'json']) format: 'csv' | 'json';
+  @IsIn(['csv', 'json', 'xlsx']) format: 'csv' | 'json' | 'xlsx';
   @IsOptional() @IsDateString() dateFrom?: string;
   @IsOptional() @IsDateString() dateTo?: string;
   @IsArray() @IsString({ each: true }) @MaxLength(120, { each: true }) fields: string[];

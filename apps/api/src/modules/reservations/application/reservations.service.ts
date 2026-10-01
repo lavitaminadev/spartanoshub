@@ -44,6 +44,7 @@ import type { TipoDeAviso } from '../../../core/notifications/destinatario-de-av
 import { inferLocationFromPhone } from '../../../shared/geo-inference';
 import { GoogleConversionOutboxService } from '../../integrations/google/google-conversion-outbox.service';
 import { normalizeClientCapabilities } from '../../clients/client-capabilities';
+import { planillaXlsx } from '../../../shared/planilla-xlsx';
 
 /**
  * Recomendaciones que el local muestra al confirmar una reserva.
@@ -3580,7 +3581,7 @@ export class ReservationsService {
     formId: string,
     clientId?: string,
     clientIds?: string[],
-    format: 'csv' | 'json' | 'pdf' = 'csv',
+    format: 'csv' | 'json' | 'xlsx' = 'csv',
     dateFrom?: string,
     dateTo?: string,
     fields: string[] = ['name', 'phone', 'email', 'date', 'status', 'attendance'],
@@ -3631,6 +3632,43 @@ export class ReservationsService {
     };
 
     const allowedFields = includeInternalNotes ? fields : fields.filter((field) => field !== 'notes');
+
+    /*
+     * Las columnas se titulan en palabras, no con el nombre del campo.
+     *
+     * La cabecera decía `party_size` y `utm_source`: identificadores internos que quien abre la
+     * planilla en el local no tiene por qué conocer, y que además no se pueden ordenar ni explicar
+     * en una reunión. Las preguntas del formulario ya salían con su enunciado; estas no.
+     */
+    const TITULOS: Record<string, string> = {
+      name: 'Nombre', phone: 'Teléfono', email: 'Correo', date: 'Fecha y hora',
+      status: 'Estado', attendance: 'Asistió', notes: 'Notas internas',
+      origin: 'Canal', medium: 'Medio', campaign: 'Campaña', content: 'Contenido',
+      code: 'Código', coupon: 'Cupón', party_size: 'Personas',
+    };
+    const tituloDe = (campo: string) => TITULOS[campo] ?? campo;
+    const cabeceras = [...allowedFields.map(tituloDe), ...clavesRespuesta.map(etiquetaDe)];
+    const valores = (item: Reservation) => [
+      ...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'),
+      ...clavesRespuesta.map((clave) => valorDe(item, clave)),
+    ];
+
+    /*
+     * La planilla de Excel, que es lo que de verdad se pide.
+     *
+     * El CSV lo abre Excel pero lo abre mal: sin marca de orden de bytes se comen los acentos,
+     * y un teléfono que empieza por `+` lo interpreta como fórmula. Aquí va como texto, con la
+     * cabecera fija y las columnas al ancho de su contenido.
+     */
+    if (format === 'xlsx') {
+      const fecha = (valor: unknown) => (valor instanceof Date ? valor.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : valor);
+      return planillaXlsx(
+        cabeceras,
+        items.map((item) => valores(item).map(fecha)),
+        form?.name ?? 'Reservas',
+      );
+    }
+
     if (format === 'json') {
       return items.map((item) => {
         const record: Record<string, any> = {};
@@ -3642,9 +3680,15 @@ export class ReservationsService {
       });
     } else if (format === 'csv') {
       const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
-      const headers = [...allowedFields, ...clavesRespuesta.map(etiquetaDe)];
-      const filas = items.map((item) => [...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'), ...clavesRespuesta.map((clave) => valorDe(item, clave))]);
-      return [headers, ...filas].map((row) => row.map(escape).join(',')).join('\r\n');
+      const filas = items.map((item) => valores(item));
+      /*
+       * Con marca de orden de bytes al principio.
+       *
+       * Sin ella, Excel en español abre el archivo en la codificación del sistema y las eñes y las
+       * tildes salen como pares de símbolos sin sentido. Son tres bytes que ahorran tener que
+       * importar el archivo a mano eligiendo UTF-8 en el asistente.
+       */
+      return `﻿${[cabeceras, ...filas].map((row) => row.map(escape).join(',')).join('\r\n')}`;
     }
 
     // El formato PDF se retiró: devolvía texto separado por tabuladores con cabecera de PDF,
