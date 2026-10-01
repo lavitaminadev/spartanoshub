@@ -1,23 +1,30 @@
 # Suscriptores y exclusiones
 
-La lista, la prueba de cada dirección, y quién pidió no recibir más. Marketing → **Suscriptores**.
+La lista, la prueba de cada dirección, y quién pidió no recibir más. **Marketing → Suscriptores.**
 
-Esta pantalla contesta dos preguntas distintas. Arriba, «¿quién está en la lista?». Abajo,
-«¿a quién tengo prohibido escribirle?». La segunda no es una lista que se pueda mirar, y eso tiene
-una razón.
+Esta pantalla contesta dos preguntas distintas. Arriba, «¿quién está en la lista?». Abajo, «¿a quién
+tengo prohibido escribirle?». La segunda no es una lista que se pueda mirar, y eso tiene una razón.
 
 ---
 
-## Arriba: quiénes están
-
-Cada empresa tiene su propia lista y su propio permiso. **La misma persona puede estar suscrita en
-un local y de baja en otro**, y eso no es un error: son permisos distintos dados a responsables
-distintos.
-
-Las tarjetas de arriba resumen cada empresa y filtran al tocarlas.
+## 1 · Arriba: quiénes están
 
 ![La lista de suscriptores](img/06-suscriptores-lista.jpg)
-*La misma persona, suscrita en un local y de baja en otro. Y las procedencias nuevas: «red» y «Se suscribió».*
+
+Cada empresa tiene su propia lista y su propio permiso. **La misma persona puede estar suscrita en
+un local y de baja en otro** —mira a Ana Moya en la captura—, y eso no es un error: son permisos
+distintos dados a responsables distintos.
+
+Las tarjetas de arriba resumen cada empresa y **filtran al tocarlas**.
+
+### Los filtros
+
+| Filtro | Qué hace |
+|---|---|
+| Buscar | Por nombre **o** correo, con la misma caja: se busca a una persona, no un campo |
+| Empresa | Todas, la agencia, o una concreta. **No aparece** para una cuenta de empresa |
+| Estado | Suscrito / Pendiente / De baja. De fábrica muestra **Suscrito** |
+| Procedencia | Sólo las que existen de verdad, para no ofrecer lo que no hay |
 
 ### Los tres estados
 
@@ -32,6 +39,15 @@ se le puede preguntar una vez, a la segunda no se le puede escribir nunca más.
 
 «Pendiente» es, casi siempre, una fila importada sin declarar qué aceptó.
 
+### Dos cosas más que deciden si recibe
+
+Aunque esté «Suscrito», no recibe campañas si:
+
+- **Declaró ser menor de edad**, o su fecha de nacimiento dice que lo es. La declaración manda sobre
+  la fecha: es lo que la persona afirmó expresamente. Si no hay ninguna de las dos, se permite —
+  exigirlas dejaría fuera a toda la lista recogida antes de preguntarlas—.
+- **Está en la lista de exclusión**, aunque su ficha diga «Suscrito». Se comprueba pegado al envío.
+
 ### De dónde salió cada una
 
 | Procedencia | Qué fue |
@@ -43,24 +59,21 @@ se le puede preguntar una vez, a la segunda no se le puede escribir nunca más.
 
 ---
 
-## Ver ficha: la prueba de una dirección
+## 2 · Ver ficha: la prueba de una dirección
 
-El botón **Ver ficha** abre todo lo que respalda esa dirección:
+![La ficha de un suscriptor](img/06-ficha-del-suscriptor.jpg)
 
 | Dato | Para qué sirve |
 |---|---|
 | Empresa, nombre, estado | Lo evidente |
-| De dónde salió | La respuesta a «¿de dónde sacaron mi correo?» |
+| **De dónde salió** | La respuesta a «¿de dónde sacaron mi correo?» |
 | **Dijo que sí** | Fecha y hora exactas |
-| **Desde qué dirección** | La IP. Es lo que convierte «dijo que sí» en comprobable |
+| **Desde qué dirección** | La IP. Convierte «dijo que sí» en comprobable. Vacía en las importaciones, donde el respaldo es el archivo |
 | Declaró ser mayor de edad | Fecha, o «no consta» |
 | Fecha de nacimiento declarada | Para el beneficio de cumpleaños |
 | Último correo enviado | Para no repetir campañas sobre la misma gente |
-| **Se dio de baja** | Fecha, alcance, y desde qué correo la pidió |
+| **Se dio de baja** | Fecha, alcance, y **desde qué correo** la pidió |
 | **El texto que aceptó** | Entero, tal como lo leyó |
-
-![La ficha de un suscriptor](img/06-ficha-del-suscriptor.jpg)
-*Todo lo que respalda esa dirección, incluido el texto que leyó al aceptar.*
 
 El texto va entero y sin resumir. Se guardaba desde siempre y **no se mostraba en ninguna parte**:
 guardar la prueba sin poder leerla no sirve para el día en que alguien reclame.
@@ -70,15 +83,9 @@ No se puede defender, y por eso queda en «pendiente» y no recibe campañas.
 
 ---
 
-## Abajo: quiénes pidieron no recibir más
-
-> Hay **37** peticiones anotadas · **12** de todos los locales.
-> No se pueden listar: se guarda una huella y no el correo, para poder cumplir la petición sin
-> quedarse con la dirección de quien pidió que la borráramos. Sí se puede preguntar por una
-> dirección concreta.
+## 3 · Abajo: quiénes pidieron no recibir más
 
 ![Las exclusiones](img/06-exclusiones.jpg)
-*El número sí se puede mostrar. Las direcciones no: lo que se guarda es una huella.*
 
 ### Por qué no se pueden listar
 
@@ -100,109 +107,169 @@ cuando alguien llama diciendo «sigo recibiendo correos».
 
 ### Consultar una dirección
 
-Escribe el correo y pulsa **Consultar**. Tres respuestas posibles:
+Escribe el correo y pulsa **Consultar**. Tres respuestas:
 
 | Respuesta | Qué hacer |
 |---|---|
-| **Pidió no recibir de ningún local** | Nada. Si dice que sigue recibiendo, es un correo de servicio, no publicidad |
-| **Pidió no recibir de una empresa** | Ver de cuál y desde cuándo. Si le llegó algo de ésa después de esa fecha, hay un problema |
-| **No consta ninguna petición** | Búscala arriba en la lista: puede estar suscrita y no haber pedido la baja nunca |
+| **«Pidió no recibir de ningún local»** | Si dice que sigue recibiendo, mira qué correo recibió: una confirmación de reserva **no** es publicidad |
+| **«Pidió no recibir de una empresa»** | Dice de cuál, desde cuándo y desde qué correo. Si le llegó algo de ésa después de esa fecha, hay un problema real |
+| **«No consta ninguna petición»** | Búscala arriba en la lista: puede estar suscrita y no haber pedido la baja nunca |
 
 ---
 
-## Anotar una petición recibida por fuera
+## 4 · Anotar una petición recibida por fuera
 
-Botón **«Anotar una petición recibida por fuera»**.
+![Anotar una petición](img/06-anotar-peticion.jpg)
 
 No toda petición de baja llega por el enlace del correo. Llega por tres caminos más, y los tres
 obligan igual:
 
-**El SERNAC.** Su sistema «No Molestar» **no es un registro que uno consulte**. Funciona al revés:
-el consumidor entra al Portal del Consumidor, escribe su correo y **elige las empresas** que quiere
-bloquear; el SERNAC **te reenvía la solicitud**; y tienes **siete días** para cumplirla. Si sigues
-escribiéndole, puede presentar un *aviso de incumplimiento*, que es la antesala del procedimiento
-sancionatorio.
+### El SERNAC: cómo funciona de verdad
 
-**Una llamada o un correo a soporte** diciendo «sáquenme de la lista».
+**No es un registro que uno consulte.** Funciona al revés:
 
-**Un reclamo**, donde la prueba de cuándo se aplicó es justo lo que te van a pedir.
+1. El consumidor entra al Portal del Consumidor, escribe su correo y **elige las empresas** que
+   quiere bloquear. No es un bloqueo general.
+2. El SERNAC **te reenvía la solicitud**.
+3. Tienes **siete días** para cumplirla.
+4. Si sigues escribiéndole, puede presentar un **aviso de incumplimiento**, que es la antesala del
+   procedimiento sancionatorio.
 
-![Anotar una petición recibida por fuera](img/06-anotar-peticion.jpg)
-*El origen es obligatorio: es lo único que explica por qué esa dirección quedó excluida sin que nadie hiciera clic en nada.*
+**No hay nada que consultar: hay algo que aplicar en siete días.**
+
+### Los otros dos caminos
+
+- Una **llamada** o un **correo a soporte** diciendo «sáquenme de la lista».
+- Un **reclamo**, donde la prueba de cuándo se aplicó es justo lo que te van a pedir.
 
 ### Cómo se anota
 
 1. Escribe el **correo**.
-2. Escribe **de dónde vino**. Es obligatorio: *«Aviso SERNAC 12-03-2026»*, *«Llamó por teléfono el
-   3 de marzo»*. Es lo único que explica por qué esa dirección quedó excluida sin que nadie hiciera
-   clic en ningún enlace. Un campo vacío no es una respuesta ante un reclamo.
+2. Escribe **de dónde vino**: *«Aviso SERNAC 12-03-2026»*, *«Llamó por teléfono el 3 de marzo»*. Es
+   **obligatorio**: es lo único que explica por qué esa dirección quedó excluida sin que nadie
+   hiciera clic en ningún enlace.
 3. **Anotar la petición**.
 
 Se aplica **a todos los locales**, que es lo que pide quien lo pide por estas vías.
 
-**Funciona aunque la persona no esté en ninguna lista**, y es a propósito: la petición vale igual, y
-la exclusión impide que entre después por una reserva. Quien pide no recibir antes de estar no
-tiene por qué volver a pedirlo.
+| Si… | Responde |
+|---|---|
+| Estaba en una o más listas | «Anotado. N ficha(s) de baja; no recibirá más correos comerciales» |
+| **No estaba en ninguna** | «Anotado. No estaba en ninguna lista, y con esto tampoco va a entrar por una reserva» |
+| Falta el origen | «Hay que decir de dónde vino la petición: es lo que se muestra si alguien reclama» |
+| El correo no tiene arroba | «Falta una dirección de correo válida» |
+
+**Funciona aunque la persona no esté en ninguna lista**, y es el caso más importante: la petición
+vale igual, y la exclusión impide que entre después por una reserva.
+
+**Una baja ya anotada conserva su fecha.** Es la que vale si reclama por los envíos.
 
 ---
 
-## Importar y descargar
+## 5 · Importar y descargar
 
-**Importar** sube un archivo y **exige declarar de dónde salió** y, si lo hubo, el texto que esas
-personas aceptaron. Sin eso las filas entran como «pendiente» y no reciben nada.
+### Importar
 
-**Descargar los suscritos** da el archivo de una empresa, **sólo de quienes están suscritos ahora
-mismo**. Incluir a quien se dio de baja pondría esa dirección en un archivo que sale del sistema,
-donde el enlace de baja ya no funciona y la baja no se puede hacer cumplir.
+Exige **declarar de dónde salió** y, si lo hubo, el **texto que esas personas aceptaron**. Sin eso
+las filas entran como «pendiente» y no reciben nada.
 
-Queda anotado quién descargó y cuántas filas: desde ese momento, esa copia es responsabilidad de
+Al terminar dice cuántas quedaron nuevas, cuántas se actualizaron, cuántas **se respetaron de baja**
+—ya estaban y no se tocan—, cuántas se **excluyeron** y cuáles se descartaron, con el número de
+línea y el motivo.
+
+### Descargar
+
+Da el archivo de una empresa, **sólo de quienes están suscritos ahora mismo**. Incluir a quien se
+dio de baja pondría esa dirección en un archivo que sale del sistema, donde el enlace de baja ya no
+funciona y la baja no se puede hacer cumplir.
+
+Queda anotado **quién descargó y cuántas filas**: desde ese momento, esa copia es responsabilidad de
 quien la tiene.
 
 ---
 
-## Quién ve qué
+## 6 · Quién ve qué
 
-| Cargo | La lista | Ficha | Consultar exclusiones | Anotar peticiones |
-|---|:--:|:--:|:--:|:--:|
-| Administración, Dir. Comercial, Dev | Todas | ✓ | ✓ | ✓ |
-| **La cuenta de la empresa** | **Sólo la suya** | ✓ | ✗ | ✗ |
+| Cargo | La lista | Ficha | Descargar | Importar | Consultar exclusiones | Anotar peticiones |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|
+| Administración, Dir. Comercial, Dev | Todas | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **La cuenta de la empresa** | **Sólo la suya** | ✓ | ✓ (la suya) | ✗ | ✗ | ✗ |
 
 Las exclusiones son **sólo de la agencia**. Una cuenta de empresa preguntando por una dirección
 cualquiera sabría si esa persona está en el sistema, que es información de otros locales.
 
+Una cuenta de empresa sin empresa asignada **se rechaza**, en vez de darle la de la agencia por
+descarte: caer hacia la lista propia de Espartanos ante un dato que falta es al revés de lo
+prudente.
+
 ---
 
-## A qué ley responde
+## 7 · Dónde queda cada cosa
+
+| Qué | Dónde |
+|---|---|
+| La ficha | `email_subscribers` |
+| Unicidad | Una fila por **organización + empresa + correo** |
+| El texto aceptado | `consent_text`, entero |
+| La huella de exclusión | `email_suppression`: SHA-256 de `organización:correo`, empresa, alcance, origen |
+
+**Por qué la unicidad incluye la empresa.** Antes era una fila por organización: quien reservaba en
+dos locales tenía una sola ficha, asignada al primero. Darse de baja desde el correo de uno la
+sacaba también del otro, y el segundo probablemente no la alcanzaba nunca.
+
+| Acción | Endpoint |
+|---|---|
+| Listar | `GET /marketing/suscriptores` |
+| Descargar | `GET /marketing/suscriptores/descargar?empresa=…` |
+| Importar | `POST /marketing/suscriptores/importar` |
+| Consultar exclusión | `GET /marketing/suscriptores/exclusiones?correo=…` |
+| Anotar petición externa | `POST /marketing/suscriptores/exclusiones` |
+
+---
+
+## 8 · A qué ley responde
 
 **Ley 19.496, art. 28 B.** La lista de exclusión es el mecanismo que hace cumplible el *«quedarán
 desde entonces prohibidos»*. Sin ella, la prohibición dependería de que la ficha no se borrara
-nunca.
+nunca. El botón de anotar peticiones externas es lo que permite cumplir un aviso del SERNAC dentro
+de sus siete días sin editar la base a mano.
 
-**Ley 21.719, licitud y responsabilidad proactiva.** Hay que poder demostrar el origen de cada
-dato y que el tratamiento es lícito. La ficha completa —origen, texto, fecha, IP— es esa
-demostración, y por eso ahora se puede leer.
+**Ley 21.719, licitud y responsabilidad proactiva.** Hay que poder demostrar el origen de cada dato
+y que el tratamiento es lícito. La ficha completa —origen, texto, fecha, IP— es esa demostración, y
+por eso ahora se puede leer.
 
 **Ley 21.719, supresión.** Se concilia con lo anterior guardando una huella y no la dirección.
 
-**Ley 21.719, minimización, aplicada a quien mira.** Que una cuenta de empresa no pueda consultar
-exclusiones no es jerarquía: es que ese dato no le hace falta para su trabajo y revelaría
-información de otras empresas.
+**Ley 21.719, minimización aplicada a quien mira.** Que una cuenta de empresa no pueda consultar
+exclusiones no es jerarquía: ese dato no le hace falta para su trabajo y revelaría información de
+otras empresas.
+
+**Protección de menores.** Que un menor declarado no reciba campañas vive en la propia ficha y no en
+el criterio de quien mira la lista: una regla que hay que recordar aplicar es una regla que un día
+no se aplica.
 
 ---
 
-## Preguntas que van a salir
+## 9 · Preguntas que van a salir
 
 **Aparece dos veces la misma persona.**
 Es correcto si está en dos empresas: son dos permisos distintos. Dentro de una misma empresa no
 puede repetirse.
 
 **¿Puedo borrar una fila?**
-Desde aquí no. El borrado de datos se pide en /solicitudes y tiene su procedimiento
-([manual 08](08-solicitudes-de-derechos.md)). Borrar a mano se saltaría la constancia de la baja.
+Desde aquí no. El borrado se pide en /solicitudes ([manual 08](08-solicitudes-de-derechos.md)).
+Borrar a mano se saltaría la constancia de la baja.
 
 **Alguien se dio de baja y quiere volver.**
-Tiene que pedirlo expresamente, sabiendo que había pedido no recibir. El sistema lo permite por ese
-camino y no por otro: reservar de nuevo no basta.
+Tiene que pedirlo expresamente, sabiendo que había pedido no recibir. Reservar de nuevo no basta.
 
 **¿Qué pasa si importo a alguien que está excluido?**
 No entra, y la importación te dice cuántas filas se descartaron por eso.
+
+**Está «Suscrito» pero no le llegó la campaña.**
+Cuatro causas, en orden: es menor declarado; está en la lista de exclusión; se dio de baja entre el
+encolado y el envío; o el correo rebotó. Lo último se ve en el registro de envíos.
+
+**¿Cuántas personas hay en total?**
+El contador de la derecha dice cuántas trae el filtro actual; las tarjetas de arriba, cuántas por
+empresa y en qué estado.
