@@ -138,6 +138,18 @@ ese local y a nadie más—. Ahora hay una lista con el permiso correcto, y se l
 La ficha de una reserva muestra las cuatro aceptaciones con su fecha **y el texto que se aceptó**,
 plegado. Se guardaba desde siempre y no se mostraba en ninguna parte.
 
+### La ficha de la reserva: dónde se lee la prueba
+
+**Reservas → Reservas → toca la reserva.** Abajo, en **«LO QUE ACEPTÓ»**:
+
+![La ficha de una reserva, con los textos](img/01-ficha-reserva-textos.jpg)
+
+Las siete aceptaciones con su **Sí/No** y la fecha exacta, y las que tienen texto guardado traen
+**«Ver el texto que aceptó»**, plegado para que la ficha siga leyéndose de un vistazo.
+
+Ésta es la pantalla que hay que abrir cuando alguien reclama. El texto se guardaba entero desde
+siempre y **no se mostraba en ninguna parte**: guardar la prueba sin poder leerla no sirve.
+
 **El texto no lo puede redactar el local.** El de la casilla del local sí se personaliza desde el
 constructor; el de la red no, porque un local no puede redactar en qué términos un tercero va a
 tratar datos de los que ese tercero será responsable.

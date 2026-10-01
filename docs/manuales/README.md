@@ -16,6 +16,7 @@ que sepas lo que es un token o una migración, el manual está mal escrito.
 | [06 · Suscriptores y exclusiones](06-suscriptores-y-exclusiones.md) | La lista, la prueba de cada dirección, y quién pidió no recibir | Marketing → Suscriptores |
 | [07 · Avisos de las encuestas](07-encuestas-y-avisos.md) | Qué pasa cuando alguien escribe un mensaje en una encuesta | Encuestas |
 | [08 · Solicitudes de derechos](08-solicitudes-de-derechos.md) | Los plazos legales, la prórroga y los avisos | Administración → Solicitudes |
+| [09 · La página pública de reserva](09-pagina-publica-de-reserva.md) | Qué ve quien reserva, en qué orden y por qué | Reservas → Diseño público |
 
 ## Qué trae cada manual
 

@@ -91,9 +91,26 @@ escribirle a quien no corresponde es peor que no escribir.
 
 ---
 
-## 6 · Mandar una encuesta por correo
+## 6 · Dónde queda el mensaje si el correo no sale
+
+![Resultados de una encuesta](img/07-resultados.jpg)
+
+**Encuestas → la encuesta → Resultados.** El recuadro **«Mensajes al equipo»** cuenta cuántas
+personas escribieron algo. El mensaje se guarda **siempre**, aunque el correo esté apagado o no
+haya nadie a quien avisar: el aviso es para que alguien lo lea esa noche, no el único sitio donde
+queda.
+
+La tabla **«De dónde llegaron»** dice por qué canal entró cada respuesta —correo post-reserva, QR en
+el local, Instagram—, que es lo que permite saber si el QR de la carta está funcionando.
+
+---
+
+## 7 · Mandar una encuesta por correo
 
 Se puede, y **no hace falta que las personas tengan cuenta**.
+
+![La lista de encuestas](img/07-encuestas-lista.jpg)
+*Cada encuesta tiene «Compartir» y «Resultados». La columna RESPUESTAS cuenta las recibidas.*
 
 1. Al crear o editar la encuesta, en el paso de **distribución**, marca **Correo**.
 2. Escribe las direcciones separadas por coma.
@@ -113,12 +130,15 @@ crearles usuario.
 Al terminar responde cuántos **enviados**, cuántos **fallidos** y cuántos **inválidos** —los que no
 tenían forma de correo—. Van uno por uno: si un destino falla, los demás siguen saliendo.
 
+![Compartir: enlaces por canal, QR y correo](img/07-compartir-qr-correo.jpg)
+*En «Compartir» están los enlaces por canal, el **código QR con Descargar PNG e Imprimir**, y el envío por correo con sus destinatarios cargados.*
+
 El texto sale de la plantilla de Correos, pero **el texto de bienvenida que escribió quien armó la
 encuesta manda sobre ella**: es lo que esa encuesta en particular quiso decir.
 
 ---
 
-## 7 · La invitación no lleva enlace de baja
+## 8 · La invitación no lleva enlace de baja
 
 ![La invitación a una encuesta](img/07-correo-invitacion.jpg)
 
@@ -136,7 +156,7 @@ un enlace de baja ahí dejaría que alguien se apagara los avisos de nota baja d
 
 ---
 
-## 8 · Encuestas al equipo: lo que las hace distintas
+## 9 · Encuestas al equipo: lo que las hace distintas
 
 | | Encuesta a clientes | **Encuesta al equipo** (`internal`) |
 |---|---|---|
@@ -153,7 +173,7 @@ encuestas internas no se asignan a una empresa».
 
 ---
 
-## 9 · Dónde queda cada cosa
+## 10 · Dónde queda cada cosa
 
 | Qué | Dónde |
 |---|---|
@@ -174,7 +194,7 @@ elegida. El aviso de mensaje **no depende de ningún cron**: sale en el momento.
 
 ---
 
-## 10 · A qué ley responde
+## 11 · A qué ley responde
 
 **Ley 19.496, art. 28 B — y por qué no aplica aquí.** Exige el enlace de suspensión en
 comunicaciones *promocionales o publicitarias*. Una invitación a responder una encuesta sobre una
@@ -190,7 +210,7 @@ encuestas internas.
 
 ---
 
-## 11 · Preguntas que van a salir
+## 12 · Preguntas que van a salir
 
 **No me llegó el aviso de un mensaje.**
 En orden: que haya alguien marcado con «Mensaje en una encuesta»; que el aviso esté encendido en

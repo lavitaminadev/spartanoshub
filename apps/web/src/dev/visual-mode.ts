@@ -291,6 +291,22 @@ const VISUAL_RESERVATIONS = [
     guestName: 'Camila Rojas', guestPhone: '+56 9 8123 4567', guestEmail: 'camila@example.test',
     resourceId: 'terrace', couponCode: 'VERANO20', tableLabel: '12',
     answers: { ocasion: 'Cumpleaños', childrenCount: 1, dietaryNotes: 'Sin gluten', notes: 'Llegamos 10 minutos tarde.' },
+    /*
+     * Lo que aceptó, con el texto y no sólo la fecha.
+     *
+     * Es la prueba que hay que poder mostrar si esta persona reclama, y sin textos en el ejemplo la
+     * ficha enseña siete fechas y ningún «Ver el texto que aceptó»: justo lo que hay que revisar.
+     * Marcó los beneficios del local y los de la red, que son dos permisos distintos.
+     */
+    reservationConsentAt: haceMinutos(180),
+    reservationConsentText: 'Acepto las condiciones de la reserva y declaro haber leído la política de privacidad. Casa SpA, RUT 76.086.428-5 («Casa Costanera») usará mi nombre, teléfono, correo y los datos de esta reserva para gestionarla, confirmarla, modificarla o cancelarla y contactarme por ese motivo.',
+    marketingConsentAt: haceMinutos(180),
+    marketingConsentText: 'Quiero recibir beneficios y novedades de Casa SpA («Casa Costanera»): promociones, beneficio de cumpleaños, invitaciones a eventos y encuestas, por correo, WhatsApp o SMS. Es opcional, no condiciona mi reserva y puedo retirarlo cuando quiera, sin costo, desde cada mensaje.',
+    groupMarketingConsentAt: haceMinutos(180),
+    groupMarketingConsentText: 'Quiero recibir además beneficios y novedades de los demás locales de Espartanos. Es un permiso aparte del anterior: puedo aceptar uno y no el otro, y puedo retirarlo cuando quiera sin que eso afecte los correos de Casa Costanera.',
+    measurementConsentAt: haceMinutos(180),
+    adultDeclaredAt: haceMinutos(180),
+    guestConfirmedAt: haceMinutos(90),
   },
   {
     id: 'visual-booking-2', formId: 'visual-form', referenceCode: 'CC-1043', status: 'attended', createdAt: haceMinutos(2400),

@@ -27,9 +27,13 @@ La dirección es `https://cuartel.espartanos.cl/novedades/<nombre-corto-del-loca
 2. Pásalo por cualquier generador de QR.
 3. Imprímelo en la carta, el mesón o donde vaya.
 
-No hay generador dentro del sistema a propósito: un QR es una imagen que se imprime una vez y vive
-dos años en una carta, así que conviene hacerlo con la herramienta de diseño que uses para la carta,
-al tamaño y con el logo que corresponda.
+**Este enlace todavía no tiene generador de QR dentro del sistema.** Encuestas sí lo tiene
+—«Compartir» → «Código QR», con Descargar PNG e Imprimir—, y lo razonable es que esta pantalla
+acabe teniendo el mismo. Está anotado como pendiente.
+
+Mientras tanto, hacerlo fuera tampoco es un mal apaño: un QR es una imagen que se imprime una vez y
+vive dos años en una carta, así que conviene montarlo con la herramienta de diseño que uses para la
+carta, al tamaño y con el logo que corresponda.
 
 **El enlace no cambia nunca** mientras no cambies el nombre corto del local. Si lo cambias, el QR
 impreso deja de funcionar.
