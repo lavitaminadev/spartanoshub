@@ -888,7 +888,18 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { origen: 'whatsapp', dia: new Date(Date.now() - 9 * 86400000).toISOString().slice(0, 10), total: 35 },
       { origen: 'instagram', dia: new Date(Date.now() - 33 * 86400000).toISOString().slice(0, 10), total: 60 },
       { origen: 'link', dia: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10), total: 12 },
-    ], generatedAt: new Date().toISOString(),
+    ],
+    /*
+     * Campañas, que antes no existían: la del enlace se perdía al llegar.
+     *
+     * Dos y no una, para poder revisar que la barra compara y que el rango de fechas se lee cuando
+     * la campaña duró varios días y cuando duró uno solo.
+     */
+    campanas: [
+      { campana: 'dia-de-la-madre', visitas: 128, sesiones: 96, desde: new Date(Date.now() - 12 * 86400000).toISOString(), hasta: new Date(Date.now() - 5 * 86400000).toISOString() },
+      { campana: 'carta-primavera', visitas: 41, sesiones: 37, desde: new Date(Date.now() - 2 * 86400000).toISOString(), hasta: new Date(Date.now() - 2 * 86400000).toISOString() },
+    ],
+    generatedAt: new Date().toISOString(),
     questions: [
       { questionId: 'nota', question: '¿Cómo fue tu visita?', required: true, totalAnswers: 3, type: 'rating', average: 3.7, distribution: { '2': 1, '4': 1, '5': 1 } },
       { questionId: 'volveria', question: '¿Volverías?', required: true, totalAnswers: 1, type: 'multiple-choice', counts: { 'Sí': 1 } },

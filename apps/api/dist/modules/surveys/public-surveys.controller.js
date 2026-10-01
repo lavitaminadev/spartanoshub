@@ -62,7 +62,7 @@ let PublicSurveysController = class PublicSurveysController {
         const survey = await this.surveys.findOne({ where: { id } });
         if (!survey || survey.status !== 'active')
             return { registrada: false };
-        await this.surveys.manager.query('INSERT IGNORE INTO survey_visits (id, organization_id, survey_id, origen, session_id) VALUES (?, ?, ?, ?, ?)', [(0, node_crypto_1.randomUUID)(), survey.organizationId, survey.id, (dto.origen || 'link').slice(0, 60), dto.sesion]).catch(() => undefined);
+        await this.surveys.manager.query('INSERT IGNORE INTO survey_visits (id, organization_id, survey_id, origen, campana, session_id) VALUES (?, ?, ?, ?, ?, ?)', [(0, node_crypto_1.randomUUID)(), survey.organizationId, survey.id, (dto.origen || 'link').slice(0, 60), dto.campana?.slice(0, 60) || null, dto.sesion]).catch(() => undefined);
         return { registrada: true };
     }
     async vistaPrevia(id) {

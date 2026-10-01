@@ -423,3 +423,13 @@
 .destinatarios-agregar { display:flex; gap:8px; align-items:center; }
 .destinatarios-agregar .input { flex:1; }
 .destinatarios-encuesta li.es-invalido span { color:var(--danger-deep, #9b1c1c); }
+
+/* La campaña al compartir: escribirla, guardarla y volver a elegirla. */
+.compartir-campana-caja { display:flex; gap:8px; align-items:center; }
+.compartir-campana-caja .input { flex:1; }
+.compartir-campanas-usadas { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+.compartir-campanas-usadas button {
+  padding:3px 9px; border:1px solid var(--border-light); border-radius:999px;
+  background:var(--white); color:var(--muted); font-size:11px; cursor:pointer;
+}
+.compartir-campanas-usadas button.es-activa { border-color:var(--primary); background:var(--primary); color:#fff; }

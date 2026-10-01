@@ -15,6 +15,7 @@ import { EmptyState } from '../../shared/EmptyState';
 import { useSurvey, useSurveyResults } from './useSurveys';
 import { computeSurveyResults, DATOS_DE_CONTACTO } from '@espartanos/shared';
 import type {
+  CampanaDeEncuesta,
   Survey,
   SurveyIndividualResponse,
   ChoiceQuestionResult,
@@ -111,6 +112,52 @@ function TendenciaSemanal({ respuestas }: { respuestas: SurveyIndividualResponse
             <small>{d.inicio.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}</small>
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+
+/**
+ * Visitas por campaña.
+ *
+ * Va aparte de la tabla por canal y no mezclada con ella: una campaña se reparte por varios
+ * canales a la vez —el QR de la carta y el cartel del mesón llevan la misma— y cruzarlas daría una
+ * fila por cada par, que es justo lo que nadie va a leer.
+ *
+ * Antes esto no existía: la campaña viajaba en el enlace, se pegaba a la dirección y se perdía al
+ * llegar, así que se podía repartir un QR por campaña y después no había forma de saber cuál había
+ * traído gente.
+ */
+function PorCampana({ campanas }: { campanas: CampanaDeEncuesta[] }): JSX.Element | null {
+  if (!campanas.length) return null;
+  const maximo = Math.max(1, ...campanas.map((fila) => fila.visitas));
+  const fecha = (valor: string) => new Date(valor).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+
+  return (
+    <section className="results-origen" aria-label="Visitas por campaña">
+      <header>
+        <h3>Campañas</h3>
+        <small>Sólo los enlaces y QR que llevaban una campaña escrita</small>
+      </header>
+      <div className="table-wrapper">
+        <table className="data-table results-origen-tabla">
+          <thead><tr><th>Campaña</th><th>Visitas</th><th>Personas</th><th>Cuándo</th></tr></thead>
+          <tbody>
+            {campanas.map((fila) => (
+              <tr key={fila.campana}>
+                <td data-label="Campaña">
+                  <span>{fila.campana}</span>
+                  <span className="canales-reservan-barra" aria-hidden="true"><span style={{ width: `${(fila.visitas / maximo) * 100}%` }} /></span>
+                </td>
+                <td data-label="Visitas">{fila.visitas}</td>
+                {/* Personas y no visitas: la misma persona que abre el QR tres veces es una. */}
+                <td data-label="Personas">{fila.sesiones}</td>
+                <td data-label="Cuándo">{fecha(fila.desde)}{fila.hasta.slice(0, 10) !== fila.desde.slice(0, 10) ? ` – ${fecha(fila.hasta)}` : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -378,6 +425,7 @@ export function SurveyResultsPage(): JSX.Element {
       {summary.totalResponses > 0 && hayDetalle && <div className="results-medicion">
         <TendenciaSemanal respuestas={summary.respuestas ?? []} />
         <PorOrigen respuestas={filtradas} visitas={summary.visitasPorDia ?? []} desde={periodo === 'todo' ? null : Date.now() - Number(periodo) * 86400000} />
+        <PorCampana campanas={summary.campanas ?? []} />
       </div>}
 
       {resumen.totalResponses === 0 ? (

@@ -175,6 +175,15 @@ export class SurveyVisitDto {
 
   @IsOptional() @IsString() @MaxLength(60) @Matches(/^[A-Za-z0-9._-]*$/)
   origen?: string;
+
+  /**
+   * La campaña del enlace, si venía una.
+   *
+   * Se acepta con el mismo alfabeto que el canal: lo que llega por la dirección lo escribe
+   * cualquiera, y una campaña con comas o espacios ensucia el agrupado para siempre.
+   */
+  @IsOptional() @IsString() @MaxLength(60) @Matches(/^[A-Za-z0-9._-]*$/)
+  campana?: string;
 }
 
 export class SubmitSurveyResponseDto {

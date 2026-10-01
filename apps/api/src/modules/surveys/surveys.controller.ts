@@ -314,6 +314,31 @@ export class SurveysController {
       [survey.id],
     ).catch(() => []) as Array<{ origen: string; dia: string | Date; total: number }>;
     const visitasPorDia = visitas.map((fila) => ({ origen: fila.origen, dia: (fila.dia instanceof Date ? fila.dia.toISOString() : String(fila.dia)).slice(0, 10), total: Number(fila.total) }));
+
+    /*
+     * Visitas por campaña.
+     *
+     * Aparte de las de por canal y no mezcladas con ellas: una campaña se reparte por varios
+     * canales a la vez —el QR de la carta y el cartel del mesón llevan la misma— y cruzarlas
+     * daría una tabla con una fila por cada par, que es justo lo que nadie va a leer.
+     *
+     * Sólo las que tienen campaña: las visitas sueltas ya se cuentan arriba, y una fila «sin
+     * campaña» con el 90% del tráfico aplastaría a las que sí la tienen.
+     */
+    const porCampana = await this.dataSource.query(
+      `SELECT campana, COUNT(*) visitas, COUNT(DISTINCT session_id) sesiones, MIN(created_at) desde, MAX(created_at) hasta
+         FROM survey_visits
+        WHERE survey_id = ? AND campana IS NOT NULL AND campana <> ''
+        GROUP BY campana ORDER BY visitas DESC LIMIT 50`,
+      [survey.id],
+    ).catch(() => []) as Array<{ campana: string; visitas: number; sesiones: number; desde: Date; hasta: Date }>;
+    const campanas = porCampana.map((fila) => ({
+      campana: fila.campana,
+      visitas: Number(fila.visitas),
+      sesiones: Number(fila.sesiones),
+      desde: fila.desde instanceof Date ? fila.desde.toISOString() : String(fila.desde),
+      hasta: fila.hasta instanceof Date ? fila.hasta.toISOString() : String(fila.hasta),
+    }));
     /*
      * Cuántas veces ha respondido cada persona: en esta encuesta y en todas las de la misma empresa.
      *
@@ -349,7 +374,7 @@ export class SurveysController {
     }));
     // La misma función que usa el frontend para su respaldo local: un solo cálculo evita que
     // el panel muestre un NPS y la copia sin red muestre otro.
-    return { ...computeSurveyResults(this.toContract(survey), responses), respuestas: detalle, visitasPorDia };
+    return { ...computeSurveyResults(this.toContract(survey), responses), respuestas: detalle, visitasPorDia, campanas };
   }
 
   /**

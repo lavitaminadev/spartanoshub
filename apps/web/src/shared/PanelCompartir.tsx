@@ -69,6 +69,25 @@ export function enlaceConUtm(base: string, fuente: string, medio: string, campan
   }
 }
 
+/** Clave por destino: las campañas de una encuesta no son las de otra. */
+function claveDeCampanas(urlBase: string): string {
+  return `vh.campanas.${urlBase.replace(/^https?:\/\//, '').slice(0, 80)}`;
+}
+
+/** Guarda una campaña usada y devuelve la lista nueva. La más reciente primero, doce como mucho. */
+function guardarCampana(urlBase: string, campana: string): string[] {
+  const lista = [campana, ...leerCampanas(urlBase).filter((una) => una !== campana)].slice(0, 12);
+  try { window.localStorage.setItem(claveDeCampanas(urlBase), JSON.stringify(lista)); } catch { /* sin almacenamiento */ }
+  return lista;
+}
+
+function leerCampanas(urlBase: string): string[] {
+  try {
+    const guardadas = JSON.parse(window.localStorage.getItem(claveDeCampanas(urlBase)) || '[]');
+    return Array.isArray(guardadas) ? guardadas.filter((x): x is string => typeof x === 'string').slice(0, 12) : [];
+  } catch { return []; }
+}
+
 export function PanelCompartir({ abierto, titulo, nombre, urlBase, onCerrar, pie, extra, textoAbrir = 'Abrir ↗' }: {
   abierto: boolean;
   /** Título del panel. */
@@ -85,6 +104,17 @@ export function PanelCompartir({ abierto, titulo, nombre, urlBase, onCerrar, pie
   textoAbrir?: string;
 }): JSX.Element {
   const [campana, setCampana] = useState('');
+  /*
+   * Las campañas que ya se usaron, para no inventar el nombre cada vez.
+   *
+   * Era un campo de texto suelto: se escribia, se pegaba a los enlaces y al cerrar el panel se
+   * olvidaba. Si mañana se escribía `dia-de-la-madre` con un guion de mas, eran dos campañas
+   * distintas en la tabla de resultados y ninguna de las dos decía la verdad.
+   *
+   * Viven en el navegador y no en el servidor a propósito: son una ayuda para escribir, no un
+   * dato del negocio. Lo que de verdad cuenta es lo que quedó anotado en cada visita.
+   */
+  const [recordadas, setRecordadas] = useState<string[]>(() => leerCampanas(urlBase));
   const [propio, setPropio] = useState('');
   const [qrFuente, setQrFuente] = useState('qr-local');
   const [qr, setQr] = useState('');
@@ -162,8 +192,38 @@ export function PanelCompartir({ abierto, titulo, nombre, urlBase, onCerrar, pie
         <section>
           <h3>Enlaces por canal</h3>
           <label className="compartir-campana">Campaña (opcional)
-            <input className="input" value={campana} maxLength={40} onChange={(e) => setCampana(e.target.value)} placeholder="Ej. dia-de-la-madre" />
-            <small>Se agrega a todos los enlaces y QR de abajo{utmCampana ? ` (…/${utmCampana})` : ''}. Al abrirse se registra como campaña.</small>
+            <div className="compartir-campana-caja">
+              <input
+                className="input"
+                value={campana}
+                maxLength={40}
+                list={`campanas-${claveDeCampanas(urlBase)}`}
+                onChange={(e) => setCampana(e.target.value)}
+                placeholder="Ej. dia-de-la-madre"
+              />
+              {/* Guardar y no sólo escribir: así la próxima vez se elige de la lista en vez de
+                  teclearla otra vez, que es como nacen `dia-de-la-madre` y `dia-de-la-madre-2`. */}
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={!utmCampana || recordadas.includes(utmCampana)}
+                onClick={() => setRecordadas(guardarCampana(urlBase, utmCampana))}
+              >
+                {utmCampana && recordadas.includes(utmCampana) ? 'Guardada' : 'Guardar'}
+              </button>
+            </div>
+            {/* Las ya usadas, como sugerencias del propio campo. */}
+            <datalist id={`campanas-${claveDeCampanas(urlBase)}`}>
+              {recordadas.map((una) => <option key={una} value={una} />)}
+            </datalist>
+            <small>Se agrega a todos los enlaces y QR de abajo{utmCampana ? ` (…/${utmCampana})` : ''}. Al abrirse se registra como campaña y aparece en Resultados.</small>
+            {recordadas.length > 0 && <div className="compartir-campanas-usadas">
+              {recordadas.map((una) => (
+                <button type="button" key={una} className={una === utmCampana ? 'es-activa' : undefined} onClick={() => setCampana(una)}>
+                  {una}
+                </button>
+              ))}
+            </div>}
           </label>
           <ul className="compartir-canales">
             {CANALES.map((canal) => (
