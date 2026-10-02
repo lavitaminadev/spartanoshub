@@ -167,11 +167,64 @@ diciendo que los proveedores «deberán **revisar siempre la plataforma, previo 
 enviar mensajes publicitarios o promocionales». Es decir: el sistema **sí** se consulta, y se
 consulta antes de cada envío, no una vez al año.
 
-> **Decisión tomada y por qué.** Mientras no estemos inscritos, el camino que nos obliga es el
-> correo del art. 4 y la petición directa del art. 28 B, y los dos terminan en el mismo botón:
-> **«Anotar una petición recibida por fuera»**. Si algún día nos inscribimos, la revisión previa a
-> cada campaña pasa a ser obligatoria y hay que incorporarla al paso de confirmar el envío. Queda
-> dicho aquí para que la decisión sea consciente y no un olvido.
+#### «Si no me inscribo, ¿no pasa nada?»
+
+Es la pregunta obvia y la respuesta corta es **no, pasa lo mismo: lo único que cambia es que no te
+enteras.**
+
+Inscribirse no es lo que te hace responsable. Lo que te hace responsable es el **art. 28 B de la
+Ley 19.496**, que se aplica a todo proveedor que mande publicidad, esté inscrito o no. El decreto
+sólo regula un canal más por el que esa petición puede llegarte.
+
+Mira qué cambia de verdad, lado a lado:
+
+| | **Inscrito** | **No inscrito** |
+|---|---|---|
+| ¿Queda notificado? | Sí, al registrarse la solicitud (art. 3) | **Sí, igual.** El art. 3 no distingue |
+| ¿Desde cuándo está prohibido escribirle? | Desde ese momento (art. 5) | **Desde ese mismo momento** |
+| ¿Cómo te enteras? | Entrando a la plataforma, que **debes revisar antes de cada campaña** | Sólo por el correo del art. 4, al día hábil siguiente |
+| ¿A qué casilla llega ese correo? | — | A la que tengas registrada **ante el SERNAC**. Si no existe o nadie la lee, nadie se entera |
+| ¿Puede el consumidor denunciarte? | Sí (art. 6) | **Sí, y el art. 8 está escrito exactamente para este caso** |
+
+El art. 8 no deja lugar a dudas: está redactado para el consumidor que le pidió la baja a **un
+proveedor no inscrito en el Sistema** y siguió recibiendo correo. Le dice cómo denunciarlo.
+
+**O sea que no inscribirse no te quita ninguna obligación. Te quita la posibilidad de ver venir la
+petición.** Es lo contrario de ponerse a salvo.
+
+> **Qué hacemos hoy y por qué.** No estamos inscritos, así que la petición nos llega por dos
+> caminos: el correo del art. 4 y la petición directa del art. 28 B. Los dos terminan en el mismo
+> botón, **«Anotar una petición recibida por fuera»**.
+>
+> Lo que esto exige es que **la casilla registrada ante el SERNAC sea una que alguien lea de
+> verdad**. Si ese correo cae en un buzón muerto, la prohibición corre igual y nos enteramos cuando
+> llegue el reclamo. Es la pieza más frágil de todo este manual, y no se arregla con código.
+>
+> Si algún día nos inscribimos, la revisión previa a cada campaña (art. 5) pasa a ser obligatoria y
+> hay que incorporarla al paso de confirmar el envío. Queda dicho para que sea una decisión y no un
+> olvido.
+
+#### ¿Y qué pasa si lo incumples? Esto cambia el 1 de diciembre de 2026
+
+Acá está el matiz que hace que «no pasa nada» haya sido casi verdad hasta ahora, y deje de serlo.
+
+**Hoy, por la vía del consumidor:** el SERNAC **no te puede multar directamente**. En 2018 el
+Tribunal Constitucional le quitó las facultades sancionatorias que le daba la reforma de ese año.
+Lo que puede hacer es fiscalizar (art. 6 del decreto) y llevarlo a un **Juzgado de Policía Local**,
+que es lento y rara vez se usa para un caso de spam suelto. De ahí viene la sensación de que no
+pasa nada.
+
+**Desde el 1 de diciembre de 2026, por la vía de datos personales:** la misma conducta —seguir
+tratando los datos de alguien que se opuso— es además una infracción de la **Ley 21.719**, y esa sí
+tiene a quién la sancione directo. El detalle, con los artículos y los montos, está en el
+[manual 11](11-conservacion-plazos-y-decisiones.md). En una línea: **impedir u obstaculizar el
+derecho de oposición es infracción grave, con multa de hasta 10.000 UTM**, y la aplica la Agencia
+sin pasar por un tribunal.
+
+**Y hay un proyecto de ley que cerraría también la primera puerta:** «SERNAC Te Protege»
+(boletín 16.271-03), que le devolvería al SERNAC la facultad de sancionar por sí mismo. **No es ley
+todavía** —entró al Congreso en septiembre de 2023 y sigue en tramitación—, así que hoy no cambia
+nada. Pero conviene no construir la operación sobre el supuesto de que nadie puede multarte.
 
 **Si la persona lo pidió por los dos lados, manda la fecha más antigua.** Art. 5 inciso 2: cuando
 se pide tanto directamente a la empresa como por el Sistema, «se considerará como fecha de
