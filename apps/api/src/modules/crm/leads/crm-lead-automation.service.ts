@@ -192,7 +192,27 @@ export class CrmLeadAutomationService {
     );
   }
 
-  private async ensureDiscardInteraction(lead: Lead, manager?: EntityManager): Promise<void> {
+  /**
+   * Deja la constancia del cierre en el historial del prospecto.
+   *
+   * Es pública porque hace falta en dos momentos muy distintos. Al **ingresar**, cuando una regla
+   * marca la ficha como de bajo encaje antes de que nadie la mire. Y al **cerrarla a mano**, que
+   * es el caso habitual y el que no quedaba registrado: `runForLead` sólo corre al crear el lead,
+   * así que un descarte posterior no escribía nada y el historial de una ficha cerrada no contaba
+   * cómo ni por qué se cerró. El motivo vivía sólo en la columna del lead, donde la línea de
+   * tiempo no lo muestra.
+   *
+   * Se llama desde el cierre en vez de reejecutar toda la automatización: `runForLead` también
+   * crea contactos y oportunidades, y dispararla en cada edición generaría registros que nadie
+   * pidió.
+   *
+   * Es idempotente: con una constancia ya escrita no hace nada, así que reabrir y volver a cerrar
+   * no duplica la línea.
+   *
+   * @param actorId Quien cerró la ficha. Nulo cuando la cerró una regla y no una persona, y esa
+   *   diferencia es justamente la que permite medir el trabajo del equipo.
+   */
+  async ensureDiscardInteraction(lead: Lead, manager?: EntityManager, actorId?: string): Promise<void> {
     const repo = manager?.getRepository(Interaction) ?? this.interactionsRepo;
     const existing = await repo.findOne({
       where: { organizationId: lead.organizationId, leadId: lead.id, type: 'lead_discarded' },
@@ -203,8 +223,10 @@ export class CrmLeadAutomationService {
       repo.create({
         organizationId: lead.organizationId,
         leadId: lead.id,
+        clientId: lead.clientId ?? null,
         type: 'lead_discarded',
         description: lead.discardReason || 'Lead descartado automáticamente por bajo encaje.',
+        createdBy: actorId,
       }),
     );
   }

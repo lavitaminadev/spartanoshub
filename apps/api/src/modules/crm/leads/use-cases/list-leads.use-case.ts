@@ -76,6 +76,18 @@ export interface ListLeadsResult {
 
 @Injectable()
 export class ListLeadsUseCase {
+  /**
+   * Cuántos días sigue a la vista un prospecto descartado.
+   *
+   * Era hasta el día 1 del mes en curso, y ese corte castigaba por casualidad: uno cerrado el 31
+   * desaparecía al día siguiente y otro cerrado el 2 duraba un mes entero. Nadie trabaja pensando
+   * «este mes»; se piensa «lo de las últimas semanas», y treinta días es eso.
+   *
+   * No esconde nada: con la casilla de ver también los descartados, o filtrando por la etapa
+   * «Descartado», siguen apareciendo todos sin límite de fecha.
+   */
+  private static readonly DIAS_DE_DESCARTADOS_A_LA_VISTA = 30;
+
   constructor(
     @InjectRepository(Lead) private repo: Repository<Lead>,
   ) {}
@@ -157,24 +169,25 @@ export class ListLeadsUseCase {
       : [where];
 
     /*
-     * Los descartados de meses anteriores salen de la vista, salvo que se pidan.
+     * Los descartados viejos salen de la vista, salvo que se pidan.
+     *
+     * **Sólo alcanza a los descartados.** Un lead en cualquier otro estado se ve siempre, sin
+     * límite de fecha: el corte no es «leads viejos», es «cerrados que ya no hay que mirar».
      *
      * Se mira `updatedAt` y no `createdAt`: interesa cuándo se descartó, no cuándo entró, y en un
      * lead cerrado no cambia nada después. Además hay índice por (organización, estado,
      * updatedAt), así que la condición no cuesta una lectura completa.
      *
-     * Es una disyunción —«no está descartado, o se descartó este mes»—, y en TypeORM eso son dos
+     * Es una disyunción —«no está descartado, o se descartó hace poco»—, y en TypeORM eso son dos
      * condiciones completas. Se duplica el criterio entero en ambas: dejar fuera una condición en
      * una rama abriría por ahí lo que la otra cierra.
      */
-    const inicioDeMes = new Date();
-    inicioDeMes.setDate(1);
-    inicioDeMes.setHours(0, 0, 0, 0);
+    const desde = new Date(Date.now() - ListLeadsUseCase.DIAS_DE_DESCARTADOS_A_LA_VISTA * 86_400_000);
     const conDescartados = filters.incluirDescartados || filters.status
       ? alcancePersona
       : alcancePersona.flatMap((base) => [
         { ...base, status: Not('lost') as unknown as Lead['status'] },
-        { ...base, status: 'lost' as Lead['status'], updatedAt: MoreThanOrEqual(inicioDeMes) },
+        { ...base, status: 'lost' as Lead['status'], updatedAt: MoreThanOrEqual(desde) },
       ]);
 
     const termino = filters.search?.trim();

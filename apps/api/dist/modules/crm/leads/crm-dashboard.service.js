@@ -57,10 +57,11 @@ let CrmDashboardService = class CrmDashboardService {
                 }),
             }),
         ]);
-        const [tiempoDeCierre, conversionPorSetter, mejorCampana] = await Promise.all([
+        const [tiempoDeCierre, conversionPorSetter, mejorCampana, contacto] = await Promise.all([
             this.tiempoDeCierre(base),
             this.conversionPorSetter(base),
             this.mejorCampana(base),
+            this.contacto(base, desde),
         ]);
         const mejorSetter = conversionPorSetter
             .filter((fila) => fila.leads >= 3)
@@ -91,6 +92,7 @@ let CrmDashboardService = class CrmDashboardService {
             porFuente,
             porDia,
             motivosDeCierre: motivos,
+            contacto,
         };
     }
     async sumar(base, status) {
@@ -185,6 +187,27 @@ let CrmDashboardService = class CrmDashboardService {
             query.andWhere('(lead.assigned_to = :onlyAssignedTo OR lead.assigned_to IS NULL)', { onlyAssignedTo: base.onlyAssignedTo });
         }
         return query;
+    }
+    async contacto(base, desde) {
+        const AUTOMATICAS = ['lead_ingested', 'lead_qualified', 'lead_discarded'];
+        const filas = await this.acotar(this.leads.createQueryBuilder('lead'), base)
+            .leftJoin('crm_interactions', 'act', 'act.lead_id = lead.id AND act.type NOT IN (:...automaticas)', { automaticas: AUTOMATICAS })
+            .select('lead.id', 'id')
+            .addSelect('MIN(act.date)', 'primera')
+            .addSelect('lead.created_at', 'creado')
+            .where('lead.created_at >= :desde', { desde })
+            .groupBy('lead.id')
+            .addGroupBy('lead.created_at')
+            .getRawMany();
+        const trabajados = filas.filter((fila) => fila.primera);
+        const horas = trabajados.map((fila) => ((new Date(fila.primera).getTime() - new Date(fila.creado).getTime()) / 3_600_000)).filter((valor) => Number.isFinite(valor) && valor >= 0);
+        return {
+            sinContactar: filas.length - trabajados.length,
+            contactados: trabajados.length,
+            horasAlPrimerContacto: horas.length
+                ? Math.round((horas.reduce((suma, valor) => suma + valor, 0) / horas.length) * 10) / 10
+                : null,
+        };
     }
     async agrupar(base, columna, status) {
         const query = this.acotar(this.leads.createQueryBuilder('lead'), base)

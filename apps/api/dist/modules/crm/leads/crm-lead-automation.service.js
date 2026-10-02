@@ -127,7 +127,7 @@ let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomat
             createdBy: ownerId,
         }));
     }
-    async ensureDiscardInteraction(lead, manager) {
+    async ensureDiscardInteraction(lead, manager, actorId) {
         const repo = manager?.getRepository(interaction_entity_1.Interaction) ?? this.interactionsRepo;
         const existing = await repo.findOne({
             where: { organizationId: lead.organizationId, leadId: lead.id, type: 'lead_discarded' },
@@ -137,8 +137,10 @@ let CrmLeadAutomationService = CrmLeadAutomationService_1 = class CrmLeadAutomat
         await repo.save(repo.create({
             organizationId: lead.organizationId,
             leadId: lead.id,
+            clientId: lead.clientId ?? null,
             type: 'lead_discarded',
             description: lead.discardReason || 'Lead descartado automáticamente por bajo encaje.',
+            createdBy: actorId,
         }));
     }
     async resolveCommercialOwner(organizationId, manager) {

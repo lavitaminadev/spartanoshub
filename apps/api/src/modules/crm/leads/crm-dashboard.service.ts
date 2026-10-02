@@ -101,10 +101,11 @@ export class CrmDashboardService {
       }),
     ]);
 
-    const [tiempoDeCierre, conversionPorSetter, mejorCampana] = await Promise.all([
+    const [tiempoDeCierre, conversionPorSetter, mejorCampana, contacto] = await Promise.all([
       this.tiempoDeCierre(base),
       this.conversionPorSetter(base),
       this.mejorCampana(base),
+      this.contacto(base, desde),
     ]);
 
     // Quien más convierte, no quien más vende: con volúmenes distintos, el total premia a quien
@@ -144,6 +145,7 @@ export class CrmDashboardService {
       porFuente,
       porDia,
       motivosDeCierre: motivos,
+      contacto,
     };
   }
 
@@ -330,6 +332,55 @@ export class CrmDashboardService {
    * recibido por la API sería inyección de SQL, y `createQueryBuilder` no parametriza nombres de
    * columna, solo valores.
    */
+  /**
+   * Cuánto se trabajó cada prospecto, de verdad.
+   *
+   * Es la cifra que faltaba y la que explicaba todo lo demás. De 72 prospectos sólo uno tenía una
+   * actividad escrita por una persona: todo el resto del historial lo había puesto el sistema al
+   * recibir la ficha. Con eso, «nunca respondió» no se podía distinguir de «nadie le escribió», y
+   * los dos piden arreglos opuestos —uno es la pauta, el otro el seguimiento—.
+   *
+   * **Sólo cuenta lo que hizo una persona.** Los tipos `lead_ingested`, `lead_qualified` y
+   * `lead_discarded` los escribe la automatización, así que contarlos daría 100% de prospectos
+   * contactados sin que nadie haya levantado el teléfono: exactamente la medición falsa que se
+   * viene a corregir.
+   *
+   * `sinContactar` es el número que hay que mirar. `horasAlPrimerContacto` es el promedio de los
+   * que sí se trabajaron, y vale **null** mientras no haya ninguno: un cero diría «se contesta al
+   * instante» cuando lo cierto es que no se contesta.
+   */
+  private async contacto(base: Record<string, unknown>, desde: Date): Promise<{ sinContactar: number; contactados: number; horasAlPrimerContacto: number | null }> {
+    const AUTOMATICAS = ['lead_ingested', 'lead_qualified', 'lead_discarded'];
+
+    const filas = await this.acotar(this.leads.createQueryBuilder('lead'), base)
+      .leftJoin(
+        'crm_interactions',
+        'act',
+        'act.lead_id = lead.id AND act.type NOT IN (:...automaticas)',
+        { automaticas: AUTOMATICAS },
+      )
+      .select('lead.id', 'id')
+      .addSelect('MIN(act.date)', 'primera')
+      .addSelect('lead.created_at', 'creado')
+      .where('lead.created_at >= :desde', { desde })
+      .groupBy('lead.id')
+      .addGroupBy('lead.created_at')
+      .getRawMany<{ id: string; primera: string | null; creado: string }>();
+
+    const trabajados = filas.filter((fila) => fila.primera);
+    const horas = trabajados.map((fila) => (
+      (new Date(fila.primera as string).getTime() - new Date(fila.creado).getTime()) / 3_600_000
+    )).filter((valor) => Number.isFinite(valor) && valor >= 0);
+
+    return {
+      sinContactar: filas.length - trabajados.length,
+      contactados: trabajados.length,
+      horasAlPrimerContacto: horas.length
+        ? Math.round((horas.reduce((suma, valor) => suma + valor, 0) / horas.length) * 10) / 10
+        : null,
+    };
+  }
+
   private async agrupar(base: Record<string, unknown>, columna: 'status' | 'source' | 'discard_reason', status?: LeadStatus) {
     const query = this.acotar(this.leads.createQueryBuilder('lead'), base)
       .select(`lead.${columna}`, 'key')

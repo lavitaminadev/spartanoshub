@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
@@ -10,6 +10,7 @@ import { LeadCierreService } from '../lead-cierre.service';
 import { ResponsablesDelCrmService } from '../responsables-del-crm.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CrmFieldsService } from '../../fields/crm-fields.service';
+import { CrmLeadAutomationService } from '../crm-lead-automation.service';
 
 /** Nombre del dominio en los mensajes de error, para que digan algo accionable. */
 const DOMAIN_LABELS: Record<string, string> = {
@@ -35,6 +36,8 @@ const DESENLACES = {
 
 @Injectable()
 export class UpdateLeadUseCase {
+  private readonly logger = new Logger(UpdateLeadUseCase.name);
+
   constructor(
     @InjectRepository(Lead) private repo: Repository<Lead>,
     private readonly history: ProcessHistoryService,
@@ -42,6 +45,7 @@ export class UpdateLeadUseCase {
     private readonly eventEmitter: EventEmitter2,
     private readonly responsables: ResponsablesDelCrmService,
     private readonly campos: CrmFieldsService,
+    private readonly automatizacion: CrmLeadAutomationService,
   ) {}
 
   async execute(
@@ -252,6 +256,22 @@ export class UpdateLeadUseCase {
      * Meta a evitar perfiles por un motivo que no tiene nada que ver.
      */
     if (etapaPrevia !== guardado.status && guardado.status === LeadStatus.LOST && guardado.domain === 'commercial') {
+      /*
+       * La constancia del cierre, en el historial de la ficha.
+       *
+       * Faltaba: la automatización que la escribe sólo corre al crear el lead, así que un
+       * descarte hecho por una persona —que son casi todos— no dejaba ninguna línea. El motivo
+       * quedaba en la columna del lead, que la línea de tiempo no muestra, y al abrir una ficha
+       * cerrada no se veía ni quién la cerró ni cuándo.
+       *
+       * No se deja fallar el cierre si la constancia no se puede escribir: el lead ya quedó
+       * guardado y perder el registro es peor que molesto, pero deshacer un descarte confirmado
+       * por un fallo al anotar sería peor.
+       */
+      await this.automatizacion.ensureDiscardInteraction(guardado, undefined, actorId).catch((error: unknown) => {
+        this.logger.warn(`No se pudo anotar el descarte del lead ${guardado.id}: ${error instanceof Error ? error.message : error}`);
+      });
+
       this.eventEmitter.emit('lead.discarded', {
         organizationId,
         leadId: guardado.id,

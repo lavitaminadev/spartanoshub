@@ -14,7 +14,7 @@ function criterio(repo: { findAndCount: { mock: { calls: unknown[][] } } }) {
 describe('ListLeadsUseCase · alcance por persona', () => {
   it('sin acotar consulta las dos ramas del corte de descartados', async () => {
     // Ya no es un criterio único: ocultar los descartados viejos es una disyunción —«no está
-    // descartado, o se descartó este mes»—, y en TypeORM eso son dos condiciones completas.
+    // descartado, o se descartó hace poco»—, y en TypeORM eso son dos condiciones completas.
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, {});
     const donde = criterio(repo) as Array<Record<string, any>>;
@@ -22,6 +22,42 @@ describe('ListLeadsUseCase · alcance por persona', () => {
     expect(donde[0].status?._type).toBe('not');
     expect(donde[1].status).toBe('lost');
     expect(donde[1].updatedAt?._type).toBe('moreThanOrEqual');
+  });
+
+  /*
+   * El corte es una ventana móvil, no el día 1 del mes.
+   *
+   * Con el mes de calendario, un descarte del 31 desaparecía al día siguiente y uno del 2 duraba
+   * treinta días: el mismo hecho con vidas en pantalla que se diferenciaban en treinta veces, por
+   * una fecha que no significa nada para quien vende.
+   */
+  it('mira los últimos treinta días y no el inicio del mes', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, {});
+    const donde = criterio(repo) as Array<Record<string, any>>;
+    const limite = new Date(donde[1].updatedAt?._value as string | Date);
+    const dias = (Date.now() - limite.getTime()) / 86_400_000;
+
+    expect(dias).toBeGreaterThan(29.5);
+    expect(dias).toBeLessThan(30.5);
+    // Lo que descarta el mes de calendario: el día 1 el límite daría casi cero días de antigüedad.
+    expect(limite.getDate()).not.toBe(1);
+  });
+
+  /*
+   * El corte sólo alcanza a los descartados.
+   *
+   * Un prospecto en cualquier otro estado se ve siempre, sin límite de fecha: si el corte lo
+   * alcanzara, una ficha viva desaparecería del tablero por antigüedad y se leería como perdida.
+   */
+  it('no acota por fecha a los que no están descartados', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, {});
+    const donde = criterio(repo) as Array<Record<string, any>>;
+
+    expect(donde[0].status?._type).toBe('not');
+    expect(donde[0].updatedAt).toBeUndefined();
+    expect(donde[0].createdAt).toBeUndefined();
   });
 
   it('pedirlos explícitamente vuelve al criterio único', async () => {

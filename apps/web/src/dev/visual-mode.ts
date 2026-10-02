@@ -1002,6 +1002,11 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     motivosDeCierre: [
       { key: 'Precio', total: 3 }, { key: 'Sin respuesta', total: 2 }, { key: 'Otro', total: 1 },
     ],
+    /*
+     * Con más sin contactar que contactados, que es el caso que la tarjeta viene a hacer visible.
+     * Un ejemplo con cifras sanas dejaría la alerta sin probar nunca.
+     */
+    contacto: { sinContactar: 28, contactados: 14, horasAlPrimerContacto: 6.4 },
   })],
   [/\/crm\/home$/, () => ({
     month: { leads: 42, ventas: 4, monto: 32400000 },

@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var ListLeadsUseCase_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ListLeadsUseCase = void 0;
 const common_1 = require("@nestjs/common");
@@ -18,7 +19,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("../lead.entity");
 const shared_1 = require("@espartanos/shared");
-let ListLeadsUseCase = class ListLeadsUseCase {
+let ListLeadsUseCase = ListLeadsUseCase_1 = class ListLeadsUseCase {
     constructor(repo) {
         this.repo = repo;
     }
@@ -67,14 +68,12 @@ let ListLeadsUseCase = class ListLeadsUseCase {
                 { ...where, assignedTo: (0, typeorm_2.IsNull)() },
             ]
             : [where];
-        const inicioDeMes = new Date();
-        inicioDeMes.setDate(1);
-        inicioDeMes.setHours(0, 0, 0, 0);
+        const desde = new Date(Date.now() - ListLeadsUseCase_1.DIAS_DE_DESCARTADOS_A_LA_VISTA * 86_400_000);
         const conDescartados = filters.incluirDescartados || filters.status
             ? alcancePersona
             : alcancePersona.flatMap((base) => [
                 { ...base, status: (0, typeorm_2.Not)('lost') },
-                { ...base, status: 'lost', updatedAt: (0, typeorm_2.MoreThanOrEqual)(inicioDeMes) },
+                { ...base, status: 'lost', updatedAt: (0, typeorm_2.MoreThanOrEqual)(desde) },
             ]);
         const termino = filters.search?.trim();
         const campos = [
@@ -116,7 +115,8 @@ let ListLeadsUseCase = class ListLeadsUseCase {
     }
 };
 exports.ListLeadsUseCase = ListLeadsUseCase;
-exports.ListLeadsUseCase = ListLeadsUseCase = __decorate([
+ListLeadsUseCase.DIAS_DE_DESCARTADOS_A_LA_VISTA = 30;
+exports.ListLeadsUseCase = ListLeadsUseCase = ListLeadsUseCase_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __metadata("design:paramtypes", [typeorm_2.Repository])

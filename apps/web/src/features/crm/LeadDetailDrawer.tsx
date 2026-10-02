@@ -27,6 +27,7 @@ import { STAGES } from './stage-labels';
 import { proximaFechaSugerida } from './agenda-sugerida';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { mensajeDePrimerContacto, whatsapp } from './contacto';
+import { registrarWhatsapp } from './registrar-whatsapp';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
 import { CALIFICACIONES, CALIFICACION_TITULO } from './calificacion';
@@ -681,7 +682,20 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
         <div className="lead-detail-acciones">
           {lead.phone ? <a className="btn btn-outline btn-sm" href={`tel:${lead.phone}`}>Llamar</a> : null}
           {enlaceWhatsapp ? (
-            <a className="btn btn-outline btn-sm" href={enlaceWhatsapp} target="_blank" rel="noreferrer">WhatsApp</a>
+            <a
+              className="btn btn-outline btn-sm"
+              href={enlaceWhatsapp}
+              target="_blank"
+              rel="noreferrer"
+              // Deja constancia del intento y refresca el historial, que está en esta misma
+              // pantalla: sin invalidar, la línea nueva no aparece hasta cerrar y volver a abrir.
+              onClick={() => {
+                registrarWhatsapp(lead.id, lead.name);
+                window.setTimeout(() => {
+                  void queryClient.invalidateQueries({ queryKey: ['lead-interactions', lead.id] });
+                }, 600);
+              }}
+            >WhatsApp</a>
           ) : null}
           {lead.email ? <a className="btn btn-outline btn-sm" href={`mailto:${lead.email}`}>Correo</a> : null}
           {scope.puedeEditar ? (

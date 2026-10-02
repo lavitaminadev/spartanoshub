@@ -46,6 +46,7 @@ import { COLUMNAS_OPCIONALES, guardarColumnas, leerColumnas, type ColumnaOpciona
 import { useVocabulario } from './use-vocabulario';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { colorDePersona, mensajeDePrimerContacto, whatsapp } from './contacto';
+import { registrarWhatsapp } from './registrar-whatsapp';
 import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
 import { marcaDeInactividad } from './inactividad';
 import './leads-board.css';
@@ -203,6 +204,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * No se recuerda entre visitas a propósito: es una consulta puntual —«¿qué descartamos en
    * marzo?»— y dejarla puesta devolvería la lista al problema que este corte resuelve, sin que
    * nadie recuerde haberla encendido.
+   *
+   * Marcada, no hay límite de fecha: salen todos los descartados, de cualquier mes.
    */
   const [verDescartados, setVerDescartados] = useState(false);
   const ve = (clave: ColumnaOpcional) => columnasVisibles.includes(clave);
@@ -771,7 +774,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             checked={verDescartados}
             onChange={(evento) => { setVerDescartados(evento.target.checked); setPagina(1); }}
           />
-          <span>Ver descartados de meses anteriores</span>
+          {/* Dice qué se gana al marcarla, no cómo está hecho el corte por dentro: quien perdió
+              un lead de vista no piensa «esto es de un mes anterior», piensa «¿dónde quedó?». */}
+          <span>Ver también los descartados antiguos</span>
         </label>
         <span className="leads-board-conteo">{leads.length} de {data?.total ?? 0}</span>
       </div>
@@ -953,7 +958,13 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                       target="_blank"
                       rel="noreferrer"
                       title={`Escribir por WhatsApp a ${lead.name}`}
-                      onClick={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        // Deja constancia del intento. No espera respuesta ni bloquea el enlace:
+                        // la pestaña de WhatsApp abre igual aunque la constancia falle.
+                        registrarWhatsapp(lead.id, lead.name);
+                        void queryClient.invalidateQueries({ queryKey: ['lead-interactions', lead.id] });
+                      }}
                     >
                       💬
                     </a>
