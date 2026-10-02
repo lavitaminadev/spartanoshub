@@ -213,6 +213,14 @@ const html = `<!doctype html>
   ul, ol { margin:0 0 14px; padding-left:22px; }
   li { margin-bottom:5px; }
   .falta { color:#9b1c1c; }
+  /* La barra que dice en qué manual estás. Se queda arriba y no se imprime. */
+  .barra-actual {
+    position:sticky; top:0; z-index:5; display:flex; align-items:center; justify-content:space-between;
+    gap:16px; padding:11px 20px; background:rgba(255,255,255,.93); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--linea); font-size:13px; font-weight:600;
+  }
+  .barra-actual a { font-size:12px; font-weight:500; text-decoration:none; }
+  nav a.es-actual { background:#fff; color:var(--acento); font-weight:700; }
   @media (max-width:900px) {
     .envoltorio { grid-template-columns:1fr; }
     nav { position:static; max-height:none; }
@@ -221,7 +229,7 @@ const html = `<!doctype html>
   /* Para imprimir a PDF: sin menú, cada manual en su hoja y sin cortar una imagen por la mitad. */
   @media print {
     body { background:#fff; }
-    nav { display:none; }
+    nav, .barra-actual { display:none; }
     .envoltorio { display:block; max-width:none; }
     main { padding:0; border:0; }
     section { page-break-before:always; border:0; margin:0; padding-top:0; }
@@ -233,12 +241,51 @@ const html = `<!doctype html>
 </style>
 </head>
 <body>
+<div class="barra-actual" id="barra"><span id="barra-titulo">Manuales</span><a href="#indice">Índice</a></div>
 <div class="envoltorio">
   <nav><strong>MANUALES</strong><ol>${indice}</ol></nav>
   <main>
 ${secciones.map((s) => `    <section>\n${s.html}\n    </section>`).join('\n')}
   </main>
 </div>
+<script>
+  /*
+   * Qué manual estoy leyendo.
+   *
+   * En un archivo con nueve manuales seguidos, a mitad de uno largo no se sabe en cuál se está:
+   * el titulo quedo quince pantallas atras y el menu lateral no marcaba nada. La barra de arriba
+   * lo dice siempre, y el menu resalta la entrada que toca.
+   */
+  (function () {
+    var secciones = Array.prototype.slice.call(document.querySelectorAll('main section'));
+    var titulo = document.getElementById('barra-titulo');
+    var enlaces = Array.prototype.slice.call(document.querySelectorAll('nav a'));
+    function actual() {
+      var elegida = secciones[0];
+      for (var i = 0; i < secciones.length; i += 1) {
+        if (secciones[i].getBoundingClientRect().top <= 90) elegida = secciones[i];
+      }
+      return elegida;
+    }
+    function pintar() {
+      var seccion = actual();
+      if (!seccion) return;
+      var h1 = seccion.querySelector('h1');
+      var id = h1 ? h1.id : '';
+      if (h1) titulo.textContent = h1.textContent;
+      enlaces.forEach(function (a) {
+        a.classList.toggle('es-actual', a.getAttribute('href') === '#' + id);
+      });
+    }
+    var pendiente = false;
+    window.addEventListener('scroll', function () {
+      if (pendiente) return;
+      pendiente = true;
+      window.requestAnimationFrame(function () { pendiente = false; pintar(); });
+    }, { passive: true });
+    pintar();
+  }());
+</script>
 </body>
 </html>`;
 

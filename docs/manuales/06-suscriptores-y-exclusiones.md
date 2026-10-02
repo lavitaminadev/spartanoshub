@@ -9,6 +9,9 @@ tengo prohibido escribirle?». La segunda no es una lista que se pueda mirar, y 
 
 ## 1 · Arriba: quiénes están
 
+![Qué puedes hacer desde donde estás](img/06-alcance.jpg)
+*La línea de arriba cambia con el filtro: dice qué lista estás viendo y qué se puede hacer con ella.*
+
 ![La lista de suscriptores](img/06-suscriptores-lista.jpg)
 
 Cada empresa tiene su propia lista y su propio permiso. **La misma persona puede estar suscrita en
@@ -204,7 +207,33 @@ prudente.
 
 ---
 
-## 7 · Dónde queda cada cosa
+## 7 · Quién manda el correo, aunque diga el nombre del local
+
+Esto confunde siempre, así que conviene decirlo claro: **todos los correos salen de la casilla de
+Espartanos**, la configurada en el servidor de correo. No existe una casilla por local que mande
+por su cuenta.
+
+| Qué | De dónde sale |
+|---|---|
+| **Quién aparece enviando** | La casilla de Espartanos (`SMTP_FROM`) |
+| **El nombre que se lee** | El del local, dentro del texto del correo |
+| **A dónde contesta** quien responde | La casilla de soporte del local, si la tiene puesta |
+| **Quién responde legalmente** | El local, nombrado en el texto que la persona aceptó |
+
+El local pone su casilla en **Reservas → el local → «2. A dónde llegan las respuestas del
+cliente»**. Eso cambia **a dónde llega la respuesta**, no desde dónde sale el correo.
+
+**Por qué es así y no al revés.** Para mandar en nombre de `casacostanera.cl` haría falta que ese
+dominio autorizara al servidor de Espartanos en su propio DNS —SPF y DKIM, uno por local— y que
+cada local mantuviera eso en el tiempo. Un local que lo configura mal no se entera: sus correos
+empiezan a caer en spam sin aviso. Mandando todo desde un dominio bien firmado, la reputación se
+cuida en un solo sitio y se arregla en un solo sitio.
+
+**La consecuencia que hay que conocer:** si un local se porta mal con su lista, el daño a la
+reputación lo pagan **todos** los locales a la vez, porque comparten remitente. Por eso la agencia
+es quien envía y quien responde de que cada dirección tenga respaldo.
+
+## 8 · Dónde queda cada cosa
 
 | Qué | Dónde |
 |---|---|
@@ -227,7 +256,7 @@ sacaba también del otro, y el segundo probablemente no la alcanzaba nunca.
 
 ---
 
-## 8 · A qué ley responde
+## 9 · A qué ley responde
 
 **Ley 19.496, art. 28 B.** La lista de exclusión es el mecanismo que hace cumplible el *«quedarán
 desde entonces prohibidos»*. Sin ella, la prohibición dependería de que la ficha no se borrara
@@ -250,11 +279,26 @@ no se aplica.
 
 ---
 
-## 9 · Preguntas que van a salir
+## 10 · Preguntas que van a salir
 
 **Aparece dos veces la misma persona.**
-Es correcto si está en dos empresas: son dos permisos distintos. Dentro de una misma empresa no
-puede repetirse.
+Es correcto, y es lo más importante de entender de esta pantalla: **cada fila es un permiso, no una
+persona.** Ana Moya aparece dos veces porque dio dos permisos distintos, uno a Casa Costanera y
+otro a Bar Ruperto. La columna **Empresa** dice a cuál corresponde cada fila, y la ficha lo repite
+arriba del todo, junto al texto que aceptó **para esa empresa**.
+
+Que estén separados es lo que permite que esté **suscrita en una y de baja en otra** a la vez, que
+es justo lo que se ve en la captura. Si fueran una sola fila, darse de baja en un local la sacaría
+del otro — que es como estaba antes y por eso se cambió.
+
+Dentro de una misma empresa **no puede repetirse**: la unicidad es organización + empresa + correo,
+y el correo se guarda en minúsculas y sin espacios para que `Ana@x.cl` y `ana@x.cl` no entren como
+dos personas.
+
+**¿Cómo veo todos los permisos de una persona?**
+Escribe su correo en el buscador, con el filtro de empresa en «Todas las empresas» y el de estado
+en «Todos los estados». Salen todas sus filas, una por empresa, con el estado de cada una. **Si no
+cambias el estado, el filtro viene puesto en «Suscrito» y no verás las bajas.**
 
 **¿Puedo borrar una fila?**
 Desde aquí no. El borrado se pide en /solicitudes ([manual 08](08-solicitudes-de-derechos.md)).

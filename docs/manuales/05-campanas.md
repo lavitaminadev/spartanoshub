@@ -192,7 +192,35 @@ octavo intento llegaría dos días después de que la campaña dejó de tener se
 
 ---
 
-## 6 · Dos cosas que esta pantalla no tiene, a propósito
+## 6 · Qué pasó con el cupón que mandaste
+
+**Reservas → Cupones.** Tres números por cupón que no miden lo mismo:
+
+![Cupones, con lo que volvió del correo](img/05-cupones-por-correo.jpg)
+
+| Columna | Qué cuenta |
+|---|---|
+| **Usos** | Cuántas reservas se hicieron con ese código, **por donde sea**: también quien lo vio en un cartel o se lo pasó un amigo |
+| **Por correo** | De los que mandamos por correo, cuántos volvieron. «31 de 214 · 14% volvió» |
+
+**El primero mide el cupón; el segundo mide el correo.** Un cupón con muchos usos y pocos envíos
+está funcionando por otro lado, y mandarlo por correo quizá no aporte nada. Uno con muchos envíos y
+pocos retornos tiene un problema en el correo, no en la oferta.
+
+Se cruza por el **correo de la persona**: son dos reservas distintas —la visita que generó el cupón
+y la que lo usó— y la dirección es lo único en común. Quien reservó sin dejar correo cuenta como uso
+sin origen.
+
+**«No se ha enviado»** significa que ese código nunca salió por correo: o es de uso en el local, o
+todavía no se eligió como cupón automático.
+
+> Los envíos anteriores a esta medición constan como enviados y **sin atribuir**: antes sólo se
+> guardaba la fecha, no el código. Deducir cuál fue mirando qué cupón tenía el local ese día sería
+> inventar justo el dato que esto viene a medir.
+
+---
+
+## 7 · Dos cosas que esta pantalla no tiene, a propósito
 
 **No hay caja para escribir direcciones a mano.** Una dirección sin procedencia no se puede
 defender ante «¿de dónde sacaron mi correo?», que es la primera pregunta de cualquier reclamo. Para
@@ -209,7 +237,7 @@ Se elige como cualquier otra empresa.
 
 ---
 
-## 7 · Quién puede qué
+## 8 · Quién puede qué
 
 | Cargo | Escribir | Enviar |
 |---|:--:|:--:|
@@ -225,7 +253,7 @@ tenga respaldo, y ese respaldo lo lleva la agencia.
 
 ---
 
-## 8 · Dónde queda cada cosa
+## 9 · Dónde queda cada cosa
 
 | Qué | Dónde |
 |---|---|
@@ -251,7 +279,7 @@ encolada **se queda encolada**: el botón no manda nada por sí solo.
 
 ---
 
-## 9 · A qué ley responde
+## 10 · A qué ley responde
 
 **Ley 19.496, art. 28 B.** Cada correo lleva identificación del remitente y enlace de suspensión, y
 el enlace no se puede desactivar. La comprobación pegada al envío es lo que cumple el *«quedarán
@@ -271,7 +299,7 @@ deja de ser esto y necesita su propio respaldo.
 
 ---
 
-## 10 · Preguntas que van a salir
+## 11 · Preguntas que van a salir
 
 **¿Puedo repetir una campaña ya enviada?**
 No se reenvía la misma. Duplica el texto en una nueva: así queda constancia de que fueron dos
