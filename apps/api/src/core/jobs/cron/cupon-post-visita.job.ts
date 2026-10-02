@@ -182,7 +182,7 @@ export class CuponPostVisitaJob {
         );
         // Solo se marca lo que salió: si el correo está apagado o falla, se reintenta.
         if (!salio) continue;
-        await this.reservas.update(reserva.id, { cuponEnviadoEn: new Date() });
+        await this.reservas.update(reserva.id, { cuponEnviadoEn: new Date(), cuponEnviadoCodigo: ajustes.codigo });
         enviados += 1;
       } catch (error) {
         this.logger.error(`No se pudo enviar el cupón de la reserva ${reserva.id}: ${error instanceof Error ? error.message : error}`);

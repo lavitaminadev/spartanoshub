@@ -625,9 +625,29 @@ export function PanelDeCorreo(): JSX.Element {
           enlace: codigo ? undefined : `/reservations?tab=coupons${empresa ? `&clientId=${encodeURIComponent(empresa)}` : ''}`,
         };
       }
-      // Asistencia y correos del equipo ya los explica la descripción del aviso, arriba: repetirlos
-      // como advertencia llenaba la tarjeta de líneas que no piden hacer nada.
-      if (requisito.clave === 'asistencia' || requisito.clave === 'equipo') return null;
+      // La asistencia ya la explica la descripción del aviso, arriba: repetirla como advertencia
+      // llenaba la tarjeta de líneas que no piden hacer nada.
+      if (requisito.clave === 'asistencia') return null;
+      /*
+       * A quién le llega este aviso se configura en otra pantalla, y desde aquí no se veía.
+       *
+       * Un aviso al equipo puede estar encendido y no salirle a nadie: los destinatarios viven en
+       * cada local —Reservas → el local → «Datos y textos legales»— y desde Correos no había forma
+       * de saberlo ni de llegar hasta allí. Se enciende algo que no hace nada y nadie se entera.
+       *
+       * No se puede decir «va a N casillas» porque son de cada local y aquí se está mirando la
+       * empresa entera; lo que sí se puede es llevar hasta donde se configura, que es lo que
+       * faltaba.
+       */
+      if (requisito.clave === 'equipo') {
+        return {
+          texto: empresa
+            ? 'Va a las casillas del equipo de cada local, no a toda la empresa. Se configuran en cada local, y un aviso encendido sin casillas no le llega a nadie.'
+            : 'Va a las casillas del equipo de cada local. Elige una empresa arriba para ir a configurarlas.',
+          cumple: null,
+          enlace: empresa ? `/reservations?clientId=${encodeURIComponent(empresa)}` : undefined,
+        };
+      }
       if (requisito.clave === 'encuesta') {
         const elegida = String(valorDe('email.post_visit_survey_id') ?? '');
         return {

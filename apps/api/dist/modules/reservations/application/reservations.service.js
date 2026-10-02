@@ -2949,6 +2949,44 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.assertLimitePorPersona(coupon);
         return this.coupons.save(coupon);
     }
+    async usoDeCupones(organizationId, clientId, clientIds) {
+        const filtro = clientId
+            ? { sql: 'AND client_id = ?', args: [clientId] }
+            : clientIds?.length
+                ? { sql: `AND client_id IN (${clientIds.map(() => '?').join(',')})`, args: clientIds }
+                : clientIds !== undefined
+                    ? { sql: 'AND 1 = 0', args: [] }
+                    : { sql: '', args: [] };
+        const filas = await this.dataSource.query(`SELECT codigo,
+              SUM(enviado) enviados,
+              SUM(usado) usados,
+              SUM(volvio) volvieron
+         FROM (
+           SELECT cupon_enviado_codigo codigo, 1 enviado, 0 usado, 0 volvio
+             FROM reservations
+            WHERE organization_id = ? ${filtro.sql} AND cupon_enviado_codigo IS NOT NULL
+           UNION ALL
+           SELECT r.coupon_code codigo, 0, 1,
+                  /* Volvió del correo si a ese mismo correo le mandamos ese mismo código antes. */
+                  CASE WHEN EXISTS (
+                    SELECT 1 FROM reservations e
+                     WHERE e.organization_id = r.organization_id
+                       AND e.cupon_enviado_codigo = r.coupon_code
+                       AND e.guest_email = r.guest_email
+                       AND e.guest_email IS NOT NULL
+                       AND e.cupon_enviado_en < r.created_at
+                  ) THEN 1 ELSE 0 END
+             FROM reservations r
+            WHERE r.organization_id = ? ${filtro.sql.replace(/client_id/g, 'r.client_id')} AND r.coupon_code IS NOT NULL AND r.coupon_code <> ''
+         ) t
+        GROUP BY codigo`, [organizationId, ...filtro.args, organizationId, ...filtro.args]).catch(() => []);
+        return filas.map((fila) => ({
+            code: fila.codigo,
+            enviados: Number(fila.enviados) || 0,
+            usados: Number(fila.usados) || 0,
+            volvieronDelCorreo: Number(fila.volvieron) || 0,
+        }));
+    }
     listCoupons(organizationId, clientId, clientIds) {
         const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
         if (clientId)

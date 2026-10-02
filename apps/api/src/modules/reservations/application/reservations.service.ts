@@ -3732,6 +3732,71 @@ export class ReservationsService {
     return this.coupons.save(coupon);
   }
 
+  /**
+   * Qué pasó con cada cupón: cuántos se mandaron por correo y cuántos volvieron.
+   *
+   * La pregunta que no se podía responder. El cupón de después de la visita se manda solo, y hasta
+   * ahora lo único que quedaba era la fecha del envío: se sabía que habían salido, no si habían
+   * servido para algo.
+   *
+   * Se cuentan tres cosas distintas y conviene no confundirlas:
+   *
+   * - **Enviados**: a cuántas personas les salió ese código por correo.
+   * - **Usados**: cuántas reservas se hicieron con él, por donde sea —también quien lo vio en un
+   *   cartel o se lo pasó un amigo—.
+   * - **Volvieron del correo**: de esos usos, cuántos son de alguien a quien se lo mandamos. Es el
+   *   único que mide el correo; los otros dos miden el cupón.
+   *
+   * Se cruza por **correo de la persona**, que es lo que une el envío con la reserva posterior:
+   * son dos reservas distintas —la visita que generó el cupón y la que lo usó— y no hay otra cosa
+   * en común. Sin dirección no se puede atribuir, y esa reserva cuenta como uso sin origen.
+   */
+  async usoDeCupones(organizationId: string, clientId?: string, clientIds?: string[]): Promise<Array<{
+    code: string; enviados: number; usados: number; volvieronDelCorreo: number;
+  }>> {
+    const filtro = clientId
+      ? { sql: 'AND client_id = ?', args: [clientId] }
+      : clientIds?.length
+        ? { sql: `AND client_id IN (${clientIds.map(() => '?').join(',')})`, args: clientIds }
+        : clientIds !== undefined
+          ? { sql: 'AND 1 = 0', args: [] as string[] }
+          : { sql: '', args: [] as string[] };
+
+    const filas = await this.dataSource.query(
+      `SELECT codigo,
+              SUM(enviado) enviados,
+              SUM(usado) usados,
+              SUM(volvio) volvieron
+         FROM (
+           SELECT cupon_enviado_codigo codigo, 1 enviado, 0 usado, 0 volvio
+             FROM reservations
+            WHERE organization_id = ? ${filtro.sql} AND cupon_enviado_codigo IS NOT NULL
+           UNION ALL
+           SELECT r.coupon_code codigo, 0, 1,
+                  /* Volvió del correo si a ese mismo correo le mandamos ese mismo código antes. */
+                  CASE WHEN EXISTS (
+                    SELECT 1 FROM reservations e
+                     WHERE e.organization_id = r.organization_id
+                       AND e.cupon_enviado_codigo = r.coupon_code
+                       AND e.guest_email = r.guest_email
+                       AND e.guest_email IS NOT NULL
+                       AND e.cupon_enviado_en < r.created_at
+                  ) THEN 1 ELSE 0 END
+             FROM reservations r
+            WHERE r.organization_id = ? ${filtro.sql.replace(/client_id/g, 'r.client_id')} AND r.coupon_code IS NOT NULL AND r.coupon_code <> ''
+         ) t
+        GROUP BY codigo`,
+      [organizationId, ...filtro.args, organizationId, ...filtro.args],
+    ).catch(() => []) as Array<{ codigo: string; enviados: string; usados: string; volvieron: string }>;
+
+    return filas.map((fila) => ({
+      code: fila.codigo,
+      enviados: Number(fila.enviados) || 0,
+      usados: Number(fila.usados) || 0,
+      volvieronDelCorreo: Number(fila.volvieron) || 0,
+    }));
+  }
+
   listCoupons(organizationId: string, clientId?: string, clientIds?: string[]) {
     const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
     /*

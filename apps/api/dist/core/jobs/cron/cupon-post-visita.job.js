@@ -116,7 +116,7 @@ let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
                 const salio = await this.correo.send(reserva.guestEmail, subject, html, { ...(soporte ? { replyTo: soporte } : {}), ...(baja ? { bajaUrl: baja } : {}) });
                 if (!salio)
                     continue;
-                await this.reservas.update(reserva.id, { cuponEnviadoEn: new Date() });
+                await this.reservas.update(reserva.id, { cuponEnviadoEn: new Date(), cuponEnviadoCodigo: ajustes.codigo });
                 enviados += 1;
             }
             catch (error) {
