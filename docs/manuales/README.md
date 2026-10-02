@@ -17,6 +17,7 @@ que sepas lo que es un token o una migración, el manual está mal escrito.
 | [07 · Avisos de las encuestas](07-encuestas-y-avisos.md) | Qué pasa cuando alguien escribe un mensaje en una encuesta | Encuestas |
 | [08 · Solicitudes de derechos](08-solicitudes-de-derechos.md) | Los plazos legales, la prórroga y los avisos | Administración → Solicitudes |
 | [09 · La página pública de reserva](09-pagina-publica-de-reserva.md) | Qué ve quien reserva, en qué orden y por qué | Reservas → Diseño público |
+| [10 · Cuentas, accesos y qué ve cada quien](10-cuentas-accesos-y-que-ve-cada-quien.md) | Cargos, crear cuentas, clave temporal y duración de la sesión | Administración → Usuarios |
 
 ## Cómo leerlos
 

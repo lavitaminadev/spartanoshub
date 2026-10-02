@@ -63,8 +63,28 @@ Consecuencia: **una encuesta abierta por el QR de la carta no le avisaba a nadie
 quedaba guardado en Resultados esperando a que alguien abriera esa pantalla. Y la encuesta del QR es
 justo la que más se responde en caliente, en la mesa, mientras todavía se puede arreglar.
 
+### Qué cambió exactamente
+
+| | Antes | Ahora |
+|---|---|---|
+| Respuesta que vino de una **reserva** | Avisaba | Avisa |
+| Respuesta que vino de un **QR** o un enlace | **No avisaba a nadie** | Avisa |
+| De dónde salían los destinatarios | Del **formulario de reservas** de esa reserva | De las **casillas del local** |
+| Si la encuesta no tiene empresa | No avisaba | Sigue sin avisar: no hay local al que escribirle |
+
 Las casillas del equipo son **del local**, no del formulario de reservas. Con la empresa de la
 encuesta ya se sabe a quién escribirle, haya reserva o no.
+
+### Por qué importa justo en el QR
+
+La encuesta del QR es **la que más se responde en caliente**: la persona está sentada en la mesa,
+con el problema delante, y escribe. Es también la única oportunidad de arreglarlo antes de que se
+vaya. Que fuera precisamente ésa la que no avisaba a nadie no era un detalle: era el caso que más
+valía.
+
+Y se nota en los números. En **Resultados → De dónde llegaron**, la fila «QR en el local» suele
+tener más visitas que respuestas y una nota distinta a la del correo post-reserva: son dos públicos
+distintos respondiendo en dos momentos distintos.
 
 ---
 
@@ -100,8 +120,22 @@ personas escribieron algo. El mensaje se guarda **siempre**, aunque el correo es
 haya nadie a quien avisar: el aviso es para que alguien lo lea esa noche, no el único sitio donde
 queda.
 
+![Campañas en Resultados](img/07-campanas-resultados.jpg)
+*Debajo de los canales, lo que trajo cada campaña: visitas, personas distintas y cuándo.*
+
 La tabla **«De dónde llegaron»** dice por qué canal entró cada respuesta —correo post-reserva, QR en
-el local, Instagram—, que es lo que permite saber si el QR de la carta está funcionando.
+el local, Instagram—, que es lo que permite saber si el QR de la carta está funcionando. Debajo,
+**Campañas** separa lo que trajo cada campaña escrita en el enlace.
+
+### Los filtros de Resultados
+
+| Filtro | Qué hace |
+|---|---|
+| **7 / 30 / 90 días · Todo** | Acota todo lo de abajo: los recuadros, el gráfico, los canales y las respuestas. Las campañas no se acotan: se muestran con su propio rango de fechas |
+| **Mensajes al equipo** | El recuadro es también un filtro: tocarlo deja sólo las respuestas que traen mensaje escrito |
+
+Para encontrar un mensaje concreto, baja a la lista de respuestas: están ordenadas de la más
+reciente hacia atrás, con la nota, el canal y el mensaje de cada una.
 
 ---
 
@@ -111,6 +145,9 @@ Se puede, y **no hace falta que las personas tengan cuenta**.
 
 ![La lista de encuestas](img/07-encuestas-lista.jpg)
 *Cada encuesta tiene «Compartir» y «Resultados». La columna RESPUESTAS cuenta las recibidas.*
+
+![Enviar la encuesta por correo](img/07-enviar-por-correo.jpg)
+*Quiénes son, con las direcciones sin forma de correo marcadas, y el campo para agregar a alguien sin salir de aquí.*
 
 1. Al crear o editar la encuesta, en el paso de **distribución**, marca **Correo**.
 2. Escribe las direcciones separadas por coma.
@@ -129,6 +166,9 @@ crearles usuario.
 
 Al terminar responde cuántos **enviados**, cuántos **fallidos** y cuántos **inválidos** —los que no
 tenían forma de correo—. Van uno por uno: si un destino falla, los demás siguen saliendo.
+
+![La campaña al compartir](img/07-campana-al-compartir.jpg)
+*La campaña se escribe una vez, se guarda y se vuelve a elegir: así no nacen «dia-de-la-madre» y «dia-de-la-madre-2» como campañas distintas.*
 
 ![Compartir: enlaces por canal, QR y correo](img/07-compartir-qr-correo.jpg)
 *En «Compartir» están los enlaces por canal, el **código QR con Descargar PNG e Imprimir**, y el envío por correo con sus destinatarios cargados.*

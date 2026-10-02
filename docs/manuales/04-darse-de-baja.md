@@ -134,17 +134,36 @@ recordatorio, el enlace para gestionarla. No son publicidad: son parte del servi
 
 ## 7 · Qué correos llevan enlace de baja, y cuáles no
 
-| Correo | ¿Lleva baja? | Por qué |
-|---|:--:|---|
-| Campaña | ✓ | Publicidad |
-| Saludo de cumpleaños | ✓ | Publicidad |
-| Cupón después de la visita | ✓ | Publicidad |
-| Confirmación de reserva | ✗ | Es el servicio que pidió |
-| Recordatorio de reserva | ✗ | Ídem |
-| Invitación a una encuesta | ✗ | Es una pregunta sobre un servicio ya prestado |
-| Avisos al equipo | ✗ | Son avisos de trabajo |
-| Campaña a quienes administran una empresa | ✗ | Información del servicio contratado |
-| Clave temporal, recuperar acceso | ✗ | Son de la plataforma |
+**Los tres que sí lo llevan**, porque son publicidad:
+
+| Correo | Clave |
+|---|---|
+| Campaña escrita a mano | `email.campaign` |
+| Saludo de cumpleaños | `email.birthday` |
+| Cupón después de la visita | `email.coupon` |
+
+**Todos los demás no lo llevan**, y cada uno por su motivo:
+
+| Correo | Clave | Por qué no |
+|---|---|---|
+| Confirmación de reserva | `email.reservation_confirmation` | Es el servicio que pidió |
+| Recordatorio de reserva | `email.reservation_reminder` | Ídem |
+| Enlace para gestionar la reserva | `email.manage_link` | Lo pidió esa persona |
+| El cliente canceló o cambió · acuse | `email.*_ack` | Responde a algo que hizo |
+| Cupo liberado en lista de espera | `email.waitlist_spot` | Lo pidió al anotarse |
+| **Invitación a una encuesta** | `email.survey_invite` | Es una pregunta sobre un servicio ya prestado, no una oferta |
+| **Encuesta después de la visita** | `email.post_visit_survey` | Ídem |
+| **Mensaje de una encuesta al equipo** | `email.team_survey_message` | Alerta de trabajo. Con baja, alguien podría apagarse los avisos de nota baja de su local |
+| Reserva nueva, grupo, lista de espera | `email.team_*` | Avisos de trabajo |
+| **Reservas pausadas o día cerrado** | `email.team_operation` | Ídem |
+| Campaña a quienes administran una empresa | `email.campaign` con destino administradores | Información del servicio contratado, no promoción |
+| Resumen diario, tareas, cobranza | `email.daily_digest`, `email.task_reminder`, `email.collection_overdue` | Internos o contractuales |
+| Clave temporal, recuperar acceso | `email.access_*` | Son de la plataforma: sin ellos nadie entra |
+
+**Las encuestas son el caso que más se discute**, y por eso están en negrita. Una encuesta no
+vende nada: pregunta por algo que ya pasó. Y la misma plantilla sirve para las encuestas al
+equipo, donde un enlace de baja dejaría que un trabajador se quitara de las comunicaciones de su
+propio trabajo.
 
 Poner el enlace donde no corresponde no es «ir sobre seguro»: crea la expectativa de poder darse de
 baja de algo que es parte del servicio o del trabajo.
@@ -175,6 +194,38 @@ además:
 | **Que la baja funcione** | Si el botón falla al usarlo, dejan de confiar en la cabecera |
 
 Puede tardar días o semanas en aparecer y no significa que esté mal puesto.
+
+### Cómo está hoy el dominio, y qué falta
+
+Las tres firmas que miran Gmail y Yahoo, consultadas en el DNS de `espartanos.cl`:
+
+| Firma | Qué dice hoy | Estado |
+|---|---|---|
+| **SPF** | `v=spf1 ip4:190.3.170.42 a include:_spf.ihosting.cl mx -all` | **Bien.** Termina en `-all`, que es la forma estricta: lo que no esté en la lista se rechaza |
+| **DKIM** | Selector `default`, clave RSA publicada | **Bien** |
+| **DMARC** | `v=DMARC1; p=none;` | **Insuficiente.** Sólo observa, y sin `rua=` nadie recibe los informes |
+
+`p=none` cumple el mínimo que exige Gmail —que exista un DMARC—, pero no protege: cualquiera
+puede mandar correo diciendo ser tu dominio y nada lo detiene.
+
+**Cómo arreglarlo, en dos pasos y no de golpe.** Es un registro TXT en `_dmarc.espartanos.cl`, en
+el panel DNS del proveedor.
+
+Primero, sin cambiar la política, para empezar a ver quién manda en tu nombre:
+
+```
+v=DMARC1; p=none; rua=mailto:dmarc@espartanos.cl; fo=1
+```
+
+Dos o tres semanas después, con los informes limpios:
+
+```
+v=DMARC1; p=quarantine; pct=100; rua=mailto:dmarc@espartanos.cl; fo=1; adkim=r; aspf=r
+```
+
+Saltarse el primer paso es lo que rompe el correo: si algo legítimo —una herramienta de
+facturación, un boletín— está mandando sin firmar, con `quarantine` empieza a caer en spam el
+mismo día, y te enteras por los reclamos.
 
 ---
 
@@ -241,6 +292,14 @@ No se revierte solo, ni siquiera sabiendo que fue un error: la ley no lo admite.
 darlo expresamente. Por eso el enlace pregunta antes.
 
 **¿Cuánto se guarda la huella?**
-Indefinidamente mientras exista la lista. El fundamento está en
-[docs/PENDIENTES-PROTECCION-DE-DATOS.md](../PENDIENTES-PROTECCION-DE-DATOS.md), y **falta que un
-abogado lo firme**.
+Indefinidamente mientras exista la lista, y no es comodidad: el artículo 28 B dice que tras la
+petición los envíos «quedarán desde entonces prohibidos», sin caducidad. Borrarla es volver a
+escribirle. Se concilia con el derecho de supresión porque lo guardado es un código irreversible y
+no la dirección: el mínimo necesario para cumplir un deber legal.
+
+**¿Y el resto de los registros?**
+Cinco años desde la baja o desde la respuesta. Sale de tres plazos que se superponen y manda el más
+largo: la prescripción infraccional de la Ley 19.496 es de **seis meses** pero **se suspende**
+mientras dure un procedimiento ante el SERNAC; tras responder una solicitud de derechos el titular
+tiene **30 días hábiles** para reclamar ante la Agencia; y la prescripción civil ordinaria es de
+**cinco años**.

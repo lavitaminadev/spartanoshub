@@ -26,10 +26,31 @@ legal. **Lo que se incumple no es «no responder»: es «no responder a tiempo»
 
 ## 2 · La bandeja
 
+**Administración → Seguridad y privacidad**, al final de la página.
+
 ![Los plazos en la bandeja](img/08-solicitudes-plazos.jpg)
 
-Se ordena **por vencimiento, no por fecha de entrada**: lo que hay que mirar primero es lo que está
-por vencer, no lo último que llegó.
+### Cómo está ordenada
+
+**Por vencimiento, no por fecha de entrada.** Lo que hay que mirar primero es lo que está por
+vencer, no lo último que llegó. Una solicitud de hace tres semanas aprieta más que la de ayer.
+
+### Los filtros
+
+Arriba, los contadores por estado funcionan como filtro: tocar **Recibida** deja sólo ésas. El
+primero, **Todas**, los quita.
+
+| Filtro | Cuántas hay |
+|---|---|
+| Todas | El total |
+| Recibida | Entró y nadie la tomó |
+| En revisión | Alguien está trabajando en ella |
+| Requiere más info | Se le pidió algo al solicitante. **El plazo sigue corriendo** |
+| Resuelta | Cerrada con su nota |
+| Rechazada | Cerrada rechazada, con el motivo a la vista del solicitante |
+
+No hay búsqueda por nombre ni filtro por tipo: la bandeja es corta por naturaleza, y el orden por
+vencimiento ya pone delante lo que importa.
 
 ### Los cuatro estados del plazo
 
@@ -211,9 +232,12 @@ alguien la escribió en el sistema: conviene anotarla el mismo día.
 Prorroga hoy. Mañana ya no podrás.
 
 **¿Cuánto hay que guardar la constancia de haber respondido?**
-La recomendación del sistema es **cinco años**, fundamentada en
-[docs/PENDIENTES-PROTECCION-DE-DATOS.md](../PENDIENTES-PROTECCION-DE-DATOS.md). **Falta que un
-abogado lo firme** y que el plazo se escriba en la política de privacidad.
+**Cinco años.** Salen de tres plazos que se superponen y manda el más largo: la prescripción
+infraccional de la Ley 19.496 es de seis meses pero **se suspende** mientras dure un procedimiento
+ante el SERNAC, así que seis meses es el piso y no el techo; tras responder, el titular tiene
+**30 días hábiles** para reclamar ante la Agencia; y la prescripción civil ordinaria es de **cinco
+años**. Ese plazo tiene que estar escrito también en la política de privacidad: el publicado y el
+real no pueden decir cosas distintas.
 
 **¿Quién recibe los avisos?**
 La dirección de la organización. Si no hay nadie con ese cargo, no sale ningún aviso: el plazo se
